@@ -10,17 +10,22 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       const supabase = createClient()
+
+      // Handle the auth callback
       const { data, error } = await supabase.auth.getSession()
+      console.log('Callback: session data', data, 'error', error)
 
       if (error) {
         console.error('Auth callback error:', error)
-        router.push('/auth/register?error=auth_failed')
+        router.push('/auth/login?error=auth_callback_error')
         return
       }
 
       if (data.session) {
+        console.log('Callback: has session, redirecting to map')
         router.push('/map')
       } else {
+        console.log('Callback: no session, redirecting to login')
         router.push('/auth/login?error=no_session')
       }
     }

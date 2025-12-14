@@ -11,12 +11,14 @@ export default function Header() {
     const supabase = createClient()
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
+      console.log('Header: got user', user)
       setUser(user)
     }
     getUser()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        console.log('Header: auth state change', _event, session?.user)
         setUser(session?.user ?? null)
       }
     )
