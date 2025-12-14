@@ -114,18 +114,17 @@ export default function SatelliteClimbingMap() {
         ))}
       </MapContainer>
       {selectedClimb && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 z-20 relative">
-           <img
-             src={selectedClimb.image_url}
-             alt={selectedClimb.name}
-             className="absolute inset-0 w-full h-full object-cover"
-             crossOrigin="anonymous"
-             onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
-             onError={() => {
-               console.log('Image failed to load:', selectedClimb.image_url);
-               setImageError(true);
-             }}
-           />
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 relative">
+            <img
+              src={selectedClimb.image_url}
+              alt={selectedClimb.name}
+              className="absolute inset-0 w-full h-full"
+              onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
+              onError={() => {
+                console.log('Image failed to load:', selectedClimb.image_url);
+                setImageError(true);
+              }}
+            />
            <div className="absolute bottom-0 left-0 right-0 bg-white p-4">
              <h3 className="text-lg font-semibold">{selectedClimb.name}</h3>
              <p className="text-gray-600">Grade: {selectedClimb.grade}</p>
