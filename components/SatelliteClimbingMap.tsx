@@ -113,12 +113,17 @@ export default function SatelliteClimbingMap() {
           />
         ))}
       </MapContainer>
-      {selectedClimb && (
+       {selectedClimb && (
+        <>
+          {console.log('Rendering overlay for:', selectedClimb.name)}
+        </>
+       )}
+       {selectedClimb && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 relative">
             <img
               src={selectedClimb.image_url}
               alt={selectedClimb.name}
-              className="absolute inset-0 w-full h-full"
+              className="absolute inset-0 w-full h-full object-cover"
               onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
               onError={() => {
                 console.log('Image failed to load:', selectedClimb.image_url);
