@@ -19,16 +19,9 @@ export default function AuthCallbackPage() {
       }
 
       if (data.session) {
-        // Check if user has completed registration (has password set)
-        const { data: user } = await supabase.auth.getUser()
-        if (user.user?.email_confirmed_at) {
-          // Email confirmed, redirect to complete registration
-          router.push('/auth/register?step=complete')
-        } else {
-          router.push('/auth/register')
-        }
+        router.push('/map')
       } else {
-        router.push('/auth/register')
+        router.push('/auth/login?error=no_session')
       }
     }
 
@@ -39,7 +32,7 @@ export default function AuthCallbackPage() {
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-4 text-gray-600">Verifying your email...</p>
+        <p className="mt-4 text-gray-600">Signing you in...</p>
       </div>
     </div>
   )
