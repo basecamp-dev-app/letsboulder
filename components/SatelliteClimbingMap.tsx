@@ -34,6 +34,7 @@ export default function SatelliteClimbingMap() {
   const [loading, setLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
   const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
+  const [imageError, setImageError] = useState(false)
 
   useEffect(() => {
     setIsClient(true)
@@ -102,29 +103,39 @@ export default function SatelliteClimbingMap() {
           <Marker
             key={climb.id}
             position={[climb.crags.latitude, climb.crags.longitude]}
-            eventHandlers={{
-              click: () => {
-                console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
-                setSelectedClimb(climb);
-              },
-            }}
+             eventHandlers={{
+               click: () => {
+                 console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
+                 setSelectedClimb(climb);
+                 setImageError(false);
+               },
+             }}
           />
         ))}
       </MapContainer>
       {selectedClimb && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-20 relative">
-          <img
-            src={selectedClimb.image_url}
-            alt={selectedClimb.name}
-            className="absolute inset-0 w-full h-full object-cover"
-            crossOrigin="anonymous"
-            onError={() => console.log('Image failed to load:', selectedClimb.image_url)}
-          />
-          <div className="absolute bottom-0 left-0 right-0 bg-white p-4">
-            <h3 className="text-lg font-semibold">{selectedClimb.name}</h3>
-            <p className="text-gray-600">Grade: {selectedClimb.grade}</p>
-          </div>
-          <button onClick={() => setSelectedClimb(null)} className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2">X</button>
+           <img
+             src={selectedClimb.image_url}
+             alt={selectedClimb.name}
+             className="absolute inset-0 w-full h-full object-cover"
+             crossOrigin="anonymous"
+             onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
+             onError={() => {
+               console.log('Image failed to load:', selectedClimb.image_url);
+               setImageError(true);
+             }}
+           />
+           <div className="absolute bottom-0 left-0 right-0 bg-white p-4">
+             <h3 className="text-lg font-semibold">{selectedClimb.name}</h3>
+             <p className="text-gray-600">Grade: {selectedClimb.grade}</p>
+             {imageError && (
+               <p className="text-red-500 text-sm mt-2">
+                 Image failed to load. URL: {selectedClimb.image_url}
+               </p>
+             )}
+           </div>
+           <button onClick={() => setSelectedClimb(null)} className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-30">X</button>
         </div>
       )}
     </div>
