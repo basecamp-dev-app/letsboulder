@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 
 interface RoutePoint {
   x: number
@@ -18,8 +19,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const [routes, setRoutes] = useState<RoutePoint[][]>([])
-  const [currentRoute, setCurrentRoute] = useState<RoutePoint[]>([])
-  const [isDrawing, setIsDrawing] = useState(false)
+  const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>([])
   const [imageLoaded, setImageLoaded] = useState(false)
 
   useEffect(() => {
@@ -31,8 +31,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     if (!ctx) return
 
     const handleImageLoad = () => {
-      canvas.width = image.width
-      canvas.height = image.height
+      canvas.width = image.naturalWidth
+      canvas.height = image.naturalHeight
       setImageLoaded(true)
       redraw()
     }
@@ -46,49 +46,69 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     return () => image.removeEventListener('load', handleImageLoad)
   }, [imageUrl])
 
-  const redraw = () => {
+  const redraw = useCallback(() => {
     const canvas = canvasRef.current
-    const image = imageRef.current
-    if (!canvas || !image) return
+    if (!canvas) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.drawImage(image, 0, 0)
 
-    // Draw completed routes
+    // Draw completed routes with curves
     routes.forEach(route => {
       if (route.length > 1) {
-        ctx.strokeStyle = 'red'
-        ctx.lineWidth = 3
-        ctx.beginPath()
-        ctx.moveTo(route[0].x, route[0].y)
-        for (let i = 1; i < route.length; i++) {
-          ctx.lineTo(route[i].x, route[i].y)
-        }
-        ctx.stroke()
+        drawCurve(ctx, route, 'red', 3)
       }
     })
 
-    // Draw current route
-    if (currentRoute.length > 1) {
-      ctx.strokeStyle = 'blue'
-      ctx.lineWidth = 2
-      ctx.setLineDash([5, 5])
-      ctx.beginPath()
-      ctx.moveTo(currentRoute[0].x, currentRoute[0].y)
-      for (let i = 1; i < currentRoute.length; i++) {
-        ctx.lineTo(currentRoute[i].x, currentRoute[i].y)
+    // Draw current points
+    if (currentPoints.length > 0) {
+      // Draw points
+      ctx.fillStyle = 'blue'
+      currentPoints.forEach(point => {
+        ctx.beginPath()
+        ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI)
+        ctx.fill()
+      })
+
+      // Draw connecting curve
+      if (currentPoints.length > 1) {
+        drawCurve(ctx, currentPoints, 'blue', 2, [5, 5])
       }
-      ctx.stroke()
-      ctx.setLineDash([])
     }
+  }, [routes, currentPoints])
+
+  const drawCurve = (ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, dash?: number[]) => {
+    if (points.length < 2) return
+
+    ctx.strokeStyle = color
+    ctx.lineWidth = width
+    if (dash) ctx.setLineDash(dash)
+    else ctx.setLineDash([])
+
+    ctx.beginPath()
+    ctx.moveTo(points[0].x, points[0].y)
+
+    for (let i = 1; i < points.length; i++) {
+      if (i < points.length - 1) {
+        // Use quadratic curve for smooth connections
+        const nextPoint = points[i + 1]
+        const controlX = (points[i].x + nextPoint.x) / 2
+        const controlY = (points[i].y + nextPoint.y) / 2
+        ctx.quadraticCurveTo(points[i].x, points[i].y, controlX, controlY)
+      } else {
+        ctx.lineTo(points[i].x, points[i].y)
+      }
+    }
+
+    ctx.stroke()
+    ctx.setLineDash([])
   }
 
   useEffect(() => {
     if (imageLoaded) redraw()
-  }, [routes, currentRoute, imageLoaded])
+  }, [routes, currentPoints, imageLoaded, redraw])
 
   const getMousePos = (e: React.MouseEvent) => {
     const canvas = canvasRef.current
@@ -101,36 +121,23 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     }
   }
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDrawing(true)
+  const handleCanvasClick = (e: React.MouseEvent) => {
     const pos = getMousePos(e)
-    setCurrentRoute([pos])
-  }
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDrawing) return
-    const pos = getMousePos(e)
-    setCurrentRoute(prev => [...prev, pos])
-  }
-
-  const handleMouseUp = () => {
-    if (isDrawing && currentRoute.length > 1) {
-      setRoutes(prev => [...prev, currentRoute])
-    }
-    setCurrentRoute([])
-    setIsDrawing(false)
+    setCurrentPoints(prev => [...prev, pos])
   }
 
   const handleFinishRoute = () => {
-    if (currentRoute.length > 1) {
-      setRoutes(prev => [...prev, currentRoute])
-      setCurrentRoute([])
+    if (currentPoints.length > 1) {
+      setRoutes(prev => [...prev, [...currentPoints]])
+      setCurrentPoints([])
     }
   }
 
   const handleUndo = () => {
     if (routes.length > 0) {
       setRoutes(prev => prev.slice(0, -1))
+    } else if (currentPoints.length > 0) {
+      setCurrentPoints(prev => prev.slice(0, -1))
     }
   }
 
@@ -147,32 +154,49 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     window.location.href = `/name-routes?sessionId=${sessionId}`
   }
 
+  const handleClearCurrent = () => {
+    setCurrentPoints([])
+  }
+
   return (
     <div className="flex flex-col items-center">
-      <div className="relative mb-4">
-        <img ref={imageRef} src={imageUrl} alt="Climbing route" className="max-w-full h-auto" />
-        <canvas
-          ref={canvasRef}
-          className="absolute top-0 left-0 cursor-crosshair"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        />
+      <div className="relative mb-4 border border-gray-300">
+        <TransformWrapper
+          initialScale={1}
+          minScale={0.5}
+          maxScale={3}
+          centerOnInit={true}
+        >
+          <TransformComponent>
+            <img ref={imageRef} src={imageUrl} alt="Climbing route" className="max-w-none" />
+            <canvas
+              ref={canvasRef}
+              className="absolute top-0 left-0 cursor-crosshair"
+              onClick={handleCanvasClick}
+              style={{ pointerEvents: 'auto' }}
+            />
+          </TransformComponent>
+        </TransformWrapper>
       </div>
       <div className="flex gap-4 mb-4">
-        <button onClick={handleFinishRoute} className="bg-green-500 text-white px-4 py-2 rounded">
+        <button onClick={handleFinishRoute} className="bg-green-500 text-white px-4 py-2 rounded" disabled={currentPoints.length < 2}>
           Finish Route
         </button>
         <button onClick={handleUndo} className="bg-yellow-500 text-white px-4 py-2 rounded">
-          Undo Last Route
+          Undo Last
+        </button>
+        <button onClick={handleClearCurrent} className="bg-red-500 text-white px-4 py-2 rounded">
+          Clear Current
         </button>
       </div>
       <button onClick={handleSave} className="bg-blue-500 text-white px-6 py-3 rounded">
         Save & Continue to Naming
       </button>
       <p className="mt-2 text-sm text-gray-600">
-        Routes drawn: {routes.length} | Current points: {currentRoute.length}
+        Routes drawn: {routes.length} | Current points: {currentPoints.length}
+      </p>
+      <p className="mt-1 text-xs text-gray-500">
+        Click on the image to add route points. Zoom and pan to navigate the full image.
       </p>
     </div>
   )
