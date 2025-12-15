@@ -121,10 +121,17 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     }
   }
 
-  const handleCanvasClick = (e: React.MouseEvent) => {
-    const pos = getMousePos(e)
-    setCurrentPoints(prev => [...prev, pos])
-  }
+  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const rect = canvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    // For now, use raw coordinates - will adjust for zoom later
+    setCurrentPoints(prev => [...prev, { x, y }])
+  }, [])
 
   const handleFinishRoute = () => {
     if (currentPoints.length > 1) {
@@ -162,13 +169,19 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     <div className="flex flex-col items-center">
       <div className="relative mb-4 border border-gray-300">
         <TransformWrapper
-          initialScale={1}
-          minScale={0.5}
-          maxScale={3}
+          initialScale={0.5}
+          minScale={0.1}
+          maxScale={5}
           centerOnInit={true}
+          limitToBounds={false}
         >
           <TransformComponent>
-            <img ref={imageRef} src={imageUrl} alt="Climbing route" className="max-w-none" />
+            <img
+              ref={imageRef}
+              src={imageUrl}
+              alt="Climbing route"
+              style={{ maxWidth: 'none', width: 'auto', height: 'auto' }}
+            />
             <canvas
               ref={canvasRef}
               className="absolute top-0 left-0 cursor-crosshair"
