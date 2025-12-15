@@ -1,13 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
+
+interface RoutePoint {
+  x: number
+  y: number
+}
+
+interface RouteWithLabels {
+  points: RoutePoint[]
+  grade: string
+  name: string
+}
 
 interface RouteData {
   imageUrl: string
   latitude: number
   longitude: number
-  routes: { x: number; y: number }[][]
+  routes: RouteWithLabels[]
   sessionId: string
 }
 
@@ -21,15 +32,108 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
   const [routeData, setRouteData] = useState<RouteData | null>(null)
   const [forms, setForms] = useState<RouteForm[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
     const data = localStorage.getItem('routeSession')
     if (data) {
       const parsed = JSON.parse(data) as RouteData
       setRouteData(parsed)
-      setForms(parsed.routes.map(() => ({ name: '', grade: 'V0', description: '' })))
+      setForms(parsed.routes.map(route => ({
+        name: route.name || '',
+        grade: route.grade || 'V0',
+        description: ''
+      })))
     }
   }, [sessionId])
+
+  const drawRoutesOnCanvas = useCallback(() => {
+    if (!routeData || !canvasRef.current || !imageRef.current) return
+
+    const canvas = canvasRef.current
+    const image = imageRef.current
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Set canvas size to match image
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+
+    // Draw routes with labels
+    routeData.routes.forEach(route => {
+      drawRouteWithLabels(ctx, route)
+    })
+  }, [routeData])
+
+  const drawRouteWithLabels = (ctx: CanvasRenderingContext2D, route: RouteWithLabels) => {
+    const { points, grade, name } = route
+
+    // Draw dotted route line
+    drawCurve(ctx, points, 'red', 3, [8, 4])
+
+    if (points.length > 1) {
+      // Calculate midpoint for grade
+      const midIndex = Math.floor(points.length / 2)
+      const gradePoint = points[midIndex]
+
+      // Draw grade label
+      ctx.fillStyle = 'white'
+      ctx.strokeStyle = 'black'
+      ctx.lineWidth = 2
+      ctx.font = 'bold 14px Arial'
+      ctx.textAlign = 'center'
+      ctx.strokeText(grade, gradePoint.x, gradePoint.y - 5)
+      ctx.fillText(grade, gradePoint.x, gradePoint.y - 5)
+
+      // Calculate end point for name (slightly offset)
+      const lastPoint = points[points.length - 1]
+      const nameX = lastPoint.x + 20
+      const nameY = lastPoint.y + 15
+
+      // Draw name label
+      ctx.fillStyle = 'white'
+      ctx.strokeStyle = 'black'
+      ctx.lineWidth = 2
+      ctx.font = '12px Arial'
+      ctx.textAlign = 'left'
+      ctx.strokeText(name, nameX, nameY)
+      ctx.fillText(name, nameX, nameY)
+    }
+  }
+
+  const drawCurve = (ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, dash?: number[]) => {
+    if (points.length < 2) return
+
+    ctx.strokeStyle = color
+    ctx.lineWidth = width
+    if (dash) ctx.setLineDash(dash)
+    else ctx.setLineDash([])
+
+    ctx.beginPath()
+    ctx.moveTo(points[0].x, points[0].y)
+
+    for (let i = 1; i < points.length; i++) {
+      if (i < points.length - 1) {
+        // Use quadratic curve for smooth connections
+        const nextPoint = points[i + 1]
+        const controlX = (points[i].x + nextPoint.x) / 2
+        const controlY = (points[i].y + nextPoint.y) / 2
+        ctx.quadraticCurveTo(points[i].x, points[i].y, controlX, controlY)
+      } else {
+        ctx.lineTo(points[i].x, points[i].y)
+      }
+    }
+
+    ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  useEffect(() => {
+    if (routeData && imageRef.current?.complete) {
+      drawRoutesOnCanvas()
+    }
+  }, [routeData, drawRoutesOnCanvas])
 
   const handleFormChange = (index: number, field: keyof RouteForm, value: string) => {
     setForms(prev => prev.map((form, i) => i === index ? { ...form, [field]: value } : form))
@@ -105,8 +209,19 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="mb-6">
-        <img src={routeData.imageUrl} alt="Routes" className="w-full h-auto rounded" />
+      <div className="mb-6 relative">
+        <img
+          ref={imageRef}
+          src={routeData.imageUrl}
+          alt="Routes"
+          className="w-full h-auto rounded"
+          onLoad={drawRoutesOnCanvas}
+        />
+        <canvas
+          ref={canvasRef}
+          className="absolute top-0 left-0 w-full h-auto pointer-events-none"
+          style={{ maxWidth: '100%', height: 'auto' }}
+        />
       </div>
       {forms.map((form, index) => (
         <div key={index} className="mb-6 p-4 border rounded">
