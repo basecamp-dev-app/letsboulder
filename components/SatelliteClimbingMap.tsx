@@ -21,6 +21,7 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 
+
 interface Climb {
   id: string
   name: string
@@ -36,37 +37,78 @@ export default function SatelliteClimbingMap() {
   const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
   const [imageError, setImageError] = useState(false)
 
+
   useEffect(() => {
     setIsClient(true)
+  }, [])
+
+  // Cache key for localStorage
+  const CACHE_KEY = 'gsyrocks_climbs_cache'
+  const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
+
+  // Load climbs from cache or API
+  const loadClimbs = useCallback(async (bounds?: L.LatLngBounds) => {
+    // Check cache first
+    const cached = localStorage.getItem(CACHE_KEY)
+    if (cached) {
+      const { data, timestamp } = JSON.parse(cached)
+      if (Date.now() - timestamp < CACHE_DURATION) {
+        console.log('Loading climbs from cache')
+        setClimbs(data)
+        setLoading(false)
+        return
+      }
+    }
+
+    try {
+      const supabase = createClient()
+      let query = supabase
+        .from('climbs')
+        .select(`
+          id, name, grade, image_url,
+          crags (name, latitude, longitude)
+        `)
+        .eq('status', 'approved')
+
+      // If bounds provided, filter by viewport (commented out for now)
+      // if (bounds) {
+      //   const north = bounds.getNorth()
+      //   const south = bounds.getSouth()
+      //   const east = bounds.getEast()
+      //   const west = bounds.getWest()
+      //   query = query
+      //     .gte('crags.latitude', south)
+      //     .lte('crags.latitude', north)
+      //     .gte('crags.longitude', west)
+      //     .lte('crags.longitude', east)
+      // }
+
+      const { data, error } = await query
+
+      if (error) {
+        console.error('Error fetching climbs:', error)
+      } else {
+        const climbsData = (data || []) as unknown as Climb[]
+        setClimbs(climbsData)
+
+        // Cache the data
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          data: climbsData,
+          timestamp: Date.now()
+        }))
+      }
+    } catch (err) {
+      console.error('Network error fetching climbs:', err)
+    }
+    setLoading(false)
   }, [])
 
   useEffect(() => {
     if (!isClient) return
 
-     const fetchClimbs = async () => {
-        try {
-          const supabase = createClient()
-          const { data, error } = await supabase
-            .from('climbs')
-            .select(`
-              id, name, grade, image_url,
-              crags (name, latitude, longitude)
-            `)
-            .eq('status', 'approved')
-
-          if (error) {
-            console.error('Error fetching climbs:', error)
-          } else {
-            setClimbs((data || []) as unknown as Climb[])
-          }
-       } catch (err) {
-         console.error('Network error fetching climbs:', err)
-       }
-       setLoading(false)
-     }
-
-     fetchClimbs()
-   }, [isClient])
+    // Initial load without bounds (load all for now, optimize later)
+    loadClimbs()
+  }, [isClient, loadClimbs])
 
    useEffect(() => {
      if (selectedClimb) {
@@ -77,6 +119,8 @@ export default function SatelliteClimbingMap() {
   if (!isClient || loading) {
     return <div className="h-screen w-full flex items-center justify-center">Loading satellite map...</div>
   }
+
+
 
   // World center coordinates
   const worldCenter: [number, number] = [20, 0]
@@ -98,18 +142,17 @@ export default function SatelliteClimbingMap() {
           minZoom={1}
         />
 
-
         {climbs.map(climb => (
           <Marker
             key={climb.id}
             position={[climb.crags.latitude, climb.crags.longitude]}
-             eventHandlers={{
-               click: () => {
-                 console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
-                 setSelectedClimb(climb);
-                 setImageError(false);
-               },
-             }}
+            eventHandlers={{
+              click: () => {
+                console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
+                setSelectedClimb(climb);
+                setImageError(false);
+              },
+            }}
           />
         ))}
       </MapContainer>
