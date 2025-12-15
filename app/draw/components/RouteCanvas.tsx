@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
+import { TransformWrapper, TransformComponent, useTransformEffect } from 'react-zoom-pan-pinch'
 
 interface RoutePoint {
   x: number
@@ -21,6 +21,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   const [routes, setRoutes] = useState<RoutePoint[][]>([])
   const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>([])
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [transformState, setTransformState] = useState({ scale: 1, positionX: 0, positionY: 0 })
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -126,12 +127,15 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    let x = e.clientX - rect.left
+    let y = e.clientY - rect.top
 
-    // For now, use raw coordinates - will adjust for zoom later
+    // Adjust for zoom and pan
+    x = (x - transformState.positionX) / transformState.scale
+    y = (y - transformState.positionY) / transformState.scale
+
     setCurrentPoints(prev => [...prev, { x, y }])
-  }, [])
+  }, [transformState])
 
   const handleFinishRoute = () => {
     if (currentPoints.length > 1) {
@@ -174,6 +178,13 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
           maxScale={5}
           centerOnInit={true}
           limitToBounds={false}
+          onTransformed={(ref, state) => {
+            setTransformState({
+              scale: state.scale,
+              positionX: state.positionX,
+              positionY: state.positionY
+            })
+          }}
         >
           <TransformComponent>
             <img
