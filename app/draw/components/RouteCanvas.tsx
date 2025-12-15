@@ -14,12 +14,35 @@ interface RouteCanvasProps {
   sessionId: string
 }
 
+interface Climb {
+  id: string
+  name: string
+  grade: string
+  image_url?: string
+  description?: string
+  crags: { name: string; latitude: number; longitude: number }
+  _fullLoaded?: boolean
+}
+
+interface RouteWithLabels {
+  points: RoutePoint[]
+  grade: string
+  name: string
+}
+
 export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }: RouteCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
-  const [routes, setRoutes] = useState<RoutePoint[][]>([])
+  const [climbs, setClimbs] = useState<Climb[]>([])
+  const [loading, setLoading] = useState(true)
+  const [isClient, setIsClient] = useState(false)
+  const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
+  const [imageError, setImageError] = useState(false)
   const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>([])
+  const [currentGrade, setCurrentGrade] = useState('V0')
+  const [currentName, setCurrentName] = useState('')
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [routes, setRoutes] = useState<RouteWithLabels[]>([])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -54,11 +77,9 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // Draw completed routes with curves
+    // Draw completed routes with labels
     routes.forEach(route => {
-      if (route.length > 1) {
-        drawCurve(ctx, route, 'red', 3)
-      }
+      drawRouteWithLabels(ctx, route)
     })
 
     // Draw current points
@@ -71,12 +92,22 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
         ctx.fill()
       })
 
-      // Draw connecting curve
+      // Draw connecting dotted curve
       if (currentPoints.length > 1) {
         drawCurve(ctx, currentPoints, 'blue', 2, [5, 5])
       }
+
+      // Preview labels for current route
+      if (currentPoints.length > 1 && currentGrade && currentName) {
+        const previewRoute: RouteWithLabels = {
+          points: currentPoints,
+          grade: currentGrade,
+          name: currentName
+        }
+        drawRouteWithLabels(ctx, previewRoute)
+      }
     }
-  }, [routes, currentPoints])
+  }, [routes, currentPoints, currentGrade, currentName])
 
   const drawCurve = (ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, dash?: number[]) => {
     if (points.length < 2) return
@@ -103,6 +134,42 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
 
     ctx.stroke()
     ctx.setLineDash([])
+  }
+
+  const drawRouteWithLabels = (ctx: CanvasRenderingContext2D, route: RouteWithLabels) => {
+    const { points, grade, name } = route
+
+    // Draw dotted route line
+    drawCurve(ctx, points, 'red', 3, [8, 4])
+
+    if (points.length > 1) {
+      // Calculate midpoint for grade
+      const midIndex = Math.floor(points.length / 2)
+      const gradePoint = points[midIndex]
+
+      // Draw grade label
+      ctx.fillStyle = 'white'
+      ctx.strokeStyle = 'black'
+      ctx.lineWidth = 2
+      ctx.font = 'bold 14px Arial'
+      ctx.textAlign = 'center'
+      ctx.strokeText(grade, gradePoint.x, gradePoint.y - 5)
+      ctx.fillText(grade, gradePoint.x, gradePoint.y - 5)
+
+      // Calculate end point for name (slightly offset)
+      const lastPoint = points[points.length - 1]
+      const nameX = lastPoint.x + 20
+      const nameY = lastPoint.y + 15
+
+      // Draw name label
+      ctx.fillStyle = 'white'
+      ctx.strokeStyle = 'black'
+      ctx.lineWidth = 2
+      ctx.font = '12px Arial'
+      ctx.textAlign = 'left'
+      ctx.strokeText(name, nameX, nameY)
+      ctx.fillText(name, nameX, nameY)
+    }
   }
 
   useEffect(() => {
@@ -132,9 +199,15 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   }, [])
 
   const handleFinishRoute = () => {
-    if (currentPoints.length > 1) {
-      setRoutes(prev => [...prev, [...currentPoints]])
+    if (currentPoints.length > 1 && currentName.trim()) {
+      const newRoute: RouteWithLabels = {
+        points: [...currentPoints],
+        grade: currentGrade,
+        name: currentName.trim()
+      }
+      setRoutes(prev => [...prev, newRoute])
       setCurrentPoints([])
+      setCurrentName('')
     }
   }
 
@@ -161,6 +234,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
 
   const handleClearCurrent = () => {
     setCurrentPoints([])
+    setCurrentName('')
   }
 
   return (
@@ -179,16 +253,36 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
           style={{ pointerEvents: 'auto' }}
         />
       </div>
-      <div className="flex gap-4 mb-4">
-        <button onClick={handleFinishRoute} className="bg-green-500 text-white px-4 py-2 rounded" disabled={currentPoints.length < 2}>
-          Finish Route
-        </button>
-        <button onClick={handleUndo} className="bg-yellow-500 text-white px-4 py-2 rounded">
-          Undo Last
-        </button>
-        <button onClick={handleClearCurrent} className="bg-red-500 text-white px-4 py-2 rounded">
-          Clear Current
-        </button>
+      <div className="flex flex-col gap-4 mb-4 w-full max-w-md">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Route name"
+            value={currentName}
+            onChange={(e) => setCurrentName(e.target.value)}
+            className="flex-1 px-3 py-2 border rounded"
+          />
+          <select
+            value={currentGrade}
+            onChange={(e) => setCurrentGrade(e.target.value)}
+            className="px-3 py-2 border rounded"
+          >
+            {Array.from({ length: 18 }, (_, i) => `V${i}`).map(grade => (
+              <option key={grade} value={grade}>{grade}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex gap-4">
+          <button onClick={handleFinishRoute} className="bg-green-500 text-white px-4 py-2 rounded" disabled={currentPoints.length < 2 || !currentName.trim()}>
+            Finish Route
+          </button>
+          <button onClick={handleUndo} className="bg-yellow-500 text-white px-4 py-2 rounded">
+            Undo Last
+          </button>
+          <button onClick={handleClearCurrent} className="bg-red-500 text-white px-4 py-2 rounded">
+            Clear Current
+          </button>
+        </div>
       </div>
       <button onClick={handleSave} className="bg-blue-500 text-white px-6 py-3 rounded">
         Save & Continue to Naming
@@ -197,7 +291,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
         Routes drawn: {routes.length} | Current points: {currentPoints.length}
       </p>
       <p className="mt-1 text-xs text-gray-500">
-        Click on the image to add route points. Scroll to view the full image.
+        Enter route name and grade, then click on the image to add points. Scroll to view the full image.
       </p>
     </div>
   )
