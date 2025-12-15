@@ -256,6 +256,11 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   }
 
   const handleSave = () => {
+    console.log('Save button clicked - routes to save:', routes.length)
+    if (routes.length === 0) {
+      alert('Please finish at least one route before saving')
+      return
+    }
     // Save routes to localStorage for now, redirect to naming
     const routeData = {
       imageUrl,
@@ -265,6 +270,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
       sessionId
     }
     localStorage.setItem('routeSession', JSON.stringify(routeData))
+    console.log('Routes saved, redirecting to name-routes')
     window.location.href = `/name-routes?sessionId=${sessionId}`
   }
 
@@ -320,14 +326,14 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
           </button>
         </div>
       </div>
-      <button onClick={handleSave} className="bg-blue-500 text-white px-6 py-3 rounded">
-        Save & Continue to Naming
+      <button onClick={handleSave} className="bg-blue-500 text-white px-6 py-3 rounded" disabled={routes.length === 0}>
+        Save & Continue to Naming ({routes.length} routes)
       </button>
       <p className="mt-2 text-sm text-gray-600">
         Routes drawn: {routes.length} | Current points: {currentPoints.length}
       </p>
       <p className="mt-1 text-xs text-gray-500">
-        Enter route name and grade, then click on the image to add points. Scroll to view the full image.
+        Click on the image to add route points. Press Enter or click "Finish Route" to complete each route. When done, click "Save & Continue to Naming".
       </p>
     </div>
   )
