@@ -236,16 +236,16 @@ export default function SatelliteClimbingMap() {
        {selectedClimb && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-[1000] relative">
            {selectedClimb.image_url ? (
-             <img
-               src={selectedClimb.image_url}
-               alt={selectedClimb.name}
-               className="absolute inset-0 w-full h-full object-contain z-10 border-2 border-white"
-               onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
-               onError={() => {
-                 console.log('Image failed to load:', selectedClimb.image_url);
-                 setImageError(true);
-               }}
-             />
+           <img
+             src={selectedClimb.image_url}
+             alt={selectedClimb.name}
+             className="absolute inset-0 w-full h-full object-contain z-10 border-4 border-red-500"
+             onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
+             onError={() => {
+               console.log('Image failed to load:', selectedClimb.image_url);
+               setImageError(true);
+             }}
+           />
            ) : (
              <div className="absolute inset-0 bg-gray-200 flex items-center justify-center z-10">
                <div className="text-gray-600">
@@ -253,18 +253,11 @@ export default function SatelliteClimbingMap() {
                </div>
              </div>
            )}
-           <div className="absolute bottom-0 left-0 right-0 bg-white p-4">
-             <h3 className="text-lg font-semibold">{selectedClimb.name}</h3>
-             <p className="text-gray-600">Grade: {selectedClimb.grade}</p>
-             {selectedClimb.description && (
-               <p className="text-gray-700 text-sm mt-2">{selectedClimb.description}</p>
-             )}
-             {selectedClimb._fullLoaded === false && (
-               <p className="text-blue-600 text-sm mt-2">Loading details...</p>
-             )}
+           <div className="absolute bottom-0 left-0 right-0 bg-white p-2">
+             <p className="text-black text-sm font-medium">{selectedClimb.name}, {selectedClimb.grade}</p>
              {imageError && selectedClimb.image_url && (
-               <p className="text-red-500 text-sm mt-2">
-                 Image failed to load. URL: {selectedClimb.image_url}
+               <p className="text-red-500 text-xs mt-1">
+                 Image failed to load
                </p>
              )}
            </div>
