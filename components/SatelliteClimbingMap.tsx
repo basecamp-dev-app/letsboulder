@@ -36,6 +36,7 @@ export default function SatelliteClimbingMap() {
   const [isClient, setIsClient] = useState(false)
   const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
   const [imageError, setImageError] = useState(false)
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
 
 
   useEffect(() => {
@@ -47,16 +48,18 @@ export default function SatelliteClimbingMap() {
   const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
 
   // Load climbs from cache or API
-  const loadClimbs = useCallback(async (bounds?: L.LatLngBounds) => {
-    // Check cache first
-    const cached = localStorage.getItem(CACHE_KEY)
-    if (cached) {
-      const { data, timestamp } = JSON.parse(cached)
-      if (Date.now() - timestamp < CACHE_DURATION) {
-        console.log('Loading climbs from cache')
-        setClimbs(data)
-        setLoading(false)
-        return
+  const loadClimbs = useCallback(async (bounds?: L.LatLngBounds, forceRefresh = false) => {
+    // Check cache first (unless force refresh)
+    if (!forceRefresh) {
+      const cached = localStorage.getItem(CACHE_KEY)
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached)
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          console.log('Loading climbs from cache')
+          setClimbs(data)
+          setLoading(false)
+          return
+        }
       }
     }
 
@@ -70,18 +73,23 @@ export default function SatelliteClimbingMap() {
         `)
         .eq('status', 'approved')
 
-      // If bounds provided, filter by viewport (commented out for now)
-      // if (bounds) {
-      //   const north = bounds.getNorth()
-      //   const south = bounds.getSouth()
-      //   const east = bounds.getEast()
-      //   const west = bounds.getWest()
-      //   query = query
-      //     .gte('crags.latitude', south)
-      //     .lte('crags.latitude', north)
-      //     .gte('crags.longitude', west)
-      //     .lte('crags.longitude', east)
-      // }
+      // If bounds provided, filter by viewport (with buffer)
+      if (bounds) {
+        const north = bounds.getNorth()
+        const south = bounds.getSouth()
+        const east = bounds.getEast()
+        const west = bounds.getWest()
+
+        // Add 20% buffer to viewport
+        const latBuffer = (north - south) * 0.2
+        const lngBuffer = (east - west) * 0.2
+
+        query = query
+          .gte('crags.latitude', south - latBuffer)
+          .lte('crags.latitude', north + latBuffer)
+          .gte('crags.longitude', west - lngBuffer)
+          .lte('crags.longitude', east + lngBuffer)
+      }
 
       const { data, error } = await query
 
@@ -89,6 +97,7 @@ export default function SatelliteClimbingMap() {
         console.error('Error fetching climbs:', error)
       } else {
         const climbsData = (data || []) as unknown as Climb[]
+        console.log(`Loaded ${climbsData.length} climbs${bounds ? ' for viewport' : ''}`)
         setClimbs(climbsData)
 
         // Cache the data
@@ -103,11 +112,26 @@ export default function SatelliteClimbingMap() {
     setLoading(false)
   }, [])
 
+  // Debounced map move handler
+  const handleMapMove = useCallback((map: L.Map) => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+
+    const timer = setTimeout(() => {
+      const bounds = map.getBounds()
+      console.log('Map moved, loading climbs for viewport')
+      loadClimbs(bounds)
+      setDebounceTimer(null)
+    }, 500) // 500ms debounce
+
+    setDebounceTimer(timer)
+  }, [debounceTimer, loadClimbs])
+
   useEffect(() => {
     if (!isClient) return
 
-    // Initial load without bounds (load all for now, optimize later)
-    loadClimbs()
+    // Initial load with world bounds
+    const worldBounds = L.latLngBounds(L.latLng(-90, -180), L.latLng(90, 180))
+    loadClimbs(worldBounds)
   }, [isClient, loadClimbs])
 
    useEffect(() => {
