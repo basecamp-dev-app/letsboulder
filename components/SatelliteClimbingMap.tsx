@@ -201,6 +201,45 @@ export default function SatelliteClimbingMap() {
     )
   }, [])
 
+  // Simple clustering function
+  const clusterMarkers = useCallback((markers: Climb[], map: L.Map) => {
+    const clusters: { center: L.LatLng; climbs: Climb[]; count: number }[] = []
+    const clusterDistance = 50 // pixels
+
+    markers.forEach(climb => {
+      const point = map.latLngToContainerPoint([climb.crags.latitude, climb.crags.longitude])
+      let added = false
+
+      for (const cluster of clusters) {
+        const clusterPoint = map.latLngToContainerPoint(cluster.center)
+        const distance = Math.sqrt(
+          Math.pow(point.x - clusterPoint.x, 2) + Math.pow(point.y - clusterPoint.y, 2)
+        )
+
+        if (distance < clusterDistance) {
+          cluster.climbs.push(climb)
+          cluster.count++
+          // Recalculate center
+          const totalLat = cluster.climbs.reduce((sum, c) => sum + c.crags.latitude, 0)
+          const totalLng = cluster.climbs.reduce((sum, c) => sum + c.crags.longitude, 0)
+          cluster.center = L.latLng(totalLat / cluster.count, totalLng / cluster.count)
+          added = true
+          break
+        }
+      }
+
+      if (!added) {
+        clusters.push({
+          center: L.latLng(climb.crags.latitude, climb.crags.longitude),
+          climbs: [climb],
+          count: 1
+        })
+      }
+    })
+
+    return clusters
+  }, [])
+
   // Debounced map move handler
   const handleMapMove = useCallback((map: L.Map) => {
     if (debounceTimer) clearTimeout(debounceTimer)
@@ -263,18 +302,30 @@ export default function SatelliteClimbingMap() {
             key={climb.id}
             position={[climb.crags.latitude, climb.crags.longitude]}
             icon={redIcon}
-            eventHandlers={{
-              click: (e) => {
-                console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
-                e.originalEvent.stopPropagation(); // Prevent map click
-                setSelectedClimb(climb);
-                setImageError(false);
-                // Zoom to the pin location to "expand" the view (simulate cluster expansion) - 2x zoom increase
-                if (mapRef.current) {
-                  mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
-                }
-              },
-            }}
+             eventHandlers={{
+               click: async (e) => {
+                 console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
+                 e.originalEvent.stopPropagation(); // Prevent map click
+
+                 // Load full climb details if not already loaded
+                 let fullClimb = climb;
+                 if (!climb._fullLoaded) {
+                   const details = await loadClimbDetails(climb.id);
+                   if (details) {
+                     fullClimb = { ...climb, ...details, _fullLoaded: true };
+                     // Update the climb in state
+                     setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
+                   }
+                 }
+
+                 setSelectedClimb(fullClimb);
+                 setImageError(false);
+                 // Zoom to the pin location to "expand" the view (simulate cluster expansion) - 2x zoom increase
+                 if (mapRef.current) {
+                   mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
+                 }
+               },
+             }}
           />
         ))}
       </MapContainer>
@@ -291,16 +342,16 @@ export default function SatelliteClimbingMap() {
         {selectedClimb && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-[1000] relative">
            {selectedClimb.image_url ? (
-           <img
-             src={selectedClimb.image_url}
-             alt={selectedClimb.name}
-             className="absolute inset-0 w-full h-full object-contain z-10 border-4 border-red-500"
-             onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
-             onError={() => {
-               console.log('Image failed to load:', selectedClimb.image_url);
-               setImageError(true);
-             }}
-           />
+            <img
+              src={selectedClimb.image_url}
+              alt={selectedClimb.name}
+              className="absolute inset-0 w-full h-full object-contain z-10"
+              onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
+              onError={() => {
+                console.log('Image failed to load:', selectedClimb.image_url);
+                setImageError(true);
+              }}
+            />
            ) : (
              <div className="absolute inset-0 bg-gray-200 flex items-center justify-center z-10">
                <div className="text-gray-600">

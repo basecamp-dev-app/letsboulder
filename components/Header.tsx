@@ -50,7 +50,9 @@ export default function Header() {
               <Link href="/logbook" className="text-gray-600 hover:text-gray-900">
                 My Logbook
               </Link>
-              <span className="text-gray-600">{user.email}</span>
+               <Link href="/profile" className="text-gray-600 hover:text-gray-900">
+                 Profile
+               </Link>
               <button
                 onClick={handleLogout}
                 className="text-gray-600 hover:text-gray-900"

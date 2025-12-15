@@ -20,7 +20,6 @@ export default async function DrawPage({ searchParams }: DrawPageProps) {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Draw Climbing Routes</h1>
-      <p className="mb-6">Click and drag on the image to draw route lines. Multiple routes allowed.</p>
       <RouteCanvas imageUrl={imageUrl} latitude={parseFloat(lat)} longitude={parseFloat(lng)} sessionId={sessionId} />
     </div>
   )

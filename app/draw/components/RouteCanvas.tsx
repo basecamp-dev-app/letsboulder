@@ -193,11 +193,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     const image = imageRef.current
     if (!canvas || !image) return
 
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-
-    // Check if click is within displayed image bounds
+    // Check if click is within displayed image bounds first
     const imageRect = image.getBoundingClientRect()
     const relativeX = e.clientX - imageRect.left
     const relativeY = e.clientY - imageRect.top
@@ -205,6 +201,38 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     if (relativeX < 0 || relativeX > imageRect.width || relativeY < 0 || relativeY > imageRect.height) {
       return // Click outside image, ignore
     }
+
+    // Scale coordinates from display size to natural size
+    const scaleX = image.naturalWidth / imageRect.width
+    const scaleY = image.naturalHeight / imageRect.height
+    const x = relativeX * scaleX
+    const y = relativeY * scaleY
+
+    setCurrentPoints(prev => [...prev, { x, y }])
+  }, [])
+
+  const handleCanvasTouch = useCallback((e: React.TouchEvent) => {
+    e.preventDefault() // Prevent scrolling/zooming
+    const canvas = canvasRef.current
+    const image = imageRef.current
+    if (!canvas || !image) return
+
+    const touch = e.changedTouches[0]
+
+    // Check if touch is within displayed image bounds first
+    const imageRect = image.getBoundingClientRect()
+    const relativeX = touch.clientX - imageRect.left
+    const relativeY = touch.clientY - imageRect.top
+
+    if (relativeX < 0 || relativeX > imageRect.width || relativeY < 0 || relativeY > imageRect.height) {
+      return // Touch outside image, ignore
+    }
+
+    // Scale coordinates from display size to natural size
+    const scaleX = image.naturalWidth / imageRect.width
+    const scaleY = image.naturalHeight / imageRect.height
+    const x = relativeX * scaleX
+    const y = relativeY * scaleY
 
     setCurrentPoints(prev => [...prev, { x, y }])
   }, [])
@@ -320,7 +348,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
           ref={canvasRef}
           className="absolute top-0 left-0 cursor-crosshair"
           onClick={handleCanvasClick}
-          style={{ pointerEvents: 'auto' }}
+          onTouchEnd={handleCanvasTouch}
+          style={{ pointerEvents: 'auto', touchAction: 'none' }}
         />
       </div>
       <div className="flex flex-col gap-4 mb-4 w-full max-w-md">
@@ -332,15 +361,13 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
             onChange={(e) => setCurrentName(e.target.value)}
             className="flex-1 px-3 py-2 border rounded"
           />
-          <select
-            value={currentGrade}
-            onChange={(e) => setCurrentGrade(e.target.value)}
-            className="px-3 py-2 border rounded"
-          >
-            {Array.from({ length: 18 }, (_, i) => `V${i}`).map(grade => (
-              <option key={grade} value={grade}>{grade}</option>
-            ))}
-          </select>
+           <input
+             type="text"
+             placeholder="Grade"
+             value={currentGrade}
+             onChange={(e) => setCurrentGrade(e.target.value)}
+             className="px-3 py-2 border rounded"
+           />
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={handleFinishRoute} className="bg-green-500 text-white px-4 py-2 rounded" disabled={currentPoints.length < 2}>
