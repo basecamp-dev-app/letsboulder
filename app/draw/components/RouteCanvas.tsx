@@ -250,13 +250,15 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
 
 
   const handleUndo = () => {
-    if (routes.length > 0) {
+    if (currentPoints.length > 0) {
+      // Undo last point if currently drawing
+      setCurrentPoints(prev => prev.slice(0, -1))
+    } else if (routes.length > 0) {
+      // Undo last route if no current drawing
       setRoutes(prev => prev.slice(0, -1))
       if (selectedRouteIndex !== null && selectedRouteIndex >= routes.length - 1) {
         setSelectedRouteIndex(null)
       }
-    } else if (currentPoints.length > 0) {
-      setCurrentPoints(prev => prev.slice(0, -1))
     }
   }
 
@@ -340,7 +342,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
             ))}
           </select>
         </div>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-2">
           <button onClick={handleFinishRoute} className="bg-green-500 text-white px-4 py-2 rounded" disabled={currentPoints.length < 2}>
             Finish Route
           </button>
@@ -349,10 +351,10 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
               Update Route
             </button>
           )}
-          <button onClick={handleUndo} className="bg-yellow-500 text-white px-4 py-2 rounded">
-            Undo Last
+          <button onClick={handleUndo} className="bg-yellow-500 text-white px-4 py-2 rounded" disabled={currentPoints.length === 0 && routes.length === 0}>
+            Undo Last {currentPoints.length > 0 ? 'Point' : routes.length > 0 ? 'Route' : ''}
           </button>
-          <button onClick={handleClearCurrent} className="bg-red-500 text-white px-4 py-2 rounded">
+          <button onClick={handleClearCurrent} className="bg-red-500 text-white px-4 py-2 rounded" disabled={currentPoints.length === 0 && selectedRouteIndex === null}>
             Clear Current
           </button>
         </div>
@@ -381,7 +383,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
         {selectedRouteIndex !== null && ` | Editing: ${routes[selectedRouteIndex].name}`}
       </p>
       <p className="mt-1 text-xs text-gray-500">
-        Click on the image to add route points. Press Enter or click "Finish Route" to complete each route. Click on finished routes to edit them. When done, click "Save & Continue to Naming".
+        Click on the image to add route points. Press Enter or click "Finish Route" to complete each route. Use "Undo Last" to remove points/routes. Click on finished routes to edit them. When done, click "Save & Continue to Naming".
       </p>
     </div>
   )
