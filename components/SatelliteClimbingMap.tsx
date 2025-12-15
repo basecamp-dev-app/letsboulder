@@ -26,8 +26,10 @@ interface Climb {
   id: string
   name: string
   grade: string
-  image_url: string
+  image_url?: string
+  description?: string
   crags: { name: string; latitude: number; longitude: number }
+  _fullLoaded?: boolean // Track if full details are loaded
 }
 
 export default function SatelliteClimbingMap() {
@@ -47,7 +49,31 @@ export default function SatelliteClimbingMap() {
   const CACHE_KEY = 'gsyrocks_climbs_cache'
   const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
 
-  // Load climbs from cache or API
+  // Load full details for a specific climb
+  const loadClimbDetails = useCallback(async (climbId: string) => {
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('climbs')
+        .select(`
+          id, image_url, description
+        `)
+        .eq('id', climbId)
+        .single()
+
+      if (error) {
+        console.error('Error loading climb details:', error)
+        return null
+      }
+
+      return data as { id: string; image_url: string; description: string }
+    } catch (err) {
+      console.error('Network error loading climb details:', err)
+      return null
+    }
+  }, [])
+
+  // Load climbs from cache or API (basic data only)
   const loadClimbs = useCallback(async (bounds?: L.LatLngBounds, forceRefresh = false) => {
     // Check cache first (unless force refresh)
     if (!forceRefresh) {
@@ -68,7 +94,7 @@ export default function SatelliteClimbingMap() {
       let query = supabase
         .from('climbs')
         .select(`
-          id, name, grade, image_url,
+          id, name, grade,
           crags (name, latitude, longitude)
         `)
         .eq('status', 'approved')
@@ -96,8 +122,11 @@ export default function SatelliteClimbingMap() {
       if (error) {
         console.error('Error fetching climbs:', error)
       } else {
-        const climbsData = (data || []) as unknown as Climb[]
-        console.log(`Loaded ${climbsData.length} climbs${bounds ? ' for viewport' : ''}`)
+        const climbsData = (data || []).map((climb: any) => ({
+          ...climb,
+          _fullLoaded: false // Mark as not fully loaded
+        })) as Climb[]
+        console.log(`Loaded ${climbsData.length} climbs (basic data)${bounds ? ' for viewport' : ''}`)
         setClimbs(climbsData)
 
         // Cache the data
@@ -171,10 +200,24 @@ export default function SatelliteClimbingMap() {
             key={climb.id}
             position={[climb.crags.latitude, climb.crags.longitude]}
             eventHandlers={{
-              click: () => {
-                console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
-                setSelectedClimb(climb);
-                setImageError(false);
+              click: async () => {
+                console.log('Marker clicked for climb:', climb.name)
+
+                // Load full details if not already loaded
+                if (!climb._fullLoaded) {
+                  console.log('Loading full details for climb:', climb.id)
+                  const details = await loadClimbDetails(climb.id)
+                  if (details) {
+                    const updatedClimb = { ...climb, ...details, _fullLoaded: true }
+                    setClimbs(prev => prev.map(c => c.id === climb.id ? updatedClimb : c))
+                    setSelectedClimb(updatedClimb)
+                  } else {
+                    setSelectedClimb(climb) // Show basic info if details fail
+                  }
+                } else {
+                  setSelectedClimb(climb)
+                }
+                setImageError(false)
               },
             }}
           />
@@ -187,20 +230,36 @@ export default function SatelliteClimbingMap() {
        )}
        {selectedClimb && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 relative">
-            <img
-              src={selectedClimb.image_url}
-              alt={selectedClimb.name}
-              className="absolute inset-0 w-full h-full object-cover"
-              onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
-              onError={() => {
-                console.log('Image failed to load:', selectedClimb.image_url);
-                setImageError(true);
-              }}
-            />
+           {selectedClimb.image_url ? (
+             <img
+               src={selectedClimb.image_url}
+               alt={selectedClimb.name}
+               className="absolute inset-0 w-full h-full object-cover"
+               onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
+               onError={() => {
+                 console.log('Image failed to load:', selectedClimb.image_url);
+                 setImageError(true);
+               }}
+             />
+           ) : selectedClimb._fullLoaded === false ? (
+             <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
+               <div className="text-gray-600">Loading image...</div>
+             </div>
+           ) : (
+             <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
+               <div className="text-gray-600">No image available</div>
+             </div>
+           )}
            <div className="absolute bottom-0 left-0 right-0 bg-white p-4">
              <h3 className="text-lg font-semibold">{selectedClimb.name}</h3>
              <p className="text-gray-600">Grade: {selectedClimb.grade}</p>
-             {imageError && (
+             {selectedClimb.description && (
+               <p className="text-gray-700 text-sm mt-2">{selectedClimb.description}</p>
+             )}
+             {selectedClimb._fullLoaded === false && (
+               <p className="text-blue-600 text-sm mt-2">Loading details...</p>
+             )}
+             {imageError && selectedClimb.image_url && (
                <p className="text-red-500 text-sm mt-2">
                  Image failed to load. URL: {selectedClimb.image_url}
                </p>
