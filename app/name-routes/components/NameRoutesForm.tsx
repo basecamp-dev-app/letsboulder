@@ -56,26 +56,36 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Set canvas size to match image
-    canvas.width = image.naturalWidth
-    canvas.height = image.naturalHeight
+    // Set canvas size to match displayed image size
+    canvas.width = image.clientWidth
+    canvas.height = image.clientHeight
 
-    // Draw routes with labels
+    // Calculate scale factors from natural to displayed size
+    const scaleX = canvas.width / image.naturalWidth
+    const scaleY = canvas.height / image.naturalHeight
+
+    // Draw routes with labels, scaled to display size
     routeData.routes.forEach(route => {
-      drawRouteWithLabels(ctx, route)
+      drawRouteWithLabels(ctx, route, scaleX, scaleY)
     })
   }, [routeData])
 
-  const drawRouteWithLabels = (ctx: CanvasRenderingContext2D, route: RouteWithLabels) => {
+  const drawRouteWithLabels = (ctx: CanvasRenderingContext2D, route: RouteWithLabels, scaleX = 1, scaleY = 1) => {
     const { points, grade, name } = route
 
-    // Draw dotted route line
-    drawCurve(ctx, points, 'red', 3, [8, 4])
+    // Scale points to display size
+    const scaledPoints = points.map(point => ({
+      x: point.x * scaleX,
+      y: point.y * scaleY
+    }))
 
-    if (points.length > 1) {
+    // Draw dotted route line
+    drawCurve(ctx, scaledPoints, 'red', 3, [8, 4])
+
+    if (scaledPoints.length > 1) {
       // Calculate midpoint for grade
-      const midIndex = Math.floor(points.length / 2)
-      const gradePoint = points[midIndex]
+      const midIndex = Math.floor(scaledPoints.length / 2)
+      const gradePoint = scaledPoints[midIndex]
 
       // Draw grade label
       ctx.fillStyle = 'white'
@@ -87,7 +97,7 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
       ctx.fillText(grade, gradePoint.x, gradePoint.y - 5)
 
       // Calculate end point for name (slightly offset)
-      const lastPoint = points[points.length - 1]
+      const lastPoint = scaledPoints[scaledPoints.length - 1]
       const nameX = lastPoint.x + 20
       const nameY = lastPoint.y + 15
 

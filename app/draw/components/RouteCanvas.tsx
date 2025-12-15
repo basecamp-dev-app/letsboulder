@@ -250,12 +250,12 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
 
   return (
     <div className="flex flex-col items-center">
-      <div className="relative mb-4 border border-gray-300 max-h-96 overflow-auto">
+      <div className="relative mb-4 border border-gray-300">
         <img
           ref={imageRef}
           src={imageUrl}
           alt="Climbing route"
-          className="max-w-full h-auto"
+          className="w-full h-auto rounded"
         />
         <canvas
           ref={canvasRef}
