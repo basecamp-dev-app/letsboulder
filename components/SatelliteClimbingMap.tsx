@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
@@ -8,12 +8,12 @@ import L from 'leaflet'
 // Import Leaflet CSS
 import 'leaflet/dist/leaflet.css'
 
-// Fix default markers
+// Fix default markers (fallback to red)
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
 })
 
 // Dynamically import Leaflet components to avoid SSR issues
@@ -33,6 +33,9 @@ interface Climb {
 }
 
 export default function SatelliteClimbingMap() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
+  const mapRef = useRef<L.Map | null>(null)
   const [climbs, setClimbs] = useState<Climb[]>([])
   const [loading, setLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
@@ -40,6 +43,18 @@ export default function SatelliteClimbingMap() {
   const [imageError, setImageError] = useState(false)
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
 
+  // Create red icon (only on client)
+  const redIcon = useMemo(() => {
+    if (!isClient) return null
+    return L.icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    })
+  }, [isClient])
 
   useEffect(() => {
     setIsClient(true)
@@ -187,6 +202,9 @@ export default function SatelliteClimbingMap() {
         style={{ height: '100%', width: '100%' }}
         zoomControl={true}
         scrollWheelZoom={true}
+        ref={(map) => {
+          if (map) mapRef.current = map
+        }}
       >
         <TileLayer
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -195,15 +213,20 @@ export default function SatelliteClimbingMap() {
           minZoom={1}
         />
 
-        {climbs.map(climb => (
+        {redIcon && climbs.map(climb => (
           <Marker
             key={climb.id}
             position={[climb.crags.latitude, climb.crags.longitude]}
+            icon={redIcon}
             eventHandlers={{
               click: () => {
                 console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
                 setSelectedClimb(climb);
                 setImageError(false);
+                // Zoom to the pin location to "expand" the view (simulate cluster expansion)
+                if (mapRef.current) {
+                  mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 2, 15))
+                }
               },
             }}
           />
