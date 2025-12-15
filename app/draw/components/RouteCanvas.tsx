@@ -189,28 +189,35 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
 
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    const image = imageRef.current
+    if (!canvas || !image) return
 
     const rect = canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
+
+    // Check if click is within displayed image bounds
+    const imageRect = image.getBoundingClientRect()
+    const relativeX = e.clientX - imageRect.left
+    const relativeY = e.clientY - imageRect.top
+
+    if (relativeX < 0 || relativeX > imageRect.width || relativeY < 0 || relativeY > imageRect.height) {
+      return // Click outside image, ignore
+    }
 
     setCurrentPoints(prev => [...prev, { x, y }])
   }, [])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Enter' && currentPoints.length >= 2 && currentName.trim()) {
+      console.log('Finishing route via Enter key')
       handleFinishRoute()
     }
   }, [currentPoints, currentName])
 
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleKeyDown])
-
-  const handleFinishRoute = () => {
+  const handleFinishRoute = useCallback(() => {
     if (currentPoints.length > 1 && currentName.trim()) {
+      console.log('Finishing route:', currentName, currentGrade, currentPoints.length, 'points')
       const newRoute: RouteWithLabels = {
         points: [...currentPoints],
         grade: currentGrade,
@@ -219,8 +226,18 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
       setRoutes(prev => [...prev, newRoute])
       setCurrentPoints([])
       setCurrentName('')
+      console.log('Route finished, total routes:', routes.length + 1)
+    } else {
+      console.log('Cannot finish route: points =', currentPoints.length, 'name =', currentName.trim())
     }
-  }
+  }, [currentPoints, currentName, currentGrade, routes.length])
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
+
+
 
   const handleUndo = () => {
     if (routes.length > 0) {
