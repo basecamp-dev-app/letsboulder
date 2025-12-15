@@ -42,6 +42,7 @@ export default function SatelliteClimbingMap() {
   const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
   const [imageError, setImageError] = useState(false)
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
+  const [userLocation, setUserLocation] = useState<L.LatLng | null>(null)
 
   // Create red icon (only on client)
   const redIcon = useMemo(() => {
@@ -156,6 +157,50 @@ export default function SatelliteClimbingMap() {
     setLoading(false)
   }, [])
 
+  // Get user's current location
+  const getCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by this browser.')
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords
+        const userLatLng = L.latLng(latitude, longitude)
+        setUserLocation(userLatLng)
+
+        // Center map on user location
+        if (mapRef.current) {
+          mapRef.current.setView(userLatLng, 12) // Zoom to city level
+        }
+
+        console.log('User location:', latitude, longitude)
+      },
+      (error) => {
+        console.error('Error getting location:', error)
+        let message = 'Unable to get your location.'
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            message = 'Location access denied. Please enable location services.'
+            break
+          case error.POSITION_UNAVAILABLE:
+            message = 'Location information unavailable.'
+            break
+          case error.TIMEOUT:
+            message = 'Location request timed out.'
+            break
+        }
+        alert(message)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000 // 5 minutes
+      }
+    )
+  }, [])
+
   // Debounced map move handler
   const handleMapMove = useCallback((map: L.Map) => {
     if (debounceTimer) clearTimeout(debounceTimer)
@@ -176,6 +221,9 @@ export default function SatelliteClimbingMap() {
     // Initial load with world bounds
     const worldBounds = L.latLngBounds(L.latLng(-90, -180), L.latLng(90, 180))
     loadClimbs(worldBounds)
+
+    // Optionally get location on load (commented out to avoid auto-prompt)
+    // getCurrentLocation()
   }, [isClient, loadClimbs])
 
    useEffect(() => {
@@ -195,16 +243,13 @@ export default function SatelliteClimbingMap() {
   const zoom = 2
 
   return (
-    <div className="h-screen w-full">
+    <div className="h-screen w-full relative">
       <MapContainer
         center={worldCenter}
         zoom={zoom}
         style={{ height: '100%', width: '100%' }}
         zoomControl={true}
         scrollWheelZoom={true}
-        ref={(map) => {
-          if (map) mapRef.current = map
-        }}
       >
         <TileLayer
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -233,7 +278,17 @@ export default function SatelliteClimbingMap() {
           />
         ))}
       </MapContainer>
-       {selectedClimb && (
+
+      {/* Location Button */}
+      <button
+        onClick={getCurrentLocation}
+        className="absolute top-4 right-4 z-40 bg-white hover:bg-gray-50 border border-gray-300 rounded shadow-lg p-2"
+        title="Find my location"
+      >
+        📍
+      </button>
+
+        {selectedClimb && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-[1000] relative">
            {selectedClimb.image_url ? (
            <img
