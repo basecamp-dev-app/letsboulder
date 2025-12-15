@@ -211,36 +211,32 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       console.log('Enter key pressed - Points:', currentPoints.length, 'Name:', currentName.trim())
-      if (currentPoints.length >= 2 && currentName.trim()) {
+      if (currentPoints.length >= 2) {
         console.log('Finishing route via Enter key')
         handleFinishRoute()
       } else {
-        console.log('Cannot finish: need 2+ points and a name')
+        console.log('Cannot finish: need 2+ points')
       }
     }
   }, [currentPoints, currentName])
 
   const handleFinishRoute = useCallback(() => {
     console.log('Finish Route button clicked - Points:', currentPoints.length, 'Name:', currentName.trim())
-    if (currentPoints.length > 1 && currentName.trim()) {
-      console.log('Finishing route:', currentName, currentGrade, currentPoints.length, 'points')
+    if (currentPoints.length > 1) {
+      const routeName = currentName.trim() || `Route ${routes.length + 1}`
+      console.log('Finishing route:', routeName, currentGrade, currentPoints.length, 'points')
       const newRoute: RouteWithLabels = {
         points: [...currentPoints],
         grade: currentGrade,
-        name: currentName.trim()
+        name: routeName
       }
       setRoutes(prev => [...prev, newRoute])
       setCurrentPoints([])
       setCurrentName('')
       console.log('Route finished, total routes:', routes.length + 1)
     } else {
-      console.log('Cannot finish route: points =', currentPoints.length, 'name =', currentName.trim())
-      if (currentPoints.length <= 1) {
-        alert('Please add at least 2 points to the route')
-      }
-      if (!currentName.trim()) {
-        alert('Please enter a route name')
-      }
+      console.log('Cannot finish route: points =', currentPoints.length)
+      alert('Please add at least 2 points to the route')
     }
   }, [currentPoints, currentName, currentGrade, routes.length])
 
@@ -297,7 +293,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="Route name"
+            placeholder="Route name (optional)"
             value={currentName}
             onChange={(e) => setCurrentName(e.target.value)}
             className="flex-1 px-3 py-2 border rounded"
@@ -313,7 +309,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
           </select>
         </div>
         <div className="flex gap-4">
-          <button onClick={handleFinishRoute} className="bg-green-500 text-white px-4 py-2 rounded" disabled={currentPoints.length < 2 || !currentName.trim()}>
+          <button onClick={handleFinishRoute} className="bg-green-500 text-white px-4 py-2 rounded" disabled={currentPoints.length < 2}>
             Finish Route
           </button>
           <button onClick={handleUndo} className="bg-yellow-500 text-white px-4 py-2 rounded">
