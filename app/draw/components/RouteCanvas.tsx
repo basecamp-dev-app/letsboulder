@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { TransformWrapper, TransformComponent, useTransformEffect } from 'react-zoom-pan-pinch'
 
 interface RoutePoint {
   x: number
@@ -21,7 +20,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   const [routes, setRoutes] = useState<RoutePoint[][]>([])
   const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>([])
   const [imageLoaded, setImageLoaded] = useState(false)
-  const [transformState, setTransformState] = useState({ scale: 1, positionX: 0, positionY: 0 })
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -127,15 +125,11 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    let x = e.clientX - rect.left
-    let y = e.clientY - rect.top
-
-    // Adjust for zoom and pan
-    x = (x - transformState.positionX) / transformState.scale
-    y = (y - transformState.positionY) / transformState.scale
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
 
     setCurrentPoints(prev => [...prev, { x, y }])
-  }, [transformState])
+  }, [])
 
   const handleFinishRoute = () => {
     if (currentPoints.length > 1) {
@@ -171,36 +165,19 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
 
   return (
     <div className="flex flex-col items-center">
-      <div className="relative mb-4 border border-gray-300">
-        <TransformWrapper
-          initialScale={0.5}
-          minScale={0.1}
-          maxScale={5}
-          centerOnInit={true}
-          limitToBounds={false}
-          onTransformed={(ref, state) => {
-            setTransformState({
-              scale: state.scale,
-              positionX: state.positionX,
-              positionY: state.positionY
-            })
-          }}
-        >
-          <TransformComponent>
-            <img
-              ref={imageRef}
-              src={imageUrl}
-              alt="Climbing route"
-              style={{ maxWidth: 'none', width: 'auto', height: 'auto' }}
-            />
-            <canvas
-              ref={canvasRef}
-              className="absolute top-0 left-0 cursor-crosshair"
-              onClick={handleCanvasClick}
-              style={{ pointerEvents: 'auto' }}
-            />
-          </TransformComponent>
-        </TransformWrapper>
+      <div className="relative mb-4 border border-gray-300 max-h-96 overflow-auto">
+        <img
+          ref={imageRef}
+          src={imageUrl}
+          alt="Climbing route"
+          className="max-w-full h-auto"
+        />
+        <canvas
+          ref={canvasRef}
+          className="absolute top-0 left-0 cursor-crosshair"
+          onClick={handleCanvasClick}
+          style={{ pointerEvents: 'auto' }}
+        />
       </div>
       <div className="flex gap-4 mb-4">
         <button onClick={handleFinishRoute} className="bg-green-500 text-white px-4 py-2 rounded" disabled={currentPoints.length < 2}>
@@ -220,7 +197,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
         Routes drawn: {routes.length} | Current points: {currentPoints.length}
       </p>
       <p className="mt-1 text-xs text-gray-500">
-        Click on the image to add route points. Zoom and pan to navigate the full image.
+        Click on the image to add route points. Scroll to view the full image.
       </p>
     </div>
   )
