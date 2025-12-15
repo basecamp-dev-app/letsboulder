@@ -200,24 +200,10 @@ export default function SatelliteClimbingMap() {
             key={climb.id}
             position={[climb.crags.latitude, climb.crags.longitude]}
             eventHandlers={{
-              click: async () => {
-                console.log('Marker clicked for climb:', climb.name)
-
-                // Load full details if not already loaded
-                if (!climb._fullLoaded) {
-                  console.log('Loading full details for climb:', climb.id)
-                  const details = await loadClimbDetails(climb.id)
-                  if (details) {
-                    const updatedClimb = { ...climb, ...details, _fullLoaded: true }
-                    setClimbs(prev => prev.map(c => c.id === climb.id ? updatedClimb : c))
-                    setSelectedClimb(updatedClimb)
-                  } else {
-                    setSelectedClimb(climb) // Show basic info if details fail
-                  }
-                } else {
-                  setSelectedClimb(climb)
-                }
-                setImageError(false)
+              click: () => {
+                console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
+                setSelectedClimb(climb);
+                setImageError(false);
               },
             }}
           />
