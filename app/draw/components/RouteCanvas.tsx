@@ -43,6 +43,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   const [currentName, setCurrentName] = useState('')
   const [imageLoaded, setImageLoaded] = useState(false)
   const [routes, setRoutes] = useState<RouteWithLabels[]>([])
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -233,6 +234,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
       setRoutes(prev => [...prev, newRoute])
       setCurrentPoints([])
       setCurrentName('')
+      setSelectedRouteIndex(null)
       console.log('Route finished, total routes:', routes.length + 1)
     } else {
       console.log('Cannot finish route: points =', currentPoints.length)
@@ -250,6 +252,9 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   const handleUndo = () => {
     if (routes.length > 0) {
       setRoutes(prev => prev.slice(0, -1))
+      if (selectedRouteIndex !== null && selectedRouteIndex >= routes.length - 1) {
+        setSelectedRouteIndex(null)
+      }
     } else if (currentPoints.length > 0) {
       setCurrentPoints(prev => prev.slice(0, -1))
     }
@@ -277,6 +282,27 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   const handleClearCurrent = () => {
     setCurrentPoints([])
     setCurrentName('')
+    setSelectedRouteIndex(null)
+  }
+
+  const handleSelectRoute = (index: number) => {
+    const route = routes[index]
+    setSelectedRouteIndex(index)
+    setCurrentName(route.name)
+    setCurrentGrade(route.grade)
+    setCurrentPoints([]) // Clear current drawing
+  }
+
+  const handleUpdateRoute = () => {
+    if (selectedRouteIndex !== null) {
+      setRoutes(prev => prev.map((route, i) =>
+        i === selectedRouteIndex
+          ? { ...route, name: currentName.trim() || route.name, grade: currentGrade }
+          : route
+      ))
+      setSelectedRouteIndex(null)
+      setCurrentName('')
+    }
   }
 
   return (
@@ -318,6 +344,11 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
           <button onClick={handleFinishRoute} className="bg-green-500 text-white px-4 py-2 rounded" disabled={currentPoints.length < 2}>
             Finish Route
           </button>
+          {selectedRouteIndex !== null && (
+            <button onClick={handleUpdateRoute} className="bg-purple-500 text-white px-4 py-2 rounded">
+              Update Route
+            </button>
+          )}
           <button onClick={handleUndo} className="bg-yellow-500 text-white px-4 py-2 rounded">
             Undo Last
           </button>
@@ -329,11 +360,28 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
       <button onClick={handleSave} className="bg-blue-500 text-white px-6 py-3 rounded" disabled={routes.length === 0}>
         Save & Continue to Naming ({routes.length} routes)
       </button>
+      {routes.length > 0 && (
+        <div className="mt-4 p-4 bg-gray-50 rounded">
+          <h3 className="text-sm font-semibold mb-2">Finished Routes:</h3>
+          <div className="space-y-2">
+            {routes.map((route, index) => (
+              <div key={index} className={`flex items-center gap-2 p-2 rounded cursor-pointer ${
+                selectedRouteIndex === index ? 'bg-blue-100 border border-blue-300' : 'bg-white hover:bg-gray-100'
+              }`} onClick={() => handleSelectRoute(index)}>
+                <span className="text-sm font-medium">{route.name}</span>
+                <span className="text-xs text-gray-600">({route.grade})</span>
+                <span className="text-xs text-gray-500">{route.points.length} points</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <p className="mt-2 text-sm text-gray-600">
         Routes drawn: {routes.length} | Current points: {currentPoints.length}
+        {selectedRouteIndex !== null && ` | Editing: ${routes[selectedRouteIndex].name}`}
       </p>
       <p className="mt-1 text-xs text-gray-500">
-        Click on the image to add route points. Press Enter or click "Finish Route" to complete each route. When done, click "Save & Continue to Naming".
+        Click on the image to add route points. Press Enter or click "Finish Route" to complete each route. Click on finished routes to edit them. When done, click "Save & Continue to Naming".
       </p>
     </div>
   )
