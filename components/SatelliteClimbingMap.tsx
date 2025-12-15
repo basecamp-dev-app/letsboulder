@@ -223,9 +223,9 @@ export default function SatelliteClimbingMap() {
                 console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
                 setSelectedClimb(climb);
                 setImageError(false);
-                // Zoom to the pin location to "expand" the view (simulate cluster expansion)
+                // Zoom to the pin location to "expand" the view (simulate cluster expansion) - 2x zoom increase
                 if (mapRef.current) {
-                  mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 2, 15))
+                  mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
                 }
               },
             }}
@@ -233,23 +233,18 @@ export default function SatelliteClimbingMap() {
         ))}
       </MapContainer>
        {selectedClimb && (
-        <>
-          {console.log('Rendering overlay for:', selectedClimb.name)}
-        </>
-       )}
-       {selectedClimb && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 relative">
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-[1000] relative">
            {selectedClimb.image_url ? (
-             <img
-               src={selectedClimb.image_url}
-               alt={selectedClimb.name}
-               className="absolute inset-0 w-full h-full object-cover"
-               onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
-               onError={() => {
-                 console.log('Image failed to load:', selectedClimb.image_url);
-                 setImageError(true);
-               }}
-             />
+           <img
+             src={selectedClimb.image_url}
+             alt={selectedClimb.name}
+             className="absolute inset-0 w-full h-full object-cover z-10"
+             onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
+             onError={() => {
+               console.log('Image failed to load:', selectedClimb.image_url);
+               setImageError(true);
+             }}
+           />
            ) : selectedClimb._fullLoaded === false ? (
              <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
                <div className="text-gray-600">Loading image...</div>
