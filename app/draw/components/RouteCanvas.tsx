@@ -198,6 +198,17 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     setCurrentPoints(prev => [...prev, { x, y }])
   }, [])
 
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Enter' && currentPoints.length >= 2 && currentName.trim()) {
+      handleFinishRoute()
+    }
+  }, [currentPoints, currentName])
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
+
   const handleFinishRoute = () => {
     if (currentPoints.length > 1 && currentName.trim()) {
       const newRoute: RouteWithLabels = {

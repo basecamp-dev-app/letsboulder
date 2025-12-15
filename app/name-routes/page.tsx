@@ -11,8 +11,7 @@ export default function NameRoutesPage({ searchParams }: NameRoutesPageProps) {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Name and Grade Routes</h1>
-      <p className="mb-6">Provide names and grades for each route you drew.</p>
+      <h1 className="text-3xl font-bold mb-8">Review Routes</h1>
       <NameRoutesForm sessionId={sessionId} />
     </div>
   )

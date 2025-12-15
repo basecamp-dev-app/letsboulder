@@ -130,10 +130,18 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
   }
 
   useEffect(() => {
-    if (routeData && imageRef.current?.complete) {
-      drawRoutesOnCanvas()
+    if (routeData) {
+      // Small delay to ensure image is loaded
+      const timer = setTimeout(() => {
+        drawRoutesOnCanvas()
+      }, 100)
+      return () => clearTimeout(timer)
     }
   }, [routeData, drawRoutesOnCanvas])
+
+  const handleImageLoad = () => {
+    drawRoutesOnCanvas()
+  }
 
   const handleFormChange = (index: number, field: keyof RouteForm, value: string) => {
     setForms(prev => prev.map((form, i) => i === index ? { ...form, [field]: value } : form))
@@ -215,7 +223,7 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
           src={routeData.imageUrl}
           alt="Routes"
           className="w-full h-auto rounded"
-          onLoad={drawRoutesOnCanvas}
+          onLoad={handleImageLoad}
         />
         <canvas
           ref={canvasRef}
