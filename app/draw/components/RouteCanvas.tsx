@@ -209,13 +209,19 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   }, [])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Enter' && currentPoints.length >= 2 && currentName.trim()) {
-      console.log('Finishing route via Enter key')
-      handleFinishRoute()
+    if (e.key === 'Enter') {
+      console.log('Enter key pressed - Points:', currentPoints.length, 'Name:', currentName.trim())
+      if (currentPoints.length >= 2 && currentName.trim()) {
+        console.log('Finishing route via Enter key')
+        handleFinishRoute()
+      } else {
+        console.log('Cannot finish: need 2+ points and a name')
+      }
     }
   }, [currentPoints, currentName])
 
   const handleFinishRoute = useCallback(() => {
+    console.log('Finish Route button clicked - Points:', currentPoints.length, 'Name:', currentName.trim())
     if (currentPoints.length > 1 && currentName.trim()) {
       console.log('Finishing route:', currentName, currentGrade, currentPoints.length, 'points')
       const newRoute: RouteWithLabels = {
@@ -229,6 +235,12 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
       console.log('Route finished, total routes:', routes.length + 1)
     } else {
       console.log('Cannot finish route: points =', currentPoints.length, 'name =', currentName.trim())
+      if (currentPoints.length <= 1) {
+        alert('Please add at least 2 points to the route')
+      }
+      if (!currentName.trim()) {
+        alert('Please enter a route name')
+      }
     }
   }, [currentPoints, currentName, currentGrade, routes.length])
 
