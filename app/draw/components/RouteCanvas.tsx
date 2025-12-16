@@ -54,8 +54,12 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     if (!ctx) return
 
     const handleImageLoad = () => {
-      canvas.width = image.naturalWidth
-      canvas.height = image.naturalHeight
+      // Size canvas to match container dimensions
+      const container = canvas.parentElement
+      if (container) {
+        canvas.width = container.clientWidth
+        canvas.height = container.clientHeight
+      }
       setImageLoaded(true)
       redraw()
     }
@@ -71,44 +75,70 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    const image = imageRef.current
+    if (!canvas || !image) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // Draw completed routes with labels
+    // Calculate scale factors from natural to displayed size
+    // Since image uses object-contain, we need to find the actual displayed dimensions
+    const containerAspect = canvas.width / canvas.height
+    const imageAspect = image.naturalWidth / image.naturalHeight
+
+    let displayWidth, displayHeight
+    if (imageAspect > containerAspect) {
+      // Image is wider than container - fit by width
+      displayWidth = canvas.width
+      displayHeight = canvas.width / imageAspect
+    } else {
+      // Image is taller than container - fit by height
+      displayHeight = canvas.height
+      displayWidth = canvas.height * imageAspect
+    }
+
+    const scaleX = displayWidth / image.naturalWidth
+    const scaleY = displayHeight / image.naturalHeight
+
+    // Draw completed routes with labels, scaled to display size
     routes.forEach(route => {
-      drawRouteWithLabels(ctx, route)
+      drawRouteWithLabels(ctx, route, scaleX, scaleY)
     })
 
-    // Draw current points
+    // Draw current points (scaled)
     if (currentPoints.length > 0) {
+      // Scale current points to display size
+      const scaledCurrentPoints = currentPoints.map(point => ({
+        x: point.x * scaleX,
+        y: point.y * scaleY
+      }))
+
       // Draw points
       ctx.fillStyle = 'blue'
-      currentPoints.forEach(point => {
+      scaledCurrentPoints.forEach(point => {
         ctx.beginPath()
         ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI)
         ctx.fill()
       })
 
       // Draw connecting dotted curve
-      if (currentPoints.length > 1) {
-        drawCurve(ctx, currentPoints, 'blue', 2, [5, 5])
+      if (scaledCurrentPoints.length > 1) {
+        drawCurve(ctx, scaledCurrentPoints, 'blue', 2, [5, 5])
       }
 
       // Preview labels for current route
-      if (currentPoints.length > 1 && currentGrade && currentName) {
+      if (scaledCurrentPoints.length > 1 && currentGrade && currentName) {
         const previewRoute: RouteWithLabels = {
-          points: currentPoints,
+          points: scaledCurrentPoints,
           grade: currentGrade,
           name: currentName
         }
         drawRouteWithLabels(ctx, previewRoute)
       }
     }
-  }, [routes, currentPoints, currentGrade, currentName])
+   }, [routes, currentPoints, currentGrade, currentName, imageUrl])
 
   const drawCurve = (ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, dash?: number[]) => {
     if (points.length < 2) return
@@ -137,16 +167,22 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     ctx.setLineDash([])
   }
 
-  const drawRouteWithLabels = (ctx: CanvasRenderingContext2D, route: RouteWithLabels) => {
+  const drawRouteWithLabels = (ctx: CanvasRenderingContext2D, route: RouteWithLabels, scaleX = 1, scaleY = 1) => {
     const { points, grade, name } = route
 
-    // Draw dotted route line
-    drawCurve(ctx, points, 'red', 3, [8, 4])
+    // Scale points to display size
+    const scaledPoints = points.map(point => ({
+      x: point.x * scaleX,
+      y: point.y * scaleY
+    }))
 
-    if (points.length > 1) {
+    // Draw dotted route line
+    drawCurve(ctx, scaledPoints, 'red', 3, [8, 4])
+
+    if (scaledPoints.length > 1) {
       // Calculate midpoint for grade
-      const midIndex = Math.floor(points.length / 2)
-      const gradePoint = points[midIndex]
+      const midIndex = Math.floor(scaledPoints.length / 2)
+      const gradePoint = scaledPoints[midIndex]
 
       // Draw grade label
       ctx.fillStyle = 'white'
@@ -158,7 +194,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
       ctx.fillText(grade, gradePoint.x, gradePoint.y - 5)
 
       // Calculate end point for name (slightly offset)
-      const lastPoint = points[points.length - 1]
+      const lastPoint = scaledPoints[scaledPoints.length - 1]
       const nameX = lastPoint.x + 20
       const nameY = lastPoint.y + 15
 
@@ -193,18 +229,39 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     const image = imageRef.current
     if (!canvas || !image) return
 
-    // Check if click is within displayed image bounds first
-    const imageRect = image.getBoundingClientRect()
-    const relativeX = e.clientX - imageRect.left
-    const relativeY = e.clientY - imageRect.top
+    // Get canvas position
+    const canvasRect = canvas.getBoundingClientRect()
+    const canvasX = e.clientX - canvasRect.left
+    const canvasY = e.clientY - canvasRect.top
 
-    if (relativeX < 0 || relativeX > imageRect.width || relativeY < 0 || relativeY > imageRect.height) {
+    // Calculate actual displayed image dimensions and position within canvas
+    const containerAspect = canvas.width / canvas.height
+    const imageAspect = image.naturalWidth / image.naturalHeight
+
+    let displayWidth, displayHeight, offsetX = 0, offsetY = 0
+    if (imageAspect > containerAspect) {
+      // Image is wider than container - fit by width, center vertically
+      displayWidth = canvas.width
+      displayHeight = canvas.width / imageAspect
+      offsetY = (canvas.height - displayHeight) / 2
+    } else {
+      // Image is taller than container - fit by height, center horizontally
+      displayHeight = canvas.height
+      displayWidth = canvas.height * imageAspect
+      offsetX = (canvas.width - displayWidth) / 2
+    }
+
+    // Check if click is within displayed image bounds
+    const relativeX = canvasX - offsetX
+    const relativeY = canvasY - offsetY
+
+    if (relativeX < 0 || relativeX > displayWidth || relativeY < 0 || relativeY > displayHeight) {
       return // Click outside image, ignore
     }
 
     // Scale coordinates from display size to natural size
-    const scaleX = image.naturalWidth / imageRect.width
-    const scaleY = image.naturalHeight / imageRect.height
+    const scaleX = image.naturalWidth / displayWidth
+    const scaleY = image.naturalHeight / displayHeight
     const x = relativeX * scaleX
     const y = relativeY * scaleY
 
@@ -219,18 +276,39 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
 
     const touch = e.changedTouches[0]
 
-    // Check if touch is within displayed image bounds first
-    const imageRect = image.getBoundingClientRect()
-    const relativeX = touch.clientX - imageRect.left
-    const relativeY = touch.clientY - imageRect.top
+    // Get canvas position
+    const canvasRect = canvas.getBoundingClientRect()
+    const canvasX = touch.clientX - canvasRect.left
+    const canvasY = touch.clientY - canvasRect.top
 
-    if (relativeX < 0 || relativeX > imageRect.width || relativeY < 0 || relativeY > imageRect.height) {
+    // Calculate actual displayed image dimensions and position within canvas
+    const containerAspect = canvas.width / canvas.height
+    const imageAspect = image.naturalWidth / image.naturalHeight
+
+    let displayWidth, displayHeight, offsetX = 0, offsetY = 0
+    if (imageAspect > containerAspect) {
+      // Image is wider than container - fit by width, center vertically
+      displayWidth = canvas.width
+      displayHeight = canvas.width / imageAspect
+      offsetY = (canvas.height - displayHeight) / 2
+    } else {
+      // Image is taller than container - fit by height, center horizontally
+      displayHeight = canvas.height
+      displayWidth = canvas.height * imageAspect
+      offsetX = (canvas.width - displayWidth) / 2
+    }
+
+    // Check if touch is within displayed image bounds
+    const relativeX = canvasX - offsetX
+    const relativeY = canvasY - offsetY
+
+    if (relativeX < 0 || relativeX > displayWidth || relativeY < 0 || relativeY > displayHeight) {
       return // Touch outside image, ignore
     }
 
     // Scale coordinates from display size to natural size
-    const scaleX = image.naturalWidth / imageRect.width
-    const scaleY = image.naturalHeight / imageRect.height
+    const scaleX = image.naturalWidth / displayWidth
+    const scaleY = image.naturalHeight / displayHeight
     const x = relativeX * scaleX
     const y = relativeY * scaleY
 
@@ -336,17 +414,17 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   }
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="relative mb-4 border border-gray-300">
+    <div className="h-full flex flex-col">
+      <div className="flex-1 relative overflow-hidden">
         <img
           ref={imageRef}
           src={imageUrl}
           alt="Climbing route"
-          className="w-full h-auto rounded"
+          className="w-full h-full object-contain"
         />
         <canvas
           ref={canvasRef}
-          className="absolute top-0 left-0 cursor-crosshair"
+          className="absolute top-0 left-0 cursor-crosshair w-full h-full"
           onClick={handleCanvasClick}
           onTouchEnd={handleCanvasTouch}
           style={{ pointerEvents: 'auto', touchAction: 'none' }}
