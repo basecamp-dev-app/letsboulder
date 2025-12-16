@@ -414,82 +414,81 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex-1 relative overflow-hidden">
-        <img
-          ref={imageRef}
-          src={imageUrl}
-          alt="Climbing route"
-          className="w-full h-full object-contain"
-        />
-        <canvas
-          ref={canvasRef}
-          className="absolute top-0 left-0 cursor-crosshair w-full h-full"
-          onClick={handleCanvasClick}
-          onTouchEnd={handleCanvasTouch}
-          style={{ pointerEvents: 'auto', touchAction: 'none' }}
-        />
-      </div>
-      <div className="flex flex-col gap-4 mb-4 w-full max-w-md">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Route name (optional)"
-            value={currentName}
-            onChange={(e) => setCurrentName(e.target.value)}
-            className="flex-1 px-3 py-2 border rounded"
-          />
-           <input
-             type="text"
-             placeholder="Grade"
-             value={currentGrade}
-             onChange={(e) => setCurrentGrade(e.target.value)}
-             className="px-3 py-2 border rounded"
-           />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={handleFinishRoute} className="bg-green-500 text-white px-4 py-2 rounded" disabled={currentPoints.length < 2}>
-            Finish Route
-          </button>
-          {selectedRouteIndex !== null && (
-            <button onClick={handleUpdateRoute} className="bg-purple-500 text-white px-4 py-2 rounded">
-              Update Route
+    <div className="h-screen relative overflow-hidden">
+      <img
+        ref={imageRef}
+        src={imageUrl}
+        alt="Climbing route"
+        className="w-full h-full object-contain"
+      />
+      <canvas
+        ref={canvasRef}
+        className="absolute top-0 left-0 cursor-crosshair w-full h-full"
+        onClick={handleCanvasClick}
+        onTouchEnd={handleCanvasTouch}
+        style={{ pointerEvents: 'auto', touchAction: 'none' }}
+      />
+
+      {/* Controls overlay */}
+      <div className="absolute bottom-0 left-0 right-0 bg-white bg-opacity-95 p-4 border-t">
+        <div className="flex flex-col gap-4 w-full max-w-md mx-auto">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Route name (optional)"
+              value={currentName}
+              onChange={(e) => setCurrentName(e.target.value)}
+              className="flex-1 px-3 py-2 border rounded text-sm"
+            />
+            <input
+              type="text"
+              placeholder="Grade"
+              value={currentGrade}
+              onChange={(e) => setCurrentGrade(e.target.value)}
+              className="px-3 py-2 border rounded text-sm"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={handleFinishRoute} className="bg-green-500 text-white px-3 py-2 rounded text-sm" disabled={currentPoints.length < 2}>
+              Finish Route
             </button>
-          )}
-          <button onClick={handleUndo} className="bg-yellow-500 text-white px-4 py-2 rounded" disabled={currentPoints.length === 0 && routes.length === 0}>
-            Undo Last {currentPoints.length > 0 ? 'Point' : routes.length > 0 ? 'Route' : ''}
+            {selectedRouteIndex !== null && (
+              <button onClick={handleUpdateRoute} className="bg-purple-500 text-white px-3 py-2 rounded text-sm">
+                Update Route
+              </button>
+            )}
+            <button onClick={handleUndo} className="bg-yellow-500 text-white px-3 py-2 rounded text-sm" disabled={currentPoints.length === 0 && routes.length === 0}>
+              Undo Last {currentPoints.length > 0 ? 'Point' : routes.length > 0 ? 'Route' : ''}
+            </button>
+            <button onClick={handleClearCurrent} className="bg-red-500 text-white px-3 py-2 rounded text-sm" disabled={currentPoints.length === 0 && selectedRouteIndex === null}>
+              Clear Current
+            </button>
+          </div>
+          <button onClick={handleSave} className="bg-blue-500 text-white px-4 py-3 rounded w-full" disabled={routes.length === 0}>
+            Save & Continue to Naming ({routes.length} routes)
           </button>
-          <button onClick={handleClearCurrent} className="bg-red-500 text-white px-4 py-2 rounded" disabled={currentPoints.length === 0 && selectedRouteIndex === null}>
-            Clear Current
-          </button>
-        </div>
-      </div>
-      <button onClick={handleSave} className="bg-blue-500 text-white px-6 py-3 rounded" disabled={routes.length === 0}>
-        Save & Continue to Naming ({routes.length} routes)
-      </button>
-      {routes.length > 0 && (
-        <div className="mt-4 p-4 bg-gray-50 rounded">
-          <h3 className="text-sm font-semibold mb-2">Finished Routes:</h3>
-          <div className="space-y-2">
-            {routes.map((route, index) => (
-              <div key={index} className={`flex items-center gap-2 p-2 rounded cursor-pointer ${
-                selectedRouteIndex === index ? 'bg-blue-100 border border-blue-300' : 'bg-white hover:bg-gray-100'
-              }`} onClick={() => handleSelectRoute(index)}>
-                <span className="text-sm font-medium">{route.name}</span>
-                <span className="text-xs text-gray-600">({route.grade})</span>
-                <span className="text-xs text-gray-500">{route.points.length} points</span>
+          {routes.length > 0 && (
+            <div className="bg-gray-50 rounded p-3">
+              <h3 className="text-sm font-semibold mb-2">Finished Routes:</h3>
+              <div className="space-y-1">
+                {routes.map((route, index) => (
+                  <div key={index} className={`flex items-center gap-2 p-2 rounded cursor-pointer text-sm ${
+                    selectedRouteIndex === index ? 'bg-blue-100 border border-blue-300' : 'bg-white hover:bg-gray-100'
+                  }`} onClick={() => handleSelectRoute(index)}>
+                    <span className="font-medium">{route.name}</span>
+                    <span className="text-gray-600">({route.grade})</span>
+                    <span className="text-gray-500">{route.points.length} points</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+          )}
+          <div className="text-xs text-gray-600 text-center">
+            Routes drawn: {routes.length} | Current points: {currentPoints.length}
+            {selectedRouteIndex !== null && ` | Editing: ${routes[selectedRouteIndex].name}`}
           </div>
         </div>
-      )}
-      <p className="mt-2 text-sm text-gray-600">
-        Routes drawn: {routes.length} | Current points: {currentPoints.length}
-        {selectedRouteIndex !== null && ` | Editing: ${routes[selectedRouteIndex].name}`}
-      </p>
-      <p className="mt-1 text-xs text-gray-500">
-        Click on the image to add route points. Press Enter or click "Finish Route" to complete each route. Use "Undo Last" to remove points/routes. Click on finished routes to edit them. When done, click "Save & Continue to Naming".
-      </p>
+      </div>
     </div>
   )
 }
