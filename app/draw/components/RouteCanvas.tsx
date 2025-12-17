@@ -9,9 +9,10 @@ interface RoutePoint {
 
 interface RouteCanvasProps {
   imageUrl: string
-  latitude: number
-  longitude: number
+  latitude: number | null // Changed to allow null
+  longitude: number | null // Changed to allow null
   sessionId: string
+  hasGps: boolean // Added
 }
 
 interface Climb {
@@ -30,7 +31,7 @@ interface RouteWithLabels {
   name: string
 }
 
-export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }: RouteCanvasProps) {
+export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, hasGps }: RouteCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const [climbs, setClimbs] = useState<Climb[]>([])
@@ -152,15 +153,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId }
     ctx.moveTo(points[0].x, points[0].y)
 
     for (let i = 1; i < points.length; i++) {
-      if (i < points.length - 1) {
-        // Use quadratic curve for smooth connections
-        const nextPoint = points[i + 1]
-        const controlX = (points[i].x + nextPoint.x) / 2
-        const controlY = (points[i].y + nextPoint.y) / 2
-        ctx.quadraticCurveTo(points[i].x, points[i].y, controlX, controlY)
-      } else {
-        ctx.lineTo(points[i].x, points[i].y)
-      }
+      ctx.lineTo(points[i].x, points[i].y) // Changed to simple lineTo
     }
 
     ctx.stroke()

@@ -47,11 +47,13 @@ export default function UploadForm() {
          body: formData
        })
 
+      const gpsData = await gpsResponse.json()
+
       if (!gpsResponse.ok) {
-        throw new Error('Failed to extract GPS data')
+        throw new Error(gpsData.error || 'Failed to extract GPS data')
       }
 
-      const { latitude, longitude } = await gpsResponse.json()
+      const { latitude, longitude } = gpsData
 
       // Upload to Supabase Storage
       const fileName = `${user.id}/${Date.now()}-${file.name}`
@@ -65,8 +67,11 @@ export default function UploadForm() {
         .from('route-uploads')
         .getPublicUrl(data.path)
 
+      // Determine if GPS data was found
+      const hasGps = latitude !== null && longitude !== null
+
       // Redirect to draw page with session data
-      window.location.href = `/draw?imageUrl=${encodeURIComponent(publicUrl)}&lat=${latitude}&lng=${longitude}&sessionId=${Date.now()}`
+      window.location.href = `/draw?imageUrl=${encodeURIComponent(publicUrl)}&lat=${latitude}&lng=${longitude}&hasGps=${hasGps}&sessionId=${Date.now()}`
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed')

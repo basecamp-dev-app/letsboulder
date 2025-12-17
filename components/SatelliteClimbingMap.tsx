@@ -79,14 +79,16 @@ export default function SatelliteClimbingMap() {
         .single()
 
       if (error) {
-        console.error('Error loading climb details:', error)
-        return null
+        console.error('Supabase error fetching climb details:', error)
+        // Return a partial object to mark as loaded and prevent infinite re-fetch
+        return { id: climbId, image_url: undefined, description: undefined }
       }
 
       return data as { id: string; image_url: string; description: string }
     } catch (err) {
       console.error('Network error loading climb details:', err)
-      return null
+      // Return a partial object to mark as loaded and prevent infinite re-fetch
+      return { id: climbId, image_url: undefined, description: undefined }
     }
   }, [])
 
@@ -303,30 +305,35 @@ export default function SatelliteClimbingMap() {
             key={climb.id}
             position={[climb.crags.latitude, climb.crags.longitude]}
             icon={redIcon}
-             eventHandlers={{
-               click: async (e) => {
-                 console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
-                 e.originalEvent.stopPropagation(); // Prevent map click
+              eventHandlers={{
+                click: async (e) => {
+                  console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
+                  e.originalEvent.stopPropagation(); // Prevent map click
 
-                 // Load full climb details if not already loaded
-                 let fullClimb = climb;
-                 if (!climb._fullLoaded) {
-                   const details = await loadClimbDetails(climb.id);
-                   if (details) {
-                     fullClimb = { ...climb, ...details, _fullLoaded: true };
-                     // Update the climb in state
-                     setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
-                   }
-                 }
+                  // 1. Set selectedClimb immediately to open the pop-up with "Loading..."
+                  setSelectedClimb(climb);
 
-                 setSelectedClimb(fullClimb);
-                 setImageError(false);
-                 // Zoom to the pin location to "expand" the view (simulate cluster expansion) - 2x zoom increase
-                 if (mapRef.current) {
-                   mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
-                 }
-               },
-             }}
+                  // 2. Load full climb details asynchronously
+                  if (!climb._fullLoaded) {
+                    const details = await loadClimbDetails(climb.id);
+                    if (details) {
+                      const fullClimb = { ...climb, ...details, _fullLoaded: true };
+                      // Update the main climbs array
+                      setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
+                      // Update the currently selected climb state
+                      setSelectedClimb(fullClimb);
+                    } else {
+                      // If details fail to load, update selectedClimb to show "No image available"
+                      setSelectedClimb({ ...climb, _fullLoaded: true });
+                    }
+                  }
+                  setImageError(false);
+                  // Zoom to the pin location to "expand" the view (simulate cluster expansion) - 2x zoom increase
+                  if (mapRef.current) {
+                    mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
+                  }
+                },
+              }}
           />
         ))}
       </MapContainer>

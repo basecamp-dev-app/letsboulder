@@ -14,7 +14,12 @@ export async function POST(request: NextRequest) {
     const exifData = await exifr.parse(buffer)
 
     if (!exifData?.latitude || !exifData?.longitude) {
-      return NextResponse.json({ error: 'No GPS data found in image' }, { status: 400 })
+      // If no GPS data is found, return null coordinates instead of an error
+      return NextResponse.json({
+        latitude: null,
+        longitude: null,
+        altitude: null
+      })
     }
 
     return NextResponse.json({
