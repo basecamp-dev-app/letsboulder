@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
+import Image from 'next/image'
 import L from 'leaflet'
 
 // Import Leaflet CSS
@@ -341,18 +342,22 @@ export default function SatelliteClimbingMap() {
 
         {selectedClimb && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-[1000] relative">
-           {selectedClimb.image_url ? (
-            <img
-              src={selectedClimb.image_url}
-              alt={selectedClimb.name}
-              className="absolute inset-0 w-full h-full object-contain z-10"
-              onLoad={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
-              onError={() => {
-                console.log('Image failed to load:', selectedClimb.image_url);
-                setImageError(true);
-              }}
-            />
-           ) : (
+            {selectedClimb.image_url ? (
+              <div className="relative w-full h-full">
+                <Image
+                  src={selectedClimb.image_url}
+                  alt={selectedClimb.name}
+                  fill
+                  className="object-contain z-10"
+                  onLoadingComplete={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
+                  onError={() => {
+                    console.log('Image failed to load:', selectedClimb.image_url);
+                    setImageError(true);
+                  }}
+                  priority
+                />
+              </div>
+            ) : (
              <div className="absolute inset-0 bg-gray-200 flex items-center justify-center z-10">
                <div className="text-gray-600">
                  {selectedClimb._fullLoaded === false ? 'Loading image...' : 'No image available'}
