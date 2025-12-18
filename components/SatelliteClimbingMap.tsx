@@ -357,7 +357,7 @@ export default function SatelliteClimbingMap() {
                   src={selectedClimb.image_url}
                   alt={selectedClimb.name}
                   width={800}
-                  height={600}
+                  height={800}
                   className="object-contain"
                   onLoadingComplete={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
                   onError={() => {
