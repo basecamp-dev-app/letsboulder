@@ -281,9 +281,9 @@ export default function SatelliteClimbingMap() {
 
 
 
-  // World center coordinates
-  const worldCenter: [number, number] = [20, 0]
-  const zoom = 2
+  // Guernsey center coordinates
+  const worldCenter: [number, number] = [49.4657, -2.5853]
+  const zoom = 11
 
   return (
     <div className="h-screen w-full relative">
