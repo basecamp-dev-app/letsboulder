@@ -55,24 +55,29 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     if (!ctx) return
 
     const handleImageLoad = () => {
-      // Size canvas to match the actual displayed image dimensions
+      // Size and position canvas to match the actual displayed image
       const container = canvas.parentElement
       if (container) {
         const containerRect = container.getBoundingClientRect()
         const containerAspect = containerRect.width / containerRect.height
         const imageAspect = image.naturalWidth / image.naturalHeight
 
-        let displayWidth, displayHeight
+        let displayWidth, displayHeight, offsetX = 0, offsetY = 0
         if (imageAspect > containerAspect) {
-          // Image is wider than container - fit by width
+          // Image is wider than container - fit by width, center vertically
           displayWidth = containerRect.width
           displayHeight = containerRect.width / imageAspect
+          offsetY = (containerRect.height - displayHeight) / 2
         } else {
-          // Image is taller than container - fit by height
+          // Image is taller than container - fit by height, center horizontally
           displayHeight = containerRect.height
           displayWidth = containerRect.height * imageAspect
+          offsetX = (containerRect.width - displayWidth) / 2
         }
 
+        // Position canvas to match image position
+        canvas.style.left = `${offsetX}px`
+        canvas.style.top = `${offsetY}px`
         canvas.width = displayWidth
         canvas.height = displayHeight
       }
@@ -227,8 +232,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     const canvasX = e.clientX - canvasRect.left
     const canvasY = e.clientY - canvasRect.top
 
-    // Since canvas is now sized to match displayed image, coordinates are already in display space
-    // Just validate they're within bounds
+    // Validate click is within canvas bounds
     if (canvasX < 0 || canvasX > canvas.width || canvasY < 0 || canvasY > canvas.height) {
       return // Click outside canvas, ignore
     }
@@ -255,8 +259,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     const canvasX = touch.clientX - canvasRect.left
     const canvasY = touch.clientY - canvasRect.top
 
-    // Since canvas is now sized to match displayed image, coordinates are already in display space
-    // Just validate they're within bounds
+    // Validate touch is within canvas bounds
     if (canvasX < 0 || canvasX > canvas.width || canvasY < 0 || canvasY > canvas.height) {
       return // Touch outside canvas, ignore
     }
@@ -378,7 +381,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
       />
       <canvas
         ref={canvasRef}
-        className="absolute top-0 left-0 cursor-crosshair w-full h-full"
+        className="absolute cursor-crosshair"
         onClick={handleCanvasClick}
         onTouchEnd={handleCanvasTouch}
         style={{ pointerEvents: 'auto', touchAction: 'none' }}
