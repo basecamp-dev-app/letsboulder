@@ -26,7 +26,7 @@ const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { 
 interface Climb {
   id: string
   name: string
-  grade: string
+  grade?: string
   image_url?: string
   description?: string
   crags: { name: string; latitude: number; longitude: number }
@@ -74,7 +74,7 @@ export default function SatelliteClimbingMap() {
       const { data, error } = await supabase
         .from('climbs')
         .select(`
-          id, image_url, description
+          id, grade, image_url, description
         `)
         .eq('id', climbId)
         .single()
@@ -82,10 +82,10 @@ export default function SatelliteClimbingMap() {
       if (error) {
         console.error('Supabase error fetching climb details:', error)
         // Return a partial object to mark as loaded and prevent infinite re-fetch
-        return { id: climbId, image_url: undefined, description: undefined }
+        return { id: climbId, grade: '', image_url: undefined, description: undefined }
       }
 
-      return data as { id: string; image_url: string; description: string }
+      return data as { id: string; grade?: string; image_url?: string; description?: string }
     } catch (err) {
       console.error('Network error loading climb details:', err)
       // Return a partial object to mark as loaded and prevent infinite re-fetch
