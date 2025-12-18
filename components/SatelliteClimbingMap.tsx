@@ -350,9 +350,14 @@ export default function SatelliteClimbingMap() {
       </button>
 
         {selectedClimb && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 z-[1000]">
+        <>
+          {/* Background overlay - non-interactive */}
+          <div className="fixed inset-0 bg-black bg-opacity-75 z-[1000] pointer-events-none"></div>
+
+          {/* Image content - interactive */}
+          <div className="fixed inset-0 z-[1001] pointer-events-none">
             {selectedClimb.image_url ? (
-              <div className="absolute top-16 bottom-20 left-0 right-0">
+              <div className="absolute top-16 bottom-20 left-0 right-0 pointer-events-auto">
                 <div className="relative w-full h-full">
                   <Image
                     src={selectedClimb.image_url}
@@ -370,22 +375,25 @@ export default function SatelliteClimbingMap() {
                 </div>
               </div>
             ) : (
-             <div className="absolute inset-0 bg-gray-200 flex items-center justify-center z-10">
-               <div className="text-gray-600">
-                 {selectedClimb._fullLoaded === false ? 'Loading image...' : 'No image available'}
-               </div>
-             </div>
-           )}
-            <div className="absolute bottom-0 left-0 right-0 bg-white p-4">
+              <div className="absolute inset-0 bg-gray-200 flex items-center justify-center pointer-events-auto">
+                <div className="text-gray-600">
+                  {selectedClimb._fullLoaded === false ? 'Loading image...' : 'No image available'}
+                </div>
+              </div>
+            )}
+
+            {/* UI elements - interactive */}
+            <div className="absolute bottom-0 left-0 right-0 bg-white p-4 pointer-events-auto">
               <p className="text-black text-lg font-semibold">{selectedClimb.name}, {selectedClimb.grade}</p>
-             {imageError && selectedClimb.image_url && (
-               <p className="text-red-500 text-xs mt-1">
-                 Image failed to load
-               </p>
-             )}
-           </div>
-           <button onClick={() => setSelectedClimb(null)} className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-30">X</button>
-        </div>
+              {imageError && selectedClimb.image_url && (
+                <p className="text-red-500 text-xs mt-1">
+                  Image failed to load
+                </p>
+              )}
+            </div>
+            <button onClick={() => setSelectedClimb(null)} className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-30 pointer-events-auto">X</button>
+          </div>
+        </>
       )}
     </div>
   )
