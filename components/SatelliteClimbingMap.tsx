@@ -40,10 +40,11 @@ export default function SatelliteClimbingMap() {
   const [climbs, setClimbs] = useState<Climb[]>([])
   const [loading, setLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
-  const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
-  const [imageError, setImageError] = useState(false)
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
-  const [userLocation, setUserLocation] = useState<L.LatLng | null>(null)
+   const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
+   const [imageError, setImageError] = useState(false)
+   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
+   const [userLocation, setUserLocation] = useState<L.LatLng | null>(null)
+   const [forceUpdate, setForceUpdate] = useState(0)
 
   // Create red icon (only on client)
   const redIcon = useMemo(() => {
@@ -312,6 +313,7 @@ export default function SatelliteClimbingMap() {
 
                   // 1. Set selectedClimb immediately to open the pop-up with "Loading..."
                   setSelectedClimb(climb);
+                  setForceUpdate(prev => prev + 1); // Force re-render
 
                   // 2. Load full climb details asynchronously
                   if (!climb._fullLoaded) {
