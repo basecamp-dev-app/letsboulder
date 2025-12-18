@@ -350,22 +350,24 @@ export default function SatelliteClimbingMap() {
       </button>
 
         {selectedClimb && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 z-[1000] relative">
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-[1000]">
             {selectedClimb.image_url ? (
-              <div className="absolute inset-0 flex items-center justify-center z-10">
-                <Image
-                  src={selectedClimb.image_url}
-                  alt={selectedClimb.name}
-                  width={1200}
-                  height={900}
-                  className="object-contain"
-                  onLoadingComplete={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
-                  onError={() => {
-                    console.log('Image failed to load:', selectedClimb.image_url);
-                    setImageError(true);
-                  }}
-                  priority
-                />
+              <div className="absolute top-16 bottom-20 left-0 right-0">
+                <div className="relative w-full h-full">
+                  <Image
+                    src={selectedClimb.image_url}
+                    alt={selectedClimb.name}
+                    fill
+                    className="object-contain"
+                    sizes="100vw"
+                    onLoadingComplete={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
+                    onError={() => {
+                      console.log('Image failed to load:', selectedClimb.image_url);
+                      setImageError(true);
+                    }}
+                    priority
+                  />
+                </div>
               </div>
             ) : (
              <div className="absolute inset-0 bg-gray-200 flex items-center justify-center z-10">
@@ -374,8 +376,8 @@ export default function SatelliteClimbingMap() {
                </div>
              </div>
            )}
-           <div className="absolute bottom-0 left-0 right-0 bg-white p-2">
-             <p className="text-black text-sm font-medium">{selectedClimb.name}, {selectedClimb.grade}</p>
+            <div className="absolute bottom-0 left-0 right-0 bg-white p-4">
+              <p className="text-black text-lg font-semibold">{selectedClimb.name}, {selectedClimb.grade}</p>
              {imageError && selectedClimb.image_url && (
                <p className="text-red-500 text-xs mt-1">
                  Image failed to load
