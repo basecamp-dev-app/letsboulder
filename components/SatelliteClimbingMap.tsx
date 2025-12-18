@@ -351,8 +351,11 @@ export default function SatelliteClimbingMap() {
 
         {selectedClimb && (
         <>
-          {/* Background overlay - non-interactive */}
-          <div className="fixed inset-0 bg-black bg-opacity-75 z-[1000] pointer-events-none"></div>
+          {/* Background overlay - closes overlay when clicked */}
+          <div
+            className="fixed inset-0 bg-black bg-opacity-75 z-[1000]"
+            onClick={() => setSelectedClimb(null)}
+          ></div>
 
           {/* Image content - interactive */}
           <div className="fixed inset-0 z-[1001] pointer-events-none">
