@@ -93,11 +93,11 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
       const gradeHeight = 16 // Approximate text height
       const gradePadding = 2
 
-      // Draw red background
+      // Draw red background - center on the text position
       ctx.fillStyle = 'red'
       ctx.fillRect(
         gradePoint.x - gradeWidth/2 - gradePadding,
-        gradePoint.y - gradeHeight + 2,
+        gradePoint.y - gradeHeight/2 - 2, // Center vertically on text
         gradeWidth + gradePadding * 2,
         gradeHeight
       )
@@ -105,7 +105,7 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
       // Draw white text
       ctx.fillStyle = 'white'
       ctx.textAlign = 'center'
-      ctx.fillText(grade, gradePoint.x, gradePoint.y - 5)
+      ctx.fillText(grade, gradePoint.x, gradePoint.y + 4) // Adjust baseline
 
       // Calculate end point for name (bottom of climb)
       const lastPoint = scaledPoints[scaledPoints.length - 1]
@@ -118,11 +118,11 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
       const nameHeight = 14 // Approximate text height
       const namePadding = 2
 
-      // Draw red background
+      // Draw red background - position properly around text
       ctx.fillStyle = 'red'
       ctx.fillRect(
         nameX - namePadding,
-        nameY - nameHeight + 2,
+        nameY - nameHeight + 3, // Adjust to properly contain text
         nameWidth + namePadding * 2,
         nameHeight
       )
