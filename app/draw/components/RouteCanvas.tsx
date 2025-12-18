@@ -182,27 +182,49 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
       const midIndex = Math.floor(scaledPoints.length / 2)
       const gradePoint = scaledPoints[midIndex]
 
-      // Draw grade label
-      ctx.fillStyle = 'white'
-      ctx.strokeStyle = 'black'
-      ctx.lineWidth = 2
+      // Draw grade label with red background
       ctx.font = 'bold 14px Arial'
+      const gradeWidth = ctx.measureText(grade).width
+      const gradeHeight = 16 // Approximate text height
+      const gradePadding = 2
+
+      // Draw red background
+      ctx.fillStyle = 'red'
+      ctx.fillRect(
+        gradePoint.x - gradeWidth/2 - gradePadding,
+        gradePoint.y - gradeHeight + 2,
+        gradeWidth + gradePadding * 2,
+        gradeHeight
+      )
+
+      // Draw white text
+      ctx.fillStyle = 'white'
       ctx.textAlign = 'center'
-      ctx.strokeText(grade, gradePoint.x, gradePoint.y - 5)
       ctx.fillText(grade, gradePoint.x, gradePoint.y - 5)
 
-      // Calculate end point for name (slightly offset)
+      // Calculate end point for name (bottom of climb)
       const lastPoint = scaledPoints[scaledPoints.length - 1]
-      const nameX = lastPoint.x + 20
-      const nameY = lastPoint.y + 15
+      const nameX = lastPoint.x + 15 // Position to the right of endpoint
+      const nameY = lastPoint.y + 5
 
-      // Draw name label
-      ctx.fillStyle = 'white'
-      ctx.strokeStyle = 'black'
-      ctx.lineWidth = 2
+      // Draw name label with red background
       ctx.font = '12px Arial'
+      const nameWidth = ctx.measureText(name).width
+      const nameHeight = 14 // Approximate text height
+      const namePadding = 2
+
+      // Draw red background
+      ctx.fillStyle = 'red'
+      ctx.fillRect(
+        nameX - namePadding,
+        nameY - nameHeight + 2,
+        nameWidth + namePadding * 2,
+        nameHeight
+      )
+
+      // Draw white text
+      ctx.fillStyle = 'white'
       ctx.textAlign = 'left'
-      ctx.strokeText(name, nameX, nameY)
       ctx.fillText(name, nameX, nameY)
     }
   }
