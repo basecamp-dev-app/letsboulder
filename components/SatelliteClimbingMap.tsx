@@ -352,13 +352,13 @@ export default function SatelliteClimbingMap() {
         {selectedClimb && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-[1000] relative">
             {selectedClimb.image_url ? (
-              <div className="relative w-full h-full">
+              <div className="absolute inset-0 flex items-center justify-center z-10">
                 <Image
                   src={selectedClimb.image_url}
                   alt={selectedClimb.name}
                   width={800}
                   height={600}
-                  className="object-contain z-10"
+                  className="object-contain"
                   onLoadingComplete={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
                   onError={() => {
                     console.log('Image failed to load:', selectedClimb.image_url);
