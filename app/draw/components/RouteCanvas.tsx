@@ -55,11 +55,26 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     if (!ctx) return
 
     const handleImageLoad = () => {
-      // Size canvas to match container dimensions
+      // Size canvas to match the actual displayed image dimensions
       const container = canvas.parentElement
       if (container) {
-        canvas.width = container.clientWidth
-        canvas.height = container.clientHeight
+        const containerRect = container.getBoundingClientRect()
+        const containerAspect = containerRect.width / containerRect.height
+        const imageAspect = image.naturalWidth / image.naturalHeight
+
+        let displayWidth, displayHeight
+        if (imageAspect > containerAspect) {
+          // Image is wider than container - fit by width
+          displayWidth = containerRect.width
+          displayHeight = containerRect.width / imageAspect
+        } else {
+          // Image is taller than container - fit by height
+          displayHeight = containerRect.height
+          displayWidth = containerRect.height * imageAspect
+        }
+
+        canvas.width = displayWidth
+        canvas.height = displayHeight
       }
       setImageLoaded(true)
       redraw()
@@ -84,24 +99,9 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // Calculate scale factors from natural to displayed size
-    // Since image uses object-contain, we need to find the actual displayed dimensions
-    const containerAspect = canvas.width / canvas.height
-    const imageAspect = image.naturalWidth / image.naturalHeight
-
-    let displayWidth, displayHeight
-    if (imageAspect > containerAspect) {
-      // Image is wider than container - fit by width
-      displayWidth = canvas.width
-      displayHeight = canvas.width / imageAspect
-    } else {
-      // Image is taller than container - fit by height
-      displayHeight = canvas.height
-      displayWidth = canvas.height * imageAspect
-    }
-
-    const scaleX = displayWidth / image.naturalWidth
-    const scaleY = displayHeight / image.naturalHeight
+    // Since canvas is now sized to match displayed image, scale directly
+    const scaleX = canvas.width / image.naturalWidth
+    const scaleY = canvas.height / image.naturalHeight
 
     // Draw completed routes with labels, scaled to display size
     routes.forEach(route => {
@@ -222,41 +222,22 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     const image = imageRef.current
     if (!canvas || !image) return
 
-    // Get canvas position
+    // Get click coordinates relative to canvas
     const canvasRect = canvas.getBoundingClientRect()
     const canvasX = e.clientX - canvasRect.left
     const canvasY = e.clientY - canvasRect.top
 
-    // Calculate actual displayed image dimensions and position within canvas
-    const containerAspect = canvas.width / canvas.height
-    const imageAspect = image.naturalWidth / image.naturalHeight
-
-    let displayWidth, displayHeight, offsetX = 0, offsetY = 0
-    if (imageAspect > containerAspect) {
-      // Image is wider than container - fit by width, center vertically
-      displayWidth = canvas.width
-      displayHeight = canvas.width / imageAspect
-      offsetY = (canvas.height - displayHeight) / 2
-    } else {
-      // Image is taller than container - fit by height, center horizontally
-      displayHeight = canvas.height
-      displayWidth = canvas.height * imageAspect
-      offsetX = (canvas.width - displayWidth) / 2
+    // Since canvas is now sized to match displayed image, coordinates are already in display space
+    // Just validate they're within bounds
+    if (canvasX < 0 || canvasX > canvas.width || canvasY < 0 || canvasY > canvas.height) {
+      return // Click outside canvas, ignore
     }
 
-    // Check if click is within displayed image bounds
-    const relativeX = canvasX - offsetX
-    const relativeY = canvasY - offsetY
-
-    if (relativeX < 0 || relativeX > displayWidth || relativeY < 0 || relativeY > displayHeight) {
-      return // Click outside image, ignore
-    }
-
-    // Scale coordinates from display size to natural size
-    const scaleX = image.naturalWidth / displayWidth
-    const scaleY = image.naturalHeight / displayHeight
-    const x = relativeX * scaleX
-    const y = relativeY * scaleY
+    // Scale coordinates from display size to natural image size
+    const scaleX = image.naturalWidth / canvas.width
+    const scaleY = image.naturalHeight / canvas.height
+    const x = canvasX * scaleX
+    const y = canvasY * scaleY
 
     setCurrentPoints(prev => [...prev, { x, y }])
   }, [])
@@ -269,41 +250,22 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
 
     const touch = e.changedTouches[0]
 
-    // Get canvas position
+    // Get touch coordinates relative to canvas
     const canvasRect = canvas.getBoundingClientRect()
     const canvasX = touch.clientX - canvasRect.left
     const canvasY = touch.clientY - canvasRect.top
 
-    // Calculate actual displayed image dimensions and position within canvas
-    const containerAspect = canvas.width / canvas.height
-    const imageAspect = image.naturalWidth / image.naturalHeight
-
-    let displayWidth, displayHeight, offsetX = 0, offsetY = 0
-    if (imageAspect > containerAspect) {
-      // Image is wider than container - fit by width, center vertically
-      displayWidth = canvas.width
-      displayHeight = canvas.width / imageAspect
-      offsetY = (canvas.height - displayHeight) / 2
-    } else {
-      // Image is taller than container - fit by height, center horizontally
-      displayHeight = canvas.height
-      displayWidth = canvas.height * imageAspect
-      offsetX = (canvas.width - displayWidth) / 2
+    // Since canvas is now sized to match displayed image, coordinates are already in display space
+    // Just validate they're within bounds
+    if (canvasX < 0 || canvasX > canvas.width || canvasY < 0 || canvasY > canvas.height) {
+      return // Touch outside canvas, ignore
     }
 
-    // Check if touch is within displayed image bounds
-    const relativeX = canvasX - offsetX
-    const relativeY = canvasY - offsetY
-
-    if (relativeX < 0 || relativeX > displayWidth || relativeY < 0 || relativeY > displayHeight) {
-      return // Touch outside image, ignore
-    }
-
-    // Scale coordinates from display size to natural size
-    const scaleX = image.naturalWidth / displayWidth
-    const scaleY = image.naturalHeight / displayHeight
-    const x = relativeX * scaleX
-    const y = relativeY * scaleY
+    // Scale coordinates from display size to natural image size
+    const scaleX = image.naturalWidth / canvas.width
+    const scaleY = image.naturalHeight / canvas.height
+    const x = canvasX * scaleX
+    const y = canvasY * scaleY
 
     setCurrentPoints(prev => [...prev, { x, y }])
   }, [])
