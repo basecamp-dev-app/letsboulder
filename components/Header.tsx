@@ -6,55 +6,6 @@ import Link from 'next/link'
 
 export default function Header() {
   const [user, setUser] = useState<any>(null)
-  const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
-  const [locationError, setLocationError] = useState<string | null>(null)
-
-  const startLocationTracking = () => {
-    if (!navigator.geolocation) {
-      setLocationStatus('error')
-      return
-    }
-
-    setLocationStatus('requesting')
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude, accuracy } = position.coords
-        setLocationStatus('tracking')
-        console.log('Header: Location updated:', latitude, longitude, 'accuracy:', accuracy, 'meters')
-
-        // Store location with accuracy info
-        localStorage.setItem('userLocation', JSON.stringify({ lat: latitude, lng: longitude, accuracy }))
-
-        // Warn if accuracy is poor (IP-based geolocation is typically > 1000m)
-        if (accuracy > 1000) {
-          console.warn('Low accuracy location - GPS may not be available. For accurate tracking, use a mobile device with GPS.')
-        }
-      },
-      (error) => {
-        console.error('Header: Error getting location:', error)
-        setLocationStatus('error')
-
-        if (!error || error.code === undefined) {
-          setLocationError('Location access blocked. Check browser settings.')
-        } else {
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              setLocationError('Location denied. Click the lock icon in your address bar to allow access.')
-              break
-            case error.POSITION_UNAVAILABLE:
-              setLocationError('GPS unavailable. For accurate tracking, use a mobile device.')
-              break
-            case error.TIMEOUT:
-              setLocationError('Location timed out. Try again.')
-              break
-          }
-        }
-        localStorage.removeItem('userLocation')
-      },
-      { enableHighAccuracy: true, timeout: 15000 }
-    )
-  }
 
   useEffect(() => {
     const supabase = createClient()
@@ -91,24 +42,6 @@ export default function Header() {
           <Link href="/map" className="text-gray-600 hover:text-gray-900">
             Map
           </Link>
-          <button
-            onClick={startLocationTracking}
-            className={`px-3 py-1 rounded text-sm transition-colors ${
-              locationStatus === 'tracking'
-                ? 'bg-green-100 text-green-700 border border-green-300'
-                : locationStatus === 'error'
-                ? 'bg-red-100 text-red-700 border border-red-300'
-                : 'text-gray-600 hover:text-gray-900 border border-transparent hover:bg-gray-100'
-            }`}
-            title="Enable location tracking"
-          >
-            {locationStatus === 'tracking' ? '📍 Tracking' : locationStatus === 'error' ? '📍 Error' : '📍 Find me'}
-          </button>
-          {locationError && (
-            <span className="text-xs text-red-600" title={locationError}>
-              ⚠️
-            </span>
-          )}
           <Link href="/upload" className="text-gray-600 hover:text-gray-900">
             Upload Route
           </Link>
