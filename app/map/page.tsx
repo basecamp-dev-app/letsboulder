@@ -1,15 +1,6 @@
-import dynamic from 'next/dynamic'
-import { Metadata } from 'next'
+'use client'
 
-export const metadata: Metadata = {
-  title: 'Interactive Climbing Map',
-  description: 'Explore interactive map of climbing routes in Guernsey. Find crags, routes, and plan your next climbing adventure.',
-  openGraph: {
-    title: 'Interactive Climbing Map - gsyrocks',
-    description: 'Explore interactive map of climbing routes in Guernsey. Find crags, routes, and plan your next climbing adventure.',
-    url: '/map',
-  },
-}
+import dynamic from 'next/dynamic'
 
 const SatelliteClimbingMap = dynamic(() => import('@/components/SatelliteClimbingMap'), {
   ssr: false,
