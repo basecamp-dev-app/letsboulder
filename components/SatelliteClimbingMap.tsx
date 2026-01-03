@@ -21,6 +21,7 @@ L.Icon.Default.mergeOptions({
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
+const Circle = dynamic(() => import('react-leaflet').then(mod => mod.Circle), { ssr: false })
 
 
 interface Climb {
@@ -39,12 +40,24 @@ export default function SatelliteClimbingMap() {
   const mapRef = useRef<L.Map | null>(null)
   const [climbs, setClimbs] = useState<Climb[]>([])
   const [loading, setLoading] = useState(true)
-  const [isClient, setIsClient] = useState(false)
+  const [isClient, setIsClient] = useState(true)
    const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
    const [imageError, setImageError] = useState(false)
    const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
-   const [userLocation, setUserLocation] = useState<L.LatLng | null>(null)
-   const [forceUpdate, setForceUpdate] = useState(0)
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
+  const [locationError, setLocationError] = useState<string | null>(null)
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
+  const [forceUpdate, setForceUpdate] = useState(0)
+  const [mapReady, setMapReady] = useState(false)
+  const watchIdRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    setIsClient(true)
+    const timer = setTimeout(() => {
+      setMapReady(true)
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [])
 
   // Create red icon (only on client)
   const redIcon = useMemo(() => {
@@ -58,10 +71,6 @@ export default function SatelliteClimbingMap() {
       shadowSize: [41, 41]
     })
   }, [isClient])
-
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
 
   // Cache key for localStorage
   const CACHE_KEY = 'gsyrocks_climbs_cache'
@@ -161,46 +170,70 @@ export default function SatelliteClimbingMap() {
     setLoading(false)
   }, [])
 
-  // Get user's current location
-  const getCurrentLocation = useCallback(() => {
+  // Get user's current location with continuous tracking
+  const startLocationTracking = useCallback(() => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by this browser.')
+      setLocationError('Geolocation is not supported by this browser.')
+      setLocationStatus('error')
       return
     }
 
-    navigator.geolocation.getCurrentPosition(
+    setLocationStatus('requesting')
+    setLocationError(null)
+
+    // Clear any existing watch
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+    }
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude } = position.coords
-        const userLatLng = L.latLng(latitude, longitude)
-        setUserLocation(userLatLng)
+        setUserLocation([latitude, longitude])
+        setLocationError(null)
+        setLocationStatus('tracking')
+        console.log('User location updated:', latitude, longitude)
 
         // Center map on user location
         if (mapRef.current) {
-          mapRef.current.setView(userLatLng, 12) // Zoom to city level
+          mapRef.current.setView([latitude, longitude], 12)
         }
-
-        console.log('User location:', latitude, longitude)
       },
       (error) => {
         console.error('Error getting location:', error)
-        let message = 'Unable to get your location.'
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            message = 'Location access denied. Please enable location services.'
-            break
-          case error.POSITION_UNAVAILABLE:
-            message = 'Location information unavailable.'
-            break
-          case error.TIMEOUT:
-            message = 'Location request timed out.'
-            break
+        setLocationStatus('error')
+
+        // Handle different error types
+        if (!error || error.code === undefined) {
+          // Empty error - likely HTTPS requirement or blocked
+          const isHttps = window.location.protocol === 'https:'
+          const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+
+          if (!isHttps && !isLocalhost) {
+            setLocationError('Location requires HTTPS. Access via https:// or localhost.')
+          } else {
+            setLocationError('Location access blocked. Check browser settings or try a different browser.')
+          }
+        } else {
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              setLocationError('Location access denied. Click the lock icon in your address bar to allow access.')
+              break
+            case error.POSITION_UNAVAILABLE:
+              setLocationError('Location information unavailable. Check your device GPS settings.')
+              break
+            case error.TIMEOUT:
+              setLocationError('Location request timed out. Try again.')
+              break
+            default:
+              setLocationError('Unable to get location. Please try again.')
+          }
         }
-        alert(message)
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000 // 5 minutes
+        timeout: 15000,
+        maximumAge: 0
       }
     )
   }, [])
@@ -266,16 +299,60 @@ export default function SatelliteClimbingMap() {
     loadClimbs(worldBounds)
 
     // Optionally get location on load (commented out to avoid auto-prompt)
-    // getCurrentLocation()
+    // startLocationTracking()
   }, [isClient, loadClimbs])
 
-   useEffect(() => {
-     if (selectedClimb) {
-       console.log('selectedClimb set to:', selectedClimb.name, 'image_url:', selectedClimb.image_url)
-     }
-   }, [selectedClimb])
+  useEffect(() => {
+    if (isClient) {
+      console.log('Starting location tracking...')
+      startLocationTracking()
+    }
+    return () => {
+      if (watchIdRef.current !== null) {
+        console.log('Clearing location watch')
+        navigator.geolocation.clearWatch(watchIdRef.current)
+      }
+    }
+  }, [isClient, startLocationTracking])
 
-  if (!isClient || loading) {
+  // Read location from Header's localStorage
+  useEffect(() => {
+    if (!isClient) return
+
+    const checkForLocation = () => {
+      const stored = localStorage.getItem('userLocation')
+      if (stored) {
+        try {
+          const { lat, lng } = JSON.parse(stored)
+          if (lat && lng) {
+            const newLocation: [number, number] = [lat, lng]
+            setUserLocation(prev => {
+              if (prev?.[0] === lat && prev?.[1] === lng) return prev
+              console.log('Map: Received location from Header:', lat, lng)
+              return newLocation
+            })
+            setLocationStatus('tracking')
+
+            // Center map on user location
+            if (mapRef.current) {
+              mapRef.current.setView([lat, lng], 12)
+            }
+          }
+        } catch (e) {
+          console.error('Map: Error parsing stored location:', e)
+        }
+      }
+    }
+
+    // Check immediately
+    checkForLocation()
+
+    // Poll for updates from Header (every 1 second)
+    const interval = setInterval(checkForLocation, 1000)
+    return () => clearInterval(interval)
+  }, [isClient])
+
+  if (!isClient || loading || !mapReady) {
     return <div className="h-screen w-full flex items-center justify-center">Loading satellite map...</div>
   }
 
@@ -300,6 +377,26 @@ export default function SatelliteClimbingMap() {
           maxZoom={19}
           minZoom={1}
         />
+
+        {userLocation && (
+          <>
+            {/* Accuracy circle - semi-transparent blue ring */}
+            <Circle
+              center={userLocation}
+              radius={100}
+              pathOptions={{ color: '#4285f4', fillColor: '#4285f4', fillOpacity: 0.2, weight: 1 }}
+            />
+            {/* Center dot - solid blue with white border */}
+            <Marker
+              position={userLocation}
+              icon={L.divIcon({
+                className: 'user-location-dot',
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+              })}
+            />
+          </>
+        )}
 
         {redIcon && climbs.map(climb => (
           <Marker
@@ -342,12 +439,28 @@ export default function SatelliteClimbingMap() {
 
       {/* Location Button */}
       <button
-        onClick={getCurrentLocation}
-        className="absolute top-4 right-4 z-40 bg-white hover:bg-gray-50 border border-gray-300 rounded shadow-lg p-2"
-        title="Find my location"
+        onClick={startLocationTracking}
+        className={`absolute top-4 right-4 z-[1000] border rounded shadow-lg p-2 transition-colors ${
+          locationStatus === 'tracking'
+            ? 'bg-green-100 border-green-400 text-green-700'
+            : 'bg-white hover:bg-gray-50 border-gray-300'
+        }`}
+        title="Track my location"
       >
-        📍
+        {locationStatus === 'tracking' ? '📍 Tracking' : '📍 Find me'}
       </button>
+
+      {locationError && (
+        <div className="absolute bottom-4 left-4 z-[1000] bg-yellow-50 border border-yellow-300 rounded-lg px-3 py-2 text-sm text-yellow-800">
+          {locationError}
+        </div>
+      )}
+
+      {locationStatus === 'requesting' && (
+        <div className="absolute top-4 right-20 z-[1000] bg-blue-50 border border-blue-300 rounded-lg px-3 py-2 text-sm text-blue-800">
+          Requesting location permission...
+        </div>
+      )}
 
         {selectedClimb && (
         <>

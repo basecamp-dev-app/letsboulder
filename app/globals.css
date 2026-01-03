@@ -24,3 +24,13 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* User location dot - Google Maps style */
+.user-location-dot {
+  background: #4285f4;
+  border: 2px solid white;
+  border-radius: 50%;
+  width: 12px !important;
+  height: 12px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
