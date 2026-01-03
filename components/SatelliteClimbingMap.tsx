@@ -337,7 +337,6 @@ export default function SatelliteClimbingMap() {
 
                   // 1. Set selectedClimb immediately to open the pop-up with "Loading..."
                   setSelectedClimb(climb);
-                  setForceUpdate(prev => prev + 1); // Force re-render
 
                   // 2. Load full climb details asynchronously
                   if (!climb._fullLoaded) {
