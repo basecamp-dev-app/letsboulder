@@ -40,13 +40,12 @@ export default function SatelliteClimbingMap() {
   const [climbs, setClimbs] = useState<Climb[]>([])
   const [loading, setLoading] = useState(true)
   const [isClient, setIsClient] = useState(true)
-   const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
-   const [imageError, setImageError] = useState(false)
-   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
+  const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
+  const [imageError, setImageError] = useState(false)
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
-  const [forceUpdate, setForceUpdate] = useState(0)
-  const [mapReady, setMapReady] = useState(false)
+  const [mapReady, setMapReady] = useState(true)
 
   // Create red icon (only on client)
   const redIcon = useMemo(() => {
