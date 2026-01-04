@@ -99,7 +99,7 @@ export default function SatelliteClimbingMap() {
       let query = supabase
         .from('climbs')
         .select(`
-          id, name, grade,
+          id, name, grade, image_url,
           crags (name, latitude, longitude)
         `)
         .eq('status', 'approved')
