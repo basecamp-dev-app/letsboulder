@@ -63,9 +63,29 @@ body {
 /* Circle marker hover effect */
 .leaflet-interactive {
   cursor: pointer;
-  transition: r 0.2s ease, filter 0.2s ease;
+  transition: filter 0.2s ease;
 }
 
 .leaflet-interactive:hover {
   filter: brightness(1.2);
+}
+
+/* Climb marker - orange circle with white border */
+.climb-marker {
+  background: #ff5533 !important;
+  border: 2px solid white !important;
+  border-radius: 50% !important;
+  width: 12px !important;
+  height: 12px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.climb-marker:hover {
+  background: #ff6b4a !important;
+}
+
+/* Skeleton loading marker - gray */
+.climb-marker.skeleton {
+  background: #cccccc !important;
+  opacity: 0.6;
 }

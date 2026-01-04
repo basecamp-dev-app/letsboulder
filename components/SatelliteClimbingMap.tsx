@@ -329,31 +329,27 @@ export default function SatelliteClimbingMap() {
 
         {/* Skeleton pins while loading */}
         {loading && skeletonPins.map((climb: any) => (
-          <CircleMarker
+          <Marker
             key={climb.id}
-            center={[climb.crags.latitude, climb.crags.longitude]}
-            radius={6}
-            pathOptions={{
-              color: 'white',
-              weight: 2,
-              fillColor: '#ccc',
-              fillOpacity: 0.5
-            }}
+            position={[climb.crags.latitude, climb.crags.longitude]}
+            icon={L.divIcon({
+              className: 'climb-marker skeleton',
+              iconSize: [12, 12],
+              iconAnchor: [6, 6]
+            })}
           />
         ))}
 
         {/* Real pins when loaded */}
         {!loading && climbs.map(climb => (
-          <CircleMarker
+          <Marker
             key={climb.id}
-            center={[climb.crags.latitude, climb.crags.longitude]}
-            radius={6}
-            pathOptions={{
-              color: 'white',
-              weight: 2,
-              fillColor: '#ff5533',
-              fillOpacity: 1
-            }}
+            position={[climb.crags.latitude, climb.crags.longitude]}
+            icon={L.divIcon({
+              className: 'climb-marker',
+              iconSize: [12, 12],
+              iconAnchor: [6, 6]
+            })}
             eventHandlers={{
               click: async (e: L.LeafletMouseEvent) => {
                 e.originalEvent.stopPropagation();
@@ -424,7 +420,7 @@ export default function SatelliteClimbingMap() {
                 </div>
               </Tooltip>
             )}
-          </CircleMarker>
+          </Marker>
         ))}
       </MapContainer>
 
