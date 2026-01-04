@@ -20,6 +20,7 @@ L.Icon.Default.mergeOptions({
 // Dynamically import Leaflet components to avoid SSR issues
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
+const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
 
@@ -315,9 +316,16 @@ export default function SatelliteClimbingMap() {
         )}
 
         {climbs.map(climb => (
-          <Marker
+          <CircleMarker
             key={climb.id}
-            position={[climb.crags.latitude, climb.crags.longitude]}
+            center={[climb.crags.latitude, climb.crags.longitude]}
+            radius={6}
+            pathOptions={{
+              color: 'white',
+              weight: 2,
+              fillColor: '#ff5533',
+              fillOpacity: 1
+            }}
             eventHandlers={{
               click: async (e: L.LeafletMouseEvent) => {
                 e.originalEvent.stopPropagation();
@@ -388,7 +396,7 @@ export default function SatelliteClimbingMap() {
                 </div>
               </Tooltip>
             )}
-          </Marker>
+          </CircleMarker>
         ))}
       </MapContainer>
 
