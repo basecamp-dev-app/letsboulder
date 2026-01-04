@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
     images: [
       {
-        url: "/og-image.png",
+        url: "/og.png",
         width: 1200,
         height: 630,
         alt: "gsyrocks - Guernsey Climbing Routes",
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "gsyrocks - Guernsey Climbing Routes",
     description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
-    images: ["/og-image.png"],
+    images: ["/og.png"],
     creator: "@gsyrocks",
   },
   other: {
