@@ -418,8 +418,11 @@ export default function SatelliteClimbingMap() {
             )}
 
             {/* UI elements - interactive */}
-            <div className="absolute bottom-0 left-0 right-0 bg-white p-4 pointer-events-auto">
+            <div className="absolute bottom-0 left-0 right-0 bg-white p-4 pointer-events-auto max-h-[40vh] overflow-y-auto">
               <p className="text-black text-lg font-semibold">{selectedClimb.name}, {selectedClimb.grade}</p>
+              {selectedClimb.description && (
+                <p className="text-gray-700 text-sm mt-2">{selectedClimb.description}</p>
+              )}
               {imageError && selectedClimb.image_url && (
                 <p className="text-red-500 text-xs mt-1">
                   Image failed to load
