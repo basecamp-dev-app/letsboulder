@@ -292,7 +292,7 @@ export default function SatelliteClimbingMap() {
         center={worldCenter}
         zoom={zoom}
         style={{ height: '100%', width: '100%' }}
-        zoomControl={true}
+        zoomControl={false}
         scrollWheelZoom={true}
       >
         <TileLayer
