@@ -36,8 +36,8 @@ export default function Header() {
   return (
     <header className="fixed top-0 left-0 right-0 z-10 bg-white shadow">
       <div className="container mx-auto px-4 py-2 flex justify-between items-center">
-        <Link href="/" className="flex items-center">
-          <div className="relative w-20 h-20">
+        <Link href="/" className="flex items-center -my-2">
+          <div className="relative w-16 h-16">
             <Image
               src="/og.png"
               alt="gsyrocks"
