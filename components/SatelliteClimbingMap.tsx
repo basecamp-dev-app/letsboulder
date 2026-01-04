@@ -278,9 +278,7 @@ export default function SatelliteClimbingMap() {
     )
   }, [isClient, mapReady])
 
-  if (!isClient || !mapReady) {
-    return <div className="h-screen w-full flex items-center justify-center">Loading satellite map...</div>
-  }
+  const [mapLoaded, setMapLoaded] = useState(false)
 
   // Guernsey center coordinates
   const worldCenter: [number, number] = [49.4657, -2.5853]
@@ -300,6 +298,13 @@ export default function SatelliteClimbingMap() {
     }))
   }, [climbs.length])
 
+  // Don't render Leaflet components until client-side
+  if (!isClient) {
+    return (
+      <div className="h-screen w-full bg-gray-900" />
+    )
+  }
+
   return (
     <div className="h-screen w-full relative">
       <MapContainer
@@ -308,6 +313,7 @@ export default function SatelliteClimbingMap() {
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}
         scrollWheelZoom={true}
+        whenReady={() => setMapLoaded(true)}
       >
         <TileLayer
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -327,8 +333,8 @@ export default function SatelliteClimbingMap() {
           />
         )}
 
-        {/* Skeleton pins while loading */}
-        {loading && skeletonPins.map((climb: any) => (
+        {/* Skeleton pins while map/data loading */}
+        {(!mapLoaded || loading) && skeletonPins.map((climb: any) => (
           <Marker
             key={climb.id}
             position={[climb.crags.latitude, climb.crags.longitude]}
@@ -340,8 +346,8 @@ export default function SatelliteClimbingMap() {
           />
         ))}
 
-        {/* Real pins when loaded */}
-        {!loading && climbs.map(climb => (
+        {/* Real pins when map and data are loaded */}
+        {mapLoaded && !loading && climbs.map(climb => (
           <Marker
             key={climb.id}
             position={[climb.crags.latitude, climb.crags.longitude]}
@@ -424,7 +430,7 @@ export default function SatelliteClimbingMap() {
         ))}
       </MapContainer>
 
-      {loading && (
+      {(!mapLoaded || loading) && (
         <div className="absolute top-4 left-4 z-[1000] bg-white bg-opacity-90 rounded-lg px-3 py-2 text-sm text-gray-700 shadow-md">
           Loading routes…
         </div>
