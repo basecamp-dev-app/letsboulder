@@ -39,7 +39,7 @@ export default function Header() {
         <Link href="/" className="flex items-center">
           <div className="relative w-14 h-14">
             <Image
-              src="/logo.png"
+              src="/og.png"
               alt="gsyrocks"
               fill
               className="object-contain"
