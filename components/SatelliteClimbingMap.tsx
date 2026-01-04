@@ -20,7 +20,6 @@ L.Icon.Default.mergeOptions({
 // Dynamically import Leaflet components to avoid SSR issues
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
-const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
 
@@ -315,11 +314,9 @@ export default function SatelliteClimbingMap() {
         )}
 
         {climbs.map(climb => (
-          <CircleMarker
+          <Marker
             key={climb.id}
-            center={[climb.crags.latitude, climb.crags.longitude]}
-            radius={7}
-            pathOptions={{ color: '#dc2626', fillColor: '#dc2626', fillOpacity: 1, weight: 0 }}
+            position={[climb.crags.latitude, climb.crags.longitude]}
             eventHandlers={{
               click: async (e: L.LeafletMouseEvent) => {
                 console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
@@ -351,7 +348,7 @@ export default function SatelliteClimbingMap() {
               },
             }}
           >
-            <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
+            <Tooltip direction="top" offset={[0, -25]} opacity={1} permanent={false}>
               <div className="w-40">
                 {climb.image_url ? (
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
@@ -374,7 +371,7 @@ export default function SatelliteClimbingMap() {
                 )}
               </div>
             </Tooltip>
-          </CircleMarker>
+          </Marker>
         ))}
       </MapContainer>
 
