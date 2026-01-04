@@ -20,7 +20,9 @@ L.Icon.Default.mergeOptions({
 // Dynamically import Leaflet components to avoid SSR issues
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
+const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.CircleMarker), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
+const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
 
 
 interface Climb {
@@ -46,19 +48,6 @@ export default function SatelliteClimbingMap() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
   const [mapReady, setMapReady] = useState(true)
-
-  // Create red icon (only on client)
-  const redIcon = useMemo(() => {
-    if (!isClient) return null
-    return L.icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    })
-  }, [isClient])
 
   // Cache key for localStorage
   const CACHE_KEY = 'gsyrocks_climbs_cache'
@@ -325,41 +314,67 @@ export default function SatelliteClimbingMap() {
           />
         )}
 
-        {redIcon && climbs.map(climb => (
-          <Marker
+        {climbs.map(climb => (
+          <CircleMarker
             key={climb.id}
-            position={[climb.crags.latitude, climb.crags.longitude]}
-            icon={redIcon}
-              eventHandlers={{
-                click: async (e) => {
-                  console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
-                  e.originalEvent.stopPropagation(); // Prevent map click
-
-                  // 1. Set selectedClimb immediately to open the pop-up with "Loading..."
-                  setSelectedClimb(climb);
-
-                  // 2. Load full climb details asynchronously
-                  if (!climb._fullLoaded) {
-                    const details = await loadClimbDetails(climb.id);
-                    if (details) {
-                      const fullClimb = { ...climb, ...details, _fullLoaded: true };
-                      // Update the main climbs array
-                      setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
-                      // Update the currently selected climb state
-                      setSelectedClimb(fullClimb);
-                    } else {
-                      // If details fail to load, update selectedClimb to show "No image available"
-                      setSelectedClimb({ ...climb, _fullLoaded: true });
-                    }
+            center={[climb.crags.latitude, climb.crags.longitude]}
+            radius={7}
+            pathOptions={{ color: '#dc2626', fillColor: '#dc2626', fillOpacity: 1, weight: 0 }}
+            eventHandlers={{
+              click: async (e: L.LeafletMouseEvent) => {
+                console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
+                e.originalEvent.stopPropagation();
+                setSelectedClimb(climb);
+                if (!climb._fullLoaded) {
+                  const details = await loadClimbDetails(climb.id);
+                  if (details) {
+                    const fullClimb = { ...climb, ...details, _fullLoaded: true };
+                    setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
+                    setSelectedClimb(fullClimb);
+                  } else {
+                    setSelectedClimb({ ...climb, _fullLoaded: true });
                   }
-                  setImageError(false);
-                  // Zoom to the pin location to "expand" the view (simulate cluster expansion) - 2x zoom increase
-                  if (mapRef.current) {
-                    mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
+                }
+                setImageError(false);
+                if (mapRef.current) {
+                  mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
+                }
+              },
+              mouseover: async () => {
+                if (!climb._fullLoaded && !climb.image_url) {
+                  const details = await loadClimbDetails(climb.id);
+                  if (details) {
+                    const fullClimb = { ...climb, ...details, _fullLoaded: true };
+                    setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
                   }
-                },
-              }}
-          />
+                }
+              },
+            }}
+          >
+            <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
+              <div className="w-40">
+                {climb.image_url ? (
+                  <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
+                    <Image
+                      src={climb.image_url}
+                      alt={climb.name}
+                      fill
+                      className="object-cover"
+                      sizes="160px"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-24 w-full bg-gray-200 flex items-center justify-center mb-2 rounded">
+                    <span className="text-gray-500 text-xs">No image</span>
+                  </div>
+                )}
+                <p className="font-semibold text-sm text-gray-900 truncate">{climb.name}</p>
+                {climb.grade && (
+                  <p className="text-xs text-gray-600">{climb.grade}</p>
+                )}
+              </div>
+            </Tooltip>
+          </CircleMarker>
         ))}
       </MapContainer>
 

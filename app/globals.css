@@ -34,3 +34,38 @@ body {
   height: 12px !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
+
+/* Leaflet tooltip custom styling */
+.leaflet-tooltip {
+  background: white !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  padding: 8px !important;
+  border: none !important;
+}
+
+.leaflet-tooltip-top:before {
+  border-top-color: white !important;
+}
+
+.leaflet-tooltip-bottom:before {
+  border-bottom-color: white !important;
+}
+
+.leaflet-tooltip-left:before {
+  border-left-color: white !important;
+}
+
+.leaflet-tooltip-right:before {
+  border-right-color: white !important;
+}
+
+/* Circle marker hover effect */
+.leaflet-interactive {
+  cursor: pointer;
+  transition: r 0.2s ease, filter 0.2s ease;
+}
+
+.leaflet-interactive:hover {
+  filter: brightness(1.2);
+}
