@@ -278,15 +278,27 @@ export default function SatelliteClimbingMap() {
     )
   }, [isClient, mapReady])
 
-  if (!isClient || loading || !mapReady) {
+  if (!isClient || !mapReady) {
     return <div className="h-screen w-full flex items-center justify-center">Loading satellite map...</div>
   }
-
-
 
   // Guernsey center coordinates
   const worldCenter: [number, number] = [49.4657, -2.5853]
   const zoom = 11
+
+  // Calculate bounds for skeleton pins based on crag locations
+  const skeletonPins = useMemo(() => {
+    if (climbs.length > 0) return []
+    // Generate placeholder pins around Guernsey for loading state
+    return Array.from({ length: 20 }).map((_, i) => ({
+      id: `skeleton-${i}`,
+      crags: {
+        name: '',
+        latitude: 49.45 + (Math.random() - 0.5) * 0.08,
+        longitude: -2.6 + (Math.random() - 0.5) * 0.08
+      }
+    }))
+  }, [climbs.length])
 
   return (
     <div className="h-screen w-full relative">
@@ -315,7 +327,23 @@ export default function SatelliteClimbingMap() {
           />
         )}
 
-        {climbs.map(climb => (
+        {/* Skeleton pins while loading */}
+        {loading && skeletonPins.map((climb: any) => (
+          <CircleMarker
+            key={climb.id}
+            center={[climb.crags.latitude, climb.crags.longitude]}
+            radius={6}
+            pathOptions={{
+              color: 'white',
+              weight: 2,
+              fillColor: '#ccc',
+              fillOpacity: 0.5
+            }}
+          />
+        ))}
+
+        {/* Real pins when loaded */}
+        {!loading && climbs.map(climb => (
           <CircleMarker
             key={climb.id}
             center={[climb.crags.latitude, climb.crags.longitude]}
@@ -399,6 +427,12 @@ export default function SatelliteClimbingMap() {
           </CircleMarker>
         ))}
       </MapContainer>
+
+      {loading && (
+        <div className="absolute top-4 left-4 z-[1000] bg-white bg-opacity-90 rounded-lg px-3 py-2 text-sm text-gray-700 shadow-md">
+          Loading routes…
+        </div>
+      )}
 
       {locationStatus === 'requesting' && (
         <div className="absolute top-4 right-20 z-[1000] bg-blue-50 border border-blue-300 rounded-lg px-3 py-2 text-sm text-blue-800">
