@@ -42,6 +42,7 @@ export default function SatelliteClimbingMap() {
   const [loading, setLoading] = useState(true)
   const [isClient, setIsClient] = useState(true)
   const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
+  const [selectedClimbId, setSelectedClimbId] = useState<string | null>(null)
   const [imageError, setImageError] = useState(false)
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
@@ -319,22 +320,35 @@ export default function SatelliteClimbingMap() {
             position={[climb.crags.latitude, climb.crags.longitude]}
             eventHandlers={{
               click: async (e: L.LeafletMouseEvent) => {
-                console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
                 e.originalEvent.stopPropagation();
-                setSelectedClimb(climb);
-                if (!climb._fullLoaded) {
-                  const details = await loadClimbDetails(climb.id);
-                  if (details) {
-                    const fullClimb = { ...climb, ...details, _fullLoaded: true };
-                    setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
-                    setSelectedClimb(fullClimb);
-                  } else {
-                    setSelectedClimb({ ...climb, _fullLoaded: true });
+                if (selectedClimbId === climb.id) {
+                  console.log('Second click - opening full image for:', climb.name);
+                  setSelectedClimb(climb);
+                  if (!climb._fullLoaded) {
+                    const details = await loadClimbDetails(climb.id);
+                    if (details) {
+                      const fullClimb = { ...climb, ...details, _fullLoaded: true };
+                      setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
+                      setSelectedClimb(fullClimb);
+                    } else {
+                      setSelectedClimb({ ...climb, _fullLoaded: true });
+                    }
                   }
-                }
-                setImageError(false);
-                if (mapRef.current) {
-                  mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
+                  setImageError(false);
+                  setSelectedClimbId(null);
+                  if (mapRef.current) {
+                    mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
+                  }
+                } else {
+                  console.log('First click - showing tooltip for:', climb.name);
+                  setSelectedClimbId(climb.id);
+                  if (!climb._fullLoaded) {
+                    const details = await loadClimbDetails(climb.id);
+                    if (details) {
+                      const fullClimb = { ...climb, ...details, _fullLoaded: true };
+                      setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
+                    }
+                  }
                 }
               },
               mouseover: async () => {
@@ -348,29 +362,32 @@ export default function SatelliteClimbingMap() {
               },
             }}
           >
-            <Tooltip direction="top" offset={[0, -25]} opacity={1} permanent={false}>
-              <div className="w-40">
-                {climb.image_url ? (
-                  <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
-                    <Image
-                      src={climb.image_url}
-                      alt={climb.name}
-                      fill
-                      className="object-cover"
-                      sizes="160px"
-                    />
-                  </div>
-                ) : (
-                  <div className="h-24 w-full bg-gray-200 flex items-center justify-center mb-2 rounded">
-                    <span className="text-gray-500 text-xs">No image</span>
-                  </div>
-                )}
-                <p className="font-semibold text-sm text-gray-900 truncate">{climb.name}</p>
-                {climb.grade && (
-                  <p className="text-xs text-gray-600">{climb.grade}</p>
-                )}
-              </div>
-            </Tooltip>
+            {selectedClimbId === climb.id && (
+              <Tooltip direction="top" offset={[0, -25]} opacity={1} permanent={false}>
+                <div className="w-40">
+                  {climb.image_url ? (
+                    <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
+                      <Image
+                        src={climb.image_url}
+                        alt={climb.name}
+                        fill
+                        className="object-cover"
+                        sizes="160px"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-24 w-full bg-gray-200 flex items-center justify-center mb-2 rounded">
+                      <span className="text-gray-500 text-xs">No image</span>
+                    </div>
+                  )}
+                  <p className="font-semibold text-sm text-gray-900 truncate">{climb.name}</p>
+                  {climb.grade && (
+                    <p className="text-xs text-gray-600">{climb.grade}</p>
+                  )}
+                  <p className="text-[10px] text-blue-600 mt-1">Tap again to view</p>
+                </div>
+              </Tooltip>
+            )}
           </Marker>
         ))}
       </MapContainer>
@@ -386,7 +403,10 @@ export default function SatelliteClimbingMap() {
           {/* Background overlay - closes overlay when clicked */}
           <div
             className="fixed inset-0 bg-black bg-opacity-75 z-[1000]"
-            onClick={() => setSelectedClimb(null)}
+            onClick={() => {
+              setSelectedClimb(null)
+              setSelectedClimbId(null)
+            }}
           ></div>
 
           {/* Image content - interactive */}
@@ -429,7 +449,10 @@ export default function SatelliteClimbingMap() {
                 </p>
               )}
             </div>
-            <button onClick={() => setSelectedClimb(null)} className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-30 pointer-events-auto">X</button>
+            <button onClick={() => {
+              setSelectedClimb(null)
+              setSelectedClimbId(null)
+            }} className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-30 pointer-events-auto">X</button>
           </div>
         </>
       )}
