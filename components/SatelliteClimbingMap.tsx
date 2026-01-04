@@ -1,27 +1,51 @@
 'use client'
 
+// Add MarkerClusterGroup type declaration
+declare module 'leaflet' {
+  interface MarkerClusterGroupOptions {
+    disableClusteringAtZoom?: number
+    maxClusterRadius?: number
+    showCoverageOnHover?: boolean
+    spiderfyOnMaxZoom?: boolean
+    chunkedLoading?: boolean
+    iconCreateFunction?: (cluster: any) => L.DivIcon
+  }
+
+  interface MarkerClusterGroup extends L.LayerGroup {
+    addLayer(layer: L.Layer): this
+    removeLayer(layer: L.Layer): this
+    clearLayers(): this
+    getChildCount(): number
+    getLayers(): L.Layer[]
+  }
+
+  interface Map {
+    addLayer(layer: L.Layer): this
+    removeLayer(layer: L.Layer): this
+  }
+
+  function markerClusterGroup(options?: MarkerClusterGroupOptions): MarkerClusterGroup
+}
+
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import Image from 'next/image'
 import L from 'leaflet'
+import 'leaflet.markercluster'
 
 // Import Leaflet CSS
 import 'leaflet/dist/leaflet.css'
-
-// Fix default markers (fallback to red)
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-})
+import 'leaflet.markercluster/dist/MarkerCluster.css'
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 
 // Dynamically import Leaflet components to avoid SSR issues
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 
+// Import useMap directly - it's a hook so it must be used inside MapContainer
+import { useMap } from 'react-leaflet'
 
 interface Climb {
   id: string
@@ -33,32 +57,114 @@ interface Climb {
   _fullLoaded?: boolean // Track if full details are loaded
 }
 
+interface ClusterMapControllerProps {
+  climbs: Climb[]
+  visitedClimbs: Set<string>
+  onClimbClick: (climb: Climb) => void
+  onHover: (climbId: string | null, position: { x: number; y: number } | null) => void
+}
+
+function ClusterMapController({ climbs, visitedClimbs, onClimbClick, onHover }: ClusterMapControllerProps) {
+  const map = useMap()
+  const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null)
+
+  useEffect(() => {
+    if (!map) return
+
+    // Create cluster group if it doesn't exist
+    if (!clusterGroupRef.current) {
+      const clusterGroup = L.markerClusterGroup({
+        disableClusteringAtZoom: 18,
+        maxClusterRadius: 60,
+        showCoverageOnHover: false,
+        spiderfyOnMaxZoom: false,
+        chunkedLoading: true,
+        iconCreateFunction: (cluster: any) => {
+          return L.divIcon({
+            className: 'cluster-marker',
+            html: `<div class="cluster-inner"></div>`,
+            iconSize: L.point(24, 24)
+          })
+        }
+      })
+
+      // Handle cluster click - zoom to bounds instead of spiderfying
+      clusterGroup.on('clusterclick', (e: L.LeafletEvent) => {
+        const layer = e.layer
+        if ('getBounds' in layer) {
+          const bounds = (layer as any).getBounds() as L.LatLngBounds
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 17 })
+        }
+      })
+
+      clusterGroupRef.current = clusterGroup
+      map.addLayer(clusterGroup)
+    }
+
+    const clusterGroup = clusterGroupRef.current
+
+    // Clear existing markers
+    clusterGroup.clearLayers()
+
+    // Add new markers
+    climbs.forEach(climb => {
+      const marker = L.marker(
+        [climb.crags.latitude, climb.crags.longitude],
+        {
+          icon: L.divIcon({
+            className: `climb-dot ${visitedClimbs.has(climb.id) ? 'visited' : ''}`,
+            html: `<div class="climb-dot-inner"></div>`,
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+          })
+        }
+      )
+
+      marker.on('mouseover', () => {
+        onHover(climb.id, null)
+        const element = marker.getElement()
+        if (element) {
+          const rect = element.getBoundingClientRect()
+          onHover(climb.id, { x: rect.left + rect.width / 2, y: rect.top - 10 })
+        }
+      })
+
+      marker.on('mouseout', () => {
+        onHover(null, null)
+      })
+
+      marker.on('click', () => {
+        onClimbClick(climb)
+      })
+
+      clusterGroup.addLayer(marker)
+    })
+
+    return () => {
+      if (clusterGroupRef.current) {
+        map.removeLayer(clusterGroupRef.current)
+        clusterGroupRef.current = null
+      }
+    }
+  }, [map, climbs, visitedClimbs, onClimbClick, onHover])
+
+  return null
+}
+
 export default function SatelliteClimbingMap() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
-  const mapRef = useRef<L.Map | null>(null)
   const [climbs, setClimbs] = useState<Climb[]>([])
   const [loading, setLoading] = useState(true)
-  const [isClient, setIsClient] = useState(true)
+  const [isClient, setIsClient] = useState(false)
   const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
   const [imageError, setImageError] = useState(false)
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
-  const [mapReady, setMapReady] = useState(true)
-
-  // Create red icon (only on client)
-  const redIcon = useMemo(() => {
-    if (!isClient) return null
-    return L.icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    })
-  }, [isClient])
+  const [visitedClimbs, setVisitedClimbs] = useState<Set<string>>(new Set())
+  const [hoveredClimb, setHoveredClimb] = useState<string | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState<{x: number, y: number} | null>(null)
 
   // Cache key for localStorage
   const CACHE_KEY = 'gsyrocks_climbs_cache'
@@ -78,36 +184,65 @@ export default function SatelliteClimbingMap() {
 
       if (error) {
         console.error('Supabase error fetching climb details:', error)
-        // Return a partial object to mark as loaded and prevent infinite re-fetch
         return { id: climbId, grade: '', image_url: undefined, description: undefined }
       }
 
       return data as { id: string; grade?: string; image_url?: string; description?: string }
     } catch (err) {
       console.error('Network error loading climb details:', err)
-      // Return a partial object to mark as loaded and prevent infinite re-fetch
       return { id: climbId, image_url: undefined, description: undefined }
     }
   }, [])
 
+  // Handle marker click - mark as visited
+  const handleClimbClick = useCallback((climb: Climb) => {
+    // Mark as visited
+    setVisitedClimbs(prev => new Set([...prev, climb.id]))
+
+    // Set selected climb
+    setSelectedClimb(climb)
+
+    // Load full details
+    if (!climb._fullLoaded) {
+      loadClimbDetails(climb.id).then(details => {
+        if (details) {
+          const fullClimb = { ...climb, ...details, _fullLoaded: true }
+          setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c))
+          setSelectedClimb(fullClimb)
+        }
+      })
+    }
+
+    setImageError(false)
+  }, [loadClimbDetails])
+
   // Load climbs from cache or API (basic data only)
   const loadClimbs = useCallback(async (bounds?: L.LatLngBounds, forceRefresh = false) => {
     // Check cache first (unless force refresh)
-    if (!forceRefresh) {
-      const cached = localStorage.getItem(CACHE_KEY)
-      if (cached) {
-        const { data, timestamp } = JSON.parse(cached)
-        if (Date.now() - timestamp < CACHE_DURATION) {
-          console.log('Loading climbs from cache')
-          setClimbs(data)
-          setLoading(false)
-          return
+    if (!forceRefresh && typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem(CACHE_KEY)
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached)
+          if (Date.now() - timestamp < CACHE_DURATION) {
+            console.log('Loading climbs from cache')
+            setClimbs(data)
+            setLoading(false)
+            return
+          }
         }
+      } catch (e) {
+        console.log('Cache check failed, fetching from API')
       }
     }
 
     try {
       const supabase = createClient()
+      
+      // Create abort controller for timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
+      
       let query = supabase
         .from('climbs')
         .select(`
@@ -136,31 +271,47 @@ export default function SatelliteClimbingMap() {
 
       const { data, error } = await query
 
+      clearTimeout(timeoutId)
+
       if (error) {
         console.error('Error fetching climbs:', error)
+        setLoading(false)
       } else {
         const climbsData = (data || []).map((climb: any) => ({
           ...climb,
-          _fullLoaded: false // Mark as not fully loaded
+          _fullLoaded: false
         })) as Climb[]
         console.log(`Loaded ${climbsData.length} climbs (basic data)${bounds ? ' for viewport' : ''}`)
         setClimbs(climbsData)
+        setLoading(false)
 
         // Cache the data
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-          data: climbsData,
-          timestamp: Date.now()
-        }))
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({
+            data: climbsData,
+            timestamp: Date.now()
+          }))
+        }
       }
     } catch (err) {
       console.error('Network error fetching climbs:', err)
+      setLoading(false)
     }
-    setLoading(false)
+    
+    // Safety timeout - ensure loading is false after 15 seconds regardless
+    setTimeout(() => {
+      setLoading(false)
+    }, 15000)
+   }, [])
+
+  // Set isClient to true after mount
+  useEffect(() => {
+    setIsClient(true)
   }, [])
 
   // Auto-detect location on mount
   useEffect(() => {
-    if (!isClient || !mapReady) return
+    if (!isClient) return
 
     if (!navigator.geolocation) {
       console.log('Geolocation not supported')
@@ -177,11 +328,6 @@ export default function SatelliteClimbingMap() {
         setUserLocation([latitude, longitude])
         setLocationStatus('tracking')
         console.log('Location detected:', latitude, longitude, 'accuracy:', accuracy, 'meters')
-
-        // Center map on user location
-        if (mapRef.current) {
-          mapRef.current.setView([latitude, longitude], 12)
-        }
       },
       (error) => {
         console.error('Error getting location:', error)
@@ -189,46 +335,14 @@ export default function SatelliteClimbingMap() {
       },
       { enableHighAccuracy: true, timeout: 15000 }
     )
-  }, [isClient, mapReady])
+  }, [isClient])
 
-  // Simple clustering function
-  const clusterMarkers = useCallback((markers: Climb[], map: L.Map) => {
-    const clusters: { center: L.LatLng; climbs: Climb[]; count: number }[] = []
-    const clusterDistance = 50 // pixels
-
-    markers.forEach(climb => {
-      const point = map.latLngToContainerPoint([climb.crags.latitude, climb.crags.longitude])
-      let added = false
-
-      for (const cluster of clusters) {
-        const clusterPoint = map.latLngToContainerPoint(cluster.center)
-        const distance = Math.sqrt(
-          Math.pow(point.x - clusterPoint.x, 2) + Math.pow(point.y - clusterPoint.y, 2)
-        )
-
-        if (distance < clusterDistance) {
-          cluster.climbs.push(climb)
-          cluster.count++
-          // Recalculate center
-          const totalLat = cluster.climbs.reduce((sum, c) => sum + c.crags.latitude, 0)
-          const totalLng = cluster.climbs.reduce((sum, c) => sum + c.crags.longitude, 0)
-          cluster.center = L.latLng(totalLat / cluster.count, totalLng / cluster.count)
-          added = true
-          break
-        }
-      }
-
-      if (!added) {
-        clusters.push({
-          center: L.latLng(climb.crags.latitude, climb.crags.longitude),
-          climbs: [climb],
-          count: 1
-        })
-      }
-    })
-
-    return clusters
-  }, [])
+  // Load climbs on mount
+  useEffect(() => {
+    if (!isClient) return
+    console.log('Initial load of climbs')
+    loadClimbs()
+  }, [isClient, loadClimbs])
 
   // Debounced map move handler
   const handleMapMove = useCallback((map: L.Map) => {
@@ -244,51 +358,7 @@ export default function SatelliteClimbingMap() {
     setDebounceTimer(timer)
   }, [debounceTimer, loadClimbs])
 
-  useEffect(() => {
-    if (!isClient) return
-
-    // Initial load with world bounds
-    const worldBounds = L.latLngBounds(L.latLng(-90, -180), L.latLng(90, 180))
-    loadClimbs(worldBounds)
-
-    // Optionally get location on load (commented out to avoid auto-prompt)
-    // startLocationTracking()
-  }, [isClient, loadClimbs])
-
-  // Auto-detect location on mount
-  useEffect(() => {
-    if (!isClient || !mapReady) return
-
-    if (!navigator.geolocation) {
-      console.log('Geolocation not supported')
-      return
-    }
-
-    setTimeout(() => {
-      setLocationStatus('requesting')
-    }, 0)
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude, accuracy } = position.coords
-        setUserLocation([latitude, longitude])
-        setLocationStatus('tracking')
-        console.log('Location detected:', latitude, longitude, 'accuracy:', accuracy, 'meters')
-
-        // Center map on user location
-        if (mapRef.current) {
-          mapRef.current.setView([latitude, longitude], 12)
-        }
-      },
-      (error) => {
-        console.error('Error getting location:', error)
-        setLocationStatus('error')
-      },
-      { enableHighAccuracy: true, timeout: 15000 }
-    )
-  }, [isClient, mapReady])
-
-  if (!isClient || loading || !mapReady) {
+  if (!isClient || loading) {
     return <div className="h-screen w-full flex items-center justify-center">Loading satellite map...</div>
   }
 
@@ -303,6 +373,7 @@ export default function SatelliteClimbingMap() {
       <MapContainer
         center={worldCenter}
         zoom={zoom}
+        maxZoom={19}
         style={{ height: '100%', width: '100%' }}
         zoomControl={true}
         scrollWheelZoom={true}
@@ -325,42 +396,15 @@ export default function SatelliteClimbingMap() {
           />
         )}
 
-        {redIcon && climbs.map(climb => (
-          <Marker
-            key={climb.id}
-            position={[climb.crags.latitude, climb.crags.longitude]}
-            icon={redIcon}
-              eventHandlers={{
-                click: async (e) => {
-                  console.log('Marker clicked for climb:', climb.name, 'image_url:', climb.image_url);
-                  e.originalEvent.stopPropagation(); // Prevent map click
-
-                  // 1. Set selectedClimb immediately to open the pop-up with "Loading..."
-                  setSelectedClimb(climb);
-
-                  // 2. Load full climb details asynchronously
-                  if (!climb._fullLoaded) {
-                    const details = await loadClimbDetails(climb.id);
-                    if (details) {
-                      const fullClimb = { ...climb, ...details, _fullLoaded: true };
-                      // Update the main climbs array
-                      setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
-                      // Update the currently selected climb state
-                      setSelectedClimb(fullClimb);
-                    } else {
-                      // If details fail to load, update selectedClimb to show "No image available"
-                      setSelectedClimb({ ...climb, _fullLoaded: true });
-                    }
-                  }
-                  setImageError(false);
-                  // Zoom to the pin location to "expand" the view (simulate cluster expansion) - 2x zoom increase
-                  if (mapRef.current) {
-                    mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
-                  }
-                },
-              }}
-          />
-        ))}
+        <ClusterMapController
+          climbs={climbs}
+          visitedClimbs={visitedClimbs}
+          onClimbClick={handleClimbClick}
+          onHover={(id, pos) => {
+            setHoveredClimb(id)
+            setTooltipPosition(pos)
+          }}
+        />
       </MapContainer>
 
       {locationStatus === 'requesting' && (
@@ -368,6 +412,32 @@ export default function SatelliteClimbingMap() {
           Requesting location permission...
         </div>
       )}
+
+      {/* Hover tooltip */}
+      {hoveredClimb && tooltipPosition && (() => {
+        const climb = climbs.find(c => c.id === hoveredClimb)
+        if (!climb) return null
+        return (
+          <div
+            className="climb-tooltip visible"
+            style={{
+              left: tooltipPosition.x,
+              top: tooltipPosition.y,
+              transform: 'translate(-50%, -100%)'
+            }}
+          >
+            {climb.image_url && (
+              <div className="climb-tooltip-image">
+                <img src={climb.image_url} alt={climb.name} />
+              </div>
+            )}
+            <div className="climb-tooltip-content">
+              <div className="climb-tooltip-name">{climb.name}</div>
+              <div className="climb-tooltip-grade">Grade {climb.grade || '?'}</div>
+            </div>
+          </div>
+        )
+      })()}
 
         {selectedClimb && (
         <>

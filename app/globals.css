@@ -34,3 +34,93 @@ body {
   height: 12px !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
+
+/* Climb dots - solid styling */
+.climb-dot {
+  background: transparent !important;
+  border: none !important;
+}
+
+.climb-dot-inner {
+  width: 14px;
+  height: 14px;
+  background: #dc2626;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.climb-dot.visited .climb-dot-inner {
+  background: #6b7280;
+}
+
+.climb-dot.hovered .climb-dot-inner,
+.climb-dot:hover .climb-dot-inner {
+  transform: scale(1.4);
+  background: #ef4444;
+}
+
+/* Tooltip styles */
+.climb-tooltip {
+  position: fixed;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  overflow: hidden;
+}
+
+.climb-tooltip.visible {
+  opacity: 1;
+}
+
+.climb-tooltip-image {
+  width: 160px;
+  height: 100px;
+  overflow: hidden;
+}
+
+.climb-tooltip-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.climb-tooltip-content {
+  padding: 8px 10px;
+}
+
+.climb-tooltip-name {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.climb-tooltip-grade {
+  color: #6b7280;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* Cluster marker styles - same as climb dots */
+.cluster-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.cluster-inner {
+  width: 24px;
+  height: 24px;
+  background: #dc2626;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.cluster-inner:hover {
+  transform: scale(1.2);
+  background: #ef4444;
+}
