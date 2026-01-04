@@ -56,3 +56,20 @@ CREATE POLICY "Admins can update any climb" ON climbs FOR UPDATE USING (auth.jwt
 
 -- Admin actions: only admins
 CREATE POLICY "Admins can manage admin actions" ON admin_actions FOR ALL USING (auth.jwt() ->> 'role' = 'admin');
+
+-- =====================================================
+-- WOODAH MIGRATION COLUMNS (One-time use - delete after migration)
+-- =====================================================
+
+-- Add legacy_id column for mapping old crag IDs during migration
+ALTER TABLE crags ADD COLUMN legacy_id INTEGER;
+
+-- Add route_type column to distinguish boulder/sport/trad
+ALTER TABLE climbs ADD COLUMN route_type VARCHAR(20) DEFAULT 'boulder';
+
+-- Add tide_dependency column (tide level specific to this climb)
+ALTER TABLE climbs ADD COLUMN tide_dependency INTEGER;
+
+-- Remove unique constraint on coordinates (now optional for approved climbs)
+-- Note: This is a breaking change - only run if you understand the implications
+-- ALTER TABLE climbs ALTER COLUMN coordinates DROP NOT NULL;
