@@ -18,6 +18,10 @@ export default function Footer() {
           <span className="text-lg">🗺️</span>
           <span className="text-xs mt-1">Map</span>
         </Link>
+        <a href="https://github.com/gsyrocks/gsyrocks/issues" target="_blank" rel="noopener noreferrer" className="flex flex-col items-center text-gray-600 hover:text-gray-900">
+          <span className="text-lg">💬</span>
+          <span className="text-xs mt-1">Feedback</span>
+        </a>
       </nav>
     </footer>
   )

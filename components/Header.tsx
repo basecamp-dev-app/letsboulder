@@ -198,6 +198,9 @@ export default function Header() {
           <Link href="/contribute" className="text-gray-600 hover:text-gray-900">
             Contribute
           </Link>
+          <a href="https://github.com/gsyrocks/gsyrocks/issues" target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-900">
+            Feedback
+          </a>
           {user ? (
             <>
                <Link href="/profile" className="text-gray-600 hover:text-gray-900">
