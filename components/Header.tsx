@@ -190,7 +190,7 @@ export default function Header() {
 
         <nav className="hidden md:flex items-center space-x-4">
           <Link href="/logbook" className="text-gray-600 hover:text-gray-900">
-            My Climbs
+            Logbook
           </Link>
           <Link href="/contribute" className="text-gray-600 hover:text-gray-900">
             Contribute
