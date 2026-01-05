@@ -192,6 +192,9 @@ export default function Header() {
           <Link href="/logbook" className="text-gray-600 hover:text-gray-900">
             Logbook
           </Link>
+          <Link href="/map" className="text-gray-600 hover:text-gray-900">
+            Map
+          </Link>
           <Link href="/contribute" className="text-gray-600 hover:text-gray-900">
             Contribute
           </Link>
