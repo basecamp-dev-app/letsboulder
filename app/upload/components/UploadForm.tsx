@@ -2,8 +2,84 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
-// @ts-ignore - browser-image-compression is a client-side library
-import imageCompression from 'browser-image-compression'
+
+// Native Canvas-based image compression (no external libraries)
+async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeight: number): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    
+    reader.onload = (e) => {
+      const img = new Image()
+      
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        
+        // Calculate new dimensions
+        let { width, height } = img
+        const maxDim = maxWidthOrHeight
+        
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width)
+            width = maxDim
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height)
+            height = maxDim
+          }
+        }
+        
+        canvas.width = width
+        canvas.height = height
+        ctx?.drawImage(img, 0, 0, width, height)
+        
+        // Compress to target size
+        let quality = 0.9
+        const targetSize = maxSizeMB * 1024 * 1024
+        let compressedDataUrl: string | null = null
+        
+        const tryCompress = () => {
+          compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
+          const blob = dataURLToBlob(compressedDataUrl)
+          
+          if (blob.size <= targetSize || quality <= 0.1) {
+            const compressedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            })
+            resolve(compressedFile)
+          } else {
+            quality -= 0.1
+            if (quality < 0.1) quality = 0.1
+            tryCompress()
+          }
+        }
+        
+        tryCompress()
+      }
+      
+      img.onerror = () => reject(new Error('Failed to load image for compression'))
+      img.src = e.target?.result as string
+    }
+    
+    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function dataURLToBlob(dataURL: string): Blob {
+  const arr = dataURL.split(',')
+  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg'
+  const bstr = atob(arr[1])
+  let n = bstr.length
+  const u8arr = new Uint8Array(n)
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n)
+  }
+  return new Blob([u8arr], { type: mime })
+}
 
 export default function UploadForm() {
   const [file, setFile] = useState<File | null>(null)
@@ -49,19 +125,8 @@ export default function UploadForm() {
       setCurrentStep('Compressing image...')
       setProgress(10)
 
-      const options = {
-        maxSizeMB: 0.3, // Target 300KB max (like Signal compression)
-        maxWidthOrHeight: 1200, // Optimized for phone, decent for laptop
-        useWebWorker: true,
-        preserveExif: true, // Keep GPS data critical for climbing routes!
-        initialQuality: 0.8, // 80% quality for good visual balance
-        onProgress: (progress: number) => {
-          setProgress(10 + (progress * 0.8)) // 10-90% for compression
-        }
-      }
-
-      setCurrentStep('Optimizing image for mobile & fast upload (~300KB)...')
-      const compressed = await imageCompression(originalFile, options)
+      // Native Canvas-based compression (no external libraries)
+      const compressed = await compressImageNative(originalFile, 0.3, 1200)
 
       setProgress(90)
       setCompressedFile(compressed)
