@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true)
+  const [showResetRequest, setShowResetRequest] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -80,6 +81,93 @@ export default function AuthPage() {
     setLoading(false)
   }
 
+  const handlePasswordResetRequest = async () => {
+    if (!email) {
+      setError('Please enter your email address')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+    const supabase = createClient()
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/auth/reset-password`,
+    })
+    if (error) {
+      setError(error.message)
+    } else {
+      setSuccess('Check your email for a password reset link!')
+    }
+    setLoading(false)
+  }
+
+  if (showResetRequest) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <h1 className="text-2xl font-bold text-center mb-2">
+              Reset Password
+            </h1>
+            <p className="text-gray-600 text-center mb-8">
+              Enter your email to receive a password reset link
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  placeholder="you@example.com"
+                  required
+                />
+              </div>
+
+              {error && (
+                <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">
+                  {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="text-green-600 text-sm bg-green-50 p-3 rounded-lg">
+                  {success}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handlePasswordResetRequest}
+                disabled={loading}
+                className="w-full bg-gray-800 text-white py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Please wait...' : 'Send Reset Link'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowResetRequest(false)
+                  setError(null)
+                  setSuccess(null)
+                }}
+                className="w-full text-gray-600 text-sm hover:underline"
+              >
+                ← Back to login
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
@@ -101,7 +189,7 @@ export default function AuthPage() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
                   placeholder="Your name"
                   required={!isLogin}
                 />
@@ -116,7 +204,7 @@ export default function AuthPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
                 placeholder="you@example.com"
                 required
               />
@@ -130,7 +218,7 @@ export default function AuthPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
                 placeholder="••••••••"
                 required
                 minLength={6}
@@ -152,7 +240,7 @@ export default function AuthPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="w-full bg-gray-800 text-white py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 transition-colors disabled:opacity-50"
             >
               {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
             </button>
@@ -163,9 +251,23 @@ export default function AuthPage() {
               type="button"
               onClick={handleMagicLink}
               disabled={loading || !origin}
-              className="w-full mt-3 text-blue-600 text-sm hover:underline disabled:opacity-50"
+              className="w-full mt-3 text-gray-600 text-sm hover:underline disabled:opacity-50"
             >
               Sign in with magic link instead
+            </button>
+          )}
+
+          {isLogin && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowResetRequest(true)
+                setError(null)
+                setSuccess(null)
+              }}
+              className="w-full mt-3 text-gray-600 text-sm hover:underline"
+            >
+              Forgot password?
             </button>
           )}
 
@@ -179,7 +281,7 @@ export default function AuthPage() {
                     setError(null)
                     setSuccess(null)
                   }}
-                  className="text-blue-600 hover:underline font-medium"
+                  className="text-gray-800 hover:underline font-medium"
                 >
                   Register
                 </button>
@@ -193,7 +295,7 @@ export default function AuthPage() {
                     setError(null)
                     setSuccess(null)
                   }}
-                  className="text-blue-600 hover:underline font-medium"
+                  className="text-gray-800 hover:underline font-medium"
                 >
                   Login
                 </button>
