@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import Image from 'next/image'
 import L from 'leaflet'
+import { useSearchParams } from 'next/navigation'
 
 // Import Leaflet CSS
 import 'leaflet/dist/leaflet.css'
@@ -36,6 +37,7 @@ interface Climb {
 }
 
 export default function SatelliteClimbingMap() {
+  const searchParams = useSearchParams()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const mapRef = useRef<L.Map | null>(null)
@@ -313,7 +315,20 @@ export default function SatelliteClimbingMap() {
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}
         scrollWheelZoom={true}
-        whenReady={() => setMapLoaded(true)}
+        whenReady={() => {
+          setMapLoaded(true)
+          const lat = searchParams.get('lat')
+          const lng = searchParams.get('lng')
+          const zoom = searchParams.get('zoom')
+          if (lat && lng && mapRef.current) {
+            const parsedLat = parseFloat(lat)
+            const parsedLng = parseFloat(lng)
+            const parsedZoom = zoom ? parseInt(zoom) : 15
+            if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+              mapRef.current.setView([parsedLat, parsedLng], parsedZoom)
+            }
+          }
+        }}
       >
         <TileLayer
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -401,7 +416,7 @@ export default function SatelliteClimbingMap() {
             }}
           >
             {selectedClimbId === climb.id && (
-              <Tooltip direction="top" offset={[0, -25]} opacity={1} permanent={false}>
+              <Tooltip direction="top" offset={[0, -25]} opacity={1} permanent={true}>
                 <div className="w-40">
                   {climb.image_url ? (
                     <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
@@ -422,7 +437,6 @@ export default function SatelliteClimbingMap() {
                   {climb.grade && (
                     <p className="text-xs text-gray-600">{climb.grade}</p>
                   )}
-                  <p className="text-[10px] text-blue-600 mt-1">Tap again to view</p>
                 </div>
               </Tooltip>
             )}
