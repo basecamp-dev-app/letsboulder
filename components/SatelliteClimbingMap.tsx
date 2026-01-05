@@ -458,7 +458,6 @@ export default function SatelliteClimbingMap() {
 
         {selectedClimb && (
         <>
-          {/* Background overlay - closes overlay when clicked */}
           <div
             className="fixed inset-0 bg-black bg-opacity-75 z-[1000]"
             onClick={() => {
@@ -467,10 +466,9 @@ export default function SatelliteClimbingMap() {
             }}
           ></div>
 
-          {/* Image content - interactive */}
-          <div className="fixed inset-0 z-[1001] pointer-events-none">
+          <div className="fixed inset-0 z-[1001] pointer-events-none pt-12">
             {selectedClimb.image_url ? (
-              <div className="absolute top-16 bottom-20 left-0 right-0 pointer-events-auto">
+              <div className="absolute top-0 bottom-16 left-0 right-0 pointer-events-auto md:top-16 md:bottom-20">
                 <div className="relative w-full h-full">
                   <Image
                     src={selectedClimb.image_url}
@@ -488,14 +486,13 @@ export default function SatelliteClimbingMap() {
                 </div>
               </div>
             ) : (
-              <div className="absolute inset-0 bg-gray-200 flex items-center justify-center pointer-events-auto">
+              <div className="absolute inset-0 bg-gray-200 flex items-center justify-center pointer-events-auto pt-12 md:pt-16">
                 <div className="text-gray-600">
                   {selectedClimb._fullLoaded === false ? 'Loading image...' : 'No image available'}
                 </div>
               </div>
             )}
 
-            {/* UI elements - interactive */}
             <div className="absolute bottom-0 left-0 right-0 bg-white p-4 pointer-events-auto max-h-[40vh] overflow-y-auto">
               <p className="text-black text-lg font-semibold">{selectedClimb.name}, {selectedClimb.grade}</p>
               {selectedClimb.description && (
@@ -510,7 +507,7 @@ export default function SatelliteClimbingMap() {
             <button onClick={() => {
               setSelectedClimb(null)
               setSelectedClimbId(null)
-            }} className="absolute top-4 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-30 pointer-events-auto">X</button>
+            }} className="absolute top-16 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-30 pointer-events-auto md:top-4">X</button>
           </div>
         </>
       )}

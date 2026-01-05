@@ -6,7 +6,7 @@ import { Suspense } from 'react'
 const SatelliteClimbingMap = dynamic(() => import('@/components/SatelliteClimbingMap'), {
   ssr: false,
   loading: () => (
-    <div className="fixed inset-0 bg-gray-900 flex items-center justify-center">
+    <div className="absolute inset-0 bg-gray-900 flex items-center justify-center">
       <div className="text-white text-lg">Loading map...</div>
     </div>
   )
@@ -14,7 +14,7 @@ const SatelliteClimbingMap = dynamic(() => import('@/components/SatelliteClimbin
 
 function MapFallback() {
   return (
-    <div className="fixed inset-0 bg-gray-900 flex items-center justify-center">
+    <div className="absolute inset-0 bg-gray-900 flex items-center justify-center">
       <div className="text-white text-lg">Loading map...</div>
     </div>
   )
@@ -22,7 +22,7 @@ function MapFallback() {
 
 export default function MapPage() {
   return (
-    <div className="fixed inset-0">
+    <div className="absolute inset-0 overflow-visible">
       <Suspense fallback={<MapFallback />}>
         <SatelliteClimbingMap />
       </Suspense>
