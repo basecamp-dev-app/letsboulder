@@ -272,10 +272,10 @@ export default function UploadForm() {
           accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={handleFileChange}
           disabled={compressing || uploading}
-          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
+          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 disabled:opacity-50"
         />
-        <p className="text-xs text-gray-500 mt-1">
-          Choose a GPS-enabled photo (max 10MB). Images are optimized for mobile viewing (~300KB) while remaining clear on laptops.
+        <p className="text-xs text-gray-500 mt-2">
+          GPS-enabled photo, max 10MB
         </p>
       </div>
 
@@ -302,7 +302,7 @@ export default function UploadForm() {
 
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
-              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+              className="bg-gray-600 h-2 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -324,17 +324,17 @@ export default function UploadForm() {
       <button
         onClick={handleUpload}
         disabled={!file || compressing || uploading}
-        className="w-full bg-blue-500 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full bg-gray-800 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {compressing ? 'Compressing...' : uploading ? 'Uploading...' : 'Upload & Continue'}
       </button>
 
-      {/* Help Text */}
-      <div className="text-xs text-gray-500 space-y-1">
-        <p>• Ensure GPS is enabled when taking photos for automatic location detection</p>
-        <p>• Images are optimized for mobile viewing (~300KB like Signal) while staying clear on laptops</p>
-        <p>• Supported formats: JPEG, PNG, WebP, GIF</p>
-      </div>
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
     </div>
   )
 }
