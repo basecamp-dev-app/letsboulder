@@ -205,6 +205,16 @@ export default function UploadForm() {
       }
 
       const { latitude, longitude } = gpsData
+
+      // Fail fast if no GPS data
+      if (latitude === null || longitude === null) {
+        setError('No GPS data found in image. Please ensure GPS is enabled when taking the photo.')
+        setProgress(0)
+        setCurrentStep('')
+        setUploading(false)
+        return
+      }
+
       setProgress(40)
 
       setCurrentStep('Uploading image...')
