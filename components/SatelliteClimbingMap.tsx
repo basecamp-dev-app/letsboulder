@@ -470,7 +470,7 @@ export default function SatelliteClimbingMap() {
       )}
 
       {locationStatus === 'requesting' && (
-        <div className="absolute top-4 right-20 z-[1000] bg-blue-50 border border-blue-300 rounded-lg px-3 py-2 text-sm text-blue-800">
+        <div className="absolute top-4 right-20 z-[1000] bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-200">
           Requesting location permission...
         </div>
       )}
@@ -511,13 +511,13 @@ export default function SatelliteClimbingMap() {
               </div>
             )}
 
-            <div className="absolute bottom-16 md:bottom-0 left-0 right-0 bg-white p-4 pointer-events-auto max-h-[40vh] overflow-y-auto">
-              <p className="text-black text-lg font-semibold">{selectedClimb.name}, {selectedClimb.grade}</p>
+            <div className="absolute bottom-16 md:bottom-0 left-0 right-0 bg-white dark:bg-gray-900 p-4 pointer-events-auto max-h-[40vh] overflow-y-auto">
+              <p className="text-black dark:text-white text-lg font-semibold">{selectedClimb.name}, {selectedClimb.grade}</p>
               {selectedClimb.description && (
-                <p className="text-gray-700 text-sm mt-2">{selectedClimb.description}</p>
+                <p className="text-gray-700 dark:text-gray-300 text-sm mt-2">{selectedClimb.description}</p>
               )}
               {imageError && selectedClimb.image_url && (
-                <p className="text-red-500 text-xs mt-1">
+                <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">
                   Image failed to load
                 </p>
               )}

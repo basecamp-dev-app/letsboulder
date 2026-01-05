@@ -69,30 +69,30 @@ export default function PendingClimbs({ initialClimbs }: PendingClimbsProps) {
   return (
     <div className="space-y-6">
       {climbs.map(climb => (
-        <div key={climb.id} className="border rounded p-4">
+        <div key={climb.id} className="border border-gray-200 dark:border-gray-700 rounded p-4 bg-white dark:bg-gray-900">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h3 className="text-xl font-semibold">{climb.name}</h3>
-              <p className="text-gray-600">Grade: {climb.grade}</p>
-              <p className="text-gray-600">Crag: {climb.crags.name}</p>
-              <p className="text-gray-600">Submitted by: {climb.profiles.email}</p>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{climb.name}</h3>
+              <p className="text-gray-600 dark:text-gray-400">Grade: {climb.grade}</p>
+              <p className="text-gray-600 dark:text-gray-400">Crag: {climb.crags.name}</p>
+              <p className="text-gray-600 dark:text-gray-400">Submitted by: {climb.profiles.email}</p>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => handleApprove(climb.id)}
-                className="bg-green-500 text-white px-4 py-2 rounded"
+                className="bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-4 py-2 rounded hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
               >
                 Approve
               </button>
               <button
                 onClick={() => handleReject(climb.id)}
-                className="bg-red-500 text-white px-4 py-2 rounded"
+                className="bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-4 py-2 rounded hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
               >
                 Reject
               </button>
             </div>
           </div>
-          {climb.description && <p className="mb-4">{climb.description}</p>}
+          {climb.description && <p className="mb-4 text-gray-700 dark:text-gray-300">{climb.description}</p>}
           <img src={climb.image_url} alt={climb.name} className="w-full h-auto rounded" />
         </div>
       ))}

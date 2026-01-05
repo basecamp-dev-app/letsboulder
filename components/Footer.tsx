@@ -4,17 +4,17 @@ import Link from 'next/link'
 
 export default function Footer() {
   return (
-    <footer className="fixed bottom-0 left-0 right-0 z-[1100] bg-white border-t border-gray-200 md:hidden">
+    <footer className="fixed bottom-0 left-0 right-0 z-[1100] bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 md:hidden">
       <nav className="flex justify-around py-3">
-        <Link href="/contribute" className="flex flex-col items-center text-gray-600 hover:text-gray-900">
+        <Link href="/contribute" className="flex flex-col items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
           <span className="text-lg">📝</span>
           <span className="text-xs mt-1">Contribute</span>
         </Link>
-        <Link href="/logbook" className="flex flex-col items-center text-gray-600 hover:text-gray-900">
+        <Link href="/logbook" className="flex flex-col items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
           <span className="text-lg">✅</span>
           <span className="text-xs mt-1">Logbook</span>
         </Link>
-        <Link href="/map" className="flex flex-col items-center text-gray-600 hover:text-gray-900">
+        <Link href="/map" className="flex flex-col items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
           <span className="text-lg">🗺️</span>
           <span className="text-xs mt-1">Map</span>
         </Link>

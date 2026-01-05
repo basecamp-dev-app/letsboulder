@@ -272,18 +272,18 @@ export default function UploadForm() {
           accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={handleFileChange}
           disabled={compressing || uploading}
-          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 disabled:opacity-50"
+          className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-700 disabled:opacity-50"
         />
-        <p className="text-xs text-gray-500 mt-2">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
           GPS-enabled photo, max 10MB
         </p>
       </div>
 
       {/* File Info */}
       {file && (
-        <div className="bg-gray-50 p-3 rounded-lg">
-          <p className="text-sm font-medium text-gray-700">{file.name}</p>
-          <p className="text-xs text-gray-500">
+        <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{file.name}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             Original: {(file.size / 1024 / 1024).toFixed(1)}MB
             {compressedFile && ` → Optimized: ${(compressedFile.size / 1024).toFixed(0)}KB (${Math.round((compressedFile.size / file.size) * 100)}% of original)`}
           </p>
@@ -292,31 +292,31 @@ export default function UploadForm() {
 
       {/* Progress Indicator */}
       {(compressing || uploading || progress > 0) && (
-        <div className="bg-white border border-gray-200 p-4 rounded-lg">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 rounded-lg">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
               {compressing ? 'Compressing Image' : uploading ? 'Uploading' : 'Processing'}
             </span>
-            <span className="text-sm text-gray-500">{Math.round(progress)}%</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">{Math.round(progress)}%</span>
           </div>
 
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
             <div
-              className="bg-gray-600 h-2 rounded-full transition-all duration-300"
+              className="bg-gray-600 dark:bg-gray-500 h-2 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
 
           {currentStep && (
-            <p className="text-xs text-gray-600 mt-2">{currentStep}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">{currentStep}</p>
           )}
         </div>
       )}
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 rounded-lg">
+          <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
         </div>
       )}
 
@@ -324,15 +324,15 @@ export default function UploadForm() {
       <button
         onClick={handleUpload}
         disabled={!file || compressing || uploading}
-        className="w-full bg-gray-800 text-white py-3 px-4 rounded-lg font-medium hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-4 rounded-lg font-medium hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {compressing ? 'Compressing...' : uploading ? 'Uploading...' : 'Upload & Continue'}
       </button>
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 rounded-lg">
+          <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
         </div>
       )}
     </div>

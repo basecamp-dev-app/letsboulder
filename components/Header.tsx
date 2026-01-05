@@ -130,7 +130,7 @@ export default function Header() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white shadow">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow dark:shadow-none">
       <div className="container mx-auto px-4 py-2 flex justify-between items-center">
         <Link href="/" className="flex items-center -my-2 hidden md:block">
           <div className="relative w-16 h-16">
@@ -138,7 +138,7 @@ export default function Header() {
               src="/og.png"
               alt="gsyrocks"
               fill
-              className="object-contain"
+              className="object-contain dark:invert"
               priority
             />
           </div>
@@ -151,30 +151,30 @@ export default function Header() {
             value={searchQuery}
             onChange={handleSearchChange}
             onFocus={() => setShowDropdown(true)}
-            className="w-full px-4 py-2 border border-gray-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+            className="w-full px-4 py-2 border border-gray-400 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           />
           {isSearching && (
             <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
             </div>
           )}
           {showDropdown && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50">
               {searchResults.map((result) => (
                 <button
                   key={`${result.type}-${result.id}`}
                   onClick={() => handleResultClick(result)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex items-start gap-3"
+                  className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-700 last:border-b-0 flex items-start gap-3"
                 >
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    result.type === 'crag' ? 'bg-green-100 text-green-600' : 'bg-blue-100 text-blue-600'
+                    result.type === 'crag' ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                   }`}>
                     {result.type === 'crag' ? '📍' : '🧗'}
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{result.name}</p>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{result.name}</p>
                     {result.type === 'climb' && result.crag_name && (
-                      <p className="text-sm text-gray-500">at {result.crag_name}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">at {result.crag_name}</p>
                     )}
                   </div>
                 </button>
@@ -182,41 +182,41 @@ export default function Header() {
             </div>
           )}
           {showDropdown && searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500 z-50">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center text-gray-500 dark:text-gray-400 z-50">
               No results found
             </div>
           )}
         </div>
 
         <nav className="hidden md:flex items-center space-x-4">
-          <Link href="/logbook" className="text-gray-600 hover:text-gray-900">
+          <Link href="/logbook" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
             Logbook
           </Link>
-          <Link href="/map" className="text-gray-600 hover:text-gray-900">
+          <Link href="/map" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
             Map
           </Link>
-          <Link href="/contribute" className="text-gray-600 hover:text-gray-900">
+          <Link href="/contribute" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
             Contribute
           </Link>
           {user ? (
             <>
-               <Link href="/profile" className="text-gray-600 hover:text-gray-900">
-                  Profile
-                </Link>
-              <button
-                onClick={handleLogout}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                Logout
-              </button>
-            </>
-          ) : (
-            <>
-              <Link href="/auth" className="text-gray-600 hover:text-gray-900">
-                Login
-              </Link>
-            </>
-          )}
+               <Link href="/profile" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                   Profile
+                 </Link>
+               <button
+                 onClick={handleLogout}
+                 className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+               >
+                 Logout
+               </button>
+             </>
+           ) : (
+             <>
+               <Link href="/auth" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                 Login
+               </Link>
+             </>
+           )}
         </nav>
       </div>
     </header>

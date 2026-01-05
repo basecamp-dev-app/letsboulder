@@ -393,8 +393,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     }
   }
 
-  return (
-    <div className="h-screen flex flex-col relative overflow-hidden bg-gray-900">
+    return (
+    <div className="h-screen flex flex-col relative overflow-hidden bg-gray-900 dark:bg-gray-950">
       {/* Image container - fills available space, no cropping */}
       <div className="flex-1 relative overflow-hidden flex items-center justify-center">
         <img
@@ -413,7 +413,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
       </div>
 
       {/* Compact controls overlay */}
-      <div className="bg-white border-t p-3">
+      <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-3">
         <div className="flex flex-col gap-2 w-full max-w-md mx-auto">
           {/* Top row: Name input and grade */}
           <div className="flex gap-2">
@@ -422,14 +422,14 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
               placeholder="Route name"
               value={currentName}
               onChange={(e) => setCurrentName(e.target.value)}
-              className="flex-1 px-3 py-1.5 border rounded text-sm"
+              className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             />
             <input
               type="text"
               placeholder="Grade"
               value={currentGrade}
               onChange={(e) => setCurrentGrade(e.target.value)}
-              className="w-16 px-2 py-1.5 border rounded text-sm text-center"
+              className="w-16 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             />
           </div>
 
@@ -437,21 +437,21 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
           <div className="flex gap-1">
             <button
               onClick={handleFinishRoute}
-              className="flex-1 bg-green-500 text-white px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50"
+              className="flex-1 bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
               disabled={currentPoints.length < 2}
             >
               Finish Route
             </button>
             <button
               onClick={handleUndo}
-              className="bg-yellow-500 text-white px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50"
+              className="bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
               disabled={currentPoints.length === 0 && routes.length === 0}
             >
               Undo
             </button>
             <button
               onClick={handleClearCurrent}
-              className="bg-red-500 text-white px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50"
+              className="bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
               disabled={currentPoints.length === 0 && selectedRouteIndex === null}
             >
               Clear
@@ -459,7 +459,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
             {selectedRouteIndex !== null && (
               <button
                 onClick={handleUpdateRoute}
-                className="bg-purple-500 text-white px-2 py-1.5 rounded text-xs font-medium"
+                className="bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 rounded text-xs font-medium hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
               >
                 Update
               </button>
@@ -469,7 +469,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
           {/* Third row: Save button */}
           <button
             onClick={handleSave}
-            className="bg-blue-500 text-white px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50"
+            className="bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
             disabled={routes.length === 0}
           >
             Save & Continue ({routes.length})
@@ -477,7 +477,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
 
           {/* Routes count */}
           {routes.length > 0 && (
-            <div className="text-xs text-gray-500 text-center">
+            <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
               {routes.length} route{routes.length !== 1 ? 's' : ''} drawn
             </div>
           )}

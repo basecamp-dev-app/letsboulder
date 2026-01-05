@@ -236,7 +236,7 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
   }
 
   if (!routeData) {
-    return <div>Loading route data...</div>
+    return <div className="text-gray-900 dark:text-gray-100">Loading route data...</div>
   }
 
   return (
@@ -256,25 +256,25 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
         />
       </div>
       {forms.map((form, index) => (
-        <div key={index} className="mb-6 p-4 border rounded">
-          <h3 className="text-lg font-semibold mb-4">Route {index + 1}</h3>
+        <div key={index} className="mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-900">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Route {index + 1}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Name *</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Name *</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => handleFormChange(index, 'name', e.target.value)}
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Grade</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Grade</label>
               <select
                 value={form.grade}
                 onChange={(e) => handleFormChange(index, 'grade', e.target.value)}
-                className="w-full p-2 border rounded"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               >
                 {Array.from({ length: 18 }, (_, i) => `V${i}`).map(grade => (
                   <option key={grade} value={grade}>{grade}</option>
@@ -283,11 +283,11 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
             </div>
           </div>
           <div className="mt-4">
-            <label className="block text-sm font-medium mb-1">Description</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Description</label>
             <textarea
               value={form.description}
               onChange={(e) => handleFormChange(index, 'description', e.target.value)}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               rows={3}
             />
           </div>
@@ -296,7 +296,7 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
       <button
         onClick={handleSubmit}
         disabled={submitting || forms.some(form => !form.name)}
-        className="w-full bg-blue-500 text-white py-3 px-6 rounded disabled:opacity-50"
+        className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded disabled:opacity-50 hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
       >
         {submitting ? 'Submitting...' : 'Submit for Approval'}
       </button>

@@ -68,7 +68,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#2563eb",
+  themeColor: "#111827",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
@@ -107,7 +107,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased pt-12 pb-16`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased pt-12 pb-16 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
       >
         <Header />
         {children}

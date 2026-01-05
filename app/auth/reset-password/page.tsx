@@ -45,13 +45,13 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-xl shadow-lg p-8">
-          <h1 className="text-2xl font-bold text-center mb-2">
+        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8">
+          <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
             Set New Password
           </h1>
-          <p className="text-gray-600 text-center mb-8">
+          <p className="text-gray-600 dark:text-gray-400 text-center mb-8">
             Enter your new password below
           </p>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -64,7 +64,7 @@ export default function ResetPasswordPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="New password"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               />
             </div>
             <div>
@@ -76,15 +76,15 @@ export default function ResetPasswordPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirm new password"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               />
             </div>
-            {error && <p className="text-red-600 text-sm">{error}</p>}
-            {message && <p className="text-green-600 text-sm">{message}</p>}
+            {error && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
+            {message && <p className="text-green-600 dark:text-green-400 text-sm">{message}</p>}
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gray-800 text-white py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 transition-colors disabled:opacity-50"
+              className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
             >
               {loading ? 'Updating...' : 'Update Password'}
             </button>
