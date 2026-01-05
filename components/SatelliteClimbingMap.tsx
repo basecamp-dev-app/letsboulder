@@ -392,28 +392,13 @@ export default function SatelliteClimbingMap() {
               click: async (e: L.LeafletMouseEvent) => {
                 e.originalEvent.stopPropagation();
 
-                // Both mobile and desktop: First click shows tooltip
-                if (selectedClimbId !== climb.id) {
-                  console.log('Showing tooltip for:', climb.name);
-                  setSelectedClimbId(climb.id);
-                  if (!climb._fullLoaded) {
-                    const details = await loadClimbDetails(climb.id);
-                    if (details) {
-                      const fullClimb = { ...climb, ...details, _fullLoaded: true };
-                      setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
-                    }
-                  }
-                }
-              },
-            }}
-          >
-            {selectedClimbId === climb.id && (
-              <Tooltip direction="top" offset={[0, -25]} opacity={1} permanent={true}>
-                <div
-                  className="w-40 cursor-pointer"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    console.log('Opening full image for:', climb.name);
+                // Check if it's a mobile device
+                const isMobile = window.innerWidth < 768;
+
+                if (isMobile) {
+                  // Mobile: First tap shows tooltip, second tap opens full overlay
+                  if (selectedClimbId === climb.id) {
+                    console.log('Second tap - opening full image for:', climb.name);
                     setSelectedClimb(climb);
                     if (!climb._fullLoaded) {
                       const details = await loadClimbDetails(climb.id);
@@ -430,8 +415,55 @@ export default function SatelliteClimbingMap() {
                     if (mapRef.current) {
                       mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
                     }
-                  }}
-                >
+                  } else {
+                    console.log('First tap - showing tooltip for:', climb.name);
+                    setSelectedClimbId(climb.id);
+                    if (!climb._fullLoaded) {
+                      const details = await loadClimbDetails(climb.id);
+                      if (details) {
+                        const fullClimb = { ...climb, ...details, _fullLoaded: true };
+                        setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
+                      }
+                    }
+                  }
+                } else {
+                  // Desktop: First click shows tooltip, second click opens full overlay
+                  if (selectedClimbId === climb.id) {
+                    console.log('Second click - opening full image for:', climb.name);
+                    setSelectedClimb(climb);
+                    if (!climb._fullLoaded) {
+                      const details = await loadClimbDetails(climb.id);
+                      if (details) {
+                        const fullClimb = { ...climb, ...details, _fullLoaded: true };
+                        setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
+                        setSelectedClimb(fullClimb);
+                      } else {
+                        setSelectedClimb({ ...climb, _fullLoaded: true });
+                      }
+                    }
+                    setImageError(false);
+                    setSelectedClimbId(null);
+                    if (mapRef.current) {
+                      mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
+                    }
+                  } else {
+                    console.log('First click - showing tooltip for:', climb.name);
+                    setSelectedClimbId(climb.id);
+                    if (!climb._fullLoaded) {
+                      const details = await loadClimbDetails(climb.id);
+                      if (details) {
+                        const fullClimb = { ...climb, ...details, _fullLoaded: true };
+                        setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
+                      }
+                    }
+                  }
+                }
+              },
+            }}
+          >
+            {selectedClimbId === climb.id && (
+              <Tooltip direction="top" offset={[0, -25]} opacity={1} permanent={true}>
+                <div className="w-40">
                   {climb.image_url ? (
                     <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
                       <Image
@@ -451,7 +483,6 @@ export default function SatelliteClimbingMap() {
                   {climb.grade && (
                     <p className="text-xs text-gray-600">{climb.grade}</p>
                   )}
-                  <p className="text-[10px] text-blue-600 mt-1">Click to view</p>
                 </div>
               </Tooltip>
             )}
