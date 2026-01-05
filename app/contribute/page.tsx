@@ -38,17 +38,24 @@ export default function ContributePage() {
         
         <button
           onClick={handleStartContributing}
-          className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 transition-colors mb-4"
+          className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 transition-colors mb-3"
         >
           Start Contributing
         </button>
         
         <a
           href="mailto:hello@gsyrocks.com"
-          className="block w-full bg-gray-200 text-gray-800 py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 transition-colors text-center"
+          className="block w-full bg-gray-200 text-gray-800 py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 transition-colors text-center mb-3"
         >
-          Send Feedback
+          Feedback
         </a>
+        
+        <Link
+          href="/about"
+          className="block w-full bg-gray-100 text-gray-800 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 transition-colors text-center"
+        >
+          Learn More About Gsyrocks
+        </Link>
       </div>
     </div>
   )
