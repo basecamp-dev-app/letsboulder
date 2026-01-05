@@ -48,7 +48,7 @@ export default function UploadForm() {
       setProgress(10)
 
       // Dynamically import browser-image-compression to avoid SSR issues
-      const imageCompression = (await import('browser-image-compression')).default
+      const { default: imageCompression } = await import('browser-image-compression')
 
       const options = {
         maxSizeMB: 0.3, // Target 300KB max (like Signal compression)
