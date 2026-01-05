@@ -2,8 +2,6 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
-// @ts-ignore - browser-image-compression is a client-side library
-import imageCompression from 'browser-image-compression'
 
 export default function UploadForm() {
   const [file, setFile] = useState<File | null>(null)
@@ -48,6 +46,9 @@ export default function UploadForm() {
       setCompressing(true)
       setCurrentStep('Compressing image...')
       setProgress(10)
+
+      // Dynamically import browser-image-compression to avoid SSR issues
+      const imageCompression = (await import('browser-image-compression')).default
 
       const options = {
         maxSizeMB: 0.3, // Target 300KB max (like Signal compression)
