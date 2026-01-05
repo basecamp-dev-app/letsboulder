@@ -10,8 +10,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
+    // Check file size server-side (additional safety)
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      return NextResponse.json({
+        error: 'Image file is too large. Please compress or choose a smaller image (max 5MB).'
+      }, { status: 413 })
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer())
-    const exifData = await exifr.parse(buffer)
+
+    // Add timeout to EXIF parsing to prevent server hangs
+    const exifPromise = exifr.parse(buffer)
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('EXIF parsing timeout')), 25000)
+    )
+
+    const exifData = await Promise.race([exifPromise, timeoutPromise]) as any
 
     if (!exifData?.latitude || !exifData?.longitude) {
       // If no GPS data is found, return null coordinates instead of an error
