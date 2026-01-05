@@ -18,10 +18,6 @@ export default function Footer() {
           <span className="text-lg">🗺️</span>
           <span className="text-xs mt-1">Map</span>
         </Link>
-        <a href="mailto:hello@gsyrocks.com" className="flex flex-col items-center text-gray-600 hover:text-gray-900">
-          <span className="text-lg">💬</span>
-          <span className="text-xs mt-1">Feedback</span>
-        </a>
       </nav>
     </footer>
   )
