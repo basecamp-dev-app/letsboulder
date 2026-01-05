@@ -478,7 +478,7 @@ export default function SatelliteClimbingMap() {
         {selectedClimb && (
         <>
           <div
-            className="fixed inset-0 bg-black bg-opacity-75 z-[1000]"
+            className="fixed inset-0 bg-black bg-opacity-75 z-[1000] md:inset-0"
             onClick={() => {
               setSelectedClimb(null)
             }}
