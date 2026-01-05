@@ -394,79 +394,93 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
   }
 
   return (
-    <div className="h-screen relative overflow-hidden">
-      <img
-        ref={imageRef}
-        src={imageUrl}
-        alt="Climbing route"
-        className="w-full h-full object-contain"
-      />
-      <canvas
-        ref={canvasRef}
-        className="absolute cursor-crosshair"
-        onClick={handleCanvasClick}
-        onTouchEnd={handleCanvasTouch}
-        style={{ pointerEvents: 'auto', touchAction: 'none' }}
-      />
+    <div className="h-screen flex flex-col relative overflow-hidden bg-gray-900">
+      {/* Image container - fills available space, no cropping */}
+      <div className="flex-1 relative overflow-hidden flex items-center justify-center">
+        <img
+          ref={imageRef}
+          src={imageUrl}
+          alt="Climbing route"
+          className="max-w-full max-h-full object-contain"
+        />
+        <canvas
+          ref={canvasRef}
+          className="absolute cursor-crosshair"
+          onClick={handleCanvasClick}
+          onTouchEnd={handleCanvasTouch}
+          style={{ pointerEvents: 'auto', touchAction: 'none' }}
+        />
+      </div>
 
-      {/* Controls overlay */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white bg-opacity-95 p-4 border-t">
-        <div className="flex flex-col gap-4 w-full max-w-md mx-auto">
+      {/* Compact controls overlay */}
+      <div className="bg-white border-t p-3">
+        <div className="flex flex-col gap-2 w-full max-w-md mx-auto">
+          {/* Top row: Name input and grade */}
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Route name (optional)"
+              placeholder="Route name"
               value={currentName}
               onChange={(e) => setCurrentName(e.target.value)}
-              className="flex-1 px-3 py-2 border rounded text-sm"
+              className="flex-1 px-3 py-1.5 border rounded text-sm"
             />
             <input
               type="text"
               placeholder="Grade"
               value={currentGrade}
               onChange={(e) => setCurrentGrade(e.target.value)}
-              className="px-3 py-2 border rounded text-sm"
+              className="w-16 px-2 py-1.5 border rounded text-sm text-center"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={handleFinishRoute} className="bg-green-500 text-white px-3 py-2 rounded text-sm" disabled={currentPoints.length < 2}>
+
+          {/* Second row: Action buttons */}
+          <div className="flex gap-1">
+            <button
+              onClick={handleFinishRoute}
+              className="flex-1 bg-green-500 text-white px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50"
+              disabled={currentPoints.length < 2}
+            >
               Finish Route
             </button>
+            <button
+              onClick={handleUndo}
+              className="bg-yellow-500 text-white px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50"
+              disabled={currentPoints.length === 0 && routes.length === 0}
+            >
+              Undo
+            </button>
+            <button
+              onClick={handleClearCurrent}
+              className="bg-red-500 text-white px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50"
+              disabled={currentPoints.length === 0 && selectedRouteIndex === null}
+            >
+              Clear
+            </button>
             {selectedRouteIndex !== null && (
-              <button onClick={handleUpdateRoute} className="bg-purple-500 text-white px-3 py-2 rounded text-sm">
-                Update Route
+              <button
+                onClick={handleUpdateRoute}
+                className="bg-purple-500 text-white px-2 py-1.5 rounded text-xs font-medium"
+              >
+                Update
               </button>
             )}
-            <button onClick={handleUndo} className="bg-yellow-500 text-white px-3 py-2 rounded text-sm" disabled={currentPoints.length === 0 && routes.length === 0}>
-              Undo Last {currentPoints.length > 0 ? 'Point' : routes.length > 0 ? 'Route' : ''}
-            </button>
-            <button onClick={handleClearCurrent} className="bg-red-500 text-white px-3 py-2 rounded text-sm" disabled={currentPoints.length === 0 && selectedRouteIndex === null}>
-              Clear Current
-            </button>
           </div>
-          <button onClick={handleSave} className="bg-blue-500 text-white px-4 py-3 rounded w-full" disabled={routes.length === 0}>
-            Save & Continue to Naming ({routes.length} routes)
+
+          {/* Third row: Save button */}
+          <button
+            onClick={handleSave}
+            className="bg-blue-500 text-white px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50"
+            disabled={routes.length === 0}
+          >
+            Save & Continue ({routes.length})
           </button>
+
+          {/* Routes count */}
           {routes.length > 0 && (
-            <div className="bg-gray-50 rounded p-3">
-              <h3 className="text-sm font-semibold mb-2">Finished Routes:</h3>
-              <div className="space-y-1">
-                {routes.map((route, index) => (
-                  <div key={index} className={`flex items-center gap-2 p-2 rounded cursor-pointer text-sm ${
-                    selectedRouteIndex === index ? 'bg-blue-100 border border-blue-300' : 'bg-white hover:bg-gray-100'
-                  }`} onClick={() => handleSelectRoute(index)}>
-                    <span className="font-medium">{route.name}</span>
-                    <span className="text-gray-600">({route.grade})</span>
-                    <span className="text-gray-500">{route.points.length} points</span>
-                  </div>
-                ))}
-              </div>
+            <div className="text-xs text-gray-500 text-center">
+              {routes.length} route{routes.length !== 1 ? 's' : ''} drawn
             </div>
           )}
-          <div className="text-xs text-gray-600 text-center">
-            Routes drawn: {routes.length} | Current points: {currentPoints.length}
-            {selectedRouteIndex !== null && ` | Editing: ${routes[selectedRouteIndex].name}`}
-          </div>
         </div>
       </div>
     </div>
