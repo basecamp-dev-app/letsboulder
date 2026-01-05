@@ -50,7 +50,7 @@ export default function UploadForm() {
 
       const options = {
         maxSizeMB: 0.3, // Target 300KB max (like Signal compression)
-        maxWidthOrHeight: 1600, // High quality for laptop viewing
+        maxWidthOrHeight: 1200, // Optimized for phone, decent for laptop
         useWebWorker: true,
         preserveExif: true, // Keep GPS data critical for climbing routes!
         initialQuality: 0.8, // 80% quality for good visual balance
@@ -59,7 +59,7 @@ export default function UploadForm() {
         }
       }
 
-      setCurrentStep('Optimizing image for fast upload (high quality, ~300KB)...')
+      setCurrentStep('Optimizing image for mobile & fast upload (~300KB)...')
       const compressed = await imageCompression(originalFile, options)
 
       setProgress(90)
@@ -209,7 +209,7 @@ export default function UploadForm() {
           className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
         />
         <p className="text-xs text-gray-500 mt-1">
-          Choose a GPS-enabled photo (max 10MB). Images are optimized to ~300KB for fast uploads while maintaining laptop viewing quality.
+          Choose a GPS-enabled photo (max 10MB). Images are optimized for mobile viewing (~300KB) while remaining clear on laptops.
         </p>
       </div>
 
@@ -266,7 +266,7 @@ export default function UploadForm() {
       {/* Help Text */}
       <div className="text-xs text-gray-500 space-y-1">
         <p>• Ensure GPS is enabled when taking photos for automatic location detection</p>
-        <p>• Images are optimized to ~300KB (like Signal) for fast uploads while maintaining laptop quality</p>
+        <p>• Images are optimized for mobile viewing (~300KB like Signal) while staying clear on laptops</p>
         <p>• Supported formats: JPEG, PNG, WebP, GIF</p>
       </div>
     </div>
