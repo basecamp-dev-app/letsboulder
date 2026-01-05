@@ -45,6 +45,7 @@ export default function SatelliteClimbingMap() {
   const [loading, setLoading] = useState(true)
   const [isClient, setIsClient] = useState(true)
   const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
+  const [selectedClimbId, setSelectedClimbId] = useState<string | null>(null)
   const [imageError, setImageError] = useState(false)
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
@@ -373,25 +374,89 @@ export default function SatelliteClimbingMap() {
             eventHandlers={{
               click: async (e: L.LeafletMouseEvent) => {
                 e.originalEvent.stopPropagation();
-                console.log('Opening full image for:', climb.name);
-                setSelectedClimb(climb);
-                if (!climb._fullLoaded) {
-                  const details = await loadClimbDetails(climb.id);
-                  if (details) {
-                    const fullClimb = { ...climb, ...details, _fullLoaded: true };
-                    setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
-                    setSelectedClimb(fullClimb);
+
+                // Check if it's a mobile device
+                const isMobile = window.innerWidth < 768;
+
+                if (isMobile) {
+                  // Mobile: First click shows tooltip, second click opens full overlay
+                  if (selectedClimbId === climb.id) {
+                    console.log('Second tap - opening full image for:', climb.name);
+                    setSelectedClimb(climb);
+                    if (!climb._fullLoaded) {
+                      const details = await loadClimbDetails(climb.id);
+                      if (details) {
+                        const fullClimb = { ...climb, ...details, _fullLoaded: true };
+                        setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
+                        setSelectedClimb(fullClimb);
+                      } else {
+                        setSelectedClimb({ ...climb, _fullLoaded: true });
+                      }
+                    }
+                    setImageError(false);
+                    setSelectedClimbId(null);
+                    if (mapRef.current) {
+                      mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
+                    }
                   } else {
-                    setSelectedClimb({ ...climb, _fullLoaded: true });
+                    console.log('First tap - showing tooltip for:', climb.name);
+                    setSelectedClimbId(climb.id);
+                    if (!climb._fullLoaded) {
+                      const details = await loadClimbDetails(climb.id);
+                      if (details) {
+                        const fullClimb = { ...climb, ...details, _fullLoaded: true };
+                        setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
+                      }
+                    }
                   }
-                }
-                setImageError(false);
-                if (mapRef.current) {
-                  mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
+                } else {
+                  // Desktop: Single click opens full overlay
+                  console.log('Opening full image for:', climb.name);
+                  setSelectedClimb(climb);
+                  if (!climb._fullLoaded) {
+                    const details = await loadClimbDetails(climb.id);
+                    if (details) {
+                      const fullClimb = { ...climb, ...details, _fullLoaded: true };
+                      setClimbs(prev => prev.map(c => c.id === climb.id ? fullClimb : c));
+                      setSelectedClimb(fullClimb);
+                    } else {
+                      setSelectedClimb({ ...climb, _fullLoaded: true });
+                    }
+                  }
+                  setImageError(false);
+                  if (mapRef.current) {
+                    mapRef.current.setView([climb.crags.latitude, climb.crags.longitude], Math.min(mapRef.current.getZoom() + 4, 18))
+                  }
                 }
               },
             }}
           >
+            {selectedClimbId === climb.id && window.innerWidth < 768 && (
+              <Tooltip direction="top" offset={[0, -25]} opacity={1} permanent={true}>
+                <div className="w-40">
+                  {climb.image_url ? (
+                    <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
+                      <Image
+                        src={climb.image_url}
+                        alt={climb.name}
+                        fill
+                        className="object-cover"
+                        sizes="160px"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-24 w-full bg-gray-200 flex items-center justify-center mb-2 rounded">
+                      <span className="text-gray-500 text-xs">No image</span>
+                    </div>
+                  )}
+                  <p className="font-semibold text-sm text-gray-900 truncate">{climb.name}</p>
+                  {climb.grade && (
+                    <p className="text-xs text-gray-600">{climb.grade}</p>
+                  )}
+                  <p className="text-[10px] text-blue-600 mt-1">Tap again to view</p>
+                </div>
+              </Tooltip>
+            )}
           </Marker>
         ))}
       </MapContainer>
@@ -419,7 +484,7 @@ export default function SatelliteClimbingMap() {
 
           <div className="fixed inset-0 z-[1001] pointer-events-none pt-12">
             {selectedClimb.image_url ? (
-              <div className="absolute top-0 bottom-16 left-0 right-0 pointer-events-auto md:top-16 md:bottom-20">
+              <div className="absolute top-16 bottom-16 left-0 right-0 pointer-events-auto md:top-16 md:bottom-20">
                 <div className="relative w-full h-full">
                   <Image
                     src={selectedClimb.image_url}
@@ -437,14 +502,14 @@ export default function SatelliteClimbingMap() {
                 </div>
               </div>
             ) : (
-              <div className="absolute inset-0 bg-gray-200 flex items-center justify-center pointer-events-auto pt-12 md:pt-16">
+              <div className="absolute top-16 bottom-16 left-0 right-0 bg-gray-200 flex items-center justify-center pointer-events-auto md:top-16 md:bottom-20">
                 <div className="text-gray-600">
                   {selectedClimb._fullLoaded === false ? 'Loading image...' : 'No image available'}
                 </div>
               </div>
             )}
 
-            <div className="absolute bottom-0 left-0 right-0 bg-white p-4 pointer-events-auto max-h-[40vh] overflow-y-auto">
+            <div className="absolute bottom-16 md:bottom-0 left-0 right-0 bg-white p-4 pointer-events-auto max-h-[40vh] overflow-y-auto">
               <p className="text-black text-lg font-semibold">{selectedClimb.name}, {selectedClimb.grade}</p>
               {selectedClimb.description && (
                 <p className="text-gray-700 text-sm mt-2">{selectedClimb.description}</p>
