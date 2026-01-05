@@ -282,6 +282,23 @@ export default function SatelliteClimbingMap() {
 
   const [mapLoaded, setMapLoaded] = useState(false)
 
+  // Close tooltip when clicking on map
+  useEffect(() => {
+    if (mapRef.current) {
+      const map = mapRef.current
+      const handleMapClick = (e: L.LeafletMouseEvent) => {
+        // Only close if clicking on the map background, not on markers
+        if (!e.originalEvent.target || !(e.originalEvent.target as HTMLElement).closest('.climb-marker')) {
+          setSelectedClimbId(null)
+        }
+      }
+      map.on('click', handleMapClick)
+      return () => {
+        map.off('click', handleMapClick)
+      }
+    }
+  }, [mapLoaded])
+
   // Guernsey center coordinates
   const worldCenter: [number, number] = [49.4657, -2.5853]
   const zoom = 11
@@ -453,7 +470,6 @@ export default function SatelliteClimbingMap() {
                   {climb.grade && (
                     <p className="text-xs text-gray-600">{climb.grade}</p>
                   )}
-                  <p className="text-[10px] text-blue-600 mt-1">Tap again to view</p>
                 </div>
               </Tooltip>
             )}

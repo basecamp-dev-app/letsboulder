@@ -12,7 +12,7 @@ export default function Footer() {
         </Link>
         <Link href="/logbook" className="flex flex-col items-center text-gray-600 hover:text-gray-900">
           <span className="text-lg">✅</span>
-          <span className="text-xs mt-1">Tick List</span>
+          <span className="text-xs mt-1">My climbs</span>
         </Link>
         <Link href="/map" className="flex flex-col items-center text-gray-600 hover:text-gray-900">
           <span className="text-lg">🗺️</span>
