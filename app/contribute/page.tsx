@@ -20,7 +20,7 @@ export default function ContributePage() {
 
   const handleStartContributing = async () => {
     if (!user) {
-      router.push('/auth/register')
+      router.push('/auth')
     } else {
       router.push('/upload')
     }
