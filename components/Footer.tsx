@@ -4,7 +4,7 @@ import Link from 'next/link'
 
 export default function Footer() {
   return (
-    <footer className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 md:hidden">
+    <footer className="fixed bottom-0 left-0 right-0 z-[1100] bg-white border-t border-gray-200 md:hidden">
       <nav className="flex justify-around py-3">
         <Link href="/contribute" className="flex flex-col items-center text-gray-600 hover:text-gray-900">
           <span className="text-lg">📝</span>
