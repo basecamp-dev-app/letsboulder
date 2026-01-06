@@ -53,6 +53,7 @@ export default function SatelliteClimbingMap() {
   const [mapReady, setMapReady] = useState(true)
   const [userLogs, setUserLogs] = useState<Record<string, string>>({})
   const [user, setUser] = useState<any>(null)
+  const [toast, setToast] = useState<{id: string, status: string} | null>(null)
 
   // Cache key for localStorage
   const CACHE_KEY = 'gsyrocks_climbs_cache'
@@ -113,6 +114,10 @@ export default function SatelliteClimbingMap() {
         return next
       })
       console.error('Failed to log climb:', error)
+    } else {
+      // Show success toast
+      setToast({ id: climbId, status })
+      setTimeout(() => setToast(null), 2000)
     }
   }
 
@@ -574,6 +579,14 @@ export default function SatelliteClimbingMap() {
               <div className="absolute top-16 bottom-16 left-0 right-0 bg-gray-200 flex items-center justify-center pointer-events-auto md:top-16 md:bottom-20">
                 <div className="text-gray-600">
                   {selectedClimb._fullLoaded === false ? 'Loading image...' : 'No image available'}
+                </div>
+              </div>
+            )}
+
+            {toast?.id === selectedClimb.id && (
+              <div className="absolute bottom-52 left-1/2 -translate-x-1/2 z-[1003]">
+                <div className="bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium animate-fade-in-out">
+                  ✓ Climb logged to your logbook
                 </div>
               </div>
             )}
