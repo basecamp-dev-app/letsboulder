@@ -6,60 +6,27 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function AuthPage() {
-  const [isLogin, setIsLogin] = useState(true)
-  const [showResetRequest, setShowResetRequest] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [origin, setOrigin] = useState('')
+  const [isDevMode, setIsDevMode] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const climbId = searchParams?.get('climbId')
 
   useEffect(() => {
     setOrigin(window.location.origin)
-  }, [])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setSuccess(null)
-    const supabase = createClient()
-
-    if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (error) {
-        setError(error.message)
-      } else {
-        router.push(climbId ? `/map?climbId=${climbId}` : '/')
-      }
-    } else {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-          },
-        },
-      })
-      if (error) {
-        setError(error.message)
-      } else {
-        setSuccess('Check your email for a confirmation link!')
-      }
+    // Check for dev mode: ?dev=true AND env flag is set
+    if (searchParams?.get('dev') === 'true' && process.env.NEXT_PUBLIC_DEV_PASSWORD_AUTH === 'true') {
+      setIsDevMode(true)
     }
-    setLoading(false)
-  }
+  }, [searchParams])
 
-  const handleMagicLink = async () => {
+  const handleMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (!email) {
       setError('Please enter your email address')
       return
@@ -83,9 +50,10 @@ export default function AuthPage() {
     setLoading(false)
   }
 
-  const handlePasswordResetRequest = async () => {
-    if (!email) {
-      setError('Please enter your email address')
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email || !password) {
+      setError('Please enter email and password')
       return
     }
     setLoading(true)
@@ -93,81 +61,16 @@ export default function AuthPage() {
     setSuccess(null)
     const supabase = createClient()
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${origin}/auth/reset-password`,
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     })
     if (error) {
       setError(error.message)
     } else {
-      setSuccess('Check your email for a password reset link!')
+      router.push(climbId ? `/map?climbId=${climbId}` : '/')
     }
     setLoading(false)
-  }
-
-  if (showResetRequest) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-        <div className="w-full max-w-md">
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8">
-            <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
-              Reset Password
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-center mb-8">
-              Enter your email to receive a password reset link
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  placeholder="you@example.com"
-                  required
-                />
-              </div>
-
-              {error && (
-                <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
-                  {error}
-                </div>
-              )}
-
-              {success && (
-                <div className="text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
-                  {success}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={handlePasswordResetRequest}
-                disabled={loading}
-                className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-              >
-                {loading ? 'Please wait...' : 'Send Reset Link'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowResetRequest(false)
-                  setError(null)
-                  setSuccess(null)
-                }}
-                className="w-full text-gray-600 dark:text-gray-400 text-sm hover:underline"
-              >
-                ← Back to login
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -175,175 +78,131 @@ export default function AuthPage() {
       <div className="w-full max-w-md">
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8">
           <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
-            {isLogin ? 'Welcome back' : 'Create an account'}
+            {isDevMode ? 'Developer Login' : 'Sign in to gsyrocks'}
           </h1>
-          {climbId && (
+          
+          {climbId && !isDevMode && (
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4 text-center">
               <p className="text-sm text-blue-700 dark:text-blue-300">
                 Sign in to log this climb
               </p>
             </div>
           )}
-          <p className="text-gray-600 dark:text-gray-400 text-center mb-8">
-            {isLogin ? 'Sign in to your account' : 'Join gsyrocks to contribute'}
-          </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  placeholder="Your name"
-                  required={!isLogin}
-                />
-              </div>
-            )}
+          {!isDevMode ? (
+            <>
+              <p className="text-gray-600 dark:text-gray-400 text-center mb-8">
+                Enter your email to receive a magic link. Click the link in your email to sign in.
+              </p>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                placeholder="you@example.com"
-                required
-              />
-            </div>
+              <form onSubmit={handleMagicLink} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                placeholder="••••••••"
-                required
-                minLength={6}
-              />
-            </div>
+                {error && (
+                  <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
+                    {error}
+                  </div>
+                )}
 
-            {error && (
-              <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
-                {error}
-              </div>
-            )}
+                {success && (
+                  <div className="text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
+                    {success}
+                  </div>
+                )}
 
-            {success && (
-              <div className="text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
-                {success}
-              </div>
-            )}
-
-            {!isLogin && (
-              <div className="flex items-start gap-2 mt-4">
-                <input
-                  type="checkbox"
-                  id="terms"
-                  required
-                  className="mt-1 rounded border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 focus:ring-gray-500"
-                />
-                <label htmlFor="terms" className="text-sm text-gray-600 dark:text-gray-400">
-                  I agree to the{' '}
-                  <Link href="/terms" target="_blank" className="underline hover:text-gray-900 dark:hover:text-gray-100">
-                    Terms of Service
-                  </Link>{' '}
-                  and{' '}
-                  <Link href="/privacy" target="_blank" className="underline hover:text-gray-900 dark:hover:text-gray-100">
-                    Privacy Policy
-                  </Link>
-                </label>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Please wait...' : isLogin ? 'Sign In' : 'Create Account'}
-            </button>
-          </form>
-
-          {isLogin && (
-            <button
-              type="button"
-              onClick={handleMagicLink}
-              disabled={loading || !origin}
-              className="w-full mt-3 text-gray-600 dark:text-gray-400 text-sm hover:underline disabled:opacity-50"
-            >
-              Sign in with magic link instead
-            </button>
-          )}
-
-          {isLogin && (
-            <button
-              type="button"
-              onClick={() => {
-                setShowResetRequest(true)
-                setError(null)
-                setSuccess(null)
-              }}
-              className="w-full mt-3 text-gray-600 dark:text-gray-400 text-sm hover:underline"
-            >
-              Forgot password?
-            </button>
-          )}
-
-          <div className="mt-6 text-center">
-            {isLogin ? (
-              <p className="text-gray-600 dark:text-gray-400">
-                Don&apos;t have an account?{' '}
                 <button
-                  onClick={() => {
-                    setIsLogin(false)
-                    setError(null)
-                    setSuccess(null)
-                  }}
-                  className="text-gray-800 dark:text-gray-200 hover:underline font-medium"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
                 >
-                  Register
+                  {loading ? 'Sending...' : 'Send Magic Link'}
                 </button>
-              </p>
-            ) : (
-              <p className="text-gray-600 dark:text-gray-400">
-                Already have an account?{' '}
-                <button
-                  onClick={() => {
-                    setIsLogin(true)
-                    setError(null)
-                    setSuccess(null)
-                  }}
-                  className="text-gray-800 dark:text-gray-200 hover:underline font-medium"
-                >
-                  Login
-                </button>
-              </p>
-            )}
-          </div>
+              </form>
 
-          {isLogin && (
-            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-              <Link href="/" className="text-gray-500 dark:text-gray-400 text-sm hover:underline block text-center">
-                ← Back to home
-              </Link>
-              <p className="mt-4 text-xs text-center text-gray-500 dark:text-gray-400">
-                By logging in, you agree to our{' '}
-                <Link href="/terms" className="underline">Terms</Link> and{' '}
-                <Link href="/privacy" className="underline">Privacy Policy</Link>
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <Link href="/" className="text-gray-500 dark:text-gray-400 text-sm hover:underline block text-center">
+                  ← Back to home
+                </Link>
+                <p className="mt-4 text-xs text-center text-gray-500 dark:text-gray-400">
+                  By signing in, you agree to our{' '}
+                  <Link href="/terms" className="underline">Terms</Link> and{' '}
+                  <Link href="/privacy" className="underline">Privacy Policy</Link>
+                </p>
+                {process.env.NEXT_PUBLIC_DEV_PASSWORD_AUTH === 'true' && (
+                  <p className="mt-2 text-xs text-center text-gray-400">
+                    Developers: <Link href="/auth?dev=true" className="underline">password login</Link>
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-600 dark:text-gray-400 text-center mb-8 text-sm">
+                Developer password login (env flag required)
               </p>
-            </div>
+
+              <form onSubmit={handlePasswordLogin} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    placeholder="you@example.com"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+
+                {error && (
+                  <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                >
+                  {loading ? 'Signing in...' : 'Sign In'}
+                </button>
+              </form>
+
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <Link href="/auth" className="text-gray-500 dark:text-gray-400 text-sm hover:underline block text-center">
+                  ← Back to magic link login
+                </Link>
+              </div>
+            </>
           )}
         </div>
       </div>
