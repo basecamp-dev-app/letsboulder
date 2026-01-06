@@ -200,16 +200,13 @@ export default function Header() {
           </Link>
           {user ? (
             <>
-               <Link href="/profile" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-                   Profile
-                 </Link>
-               <button
-                 onClick={handleLogout}
-                 className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-               >
-                 Logout
-               </button>
-             </>
+                <button
+                  onClick={handleLogout}
+                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                >
+                  Logout
+                </button>
+              </>
            ) : (
              <>
                <Link href="/auth" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
