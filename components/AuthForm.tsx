@@ -16,6 +16,8 @@ export default function AuthForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const climbId = searchParams?.get('climbId')
+  
+  const emailValid = email.includes('@') && email.length > 3
 
   useEffect(() => {
     setOrigin(window.location.origin)
@@ -104,11 +106,26 @@ export default function AuthForm() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    autoFocus
                     placeholder="you@example.com"
-                    required
+                    className={`w-full px-4 py-3 text-lg border-2 rounded-lg focus:outline-none transition-colors bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ${
+                      emailValid 
+                        ? 'border-green-500 dark:border-green-500 focus:border-green-600' 
+                        : 'border-gray-300 dark:border-gray-600 focus:border-gray-500'
+                    }`}
                   />
                 </div>
+
+                {emailValid && (
+                  <button
+                    type="submit"
+                    autoFocus
+                    disabled={loading}
+                    className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Sending...' : 'Send Magic Link'}
+                  </button>
+                )}
 
                 {error && (
                   <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
@@ -116,19 +133,11 @@ export default function AuthForm() {
                   </div>
                 )}
 
-                {success && (
+                {success && !emailValid && (
                   <div className="text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
                     {success}
                   </div>
                 )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Sending...' : 'Send Magic Link'}
-                </button>
               </form>
 
               <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
