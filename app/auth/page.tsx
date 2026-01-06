@@ -237,6 +237,27 @@ export default function AuthPage() {
               </div>
             )}
 
+            {!isLogin && (
+              <div className="flex items-start gap-2 mt-4">
+                <input
+                  type="checkbox"
+                  id="terms"
+                  required
+                  className="mt-1 rounded border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 focus:ring-gray-500"
+                />
+                <label htmlFor="terms" className="text-sm text-gray-600 dark:text-gray-400">
+                  I agree to the{' '}
+                  <Link href="/terms" target="_blank" className="underline hover:text-gray-900 dark:hover:text-gray-100">
+                    Terms of Service
+                  </Link>{' '}
+                  and{' '}
+                  <Link href="/privacy" target="_blank" className="underline hover:text-gray-900 dark:hover:text-gray-100">
+                    Privacy Policy
+                  </Link>
+                </label>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
