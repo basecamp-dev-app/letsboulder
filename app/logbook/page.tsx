@@ -390,6 +390,13 @@ function LogbookContent() {
           </div>
         </div>
       ) : null}
+      <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <nav className="flex justify-center gap-6 text-sm">
+          <Link href="/privacy" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">Privacy</Link>
+          <Link href="/terms" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">Terms</Link>
+          <a href="mailto:hello@gsyrocks.com" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">Contact</a>
+        </nav>
+      </div>
     </div>
   )
 }
