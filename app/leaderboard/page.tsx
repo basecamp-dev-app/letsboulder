@@ -25,8 +25,6 @@ const GENDER_OPTIONS = [
   { value: 'all', label: 'All' },
   { value: 'male', label: 'Male' },
   { value: 'female', label: 'Female' },
-  { value: 'other', label: 'Other' },
-  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
 ]
 
 export default function LeaderboardPage() {

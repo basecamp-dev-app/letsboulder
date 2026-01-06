@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const offset = (page - 1) * limit
 
   if (gender && gender !== 'all') {
-    const allowedGenders = ['male', 'female', 'other', 'prefer_not_to_say']
+    const allowedGenders = ['male', 'female']
     if (!allowedGenders.includes(gender)) {
       return NextResponse.json({ error: 'Invalid gender filter' }, { status: 400 })
     }
