@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation'
 import GradeHistoryChart from '@/components/GradeHistoryChart'
 import GradePyramid from '@/components/GradePyramid'
 import ProgressRing from '@/components/ProgressRing'
+import AvatarUploader from '@/components/AvatarUploader'
 import { getGradePoints, calculateStats, getLowestGrade, getGradeFromPoints, getNextGrade, getPreviousGrade } from '@/lib/grades'
 
 interface LoggedClimb {
@@ -172,9 +173,14 @@ function LogbookContent() {
       {/* Profile Header */}
       <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6 mb-8">
         <div className="flex flex-col items-center">
-          <ProgressRing
+          <AvatarUploader
             avatarUrl={profile?.avatar_url}
             initials={initials}
+            onAvatarUpdate={(url) => {
+              setProfile(prev => prev ? { ...prev, avatar_url: url } : null)
+            }}
+          />
+          <ProgressRing
             averageGrade={averageGrade}
             averagePoints={averagePoints}
             previousGrade={previousGrade}

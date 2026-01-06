@@ -1,8 +1,6 @@
 'use client'
 
 interface ProgressRingProps {
-  avatarUrl?: string
-  initials: string
   averageGrade: string
   averagePoints: number
   previousGrade: string
@@ -12,8 +10,6 @@ interface ProgressRingProps {
 }
 
 export default function ProgressRing({
-  avatarUrl,
-  initials,
   averageGrade,
   averagePoints,
   previousGrade,
@@ -60,25 +56,17 @@ export default function ProgressRing({
         />
       </svg>
       
-      {/* Avatar or initials */}
+      {/* Average grade in center */}
       <div className="absolute inset-2 flex items-center justify-center">
-        {avatarUrl ? (
-          <img
-            src={avatarUrl}
-            alt="Profile"
-            className="w-full h-full rounded-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-200 font-bold text-lg">
-            {initials}
-          </div>
-        )}
+        <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+          {averageGrade}
+        </span>
       </div>
       
       {/* Average grade badge */}
       <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 px-2 py-0.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700">
         <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
-          {averageGrade}
+          Avg
         </span>
       </div>
     </div>
