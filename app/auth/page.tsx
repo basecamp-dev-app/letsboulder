@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true)
@@ -16,6 +16,8 @@ export default function AuthPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [origin, setOrigin] = useState('')
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const climbId = searchParams?.get('climbId')
 
   useEffect(() => {
     setOrigin(window.location.origin)
@@ -36,7 +38,7 @@ export default function AuthPage() {
       if (error) {
         setError(error.message)
       } else {
-        router.push('/')
+        router.push(climbId ? `/map?climbId=${climbId}` : '/')
       }
     } else {
       const { error } = await supabase.auth.signUp({
@@ -175,6 +177,13 @@ export default function AuthPage() {
           <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
             {isLogin ? 'Welcome back' : 'Create an account'}
           </h1>
+          {climbId && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4 text-center">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                Sign in to log this climb
+              </p>
+            </div>
+          )}
           <p className="text-gray-600 dark:text-gray-400 text-center mb-8">
             {isLogin ? 'Sign in to your account' : 'Join gsyrocks to contribute'}
           </p>

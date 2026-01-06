@@ -87,7 +87,7 @@ export default function SatelliteClimbingMap() {
   // Handle logging a climb (Flash, Top, Try)
   const handleLogClimb = async (climbId: string, status: string) => {
     if (!user) {
-      alert('Please login to log climbs')
+      window.location.href = `/auth?climbId=${climbId}`
       return
     }
 
