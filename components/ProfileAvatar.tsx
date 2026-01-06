@@ -12,7 +12,11 @@ interface ProfileAvatarProps {
   nextGrade: string
   previousGradePoints: number
   nextGradePoints: number
+  username: string
+  firstName?: string
+  lastName?: string
   onAvatarUpdate: (newUrl: string) => void
+  onUsernameUpdate?: (newUsername: string, firstName?: string, lastName?: string) => void
 }
 
 export default function ProfileAvatar({
@@ -24,7 +28,11 @@ export default function ProfileAvatar({
   nextGrade,
   previousGradePoints,
   nextGradePoints,
+  username,
+  firstName,
+  lastName,
   onAvatarUpdate,
+  onUsernameUpdate,
 }: ProfileAvatarProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
@@ -33,6 +41,14 @@ export default function ProfileAvatar({
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const [editUsername, setEditUsername] = useState('')
+  const [editFirstName, setEditFirstName] = useState('')
+  const [editLastName, setEditLastName] = useState('')
+  const [usernameError, setUsernameError] = useState<string | null>(null)
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([])
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
 
   const radius = 44
   const circumference = 2 * Math.PI * radius
@@ -202,6 +218,87 @@ export default function ProfileAvatar({
     }
   }
 
+  const openProfileModal = () => {
+    setEditUsername(username || '')
+    setEditFirstName(firstName || '')
+    setEditLastName(lastName || '')
+    setUsernameError(null)
+    setUsernameSuggestions([])
+    setIsProfileModalOpen(true)
+  }
+
+  const closeProfileModal = () => {
+    setIsProfileModalOpen(false)
+    setUsernameError(null)
+    setUsernameSuggestions([])
+  }
+
+  const validateUsername = (value: string): string | null => {
+    const trimmed = value.trim()
+    if (trimmed.length === 0) return 'Username cannot be empty'
+    if (trimmed.length < 3 || trimmed.length > 30) return 'Username must be between 3 and 30 characters'
+    const usernameRegex = /^[A-Za-z0-9._-]+$/
+    if (!usernameRegex.test(trimmed)) return 'Username can only contain letters, numbers, underscores, periods, and hyphens'
+    return null
+  }
+
+  const generateSuggestions = (): string[] => {
+    const suggestions: string[] = []
+    if (editFirstName || editLastName) {
+      const base = `${editFirstName || ''}.${editLastName || ''}`.toLowerCase().replace(/\.+/g, '.').replace(/^\.|\.$/g, '')
+      suggestions.push(base + Math.floor(Math.random() * 100))
+    }
+    suggestions.push(editUsername + Math.floor(Math.random() * 1000))
+    if (editFirstName) {
+      suggestions.push(editFirstName.toLowerCase() + Math.floor(Math.random() * 1000))
+    }
+    return suggestions.slice(0, 3)
+  }
+
+  const saveProfile = async () => {
+    const validationError = validateUsername(editUsername)
+    if (validationError) {
+      setUsernameError(validationError)
+      return
+    }
+
+    setIsSavingProfile(true)
+    setUsernameError(null)
+
+    try {
+      const response = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: editUsername,
+          first_name: editFirstName,
+          last_name: editLastName,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 409 && data.suggestions) {
+          setUsernameError('Username is already taken')
+          setUsernameSuggestions(data.suggestions)
+          setIsSavingProfile(false)
+          return
+        }
+        throw new Error(data.error || 'Failed to update profile')
+      }
+
+      if (onUsernameUpdate) {
+        onUsernameUpdate(editUsername, editFirstName, editLastName)
+      }
+      closeProfileModal()
+    } catch (err) {
+      setUsernameError(err instanceof Error ? err.message : 'Failed to update profile')
+    } finally {
+      setIsSavingProfile(false)
+    }
+  }
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeModal()
@@ -218,7 +315,7 @@ export default function ProfileAvatar({
 
   return (
     <>
-      <div className="relative w-32 h-36">
+      <div className="relative w-32 h-32">
         {/* Grade badge at TOP */}
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20">
           <div className="bg-white dark:bg-gray-800 px-3 py-0.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700">
@@ -229,7 +326,7 @@ export default function ProfileAvatar({
         </div>
 
         {/* Ring with avatar inside */}
-        <div className="relative w-32 h-32 pt-6">
+        <div className="relative w-32 h-32">
           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 96 96">
             <circle
               cx="48"
@@ -258,7 +355,7 @@ export default function ProfileAvatar({
           {/* Avatar - click to edit */}
           <button
             onClick={() => setIsModalOpen(true)}
-            className="absolute inset-4 rounded-full overflow-hidden transition-opacity hover:opacity-95 group"
+            className="absolute inset-[6px] rounded-full overflow-hidden transition-opacity hover:opacity-95 group"
             aria-label="Edit profile picture"
           >
             {avatarUrl ? (
@@ -278,10 +375,23 @@ export default function ProfileAvatar({
           </button>
         </div>
 
-        {/* "Avg" label at BOTTOM */}
-        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
-          <span className="text-xs text-gray-500 dark:text-gray-400">Avg</span>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            {username || 'Set username'}
+          </span>
+          {onUsernameUpdate && (
+            <button
+              onClick={openProfileModal}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              aria-label="Edit profile"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </button>
+          )}
         </div>
+
       </div>
 
       {isModalOpen && (
@@ -395,6 +505,119 @@ export default function ProfileAvatar({
                 </svg>
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={closeProfileModal}
+          />
+          <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-6">
+            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">
+              Edit Profile
+            </h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  value={editFirstName}
+                  onChange={(e) => setEditFirstName(e.target.value)}
+                  placeholder="Optional"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  value={editLastName}
+                  onChange={(e) => setEditLastName(e.target.value)}
+                  placeholder="Optional"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={editUsername}
+                  onChange={(e) => {
+                    setEditUsername(e.target.value)
+                    setUsernameError(null)
+                    setUsernameSuggestions([])
+                  }}
+                  onBlur={() => setUsernameError(validateUsername(editUsername))}
+                  placeholder="Choose a username"
+                  className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500 ${
+                    usernameError ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  3-30 characters. Letters, numbers, underscores, periods, and hyphens only.
+                </p>
+                {usernameError && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{usernameError}</p>
+                )}
+                {usernameSuggestions.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Try these instead:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {usernameSuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => {
+                            setEditUsername(suggestion)
+                            setUsernameError(null)
+                            setUsernameSuggestions([])
+                          }}
+                          className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={closeProfileModal}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveProfile}
+                disabled={isSavingProfile}
+                className="flex-1 px-4 py-2 bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 rounded-lg font-medium hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSavingProfile ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+
+            <button
+              onClick={closeProfileModal}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       )}

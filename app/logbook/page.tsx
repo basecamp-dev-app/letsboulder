@@ -42,6 +42,8 @@ interface ProfileData {
   username: string
   avatar_url?: string
   email: string
+  first_name?: string
+  last_name?: string
 }
 
 function getInitials(username: string): string {
@@ -181,13 +183,21 @@ function LogbookContent() {
             nextGrade={nextGrade}
             previousGradePoints={previousGradePoints}
             nextGradePoints={nextGradePoints}
+            username={username}
+            firstName={profile?.first_name}
+            lastName={profile?.last_name}
             onAvatarUpdate={(url) => {
               setProfile(prev => prev ? { ...prev, avatar_url: url } : null)
             }}
+            onUsernameUpdate={(newUsername, newFirstName, newLastName) => {
+              setProfile(prev => prev ? { 
+                ...prev, 
+                username: newUsername,
+                first_name: newFirstName,
+                last_name: newLastName
+              } : null)
+            }}
           />
-          <h1 className="text-2xl font-bold mt-3 text-gray-900 dark:text-gray-100">
-            {username}
-          </h1>
         </div>
 
         {/* Stats Summary Row */}
