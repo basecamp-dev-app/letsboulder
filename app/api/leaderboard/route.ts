@@ -29,62 +29,43 @@ export async function GET(request: NextRequest) {
   )
 
   try {
-    let genderFilter = ''
-    const queryParams: (string | null)[] = []
-    
-    if (gender && gender !== 'all') {
-      genderFilter = 'AND p.gender = $1'
-      queryParams.push(gender === 'prefer_not_to_say' ? null : gender)
-    }
+    const genderParam = gender === 'all' ? null : gender === 'prefer_not_to_say' ? null : gender
 
-    // Get all users with gender filter for simplicity
-    let userQuery = supabase
-      .from('profiles')
-      .select('id, username, avatar_url, gender')
-    
-    if (gender && gender !== 'all') {
-      userQuery = userQuery.eq('gender', gender === 'prefer_not_to_say' ? null : gender)
-    }
-    
-    const { data: users, error } = await userQuery
+    // Call the RPC function
+    const { data: leaderboardData, error } = await supabase
+      .rpc('get_leaderboard', {
+        gender_filter: genderParam,
+        limit_rows: limit,
+        offset_rows: offset
+      })
 
     if (error) {
-      console.error('Profile query error:', error)
+      console.error('RPC error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // For simplicity, compute leaderboard in memory
-    // In production, you would use a proper SQL aggregation
-    const leaderboardWithStats = users?.map(profile => {
-      const randomPoints = Math.floor(Math.random() * 200) + 600
-      const randomClimbs = Math.floor(Math.random() * 30) + 5
-      return {
-        user_id: profile.id,
-        username: profile.username,
-        avatar_url: profile.avatar_url,
-        gender: profile.gender,
-        avg_points: randomPoints,
-        avg_grade: getGradeFromPoints(randomPoints),
-        climb_count: randomClimbs,
-      }
-    }).sort((a, b) => b.avg_points - a.avg_points)
+    // Get total count for pagination
+    const { count: totalUsers } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
 
-    const totalUsers = leaderboardWithStats?.length || 0
-    const paginatedData = leaderboardWithStats?.slice(offset, offset + limit) || []
-
-    // Add ranks
-    const rankedData = paginatedData.map((entry, index) => ({
-      ...entry,
+    // Transform data: map avg_points to avg_grade
+    const leaderboard = leaderboardData?.map((entry: any, index: number) => ({
       rank: offset + index + 1,
-    }))
+      user_id: entry.user_id,
+      username: entry.username,
+      avatar_url: entry.avatar_url,
+      avg_grade: entry.avg_points ? getGradeFromPoints(entry.avg_points) : '?',
+      climb_count: entry.climb_count,
+    })) || []
 
     return NextResponse.json({
-      leaderboard: rankedData,
+      leaderboard,
       pagination: {
         page,
         limit,
-        total_users: totalUsers,
-        total_pages: Math.ceil(totalUsers / limit),
+        total_users: totalUsers || 0,
+        total_pages: Math.ceil((totalUsers || 0) / limit),
       },
     })
   } catch (error) {
@@ -93,18 +74,34 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Complete 1A–9C+ grade mapping
+const gradePoints: Record<string, number> = {
+  // 1A–3C+
+  '1A': 100, '1A+': 116, '1B': 132, '1B+': 148, '1C': 164, '1C+': 180,
+  // 2A–4C+
+  '2A': 196, '2A+': 212, '2B': 228, '2B+': 244, '2C': 260, '2C+': 276,
+  // 3A–5C+
+  '3A': 292, '3A+': 308, '3B': 324, '3B+': 340, '3C': 356, '3C+': 372,
+  // 4A–6C+
+  '4A': 388, '4A+': 404, '4B': 420, '4B+': 436, '4C': 452, '4C+': 468,
+  // 5A–6C+
+  '5A': 484, '5A+': 500, '5B': 516, '5B+': 532, '5C': 548, '5C+': 564,
+  // 6A–7C+
+  '6A': 580, '6A+': 596, '6B': 612, '6B+': 628, '6C': 644, '6C+': 660,
+  // 7A–8C+
+  '7A': 676, '7A+': 692, '7B': 708, '7B+': 724, '7C': 740, '7C+': 756,
+  // 8A–9C+
+  '8A': 772, '8A+': 788, '8B': 804, '8B+': 820, '8C': 836, '8C+': 852,
+  // 9A–9C+
+  '9A': 868, '9A+': 884, '9B': 900, '9B+': 916, '9C': 932, '9C+': 948,
+}
+
 function getGradeFromPoints(points: number): string {
-  const gradePoints: Record<string, number> = {
-    '6A': 600, '6A+': 616, '6B': 632, '6B+': 648, '6C': 664, '6C+': 683,
-    '7A': 650, '7A+': 666, '7B': 682, '7B+': 750, '7C': 767, '7C+': 783,
-    '8A': 700, '8A+': 716, '8B': 732, '8B+': 748, '8C': 764, '8C+': 780,
-  }
-  
-  let closest = '6A'
+  let closest = '?'
   let minDiff = Infinity
   
-  for (const [grade, pts] of Object.entries(gradePoints)) {
-    const diff = Math.abs(pts - points)
+  for (const [grade, gradePointsVal] of Object.entries(gradePoints)) {
+    const diff = Math.abs(gradePointsVal - points)
     if (diff < minDiff) {
       minDiff = diff
       closest = grade
