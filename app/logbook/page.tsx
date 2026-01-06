@@ -243,6 +243,20 @@ function LogbookContent() {
             </div>
           </div>
         )}
+
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <nav className="flex gap-4 text-sm">
+            <Link href="/privacy" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
+              Privacy
+            </Link>
+            <Link href="/terms" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
+              Terms
+            </Link>
+            <a href="mailto:hello@gsyrocks.com" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
+              Contact
+            </a>
+          </nav>
+        </div>
       </div>
 
       <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100">Logbook</h1>

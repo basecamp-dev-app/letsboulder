@@ -308,6 +308,11 @@ export default function AuthPage() {
               <Link href="/" className="text-gray-500 dark:text-gray-400 text-sm hover:underline block text-center">
                 ← Back to home
               </Link>
+              <p className="mt-4 text-xs text-center text-gray-500 dark:text-gray-400">
+                By logging in, you agree to our{' '}
+                <Link href="/terms" className="underline">Terms</Link> and{' '}
+                <Link href="/privacy" className="underline">Privacy Policy</Link>
+              </p>
             </div>
           )}
         </div>
