@@ -2,10 +2,6 @@ import { createClient } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-12-15.clover',
-})
-
 export async function POST(request: Request) {
   try {
     const supabase = createClient()
@@ -16,6 +12,11 @@ export async function POST(request: Request) {
     }
 
     const { origin } = new URL(request.url)
+
+    // Initialize Stripe at runtime (not build time)
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2025-12-15.clover',
+    })
 
     const session = await stripe.checkout.sessions.create({
       customer_email: user.email || undefined,

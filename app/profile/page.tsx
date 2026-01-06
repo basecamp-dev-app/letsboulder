@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 
-export default function ProfilePage() {
+function ProfileContent() {
   const [user, setUser] = useState<any>(null)
   const [isPro, setIsPro] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -104,5 +104,17 @@ export default function ProfilePage() {
         </Link>
       </div>
     </div>
+  )
+}
+
+function LoadingFallback() {
+  return <div className="container mx-auto px-4 py-8 text-gray-900 dark:text-gray-100">Loading...</div>
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ProfileContent />
+    </Suspense>
   )
 }
