@@ -116,7 +116,9 @@ export default function Header() {
   const handleResultClick = (result: SearchResult) => {
     setShowDropdown(false)
     setSearchQuery('')
-    if (result.latitude && result.longitude) {
+    if (result.type === 'climb' && result.latitude && result.longitude) {
+      router.push(`/map?lat=${result.latitude}&lng=${result.longitude}&zoom=16&climbId=${result.id}`)
+    } else if (result.latitude && result.longitude) {
       router.push(`/map?lat=${result.latitude}&lng=${result.longitude}&zoom=15`)
     } else {
       router.push('/map')
@@ -164,13 +166,8 @@ export default function Header() {
                 <button
                   key={`${result.type}-${result.id}`}
                   onClick={() => handleResultClick(result)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-700 last:border-b-0 flex items-start gap-3"
+                  className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                 >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    result.type === 'crag' ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                  }`}>
-                    {result.type === 'crag' ? '📍' : '🧗'}
-                  </div>
                   <div>
                     <p className="font-medium text-gray-900 dark:text-gray-100">{result.name}</p>
                     {result.type === 'climb' && result.crag_name && (

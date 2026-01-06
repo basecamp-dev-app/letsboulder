@@ -181,7 +181,7 @@ export default function SatelliteClimbingMap() {
       },
       { enableHighAccuracy: true, timeout: 15000 }
     )
-  }, [isClient, mapReady])
+    }, [isClient, mapReady])
 
   // Simple clustering function
   const clusterMarkers = useCallback((markers: Climb[], map: L.Map) => {
@@ -298,6 +298,18 @@ export default function SatelliteClimbingMap() {
       }
     }
   }, [mapLoaded])
+
+  // Auto-open climb modal when climbId is in URL
+  useEffect(() => {
+    const climbId = searchParams.get('climbId')
+    if (climbId && mapLoaded && !selectedClimb) {
+      loadClimbDetails(climbId).then(details => {
+        if (details) {
+          setSelectedClimb(details as Climb)
+        }
+      })
+    }
+  }, [searchParams, mapLoaded, selectedClimb, loadClimbDetails])
 
   // Guernsey center coordinates
   const worldCenter: [number, number] = [49.4657, -2.5853]
