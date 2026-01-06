@@ -1,14 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import GradeHistoryChart from '@/components/GradeHistoryChart'
+import GradePyramid from '@/components/GradePyramid'
+import { getGradePoints, calculateStats, getLowestGrade, getGradeFromPoints } from '@/lib/grades'
 
 interface LoggedClimb {
   id: string
   climb_id: string
   status: string
   created_at: string
+  points?: number
   climbs: {
     name: string
     grade: string
@@ -19,10 +24,24 @@ interface LoggedClimb {
   }
 }
 
-export default function LogbookPage() {
+interface Stats {
+  top10Hardest: LoggedClimb[]
+  twoMonthAverage: number
+  gradeHistory: Array<{ month: string; top: number; flash: number }>
+  gradePyramid: Record<string, number>
+  averageGrade: string
+  totalClimbs: number
+  totalFlashes: number
+  totalTops: number
+  totalTries: number
+}
+
+function LogbookContent() {
   const [user, setUser] = useState<any>(null)
   const [logs, setLogs] = useState<LoggedClimb[]>([])
+  const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     const checkUser = async () => {
@@ -37,18 +56,34 @@ export default function LogbookPage() {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
 
-        setLogs(logsData || [])
+        const logsWithPoints = logsData?.map(log => ({
+          ...log,
+          points: log.status === 'flash' 
+            ? getGradePoints(log.climbs?.grade || '6A') + 10
+            : getGradePoints(log.climbs?.grade || '6A')
+        })) || []
+
+        setLogs(logsWithPoints)
+        setStats(calculateStats(logsWithPoints))
       }
       setLoading(false)
     }
     checkUser()
   }, [])
 
+  useEffect(() => {
+    if (searchParams.get('success')) {
+      alert('Payment successful! You are now a Pro member.')
+    }
+    if (searchParams.get('canceled')) {
+      alert('Payment canceled. No worries, try again when ready!')
+    }
+  }, [searchParams])
+
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100">My Climbing Logbook</h1>
-        <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+      <div className="container mx-auto px-4 py-8 text-center text-gray-900 dark:text-gray-100">
+        Loading...
       </div>
     )
   }
@@ -67,56 +102,145 @@ export default function LogbookPage() {
     )
   }
 
+  const lowestGrade = stats ? getLowestGrade(stats.gradePyramid) : '6A'
+  const displayGrades = ['6A', '6A+', '6B', '6B+', '6C', '6C+', '7A', '7A+', '7B', '7B+', '7C', '7C+', '8A', '8A+', '8B', '8B+', '8C', '8C+']
+  const pyramidGrades = displayGrades.slice(displayGrades.indexOf(lowestGrade))
+
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100">My Climbing Logbook</h1>
-      
-      <div className="bg-white dark:bg-gray-900 p-6 rounded shadow mb-6">
-        <p className="text-gray-600 dark:text-gray-400">
-          {logs.length} logged climb{logs.length !== 1 ? 's' : ''}
-        </p>
-      </div>
 
-      {logs.length === 0 ? (
+      {stats && stats.totalClimbs === 0 ? (
         <div className="bg-white dark:bg-gray-900 p-6 rounded shadow">
           <p className="text-gray-600 dark:text-gray-400 mb-4">No logs yet. Go to the map and log some climbs!</p>
           <Link href="/map" className="inline-block bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-4 py-2 rounded hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors">
             Go to Map
           </Link>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {logs.map((log) => (
-            <div key={log.id} className="bg-white dark:bg-gray-900 p-4 rounded shadow flex items-center gap-4">
-              {log.climbs?.image_url && (
-                <img 
-                  src={log.climbs.image_url} 
-                  alt={log.climbs.name}
-                  className="w-16 h-16 object-cover rounded"
-                />
-              )}
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {log.climbs?.grade} • {log.climbs?.crags?.name}
-                </p>
+      ) : stats ? (
+        <div className="space-y-8">
+          {/* Top 10 Hardest (Last 60 Days) */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
+              Top 10 Hardest (Last 60 Days)
+            </h2>
+            {stats.top10Hardest.length > 0 ? (
+              <div className="space-y-2">
+                {stats.top10Hardest.map((log, index) => (
+                  <div key={log.id} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm text-gray-500 dark:text-gray-400 w-6">{index + 1}.</span>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{log.climbs?.crags?.name}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded text-sm font-medium ${
+                        log.status === 'flash' 
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                          : log.status === 'top'
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                      }`}>
+                        {log.status === 'flash' && '⚡ '}
+                        {log.climbs?.grade}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="text-right">
-                <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                  log.status === 'flash' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                  log.status === 'top' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                  'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                }`}>
-                  {log.status}
-                </span>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {new Date(log.created_at).toLocaleDateString()}
-                </p>
-              </div>
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">No climbs logged in the last 60 days</p>
+            )}
+          </div>
+
+          {/* 2-Month Average */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
+              2-Month Average
+            </h2>
+            <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+              {getGradeFromPoints(stats.twoMonthAverage)}
+              <span className="text-lg font-normal text-gray-500 dark:text-gray-400 ml-2">
+                ({stats.totalFlashes} flashes, {stats.totalTops} tops)
+              </span>
+            </p>
+          </div>
+
+          {/* Grade History Chart */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
+              Grade History (Last 365 Days)
+            </h2>
+            {stats.gradeHistory.length > 0 ? (
+              <GradeHistoryChart data={stats.gradeHistory} />
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">No data for the past year</p>
+            )}
+          </div>
+
+          {/* Grade Pyramid */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
+              Grade Pyramid (Past Year)
+            </h2>
+            <GradePyramid pyramid={stats.gradePyramid} lowestGrade={lowestGrade} />
+          </div>
+
+          {/* Recent Logs */}
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
+              Recent Climbs
+            </h2>
+            <div className="space-y-4">
+              {logs.slice(0, 20).map((log) => (
+                <div key={log.id} className="flex items-center gap-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                  {log.climbs?.image_url && (
+                    <img
+                      src={log.climbs.image_url}
+                      alt={log.climbs.name}
+                      className="w-12 h-12 object-cover rounded"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {log.climbs?.crags?.name} • {new Date(log.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    log.status === 'flash'
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : log.status === 'top'
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                  }`}>
+                    {log.status === 'flash' && '⚡ '}
+                    {log.climbs?.grade}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
+  )
+}
+
+function LoadingFallback() {
+  return (
+    <div className="container mx-auto px-4 py-8 text-center text-gray-900 dark:text-gray-100">
+      Loading...
+    </div>
+  )
+}
+
+export default function LogbookPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <LogbookContent />
+    </Suspense>
   )
 }

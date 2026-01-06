@@ -1,0 +1,209 @@
+// French Boulder Grade System (Fontainebleau)
+// Points system: Base grades + modifier steps + flash bonus (+10 points)
+
+export const FLASH_BONUS = 10
+
+const gradeToPointsMap: Record<string, number> = {
+  // 6A-6C+
+  '6A': 600, '6A+': 616, '6B': 632, '6B+': 648, '6C': 664, '6C+': 683,
+  // 7A-7C+
+  '7A': 650, '7A+': 666, '7B': 682, '7B+': 750, '7C': 767, '7C+': 783,
+  // 8A-8C+
+  '8A': 700, '8A+': 716, '8B': 732, '8B+': 748, '8C': 764, '8C+': 780,
+}
+
+export const gradePoints: Record<string, number> = gradeToPointsMap
+
+export const GRADES = Object.keys(gradeToPointsMap).sort((a, b) => 
+  gradeToPointsMap[a] - gradeToPointsMap[b]
+)
+
+export function getGradePoints(grade: string): number {
+  return gradeToPointsMap[grade] || 0
+}
+
+export function getGradeFromPoints(points: number): string {
+  let closest = '6A'
+  let minDiff = Infinity
+  
+  for (const [grade, gradePointsVal] of Object.entries(gradeToPointsMap)) {
+    const diff = Math.abs(gradePointsVal - points)
+    if (diff < minDiff) {
+      minDiff = diff
+      closest = grade
+    }
+  }
+  
+  return closest
+}
+
+export function getFlashPoints(grade: string): number {
+  return getGradePoints(grade) + FLASH_BONUS
+}
+
+export function getNextGrade(currentGrade: string): string {
+  const currentIndex = GRADES.indexOf(currentGrade)
+  if (currentIndex === -1 || currentIndex === GRADES.length - 1) {
+    return currentGrade
+  }
+  return GRADES[currentIndex + 1]
+}
+
+export function getPreviousGrade(currentGrade: string): string {
+  const currentIndex = GRADES.indexOf(currentGrade)
+  if (currentIndex <= 0) {
+    return currentGrade
+  }
+  return GRADES[currentIndex - 1]
+}
+
+export function getProgressPercent(currentPoints: number, previousGrade: string, nextGrade: string): number {
+  const previousPoints = gradeToPointsMap[previousGrade]
+  const nextPoints = gradeToPointsMap[nextGrade]
+  
+  if (!previousPoints || !nextPoints || nextPoints <= previousPoints) {
+    return 0
+  }
+  
+  const percent = ((currentPoints - previousPoints) / (nextPoints - previousPoints)) * 100
+  return Math.min(Math.max(Math.round(percent), 0), 100)
+}
+
+export function getInitials(username: string): string {
+  return username
+    .split(' ')
+    .map(word => word[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
+
+interface LogEntry {
+  id: string
+  status: string
+  created_at: string
+  climbs?: {
+    grade: string
+  }
+}
+
+interface StatsResult {
+  top10Hardest: any[]
+  twoMonthAverage: number
+  gradeHistory: any[]
+  gradePyramid: Record<string, number>
+  averageGrade: string
+  totalClimbs: number
+  totalFlashes: number
+  totalTops: number
+  totalTries: number
+}
+
+export function calculateStats(logs: LogEntry[]): StatsResult {
+  if (logs.length === 0) {
+    return {
+      top10Hardest: [],
+      twoMonthAverage: 0,
+      gradeHistory: [],
+      gradePyramid: {},
+      averageGrade: '6A',
+      totalClimbs: 0,
+      totalFlashes: 0,
+      totalTops: 0,
+      totalTries: 0,
+    }
+  }
+
+  const now = new Date()
+  const twoMonthsAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
+  const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000)
+
+  // Filter logs
+  const twoMonthLogs = logs.filter(log => new Date(log.created_at) >= twoMonthsAgo)
+  const yearLogs = logs.filter(log => new Date(log.created_at) >= oneYearAgo)
+
+  // Calculate 2-month average (top 10 hardest with flash bonus)
+  const twoMonthWithPoints = twoMonthLogs.map(log => {
+    const basePoints = getGradePoints(log.climbs?.grade || '6A')
+    const points = log.status === 'flash' ? basePoints + FLASH_BONUS : basePoints
+    return { ...log, points }
+  }).sort((a, b) => b.points - a.points)
+
+  const top10Hardest = twoMonthWithPoints.slice(0, 10)
+
+  const avgPoints = twoMonthWithPoints.length > 0
+    ? twoMonthWithPoints.reduce((sum, log) => sum + log.points, 0) / twoMonthWithPoints.length
+    : 0
+
+  // Calculate grade history (monthly, stacked area)
+  const monthlyData: Record<string, { top: number; flash: number }> = {}
+  
+  for (let i = 0; i < 12; i++) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+    monthlyData[monthKey] = { top: 0, flash: 0 }
+  }
+
+  yearLogs.forEach(log => {
+    const logDate = new Date(log.created_at)
+    const monthKey = logDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+    
+    if (monthlyData[monthKey]) {
+      const points = getGradePoints(log.climbs?.grade || '6A')
+      if (log.status === 'flash') {
+        monthlyData[monthKey].flash += points + FLASH_BONUS
+        monthlyData[monthKey].top += points + FLASH_BONUS
+      } else {
+        monthlyData[monthKey].top += points
+      }
+    }
+  })
+
+  // Sort months chronologically
+  const gradeHistory = Object.entries(monthlyData)
+    .map(([month, data]) => ({ month, ...data }))
+    .sort((a, b) => {
+      const [aMonth, aYear] = a.month.split(' ')
+      const [bMonth, bYear] = b.month.split(' ')
+      const aDate = new Date(`${aMonth} 20${aYear}`)
+      const bDate = new Date(`${bMonth} 20${bYear}`)
+      return aDate.getTime() - bDate.getTime()
+    })
+
+  // Calculate grade pyramid
+  const gradePyramid: Record<string, number> = {}
+  GRADES.forEach(grade => gradePyramid[grade] = 0)
+
+  yearLogs.forEach(log => {
+    const grade = log.climbs?.grade
+    if (grade && gradePyramid[grade] !== undefined) {
+      gradePyramid[grade]++
+    }
+  })
+
+  // Calculate totals
+  const totalFlashes = logs.filter(l => l.status === 'flash').length
+  const totalTops = logs.filter(l => l.status === 'top').length
+  const totalTries = logs.filter(l => l.status === 'try').length
+
+  return {
+    top10Hardest,
+    twoMonthAverage: avgPoints,
+    gradeHistory,
+    gradePyramid,
+    averageGrade: getGradeFromPoints(avgPoints),
+    totalClimbs: logs.length,
+    totalFlashes,
+    totalTops,
+    totalTries,
+  }
+}
+
+export function getLowestGrade(gradePyramid: Record<string, number>): string {
+  for (const grade of GRADES) {
+    if (gradePyramid[grade] > 0) {
+      return grade
+    }
+  }
+  return '6A'
+}
