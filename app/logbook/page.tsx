@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import GradeHistoryChart from '@/components/GradeHistoryChart'
 import GradePyramid from '@/components/GradePyramid'
-import { getGradePoints, calculateStats, getLowestGrade, getGradeFromPoints } from '@/lib/grades'
+import ProgressRing from '@/components/ProgressRing'
+import { getGradePoints, calculateStats, getLowestGrade, getGradeFromPoints, getNextGrade, getPreviousGrade } from '@/lib/grades'
 
 interface LoggedClimb {
   id: string
@@ -36,8 +37,25 @@ interface Stats {
   totalTries: number
 }
 
+interface ProfileData {
+  id: string
+  username: string
+  avatar_url?: string
+  email: string
+}
+
+function getInitials(username: string): string {
+  return username
+    .split(' ')
+    .map(word => word[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
+
 function LogbookContent() {
   const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<ProfileData | null>(null)
   const [logs, setLogs] = useState<LoggedClimb[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -50,6 +68,39 @@ function LogbookContent() {
       setUser(user)
 
       if (user) {
+        // Fetch profile data
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+
+        if (profileData) {
+          setProfile({
+            ...profileData,
+            email: user.email || '',
+          })
+        } else {
+          // Create profile if it doesn't exist
+          const { data: newProfile } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              email: user.email,
+              username: user.email?.split('@')[0] || 'user',
+            })
+            .select()
+            .single()
+
+          if (newProfile) {
+            setProfile({
+              ...newProfile,
+              email: user.email || '',
+            })
+          }
+        }
+
+        // Fetch logs
         const { data: logsData } = await supabase
           .from('logs')
           .select('*, climbs(name, grade, image_url, crags(name))')
@@ -106,9 +157,60 @@ function LogbookContent() {
   const displayGrades = ['6A', '6A+', '6B', '6B+', '6C', '6C+', '7A', '7A+', '7B', '7B+', '7C', '7C+', '8A', '8A+', '8B', '8B+', '8C', '8C+']
   const pyramidGrades = displayGrades.slice(displayGrades.indexOf(lowestGrade))
 
+  const averageGrade = stats?.averageGrade || '6A'
+  const averagePoints = stats?.twoMonthAverage || getGradePoints(averageGrade)
+  const nextGrade = getNextGrade(averageGrade)
+  const previousGrade = getPreviousGrade(averageGrade)
+  const previousGradePoints = getGradePoints(previousGrade)
+  const nextGradePoints = getGradePoints(nextGrade)
+
+  const username = profile?.username || user?.email?.split('@')[0] || 'Climber'
+  const initials = getInitials(username)
+
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100">My Climbing Logbook</h1>
+      {/* Profile Header */}
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6 mb-8">
+        <div className="flex flex-col items-center">
+          <ProgressRing
+            avatarUrl={profile?.avatar_url}
+            initials={initials}
+            averageGrade={averageGrade}
+            averagePoints={averagePoints}
+            previousGrade={previousGrade}
+            nextGrade={nextGrade}
+            previousGradePoints={previousGradePoints}
+            nextGradePoints={nextGradePoints}
+          />
+          <h1 className="text-2xl font-bold mt-3 text-gray-900 dark:text-gray-100">
+            {username}
+          </h1>
+        </div>
+
+        {/* Stats Summary Row */}
+        {stats && (
+          <div className="grid grid-cols-4 gap-3 mt-6">
+            <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-center">
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.totalClimbs}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Climbs</p>
+            </div>
+            <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-center">
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.totalFlashes}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Flashes</p>
+            </div>
+            <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-center">
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalTops}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Tops</p>
+            </div>
+            <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-center">
+              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.totalTries}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Tries</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100">Logbook</h1>
 
       {stats && stats.totalClimbs === 0 ? (
         <div className="bg-white dark:bg-gray-900 p-6 rounded shadow">
