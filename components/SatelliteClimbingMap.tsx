@@ -51,6 +51,8 @@ export default function SatelliteClimbingMap() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
   const [mapReady, setMapReady] = useState(true)
+  const [userLogs, setUserLogs] = useState<Record<string, string>>({})
+  const [user, setUser] = useState<any>(null)
 
   // Cache key for localStorage
   const CACHE_KEY = 'gsyrocks_climbs_cache'
@@ -81,6 +83,38 @@ export default function SatelliteClimbingMap() {
       return { id: climbId, image_url: undefined, description: undefined }
     }
   }, [])
+
+  // Handle logging a climb (Flash, Top, Try)
+  const handleLogClimb = async (climbId: string, status: string) => {
+    if (!user) {
+      alert('Please login to log climbs')
+      return
+    }
+
+    const supabase = createClient()
+
+    // Optimistic update
+    setUserLogs(prev => ({ ...prev, [climbId]: status }))
+
+    const { error } = await supabase
+      .from('logs')
+      .upsert({
+        user_id: user.id,
+        climb_id: climbId,
+        status,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,climb_id' })
+
+    if (error) {
+      // Revert on error
+      setUserLogs(prev => {
+        const next = { ...prev }
+        delete next[climbId]
+        return next
+      })
+      console.error('Failed to log climb:', error)
+    }
+  }
 
   // Load climbs from cache or API (basic data only)
   const loadClimbs = useCallback(async (bounds?: L.LatLngBounds, forceRefresh = false) => {
@@ -281,6 +315,27 @@ export default function SatelliteClimbingMap() {
   }, [isClient, mapReady])
 
   const [mapLoaded, setMapLoaded] = useState(false)
+
+  // Fetch user and their logs
+  useEffect(() => {
+    const fetchUserAndLogs = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+
+      if (user) {
+        const { data: logs } = await supabase
+          .from('logs')
+          .select('climb_id, status')
+          .eq('user_id', user.id)
+
+        const logsMap: Record<string, string> = {}
+        logs?.forEach(log => { logsMap[log.climb_id] = log.status })
+        setUserLogs(logsMap)
+      }
+    }
+    fetchUserAndLogs()
+  }, [])
 
   // Close tooltip when clicking on map
   useEffect(() => {
@@ -525,6 +580,23 @@ export default function SatelliteClimbingMap() {
 
             <div className="absolute bottom-16 md:bottom-0 left-0 right-0 bg-white dark:bg-gray-900 p-4 pointer-events-auto max-h-[40vh] overflow-y-auto">
               <p className="text-black dark:text-white text-lg font-semibold">{selectedClimb.name}, {selectedClimb.grade}</p>
+              
+              {/* Log checkboxes */}
+              <div className="flex gap-4 mt-3">
+                {['flash', 'top', 'try'].map(status => (
+                  <label key={status} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`log-${selectedClimb.id}`}
+                      checked={userLogs[selectedClimb.id] === status}
+                      onChange={() => handleLogClimb(selectedClimb.id, status)}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm capitalize text-gray-700 dark:text-gray-300">{status}</span>
+                  </label>
+                ))}
+              </div>
+              
               {selectedClimb.description && (
                 <p className="text-gray-700 dark:text-gray-300 text-sm mt-2">{selectedClimb.description}</p>
               )}
@@ -534,9 +606,12 @@ export default function SatelliteClimbingMap() {
                 </p>
               )}
             </div>
-            <button onClick={() => {
-              setSelectedClimb(null)
-            }} className="absolute top-16 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-30 pointer-events-auto md:top-4">X</button>
+            <button 
+              onClick={() => setSelectedClimb(null)} 
+              className="absolute top-16 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-[1002] pointer-events-auto md:top-4"
+            >
+              X
+            </button>
           </div>
         </>
       )}
