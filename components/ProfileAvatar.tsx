@@ -15,8 +15,9 @@ interface ProfileAvatarProps {
   username: string
   firstName?: string
   lastName?: string
+  gender?: string
   onAvatarUpdate: (newUrl: string) => void
-  onUsernameUpdate?: (newUsername: string, firstName?: string, lastName?: string) => void
+  onUsernameUpdate?: (newUsername: string, firstName?: string, lastName?: string, gender?: string) => void
 }
 
 export default function ProfileAvatar({
@@ -31,6 +32,7 @@ export default function ProfileAvatar({
   username,
   firstName,
   lastName,
+  gender,
   onAvatarUpdate,
   onUsernameUpdate,
 }: ProfileAvatarProps) {
@@ -46,6 +48,7 @@ export default function ProfileAvatar({
   const [editUsername, setEditUsername] = useState('')
   const [editFirstName, setEditFirstName] = useState('')
   const [editLastName, setEditLastName] = useState('')
+  const [editGender, setEditGender] = useState('')
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([])
   const [isSavingProfile, setIsSavingProfile] = useState(false)
@@ -222,6 +225,7 @@ export default function ProfileAvatar({
     setEditUsername(username || '')
     setEditFirstName(firstName || '')
     setEditLastName(lastName || '')
+    setEditGender(gender || '')
     setUsernameError(null)
     setUsernameSuggestions([])
     setIsProfileModalOpen(true)
@@ -273,6 +277,7 @@ export default function ProfileAvatar({
           username: editUsername,
           first_name: editFirstName,
           last_name: editLastName,
+          gender: editGender || null,
         }),
       })
 
@@ -289,7 +294,7 @@ export default function ProfileAvatar({
       }
 
       if (onUsernameUpdate) {
-        onUsernameUpdate(editUsername, editFirstName, editLastName)
+        onUsernameUpdate(editUsername, editFirstName, editLastName, editGender)
       }
       closeProfileModal()
     } catch (err) {
@@ -545,6 +550,25 @@ export default function ProfileAvatar({
                   placeholder="Optional"
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Gender
+                </label>
+                <select
+                  value={editGender}
+                  onChange={(e) => setEditGender(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                >
+                  <option value="">Prefer not to say</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Used for segmented leaderboards (optional)
+                </p>
               </div>
 
               <div>

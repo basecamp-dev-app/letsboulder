@@ -195,6 +195,9 @@ export default function Header() {
           <Link href="/contribute" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
             Contribute
           </Link>
+          <Link href="/leaderboard" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+            Leaderboard
+          </Link>
           {user ? (
             <>
                <Link href="/profile" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">

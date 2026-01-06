@@ -65,7 +65,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { username, first_name, last_name } = body
+    const { username, first_name, last_name, gender } = body
 
     if (username !== undefined) {
       const trimmedUsername = username.trim()
@@ -84,10 +84,18 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    if (gender !== undefined && gender !== null) {
+      const allowedGenders = ['male', 'female', 'other', 'prefer_not_to_say']
+      if (!allowedGenders.includes(gender)) {
+        return NextResponse.json({ error: 'Invalid gender value' }, { status: 400 })
+      }
+    }
+
     const updateData: Record<string, unknown> = {}
     if (username !== undefined) updateData.username = username.trim()
     if (first_name !== undefined) updateData.first_name = first_name.trim()
     if (last_name !== undefined) updateData.last_name = last_name.trim()
+    if (gender !== undefined) updateData.gender = gender
 
     const { data: updated, error: updateError } = await supabase
       .from('profiles')

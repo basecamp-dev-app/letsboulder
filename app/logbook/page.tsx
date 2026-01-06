@@ -44,6 +44,7 @@ interface ProfileData {
   email: string
   first_name?: string
   last_name?: string
+  gender?: string
 }
 
 function getInitials(username: string): string {
@@ -186,15 +187,17 @@ function LogbookContent() {
             username={username}
             firstName={profile?.first_name}
             lastName={profile?.last_name}
+            gender={profile?.gender}
             onAvatarUpdate={(url) => {
               setProfile(prev => prev ? { ...prev, avatar_url: url } : null)
             }}
-            onUsernameUpdate={(newUsername, newFirstName, newLastName) => {
+            onUsernameUpdate={(newUsername, newFirstName, newLastName, newGender) => {
               setProfile(prev => prev ? { 
                 ...prev, 
                 username: newUsername,
                 first_name: newFirstName,
-                last_name: newLastName
+                last_name: newLastName,
+                gender: newGender
               } : null)
             }}
           />
