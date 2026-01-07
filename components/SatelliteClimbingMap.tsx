@@ -371,20 +371,30 @@ export default function SatelliteClimbingMap() {
     }
   }, [searchParams, mapLoaded, selectedClimb, loadClimbDetails])
 
-  // Guernsey center coordinates
-  const worldCenter: [number, number] = [49.4657, -2.5853]
-  const zoom = 11
+  // Default world center - will be updated to user location if available
+  const worldCenter: [number, number] = [20, 0]
+  const zoom = 2
 
-  // Calculate bounds for skeleton pins based on crag locations
+  // Generate placeholder pins distributed globally for loading state
   const skeletonPins = useMemo(() => {
     if (climbs.length > 0) return []
-    // Generate placeholder pins around Guernsey for loading state
-    return Array.from({ length: 20 }).map((_, i) => ({
+    // Generate placeholder pins distributed around major climbing regions
+    const regions = [
+      { lat: 49.45, lng: -2.6, name: 'Guernsey' },
+      { lat: 51.5, lng: -0.12, name: 'London' },
+      { lat: 40.7, lng: -74.0, name: 'New York' },
+      { lat: 34.0, lng: -118.2, name: 'Los Angeles' },
+      { lat: 48.8, lng: 2.3, name: 'Paris' },
+      { lat: 52.5, lng: 13.4, name: 'Berlin' },
+      { lat: -33.8, lng: 151.2, name: 'Sydney' },
+      { lat: -23.5, lng: -46.6, name: 'São Paulo' },
+    ]
+    return regions.map((region, i) => ({
       id: `skeleton-${i}`,
       crags: {
-        name: '',
-        latitude: 49.45 + (Math.random() - 0.5) * 0.08,
-        longitude: -2.6 + (Math.random() - 0.5) * 0.08
+        name: region.name,
+        latitude: region.lat + (Math.random() - 0.5) * 0.5,
+        longitude: region.lng + (Math.random() - 0.5) * 0.5
       }
     }))
   }, [climbs.length])

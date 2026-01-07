@@ -30,8 +30,21 @@ const GENDER_OPTIONS = [
   { value: 'female', label: 'Female' },
 ]
 
+const COUNTRY_OPTIONS = [
+  { value: 'all', label: 'Worldwide' },
+  { value: 'Guernsey', label: 'Guernsey' },
+  { value: 'UK', label: 'UK' },
+  { value: 'USA', label: 'USA' },
+  { value: 'France', label: 'France' },
+  { value: 'Germany', label: 'Germany' },
+  { value: 'Australia', label: 'Australia' },
+  { value: 'Spain', label: 'Spain' },
+  { value: 'Italy', label: 'Italy' },
+]
+
 export default function LeaderboardPage() {
   const [gender, setGender] = useState('all')
+  const [country, setCountry] = useState('all')
   const [page, setPage] = useState(1)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
@@ -51,13 +64,13 @@ export default function LeaderboardPage() {
     if (user !== null) {
       fetchLeaderboard()
     }
-  }, [gender, page, user])
+  }, [gender, country, page, user])
 
   const fetchLeaderboard = async () => {
     setLoading(true)
     try {
       const response = await fetch(
-        `/api/leaderboard?gender=${gender}&page=${page}&limit=20`
+        `/api/leaderboard?gender=${gender}&country=${country}&page=${page}&limit=20`
       )
       const data = await response.json()
       if (response.ok) {
@@ -124,23 +137,39 @@ export default function LeaderboardPage() {
 
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-            {GENDER_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => {
-                  setGender(option.value)
-                  setPage(1)
-                }}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  gender === option.value
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-4">
+            <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              {GENDER_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    setGender(option.value)
+                    setPage(1)
+                  }}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    gender === option.value
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <select
+              value={country}
+              onChange={(e) => {
+                setCountry(e.target.value)
+                setPage(1)
+              }}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            >
+              {COUNTRY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
         </CardContent>
       </Card>

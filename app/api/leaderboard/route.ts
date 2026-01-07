@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   
   const gender = searchParams.get('gender')
+  const country = searchParams.get('country')
   const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')))
   const offset = (page - 1) * limit
@@ -29,43 +30,96 @@ export async function GET(request: NextRequest) {
   )
 
   try {
-    const genderParam = gender === 'all' ? null : gender === 'prefer_not_to_say' ? null : gender
+    const genderParam = gender === 'all' ? null : gender
 
-    // Call the RPC function
-    const { data: leaderboardData, error } = await supabase
-      .rpc('get_leaderboard', {
-        gender_filter: genderParam,
-        limit_rows: limit,
-        offset_rows: offset
-      })
+    // Build the query with optional country filter
+    let query = supabase
+      .from('logs')
+      .select(`
+        user_id,
+        created_at,
+        status,
+        climbs!inner(
+          grade,
+          crags!inner(country)
+        )
+      `, { count: 'exact' })
+      .eq('status', 'top')
+      .gte('created_at', new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString())
+
+    // Apply country filter if not 'all'
+    if (country && country !== 'all') {
+      query = query.eq('climbs.crags.country', country)
+    }
+
+    // Apply gender filter
+    if (genderParam) {
+      query = query.eq('user_id', genderParam)
+    }
+
+    const { data: logs, error, count } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
 
     if (error) {
-      console.error('RPC error:', error)
+      console.error('Query error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Get total count for pagination
-    const { count: totalUsers } = await supabase
+    // Get unique users from logs
+    const userIds = [...new Set(logs?.map(log => log.user_id) || [])]
+    
+    // Get user profiles
+    const { data: profiles } = await supabase
       .from('profiles')
-      .select('*', { count: 'exact', head: true })
+      .select('id, username, avatar_url, gender')
+      .in('id', userIds)
 
-    // Transform data: map avg_points to avg_grade
-    const leaderboard = leaderboardData?.map((entry: any, index: number) => ({
-      rank: offset + index + 1,
-      user_id: entry.user_id,
-      username: entry.username,
-      avatar_url: entry.avatar_url,
-      avg_grade: entry.avg_points ? getGradeFromPoints(entry.avg_points) : '?',
-      climb_count: entry.climb_count,
-    })) || []
+    // Calculate leaderboard entries
+    const userLogs: Record<string, typeof logs> = {}
+    logs?.forEach(log => {
+      if (!userLogs[log.user_id]) {
+        userLogs[log.user_id] = []
+      }
+      userLogs[log.user_id].push(log)
+    })
+
+    const leaderboard = profiles?.map(profile => {
+      const userLogsArr = userLogs[profile.id] || []
+      const climbCount = userLogsArr.length
+
+      // Calculate average grade
+      let totalPoints = 0
+      userLogsArr.forEach(log => {
+        const climb = log.climbs as any
+        if (climb && climb.grade) {
+          totalPoints += getGradePoints(climb.grade)
+        }
+      })
+      const avgPoints = climbCount > 0 ? Math.round(totalPoints / climbCount) : 0
+
+      return {
+        rank: 0,
+        user_id: profile.id,
+        username: profile.username,
+        avatar_url: profile.avatar_url,
+        avg_grade: getGradeFromPoints(avgPoints),
+        climb_count: climbCount,
+      }
+    }).sort((a, b) => b.climb_count - a.climb_count) || []
+
+    // Assign ranks
+    leaderboard.forEach((entry, index) => {
+      entry.rank = index + 1
+    })
 
     return NextResponse.json({
       leaderboard,
       pagination: {
         page,
         limit,
-        total_users: totalUsers || 0,
-        total_pages: Math.ceil((totalUsers || 0) / limit),
+        total_users: count || 0,
+        total_pages: Math.ceil((count || 0) / limit),
       },
     })
   } catch (error) {
@@ -74,26 +128,14 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Complete 1A–9C+ grade mapping
+// Complete grade mapping
 const gradePoints: Record<string, number> = {
-  // 1A–3C+
-  '1A': 100, '1A+': 116, '1B': 132, '1B+': 148, '1C': 164, '1C+': 180,
-  // 2A–4C+
-  '2A': 196, '2A+': 212, '2B': 228, '2B+': 244, '2C': 260, '2C+': 276,
-  // 3A–5C+
-  '3A': 292, '3A+': 308, '3B': 324, '3B+': 340, '3C': 356, '3C+': 372,
-  // 4A–6C+
-  '4A': 388, '4A+': 404, '4B': 420, '4B+': 436, '4C': 452, '4C+': 468,
-  // 5A–6C+
-  '5A': 484, '5A+': 500, '5B': 516, '5B+': 532, '5C': 548, '5C+': 564,
-  // 6A–7C+
-  '6A': 580, '6A+': 596, '6B': 612, '6B+': 628, '6C': 644, '6C+': 660,
-  // 7A–8C+
-  '7A': 676, '7A+': 692, '7B': 708, '7B+': 724, '7C': 740, '7C+': 756,
-  // 8A–9C+
-  '8A': 772, '8A+': 788, '8B': 804, '8B+': 820, '8C': 836, '8C+': 852,
-  // 9A–9C+
-  '9A': 868, '9A+': 884, '9B': 900, '9B+': 916, '9C': 932, '9C+': 948,
+  'V0': 580, 'V1': 596, 'V2': 612, 'V3': 628, 'V4': 644, 'V5': 660,
+  'V6': 676, 'V7': 692, 'V8': 708, 'V9': 724, 'V10': 740,
+}
+
+function getGradePoints(grade: string): number {
+  return gradePoints[grade] || 600
 }
 
 function getGradeFromPoints(points: number): string {
