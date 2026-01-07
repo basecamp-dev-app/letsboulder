@@ -45,19 +45,35 @@ preview_id = "YOUR_PREVIEW_ID_HERE"
 
 ### 3. Configure Environment Variables
 
-Copy the example file and fill in your values:
+**Important:** Use `wrangler secret put` for sensitive values. This stores them separately from `wrangler.toml` and they will survive deployments.
+
+```bash
+# Run these commands and enter each secret when prompted
+npx wrangler secret put DISCORD_BOT_TOKEN
+npx wrangler secret put DISCORD_PUBLIC_KEY
+npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put RESEND_API_KEY
+npx wrangler secret put DISCORD_LOG_WEBHOOK_URL
+```
+
+For local development, create a `.dev.vars` file:
 
 ```bash
 cp .dev.vars.example .dev.vars
+# Fill in values for local testing with `npm run dev`
 ```
 
-Required variables:
-- `DISCORD_WEBHOOK_URL` - Webhook for approval requests
-- `DISCORD_LOG_WEBHOOK_URL` - Webhook for logs
+Required secrets:
 - `DISCORD_BOT_TOKEN` - Bot token for Discord interactions
 - `DISCORD_PUBLIC_KEY` - Application public key for signature verification
-- `RESEND_API_KEY` - API key from Resend
 - `GEMINI_API_KEY` - API key from Google AI Studio
+- `RESEND_API_KEY` - API key from Resend
+- `DISCORD_LOG_WEBHOOK_URL` - Webhook for logging spam attempts and actions
+
+Non-sensitive variables (configured in `wrangler.toml`):
+- `DISCORD_APPROVAL_CHANNEL_ID` - Channel ID for email approval requests
+- `ENVIRONMENT` - `development` or `production`
+- `DEBUG_MODE` - `true` for verbose logging
 
 ### 4. Deploy the Worker
 
@@ -125,11 +141,23 @@ In Discord Developer Portal:
 
 ### API Endpoints
 
-- `GET /` or `GET /health` - Health check
-- `POST /interactions` - Discord interaction handler
-- `POST /send-edited` - Send edited reply from modal
-- `GET /view-email?id=xxx` - Get full email details
-- `GET /pending` - List pending emails
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| GET | `/stats` | Usage statistics and estimated costs |
+| POST | `/interactions` | Discord button/modal interactions |
+| POST | `/edit-submit` | Handle edited reply submissions |
+
+### Spam Protection
+
+The worker includes automatic spam protection:
+
+- **Rate Limiting**: Max 10 emails/day per sender
+- **Size Limit**: Rejects emails >100KB
+- **Thread Detection**: Skips email replies (Re: headers)
+- **Suspicious Content Detection**: Flags spam patterns, excessive caps, many links
+
+Check `/stats` to monitor usage and estimated costs.
 
 ## Testing Locally
 
@@ -141,15 +169,21 @@ This starts the worker at `http://localhost:8787`.
 
 ## Environment Variables Reference
 
+### Secrets (set via `wrangler secret put`)
+
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DISCORD_WEBHOOK_URL` | Yes | Webhook for approval requests |
-| `DISCORD_LOG_WEBHOOK_URL` | Yes | Webhook for logging |
 | `DISCORD_BOT_TOKEN` | Yes | Discord bot token |
 | `DISCORD_PUBLIC_KEY` | Yes | For signature verification |
-| `RESEND_API_KEY` | Yes | Resend API key |
 | `GEMINI_API_KEY` | No | Gemini API key (optional) |
-| `COMPANY_NAME` | No | Default: `gsyrocks.com` |
+| `RESEND_API_KEY` | Yes | Resend API key |
+| `DISCORD_LOG_WEBHOOK_URL` | Yes | Webhook for logging |
+
+### Non-Sensitive Variables (in wrangler.toml)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DISCORD_APPROVAL_CHANNEL_ID` | Yes | Channel ID for email approvals |
 | `ENVIRONMENT` | No | `development` or `production` |
 | `DEBUG_MODE` | No | `true` for verbose logging |
 
@@ -176,6 +210,24 @@ Estimated cost for 100 emails/month: **~$0.02**
 
 ## Troubleshooting
 
+### Worker returns "healthy" but emails not processing
+1. Check `/stats` endpoint for usage data
+2. Verify all secrets are set: `npx wrangler secret list`
+3. Check Cloudflare Dashboard → Workers → email-moderation → Logs
+
+### Environment variables gone after deployment
+This happens if you deploy with `wrangler deploy` after setting variables in the dashboard. To fix:
+
+```bash
+npx wrangler secret put DISCORD_BOT_TOKEN
+npx wrangler secret put DISCORD_PUBLIC_KEY
+npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put RESEND_API_KEY
+npx wrangler secret put DISCORD_LOG_WEBHOOK_URL
+```
+
+Secrets set via `wrangler secret put` are stored separately and survive deployments.
+
 ### Emails not appearing in Discord
 1. Check Cloudflare Email Routing is enabled
 2. Verify the worker is deployed and running (`/health`)
@@ -183,11 +235,11 @@ Estimated cost for 100 emails/month: **~$0.02**
 4. Look for errors in Cloudflare logs
 
 ### AI replies not generating
-1. Verify `GEMINI_API_KEY` is set
+1. Verify `GEMINI_API_KEY` is set: `npx wrangler secret list`
 2. Check Google AI Studio has Gemini API enabled
 3. Check worker logs for API errors
 
 ### Discord interactions not working
-1. Verify interaction endpoint URL is set correctly
-2. Check Discord bot has proper permissions
+1. Verify interaction endpoint URL is set correctly in Discord Developer Portal
+2. Check Discord bot has "Message Content Intent" enabled
 3. Verify public key in environment variables
