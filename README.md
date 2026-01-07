@@ -12,6 +12,10 @@ A community-driven web app for climbers to discover, log, and share bouldering r
 - **Email**: Resend
 - **Workers**: Cloudflare Workers (email moderation)
 
+## UI Components
+
+Uses shadcn/ui primitives (Card, Button, Input, Dialog, Skeleton) for consistent design. Components are in `components/ui/`. Run `npx shadcn@latest add <component>` to add new ones.
+
 ## Getting Started
 
 ```bash
