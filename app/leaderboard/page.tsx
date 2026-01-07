@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 interface LeaderboardEntry {
   rank: number
@@ -70,112 +72,121 @@ export default function LeaderboardPage() {
         </Link>
       </div>
 
-      <div className="mb-6">
-        <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-          {GENDER_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => {
-                setGender(option.value)
-                setPage(1)
-              }}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                gender === option.value
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            {GENDER_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => {
+                  setGender(option.value)
+                  setPage(1)
+                }}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  gender === option.value
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-500">
-            Loading...
-          </div>
-        ) : leaderboard.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              No climbers in this category yet.
-            </p>
-            <Link 
-              href="/logbook"
-              className="inline-block bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-4 py-2 rounded hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
-            >
-              Log some climbs to get started!
-            </Link>
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-800">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Rank
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Climber
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Avg Grade (Last 60d)
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Climbs
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {leaderboard.map((entry) => (
-                <tr key={entry.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
-                      entry.rank === 1 
-                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                        : entry.rank === 2
-                        ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                        : entry.rank === 3
-                        ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-                        : 'text-gray-600 dark:text-gray-400'
-                    }`}>
-                      {entry.rank}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="flex items-center gap-3">
-                      {entry.avatar_url ? (
-                        <img
-                          src={entry.avatar_url}
-                          alt={entry.username}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                          <span className="text-gray-600 dark:text-gray-300 font-medium">
-                            {entry.username?.slice(0, 2).toUpperCase()}
+      <Card>
+        <CardHeader>
+          <CardTitle>Climbers</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="p-8 text-center text-gray-500">
+              Loading...
+            </div>
+          ) : leaderboard.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                No climbers in this category yet.
+              </p>
+              <Link 
+                href="/logbook"
+                className="inline-block bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-4 py-2 rounded hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
+              >
+                Log some climbs to get started!
+              </Link>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-gray-800">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Rank
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Climber
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Avg Grade (Last 60d)
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Climbs
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {leaderboard.map((entry) => (
+                    <tr key={entry.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
+                          entry.rank === 1 
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                            : entry.rank === 2
+                            ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                            : entry.rank === 3
+                            ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                            : 'text-gray-600 dark:text-gray-400'
+                        }`}>
+                          {entry.rank}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          {entry.avatar_url ? (
+                            <img
+                              src={entry.avatar_url}
+                              alt={entry.username}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                              <span className="text-gray-600 dark:text-gray-300 font-medium">
+                                {entry.username?.slice(0, 2).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                          <span className="font-medium text-gray-900 dark:text-gray-100">
+                            {entry.username}
                           </span>
                         </div>
-                      )}
-                      <span className="font-medium text-gray-900 dark:text-gray-100">
-                        {entry.username}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                      {entry.avg_grade}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400">
-                    {entry.climb_count}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                          {entry.avg_grade}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400">
+                        {entry.climb_count}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {pagination && pagination.total_pages > 1 && (
         <div className="flex items-center justify-between mt-6">

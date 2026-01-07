@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react'
 import { createClient } from '@/lib/supabase'
 
 interface ProfileAvatarProps {
@@ -20,7 +20,11 @@ interface ProfileAvatarProps {
   onUsernameUpdate?: (newUsername: string, firstName?: string, lastName?: string, gender?: string) => void
 }
 
-export default function ProfileAvatar({
+export interface ProfileAvatarRef {
+  openProfileEdit: () => void
+}
+
+const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(function ProfileAvatar({
   avatarUrl,
   initials,
   averageGrade,
@@ -35,7 +39,7 @@ export default function ProfileAvatar({
   gender,
   onAvatarUpdate,
   onUsernameUpdate,
-}: ProfileAvatarProps) {
+}: ProfileAvatarProps, ref) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
@@ -52,6 +56,18 @@ export default function ProfileAvatar({
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([])
   const [isSavingProfile, setIsSavingProfile] = useState(false)
+
+  useImperativeHandle(ref, () => ({
+    openProfileEdit: () => {
+      setEditUsername(username || '')
+      setEditFirstName(firstName || '')
+      setEditLastName(lastName || '')
+      setEditGender(gender || '')
+      setUsernameError(null)
+      setUsernameSuggestions([])
+      setIsProfileModalOpen(true)
+    },
+  }))
 
   const radius = 44
   const circumference = 2 * Math.PI * radius
@@ -221,16 +237,6 @@ export default function ProfileAvatar({
     }
   }
 
-  const openProfileModal = () => {
-    setEditUsername(username || '')
-    setEditFirstName(firstName || '')
-    setEditLastName(lastName || '')
-    setEditGender(gender || '')
-    setUsernameError(null)
-    setUsernameSuggestions([])
-    setIsProfileModalOpen(true)
-  }
-
   const closeProfileModal = () => {
     setIsProfileModalOpen(false)
     setUsernameError(null)
@@ -321,7 +327,6 @@ export default function ProfileAvatar({
   return (
     <>
       <div className="relative w-32 h-32">
-        {/* Grade badge at TOP */}
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20">
           <div className="bg-white dark:bg-gray-800 px-3 py-0.5 rounded-full shadow-md border border-gray-200 dark:border-gray-700">
             <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
@@ -330,7 +335,6 @@ export default function ProfileAvatar({
           </div>
         </div>
 
-        {/* Ring with avatar inside */}
         <div className="relative w-32 h-32">
           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 96 96">
             <circle
@@ -357,7 +361,6 @@ export default function ProfileAvatar({
             />
           </svg>
 
-          {/* Avatar - click to edit */}
           <button
             onClick={() => setIsModalOpen(true)}
             className="absolute inset-[6px] rounded-full overflow-hidden transition-opacity hover:opacity-95 group"
@@ -380,21 +383,10 @@ export default function ProfileAvatar({
           </button>
         </div>
 
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+        <div className="mt-3 text-center">
+          <span className="text-lg font-semibold text-gray-900 dark:text-gray-100 block">
             {username || 'Set username'}
           </span>
-          {onUsernameUpdate && (
-            <button
-              onClick={openProfileModal}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              aria-label="Edit profile"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-            </button>
-          )}
         </div>
 
       </div>
@@ -647,7 +639,9 @@ export default function ProfileAvatar({
       )}
     </>
   )
-}
+})
+
+export default ProfileAvatarComponent
 
 async function compressImage(file: File, maxSizeKB: number, maxDim: number): Promise<File> {
   return new Promise((resolve, reject) => {

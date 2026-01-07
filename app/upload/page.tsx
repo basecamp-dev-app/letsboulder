@@ -1,5 +1,6 @@
 import UploadForm from './components/UploadForm'
 import { Metadata } from 'next'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export const metadata: Metadata = {
   title: 'Upload Climbing Route',
@@ -14,9 +15,17 @@ export const metadata: Metadata = {
 export default function UploadPage() {
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100">Upload Climbing Route Photo</h1>
-      <p className="mb-6 text-gray-700 dark:text-gray-300">Upload a GPS-enabled photo to start documenting a new climbing route.</p>
-      <UploadForm />
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle>Upload Climbing Route Photo</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-6 text-gray-600 dark:text-gray-400">
+            Upload a GPS-enabled photo to start documenting a new climbing route.
+          </p>
+          <UploadForm />
+        </CardContent>
+      </Card>
     </div>
   )
 }

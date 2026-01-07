@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import GradeHistoryChart from '@/components/GradeHistoryChart'
 import GradePyramid from '@/components/GradePyramid'
-import ProfileAvatar from '@/components/ProfileAvatar'
+import ProfileAvatar, { ProfileAvatarRef } from '@/components/ProfileAvatar'
 import { getGradePoints, calculateStats, getLowestGrade, getGradeFromPoints, getNextGrade, getPreviousGrade } from '@/lib/grades'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -86,6 +86,7 @@ function LogbookContent() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const searchParams = useSearchParams()
   const { toasts, addToast, removeToast } = useToast()
+  const profileAvatarRef = useRef<ProfileAvatarRef>(null)
 
   const handleDeleteLog = async (logId: string) => {
     setDeletingId(logId)
@@ -246,6 +247,7 @@ function LogbookContent() {
         <CardContent className="pt-6">
           <div className="flex flex-col items-center">
             <ProfileAvatar
+              ref={profileAvatarRef}
               avatarUrl={profile?.avatar_url}
               initials={initials}
               averageGrade={averageGrade}
@@ -293,6 +295,16 @@ function LogbookContent() {
               </div>
             </div>
           )}
+
+          <div className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => profileAvatarRef.current?.openProfileEdit()}
+              className="w-full"
+            >
+              Edit Profile
+            </Button>
+          </div>
 
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
             <nav className="flex gap-4 text-sm">

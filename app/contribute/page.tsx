@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 export default function ContributePage() {
   const [user, setUser] = useState<any>(null)
@@ -30,33 +32,37 @@ export default function ContributePage() {
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Contribute to Gsyrocks</h1>
       
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-6 max-w-md mx-auto">
-        <div className="text-center space-y-4 mb-8">
-          <p className="text-lg text-gray-700 dark:text-gray-300">Take photos of missing climbs</p>
-          <p className="text-lg text-gray-700 dark:text-gray-300">Report errors</p>
-        </div>
-        
-        <button
-          onClick={handleStartContributing}
-          className="w-full bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors mb-3"
-        >
-          Start Contributing
-        </button>
-        
-        <a
-          href="mailto:hello@gsyrocks.com"
-          className="block w-full bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors text-center mb-3"
-        >
-          Feedback
-        </a>
-        
-        <Link
-          href="/about"
-          className="block w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-center"
-        >
-          Learn More About Gsyrocks
-        </Link>
-      </div>
+      <Card className="max-w-md mx-auto">
+        <CardHeader>
+          <CardTitle className="text-center">Help Grow the Database</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-center text-gray-600 dark:text-gray-400">
+            Take photos of missing climbs or report errors to help improve the database for everyone.
+          </p>
+          
+          <Button
+            onClick={handleStartContributing}
+            className="w-full"
+          >
+            Start Contributing
+          </Button>
+          
+          <a
+            href="mailto:hello@gsyrocks.com"
+            className="block w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-center"
+          >
+            Feedback
+          </a>
+          
+          <Link
+            href="/about"
+            className="block w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-center"
+          >
+            Learn More About Gsyrocks
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   )
 }
