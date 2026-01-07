@@ -1,11 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect, useCallback } from 'react'
-
-interface RoutePoint {
-  x: number
-  y: number
-}
+import { useRouteSelection, RoutePoint, generateRouteId, findRouteAtPoint } from '@/lib/useRouteSelection'
 
 interface RouteCanvasProps {
   imageUrl: string
@@ -26,6 +22,7 @@ interface Climb {
 }
 
 interface RouteWithLabels {
+  id: string
   points: RoutePoint[]
   grade: string
   name: string
@@ -45,109 +42,41 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
   const [imageLoaded, setImageLoaded] = useState(false)
   const [routes, setRoutes] = useState<RouteWithLabels[]>([])
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null)
+  const { selectedIds, selectRoute, deselectRoute, isSelected } = useRouteSelection()
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    const image = imageRef.current
-    if (!canvas || !image) return
+  function catmullRomSpline(points: RoutePoint[], _tension = 0.5, numOfSegments = 16): RoutePoint[] {
+    const splinePoints: RoutePoint[] = []
+    if (points.length < 2) return points
 
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = i > 0 ? points[i - 1] : points[0]
+      const p1 = points[i]
+      const p2 = points[i + 1]
+      const p3 = i !== points.length - 2 ? points[i + 2] : p2
 
-    const handleImageLoad = () => {
-      // Size and position canvas to match the actual displayed image
-      const container = canvas.parentElement
-      if (container) {
-        const containerRect = container.getBoundingClientRect()
-        const containerAspect = containerRect.width / containerRect.height
-        const imageAspect = image.naturalWidth / image.naturalHeight
+      for (let t = 0; t <= numOfSegments; t++) {
+        const t2 = t / numOfSegments
+        const t3 = t2 * t2
+        const t2_3 = 3 * t2 * t2
 
-        let displayWidth, displayHeight, offsetX = 0, offsetY = 0
-        if (imageAspect > containerAspect) {
-          // Image is wider than container - fit by width, center vertically
-          displayWidth = containerRect.width
-          displayHeight = containerRect.width / imageAspect
-          offsetY = (containerRect.height - displayHeight) / 2
-        } else {
-          // Image is taller than container - fit by height, center horizontally
-          displayHeight = containerRect.height
-          displayWidth = containerRect.height * imageAspect
-          offsetX = (containerRect.width - displayWidth) / 2
-        }
+        const f1 = -0.5 * t3 + t2_3 - 0.5 * t2
+        const f2 = 1.5 * t3 - 2.5 * t2_3 + 1
+        const f3 = -1.5 * t3 + 2 * t2_3 + 0.5 * t2
+        const f4 = 0.5 * t3 - 0.5 * t2_3
 
-        // Position canvas to match image position
-        canvas.style.left = `${offsetX}px`
-        canvas.style.top = `${offsetY}px`
-        canvas.width = displayWidth
-        canvas.height = displayHeight
-      }
-      setImageLoaded(true)
-      redraw()
-    }
+        const x = p0.x * f1 + p1.x * f2 + p2.x * f3 + p3.x * f4
+        const y = p0.y * f1 + p1.y * f2 + p2.y * f3 + p3.y * f4
 
-    if (image.complete) {
-      handleImageLoad()
-    } else {
-      image.addEventListener('load', handleImageLoad)
-    }
-
-    return () => image.removeEventListener('load', handleImageLoad)
-  }, [imageUrl])
-
-  const redraw = useCallback(() => {
-    const canvas = canvasRef.current
-    const image = imageRef.current
-    if (!canvas || !image) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    // Since canvas is now sized to match displayed image, scale directly
-    const scaleX = canvas.width / image.naturalWidth
-    const scaleY = canvas.height / image.naturalHeight
-
-    // Draw completed routes with labels, scaled to display size
-    routes.forEach(route => {
-      drawRouteWithLabels(ctx, route, scaleX, scaleY)
-    })
-
-    // Draw current points (scaled)
-    if (currentPoints.length > 0) {
-      // Scale current points to display size
-      const scaledCurrentPoints = currentPoints.map(point => ({
-        x: point.x * scaleX,
-        y: point.y * scaleY
-      }))
-
-      // Draw points
-      ctx.fillStyle = 'blue'
-      scaledCurrentPoints.forEach(point => {
-        ctx.beginPath()
-        ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI)
-        ctx.fill()
-      })
-
-      // Draw connecting dotted curve
-      if (scaledCurrentPoints.length > 1) {
-        drawCurve(ctx, scaledCurrentPoints, 'blue', 2, [5, 5])
-      }
-
-      // Preview labels for current route
-      if (scaledCurrentPoints.length > 1 && currentGrade && currentName) {
-        const previewRoute: RouteWithLabels = {
-          points: scaledCurrentPoints,
-          grade: currentGrade,
-          name: currentName
-        }
-        drawRouteWithLabels(ctx, previewRoute)
+        splinePoints.push({ x, y })
       }
     }
-   }, [routes, currentPoints, currentGrade, currentName, imageUrl])
+    return splinePoints
+  }
 
-  const drawCurve = (ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, dash?: number[]) => {
+  function drawSmoothCurve(ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, dash?: number[]) {
     if (points.length < 2) return
+
+    const smoothedPoints = catmullRomSpline(points, 0.5, 20)
 
     ctx.strokeStyle = color
     ctx.lineWidth = width
@@ -155,27 +84,31 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     else ctx.setLineDash([])
 
     ctx.beginPath()
-    ctx.moveTo(points[0].x, points[0].y)
-
-    for (let i = 1; i < points.length; i++) {
-      ctx.lineTo(points[i].x, points[i].y) // Changed to simple lineTo
+    ctx.moveTo(smoothedPoints[0].x, smoothedPoints[0].y)
+    for (let i = 1; i < smoothedPoints.length; i++) {
+      ctx.lineTo(smoothedPoints[i].x, smoothedPoints[i].y)
     }
-
     ctx.stroke()
     ctx.setLineDash([])
   }
 
-  const drawRouteWithLabels = (ctx: CanvasRenderingContext2D, route: RouteWithLabels, scaleX = 1, scaleY = 1) => {
-    const { points, grade, name } = route
+  const drawRouteWithLabels = (ctx: CanvasRenderingContext2D, route: RouteWithLabels, scaleX = 1, scaleY = 1, isHighlighted = false) => {
+    const { points, grade, name, id } = route
+    const isSelected = selectedIds.includes(id)
 
-    // Scale points to display size
     const scaledPoints = points.map(point => ({
       x: point.x * scaleX,
       y: point.y * scaleY
     }))
 
-    // Draw dotted route line
-    drawCurve(ctx, scaledPoints, 'red', 3, [8, 4])
+    if (isSelected || isHighlighted) {
+      ctx.shadowColor = '#fbbf24'
+      ctx.shadowBlur = 10
+      drawSmoothCurve(ctx, scaledPoints, '#fbbf24', 5, [8, 4])
+      ctx.shadowBlur = 0
+    }
+
+    drawSmoothCurve(ctx, scaledPoints, 'red', 3, [8, 4])
 
     if (scaledPoints.length > 1) {
       // Calculate midpoint for grade
@@ -229,9 +162,118 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     }
   }
 
+  const redraw = useCallback(() => {
+    const canvas = canvasRef.current
+    const image = imageRef.current
+    if (!canvas || !image) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    // Since canvas is now sized to match displayed image, scale directly
+    const scaleX = canvas.width / image.naturalWidth
+    const scaleY = canvas.height / image.naturalHeight
+
+    // Draw completed routes with labels, scaled to display size
+    routes.forEach(route => {
+      const isRouteSelected = selectedIds.includes(route.id)
+      drawRouteWithLabels(ctx, route, scaleX, scaleY, isRouteSelected)
+    })
+
+    // Draw current points (scaled)
+    if (currentPoints.length > 0) {
+      // Scale current points to display size
+      const scaledCurrentPoints = currentPoints.map(point => ({
+        x: point.x * scaleX,
+        y: point.y * scaleY
+      }))
+
+      // Draw points
+      ctx.fillStyle = 'blue'
+      scaledCurrentPoints.forEach(point => {
+        ctx.beginPath()
+        ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI)
+        ctx.fill()
+      })
+
+      // Draw connecting dotted curve
+      if (scaledCurrentPoints.length > 1) {
+        drawSmoothCurve(ctx, scaledCurrentPoints, 'blue', 2, [5, 5])
+      }
+
+      // Preview labels for current route
+      if (scaledCurrentPoints.length > 1 && currentGrade && currentName) {
+        const previewRoute: RouteWithLabels = {
+          id: 'preview',
+          points: scaledCurrentPoints,
+          grade: currentGrade,
+          name: currentName
+        }
+        drawRouteWithLabels(ctx, previewRoute)
+      }
+    }
+   }, [routes, currentPoints, currentGrade, currentName, imageUrl])
+
   useEffect(() => {
     if (imageLoaded) redraw()
   }, [routes, currentPoints, imageLoaded, redraw])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const image = imageRef.current
+    if (!canvas || !image) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const handleImageLoad = () => {
+      // Size and position canvas to match the actual displayed image
+      const container = canvas.parentElement
+      if (container) {
+        const containerRect = container.getBoundingClientRect()
+        const containerAspect = containerRect.width / containerRect.height
+        const imageAspect = image.naturalWidth / image.naturalHeight
+
+        let displayWidth, displayHeight, offsetX = 0, offsetY = 0
+        if (imageAspect > containerAspect) {
+          // Image is wider than container - fit by width, center vertically
+          displayWidth = containerRect.width
+          displayHeight = containerRect.width / imageAspect
+          offsetY = (containerRect.height - displayHeight) / 2
+        } else {
+          // Image is taller than container - fit by height, center horizontally
+          displayHeight = containerRect.height
+          displayWidth = containerRect.height * imageAspect
+          offsetX = (containerRect.width - displayWidth) / 2
+        }
+
+        // Position canvas to match image position
+        canvas.style.left = `${offsetX}px`
+        canvas.style.top = `${offsetY}px`
+        canvas.width = displayWidth
+        canvas.height = displayHeight
+      }
+      setImageLoaded(true)
+      redraw()
+    }
+
+    if (image.complete) {
+      handleImageLoad()
+    } else {
+      image.addEventListener('load', handleImageLoad)
+    }
+
+    return () => image.removeEventListener('load', handleImageLoad)
+  }, [imageUrl])
+
+
+
+
+
+
+
 
   const getMousePos = (e: React.MouseEvent) => {
     const canvas = canvasRef.current
@@ -249,24 +291,35 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     const image = imageRef.current
     if (!canvas || !image) return
 
-    // Get click coordinates relative to canvas
     const canvasRect = canvas.getBoundingClientRect()
     const canvasX = e.clientX - canvasRect.left
     const canvasY = e.clientY - canvasRect.top
 
-    // Validate click is within canvas bounds
     if (canvasX < 0 || canvasX > canvas.width || canvasY < 0 || canvasY > canvas.height) {
-      return // Click outside canvas, ignore
+      return
     }
 
-    // Scale coordinates from display size to natural image size
     const scaleX = image.naturalWidth / canvas.width
     const scaleY = image.naturalHeight / canvas.height
     const x = canvasX * scaleX
     const y = canvasY * scaleY
 
-    setCurrentPoints(prev => [...prev, { x, y }])
-  }, [])
+    const clickedRoute = findRouteAtPoint(routes, { x, y }, 20)
+
+    if (clickedRoute) {
+      selectRoute(clickedRoute.id)
+      const routeIndex = routes.findIndex(r => r.id === clickedRoute.id)
+      if (routeIndex !== -1) {
+        setSelectedRouteIndex(routeIndex)
+        setCurrentName(clickedRoute.name)
+        setCurrentGrade(clickedRoute.grade)
+      }
+    } else {
+      setCurrentPoints(prev => [...prev, { x, y }])
+      deselectRoute(selectedIds[0] || '')
+      setSelectedRouteIndex(null)
+    }
+  }, [routes, selectedIds, selectRoute, deselectRoute])
 
   const handleCanvasTouch = useCallback((e: React.TouchEvent) => {
     e.preventDefault() // Prevent scrolling/zooming
@@ -295,24 +348,13 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     setCurrentPoints(prev => [...prev, { x, y }])
   }, [])
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      console.log('Enter key pressed - Points:', currentPoints.length, 'Name:', currentName.trim())
-      if (currentPoints.length >= 2) {
-        console.log('Finishing route via Enter key')
-        handleFinishRoute()
-      } else {
-        console.log('Cannot finish: need 2+ points')
-      }
-    }
-  }, [currentPoints, currentName])
-
   const handleFinishRoute = useCallback(() => {
     console.log('Finish Route button clicked - Points:', currentPoints.length, 'Name:', currentName.trim())
     if (currentPoints.length > 1) {
       const routeName = currentName.trim() || `Route ${routes.length + 1}`
       console.log('Finishing route:', routeName, currentGrade, currentPoints.length, 'points')
       const newRoute: RouteWithLabels = {
+        id: generateRouteId(),
         points: [...currentPoints],
         grade: currentGrade,
         name: routeName
@@ -327,6 +369,20 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
       alert('Please add at least 2 points to the route')
     }
   }, [currentPoints, currentName, currentGrade, routes.length])
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      console.log('Enter key pressed - Points:', currentPoints.length, 'Name:', currentName.trim())
+      if (currentPoints.length >= 2) {
+        console.log('Finishing route via Enter key')
+        handleFinishRoute()
+      } else {
+        console.log('Cannot finish: need 2+ points')
+      }
+    }
+  }, [currentPoints, currentName])
+
+
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
@@ -474,6 +530,40 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
           >
             Save & Continue ({routes.length})
           </button>
+
+          {/* Routes list */}
+          {routes.length > 0 && (
+            <div className="mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Click a route to select:</p>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {routes.map((route, index) => {
+                  const isSel = selectedIds.includes(route.id)
+                  return (
+                    <button
+                      key={route.id}
+                      onClick={() => {
+                        selectRoute(route.id)
+                        setSelectedRouteIndex(index)
+                        setCurrentName(route.name)
+                        setCurrentGrade(route.grade)
+                      }}
+                      className={`w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors ${
+                        isSel
+                          ? 'bg-yellow-100 dark:bg-yellow-900/30 text-gray-900 dark:text-yellow-100 border border-yellow-400'
+                          : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <span className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                        isSel ? 'bg-yellow-500' : 'bg-red-500'
+                      }`} />
+                      <span className="flex-1 truncate">{route.name}</span>
+                      <span className="text-xs opacity-70">{route.grade}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Routes count */}
           {routes.length > 0 && (

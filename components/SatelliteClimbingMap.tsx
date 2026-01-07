@@ -591,11 +591,19 @@ export default function SatelliteClimbingMap() {
               </div>
             )}
 
-            <div className="absolute bottom-16 md:bottom-0 left-0 right-0 bg-white dark:bg-gray-900 p-4 pointer-events-auto max-h-[40vh] overflow-y-auto">
-              <p className="text-black dark:text-white text-lg font-semibold">{selectedClimb.name}, {selectedClimb.grade}</p>
-              
-              {/* Log checkboxes */}
-              <div className="flex gap-4 mt-3">
+              <div className="absolute bottom-16 md:bottom-0 left-0 right-0 bg-white dark:bg-gray-900 p-4 pointer-events-auto max-h-[40vh] overflow-y-auto">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-black dark:text-white text-lg font-semibold">{selectedClimb.name}, {selectedClimb.grade}</p>
+                  <a
+                    href={`/climb/${selectedClimb.id}`}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                  >
+                    View Full Page →
+                  </a>
+                </div>
+                
+                {/* Log checkboxes */}
+                <div className="flex gap-4 mt-3">
                 {['flash', 'top', 'try'].map(status => (
                   <label key={status} className="flex items-center gap-2 cursor-pointer">
                     <input

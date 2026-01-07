@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 
 // Native Canvas-based image compression (no external libraries)
@@ -89,11 +89,37 @@ export default function UploadForm() {
   const [progress, setProgress] = useState(0)
   const [currentStep, setCurrentStep] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (!selectedFile) return
 
+    await processFile(selectedFile)
+  }
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+
+    const droppedFile = e.dataTransfer.files[0]
+    if (!droppedFile) return
+
+    await processFile(droppedFile)
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
+
+  const processFile = async (selectedFile: File) => {
     // Reset state
     setError(null)
     setFile(null)
@@ -275,62 +301,81 @@ export default function UploadForm() {
 
   return (
     <div className="max-w-md mx-auto space-y-4">
-      {/* File Input */}
-      <div>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          onChange={handleFileChange}
-          disabled={compressing || uploading}
-          className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-700 disabled:opacity-50"
-        />
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        onChange={handleFileChange}
+        disabled={compressing || uploading}
+        className="hidden"
+      />
+
+      <div
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onClick={() => fileInputRef.current?.click()}
+        className={`
+          relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200
+          ${isDragging
+            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+          }
+          ${compressing || uploading ? 'opacity-50 cursor-not-allowed' : ''}
+        `}
+      >
+        <svg className={`w-12 h-12 mx-auto ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mt-2">
+          {isDragging ? 'Drop image here' : 'Click or drag image to upload'}
+        </p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           GPS-enabled photo, max 10MB
         </p>
       </div>
 
-      {/* File Info */}
       {file && (
-        <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{file.name}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Original: {(file.size / 1024 / 1024).toFixed(1)}MB
-            {compressedFile && ` → Optimized: ${(compressedFile.size / 1024).toFixed(0)}KB (${Math.round((compressedFile.size / file.size) * 100)}% of original)`}
-          </p>
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <img src={URL.createObjectURL(file)} alt="Preview" className="w-12 h-12 rounded object-cover" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{file.name}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {(file.size / 1024 / 1024).toFixed(2)}MB
+                {compressedFile && ` → ${(compressedFile.size / 1024).toFixed(0)}KB`}
+              </p>
+            </div>
+            <button onClick={() => { setFile(null); setCompressedFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }} className="text-gray-400 hover:text-gray-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Progress Indicator */}
       {(compressing || uploading || progress > 0) && (
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 rounded-lg">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {compressing ? 'Compressing Image' : uploading ? 'Uploading' : 'Processing'}
+              {compressing ? 'Compressing' : uploading ? 'Uploading' : 'Processing'}
             </span>
             <span className="text-sm text-gray-500 dark:text-gray-400">{Math.round(progress)}%</span>
           </div>
-
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div
-              className="bg-gray-600 dark:bg-gray-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="bg-gray-600 dark:bg-gray-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
           </div>
-
-          {currentStep && (
-            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">{currentStep}</p>
-          )}
+          {currentStep && <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">{currentStep}</p>}
         </div>
       )}
 
-      {/* Error Message */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 rounded-lg">
           <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
         </div>
       )}
 
-      {/* Upload Button */}
       <button
         onClick={handleUpload}
         disabled={!file || compressing || uploading}
@@ -338,13 +383,6 @@ export default function UploadForm() {
       >
         {compressing ? 'Compressing...' : uploading ? 'Uploading...' : 'Upload & Continue'}
       </button>
-
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 rounded-lg">
-          <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-        </div>
-      )}
     </div>
   )
 }
