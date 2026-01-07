@@ -111,19 +111,28 @@ export async function POST(request: NextRequest) {
 - Return JSON responses with appropriate status codes
 
 ### Styling
-- Tailwind CSS for all styling (v4 with `@tailwindcss/postcss`)
+- Tailwind CSS v4 (`@import "tailwindcss"` in globals.css)
 - Use utility classes for layout, spacing, colors
 - Responsive design with mobile-first approach
+- Dark mode support via `dark:` modifier
 
 ### File Organization
 - Components: `app/[feature]/components/` or `components/`
 - Pages: `app/[feature]/page.tsx`
+- Layouts: `app/[feature]/layout.tsx`
 - API routes: `app/api/[feature]/route.ts`
 - Shared utilities: `lib/` (e.g., `lib/supabase.ts`)
-- Layouts: `app/layout.tsx`
+- Shared types: `types/`
+- Cloudflare Workers: `workers/`
+
+### Common Patterns
+- **Canvas drawing**: Use `useRef` for canvas element, handle touch and mouse events, persist to localStorage for session
+- **Leaflet maps**: Use `react-leaflet` components, custom CSS for markers, handle geolocation
+- **GPS extraction**: Use `exifr` to parse image metadata for coordinates
 
 ### Supabase Usage
-- Use SSR client pattern: `createBrowserClient` for client, server components use server client
+- Client components: `createClient` from `@/lib/supabase`
+- API routes/server components: `createServerClient` with cookies
 - Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - Always handle null states gracefully
 

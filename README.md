@@ -1,14 +1,16 @@
 # 🧗 gsyrocks - Guernsey Climbing App
 
-A modern web app for climbers to discover, log, and share climbing routes in Guernsey with interactive satellite maps.
+A community-driven web app for climbers to discover, log, and share bouldering routes in Guernsey. Features interactive satellite maps, personal progress tracking, grade analytics, and a democratic approval workflow for new route submissions.
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 (App Router)
-- **Database**: Supabase (PostgreSQL + Auth)
+- **Framework**: Next.js 16 (App Router) + React 19 + TypeScript
+- **Database**: Supabase (PostgreSQL + Auth + Storage)
 - **Maps**: Leaflet + React Leaflet
-- **Styling**: Tailwind CSS
+- **Styling**: Tailwind CSS v4
+- **Charts**: Recharts
 - **Email**: Resend
+- **Workers**: Cloudflare Workers (email moderation)
 
 ## Getting Started
 
@@ -30,15 +32,20 @@ Copy `.env.example` to `.env` and configure:
 
 ## Features
 
-- Interactive satellite map with climb locations
-- Route logging and tracking
-- User authentication via Supabase
-- Photo uploads (Supabase Storage)
+- Interactive satellite map with climb locations and geolocation
+- Personal logbook with grade history, grade pyramid, and top 10 hardest climbs
+- Route logging (flash/top/try) with automatic point calculations
+- Gender-segmented leaderboard with 60-day rolling average
+- Route drawing tool for marking holds on photos
+- Route naming and review workflow for submissions
+- GPS extraction from uploaded photos
 - Admin panel for pending climb approvals
+- User profiles with avatar and grade progress ring
 
 ## Deployment
 
-Deployed on Vercel. Push to main triggers automatic deploys.
+- **App**: Vercel (main branch triggers automatic deploys)
+- **Email Worker**: Cloudflare Workers
 
 
 
