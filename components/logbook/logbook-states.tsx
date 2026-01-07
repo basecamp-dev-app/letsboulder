@@ -1,0 +1,129 @@
+'use client'
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import Link from 'next/link'
+import { Mountain, Plus, ChevronRight } from 'lucide-react'
+
+interface EmptyLogbookProps {
+  onGoToMap?: () => void
+}
+
+export function EmptyLogbook({ onGoToMap }: EmptyLogbookProps) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center justify-center py-12 px-4">
+        <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+          <Mountain className="w-8 h-8 text-gray-400" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+          No climbs logged yet
+        </h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6 max-w-sm">
+          Start tracking your progress by visiting the map and logging your first climb.
+        </p>
+        <Button onClick={onGoToMap} className="gap-2">
+          <Plus className="w-4 h-4" />
+          Go to Map
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+interface LogbookSkeletonProps {
+  showProfile?: boolean
+  showCharts?: boolean
+  showRecentLogs?: boolean
+}
+
+export function LogbookSkeleton({ showProfile = true, showCharts = true, showRecentLogs = true }: LogbookSkeletonProps) {
+  return (
+    <div className="space-y-6">
+      {showProfile && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center">
+              <Skeleton className="w-24 h-24 rounded-full mb-4" />
+              <Skeleton className="h-6 w-32 mb-2" />
+              <Skeleton className="h-4 w-48 mb-6" />
+              <div className="grid grid-cols-4 gap-3 w-full">
+                {[1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-16 rounded-lg" />
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {showCharts && (
+        <>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-40" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-48 w-full" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-32" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-64 w-full" />
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {showRecentLogs && (
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-32" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center gap-4">
+                <Skeleton className="w-12 h-12 rounded" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-6 w-16 rounded-full" />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}
+
+interface LogEntrySkeletonProps {
+  count?: number
+}
+
+export function LogEntrySkeleton({ count = 5 }: LogEntrySkeletonProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-6 w-32" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4">
+            <Skeleton className="w-12 h-12 rounded" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+            <Skeleton className="h-6 w-16 rounded-full" />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
