@@ -80,15 +80,84 @@ function dataURLToBlob(dataURL: string): Blob {
   return new Blob([u8arr], { type: mime })
 }
 
+async function extractGpsFromFile(file: File): Promise<{ latitude: number; longitude: number } | null> {
+  try {
+    const exifr = (await import('exifr')).default
+    const buffer = await file.arrayBuffer()
+    const exifData = await exifr.parse(buffer, { gps: true })
+    if (exifData?.latitude && exifData?.longitude) {
+      return { latitude: exifData.latitude, longitude: exifData.longitude }
+    }
+    return null
+  } catch (err) {
+    console.error('GPS extraction error:', err)
+    return null
+  }
+}
+
+function convertToDms(decimal: number, isLatitude: boolean): [number, number, number] {
+  const absolute = Math.abs(decimal)
+  const degrees = Math.floor(absolute)
+  const minutesNotTruncated = (absolute - degrees) * 60
+  const minutes = Math.floor(minutesNotTruncated)
+  const seconds = Math.round((minutesNotTruncated - minutes) * 60 * 100) / 100
+  return [degrees, minutes, seconds]
+}
+
+function injectGpsIntoJpeg(jpegDataUrl: string, latitude: number, longitude: number): string {
+  const piexifjs = require('piexifjs')
+
+  const latRef = latitude >= 0 ? 'N' : 'S'
+  const lngRef = longitude >= 0 ? 'E' : 'W'
+
+  const latDms = convertToDms(latitude, true)
+  const lngDms = convertToDms(longitude, false)
+
+  const exifObj = {
+    GPS: {
+      GPSLatitude: [latDms, [latDms[2] * 100, 100, 100]] as any,
+      GPSLatitudeRef: latRef,
+      GPSLongitude: [lngDms, [lngDms[2] * 100, 100, 100]] as any,
+      GPSLongitudeRef: lngRef
+    }
+  }
+
+  const exifBytes = piexifjs.dump(exifObj)
+  return piexifjs.insert(exifBytes, jpegDataUrl)
+}
+
 async function convertHeicToJpeg(file: File): Promise<File> {
+  const gpsData = await extractGpsFromFile(file)
+
   const heic2any = (await import('heic2any')).default
   const arrayBuffer = await file.arrayBuffer()
   const blob = new Blob([arrayBuffer], { type: file.type })
   const convertedBlob = await heic2any({ blob, toType: 'image/jpeg', quality: 0.9 })
   const convertedArray = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
-  return new File([convertedArray], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), {
+
+  let jpegDataUrl = await blobToDataURL(convertedArray)
+
+  if (gpsData) {
+    try {
+      jpegDataUrl = injectGpsIntoJpeg(jpegDataUrl, gpsData.latitude, gpsData.longitude)
+    } catch (err) {
+      console.error('GPS injection error:', err)
+    }
+  }
+
+  const jpegBlob = dataURLToBlob(jpegDataUrl)
+  return new File([jpegBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), {
     type: 'image/jpeg',
     lastModified: Date.now()
+  })
+}
+
+async function blobToDataURL(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
   })
 }
 
