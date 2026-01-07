@@ -19,6 +19,7 @@ CREATE TABLE climbs (
   description TEXT,
   coordinates JSONB NOT NULL,
   image_url TEXT NOT NULL,
+  image_capture_date TIMESTAMPTZ, -- When the photo was taken (from EXIF DateTimeOriginal)
   status VARCHAR(20) DEFAULT 'pending',
   created_by UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW(),

@@ -43,7 +43,7 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
           compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
           const blob = dataURLToBlob(compressedDataUrl)
           
-          if (blob.size <= targetSize || quality <= 0.1) {
+          if (blob.size <= targetSize || quality <= 0.4) {
             const compressedFile = new File([blob], file.name, {
               type: 'image/jpeg',
               lastModified: Date.now()
@@ -51,7 +51,7 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
             resolve(compressedFile)
           } else {
             quality -= 0.1
-            if (quality < 0.1) quality = 0.1
+            if (quality < 0.4) quality = 0.4
             tryCompress()
           }
         }
@@ -161,6 +161,25 @@ async function blobToDataURL(blob: Blob): Promise<string> {
   })
 }
 
+async function extractCaptureDate(file: File): Promise<string | null> {
+  try {
+    const exifr = (await import('exifr')).default
+    const buffer = await file.arrayBuffer()
+    const exifData = await exifr.parse(buffer)
+    const dateStr = exifData?.DateTimeOriginal || exifData?.DateTimeDigitized
+    if (dateStr) {
+      const date = new Date(dateStr)
+      if (!isNaN(date.getTime())) {
+        return date.toISOString()
+      }
+    }
+    return null
+  } catch (err) {
+    console.error('DateTime extraction error:', err)
+    return null
+  }
+}
+
 function isHeicFile(file: File): boolean {
   const name = file.name.toLowerCase()
   const type = file.type.toLowerCase()
@@ -176,6 +195,7 @@ function isHeicFile(file: File): boolean {
 export default function UploadForm() {
   const [file, setFile] = useState<File | null>(null)
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
+  const [imageCaptureDate, setImageCaptureDate] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [compressing, setCompressing] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -225,11 +245,15 @@ export default function UploadForm() {
     }
 
     // Check initial file size
-    const maxOriginalSize = 10 * 1024 * 1024 // 10MB
+    const maxOriginalSize = 20 * 1024 * 1024 // 20MB
     if (selectedFile.size > maxOriginalSize) {
-      setError(`File is too large (${(selectedFile.size / 1024 / 1024).toFixed(1)}MB). Maximum allowed: 10MB.`)
+      setError(`File is too large (${(selectedFile.size / 1024 / 1024).toFixed(1)}MB). Maximum allowed: 20MB.`)
       return
     }
+
+    // Extract capture date from original file
+    const captureDate = await extractCaptureDate(selectedFile)
+    setImageCaptureDate(captureDate)
 
     // Convert HEIC to JPEG if needed
     let fileToProcess = selectedFile
@@ -381,8 +405,8 @@ export default function UploadForm() {
 
       // Small delay to show completion
       setTimeout(() => {
-        // Redirect to draw page with session data
-        window.location.href = `/draw?imageUrl=${encodeURIComponent(publicUrl)}&lat=${latitude}&lng=${longitude}&hasGps=${hasGps}&sessionId=${Date.now()}`
+        const captureDateParam = imageCaptureDate ? `&captureDate=${encodeURIComponent(imageCaptureDate)}` : ''
+        window.location.href = `/draw?imageUrl=${encodeURIComponent(publicUrl)}&lat=${latitude}&lng=${longitude}&hasGps=${hasGps}&sessionId=${Date.now()}${captureDateParam}`
       }, 500)
 
     } catch (err) {

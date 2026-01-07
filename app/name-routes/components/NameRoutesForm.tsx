@@ -20,6 +20,7 @@ interface RouteData {
   longitude: number
   routes: RouteWithLabels[]
   sessionId: string
+  captureDate: string | null
 }
 
 interface RouteForm {
@@ -212,6 +213,7 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
         description: form.description,
         coordinates: routeData.routes[index],
         image_url: routeData.imageUrl,
+        image_capture_date: routeData.captureDate,
         created_by: user.id,
         status: 'pending'
       }))

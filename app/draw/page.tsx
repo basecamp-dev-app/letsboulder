@@ -6,19 +6,20 @@ interface DrawPageProps {
     lat: string
     lng: string
     sessionId: string
-    hasGps?: string // Added
+    hasGps?: string
+    captureDate?: string
   }>
 }
 
 export default async function DrawPage({ searchParams }: DrawPageProps) {
   const params = await searchParams
-  const { imageUrl, lat, lng, sessionId, hasGps } = params // Destructured hasGps
+  const { imageUrl, lat, lng, sessionId, hasGps, captureDate } = params
 
   if (!imageUrl) {
     return <div>Invalid session. Please start from upload.</div>
   }
 
-  const hasGpsBool = hasGps === 'true' // Converted to boolean
+  const hasGpsBool = hasGps === 'true'
 
   return (
     <div className="h-screen">
@@ -27,7 +28,8 @@ export default async function DrawPage({ searchParams }: DrawPageProps) {
         latitude={parseFloat(lat)}
         longitude={parseFloat(lng)}
         sessionId={sessionId}
-        hasGps={hasGpsBool} // Passed to component
+        hasGps={hasGpsBool}
+        captureDate={captureDate || null}
       />
     </div>
   )

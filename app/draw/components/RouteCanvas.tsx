@@ -5,10 +5,11 @@ import { useRouteSelection, RoutePoint, generateRouteId, findRouteAtPoint } from
 
 interface RouteCanvasProps {
   imageUrl: string
-  latitude: number | null // Changed to allow null
-  longitude: number | null // Changed to allow null
+  latitude: number | null
+  longitude: number | null
   sessionId: string
-  hasGps: boolean // Added
+  hasGps: boolean
+  captureDate: string | null
 }
 
 interface Climb {
@@ -28,7 +29,7 @@ interface RouteWithLabels {
   name: string
 }
 
-export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, hasGps }: RouteCanvasProps) {
+export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, hasGps, captureDate }: RouteCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const [climbs, setClimbs] = useState<Climb[]>([])
@@ -416,7 +417,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
       latitude,
       longitude,
       routes,
-      sessionId
+      sessionId,
+      captureDate
     }
     localStorage.setItem('routeSession', JSON.stringify(routeData))
     console.log('Routes saved, redirecting to name-routes')
