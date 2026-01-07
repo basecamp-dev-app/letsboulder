@@ -1,3 +1,173 @@
+const MAX_EMAILS_PER_DAY = 10
+const MAX_EMAIL_SIZE_KB = 100
+const MAX_EMAIL_SIZE_BYTES = MAX_EMAIL_SIZE_KB * 1024
+
+interface SpamCheckResult {
+  isSpam: boolean
+  reason: string
+  skipAI: boolean
+}
+
+function extractSender(emailData: any): string {
+  const from = emailData.from || ''
+  const match = from.match(/<(.+)>/)
+  return match ? match[1].toLowerCase() : from.toLowerCase()
+}
+
+function isThreadReply(headers: Record<string, string>): boolean {
+  const inReplyTo = headers['in-reply-to'] || headers['In-Reply-To'] || ''
+  const references = headers['references'] || headers['References'] || ''
+  const subject = headers['subject'] || headers['Subject'] || ''
+  
+  const isReply = inReplyTo.length > 0 || references.length > 0
+  const hasRePrefix = /^re:\s/i.test(subject)
+  
+  return isReply || hasRePrefix
+}
+
+async function checkRateLimit(sender: string, kv: any): Promise<SpamCheckResult> {
+  const today = new Date().toISOString().split('T')[0]
+  const key = `rate:${sender}:${today}`
+  
+  try {
+    const countStr = await kv.get(key) as string | null
+    const count = countStr ? parseInt(countStr, 10) : 0
+    
+    if (count >= MAX_EMAILS_PER_DAY) {
+      return {
+        isSpam: true,
+        reason: `Rate limit exceeded: ${count} emails today (limit: ${MAX_EMAILS_PER_DAY})`,
+        skipAI: true
+      }
+    }
+    
+    await kv.put(key, String(count + 1), { expirationTtl: 86400 })
+    
+    return { isSpam: false, reason: '', skipAI: false }
+  } catch (e) {
+    console.error('[Spam] Rate limit check failed:', e)
+    return { isSpam: false, reason: '', skipAI: false }
+  }
+}
+
+function checkEmailSize(textContent: string, htmlContent: string): SpamCheckResult {
+  const totalSize = (textContent.length + htmlContent.length) * 2
+  
+  if (totalSize > MAX_EMAIL_SIZE_BYTES) {
+    return {
+      isSpam: true,
+      reason: `Email too large: ${Math.round(totalSize / 1024)}KB (limit: ${MAX_EMAIL_SIZE_KB}KB)`,
+      skipAI: true
+    }
+  }
+  
+  return { isSpam: false, reason: '', skipAI: false }
+}
+
+function isSuspiciousContent(text: string, subject: string): boolean {
+  const combined = `${subject} ${text}`.toLowerCase()
+  
+  const suspiciousPatterns = [
+    /\b(viagra|casino|lottery|winner|inheritance|million dollars)\b/i,
+    /click here.*now/i,
+    /verify.*account.*urgent/i,
+    /bank.*transfer.*urgent/i
+  ]
+  
+  const excessiveCaps = text.replace(/[^A-Z]/g, '').length / (text.length || 1) > 0.7
+  const manyLinks = (text.match(/https?:\/\//gi) || []).length > 10
+  
+  for (const pattern of suspiciousPatterns) {
+    if (pattern.test(combined)) {
+      return true
+    }
+  }
+  
+  return excessiveCaps || manyLinks
+}
+
+async function updateUsageStats(kv: any, action: 'email' | 'ai' | 'discord'): Promise<void> {
+  const today = new Date().toISOString().split('T')[0]
+  const key = `stats:${today}`
+  
+  try {
+    const existing = await kv.get(key) as string | null
+    const stats = existing ? JSON.parse(existing) : { emails: 0, aiCalls: 0, discordSends: 0 }
+    
+    if (action === 'email') stats.emails++
+    if (action === 'ai') stats.aiCalls++
+    if (action === 'discord') stats.discordSends++
+    
+    await kv.put(key, JSON.stringify(stats), { expirationTtl: 604800 })
+  } catch (e) {
+    console.error('[Stats] Update failed:', e)
+  }
+}
+
+async function logSpamAttempt(sender: string, reason: string, webhookUrl: string): Promise<void> {
+  if (!webhookUrl) return
+  
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        embeds: [{
+          title: '🚨 Spam Attempt Blocked',
+          description: `**From:** ${sender}\n**Reason:** ${reason}`,
+          color: 0xe74c3c,
+          timestamp: new Date().toISOString()
+        }]
+      })
+    })
+  } catch (e) {
+    console.error('[Spam] Log failed:', e)
+  }
+}
+
+async function handleStats(kv: any): Promise<Response> {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    const statsKey = `stats:${today}`
+    const yesterdayDate = new Date()
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+    const yesterday = yesterdayDate.toISOString().split('T')[0]
+    const yesterdayKey = `stats:${yesterday}`
+    
+    const [todayStatsStr, yesterdayStatsStr] = await Promise.all([
+      kv.get(statsKey) as Promise<string | null>,
+      kv.get(yesterdayKey) as Promise<string | null>
+    ])
+    
+    const todayStats = todayStatsStr ? JSON.parse(todayStatsStr) : null
+    const yesterdayStats = yesterdayStatsStr ? JSON.parse(yesterdayStatsStr) : null
+    
+    const estimatedCost = {
+      today: todayStats ? (todayStats.emails * 0.00002).toFixed(4) : '0.0000',
+      month: todayStats ? (todayStats.emails * 30 * 0.00002).toFixed(2) : '0.00'
+    }
+    
+    return new Response(JSON.stringify({
+      date: today,
+      stats: todayStats || { emails: 0, aiCalls: 0, discordSends: 0 },
+      yesterday: yesterdayStats || { emails: 0, aiCalls: 0, discordSends: 0 },
+      estimatedCostUSD: estimatedCost,
+      limits: {
+        maxEmailsPerDay: MAX_EMAILS_PER_DAY,
+        maxEmailSizeKB: MAX_EMAIL_SIZE_KB
+      }
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  } catch (e) {
+    console.error('[Stats] Fetch error:', e)
+    return new Response(JSON.stringify({ error: 'Failed to fetch stats' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+}
+
 export default {
   async email(message: any, env: any, ctx: any) {
     console.log('[Worker] Email received')
@@ -55,6 +225,38 @@ export default {
       
       console.log(`[Worker] Email from: ${emailData.from}, subject: ${emailData.subject}`)
       
+      const sender = extractSender(emailData)
+      let isSuspiciousContentDetected = false
+      
+      if (isThreadReply(headers)) {
+        console.log(`[Worker] Skipping thread reply from ${sender}`)
+        return
+      }
+      
+      if (env.EMAIL_APPROVAL_KV) {
+        const sizeCheck = checkEmailSize(textContent, htmlContent)
+        if (sizeCheck.isSpam) {
+          console.log(`[Worker] Spam detected: ${sizeCheck.reason}`)
+          await logSpamAttempt(sender, sizeCheck.reason, env.DISCORD_LOG_WEBHOOK_URL)
+          return
+        }
+        
+        const rateCheck = await checkRateLimit(sender, env.EMAIL_APPROVAL_KV)
+        if (rateCheck.isSpam) {
+          console.log(`[Worker] Rate limit hit: ${sender} - ${rateCheck.reason}`)
+          await logSpamAttempt(sender, rateCheck.reason, env.DISCORD_LOG_WEBHOOK_URL)
+          return
+        }
+        
+        if (isSuspiciousContent(textContent, emailData.subject)) {
+          console.log(`[Worker] Suspicious content detected from ${sender}`)
+          isSuspiciousContentDetected = true
+          await logSpamAttempt(sender, 'Suspicious content patterns detected', env.DISCORD_LOG_WEBHOOK_URL)
+        }
+        
+        await updateUsageStats(env.EMAIL_APPROVAL_KV, 'email')
+      }
+      
       const category = classifyEmail(emailData)
       console.log(`[Worker] Category: ${category}`)
       
@@ -77,7 +279,8 @@ export default {
         suggestedTone: getSuggestedTone(category),
         detectedCategory: category,
         status: 'pending',
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        isSuspicious: isSuspiciousContentDetected
       }
       
       if (env.EMAIL_APPROVAL_KV) {
@@ -100,7 +303,8 @@ export default {
           const sent = await sendBotMessageWithButtons(
             env.DISCORD_BOT_TOKEN,
             env.DISCORD_APPROVAL_CHANNEL_ID,
-            pendingEmail
+            pendingEmail,
+            isSuspiciousContentDetected
           )
           if (sent) {
             console.log('[Worker] Discord bot message sent with buttons')
@@ -181,6 +385,16 @@ export default {
     
     if (path === '/edit-submit' && request.method === 'POST') {
       return handleEditSubmit(request, env)
+    }
+    
+    if (path === '/stats' && request.method === 'GET') {
+      if (env.EMAIL_APPROVAL_KV) {
+        return handleStats(env.EMAIL_APPROVAL_KV)
+      }
+      return new Response(JSON.stringify({ error: 'KV not available' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
     
     return new Response('Not Found', { status: 404 })
@@ -306,7 +520,7 @@ Best regards,
 The gsyrocks Team`
 }
 
-async function sendBotMessageWithButtons(botToken: string, channelId: string, email: any): Promise<boolean> {
+async function sendBotMessageWithButtons(botToken: string, channelId: string, email: any, isSuspicious: boolean = false): Promise<boolean> {
   const categoryInfo: Record<string, { emoji: string; label: string }> = {
     bug_report: { emoji: '🐛', label: 'Bug Report' },
     feature_request: { emoji: '✨', label: 'Feature Request' },
@@ -320,10 +534,12 @@ async function sendBotMessageWithButtons(botToken: string, channelId: string, em
   const info = categoryInfo[email.detectedCategory] || { emoji: '📧', label: 'Email' }
   const content = (email.text || '').substring(0, 500)
   
+  const embedColor = isSuspicious ? 0xe74c3c : (email.detectedCategory === 'urgent' ? 0xe67e22 : 0xf1c40f)
+  
   const embed: any = {
-    title: `${info.emoji} New Email - ${info.label}`,
+    title: isSuspicious ? `⚠️ ${info.emoji} New Email - ${info.label}` : `${info.emoji} New Email - ${info.label}`,
     description: `**Subject:** ${email.subject}`,
-    color: email.detectedCategory === 'urgent' ? 0xe67e22 : 0xf1c40f,
+    color: embedColor,
     fields: [
       { name: '📧 From', value: email.from, inline: true },
       { name: '📅 Received', value: new Date(email.date).toLocaleString(), inline: true },
@@ -331,6 +547,14 @@ async function sendBotMessageWithButtons(botToken: string, channelId: string, em
     ],
     timestamp: new Date().toISOString(),
     footer: { text: `ID: ${email.id}` }
+  }
+  
+  if (isSuspicious) {
+    embed.fields.unshift({
+      name: '⚠️ Warning',
+      value: 'This email has suspicious characteristics. Review carefully before responding.',
+      inline: false
+    })
   }
   
   if (email.aiReply) {
@@ -463,7 +687,7 @@ async function verifyDiscordSignature(
     const keyData = hexToUint8Array(publicKey)
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
-      keyData,
+      keyData.buffer as ArrayBuffer,
       { name: 'Ed25519', namedCurve: 'Ed25519' },
       true,
       ['verify']
@@ -472,7 +696,7 @@ async function verifyDiscordSignature(
     const sigBytes = hexToUint8Array(signature)
     const data = encoder.encode(timestamp + body)
     
-    return await crypto.subtle.verify('Ed25519', cryptoKey, sigBytes, data)
+    return await crypto.subtle.verify('Ed25519', cryptoKey, sigBytes.buffer as ArrayBuffer, data)
   } catch (error) {
     console.error('[Worker] Signature verification error:', error)
     return false
