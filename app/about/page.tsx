@@ -91,15 +91,13 @@ export default function AboutPage() {
 
         <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
           <p className="text-gray-500 dark:text-gray-400 text-sm">
-            Questions? Get in touch at{' '}
-            <a href="mailto:hello@gsyrocks.com" className="text-blue-600 dark:text-blue-400 hover:underline">
-              hello@gsyrocks.com
-            </a>
-          </p>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-2">
-            <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
+            <Link href="/about" className="hover:underline">About</Link>
             {' · '}
-            <Link href="/terms" className="hover:underline">Terms of Service</Link>
+            <Link href="/privacy" className="hover:underline">Privacy</Link>
+            {' · '}
+            <Link href="/terms" className="hover:underline">Terms</Link>
+            {' · '}
+            <a href="mailto:hello@gsyrocks.com" className="hover:underline">Contact</a>
           </p>
         </div>
       </div>
