@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 
-// Native Canvas-based image compression (no external libraries)
 async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeight: number): Promise<File> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -81,6 +80,30 @@ function dataURLToBlob(dataURL: string): Blob {
   return new Blob([u8arr], { type: mime })
 }
 
+async function convertHeicToJpeg(file: File): Promise<File> {
+  const heic2any = (await import('heic2any')).default
+  const arrayBuffer = await file.arrayBuffer()
+  const blob = new Blob([arrayBuffer], { type: file.type })
+  const convertedBlob = await heic2any({ blob, toType: 'image/jpeg', quality: 0.9 })
+  const convertedArray = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
+  return new File([convertedArray], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), {
+    type: 'image/jpeg',
+    lastModified: Date.now()
+  })
+}
+
+function isHeicFile(file: File): boolean {
+  const name = file.name.toLowerCase()
+  const type = file.type.toLowerCase()
+  return (
+    name.endsWith('.heic') ||
+    name.endsWith('.heif') ||
+    type === 'image/heic' ||
+    type === 'image/heif' ||
+    type === 'image/x-heic'
+  )
+}
+
 export default function UploadForm() {
   const [file, setFile] = useState<File | null>(null)
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
@@ -127,8 +150,8 @@ export default function UploadForm() {
     setProgress(0)
 
     // Validate file type
-    if (!selectedFile.type.startsWith('image/')) {
-      setError('Please select an image file (JPEG, PNG, WebP, etc.)')
+    if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
+      setError('Please select an image file (JPEG, PNG, WebP, HEIC, etc.)')
       return
     }
 
@@ -139,10 +162,24 @@ export default function UploadForm() {
       return
     }
 
-    setFile(selectedFile)
+    // Convert HEIC to JPEG if needed
+    let fileToProcess = selectedFile
+    if (isHeicFile(selectedFile)) {
+      try {
+        setCurrentStep('Converting HEIC...')
+        setProgress(5)
+        fileToProcess = await convertHeicToJpeg(selectedFile)
+      } catch (err) {
+        console.error('HEIC conversion error:', err)
+        setError('Failed to convert HEIC image. Please try converting it to JPEG on your device first.')
+        return
+      }
+    }
+
+    setFile(fileToProcess)
 
     // Start compression
-    await compressImage(selectedFile)
+    await compressImage(fileToProcess)
   }
 
   const compressImage = async (originalFile: File) => {
@@ -304,7 +341,7 @@ export default function UploadForm() {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif"
         onChange={handleFileChange}
         disabled={compressing || uploading}
         className="hidden"
@@ -331,7 +368,7 @@ export default function UploadForm() {
           {isDragging ? 'Drop image here' : 'Click or drag image to upload'}
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          GPS-enabled photo, max 10MB
+          GPS-enabled photo (JPEG, PNG, HEIC), max 10MB
         </p>
       </div>
 
