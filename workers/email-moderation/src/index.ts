@@ -1,0 +1,708 @@
+export default {
+  async email(message: any, env: any, ctx: any) {
+    console.log('[Worker] Email received')
+    
+    try {
+      const emailId = `email_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+      console.log(`[Worker] Processing email: ${emailId}`)
+      
+      const headers: Record<string, string> = {}
+      if (message.headers && typeof message.headers.entries === 'function') {
+        for (const [key, value] of message.headers.entries()) {
+          headers[key.toLowerCase()] = value
+        }
+      } else if (message.headers && typeof message.headers === 'object') {
+        for (const key of Object.keys(message.headers)) {
+          const value = (message.headers as any)[key]
+          headers[key.toLowerCase()] = Array.isArray(value) ? value[0] : value
+        }
+      }
+      console.log(`[Worker] Headers extracted: ${Object.keys(headers).length} headers`)
+      
+      let textContent = ''
+      try {
+        textContent = await message.text()
+      } catch (e) {
+        console.log('[Worker] Could not extract text content')
+      }
+      
+      let htmlContent = ''
+      try {
+        htmlContent = await message.html()
+      } catch (e) {
+        console.log('[Worker] Could not extract HTML content')
+      }
+      
+      const emailData = {
+        id: emailId,
+        from: String(message.from || 'unknown'),
+        to: String(message.to || 'unknown'),
+        subject: headers['subject'] || headers['Subject'] || '(No subject)',
+        text: textContent,
+        html: htmlContent || undefined,
+        date: new Date().toISOString(),
+        attachments: [] as any[],
+        headers
+      }
+      
+      if (message.attachments && Array.isArray(message.attachments)) {
+        emailData.attachments = message.attachments.map((a: any, i: number) => ({
+          name: a.name || `attachment_${i}`,
+          size: a.size || 0,
+          type: a.type || 'application/octet-stream'
+        }))
+      }
+      
+      console.log(`[Worker] Email from: ${emailData.from}, subject: ${emailData.subject}`)
+      
+      const category = classifyEmail(emailData)
+      console.log(`[Worker] Category: ${category}`)
+      
+      let aiReply: string | null = null
+      if (env.GEMINI_API_KEY) {
+        try {
+          console.log('[Worker] Generating AI reply...')
+          aiReply = await generateAIReply(emailData, category, env.GEMINI_API_KEY)
+          if (aiReply) {
+            console.log('[Worker] AI reply generated successfully')
+          }
+        } catch (e) {
+          console.log('[Worker] AI reply generation failed:', e)
+        }
+      }
+      
+      const pendingEmail = {
+        ...emailData,
+        aiReply,
+        suggestedTone: getSuggestedTone(category),
+        detectedCategory: category,
+        status: 'pending',
+        createdAt: Date.now()
+      }
+      
+      if (env.EMAIL_APPROVAL_KV) {
+        try {
+          await env.EMAIL_APPROVAL_KV.put(
+            `email:${emailId}`,
+            JSON.stringify(pendingEmail),
+            { expirationTtl: 604800 }
+          )
+          console.log('[Worker] Email saved to KV')
+        } catch (e) {
+          console.log('[Worker] KV save failed:', e)
+        }
+      } else {
+        console.log('[Worker] KV not available')
+      }
+      
+      if (env.DISCORD_BOT_TOKEN && env.DISCORD_APPROVAL_CHANNEL_ID) {
+        try {
+          const sent = await sendBotMessageWithButtons(
+            env.DISCORD_BOT_TOKEN,
+            env.DISCORD_APPROVAL_CHANNEL_ID,
+            pendingEmail
+          )
+          if (sent) {
+            console.log('[Worker] Discord bot message sent with buttons')
+          } else {
+            console.log('[Worker] Discord bot message failed')
+          }
+        } catch (e) {
+          console.log('[Worker] Discord bot error:', e)
+        }
+      } else {
+        console.log('[Worker] DISCORD_BOT_TOKEN or DISCORD_APPROVAL_CHANNEL_ID not set')
+      }
+      
+      if (env.DISCORD_LOG_WEBHOOK_URL) {
+        try {
+          await sendLogMessage(env.DISCORD_LOG_WEBHOOK_URL, '📬 New Email Received',
+            `**From:** ${emailData.from}\n**Subject:** ${emailData.subject}\n**Category:** ${category}`,
+            0xf1c40f)
+        } catch (e) {
+          console.log('[Worker] Log webhook error:', e)
+        }
+      }
+      
+      console.log('[Worker] Email processing complete')
+      
+    } catch (error) {
+      console.error('[Worker] Error processing email:', error)
+    }
+  },
+
+  async fetch(request: Request, env: any, ctx: any): Promise<Response> {
+    const url = new URL(request.url)
+    const path = url.pathname
+    
+    if (path === '/' || path === '/health') {
+      return new Response(JSON.stringify({
+        status: 'healthy',
+        service: 'email-moderation-worker',
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+    
+    if (path === '/interactions') {
+      const requestType = request.headers.get('x-discord-request-type')
+      
+      if (requestType === '3' || request.method === 'GET') {
+        const params = new URL(request.url).searchParams
+        const challenge = params.get('challenge')
+        if (challenge) {
+          return new Response(challenge, {
+            headers: { 'Content-Type': 'text/plain' }
+          })
+        }
+      }
+      
+      if (request.method === 'POST') {
+        const signature = request.headers.get('x-signature-ed25519')
+        const timestamp = request.headers.get('x-signature-timestamp')
+        
+        const body = await request.text()
+        
+        if (!signature || !timestamp || !env.DISCORD_PUBLIC_KEY) {
+          return handleInteractionRaw(body, env)
+        }
+        
+        const isValid = await verifyDiscordSignature(body, timestamp, signature, env.DISCORD_PUBLIC_KEY)
+        
+        if (!isValid) {
+          console.warn('[Worker] Invalid Discord signature')
+          return new Response('Invalid signature', { status: 401 })
+        }
+        
+        return handleInteractionRaw(body, env)
+      }
+    }
+    
+    if (path === '/edit-submit' && request.method === 'POST') {
+      return handleEditSubmit(request, env)
+    }
+    
+    return new Response('Not Found', { status: 404 })
+  }
+}
+
+function classifyEmail(emailData: any): string {
+  const subject = (emailData.subject || '').toLowerCase()
+  const text = (emailData.text || '').toLowerCase()
+  const combined = `${subject} ${text}`
+  
+  if (combined.includes('urgent') || combined.includes('emergency') || combined.includes('critical') || combined.includes('asap')) {
+    return 'urgent'
+  }
+  if (combined.includes('bug') || combined.includes('error') || combined.includes('crash') || combined.includes('broken')) {
+    return 'bug_report'
+  }
+  if (combined.includes('partnership') || combined.includes('collaboration') || combined.includes('business')) {
+    return 'partnership'
+  }
+  if (combined.includes('feature') || combined.includes('request') || combined.includes('suggestion')) {
+    return 'feature_request'
+  }
+  if (combined.includes('feedback') || combined.includes('improvement')) {
+    return 'feedback'
+  }
+  if (combined.includes('question') || combined.includes('how') || combined.includes('?')) {
+    return 'question'
+  }
+  
+  return 'general_inquiry'
+}
+
+function getSuggestedTone(category: string): string {
+  const toneMap: Record<string, string> = {
+    bug_report: 'apologetic_professional',
+    feature_request: 'appreciative_enthusiastic',
+    question: 'helpful_clear',
+    general_inquiry: 'friendly_professional',
+    partnership: 'professional_business',
+    feedback: 'grateful_responsive',
+    urgent: 'urgent_caring'
+  }
+  return toneMap[category] || 'friendly_professional'
+}
+
+async function generateAIReply(emailData: any, category: string, apiKey: string): Promise<string | null> {
+  if (!apiKey) return null
+
+  try {
+    const prompt = `Write a direct email reply (100-200 words).
+
+Context: gsyrocks.com is a Guernsey climbing routes website.
+
+Original email:
+Subject: ${emailData.subject}
+Content: ${emailData.text}
+
+Requirements:
+- Start directly with greeting (e.g., "Hi name,") - no conversational filler
+- Be professional and helpful
+- No "Here's a draft" or similar phrases
+- No mention of the original subject line
+- Sign off with "The gsyrocks Team"
+- Keep concise and direct
+
+Email reply content:`
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 500
+          }
+        })
+      }
+    )
+
+    if (!response.ok) {
+      const status = response.status
+      console.log('[AI] API error:', status)
+      if (status === 429) {
+        return '[AI] Unable to generate reply - rate limit exceeded. Please edit and send a manual reply.'
+      }
+      return null
+    }
+
+    const data = await response.json()
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text
+    return reply?.trim() || null
+
+  } catch (error) {
+    console.error('[AI] Error:', error)
+    return '[AI] Unable to generate reply - an error occurred. Please edit and send a manual reply.'
+  }
+}
+
+function getDefaultReply(email: any): string {
+  const name = (email.from || '').split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+  return `Hi ${name},
+
+Thanks for contacting us at gsyrocks.com!
+
+We've received your message and appreciate you reaching out. A team member will review your email and get back to you soon.
+
+Best regards,
+The gsyrocks Team`
+}
+
+function getFallbackReply(): string {
+  return `Thank you for contacting us at gsyrocks.com!
+
+We've received your message. Unfortunately, we were unable to generate an automated reply due to a rate limit.
+
+A team member will review your email and respond as soon as possible.
+
+Best regards,
+The gsyrocks Team`
+}
+
+async function sendBotMessageWithButtons(botToken: string, channelId: string, email: any): Promise<boolean> {
+  const categoryInfo: Record<string, { emoji: string; label: string }> = {
+    bug_report: { emoji: '🐛', label: 'Bug Report' },
+    feature_request: { emoji: '✨', label: 'Feature Request' },
+    question: { emoji: '❓', label: 'Question' },
+    general_inquiry: { emoji: '💬', label: 'General Inquiry' },
+    partnership: { emoji: '🤝', label: 'Partnership' },
+    feedback: { emoji: '📝', label: 'Feedback' },
+    urgent: { emoji: '🚨', label: 'Urgent' }
+  }
+  
+  const info = categoryInfo[email.detectedCategory] || { emoji: '📧', label: 'Email' }
+  const content = (email.text || '').substring(0, 500)
+  
+  const embed: any = {
+    title: `${info.emoji} New Email - ${info.label}`,
+    description: `**Subject:** ${email.subject}`,
+    color: email.detectedCategory === 'urgent' ? 0xe67e22 : 0xf1c40f,
+    fields: [
+      { name: '📧 From', value: email.from, inline: true },
+      { name: '📅 Received', value: new Date(email.date).toLocaleString(), inline: true },
+      { name: '💬 Content', value: content + (email.text?.length > 500 ? '...' : '') }
+    ],
+    timestamp: new Date().toISOString(),
+    footer: { text: `ID: ${email.id}` }
+  }
+  
+  if (email.aiReply) {
+    embed.fields.push({
+      name: '🤖 AI Suggested Reply',
+      value: '```' + email.aiReply.substring(0, 400) + '```' + (email.aiReply.length > 400 ? '\n*...*' : '')
+    })
+  }
+
+  try {
+    const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bot ${botToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        content: '📬 **New email received!** A team member needs to review and respond.',
+        embeds: [embed],
+        components: [
+          {
+            type: 1,
+            components: [
+              { type: 2, style: 3, label: '✅ Approve & Send', custom_id: `approve_${email.id}` },
+              { type: 2, style: 4, label: '❌ Reject', custom_id: `reject_${email.id}` }
+            ]
+          },
+          {
+            type: 1,
+            components: [
+              { type: 2, style: 1, label: '✏️ Edit & Send', custom_id: `edit_${email.id}` },
+              { type: 2, style: 2, label: '📋 View Full', custom_id: `view_${email.id}` }
+            ]
+          }
+        ]
+      })
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.log('[Discord Bot] API error:', response.status, errorText)
+    }
+    
+    return response.ok
+  } catch (error) {
+    console.error('[Discord Bot] Error:', error)
+    return false
+  }
+}
+
+async function handleInteractionRaw(body: string, env: any): Promise<Response> {
+  try {
+    const interaction = JSON.parse(body)
+    
+    if (interaction.type === 1) {
+      return new Response(JSON.stringify({ type: 1 }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+    
+    if (interaction.type === 3) {
+      const customId = interaction.data?.custom_id
+      if (!customId) {
+        return new Response(JSON.stringify({
+          type: 4,
+          data: { content: 'Error: No custom_id', flags: 64 }
+        }), { headers: { 'Content-Type': 'application/json' } })
+      }
+      
+      const parts = customId.split('_')
+      const action = parts[0]
+      const emailId = parts.slice(1).join('_')
+      
+      const userId = interaction.member?.user?.id || interaction.user?.id || 'unknown'
+      console.log(`[Worker] Action: ${action} on ${emailId} by ${userId}`)
+      
+      let emailDataStr = ''
+      if (env.EMAIL_APPROVAL_KV) {
+        emailDataStr = await env.EMAIL_APPROVAL_KV.get(`email:${emailId}`, 'text') as string
+      }
+      
+      if (!emailDataStr) {
+        return new Response(JSON.stringify({
+          type: 4,
+          data: { content: 'Email not found or expired', flags: 64 }
+        }), { headers: { 'Content-Type': 'application/json' } })
+      }
+      
+      const email = JSON.parse(emailDataStr)
+      
+      switch (action) {
+        case 'approve':
+          return await handleApprove(email, env, userId)
+        case 'reject':
+          return await handleReject(email, env, userId)
+        case 'view':
+          return await handleView(email, env, userId)
+        case 'edit':
+          return handleEdit(email)
+        default:
+          return new Response(JSON.stringify({
+            type: 4,
+            data: { content: `Unknown action: ${action}`, flags: 64 }
+          }), { headers: { 'Content-Type': 'application/json' } })
+      }
+    }
+    
+    return new Response(JSON.stringify({ type: 0 }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+    
+  } catch (error) {
+    console.error('[Worker] Interaction error:', error)
+    return new Response(JSON.stringify({
+      type: 4,
+      data: { content: 'Error processing interaction', flags: 64 }
+    }), { headers: { 'Content-Type': 'application/json' } })
+  }
+}
+
+async function verifyDiscordSignature(
+  body: string,
+  timestamp: string,
+  signature: string,
+  publicKey: string
+): Promise<boolean> {
+  try {
+    const encoder = new TextEncoder()
+    
+    const keyData = hexToUint8Array(publicKey)
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'Ed25519', namedCurve: 'Ed25519' },
+      true,
+      ['verify']
+    )
+    
+    const sigBytes = hexToUint8Array(signature)
+    const data = encoder.encode(timestamp + body)
+    
+    return await crypto.subtle.verify('Ed25519', cryptoKey, sigBytes, data)
+  } catch (error) {
+    console.error('[Worker] Signature verification error:', error)
+    return false
+  }
+}
+
+function hexToUint8Array(hex: string): Uint8Array {
+  hex = hex.replace(/^0x/, '')
+  if (hex.length % 2 !== 0) {
+    hex = '0' + hex
+  }
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16)
+  }
+  return bytes
+}
+
+async function handleApprove(email: any, env: any, userId: string): Promise<Response> {
+  const reply = email.aiReply || getDefaultReply(email)
+  
+  const sent = await sendReplyEmail(env.RESEND_API_KEY, email, reply)
+  
+  if (sent) {
+    if (env.EMAIL_APPROVAL_KV) {
+      await env.EMAIL_APPROVAL_KV.put(`email:${email.id}`, JSON.stringify({
+        ...email,
+        status: 'approved',
+        updatedAt: Date.now(),
+        reviewedBy: userId,
+        sentReply: reply
+      }))
+    }
+    
+    if (env.DISCORD_LOG_WEBHOOK_URL) {
+      await sendLogMessage(env.DISCORD_LOG_WEBHOOK_URL, '✅ Reply Sent',
+        `**To:** ${email.from}\n**By:** <@${userId}>`, 0x2ecc71)
+    }
+    
+    return new Response(JSON.stringify({
+      type: 4,
+      data: { content: `✅ Reply sent to ${email.from}`, flags: 64 }
+    }), { headers: { 'Content-Type': 'application/json' } })
+  }
+  
+  return new Response(JSON.stringify({
+    type: 4,
+    data: { content: '❌ Failed to send email', flags: 64 }
+  }), { headers: { 'Content-Type': 'application/json' } })
+}
+
+async function handleReject(email: any, env: any, userId: string): Promise<Response> {
+  if (env.EMAIL_APPROVAL_KV) {
+    await env.EMAIL_APPROVAL_KV.put(`email:${email.id}`, JSON.stringify({
+      ...email,
+      status: 'rejected',
+      updatedAt: Date.now(),
+      reviewedBy: userId
+    }))
+  }
+  
+  if (env.DISCORD_LOG_WEBHOOK_URL) {
+    await sendLogMessage(env.DISCORD_LOG_WEBHOOK_URL, '❌ Email Rejected',
+      `**From:** ${email.from}\n**By:** <@${userId}>`, 0xe74c3c)
+  }
+  
+  return new Response(JSON.stringify({
+    type: 4,
+    data: { content: `❌ Email from ${email.from} rejected`, flags: 64 }
+  }), { headers: { 'Content-Type': 'application/json' } })
+}
+
+async function handleView(email: any, env: any, userId: string): Promise<Response> {
+  const fullContent = `**Full Email**
+From: ${email.from}
+Subject: ${email.subject}
+Date: ${email.date}
+
+${email.text}
+
+${email.attachments?.length > 0 ? `Attachments: ${email.attachments.map((a: any) => a.name).join(', ')}` : 'No attachments'}
+
+---
+
+**AI Suggested Reply:**
+${email.aiReply || 'No AI reply generated'}`
+  
+  if (env.DISCORD_LOG_WEBHOOK_URL) {
+    await sendLogMessage(env.DISCORD_LOG_WEBHOOK_URL, '📋 Full Email Viewed',
+      `**From:** ${email.from}\n**Viewed by:** <@${userId}>`, 0x3498db)
+  }
+  
+  return new Response(JSON.stringify({
+    type: 4,
+    data: { content: `📧 **Full Email Details**\n\n${fullContent.substring(0, 1900)}`, flags: 64 }
+  }), { headers: { 'Content-Type': 'application/json' } })
+}
+
+async function sendReplyEmail(apiKey: string, email: any, replyContent: string): Promise<boolean> {
+  if (!apiKey) return false
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'gsyrocks.com <hello@gsyrocks.com>',
+        to: [email.from],
+        subject: `Re: ${email.subject}`,
+        text: replyContent
+      })
+    })
+    return response.ok
+  } catch (error) {
+    console.error('[Email] Send error:', error)
+    return false
+  }
+}
+
+async function sendLogMessage(webhookUrl: string, title: string, description: string, color: number): Promise<void> {
+  if (!webhookUrl) return
+  
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        embeds: [{ title, description, color, timestamp: new Date().toISOString() }]
+      })
+    })
+  } catch (error) {
+    console.error('[Log] Error:', error)
+  }
+}
+
+function handleEdit(email: any): Response {
+  const defaultReply = email.aiReply || getDefaultReply(email)
+  return new Response(JSON.stringify({
+    type: 9,
+    data: {
+      custom_id: `edit_modal_${email.id}`,
+      title: 'Edit Email Reply',
+      components: [
+        {
+          type: 1,
+          components: [{
+            type: 4,
+            custom_id: 'reply_content',
+            label: 'Reply Content',
+            style: 2,
+            value: defaultReply,
+            required: true,
+            min_length: 10,
+            max_length: 4000
+          }]
+        }
+      ]
+    }
+  }), { headers: { 'Content-Type': 'application/json' } })
+}
+
+async function handleEditSubmit(request: Request, env: any): Promise<Response> {
+  try {
+    const body = await request.json()
+    const { custom_id, components } = body
+    
+    if (!custom_id?.startsWith('edit_modal_')) {
+      return new Response(JSON.stringify({ error: 'Invalid custom_id' }), { status: 400 })
+    }
+    
+    const emailId = custom_id.replace('edit_modal_', '')
+    const replyContent = components?.[0]?.components?.[0]?.value
+    
+    if (!replyContent) {
+      return new Response(JSON.stringify({
+        type: 4,
+        data: { content: 'Error: No reply content provided', flags: 64 }
+      }), { headers: { 'Content-Type': 'application/json' } })
+    }
+    
+    let emailDataStr = ''
+    if (env.EMAIL_APPROVAL_KV) {
+      emailDataStr = await env.EMAIL_APPROVAL_KV.get(`email:${emailId}`, 'text') as string
+    }
+    
+    if (!emailDataStr) {
+      return new Response(JSON.stringify({
+        type: 4,
+        data: { content: 'Email not found or expired', flags: 64 }
+      }), { headers: { 'Content-Type': 'application/json' } })
+    }
+    
+    const email = JSON.parse(emailDataStr)
+    
+    const sent = await sendReplyEmail(env.RESEND_API_KEY, email, replyContent)
+    
+    if (sent) {
+      if (env.EMAIL_APPROVAL_KV) {
+        await env.EMAIL_APPROVAL_KV.put(`email:${emailId}`, JSON.stringify({
+          ...email,
+          status: 'edited',
+          updatedAt: Date.now(),
+          sentReply: replyContent
+        }))
+      }
+      
+      if (env.DISCORD_LOG_WEBHOOK_URL) {
+        await sendLogMessage(env.DISCORD_LOG_WEBHOOK_URL, '✏️ Edited Reply Sent',
+          `**To:** ${email.from}\n**Content:** ${replyContent.substring(0, 100)}...`, 0x3498db)
+      }
+      
+      return new Response(JSON.stringify({
+        type: 4,
+        data: { content: `✅ Edited reply sent to ${email.from}`, flags: 64 }
+      }), { headers: { 'Content-Type': 'application/json' } })
+    }
+    
+    return new Response(JSON.stringify({
+      type: 4,
+      data: { content: '❌ Failed to send edited email', flags: 64 }
+    }), { headers: { 'Content-Type': 'application/json' } })
+    
+  } catch (error) {
+    console.error('[Worker] Edit submit error:', error)
+    return new Response(JSON.stringify({
+      type: 4,
+      data: { content: 'Error processing edited reply', flags: 64 }
+    }), { headers: { 'Content-Type': 'application/json' } })
+  }
+}

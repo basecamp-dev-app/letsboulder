@@ -9,15 +9,24 @@ USING ((auth.uid()) = user_id);
 
 -- Add gender column (nullable)
 ALTER TABLE public.profiles
-  ADD COLUMN gender text;
+  ADD COLUMN IF NOT EXISTS gender text;
 
--- Add check constraint
-ALTER TABLE public.profiles
-  ADD CONSTRAINT profiles_gender_check
-  CHECK (
-    gender IS NULL
-    OR gender IN ('male', 'female', 'other', 'prefer_not_to_say')
-  );
+-- Add check constraint for gender values
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'profiles_gender_check'
+    AND table_name = 'public.profiles'
+  ) THEN
+    ALTER TABLE public.profiles
+    ADD CONSTRAINT profiles_gender_check
+    CHECK (
+      gender IS NULL
+      OR gender IN ('male', 'female', 'other', 'prefer_not_to_say')
+    );
+  END IF;
+END $$;
 
 -- Backfill existing users to 'male'
 UPDATE public.profiles
@@ -34,7 +43,8 @@ CREATE INDEX IF NOT EXISTS idx_logs_user_id
 CREATE INDEX IF NOT EXISTS idx_logs_created_at
   ON public.logs(created_at);
 
--- Create RPC function for leaderboard
+-- Create RPC function for leaderboard with grades table join
+-- Note: Requires grades table to exist (created in add-grades-table.sql)
 CREATE OR REPLACE FUNCTION public.get_leaderboard(
   gender_filter text,
   limit_rows int,
@@ -52,12 +62,20 @@ AS $$
 WITH user_stats AS (
   SELECT
     l.user_id,
-    AVG(CASE WHEN l.status = 'flash' THEN c.points + 10 ELSE c.points END) AS avg_points,
+    AVG(
+      CASE
+        WHEN l.status = 'flash' THEN g.points + 10
+        WHEN g.points IS NOT NULL THEN g.points
+        ELSE 0  -- NULL grades get 0 points (not counted)
+      END
+    ) AS avg_points,
     COUNT(*) AS climb_count
   FROM public.logs l
   JOIN public.climbs c ON c.id = l.climb_id
+  LEFT JOIN public.grades g ON g.grade = c.grade
   WHERE l.created_at >= NOW() - INTERVAL '60 days'
   GROUP BY l.user_id
+  HAVING COUNT(*) >= 1  -- Exclude users with no climbs
 )
 SELECT
   p.id,

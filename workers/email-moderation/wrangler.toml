@@ -1,0 +1,23 @@
+name = "email-moderation"
+main = "src/index.ts"
+compatibility_date = "2024-11-21"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "development"
+DEBUG_MODE = "false"
+DISCORD_APPROVAL_CHANNEL_ID = "1458372243905187840"
+
+[[kv_namespaces]]
+binding = "EMAIL_APPROVAL_KV"
+id = "1713762ffbdd4ee3aa88b5217bb9f328"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
