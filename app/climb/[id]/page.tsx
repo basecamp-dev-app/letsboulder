@@ -4,7 +4,16 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useRouteSelection, RoutePoint, catmullRomSpline, findRouteAtPoint } from '@/lib/useRouteSelection'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Share2, Twitter, Facebook, MessageCircle, Link2 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 
 interface ClimbRoute {
   id: string
@@ -29,6 +38,8 @@ export default function ClimbPage() {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [logging, setLogging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [shareToast, setShareToast] = useState<string | null>(null)
 
   const { selectedIds, selectRoute, deselectRoute, isSelected, clearSelection } = useRouteSelection()
 
@@ -247,6 +258,59 @@ export default function ClimbPage() {
     }
   }
 
+  const getShareMessage = () => {
+    if (!climb) return ''
+    const status = climb.logged ? 'I just completed' : 'I want to try'
+    return `${status} "${climb.name}" (${climb.grade}) at this crag! 🧗`
+  }
+
+  const getShareUrl = () => {
+    return window.location.href
+  }
+
+  const handleNativeShare = async () => {
+    if (!climb) return
+    try {
+      await navigator.share({
+        title: climb.name,
+        text: getShareMessage(),
+        url: getShareUrl()
+      })
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        setShareModalOpen(true)
+      }
+    }
+  }
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(getShareUrl())
+      setShareToast('Link copied!')
+      setTimeout(() => setShareToast(null), 2000)
+    } catch (err) {
+      setShareToast('Failed to copy link')
+      setTimeout(() => setShareToast(null), 2000)
+    }
+  }
+
+  const handleShareTwitter = () => {
+    const url = encodeURIComponent(getShareUrl())
+    const text = encodeURIComponent(getShareMessage())
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank')
+  }
+
+  const handleShareFacebook = () => {
+    const url = encodeURIComponent(getShareUrl())
+    const text = encodeURIComponent(getShareMessage())
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${text}`, '_blank')
+  }
+
+  const handleShareWhatsApp = () => {
+    const text = encodeURIComponent(`${getShareMessage()} ${getShareUrl()}`)
+    window.open(`https://wa.me/?text=${text}`, '_blank')
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -278,6 +342,11 @@ export default function ClimbPage() {
           {toast}
         </div>
       )}
+      {shareToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg">
+          {shareToast}
+        </div>
+      )}
 
       <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4">
         <div className="relative">
@@ -303,11 +372,20 @@ export default function ClimbPage() {
               <h1 className="text-xl font-bold text-white">{climb.name}</h1>
               <p className="text-gray-400">Grade: {climb.grade}</p>
             </div>
-            {climb.logged && (
-              <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">
-                Logged
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={typeof navigator.share === 'function' ? handleNativeShare : () => setShareModalOpen(true)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                aria-label="Share climb"
+              >
+                <Share2 className="w-5 h-5" />
+              </button>
+              {climb.logged && (
+                <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">
+                  Logged
+                </span>
+              )}
+            </div>
           </div>
 
           {!climb.logged && (
@@ -354,6 +432,60 @@ export default function ClimbPage() {
           )}
         </div>
       </div>
+
+      <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
+        <DialogContent className="bg-gray-900 border-gray-800 text-white">
+          <DialogHeader>
+            <DialogTitle>Share Climb</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Share &ldquo;{climb?.name}&rdquo; with your friends
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-4 gap-3 py-4">
+            <Button
+              variant="outline"
+              onClick={handleShareTwitter}
+              className="flex flex-col items-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800"
+            >
+              <Twitter className="w-6 h-6 text-blue-400" />
+              <span className="text-xs">Twitter</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleShareFacebook}
+              className="flex flex-col items-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800"
+            >
+              <Facebook className="w-6 h-6 text-blue-600" />
+              <span className="text-xs">Facebook</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleShareWhatsApp}
+              className="flex flex-col items-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800"
+            >
+              <MessageCircle className="w-6 h-6 text-green-500" />
+              <span className="text-xs">WhatsApp</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleCopyLink}
+              className="flex flex-col items-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800"
+            >
+              <Link2 className="w-6 h-6 text-gray-400" />
+              <span className="text-xs">Copy</span>
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShareModalOpen(false)}
+              className="w-full"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
