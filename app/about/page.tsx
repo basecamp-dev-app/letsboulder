@@ -63,37 +63,6 @@ export default function AboutPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Contributing to the Record</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="leading-relaxed">
-              We need as much information about bouldering in Guernsey as possible. Here&apos;s how you can help:
-            </p>
-            <div className="space-y-4 ml-2">
-              <div>
-                <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1">New Boulder</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  GPS-enabled photo, exact location, tidal information, grade, and line description.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1">Existing Boulder</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Grade, line description, name suggestions, or correction recommendations.
-                </p>
-              </div>
-            </div>
-            <p className="leading-relaxed pt-2 border-t border-gray-200 dark:border-gray-700">
-              Want to contribute? Email us at{' '}
-              <a href="mailto:hello@gsyrocks.com" className="text-blue-600 dark:text-blue-400 hover:underline">
-                hello@gsyrocks.com
-              </a>
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle>FAQ</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -117,17 +86,6 @@ export default function AboutPage() {
               <h4 className="font-medium text-gray-900 dark:text-gray-100">Can I delete my data?</h4>
               <p className="text-sm text-gray-600 dark:text-gray-400">Yes. Contact us and we&apos;ll remove your account and all associated data.</p>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Tech Stack</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Built with Next.js, React, TypeScript, Supabase (PostgreSQL + Auth), Leaflet maps, and Tailwind CSS.
-            </p>
           </CardContent>
         </Card>
 
