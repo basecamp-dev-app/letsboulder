@@ -383,7 +383,7 @@ const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(
           </button>
         </div>
 
-        <div className="mt-3 text-center">
+        <div className="mt-4 text-center">
           <span className="text-lg font-semibold text-gray-900 dark:text-gray-100 block">
             {username || 'Set username'}
           </span>

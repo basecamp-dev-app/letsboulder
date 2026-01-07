@@ -276,7 +276,7 @@ function LogbookContent() {
           </div>
 
           {stats && (
-            <div className="grid grid-cols-4 gap-3 mt-6">
+            <div className="grid grid-cols-4 gap-3 mt-8">
               <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-center">
                 <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.totalClimbs}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Climbs</p>
