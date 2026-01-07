@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -35,10 +36,22 @@ export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
-    fetchLeaderboard()
-  }, [gender, page])
+    const supabase = createClient()
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+    }
+    getUser()
+  }, [])
+
+  useEffect(() => {
+    if (user !== null) {
+      fetchLeaderboard()
+    }
+  }, [gender, page, user])
 
   const fetchLeaderboard = async () => {
     setLoading(true)
@@ -56,6 +69,43 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (user === null) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+            Leaderboard
+          </h1>
+          <Link 
+            href="/logbook"
+            className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+          >
+            ← Back to Logbook
+          </Link>
+        </div>
+
+        <Card className="max-w-md mx-auto">
+          <CardContent className="py-12 px-6 text-center">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              See where you rank
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">
+              Create an account to view the leaderboard and track your climbing progress.
+            </p>
+            <div className="space-y-3">
+              <Link href="/auth" className="block">
+                <Button className="w-full">Create Account</Button>
+              </Link>
+              <Link href="/auth" className="block">
+                <Button variant="outline" className="w-full">Sign In</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
