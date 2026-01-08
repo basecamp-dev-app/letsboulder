@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { useRouteSelection, RoutePoint, generateRouteId, findRouteAtPoint } from '@/lib/useRouteSelection'
+import { useRouteSelection, RoutePoint, generateRouteId, findRouteAtPoint, generateCurvePoints } from '@/lib/useRouteSelection'
 import GradePicker, { FRENCH_GRADES } from './GradePicker'
 
 interface RouteCanvasProps {
@@ -56,26 +56,18 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
   function drawSmoothCurve(ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, dash?: number[]) {
     if (points.length < 2) return
 
+    const curvePoints = generateCurvePoints(points, 8)
+
     ctx.strokeStyle = color
     ctx.lineWidth = width
     if (dash) ctx.setLineDash(dash)
     else ctx.setLineDash([])
 
     ctx.beginPath()
-    ctx.moveTo(points[0].x, points[0].y)
-
-    for (let i = 1; i < points.length - 1; i++) {
-      const xc = (points[i].x + points[i + 1].x) / 2
-      const yc = (points[i].y + points[i + 1].y) / 2
-      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc)
+    ctx.moveTo(curvePoints[0].x, curvePoints[0].y)
+    for (let i = 1; i < curvePoints.length; i++) {
+      ctx.lineTo(curvePoints[i].x, curvePoints[i].y)
     }
-
-    ctx.quadraticCurveTo(
-      points[points.length - 1].x,
-      points[points.length - 1].y,
-      points[points.length - 1].x,
-      points[points.length - 1].y
-    )
     ctx.stroke()
     ctx.setLineDash([])
   }
