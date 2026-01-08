@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useRouteSelection, RoutePoint, generateRouteId, findRouteAtPoint } from '@/lib/useRouteSelection'
+import GradePicker, { FRENCH_GRADES } from './GradePicker'
 
 interface RouteCanvasProps {
   imageUrl: string
@@ -38,11 +39,18 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
   const [selectedClimb, setSelectedClimb] = useState<Climb | null>(null)
   const [imageError, setImageError] = useState(false)
   const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>([])
-  const [currentGrade, setCurrentGrade] = useState('V0')
+  const [currentGrade, setCurrentGrade] = useState('5A')
   const [currentName, setCurrentName] = useState('')
   const [imageLoaded, setImageLoaded] = useState(false)
   const [routes, setRoutes] = useState<RouteWithLabels[]>([])
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null)
+  const [gradePickerOpen, setGradePickerOpen] = useState(false)
+  const [gradePickerMode, setGradePickerMode] = useState<'select' | 'vote'>('select')
+  const [routeGradeInfo, setRouteGradeInfo] = useState<{
+    consensusGrade: string | null
+    voteCount: number
+    userVote: string | null
+  }>({ consensusGrade: null, voteCount: 0, userVote: null })
   const { selectedIds, selectRoute, deselectRoute, isSelected } = useRouteSelection()
 
   function drawSmoothCurve(ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, dash?: number[]) {
@@ -472,6 +480,9 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     setCurrentName(route.name)
     setCurrentGrade(route.grade)
     setCurrentPoints([])
+    if (route.id) {
+      fetchRouteGradeInfo(route.id)
+    }
   }
 
   const handleUpdateRoute = () => {
@@ -483,6 +494,47 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
       ))
       setSelectedRouteIndex(null)
       setCurrentName('')
+    }
+  }
+
+  const handleGradeVote = async (grade: string) => {
+    if (selectedRouteIndex === null) return
+
+    const route = routes[selectedRouteIndex]
+    if (!route || !route.id) return
+
+    try {
+      const response = await fetch(`/api/routes/${route.id}/grades`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grade })
+      })
+
+      if (response.ok) {
+        fetchRouteGradeInfo(route.id)
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to submit grade')
+      }
+    } catch (err) {
+      console.error('Grade vote error:', err)
+      alert('Failed to submit grade')
+    }
+  }
+
+  const fetchRouteGradeInfo = async (routeId: string) => {
+    try {
+      const response = await fetch(`/api/routes/${routeId}/grades`)
+      if (response.ok) {
+        const data = await response.json()
+        setRouteGradeInfo({
+          consensusGrade: data.consensusGrade,
+          voteCount: data.voteCount,
+          userVote: data.userVote
+        })
+      }
+    } catch (err) {
+      console.error('Failed to fetch grade info:', err)
     }
   }
 
@@ -514,20 +566,22 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
               onChange={(e) => setCurrentName(e.target.value)}
               className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             />
-            <input
-              type="text"
-              placeholder="Grade"
-              value={currentGrade}
-              onChange={(e) => setCurrentGrade(e.target.value)}
-              className="w-16 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            />
+            <button
+              onClick={() => {
+                setGradePickerMode('select')
+                setGradePickerOpen(true)
+              }}
+              className="w-20 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              {currentGrade || 'Grade'}
+            </button>
           </div>
 
           <div className="flex gap-1">
             <button
               onClick={handleFinishRoute}
               className="flex-1 bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-2 py-1.5 rounded text-xs font-medium disabled:opacity-50 hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
-              disabled={currentPoints.length < 2}
+              disabled={currentPoints.length < 2 || !currentGrade}
             >
               Finish Route
             </button>
@@ -558,10 +612,22 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
           <button
             onClick={handleSave}
             className="bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
-            disabled={routes.length === 0}
+            disabled={routes.length === 0 || routes.some(r => !r.grade)}
           >
             Save & Continue ({routes.length})
           </button>
+
+          {selectedRouteIndex !== null && (
+            <button
+              onClick={() => {
+                setGradePickerMode('vote')
+                setGradePickerOpen(true)
+              }}
+              className="bg-blue-600 dark:bg-blue-700 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+            >
+              Log Grade
+            </button>
+          )}
 
           {routes.length > 0 && (
             <div className="mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
@@ -569,14 +635,16 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
               <div className="max-h-32 overflow-y-auto space-y-1">
                 {routes.map((route, index) => {
                   const isSel = selectedIds.includes(route.id)
+                  const displayGrade = route.grade
+                  const voteCount = route.id === routes[selectedRouteIndex || 0]?.id ? routeGradeInfo.voteCount : 0
+                  const consensusGrade = route.id === routes[selectedRouteIndex || 0]?.id ? routeGradeInfo.consensusGrade : null
+                  
                   return (
                     <button
                       key={route.id}
                       onClick={() => {
                         selectRoute(route.id)
-                        setSelectedRouteIndex(index)
-                        setCurrentName(route.name)
-                        setCurrentGrade(route.grade)
+                        handleSelectRoute(index)
                       }}
                       className={`w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 transition-colors ${
                         isSel
@@ -588,7 +656,12 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
                         isSel ? 'bg-yellow-500' : 'bg-red-500'
                       }`} />
                       <span className="flex-1 truncate">{route.name}</span>
-                      <span className="text-xs opacity-70">{route.grade}</span>
+                      <span className="text-xs opacity-70 flex items-center gap-1">
+                        {displayGrade}
+                        {voteCount > 0 && (
+                          <span className="text-[10px] opacity-50">• {voteCount} votes</span>
+                        )}
+                      </span>
                     </button>
                   )
                 })}
@@ -601,6 +674,23 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
               {routes.length} route{routes.length !== 1 ? 's' : ''} drawn
             </div>
           )}
+
+          <GradePicker
+            isOpen={gradePickerOpen}
+            onClose={() => setGradePickerOpen(false)}
+            onSelect={(grade) => {
+              if (gradePickerMode === 'select') {
+                setCurrentGrade(grade)
+              } else {
+                handleGradeVote(grade)
+              }
+            }}
+            currentGrade={gradePickerMode === 'select' ? currentGrade : undefined}
+            userVote={routeGradeInfo.userVote || undefined}
+            consensusGrade={routeGradeInfo.consensusGrade || undefined}
+            voteCount={routeGradeInfo.voteCount}
+            mode={gradePickerMode}
+          />
         </div>
       </div>
     </div>
