@@ -82,9 +82,15 @@ export async function POST(request: NextRequest) {
     const workerUrl = process.env.WORKER_URL || 'https://email-moderation.your-worker.workers.dev'
     const workerApiKey = process.env.WORKER_API_KEY
 
+    console.log('[Route Submit] Worker URL:', workerUrl)
+    console.log('[Route Submit] Worker API Key exists:', !!workerApiKey)
+    console.log('[Route Submit] Route ID:', routeId)
+
     if (workerApiKey) {
       try {
-        await fetch(`${workerUrl}/api/routes/discord-submit`, {
+        console.log('[Route Submit] Calling worker...')
+        
+        const workerResponse = await fetch(`${workerUrl}/api/routes/discord-submit`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${workerApiKey}`,
@@ -101,9 +107,18 @@ export async function POST(request: NextRequest) {
             submittedByEmail: user.email
           })
         })
+
+        console.log('[Route Submit] Worker response status:', workerResponse.status)
+        console.log('[Route Submit] Worker response:', await workerResponse.text())
+
+        if (!workerResponse.ok) {
+          console.error('[Route Submit] Worker returned error:', workerResponse.statusText)
+        }
       } catch (discordError) {
-        console.error('Failed to send to Discord:', discordError)
+        console.error('[Route Submit] Failed to send to Discord:', discordError)
       }
+    } else {
+      console.warn('[Route Submit] WORKER_API_KEY not set - Discord notification skipped')
     }
 
     return NextResponse.json({
