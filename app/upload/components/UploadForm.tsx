@@ -241,6 +241,7 @@ export default function UploadForm() {
   const [file, setFile] = useState<File | null>(null)
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
   const [imageCaptureDate, setImageCaptureDate] = useState<string | null>(null)
+  const [gpsData, setGpsData] = useState<{ latitude: number; longitude: number } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [compressing, setCompressing] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -300,7 +301,7 @@ export default function UploadForm() {
     const captureDate = await extractCaptureDate(selectedFile)
     setImageCaptureDate(captureDate)
 
-    let gpsData: { latitude: number; longitude: number } | null = null
+    let extractedGps: { latitude: number; longitude: number } | null = null
 
     // Convert HEIC to JPEG if needed
     let fileToProcess = selectedFile
@@ -308,20 +309,33 @@ export default function UploadForm() {
       try {
         setCurrentStep('Extracting GPS from HEIC...')
         setProgress(5)
-        gpsData = await extractGpsFromFile(selectedFile)
+        extractedGps = await extractGpsFromFile(selectedFile)
 
-        if (!gpsData) {
+        if (!extractedGps) {
           setError('No GPS data found in image. Please ensure GPS is enabled when taking the photo.')
           return
         }
 
+        setGpsData(extractedGps)
         setCurrentStep('Converting HEIC...')
         setProgress(10)
-        fileToProcess = await convertHeicToJpeg(selectedFile, gpsData)
+        fileToProcess = await convertHeicToJpeg(selectedFile, extractedGps)
       } catch (err) {
         console.error('HEIC conversion error:', err)
         setError('Failed to convert HEIC image. Please try converting it to JPEG on your device first.')
         return
+      }
+    } else {
+      // For non-HEIC files, extract GPS from the file directly
+      try {
+        setCurrentStep('Extracting GPS...')
+        setProgress(5)
+        extractedGps = await extractGpsFromFile(selectedFile)
+        if (extractedGps) {
+          setGpsData(extractedGps)
+        }
+      } catch (err) {
+        console.error('GPS extraction error:', err)
       }
     }
 
@@ -374,51 +388,12 @@ export default function UploadForm() {
         throw new Error('Please log in to upload routes')
       }
 
-      setCurrentStep('Extracting GPS location data...')
+      setCurrentStep('Using pre-extracted GPS...')
       setProgress(20)
 
-      // Extract GPS with better error handling and timeout
-      const formData = new FormData()
-      formData.append('file', fileToUpload)
+      const latitude = gpsData?.latitude ?? null
+      const longitude = gpsData?.longitude ?? null
 
-      // Add timeout to prevent hanging on large files
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
-
-      let gpsResponse
-      try {
-        gpsResponse = await fetch('/api/extract-gps', {
-          method: 'POST',
-          body: formData,
-          signal: controller.signal
-        })
-      } catch (fetchError: any) {
-        if (fetchError.name === 'AbortError') {
-          throw new Error('GPS extraction timed out. The image may be too large. Please try a smaller image.')
-        }
-        throw new Error('Network error while processing image. Please check your connection.')
-      } finally {
-        clearTimeout(timeoutId)
-      }
-
-      // Check if response is JSON before parsing
-      const contentType = gpsResponse.headers.get('content-type')
-      if (!contentType?.includes('application/json')) {
-        throw new Error('Server returned an unexpected response. Please try again.')
-      }
-
-      const gpsData = await gpsResponse.json()
-
-      if (!gpsResponse.ok) {
-        if (gpsData.error?.includes('GPS') || gpsData.error?.includes('location')) {
-          throw new Error('Could not find GPS location in image. Please ensure GPS is enabled when taking the photo.')
-        }
-        throw new Error(gpsData.error || 'Failed to process image location data')
-      }
-
-      const { latitude, longitude } = gpsData
-
-      // Fail fast if no GPS data
       if (latitude === null || longitude === null) {
         setError('No GPS data found in image. Please ensure GPS is enabled when taking the photo.')
         setProgress(0)
