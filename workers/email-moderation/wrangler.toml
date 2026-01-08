@@ -8,6 +8,8 @@ ENVIRONMENT = "development"
 DEBUG_MODE = "false"
 DISCORD_APPROVAL_CHANNEL_ID = "1458372243905187840"
 DISCORD_ROUTE_APPROVAL_CHANNEL_ID = "1458920160424628305"
+# DISCORD_BOT_TOKEN and WORKER_API_KEY are set as Cloudflare secrets
+# or in Vercel environment variables for Discord posting
 
 [[kv_namespaces]]
 binding = "EMAIL_APPROVAL_KV"

@@ -401,6 +401,12 @@ export default {
       return handleRouteDiscordSubmit(request, env)
     }
     
+    if (path === '/health' && request.method === 'GET') {
+      return new Response(JSON.stringify({ status: 'ok', timestamp: Date.now() }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+    
     return new Response('Not Found', { status: 404 })
   }
 }
@@ -994,10 +1000,11 @@ async function handleRouteDiscordSubmit(request: Request, env: any): Promise<Res
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
     }
 
-    const body = await request.json() as RouteSubmission
-    const { id: routeId, name, grade, imageUrl, latitude, longitude, submittedBy, submittedByEmail } = body
+    const body = await request.json() as any
+    const { routeId, name, grade, imageUrl, latitude, longitude, submittedBy, submittedByEmail } = body
 
     if (!routeId || !name || !grade || !imageUrl || !latitude || !longitude) {
+      console.log('[Route Submit] Missing fields:', { routeId, name, grade, imageUrl, latitude, longitude })
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
@@ -1024,24 +1031,43 @@ async function handleRouteDiscordSubmit(request: Request, env: any): Promise<Res
     const channelId = env.DISCORD_ROUTE_APPROVAL_CHANNEL_ID
     const botToken = env.DISCORD_BOT_TOKEN
 
-    if (channelId && botToken) {
-      const result = await sendRouteApprovalMessage(botToken, channelId, route)
+    console.log('[Route Submit] Channel ID from env:', channelId)
+    console.log('[Route Submit] All env keys:', Object.keys(env).filter(k => k.includes('DISCORD')).join(', '))
 
-      if (result.success && result.messageId) {
-        if (env.ROUTE_APPROVAL_KV) {
-          await env.ROUTE_APPROVAL_KV.put(`route:${routeId}`, JSON.stringify({
-            ...route,
-            discordMessageId: result.messageId
-          }))
-        }
+    if (!channelId) {
+      console.error('[Route Submit] ERROR: DISCORD_ROUTE_APPROVAL_CHANNEL_ID not set in environment')
+      return new Response(JSON.stringify({ 
+        success: true,
+        warning: 'Discord notification not sent: missing channel ID'
+      }), { headers: { 'Content-Type': 'application/json' } })
+    }
 
-        return new Response(JSON.stringify({ 
-          success: true, 
-          messageId: result.messageId 
-        }), {
-          headers: { 'Content-Type': 'application/json' }
-        })
+    if (!botToken) {
+      console.error('[Route Submit] ERROR: DISCORD_BOT_TOKEN not set in environment')
+      return new Response(JSON.stringify({ 
+        success: true,
+        warning: 'Discord notification not sent: missing bot token'
+      }), { headers: { 'Content-Type': 'application/json' } })
+    }
+
+    console.log('[Route Submit] Calling Discord API...')
+    const result = await sendRouteApprovalMessage(botToken, channelId, route)
+    console.log('[Route Submit] Discord result:', result)
+
+    if (result.success && result.messageId) {
+      if (env.ROUTE_APPROVAL_KV) {
+        await env.ROUTE_APPROVAL_KV.put(`route:${routeId}`, JSON.stringify({
+          ...route,
+          discordMessageId: result.messageId
+        }))
       }
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        messageId: result.messageId 
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
     return new Response(JSON.stringify({ 
@@ -1087,34 +1113,24 @@ async function sendRouteApprovalMessage(
   }
 
   try {
-    const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    const discordResponse = await fetch('https://discord.com/api/v10/channels/1458920160424628305/messages', {
       method: 'POST',
       headers: {
         'Authorization': `Bot ${botToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        content: '🧗 **New route submitted for approval!**',
-        embeds: [embed],
-        components: [
-          {
-            type: 1,
-            components: [
-              { type: 2, style: 3, label: '✅ Approve', custom_id: `approve_route_${route.id}` },
-              { type: 2, style: 4, label: '❌ Reject', custom_id: `reject_route_${route.id}` }
-            ]
-          }
-        ]
-      })
+      body: JSON.stringify({ content: 'Worker test' })
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.log('[Route Discord Bot] API error:', response.status, errorText)
+    console.log('[Route Discord] Direct test status:', discordResponse.status)
+    const text = await discordResponse.text()
+    console.log('[Route Discord] Direct test response:', text)
+    
+    if (!discordResponse.ok) {
       return { success: false }
     }
 
-    const messageData = await response.json() as { id?: string }
+    const messageData = JSON.parse(text) as { id?: string }
     return { success: true, messageId: messageData.id }
   } catch (error) {
     console.error('[Route Discord Bot] Error:', error)
