@@ -12,7 +12,7 @@ export default function AboutPage() {
             About gsyrocks
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-400">
-            Discover, log, and share Guernsey&apos;s best bouldering. A community-driven platform built by climbers, for climbers.
+            Discover, log, and share bouldering routes worldwide. A community-driven platform built by climbers, for climbers.
           </p>
         </section>
 
@@ -22,10 +22,10 @@ export default function AboutPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="leading-relaxed">
-              We&apos;re building a comprehensive record of bouldering in Guernsey — preserving routes, tracking history, and helping climbers improve.
+              We started documenting boulder problems in Guernsey and have grown into a platform for climbers everywhere — preserving route history and helping climbers improve.
             </p>
             <ul className="list-disc list-inside space-y-2 ml-2">
-              <li>Document Guernsey&apos;s bouldering history and locations</li>
+              <li>Document bouldering locations and their history</li>
               <li>Make route information accessible to everyone</li>
               <li>Enable democratic grade consensus through community input</li>
               <li>Help climbers track their personal progress</li>

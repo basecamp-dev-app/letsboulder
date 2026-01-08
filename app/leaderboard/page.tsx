@@ -87,17 +87,9 @@ export default function LeaderboardPage() {
   if (user === null) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-            Leaderboard
-          </h1>
-          <Link 
-            href="/logbook"
-            className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-          >
-            ← Back to Logbook
-          </Link>
-        </div>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">
+          Leaderboard
+        </h1>
 
         <Card className="max-w-md mx-auto">
           <CardContent className="py-12 px-6 text-center">
@@ -123,17 +115,9 @@ export default function LeaderboardPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-          Leaderboard
-        </h1>
-        <Link 
-          href="/logbook"
-          className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-        >
-          ← Back to Logbook
-        </Link>
-      </div>
+      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">
+        Leaderboard
+      </h1>
 
       <Card className="mb-6">
         <CardContent className="pt-6">

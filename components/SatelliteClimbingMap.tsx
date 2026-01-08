@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase'
 import Image from 'next/image'
 import L from 'leaflet'
 import { useSearchParams } from 'next/navigation'
+import { Share2, MapPin, Loader2 } from 'lucide-react'
+import { catmullRomSpline, RoutePoint } from '@/lib/useRouteSelection'
 
 // Import Leaflet CSS
 import 'leaflet/dist/leaflet.css'
@@ -28,17 +30,19 @@ const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), 
 
 interface Climb {
   id: string
-  name: string
+  name?: string
   grade?: string
   image_url?: string
   description?: string
+  coordinates?: RoutePoint[] | string
   crags: { name: string; latitude: number; longitude: number }
-  _fullLoaded?: boolean // Track if full details are loaded
+  _fullLoaded?: boolean
 }
 
 export default function SatelliteClimbingMap() {
   const searchParams = useSearchParams()
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const modalCanvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const [climbs, setClimbs] = useState<Climb[]>([])
@@ -54,6 +58,14 @@ export default function SatelliteClimbingMap() {
   const [userLogs, setUserLogs] = useState<Record<string, string>>({})
   const [user, setUser] = useState<any>(null)
   const [toast, setToast] = useState<{id: string, status: string} | null>(null)
+  const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
+  const [routeCoordinates, setRouteCoordinates] = useState<Record<string, RoutePoint[]>>({})
+  const [modalImageLoaded, setModalImageLoaded] = useState(false)
+  const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
+  const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
+  const [setLocationMode, setSetLocationMode] = useState(false)
+  const [setLocationPending, setSetLocationPending] = useState<{lat: number; lng: number} | null>(null)
+  const [isSavingLocation, setIsSavingLocation] = useState(false)
 
   // Cache key for localStorage
   const CACHE_KEY = 'gsyrocks_climbs_cache'
@@ -66,22 +78,42 @@ export default function SatelliteClimbingMap() {
       const { data, error } = await supabase
         .from('climbs')
         .select(`
-          id, grade, image_url, description
+          id, name, grade, image_url, description, coordinates
         `)
         .eq('id', climbId)
         .single()
 
       if (error) {
         console.error('Supabase error fetching climb details:', error)
-        // Return a partial object to mark as loaded and prevent infinite re-fetch
-        return { id: climbId, grade: '', image_url: undefined, description: undefined }
+        return { id: climbId, grade: '', image_url: undefined, description: undefined, coordinates: undefined }
       }
 
-      return data as { id: string; grade?: string; image_url?: string; description?: string }
+      const climbData = data as { id: string; name?: string; grade?: string; image_url?: string; description?: string; coordinates?: RoutePoint[] | string }
+      
+      let parsedCoordinates: RoutePoint[] | undefined
+      if (climbData.coordinates) {
+        if (typeof climbData.coordinates === 'string') {
+          try {
+            parsedCoordinates = JSON.parse(climbData.coordinates)
+          } catch {
+            parsedCoordinates = undefined
+          }
+        } else {
+          parsedCoordinates = climbData.coordinates
+        }
+      }
+
+      return { 
+        id: climbData.id, 
+        name: climbData.name,
+        grade: climbData.grade, 
+        image_url: climbData.image_url, 
+        description: climbData.description,
+        coordinates: parsedCoordinates
+      }
     } catch (err) {
       console.error('Network error loading climb details:', err)
-      // Return a partial object to mark as loaded and prevent infinite re-fetch
-      return { id: climbId, image_url: undefined, description: undefined }
+      return { id: climbId, image_url: undefined, description: undefined, coordinates: undefined }
     }
   }, [])
 
@@ -120,6 +152,63 @@ export default function SatelliteClimbingMap() {
       setTimeout(() => setToast(null), 2000)
     }
   }
+
+  // Handle share functionality
+  const handleShare = async () => {
+    if (!selectedClimb) return
+
+    const shareUrl = typeof window !== 'undefined' ? window.location.origin + `/climb/${selectedClimb.id}` : ''
+    const shareText = selectedClimb.name 
+      ? `Check out "${selectedClimb.name}"${selectedClimb.grade ? ` (${selectedClimb.grade})` : ''}!`
+      : 'Check out this climb!'
+
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: selectedClimb.name || 'Climb',
+          text: shareText,
+          url: shareUrl
+        })
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          await navigator.clipboard.writeText(shareUrl)
+          alert('Link copied to clipboard!')
+        }
+      }
+    } else {
+      await navigator.clipboard.writeText(shareUrl)
+      alert('Link copied to clipboard!')
+    }
+  }
+
+  // Draw route on canvas
+  const drawRoute = useCallback((ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, isLogged: boolean) => {
+    if (points.length < 2) return
+
+    ctx.strokeStyle = color
+    ctx.lineWidth = width
+    ctx.setLineDash(isLogged ? [] : [8, 4])
+
+    const smoothedPoints = catmullRomSpline(points, 0.5, 20)
+
+    ctx.beginPath()
+    ctx.moveTo(smoothedPoints[0].x, smoothedPoints[0].y)
+
+    for (let i = 1; i < smoothedPoints.length; i++) {
+      ctx.lineTo(smoothedPoints[i].x, smoothedPoints[i].y)
+    }
+
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    if (points.length > 0) {
+      ctx.fillStyle = color
+      const lastPoint = points[points.length - 1]
+      ctx.beginPath()
+      ctx.arc(lastPoint.x, lastPoint.y, 6, 0, 2 * Math.PI)
+      ctx.fill()
+    }
+  }, [])
 
   // Load climbs from cache or API (basic data only)
   const loadClimbs = useCallback(async (bounds?: L.LatLngBounds, forceRefresh = false) => {
@@ -321,7 +410,7 @@ export default function SatelliteClimbingMap() {
 
   const [mapLoaded, setMapLoaded] = useState(false)
 
-  // Fetch user and their logs
+  // Fetch user, their logs, and default location
   useEffect(() => {
     const fetchUserAndLogs = async () => {
       const supabase = createClient()
@@ -337,10 +426,52 @@ export default function SatelliteClimbingMap() {
         const logsMap: Record<string, string> = {}
         logs?.forEach(log => { logsMap[log.climb_id] = log.status })
         setUserLogs(logsMap)
+
+        // Fetch user's default location
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('default_location_lat, default_location_lng, default_location_zoom, default_location_name')
+          .eq('id', user.id)
+          .single()
+
+        console.log('Fetched profile:', profile)
+
+        if (profile?.default_location_lat && profile?.default_location_lng) {
+          const location = {
+            lat: profile.default_location_lat,
+            lng: profile.default_location_lng,
+            zoom: profile.default_location_zoom || 12
+          }
+          console.log('Setting default location:', location)
+          setDefaultLocation(location)
+          
+          // Check if we should center on default location
+          const setLocationFromParams = searchParams.get('setLocation')
+          if (setLocationFromParams === 'true') {
+            setSetLocationMode(true)
+          } else {
+            // Center on default location with retry
+            const centerOnLocation = () => {
+              if (mapRef.current) {
+                console.log('Centering map on default location:', location)
+                mapRef.current.setView([location.lat, location.lng], location.zoom)
+                setIsAtDefaultLocation(true)
+              } else {
+                // Retry in 100ms if map not ready
+                setTimeout(centerOnLocation, 100)
+              }
+            }
+            setTimeout(centerOnLocation, 500)
+          }
+        } else if (searchParams.get('setLocation') === 'true') {
+          setSetLocationMode(true)
+        }
+      } else if (searchParams.get('setLocation') === 'true') {
+        setSetLocationMode(true)
       }
     }
     fetchUserAndLogs()
-  }, [])
+  }, [searchParams])
 
   // Close tooltip when clicking on map
   useEffect(() => {
@@ -351,13 +482,40 @@ export default function SatelliteClimbingMap() {
         if (!e.originalEvent.target || !(e.originalEvent.target as HTMLElement).closest('.climb-marker')) {
           setSelectedClimbId(null)
         }
+        
+        // Handle set location mode
+        if (setLocationMode && mapRef.current) {
+          const center = mapRef.current.getCenter()
+          setSetLocationPending({ lat: center.lat, lng: center.lng })
+        }
       }
       map.on('click', handleMapClick)
       return () => {
         map.off('click', handleMapClick)
       }
     }
-  }, [mapLoaded])
+  }, [mapLoaded, setLocationMode])
+
+  // Track when map is at default location
+  useEffect(() => {
+    if (!mapRef.current || !defaultLocation) return
+
+    const map = mapRef.current
+    const handleMoveEnd = () => {
+      const center = map.getCenter()
+      const distance = Math.sqrt(
+        Math.pow(center.lat - defaultLocation.lat, 2) + 
+        Math.pow(center.lng - defaultLocation.lng, 2)
+      )
+      // Consider "at default" if within ~0.01 degrees (roughly 1km)
+      setIsAtDefaultLocation(distance < 0.01)
+    }
+
+    map.on('moveend', handleMoveEnd)
+    return () => {
+      map.off('moveend', handleMoveEnd)
+    }
+  }, [defaultLocation])
 
   // Auto-open climb modal when climbId is in URL
   useEffect(() => {
@@ -370,6 +528,50 @@ export default function SatelliteClimbingMap() {
       })
     }
   }, [searchParams, mapLoaded, selectedClimb, loadClimbDetails])
+
+  // Draw routes on modal canvas when image loads and climb changes
+  useEffect(() => {
+    if (!modalImageLoaded || !selectedClimb?.coordinates || !modalCanvasRef.current) return
+
+    const canvas = modalCanvasRef.current
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const image = imageRef.current
+    if (!image) return
+
+    const container = canvas.parentElement
+    if (!container) return
+
+    const containerRect = container.getBoundingClientRect()
+    const imageAspect = image.naturalWidth / image.naturalHeight
+    const containerAspect = containerRect.width / containerRect.height
+
+    let displayWidth, displayHeight, offsetX = 0, offsetY = 0
+    if (imageAspect > containerAspect) {
+      displayWidth = containerRect.width
+      displayHeight = containerRect.width / imageAspect
+      offsetY = (containerRect.height - displayHeight) / 2
+    } else {
+      displayHeight = containerRect.height
+      displayWidth = containerRect.height * imageAspect
+      offsetX = (containerRect.width - displayWidth) / 2
+    }
+
+    canvas.style.left = `${offsetX}px`
+    canvas.style.top = `${offsetY}px`
+    canvas.width = displayWidth
+    canvas.height = displayHeight
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    const isLogged = !!userLogs[selectedClimb.id]
+    const coordinates = selectedClimb.coordinates as RoutePoint[]
+
+    if (coordinates && coordinates.length >= 2) {
+      drawRoute(ctx, coordinates, isLogged ? '#22c55e' : '#ef4444', 3, isLogged)
+    }
+  }, [modalImageLoaded, selectedClimb, userLogs, drawRoute])
 
   // Default world center - will be updated to user location if available
   const worldCenter: [number, number] = [20, 0]
@@ -523,7 +725,7 @@ export default function SatelliteClimbingMap() {
                     <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
                       <Image
                         src={climb.image_url}
-                        alt={climb.name}
+                        alt={climb.name || 'Climb'}
                         fill
                         className="object-cover"
                         sizes="160px"
@@ -557,6 +759,189 @@ export default function SatelliteClimbingMap() {
         </div>
       )}
 
+      {/* Go to Default Location button */}
+      {defaultLocation && !isAtDefaultLocation && (
+        <button
+          onClick={() => {
+            if (mapRef.current) {
+              mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
+              setIsAtDefaultLocation(true)
+            }
+          }}
+          className="absolute bottom-24 left-4 z-[1000] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-800 dark:text-gray-200 shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+        >
+          <MapPin className="w-4 h-4" />
+          Go to Default Location
+        </button>
+      )}
+
+      {/* Set Location Mode banner */}
+      {setLocationMode && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-blue-600 text-white rounded-lg px-4 py-2 text-sm shadow-lg">
+          Click on the map to set your default location
+        </div>
+      )}
+
+      {/* Set Location confirmation */}
+      {setLocationPending && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1001] bg-white dark:bg-gray-800 rounded-lg p-4 shadow-xl max-w-xs">
+          <p className="text-sm text-gray-900 dark:text-gray-100 mb-3">
+            Set default location here?
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setSetLocationPending(null)
+                setSetLocationMode(false)
+                window.close()
+              }}
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                if (!setLocationPending || !user) return
+
+                setIsSavingLocation(true)
+                try {
+                  const response = await fetch(
+                    `/api/locations/reverse?lat=${setLocationPending.lat}&lng=${setLocationPending.lng}`
+                  )
+                  const data = await response.json()
+
+                  const saveResponse = await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      defaultLocationName: data.display_name || 'Custom Location',
+                      defaultLocationLat: setLocationPending.lat,
+                      defaultLocationLng: setLocationPending.lng,
+                      defaultLocationZoom: mapRef.current?.getZoom() || 12,
+                    }),
+                  })
+
+                  if (!saveResponse.ok) {
+                    throw new Error('Failed to save location')
+                  }
+
+                  setDefaultLocation({
+                    lat: setLocationPending.lat,
+                    lng: setLocationPending.lng,
+                    zoom: mapRef.current?.getZoom() || 12
+                  })
+                  setSetLocationPending(null)
+                  setSetLocationMode(false)
+                  setIsAtDefaultLocation(true)
+                  
+                  if (window.opener) {
+                    window.close()
+                  }
+                } catch (error) {
+                  console.error('Error saving location:', error)
+                  alert('Failed to save location. Please try again.')
+                } finally {
+                  setIsSavingLocation(false)
+                }
+              }}
+              disabled={isSavingLocation}
+              className="flex-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isSavingLocation ? (
+                <>
+                  <Loader2 className="w-4 h-4 inline animate-spin mr-1" />
+                  Saving...
+                </>
+              ) : (
+                'Save'
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Save default location handler */}
+      {setLocationPending && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1001] bg-white dark:bg-gray-800 rounded-lg p-4 shadow-xl max-w-xs">
+          <p className="text-sm text-gray-900 dark:text-gray-100 mb-3">
+            Set default location here?
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setSetLocationPending(null)
+                setSetLocationMode(false)
+                if (window.opener) {
+                  window.close()
+                }
+              }}
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                if (!setLocationPending || !user) return
+
+                setIsSavingLocation(true)
+                try {
+                  // Reverse geocode the location
+                  const response = await fetch(
+                    `/api/locations/reverse?lat=${setLocationPending.lat}&lng=${setLocationPending.lng}`
+                  )
+                  const data = await response.json()
+
+                  const saveResponse = await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      defaultLocationName: data.display_name || 'Custom Location',
+                      defaultLocationLat: setLocationPending.lat,
+                      defaultLocationLng: setLocationPending.lng,
+                      defaultLocationZoom: mapRef.current?.getZoom() || 12,
+                    }),
+                  })
+
+                  if (!saveResponse.ok) {
+                    throw new Error('Failed to save location')
+                  }
+
+                  setDefaultLocation({
+                    lat: setLocationPending.lat,
+                    lng: setLocationPending.lng,
+                    zoom: mapRef.current?.getZoom() || 12
+                  })
+                  setSetLocationPending(null)
+                  setSetLocationMode(false)
+                  setIsAtDefaultLocation(true)
+                  
+                  // Close the popup window if it was opened from settings
+                  if (window.opener) {
+                    window.close()
+                  }
+                } catch (error) {
+                  console.error('Error saving location:', error)
+                  alert('Failed to save location. Please try again.')
+                } finally {
+                  setIsSavingLocation(false)
+                }
+              }}
+              disabled={isSavingLocation}
+              className="flex-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isSavingLocation ? (
+                <>
+                  <Loader2 className="w-4 h-4 inline animate-spin mr-1" />
+                  Saving...
+                </>
+              ) : (
+                'Save'
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
         {selectedClimb && (
         <>
           <div
@@ -571,17 +956,26 @@ export default function SatelliteClimbingMap() {
               <div className="absolute top-16 bottom-16 left-0 right-0 pointer-events-auto md:top-16 md:bottom-20">
                 <div className="relative w-full h-full">
                   <Image
+                    ref={imageRef}
                     src={selectedClimb.image_url}
-                    alt={selectedClimb.name}
+                    alt={selectedClimb.name || 'Climb'}
                     fill
                     className="object-contain"
                     sizes="100vw"
-                    onLoadingComplete={() => console.log('Image loaded successfully:', selectedClimb.image_url)}
+                    onLoadingComplete={() => {
+                      console.log('Image loaded successfully:', selectedClimb.image_url)
+                      setModalImageLoaded(true)
+                    }}
                     onError={() => {
                       console.log('Image failed to load:', selectedClimb.image_url);
                       setImageError(true);
                     }}
                     priority
+                  />
+                  <canvas
+                    ref={modalCanvasRef}
+                    className="absolute inset-0 w-full h-full pointer-events-auto"
+                    style={{ touchAction: 'none' }}
                   />
                 </div>
               </div>
@@ -591,6 +985,15 @@ export default function SatelliteClimbingMap() {
                   {selectedClimb._fullLoaded === false ? 'Loading image...' : 'No image available'}
                 </div>
               </div>
+            )}
+  
+            {/* Draw routes on canvas when image loads */}
+            {selectedClimb.coordinates && modalImageLoaded && (
+              <canvas
+                ref={modalCanvasRef}
+                className="absolute top-16 bottom-16 left-0 right-0 pointer-events-auto md:top-16 md:bottom-20"
+                style={{ touchAction: 'none' }}
+              />
             )}
 
             {toast?.id === selectedClimb.id && (
@@ -603,40 +1006,50 @@ export default function SatelliteClimbingMap() {
 
               <div className="absolute bottom-16 md:bottom-0 left-0 right-0 bg-white dark:bg-gray-900 p-4 pointer-events-auto max-h-[40vh] overflow-y-auto">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-black dark:text-white text-lg font-semibold">{selectedClimb.name}, {selectedClimb.grade}</p>
-                  <a
-                    href={`/climb/${selectedClimb.id}`}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                  <div>
+                    <p className="text-black dark:text-white text-lg font-semibold">{selectedClimb.name || 'Unnamed Climb'}, {selectedClimb.grade}</p>
+                    {selectedClimb.coordinates && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {selectedRouteIds.length > 0 
+                          ? `${selectedRouteIds.length} route${selectedRouteIds.length > 1 ? 's' : ''} selected`
+                          : 'Routes available - click to select'}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleShare}
+                    className="p-2 text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                    aria-label="Share climb"
                   >
-                    View Full Page →
-                  </a>
+                    <Share2 className="w-5 h-5" />
+                  </button>
                 </div>
                 
                 {/* Log checkboxes */}
                 <div className="flex gap-4 mt-3">
-                {['flash', 'top', 'try'].map(status => (
-                  <label key={status} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name={`log-${selectedClimb.id}`}
-                      checked={userLogs[selectedClimb.id] === status}
-                      onChange={() => handleLogClimb(selectedClimb.id, status)}
-                      className="w-4 h-4"
-                    />
-                    <span className="text-sm capitalize text-gray-700 dark:text-gray-300">{status}</span>
-                  </label>
-                ))}
+                  {['flash', 'top', 'try'].map(status => (
+                    <label key={status} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`log-${selectedClimb.id}`}
+                        checked={userLogs[selectedClimb.id] === status}
+                        onChange={() => handleLogClimb(selectedClimb.id, status)}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm capitalize text-gray-700 dark:text-gray-300">{status}</span>
+                    </label>
+                  ))}
+                </div>
+                
+                {selectedClimb.description && (
+                  <p className="text-gray-700 dark:text-gray-300 text-sm mt-2">{selectedClimb.description}</p>
+                )}
+                {imageError && selectedClimb.image_url && (
+                  <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">
+                    Image failed to load
+                  </p>
+                )}
               </div>
-              
-              {selectedClimb.description && (
-                <p className="text-gray-700 dark:text-gray-300 text-sm mt-2">{selectedClimb.description}</p>
-              )}
-              {imageError && selectedClimb.image_url && (
-                <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">
-                  Image failed to load
-                </p>
-              )}
-            </div>
             <button 
               onClick={() => setSelectedClimb(null)} 
               className="absolute top-16 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-[1002] pointer-events-auto md:top-4"

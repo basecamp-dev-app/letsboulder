@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('username, first_name, last_name, gender, avatar_url, bio, grade_system, units, is_public, default_location, theme_preference')
+      .select('username, name, gender, avatar_url, bio, grade_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference')
       .eq('id', user.id)
       .single()
 
@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       settings: {
         username: profile?.username || '',
-        firstName: profile?.first_name || '',
-        lastName: profile?.last_name || '',
+        firstName: profile?.name || '',
+        lastName: '',
         gender: profile?.gender || '',
         avatarUrl: profile?.avatar_url || '',
         bio: profile?.bio || '',
@@ -45,6 +45,10 @@ export async function GET(request: NextRequest) {
         units: profile?.units || 'metric',
         isPublic: profile?.is_public !== false,
         defaultLocation: profile?.default_location || '',
+        defaultLocationName: profile?.default_location_name || '',
+        defaultLocationLat: profile?.default_location_lat || null,
+        defaultLocationLng: profile?.default_location_lng || null,
+        defaultLocationZoom: profile?.default_location_zoom || null,
         themePreference: profile?.theme_preference || 'system'
       }
     })
@@ -77,7 +81,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { bio, gradeSystem, units, isPublic, defaultLocation, themePreference, firstName, lastName } = body
+    const { bio, gradeSystem, units, isPublic, defaultLocation, defaultLocationName, defaultLocationLat, defaultLocationLng, defaultLocationZoom, themePreference, firstName, lastName } = body
 
     const updateData: Record<string, unknown> = {}
 
@@ -86,18 +90,41 @@ export async function PUT(request: NextRequest) {
     if (units !== undefined) updateData.units = units
     if (isPublic !== undefined) updateData.is_public = isPublic
     if (defaultLocation !== undefined) updateData.default_location = defaultLocation
+    if (defaultLocationName !== undefined) updateData.default_location_name = defaultLocationName
+    if (defaultLocationLat !== undefined) updateData.default_location_lat = defaultLocationLat === null ? null : Number(defaultLocationLat)
+    if (defaultLocationLng !== undefined) updateData.default_location_lng = defaultLocationLng === null ? null : Number(defaultLocationLng)
+    if (defaultLocationZoom !== undefined) updateData.default_location_zoom = defaultLocationZoom === null ? null : Number(defaultLocationZoom)
     if (themePreference !== undefined) updateData.theme_preference = themePreference
-    if (firstName !== undefined) updateData.first_name = firstName.slice(0, 100)
-    if (lastName !== undefined) updateData.last_name = lastName.slice(0, 100)
+    // Map firstName to 'name' column (last_name doesn't exist in schema)
+    if (firstName !== undefined) updateData.name = firstName.slice(0, 100)
+    // lastName is ignored - column doesn't exist in schema
+    updateData.updated_at = new Date().toISOString()
 
-    const { error } = await supabase
+    // Try UPDATE first (profile already exists)
+    console.log('Attempting UPDATE with data:', JSON.stringify(updateData, null, 2))
+    const { error: updateError } = await supabase
       .from('profiles')
       .update(updateData)
       .eq('id', user.id)
 
-    if (error) {
-      console.error('Error updating profile:', error)
-      return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 })
+    if (updateError) {
+      console.error('UPDATE error:', JSON.stringify(updateError, null, 2))
+      
+      // If UPDATE fails, try INSERT (first time profile creation)
+      const insertData = { ...updateData, id: user.id }
+      console.log('Attempting INSERT with data:', JSON.stringify(insertData, null, 2))
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert(insertData)
+      
+      if (insertError) {
+        console.error('INSERT error:', JSON.stringify(insertError, null, 2))
+        return NextResponse.json({ 
+          error: 'Failed to update settings',
+          details: insertError.message,
+          code: insertError.code
+        }, { status: 500 })
+      }
     }
 
     return NextResponse.json({ success: true })

@@ -1,18 +1,17 @@
 'use client'
 
-import { useEffect, useState, Suspense, useRef } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import GradeHistoryChart from '@/components/GradeHistoryChart'
 import GradePyramid from '@/components/GradePyramid'
-import ProfileAvatar, { ProfileAvatarRef } from '@/components/ProfileAvatar'
-import { getGradePoints, calculateStats, getLowestGrade, getGradeFromPoints, getNextGrade, getPreviousGrade } from '@/lib/grades'
+import { getGradePoints, calculateStats, getLowestGrade, getGradeFromPoints } from '@/lib/grades'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { EmptyLogbook, LogbookSkeleton } from '@/components/logbook/logbook-states'
 import { useToast } from '@/components/logbook/toast'
-import { Trash2, ChevronRight, Loader2 } from 'lucide-react'
+import { Trash2, Loader2 } from 'lucide-react'
 
 interface LoggedClimb {
   id: string
@@ -42,25 +41,6 @@ interface Stats {
   totalTries: number
 }
 
-interface ProfileData {
-  id: string
-  username: string
-  avatar_url?: string
-  email: string
-  first_name?: string
-  last_name?: string
-  gender?: string
-}
-
-function getInitials(username: string): string {
-  return username
-    .split(' ')
-    .map(word => word[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2)
-}
-
 function LoadingFallback() {
   return (
     <div className="container mx-auto px-4 py-8">
@@ -79,14 +59,12 @@ export default function LogbookPage() {
 
 function LogbookContent() {
   const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<ProfileData | null>(null)
   const [logs, setLogs] = useState<LoggedClimb[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const searchParams = useSearchParams()
   const { toasts, addToast, removeToast } = useToast()
-  const profileAvatarRef = useRef<ProfileAvatarRef>(null)
 
   const handleDeleteLog = async (logId: string) => {
     setDeletingId(logId)
@@ -112,30 +90,6 @@ function LogbookContent() {
       setUser(user)
 
       if (user) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
-
-        if (profileData) {
-          setProfile({ ...profileData, email: user.email || '' })
-        } else {
-          const { data: newProfile } = await supabase
-            .from('profiles')
-            .insert({
-              id: user.id,
-              email: user.email,
-              username: user.email?.split('@')[0] || 'user',
-            })
-            .select()
-            .single()
-
-          if (newProfile) {
-            setProfile({ ...newProfile, email: user.email || '' })
-          }
-        }
-
         const { data: logsData } = await supabase
           .from('logs')
           .select('*, climbs(name, grade, image_url, crags(name))')
@@ -195,18 +149,6 @@ function LogbookContent() {
   }
 
   const lowestGrade = stats ? getLowestGrade(stats.gradePyramid) : '6A'
-  const displayGrades = ['6A', '6A+', '6B', '6B+', '6C', '6C+', '7A', '7A+', '7B', '7B+', '7C', '7C+', '8A', '8A+', '8B', '8B+', '8C', '8C+']
-  const pyramidGrades = displayGrades.slice(displayGrades.indexOf(lowestGrade))
-
-  const averageGrade = stats?.averageGrade || '6A'
-  const averagePoints = stats?.twoMonthAverage || getGradePoints(averageGrade)
-  const nextGrade = getNextGrade(averageGrade)
-  const previousGrade = getPreviousGrade(averageGrade)
-  const previousGradePoints = getGradePoints(previousGrade)
-  const nextGradePoints = getGradePoints(nextGrade)
-
-  const username = profile?.username || user?.email?.split('@')[0] || 'Climber'
-  const initials = getInitials(username)
 
   const statusStyles = {
     flash: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200',
@@ -242,85 +184,6 @@ function LogbookContent() {
           ))}
         </div>
       )}
-
-      <Card className="mb-8">
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center">
-            <ProfileAvatar
-              ref={profileAvatarRef}
-              avatarUrl={profile?.avatar_url}
-              initials={initials}
-              averageGrade={averageGrade}
-              averagePoints={averagePoints}
-              previousGrade={previousGrade}
-              nextGrade={nextGrade}
-              previousGradePoints={previousGradePoints}
-              nextGradePoints={nextGradePoints}
-              username={username}
-              firstName={profile?.first_name}
-              lastName={profile?.last_name}
-              gender={profile?.gender}
-              onAvatarUpdate={(url) => {
-                setProfile(prev => prev ? { ...prev, avatar_url: url } : null)
-              }}
-              onUsernameUpdate={(newUsername, newFirstName, newLastName, newGender) => {
-                setProfile(prev => prev ? {
-                  ...prev,
-                  username: newUsername,
-                  first_name: newFirstName,
-                  last_name: newLastName,
-                  gender: newGender
-                } : null)
-              }}
-            />
-          </div>
-
-          {stats && (
-            <div className="grid grid-cols-4 gap-3 mt-10">
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.totalClimbs}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Climbs</p>
-              </div>
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.totalFlashes}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Flashes</p>
-              </div>
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.totalTops}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Tops</p>
-              </div>
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.totalTries}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Tries</p>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => profileAvatarRef.current?.openProfileEdit()}
-              className="w-full"
-            >
-              Edit Profile
-            </Button>
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <nav className="flex gap-4 text-sm">
-              <Link href="/privacy" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
-                Privacy
-              </Link>
-              <Link href="/terms" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
-                Terms
-              </Link>
-              <a href="mailto:hello@gsyrocks.com" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
-                Contact
-              </a>
-            </nav>
-          </div>
-        </CardContent>
-      </Card>
 
       <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">Logbook</h1>
 
@@ -409,7 +272,9 @@ function LogbookContent() {
                       />
                     )}
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
+                      <Link href={`/climb/${log.climb_id}`} className="hover:underline">
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
+                      </Link>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {log.climbs?.crags?.name} • {new Date(log.created_at).toLocaleDateString()}
                       </p>
@@ -436,14 +301,6 @@ function LogbookContent() {
           </Card>
         </div>
       ) : null}
-
-      <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-        <nav className="flex justify-center gap-6 text-sm">
-          <Link href="/privacy" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">Privacy</Link>
-          <Link href="/terms" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">Terms</Link>
-          <a href="mailto:hello@gsyrocks.com" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">Contact</a>
-        </nav>
-      </div>
     </div>
   )
 }

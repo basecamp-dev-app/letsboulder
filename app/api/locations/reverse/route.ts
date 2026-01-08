@@ -1,0 +1,55 @@
+import { NextRequest, NextResponse } from 'next/server'
+
+const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse'
+
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams
+  const lat = searchParams.get('lat')
+  const lng = searchParams.get('lng')
+
+  if (!lat || !lng) {
+    return NextResponse.json({ error: 'Latitude and longitude are required' }, { status: 400 })
+  }
+
+  const latNum = parseFloat(lat)
+  const lngNum = parseFloat(lng)
+
+  if (isNaN(latNum) || isNaN(lngNum) || latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
+    return NextResponse.json({ error: 'Invalid coordinates' }, { status: 400 })
+  }
+
+  try {
+    const response = await fetch(
+      `${NOMINATIM_REVERSE_URL}?format=json&lat=${latNum}&lon=${lngNum}&addressdetails=1`,
+      {
+        headers: {
+          'User-Agent': 'gsyrocks-climbing-app',
+        },
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error('Reverse geocoding request failed')
+    }
+
+    const data = await response.json()
+
+    const result = {
+      lat: latNum,
+      lng: lngNum,
+      name: data.name || data.display_name?.split(',')[0] || 'Unknown Location',
+      display_name: data.display_name,
+      address: {
+        city: data.address?.city || data.address?.town || data.address?.village || '',
+        state: data.address?.state || '',
+        country: data.address?.country || '',
+        country_code: data.address?.country_code || '',
+      },
+    }
+
+    return NextResponse.json(result)
+  } catch (error) {
+    console.error('Reverse geocoding error:', error)
+    return NextResponse.json({ error: 'Failed to reverse geocode' }, { status: 500 })
+  }
+}

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { AccountSection } from './components/AccountSection'
+import { LocationSectionWrapper } from './components/LocationSectionWrapper'
 import { PreferencesSection } from './components/PreferencesSection'
 import { PrivacySection } from './components/PrivacySection'
 import { AccountActionsSection } from './components/AccountActionsSection'
@@ -16,6 +17,16 @@ const SECTIONS = [
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    )
+  },
+  {
+    id: 'location',
+    label: 'Location',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     )
   },
@@ -136,6 +147,7 @@ export default function SettingsPage() {
           <div className="flex-1 min-w-0">
             <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6">
               {activeSection === 'account' && <AccountSection user={user} />}
+              {activeSection === 'location' && <LocationSectionWrapper user={user} />}
               {activeSection === 'preferences' && <PreferencesSection />}
               {activeSection === 'privacy' && <PrivacySection />}
               {activeSection === 'actions' && <AccountActionsSection user={user} />}

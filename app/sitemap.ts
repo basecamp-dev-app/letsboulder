@@ -11,13 +11,43 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
+      url: `${baseUrl}/about`,
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 0.6,
+    },
+    {
+      url: `${baseUrl}/leaderboard`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    {
       url: `${baseUrl}/map`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.9,
     },
     {
-      url: `${baseUrl}/upload`,
+      url: `${baseUrl}/name-routes`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    },
+    {
+      url: `${baseUrl}/privacy`,
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 0.4,
+    },
+    {
+      url: `${baseUrl}/terms`,
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 0.4,
+    },
+    {
+      url: `${baseUrl}/upload-climb`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.7,
@@ -29,28 +59,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.6,
     },
     {
-      url: `${baseUrl}/profile`,
+      url: `${baseUrl}/settings`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
-      priority: 0.5,
+      priority: 0.4,
     },
     {
-      url: `${baseUrl}/auth/login`,
+      url: `${baseUrl}/auth`,
       lastModified: new Date(),
       changeFrequency: 'yearly',
       priority: 0.3,
-    },
-    {
-      url: `${baseUrl}/auth/register`,
-      lastModified: new Date(),
-      changeFrequency: 'yearly',
-      priority: 0.3,
-    },
-    {
-      url: `${baseUrl}/auth/reset-password`,
-      lastModified: new Date(),
-      changeFrequency: 'yearly',
-      priority: 0.2,
     },
   ]
 }
