@@ -80,55 +80,59 @@ function dataURLToBlob(dataURL: string): Blob {
   return new Blob([u8arr], { type: mime })
 }
 
-async function extractGpsFromHeic(file: File): Promise<{ latitude: number; longitude: number } | null> {
-  try {
-    const { findEXIFinHEIC } = await import('exif-heic-js')
-    const buffer = await file.arrayBuffer()
-    const exifData = findEXIFinHEIC(buffer)
-
-    if (exifData && exifData.GPSInfo) {
-      const gpsInfo = exifData.GPSInfo
-      const latRef = gpsInfo.GPSLatitudeRef === 'N' ? 1 : -1
-      const lngRef = gpsInfo.GPSLongitudeRef === 'E' ? 1 : -1
-
-      const parseRational = (arr: number[] | undefined): number => {
-        if (!arr || !Array.isArray(arr) || arr.length < 3) return 0
-        return (arr[0] / arr[1]) + (arr[2] / arr[3]) / 60
-      }
-
-      const latitude = parseRational(gpsInfo.GPSLatitude) * latRef
-      const longitude = parseRational(gpsInfo.GPSLongitude) * lngRef
-
-      if (latitude && longitude && !isNaN(latitude) && !isNaN(longitude)) {
-        return { latitude, longitude }
-      }
-    }
-    return null
-  } catch (err) {
-    console.error('exif-heic-js GPS extraction error:', err)
-    return null
-  }
-}
-
 async function extractGpsFromFile(file: File): Promise<{ latitude: number; longitude: number } | null> {
-  const name = file.name.toLowerCase()
-  const isHeic = name.endsWith('.heic') || name.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif'
-
-  if (isHeic) {
-    const heicGps = await extractGpsFromHeic(file)
-    if (heicGps) return heicGps
-  }
-
   try {
-    const exifr = (await import('exifr')).default
-    const buffer = await file.arrayBuffer()
-    const exifData = await exifr.parse(buffer, { gps: true })
-    if (exifData?.latitude && exifData?.longitude) {
-      return { latitude: exifData.latitude, longitude: exifData.longitude }
+    const ExifReader = (await import('exifreader')).default
+    const tags = await ExifReader.load(file)
+
+    const gpsTag = tags.GPS
+    if (gpsTag && gpsTag.description) {
+      const gpsDescription = gpsTag.description
+      const match = gpsDescription.match(/([-\d.]+)[,\s]+([-\d.]+)/)
+      if (match) {
+        const latitude = parseFloat(match[1])
+        const longitude = parseFloat(match[2])
+        if (!isNaN(latitude) && !isNaN(longitude)) {
+          return { latitude, longitude }
+        }
+      }
     }
+
+    const latTag = tags.GPSLatitude
+    const lngTag = tags.GPSLongitude
+    if (latTag && lngTag && latTag.value && lngTag.value) {
+      const parseDmsRational = (value: unknown): number => {
+        if (!value || !Array.isArray(value)) return 0
+        if (Array.isArray(value[0])) {
+          const nested = value as [number, number][]
+          if (nested.length < 3) return 0
+          return (nested[0][0] / nested[0][1]) + (nested[1][0] / nested[1][1]) + (nested[2][0] / nested[2][1]) / 60
+        } else {
+          const flat = value as number[]
+          if (flat.length < 3) return 0
+          return (flat[0] / flat[1]) + (flat[2] / flat[3]) / 60
+        }
+      }
+      const latitude = parseDmsRational(latTag.value)
+      const longitude = parseDmsRational(lngTag.value)
+
+      const latRef = ((tags.GPSLatitudeRef?.value) as string) || 'N'
+      const lngRef = ((tags.GPSLongitudeRef?.value) as string) || 'E'
+
+      const latMultiplier = latRef.includes('S') ? -1 : 1
+      const lngMultiplier = lngRef.includes('W') ? -1 : 1
+
+      const finalLat = latitude * latMultiplier
+      const finalLng = longitude * lngMultiplier
+
+      if (!isNaN(finalLat) && !isNaN(finalLng)) {
+        return { latitude: finalLat, longitude: finalLng }
+      }
+    }
+
     return null
   } catch (err) {
-    console.error('exifr GPS extraction error:', err)
+    console.error('ExifReader GPS extraction error:', err)
     return null
   }
 }
