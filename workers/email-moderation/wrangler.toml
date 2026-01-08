@@ -7,10 +7,15 @@ compatibility_flags = ["nodejs_compat"]
 ENVIRONMENT = "development"
 DEBUG_MODE = "false"
 DISCORD_APPROVAL_CHANNEL_ID = "1458372243905187840"
+DISCORD_ROUTE_APPROVAL_CHANNEL_ID = "9f9df6ce3cc24499abf28c0b8ee9e575"
 
 [[kv_namespaces]]
 binding = "EMAIL_APPROVAL_KV"
 id = "1713762ffbdd4ee3aa88b5217bb9f328"
+
+[[kv_namespaces]]
+binding = "ROUTE_APPROVAL_KV"
+id = "9f9df6ce3cc24499abf28c0b8ee9e575"
 
 [observability]
 enabled = true

@@ -295,14 +295,14 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
         image_url: imageUrl,
         image_capture_date: captureDate,
         created_by: user.id,
-        status: 'pending'
+        status: 'discord_pending'
       }))
 
       const { error } = await supabase.from('climbs').insert(climbs)
       if (error) throw error
 
       localStorage.removeItem('routeSession')
-      alert('Routes submitted for approval!')
+      alert('Route submitted for review! You will receive an email when it is approved.')
       window.location.href = '/'
 
     } catch (error) {

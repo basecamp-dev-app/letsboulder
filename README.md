@@ -42,7 +42,7 @@ Copy `.env.example` to `.env` and configure:
 - Gender-segmented leaderboard with 60-day rolling average
 - Route drawing tool for marking holds on photos
 - Route naming and review workflow for submissions
-- GPS extraction from uploaded photos
+- GPS-optional photo uploads with location confirmation
 - Admin panel for pending climb approvals
 - User profiles with avatar and grade progress ring
 

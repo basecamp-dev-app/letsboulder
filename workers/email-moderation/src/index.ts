@@ -397,6 +397,10 @@ export default {
       })
     }
     
+    if (path === '/api/routes/discord-submit' && request.method === 'POST') {
+      return handleRouteDiscordSubmit(request, env)
+    }
+    
     return new Response('Not Found', { status: 404 })
   }
 }
@@ -487,7 +491,7 @@ Email reply content:`
       return null
     }
 
-    const data = await response.json()
+    const data = await response.json() as { candidates?: any[] }
     const reply = data.candidates?.[0]?.content?.parts?.[0]?.text
     return reply?.trim() || null
 
@@ -626,40 +630,75 @@ async function handleInteractionRaw(body: string, env: any): Promise<Response> {
       
       const parts = customId.split('_')
       const action = parts[0]
-      const emailId = parts.slice(1).join('_')
+      const id = parts.slice(1).join('_')
       
       const userId = interaction.member?.user?.id || interaction.user?.id || 'unknown'
-      console.log(`[Worker] Action: ${action} on ${emailId} by ${userId}`)
+      console.log(`[Worker] Action: ${action} on ${id} by ${userId}`)
       
-      let emailDataStr = ''
-      if (env.EMAIL_APPROVAL_KV) {
-        emailDataStr = await env.EMAIL_APPROVAL_KV.get(`email:${emailId}`, 'text') as string
-      }
-      
-      if (!emailDataStr) {
-        return new Response(JSON.stringify({
-          type: 4,
-          data: { content: 'Email not found or expired', flags: 64 }
-        }), { headers: { 'Content-Type': 'application/json' } })
-      }
-      
-      const email = JSON.parse(emailDataStr)
-      
-      switch (action) {
-        case 'approve':
-          return await handleApprove(email, env, userId)
-        case 'reject':
-          return await handleReject(email, env, userId)
-        case 'view':
-          return await handleView(email, env, userId)
-        case 'edit':
-          return handleEdit(email)
-        default:
+      if (action === 'approve' || action === 'reject' || action === 'view' || action === 'edit') {
+        let dataStr = ''
+        if (env.EMAIL_APPROVAL_KV) {
+          dataStr = await env.EMAIL_APPROVAL_KV.get(`email:${id}`, 'text') as string
+        }
+        
+        if (!dataStr) {
           return new Response(JSON.stringify({
             type: 4,
-            data: { content: `Unknown action: ${action}`, flags: 64 }
+            data: { content: 'Email not found or expired', flags: 64 }
           }), { headers: { 'Content-Type': 'application/json' } })
+        }
+        
+        const data = JSON.parse(dataStr)
+        
+        switch (action) {
+          case 'approve':
+            return await handleApprove(data, env, userId)
+          case 'reject':
+            return await handleReject(data, env, userId)
+          case 'view':
+            return await handleView(data, env, userId)
+          case 'edit':
+            return handleEdit(data)
+          default:
+            return new Response(JSON.stringify({
+              type: 4,
+              data: { content: `Unknown action: ${action}`, flags: 64 }
+            }), { headers: { 'Content-Type': 'application/json' } })
+        }
       }
+      
+      if (action === 'approve_route' || action === 'reject_route') {
+        let routeDataStr = ''
+        if (env.ROUTE_APPROVAL_KV) {
+          routeDataStr = await env.ROUTE_APPROVAL_KV.get(`route:${id}`, 'text') as string
+        }
+        
+        if (!routeDataStr) {
+          return new Response(JSON.stringify({
+            type: 4,
+            data: { content: 'Route not found or expired', flags: 64 }
+          }), { headers: { 'Content-Type': 'application/json' } })
+        }
+        
+        const route = JSON.parse(routeDataStr) as RouteSubmission
+        
+        switch (action) {
+          case 'approve_route':
+            return await handleApproveRoute(route, env, userId)
+          case 'reject_route':
+            return await handleRejectRoute(route, env, userId)
+          default:
+            return new Response(JSON.stringify({
+              type: 4,
+              data: { content: `Unknown route action: ${action}`, flags: 64 }
+            }), { headers: { 'Content-Type': 'application/json' } })
+        }
+      }
+      
+      return new Response(JSON.stringify({
+        type: 4,
+        data: { content: `Unknown action: ${action}`, flags: 64 }
+      }), { headers: { 'Content-Type': 'application/json' } })
     }
     
     return new Response(JSON.stringify({ type: 0 }), {
@@ -863,15 +902,16 @@ function handleEdit(email: any): Response {
 
 async function handleEditSubmit(request: Request, env: any): Promise<Response> {
   try {
-    const body = await request.json()
-    const { custom_id, components } = body
+    const body = await request.json() as { custom_id?: string; components?: any[] }
+    const custom_id = body.custom_id || ''
+    const components = body.components || []
     
-    if (!custom_id?.startsWith('edit_modal_')) {
+    if (!custom_id.startsWith('edit_modal_')) {
       return new Response(JSON.stringify({ error: 'Invalid custom_id' }), { status: 400 })
     }
     
     const emailId = custom_id.replace('edit_modal_', '')
-    const replyContent = components?.[0]?.components?.[0]?.value
+    const replyContent = components[0]?.components?.[0]?.value
     
     if (!replyContent) {
       return new Response(JSON.stringify({
@@ -930,3 +970,316 @@ async function handleEditSubmit(request: Request, env: any): Promise<Response> {
     }), { headers: { 'Content-Type': 'application/json' } })
   }
 }
+
+interface RouteSubmission {
+  id: string
+  name: string
+  grade: string
+  imageUrl: string
+  latitude: number
+  longitude: number
+  submittedBy: string
+  submittedByEmail: string
+  status: string
+  discordMessageId?: string
+  createdAt: number
+}
+
+async function handleRouteDiscordSubmit(request: Request, env: any): Promise<Response> {
+  try {
+    const authHeader = request.headers.get('Authorization')
+    const expectedToken = env.WORKER_API_KEY
+
+    if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    const body = await request.json() as RouteSubmission
+    const { id: routeId, name, grade, imageUrl, latitude, longitude, submittedBy, submittedByEmail } = body
+
+    if (!routeId || !name || !grade || !imageUrl || !latitude || !longitude) {
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    const route: RouteSubmission = {
+      id: routeId,
+      name,
+      grade,
+      imageUrl,
+      latitude,
+      longitude,
+      submittedBy: submittedBy || 'Anonymous',
+      submittedByEmail: submittedByEmail || '',
+      status: 'discord_pending',
+      createdAt: Date.now()
+    }
+
+    if (env.ROUTE_APPROVAL_KV) {
+      await env.ROUTE_APPROVAL_KV.put(`route:${routeId}`, JSON.stringify(route))
+    }
+
+    const channelId = env.DISCORD_ROUTE_APPROVAL_CHANNEL_ID
+    const botToken = env.DISCORD_BOT_TOKEN
+
+    if (channelId && botToken) {
+      const result = await sendRouteApprovalMessage(botToken, channelId, route)
+
+      if (result.success && result.messageId) {
+        if (env.ROUTE_APPROVAL_KV) {
+          await env.ROUTE_APPROVAL_KV.put(`route:${routeId}`, JSON.stringify({
+            ...route,
+            discordMessageId: result.messageId
+          }))
+        }
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          messageId: result.messageId 
+        }), {
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+    }
+
+    return new Response(JSON.stringify({ 
+      success: true,
+      warning: 'Discord notification not sent'
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  } catch (error) {
+    console.error('[Route Submit] Error:', error)
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+}
+
+// ==========================================
+// ROUTE APPROVAL FUNCTIONS
+// ==========================================
+
+const MAX_ROUTES_PER_DAY = 5
+
+async function sendRouteApprovalMessage(
+  botToken: string,
+  channelId: string,
+  route: RouteSubmission
+): Promise<{ success: boolean; messageId?: string }> {
+  const embed = {
+    title: '🧗 New Route Submission',
+    color: 0xf1c40f,
+    fields: [
+      { name: '🧗 Route', value: route.name, inline: true },
+      { name: '📊 Grade', value: route.grade, inline: true },
+      { name: '📍 Location', value: `${route.latitude.toFixed(4)}, ${route.longitude.toFixed(4)}`, inline: true },
+      { name: '👤 Submitted by', value: route.submittedBy, inline: true },
+      { name: '🕐 Submitted', value: new Date(route.createdAt).toLocaleString(), inline: true },
+      { name: '🔗 Link', value: `https://gsyrocks.com/climb/${route.id}`, inline: true }
+    ],
+    image: { url: route.imageUrl },
+    timestamp: new Date().toISOString(),
+    footer: { text: `Route ID: ${route.id}` }
+  }
+
+  try {
+    const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bot ${botToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        content: '🧗 **New route submitted for approval!**',
+        embeds: [embed],
+        components: [
+          {
+            type: 1,
+            components: [
+              { type: 2, style: 3, label: '✅ Approve', custom_id: `approve_route_${route.id}` },
+              { type: 2, style: 4, label: '❌ Reject', custom_id: `reject_route_${route.id}` }
+            ]
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.log('[Route Discord Bot] API error:', response.status, errorText)
+      return { success: false }
+    }
+
+    const messageData = await response.json() as { id?: string }
+    return { success: true, messageId: messageData.id }
+  } catch (error) {
+    console.error('[Route Discord Bot] Error:', error)
+    return { success: false }
+  }
+}
+
+async function handleApproveRoute(route: RouteSubmission, env: any, userId: string): Promise<Response> {
+  try {
+    if (env.ROUTE_APPROVAL_KV) {
+      await env.ROUTE_APPROVAL_KV.put(`route:${route.id}`, JSON.stringify({
+        ...route,
+        status: 'approved',
+        updatedAt: Date.now(),
+        reviewedBy: userId,
+        reviewedAt: Date.now()
+      }))
+    }
+
+    const supabaseUrl = env.SUPABASE_URL
+    const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (supabaseUrl && supabaseKey) {
+      const updateResponse = await fetch(`${supabaseUrl}/rest/v1/climbs?id=eq.${route.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          status: 'approved',
+          approved_at: new Date().toISOString()
+        })
+      })
+      
+      if (!updateResponse.ok) {
+        console.error('[Route] Failed to update climb in Supabase:', await updateResponse.text())
+      }
+    }
+
+    if (route.submittedByEmail) {
+      await sendRouteApprovalEmail(
+        env.RESEND_API_KEY,
+        route.submittedByEmail,
+        route.name,
+        true
+      )
+    }
+
+    if (env.DISCORD_LOG_WEBHOOK_URL) {
+      await sendLogMessage(env.DISCORD_LOG_WEBHOOK_URL, '✅ Route Approved',
+        `**Route:** ${route.name}\n**Grade:** ${route.grade}\n**Approved by:** <@${userId}>`,
+        0x2ecc71
+      )
+    }
+
+    return new Response(JSON.stringify({
+      type: 4,
+      data: { content: `✅ Route "${route.name}" approved!`, flags: 64 }
+    }), { headers: { 'Content-Type': 'application/json' } })
+  } catch (error) {
+    console.error('[Route] Approve error:', error)
+    return new Response(JSON.stringify({
+      type: 4,
+      data: { content: '❌ Error approving route', flags: 64 }
+    }), { headers: { 'Content-Type': 'application/json' } })
+  }
+}
+
+async function handleRejectRoute(route: RouteSubmission, env: any, userId: string): Promise<Response> {
+  try {
+    if (env.ROUTE_APPROVAL_KV) {
+      await env.ROUTE_APPROVAL_KV.put(`route:${route.id}`, JSON.stringify({
+        ...route,
+        status: 'rejected',
+        updatedAt: Date.now(),
+        reviewedBy: userId,
+        reviewedAt: Date.now()
+      }))
+    }
+
+    const supabaseUrl = env.SUPABASE_URL
+    const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (supabaseUrl && supabaseKey) {
+      const deleteResponse = await fetch(`${supabaseUrl}/rest/v1/climbs?id=eq.${route.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!deleteResponse.ok) {
+        console.error('[Route] Failed to delete climb from Supabase:', await deleteResponse.text())
+      }
+    }
+
+    if (route.submittedByEmail) {
+      await sendRouteApprovalEmail(
+        env.RESEND_API_KEY,
+        route.submittedByEmail,
+        route.name,
+        false
+      )
+    }
+
+    if (env.DISCORD_LOG_WEBHOOK_URL) {
+      await sendLogMessage(env.DISCORD_LOG_WEBHOOK_URL, '❌ Route Rejected',
+        `**Route:** ${route.name}\n**Grade:** ${route.grade}\n**Rejected by:** <@${userId}>`,
+        0xe74c3c
+      )
+    }
+
+    return new Response(JSON.stringify({
+      type: 4,
+      data: { content: `❌ Route "${route.name}" rejected`, flags: 64 }
+    }), { headers: { 'Content-Type': 'application/json' } })
+  } catch (error) {
+    console.error('[Route] Reject error:', error)
+    return new Response(JSON.stringify({
+      type: 4,
+      data: { content: '❌ Error rejecting route', flags: 64 }
+    }), { headers: { 'Content-Type': 'application/json' } })
+  }
+}
+
+async function sendRouteApprovalEmail(
+  apiKey: string,
+  email: string,
+  routeName: string,
+  approved: boolean
+): Promise<boolean> {
+  if (!apiKey) return false
+
+  try {
+    const subject = approved 
+      ? `✅ Your route "${routeName}" has been approved!`
+      : `❌ Your route "${routeName}" was not approved`
+
+    const text = approved
+      ? `Great news! Your route "${routeName}" has been approved and is now live on the map.\n\nThank you for contributing to gsyrocks.com!`
+      : `Unfortunately, your route "${routeName}" was not approved.\n\nIf you believe this is an error, please feel free to resubmit with additional information.\n\nThank you for trying!`
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'gsyrocks.com <hello@gsyrocks.com>',
+        to: [email],
+        subject,
+        text
+      })
+    })
+
+    return response.ok
+  } catch (error) {
+    console.error('[Route Email] Send error:', error)
+    return false
+  }
+}
+
+export type { RouteSubmission }
+export { sendRouteApprovalMessage, handleApproveRoute, handleRejectRoute }

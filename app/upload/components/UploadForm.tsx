@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import LocationConfirmModal from '@/components/LocationConfirmModal'
 
 async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeight: number): Promise<File> {
   return new Promise((resolve, reject) => {
@@ -234,7 +235,30 @@ export default function UploadForm() {
   const [currentStep, setCurrentStep] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [showLocationConfirm, setShowLocationConfirm] = useState(false)
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
+  const [confirmedLat, setConfirmedLat] = useState<number | null>(null)
+  const [confirmedLng, setConfirmedLng] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleLocationConfirm = (latitude: number, longitude: number) => {
+    setConfirmedLat(latitude)
+    setConfirmedLng(longitude)
+  }
+
+  const handleLocationCancel = () => {
+    setShowLocationConfirm(false)
+    setUploadedImageUrl(null)
+    setConfirmedLat(null)
+    setConfirmedLng(null)
+  }
+
+  useEffect(() => {
+    if (confirmedLat !== null && confirmedLng !== null && uploadedImageUrl) {
+      const captureDateParam = imageCaptureDate ? `&captureDate=${encodeURIComponent(imageCaptureDate)}` : ''
+      window.location.href = `/draw?imageUrl=${encodeURIComponent(uploadedImageUrl)}&lat=${confirmedLat}&lng=${confirmedLng}&hasGps=true&sessionId=${Date.now()}${captureDateParam}`
+    }
+  }, [confirmedLat, confirmedLng, uploadedImageUrl, imageCaptureDate])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -380,14 +404,6 @@ export default function UploadForm() {
       const latitude = gpsData?.latitude ?? null
       const longitude = gpsData?.longitude ?? null
 
-      if (latitude === null || longitude === null) {
-        setError('No GPS data found in image. Please ensure GPS is enabled when taking the photo.')
-        setProgress(0)
-        setCurrentStep('')
-        setUploading(false)
-        return
-      }
-
       setProgress(40)
 
       setCurrentStep('Uploading image...')
@@ -420,11 +436,9 @@ export default function UploadForm() {
       setCurrentStep('Preparing route editor...')
       setProgress(100)
 
-      // Small delay to show completion
-      setTimeout(() => {
-        const captureDateParam = imageCaptureDate ? `&captureDate=${encodeURIComponent(imageCaptureDate)}` : ''
-        window.location.href = `/draw?imageUrl=${encodeURIComponent(publicUrl)}&lat=${latitude}&lng=${longitude}&hasGps=${hasGps}&sessionId=${Date.now()}${captureDateParam}`
-      }, 500)
+      setUploadedImageUrl(publicUrl)
+      setShowLocationConfirm(true)
+      setUploading(false)
 
     } catch (err) {
       console.error('Upload error:', err)
@@ -530,6 +544,16 @@ export default function UploadForm() {
       >
         {compressing ? 'Compressing...' : uploading ? 'Uploading...' : 'Upload & Continue'}
       </button>
+
+      {showLocationConfirm && uploadedImageUrl && (
+        <LocationConfirmModal
+          latitude={gpsData?.latitude ?? null}
+          longitude={gpsData?.longitude ?? null}
+          imageUrl={uploadedImageUrl}
+          onConfirm={handleLocationConfirm}
+          onCancel={handleLocationCancel}
+        />
+      )}
     </div>
   )
 }
