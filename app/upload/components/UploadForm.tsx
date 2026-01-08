@@ -104,26 +104,36 @@ function convertToDms(decimal: number, isLatitude: boolean): [number, number, nu
   return [degrees, minutes, seconds]
 }
 
-function injectGpsIntoJpeg(jpegDataUrl: string, latitude: number, longitude: number): string {
-  const piexifjs = require('piexifjs')
+function injectGpsIntoJpeg(jpegDataUrl: string, latitude: number, longitude: number): string | null {
+  try {
+    const piexifjs = require('piexifjs')
 
-  const latRef = latitude >= 0 ? 'N' : 'S'
-  const lngRef = longitude >= 0 ? 'E' : 'W'
-
-  const latDms = convertToDms(latitude, true)
-  const lngDms = convertToDms(longitude, false)
-
-  const exifObj = {
-    GPS: {
-      GPSLatitude: [latDms, [latDms[2] * 100, 100, 100]] as any,
-      GPSLatitudeRef: latRef,
-      GPSLongitude: [lngDms, [lngDms[2] * 100, 100, 100]] as any,
-      GPSLongitudeRef: lngRef
+    if (!jpegDataUrl || !jpegDataUrl.startsWith('data:image/jpeg')) {
+      console.error('Invalid JPEG data URL format')
+      return null
     }
-  }
 
-  const exifBytes = piexifjs.dump(exifObj)
-  return piexifjs.insert(exifBytes, jpegDataUrl)
+    const latRef = latitude >= 0 ? 'N' : 'S'
+    const lngRef = longitude >= 0 ? 'E' : 'W'
+
+    const latDms = convertToDms(latitude, true)
+    const lngDms = convertToDms(longitude, false)
+
+    const exifObj = {
+      GPS: {
+        GPSLatitude: [latDms, [latDms[2] * 100, 100, 100]] as any,
+        GPSLatitudeRef: latRef,
+        GPSLongitude: [lngDms, [lngDms[2] * 100, 100, 100]] as any,
+        GPSLongitudeRef: lngRef
+      }
+    }
+
+    const exifBytes = piexifjs.dump(exifObj)
+    return piexifjs.insert(exifBytes, jpegDataUrl)
+  } catch (err) {
+    console.error('GPS injection failed:', err)
+    return null
+  }
 }
 
 async function convertHeicToJpeg(file: File): Promise<File> {
@@ -139,7 +149,10 @@ async function convertHeicToJpeg(file: File): Promise<File> {
 
   if (gpsData) {
     try {
-      jpegDataUrl = injectGpsIntoJpeg(jpegDataUrl, gpsData.latitude, gpsData.longitude)
+      const result = injectGpsIntoJpeg(jpegDataUrl, gpsData.latitude, gpsData.longitude)
+      if (result) {
+        jpegDataUrl = result
+      }
     } catch (err) {
       console.error('GPS injection error:', err)
     }
