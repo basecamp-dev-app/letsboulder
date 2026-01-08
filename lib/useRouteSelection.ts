@@ -102,39 +102,28 @@ export function pointToLineDistance(
   return Math.sqrt(dx * dx + dy * dy)
 }
 
-export function catmullRomSpline(
-  points: RoutePoint[],
-  _tension: number = 0.5,
-  numOfSegments: number = 16
-): RoutePoint[] {
-  const splinePoints: RoutePoint[] = []
+export function generateCurvePoints(points: RoutePoint[], segmentsPerCurve: number = 8): RoutePoint[] {
+  const curvePoints: RoutePoint[] = []
 
   if (points.length < 2) return points
 
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = i > 0 ? points[i - 1] : points[0]
-    const p1 = points[i]
-    const p2 = points[i + 1]
-    const p3 = i !== points.length - 2 ? points[i + 2] : p2
+  curvePoints.push({ x: points[0].x, y: points[0].y })
 
-    for (let t = 0; t <= numOfSegments; t++) {
-      const t2 = t / numOfSegments
-      const t3 = t2 * t2
-      const t2_3 = 3 * t2 * t2
+  for (let i = 1; i < points.length - 1; i++) {
+    const xc = (points[i].x + points[i + 1].x) / 2
+    const yc = (points[i].y + points[i + 1].y) / 2
 
-      const f1 = -0.5 * t3 + t2_3 - 0.5 * t2
-      const f2 = 1.5 * t3 - 2.5 * t2_3 + 1
-      const f3 = -1.5 * t3 + 2 * t2_3 + 0.5 * t2
-      const f4 = 0.5 * t3 - 0.5 * t2_3
-
-      const x = p0.x * f1 + p1.x * f2 + p2.x * f3 + p3.x * f4
-      const y = p0.y * f1 + p1.y * f2 + p2.y * f3 + p3.y * f4
-
-      splinePoints.push({ x, y })
+    for (let t = 1; t <= segmentsPerCurve; t++) {
+      const tNorm = t / segmentsPerCurve
+      const x = (1 - tNorm) * (1 - tNorm) * points[i].x + 2 * (1 - tNorm) * tNorm * xc + tNorm * tNorm * points[i + 1].x
+      const y = (1 - tNorm) * (1 - tNorm) * points[i].y + 2 * (1 - tNorm) * tNorm * yc + tNorm * tNorm * points[i + 1].y
+      curvePoints.push({ x, y })
     }
   }
 
-  return splinePoints
+  curvePoints.push({ x: points[points.length - 1].x, y: points[points.length - 1].y })
+
+  return curvePoints
 }
 
 export function findRouteAtPoint(
@@ -143,10 +132,10 @@ export function findRouteAtPoint(
   threshold: number = 15
 ): RouteWithLabels | null {
   for (const route of routes) {
-    const smoothedPoints = catmullRomSpline(route.points, 0.5, 20)
+    const curvePoints = generateCurvePoints(route.points, 8)
 
-    for (let i = 1; i < smoothedPoints.length; i++) {
-      const distance = pointToLineDistance(point, smoothedPoints[i - 1], smoothedPoints[i])
+    for (let i = 1; i < curvePoints.length; i++) {
+      const distance = pointToLineDistance(point, curvePoints[i - 1], curvePoints[i])
       if (distance <= threshold) {
         return route
       }

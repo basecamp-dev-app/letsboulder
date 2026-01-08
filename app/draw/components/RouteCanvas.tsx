@@ -45,41 +45,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
   const [selectedRouteIndex, setSelectedRouteIndex] = useState<number | null>(null)
   const { selectedIds, selectRoute, deselectRoute, isSelected } = useRouteSelection()
 
-  function catmullRomSpline(points: RoutePoint[], _tension = 0.5, numOfSegments = 16): RoutePoint[] {
-    const splinePoints: RoutePoint[] = []
-    if (points.length < 2) return points
-
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = i > 0 ? points[i - 1] : points[0]
-      const p1 = points[i]
-      const p2 = points[i + 1]
-      const p3 = i !== points.length - 2 ? points[i + 2] : p2
-
-      for (let t = 0; t <= numOfSegments; t++) {
-        const t2 = t / numOfSegments
-        const t3 = t2 * t2
-        const t2_3 = 3 * t2 * t2
-
-        const f1 = -0.5 * t3 + t2_3 - 0.5 * t2
-        const f2 = 1.5 * t3 - 2.5 * t2_3 + 1
-        const f3 = -1.5 * t3 + 2 * t2_3 + 0.5 * t2
-        const f4 = 0.5 * t3 - 0.5 * t2_3
-
-        const x = p0.x * f1 + p1.x * f2 + p2.x * f3 + p3.x * f4
-        const y = p0.y * f1 + p1.y * f2 + p2.y * f3 + p3.y * f4
-
-        splinePoints.push({ x, y })
-      }
-    }
-
-    splinePoints.push(points[points.length - 1])
-    return splinePoints
-  }
-
   function drawSmoothCurve(ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, dash?: number[]) {
     if (points.length < 2) return
-
-    const smoothedPoints = catmullRomSpline(points, 0.5, 20)
 
     ctx.strokeStyle = color
     ctx.lineWidth = width
@@ -87,10 +54,20 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     else ctx.setLineDash([])
 
     ctx.beginPath()
-    ctx.moveTo(smoothedPoints[0].x, smoothedPoints[0].y)
-    for (let i = 1; i < smoothedPoints.length; i++) {
-      ctx.lineTo(smoothedPoints[i].x, smoothedPoints[i].y)
+    ctx.moveTo(points[0].x, points[0].y)
+
+    for (let i = 1; i < points.length - 1; i++) {
+      const xc = (points[i].x + points[i + 1].x) / 2
+      const yc = (points[i].y + points[i + 1].y) / 2
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc)
     }
+
+    ctx.quadraticCurveTo(
+      points[points.length - 1].x,
+      points[points.length - 1].y,
+      points[points.length - 1].x,
+      points[points.length - 1].y
+    )
     ctx.stroke()
     ctx.setLineDash([])
   }

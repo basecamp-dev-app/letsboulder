@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { useRouteSelection, RoutePoint, catmullRomSpline, findRouteAtPoint } from '@/lib/useRouteSelection'
+import { useRouteSelection, RoutePoint, findRouteAtPoint } from '@/lib/useRouteSelection'
 import { Loader2, Share2, Twitter, Facebook, MessageCircle, Link2 } from 'lucide-react'
 import {
   Dialog,
@@ -100,15 +100,21 @@ export default function ClimbPage() {
     ctx.lineWidth = width
     ctx.setLineDash(isLogged ? [] : [8, 4])
 
-    const smoothedPoints = catmullRomSpline(points, 0.5, 20)
-
     ctx.beginPath()
-    ctx.moveTo(smoothedPoints[0].x, smoothedPoints[0].y)
+    ctx.moveTo(points[0].x, points[0].y)
 
-    for (let i = 1; i < smoothedPoints.length; i++) {
-      ctx.lineTo(smoothedPoints[i].x, smoothedPoints[i].y)
+    for (let i = 1; i < points.length - 1; i++) {
+      const xc = (points[i].x + points[i + 1].x) / 2
+      const yc = (points[i].y + points[i + 1].y) / 2
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc)
     }
 
+    ctx.quadraticCurveTo(
+      points[points.length - 1].x,
+      points[points.length - 1].y,
+      points[points.length - 1].x,
+      points[points.length - 1].y
+    )
     ctx.stroke()
     ctx.setLineDash([])
 
