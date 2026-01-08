@@ -27,6 +27,24 @@ const CircleMarker = dynamic(() => import('react-leaflet').then(mod => mod.Circl
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
 
+interface DefaultLocation {
+  lat: number
+  lng: number
+  zoom: number
+}
+
+// Component to watch for default location changes and center the map
+function DefaultLocationWatcher({ defaultLocation, mapRef }: { defaultLocation: DefaultLocation | null; mapRef: React.RefObject<L.Map | null> }) {
+  useEffect(() => {
+    if (defaultLocation && mapRef.current) {
+      console.log('DefaultLocationWatcher: Centering map on:', defaultLocation)
+      mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
+    }
+  }, [defaultLocation, mapRef])
+
+  return null
+}
+
 
 interface Climb {
   id: string
@@ -611,6 +629,7 @@ export default function SatelliteClimbingMap() {
   return (
     <div className="h-screen w-full relative">
       <MapContainer
+        ref={mapRef as any}
         center={worldCenter}
         zoom={zoom}
         style={{ height: '100%', width: '100%' }}
@@ -618,22 +637,35 @@ export default function SatelliteClimbingMap() {
         scrollWheelZoom={true}
         whenReady={() => {
           setMapLoaded(true)
-          const lat = searchParams.get('lat')
-          const lng = searchParams.get('lng')
-          const zoom = searchParams.get('zoom')
-          if (lat && lng && mapRef.current) {
-            const parsedLat = parseFloat(lat)
-            const parsedLng = parseFloat(lng)
-            const parsedZoom = zoom ? parseInt(zoom) : 15
-            if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
-              mapRef.current.setView([parsedLat, parsedLng], parsedZoom)
+          // Store map reference using a small delay to ensure it's ready
+          setTimeout(() => {
+            console.log('Map ready, defaultLocation:', defaultLocation)
+            
+            // Center on default location if set
+            if (defaultLocation && mapRef.current) {
+              console.log('Centering on default location:', defaultLocation)
+              mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
+            } else if (mapRef.current) {
+              // Check URL params for location
+              const lat = searchParams.get('lat')
+              const lng = searchParams.get('lng')
+              const zoomParam = searchParams.get('zoom')
+              if (lat && lng) {
+                const parsedLat = parseFloat(lat)
+                const parsedLng = parseFloat(lng)
+                const parsedZoom = zoomParam ? parseInt(zoomParam) : 15
+                if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+                  mapRef.current.setView([parsedLat, parsedLng], parsedZoom)
+                }
+              }
             }
-          }
+          }, 100)
         }}
       >
+        <DefaultLocationWatcher defaultLocation={defaultLocation} mapRef={mapRef} />
         <TileLayer
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          attribution='Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and others'
+          attribution='Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics and others'
           maxZoom={19}
           minZoom={1}
         />
