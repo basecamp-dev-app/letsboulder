@@ -95,94 +95,55 @@ async function extractGpsFromFile(file: File): Promise<{ latitude: number; longi
   }
 }
 
-function convertToDms(decimal: number): [number, number, number] {
+function degToDmsRational(decimal: number): [number, number][] {
   const absolute = Math.abs(decimal)
   const degrees = Math.floor(absolute)
-  const minutesNotTruncated = (absolute - degrees) * 60
-  const minutes = Math.floor(minutesNotTruncated)
-  const seconds = Math.round((minutesNotTruncated - minutes) * 60 * 100) / 100
-  return [degrees, minutes, seconds]
+  const minutesFloat = (absolute - degrees) * 60
+  const minutes = Math.floor(minutesFloat)
+  const seconds = Math.round((minutesFloat - minutes) * 60 * 100) / 100
+  return [[degrees, 1], [minutes, 1], [Math.round(seconds * 100), 100]]
 }
 
-function createExifSegment(latitude: number, longitude: number): Uint8Array | null {
-  try {
-    const piexifjs = require('piexifjs')
+async function injectGpsIntoJpeg(jpegBlob: Blob, latitude: number, longitude: number): Promise<Blob> {
+  const piexif = await import('piexifjs')
 
-    const latRef = latitude >= 0 ? 'N' : 'S'
-    const lngRef = longitude >= 0 ? 'E' : 'W'
+  const jpegDataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(jpegBlob)
+  })
 
-    const latDms = convertToDms(latitude)
-    const lngDms = convertToDms(longitude)
+  const latRef = latitude < 0 ? 'S' : 'N'
+  const lngRef = longitude < 0 ? 'W' : 'E'
 
-    const exifObj = {
-      '0th': {},
-      'Exif': {},
-      'GPS': {
-        'GPSVersionID': [2, 2, 0, 0],
-        'GPSLatitudeRef': latRef,
-        'GPSLatitude': [[latDms[0], 1], [latDms[1], 1], [Math.round(latDms[2] * 100), 100]],
-        'GPSLongitudeRef': lngRef,
-        'GPSLongitude': [[lngDms[0], 1], [lngDms[1], 1], [Math.round(lngDms[2] * 100), 100]]
-      }
-    }
+  const gps: Record<string, any> = {}
+  gps[piexif.GPSIFD.GPSVersionID] = [2, 2, 0, 0]
+  gps[piexif.GPSIFD.GPSLatitudeRef] = latRef
+  gps[piexif.GPSIFD.GPSLatitude] = degToDmsRational(Math.abs(latitude))
+  gps[piexif.GPSIFD.GPSLongitudeRef] = lngRef
+  gps[piexif.GPSIFD.GPSLongitude] = degToDmsRational(Math.abs(longitude))
 
-    const exifBytes = piexifjs.dump(exifObj)
-    return new Uint8Array(exifBytes)
-  } catch (err) {
-    console.error('Failed to create EXIF segment:', err)
-    return null
-  }
-}
-
-function insertExifIntoJpeg(jpegBytes: Uint8Array, exifBytes: Uint8Array): Uint8Array {
-  const exifMarker = 0xFFE1
-  const exifLength = exifBytes.length + 2
-
-  const newJpeg: number[] = []
-
-  let i = 0
-  while (i < jpegBytes.length) {
-    if (jpegBytes[i] === 0xFF && i + 1 < jpegBytes.length) {
-      const marker = (jpegBytes[i] << 8) | jpegBytes[i + 1]
-
-      if (marker === 0xFFD8) {
-        newJpeg.push(0xFF, 0xD8)
-        i += 2
-      } else if (marker === 0xFFD9) {
-        break
-      } else if (marker === 0xFFE0) {
-        const length = (jpegBytes[i + 2] << 8) | jpegBytes[i + 3]
-        for (let j = 0; j < 4 + length; j++) {
-          newJpeg.push(jpegBytes[i + j])
-        }
-        i += 4 + length
-      } else if (marker === exifMarker) {
-        const length = (jpegBytes[i + 2] << 8) | jpegBytes[i + 3]
-        for (let j = 0; j < 4 + length; j++) {
-          newJpeg.push(jpegBytes[i + j])
-        }
-        i += 4 + length
-      } else {
-        const length = (jpegBytes[i + 2] << 8) | jpegBytes[i + 3]
-        for (let j = 0; j < 4 + length; j++) {
-          newJpeg.push(jpegBytes[i + j])
-        }
-        i += 4 + length
-      }
-    } else {
-      newJpeg.push(jpegBytes[i])
-      i++
-    }
+  const exifObj = {
+    '0th': {},
+    'Exif': {},
+    'GPS': gps,
+    'Interop': {},
+    '1st': {},
+    'thumbnail': undefined
   }
 
-  newJpeg.push(0xFF, 0xE1)
-  newJpeg.push((exifLength >> 8) & 0xFF, exifLength & 0xFF)
-  for (let j = 0; j < exifBytes.length; j++) {
-    newJpeg.push(exifBytes[j])
-  }
-  newJpeg.push(0xFF, 0xD9)
+  const exifBytes = piexif.dump(exifObj)
+  const newJpegDataUrl = piexif.insert(exifBytes, jpegDataUrl)
 
-  return new Uint8Array(newJpeg)
+  const newBlob = await new Promise<Blob>((resolve, reject) => {
+    fetch(newJpegDataUrl)
+      .then(res => res.blob())
+      .then(blob => resolve(blob))
+      .catch(reject)
+  })
+
+  return newBlob
 }
 
 async function convertHeicToJpeg(file: File): Promise<File> {
@@ -198,17 +159,7 @@ async function convertHeicToJpeg(file: File): Promise<File> {
   const convertedBlob = await heic2any({ blob, toType: 'image/jpeg', quality: 0.9 })
   const convertedArray = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
 
-  const exifBytes = createExifSegment(gpsData.latitude, gpsData.longitude)
-  if (!exifBytes) {
-    throw new Error('Failed to create GPS EXIF data')
-  }
-
-  const jpegBuffer = await convertedArray.arrayBuffer()
-  const jpegBytes = new Uint8Array(jpegBuffer)
-
-  const finalJpegBytes = insertExifIntoJpeg(jpegBytes, exifBytes)
-
-  const finalBlob = new Blob([finalJpegBytes as unknown as ArrayBuffer], { type: 'image/jpeg' })
+  const finalBlob = await injectGpsIntoJpeg(convertedArray, gpsData.latitude, gpsData.longitude)
 
   return new File([finalBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), {
     type: 'image/jpeg',
