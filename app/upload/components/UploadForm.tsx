@@ -84,21 +84,10 @@ async function extractGpsFromFile(file: File): Promise<{ latitude: number; longi
   try {
     const exifr = (await import('exifr')).default
     const buffer = await file.arrayBuffer()
-
-    console.log('Parsing EXIF from file:', file.name, 'type:', file.type)
-
     const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true })
 
-    console.log('EXIF data keys:', Object.keys(exifData || {}))
-    console.log('GPSLatitude:', exifData?.GPSLatitude)
-    console.log('GPSLongitude:', exifData?.GPSLongitude)
-    console.log('latitude:', exifData?.latitude)
-    console.log('longitude:', exifData?.longitude)
-
     if (exifData?.latitude && exifData?.longitude) {
-      const result = { latitude: exifData.latitude, longitude: exifData.longitude }
-      console.log('GPS extracted:', result)
-      return result
+      return { latitude: exifData.latitude, longitude: exifData.longitude }
     }
 
     if (exifData?.GPSLatitude && exifData?.GPSLongitude) {
@@ -117,13 +106,10 @@ async function extractGpsFromFile(file: File): Promise<{ latitude: number; longi
       const longitude = parseDmsRational(exifData.GPSLongitude) * lngMultiplier
 
       if (!isNaN(latitude) && !isNaN(longitude)) {
-        const result = { latitude, longitude }
-        console.log('GPS extracted from DMS:', result)
-        return result
+        return { latitude, longitude }
       }
     }
 
-    console.log('No GPS data found')
     return null
   } catch (err) {
     console.error('GPS extraction error:', err)

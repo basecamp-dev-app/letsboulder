@@ -1,13 +1,14 @@
 import NameRoutesForm from './components/NameRoutesForm'
 
 interface NameRoutesPageProps {
-  searchParams: {
+  searchParams: Promise<{
     sessionId: string
-  }
+  }>
 }
 
-export default function NameRoutesPage({ searchParams }: NameRoutesPageProps) {
-  const { sessionId } = searchParams
+export default async function NameRoutesPage({ searchParams }: NameRoutesPageProps) {
+  const params = await searchParams
+  const { sessionId } = params
 
   return (
     <div className="container mx-auto px-4 py-8">
