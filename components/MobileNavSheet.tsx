@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
@@ -109,9 +108,9 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
 
           {user ? (
             <button
-              onClick={() => handleNavigation('/profile')}
+              onClick={() => handleNavigation('/logbook')}
               className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-colors ${
-                pathname === '/profile'
+                pathname === '/logbook'
                   ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}

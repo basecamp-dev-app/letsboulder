@@ -6,9 +6,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { User } from '@supabase/supabase-js'
 
-export default function ContributePage() {
-  const [user, setUser] = useState<any>(null)
+export default function UploadClimbPage() {
+  const [user, setUser] = useState<User | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -20,7 +21,7 @@ export default function ContributePage() {
     getUser()
   }, [])
 
-  const handleStartContributing = async () => {
+  const handleStartUpload = async () => {
     if (!user) {
       router.push('/auth')
     } else {
@@ -30,31 +31,31 @@ export default function ContributePage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Contribute to Gsyrocks</h1>
-      
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Upload a Climb</h1>
+
       <Card className="max-w-md mx-auto">
         <CardHeader>
-          <CardTitle className="text-center">Help Grow the Database</CardTitle>
+          <CardTitle className="text-center">Share Your Climbs</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-center text-gray-600 dark:text-gray-400">
-            Take photos of missing climbs or report errors to help improve the database for everyone.
+            Take photos of new routes or report errors to help grow the database for everyone.
           </p>
-          
+
           <Button
-            onClick={handleStartContributing}
+            onClick={handleStartUpload}
             className="w-full"
           >
-            Start Contributing
+            Upload a Climb
           </Button>
-          
+
           <a
             href="mailto:hello@gsyrocks.com"
             className="block w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-center"
           >
             Feedback
           </a>
-          
+
           <Link
             href="/about"
             className="block w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-center"

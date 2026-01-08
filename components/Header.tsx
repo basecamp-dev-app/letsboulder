@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { User } from '@supabase/supabase-js'
 
 interface SearchResult {
   type: 'crag' | 'climb'
@@ -15,27 +16,43 @@ interface SearchResult {
   longitude?: number
 }
 
+interface CragData {
+  id: string
+  name: string
+  latitude: number | null
+  longitude: number | null
+}
+
+const MORE_MENU_ITEMS = [
+  { label: 'Leaderboard', href: '/leaderboard' },
+  { label: 'About', href: '/about' },
+  { label: 'Settings', href: '/settings' },
+  { label: 'Profile', href: '/logbook' },
+]
+
+const MORE_MENU_ITEMS_WITH_TYPES: { label: string; href: string }[] = MORE_MENU_ITEMS
+
 export default function Header() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [showDropdown, setShowDropdown] = useState(false)
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [showMoreDropdown, setShowMoreDropdown] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  const moreRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
   useEffect(() => {
     const supabase = createClient()
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      console.log('Header: got user', user)
       setUser(user)
     }
     getUser()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        console.log('Header: auth state change', _event, session?.user)
         setUser(session?.user ?? null)
       }
     )
@@ -46,7 +63,10 @@ export default function Header() {
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowDropdown(false)
+        setShowSearchDropdown(false)
+      }
+      if (moreRef.current && !moreRef.current.contains(event.target as Node)) {
+        setShowMoreDropdown(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -71,14 +91,16 @@ export default function Header() {
       .limit(5)
 
     if (cragsData) {
-      cragsData.forEach((crag: any) => {
-        results.push({
-          type: 'crag',
-          id: crag.id,
-          name: crag.name,
-          latitude: crag.latitude,
-          longitude: crag.longitude
-        })
+      cragsData.forEach((crag: CragData) => {
+        if (crag.name && crag.latitude !== null && crag.longitude !== null) {
+          results.push({
+            type: 'crag',
+            id: crag.id,
+            name: crag.name,
+            latitude: crag.latitude,
+            longitude: crag.longitude
+          })
+        }
       })
     }
 
@@ -90,14 +112,15 @@ export default function Header() {
       .limit(10)
 
     if (climbsData) {
-      climbsData.forEach((climb: any) => {
+      climbsData.forEach((climb) => {
+        const crag = climb.crags?.[0]
         results.push({
           type: 'climb',
           id: climb.id,
           name: climb.name,
-          crag_name: climb.crags?.name,
-          latitude: climb.crags?.latitude,
-          longitude: climb.crags?.longitude
+          crag_name: crag?.name,
+          latitude: crag?.latitude ?? undefined,
+          longitude: crag?.longitude ?? undefined
         })
       })
     }
@@ -109,12 +132,12 @@ export default function Header() {
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value
     setSearchQuery(query)
-    setShowDropdown(true)
+    setShowSearchDropdown(true)
     searchClimbsAndCrags(query)
   }
 
   const handleResultClick = (result: SearchResult) => {
-    setShowDropdown(false)
+    setShowSearchDropdown(false)
     setSearchQuery('')
     if (result.type === 'climb' && result.latitude && result.longitude) {
       router.push(`/map?lat=${result.latitude}&lng=${result.longitude}&zoom=16&climbId=${result.id}`)
@@ -132,10 +155,10 @@ export default function Header() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow dark:shadow-none">
-      <div className="container mx-auto px-4 py-2 flex justify-between items-center">
-        <Link href="/" className="flex items-center -my-2 hidden md:block">
-          <div className="relative w-16 h-16">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none">
+      <div className="container mx-auto px-4 py-3 flex justify-between items-center gap-4">
+        <Link href="/" className="flex items-center flex-shrink-0">
+          <div className="relative w-12 h-12">
             <Image
               src="/og.png"
               alt="gsyrocks"
@@ -146,21 +169,21 @@ export default function Header() {
           </div>
         </Link>
 
-        <div ref={searchRef} className="relative flex-1 max-w-md mx-4">
+        <div ref={searchRef} className="relative flex-1 max-w-md">
           <input
             type="text"
             placeholder="Search crags or climbs..."
             value={searchQuery}
             onChange={handleSearchChange}
-            onFocus={() => setShowDropdown(true)}
-            className="w-full px-4 py-2 border border-gray-400 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+            onFocus={() => setShowSearchDropdown(true)}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           />
           {isSearching && (
             <div className="absolute right-3 top-1/2 -translate-y-1/2">
               <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
             </div>
           )}
-          {showDropdown && searchResults.length > 0 && (
+          {showSearchDropdown && searchResults.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50">
               {searchResults.map((result) => (
                 <button
@@ -178,42 +201,68 @@ export default function Header() {
               ))}
             </div>
           )}
-          {showDropdown && searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
+          {showSearchDropdown && searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center text-gray-500 dark:text-gray-400 z-50">
               No results found
             </div>
           )}
         </div>
 
-        <nav className="hidden md:flex items-center space-x-4">
-          <Link href="/logbook" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+        <nav className="hidden md:flex items-center gap-1">
+          <Link href="/logbook" className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Logbook
           </Link>
-          <Link href="/map" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+          <Link href="/map" className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Map
           </Link>
-          <Link href="/contribute" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-            Contribute
+          <Link href="/upload-climb" className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            Upload
           </Link>
-          <Link href="/leaderboard" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-            Leaderboard
-          </Link>
-          {user ? (
-            <>
-                <button
-                  onClick={handleLogout}
-                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                >
-                  Logout
-                </button>
-              </>
-           ) : (
-             <>
-               <Link href="/auth" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-                 Login
-               </Link>
-             </>
-           )}
+          <div ref={moreRef} className="relative">
+            <button
+              onClick={() => setShowMoreDropdown(!showMoreDropdown)}
+              className="flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              More
+              <svg className={`w-4 h-4 transition-transform ${showMoreDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showMoreDropdown && (
+              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-40 z-50">
+                {MORE_MENU_ITEMS_WITH_TYPES.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setShowMoreDropdown(false)}
+                    className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+                <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                {user ? (
+                  <button
+                    onClick={() => {
+                      setShowMoreDropdown(false)
+                      handleLogout()
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  >
+                    Logout
+                  </button>
+                ) : (
+                  <Link
+                    href="/auth"
+                    onClick={() => setShowMoreDropdown(false)}
+                    className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  >
+                    Login
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
         </nav>
       </div>
     </header>
