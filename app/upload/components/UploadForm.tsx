@@ -95,7 +95,7 @@ async function extractGpsFromFile(file: File): Promise<{ latitude: number; longi
   }
 }
 
-function convertToDms(decimal: number, isLatitude: boolean): [number, number, number] {
+function convertToDms(decimal: number): [number, number, number] {
   const absolute = Math.abs(decimal)
   const degrees = Math.floor(absolute)
   const minutesNotTruncated = (absolute - degrees) * 60
@@ -104,32 +104,38 @@ function convertToDms(decimal: number, isLatitude: boolean): [number, number, nu
   return [degrees, minutes, seconds]
 }
 
+function createGpsExif(latitude: number, longitude: number): object {
+  const latRef = latitude >= 0 ? 'N' : 'S'
+  const lngRef = longitude >= 0 ? 'E' : 'W'
+
+  const latDms = convertToDms(latitude)
+  const lngDms = convertToDms(longitude)
+
+  return {
+    'GPS': {
+      'GPSVersionID': [2, 2, 0, 0],
+      'GPSLatitudeRef': latRef,
+      'GPSLatitude': [[latDms[0], 1], [latDms[1], 1], [Math.round(latDms[2] * 100), 100]],
+      'GPSLongitudeRef': lngRef,
+      'GPSLongitude': [[lngDms[0], 1], [lngDms[1], 1], [Math.round(lngDms[2] * 100), 100]]
+    }
+  }
+}
+
 function injectGpsIntoJpeg(jpegDataUrl: string, latitude: number, longitude: number): string | null {
   try {
     const piexifjs = require('piexifjs')
 
-    if (!jpegDataUrl || !jpegDataUrl.startsWith('data:image/jpeg')) {
-      console.error('Invalid JPEG data URL format')
+    if (!jpegDataUrl || typeof jpegDataUrl !== 'string') {
+      console.error('Invalid JPEG data URL')
       return null
     }
 
-    const latRef = latitude >= 0 ? 'N' : 'S'
-    const lngRef = longitude >= 0 ? 'E' : 'W'
-
-    const latDms = convertToDms(latitude, true)
-    const lngDms = convertToDms(longitude, false)
-
-    const exifObj = {
-      GPS: {
-        GPSLatitude: [latDms, [latDms[2] * 100, 100, 100]] as any,
-        GPSLatitudeRef: latRef,
-        GPSLongitude: [lngDms, [lngDms[2] * 100, 100, 100]] as any,
-        GPSLongitudeRef: lngRef
-      }
-    }
-
+    const exifObj = createGpsExif(latitude, longitude)
     const exifBytes = piexifjs.dump(exifObj)
-    return piexifjs.insert(exifBytes, jpegDataUrl)
+    const newJpegDataUrl = piexifjs.insert(exifBytes, jpegDataUrl)
+
+    return newJpegDataUrl
   } catch (err) {
     console.error('GPS injection failed:', err)
     return null
@@ -139,26 +145,25 @@ function injectGpsIntoJpeg(jpegDataUrl: string, latitude: number, longitude: num
 async function convertHeicToJpeg(file: File): Promise<File> {
   const gpsData = await extractGpsFromFile(file)
 
+  if (!gpsData) {
+    throw new Error('No GPS data found in image. Please ensure GPS is enabled when taking the photo.')
+  }
+
   const heic2any = (await import('heic2any')).default
   const arrayBuffer = await file.arrayBuffer()
   const blob = new Blob([arrayBuffer], { type: file.type })
   const convertedBlob = await heic2any({ blob, toType: 'image/jpeg', quality: 0.9 })
   const convertedArray = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob
 
-  let jpegDataUrl = await blobToDataURL(convertedArray)
+  const jpegDataUrl = await blobToDataURL(convertedArray)
 
-  if (gpsData) {
-    try {
-      const result = injectGpsIntoJpeg(jpegDataUrl, gpsData.latitude, gpsData.longitude)
-      if (result) {
-        jpegDataUrl = result
-      }
-    } catch (err) {
-      console.error('GPS injection error:', err)
-    }
+  const result = injectGpsIntoJpeg(jpegDataUrl, gpsData.latitude, gpsData.longitude)
+
+  if (!result) {
+    throw new Error('Failed to inject GPS data into image')
   }
 
-  const jpegBlob = dataURLToBlob(jpegDataUrl)
+  const jpegBlob = dataURLToBlob(result)
   return new File([jpegBlob], file.name.replace(/\.heic$/i, '.jpg').replace(/\.heif$/i, '.jpg'), {
     type: 'image/jpeg',
     lastModified: Date.now()
