@@ -80,7 +80,45 @@ function dataURLToBlob(dataURL: string): Blob {
   return new Blob([u8arr], { type: mime })
 }
 
+async function extractGpsFromHeic(file: File): Promise<{ latitude: number; longitude: number } | null> {
+  try {
+    const { findEXIFinHEIC } = await import('exif-heic-js')
+    const buffer = await file.arrayBuffer()
+    const exifData = findEXIFinHEIC(buffer)
+
+    if (exifData && exifData.GPSInfo) {
+      const gpsInfo = exifData.GPSInfo
+      const latRef = gpsInfo.GPSLatitudeRef === 'N' ? 1 : -1
+      const lngRef = gpsInfo.GPSLongitudeRef === 'E' ? 1 : -1
+
+      const parseRational = (arr: number[] | undefined): number => {
+        if (!arr || !Array.isArray(arr) || arr.length < 3) return 0
+        return (arr[0] / arr[1]) + (arr[2] / arr[3]) / 60
+      }
+
+      const latitude = parseRational(gpsInfo.GPSLatitude) * latRef
+      const longitude = parseRational(gpsInfo.GPSLongitude) * lngRef
+
+      if (latitude && longitude && !isNaN(latitude) && !isNaN(longitude)) {
+        return { latitude, longitude }
+      }
+    }
+    return null
+  } catch (err) {
+    console.error('exif-heic-js GPS extraction error:', err)
+    return null
+  }
+}
+
 async function extractGpsFromFile(file: File): Promise<{ latitude: number; longitude: number } | null> {
+  const name = file.name.toLowerCase()
+  const isHeic = name.endsWith('.heic') || name.endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif'
+
+  if (isHeic) {
+    const heicGps = await extractGpsFromHeic(file)
+    if (heicGps) return heicGps
+  }
+
   try {
     const exifr = (await import('exifr')).default
     const buffer = await file.arrayBuffer()
@@ -90,7 +128,7 @@ async function extractGpsFromFile(file: File): Promise<{ latitude: number; longi
     }
     return null
   } catch (err) {
-    console.error('GPS extraction error:', err)
+    console.error('exifr GPS extraction error:', err)
     return null
   }
 }
