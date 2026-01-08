@@ -1,4 +1,4 @@
-import RouteCanvas from './components/RouteCanvas'
+import RouteEditor from './components/RouteEditor'
 
 interface DrawPageProps {
   searchParams: Promise<{
@@ -23,7 +23,7 @@ export default async function DrawPage({ searchParams }: DrawPageProps) {
 
   return (
     <div className="h-screen">
-      <RouteCanvas
+      <RouteEditor
         imageUrl={imageUrl}
         latitude={parseFloat(lat)}
         longitude={parseFloat(lng)}
