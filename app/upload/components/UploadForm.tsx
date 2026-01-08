@@ -182,13 +182,7 @@ async function injectGpsIntoJpeg(jpegBlob: Blob, latitude: number, longitude: nu
   return newBlob
 }
 
-async function convertHeicToJpeg(file: File): Promise<File> {
-  const gpsData = await extractGpsFromFile(file)
-
-  if (!gpsData) {
-    throw new Error('No GPS data found in image. Please ensure GPS is enabled when taking the photo.')
-  }
-
+async function convertHeicToJpeg(file: File, gpsData: { latitude: number; longitude: number }): Promise<File> {
   const heic2any = (await import('heic2any')).default
   const arrayBuffer = await file.arrayBuffer()
   const blob = new Blob([arrayBuffer], { type: file.type })
@@ -302,17 +296,28 @@ export default function UploadForm() {
       return
     }
 
-    // Extract capture date from original file
+    // Extract capture date and GPS from original file
     const captureDate = await extractCaptureDate(selectedFile)
     setImageCaptureDate(captureDate)
+
+    let gpsData: { latitude: number; longitude: number } | null = null
 
     // Convert HEIC to JPEG if needed
     let fileToProcess = selectedFile
     if (isHeicFile(selectedFile)) {
       try {
-        setCurrentStep('Converting HEIC...')
+        setCurrentStep('Extracting GPS from HEIC...')
         setProgress(5)
-        fileToProcess = await convertHeicToJpeg(selectedFile)
+        gpsData = await extractGpsFromFile(selectedFile)
+
+        if (!gpsData) {
+          setError('No GPS data found in image. Please ensure GPS is enabled when taking the photo.')
+          return
+        }
+
+        setCurrentStep('Converting HEIC...')
+        setProgress(10)
+        fileToProcess = await convertHeicToJpeg(selectedFile, gpsData)
       } catch (err) {
         console.error('HEIC conversion error:', err)
         setError('Failed to convert HEIC image. Please try converting it to JPEG on your device first.')
