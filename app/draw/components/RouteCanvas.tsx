@@ -137,38 +137,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
   ): { x: number; y: number } {
     const midIndex = Math.floor(points.length / 2)
     const midPoint = points[midIndex]
-
-    let perpDx = 0, perpDy = 0
-    if (points.length >= 3) {
-      const prevPoint = points[Math.max(0, midIndex - 1)]
-      const nextPoint = points[Math.min(points.length - 1, midIndex + 1)]
-      const dx = nextPoint.x - prevPoint.x
-      const dy = nextPoint.y - prevPoint.y
-      const len = Math.sqrt(dx * dx + dy * dy)
-      if (len > 0) {
-        perpDx = -dy / len
-        perpDy = dx / len
-      }
-    } else if (points.length === 2) {
-      const dx = points[1].x - points[0].x
-      const dy = points[1].y - points[0].y
-      const len = Math.sqrt(dx * dx + dy * dy)
-      if (len > 0) {
-        perpDx = -dy / len
-        perpDy = dx / len
-      }
-    }
-
-    const offset = 12
-    const testX = midPoint.x + perpDx * offset
-    const testY = midPoint.y + perpDy * offset
-
-    const margin = 30
-    if (testX > margin && testX < canvasWidth - margin && testY > margin && testY < canvasHeight - margin) {
-      return { x: testX, y: testY }
-    }
-
-    return { x: midPoint.x, y: midPoint.y - 15 }
+    
+    return { x: midPoint.x, y: midPoint.y - 10 }
   }
 
   function getNameLabelPosition(
@@ -178,27 +148,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     ctx: CanvasRenderingContext2D
   ): { x: number; y: number } {
     const lastPoint = points[points.length - 1]
-    const secondLastPoint = points[points.length - 2]
-
-    const dx = lastPoint.x - secondLastPoint.x
-    const dy = lastPoint.y - secondLastPoint.y
-    const len = Math.sqrt(dx * dx + dy * dy)
-    let perpDx = 0, perpDy = 0
-    if (len > 0) {
-      perpDx = -dy / len
-      perpDy = dx / len
-    }
-
-    const offset = 10
-    const testX = lastPoint.x + perpDx * offset
-    const testY = lastPoint.y + perpDy * offset
-
-    const margin = 30
-    if (testX > margin && testX < canvasWidth - margin && testY > margin && testY < canvasHeight - margin) {
-      return { x: testX, y: testY }
-    }
-
-    return { x: lastPoint.x + 15, y: lastPoint.y + 5 }
+    
+    return { x: lastPoint.x + 12, y: lastPoint.y + 5 }
   }
 
   function getTruncatedText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
