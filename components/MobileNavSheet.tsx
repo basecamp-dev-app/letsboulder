@@ -104,7 +104,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
               </span>
               <span className="font-medium">{item.label}</span>
             </button>
-          ))}
+            ))}
 
           {user ? (
             <button
