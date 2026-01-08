@@ -95,14 +95,14 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
 
   const drawRouteWithLabels = (ctx: CanvasRenderingContext2D, route: RouteWithLabels, scaleX = 1, scaleY = 1, isHighlighted = false) => {
     const { points, grade, name, id } = route
-    const isSelected = selectedIds.includes(id)
+    const isSelectedRoute = selectedIds.includes(id)
 
     const scaledPoints = points.map(point => ({
       x: point.x * scaleX,
       y: point.y * scaleY
     }))
 
-    if (isSelected || isHighlighted) {
+    if (isSelectedRoute || isHighlighted) {
       ctx.shadowColor = '#fbbf24'
       ctx.shadowBlur = 10
       drawSmoothCurve(ctx, scaledPoints, '#fbbf24', 5, [8, 4])
@@ -112,51 +112,43 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     drawSmoothCurve(ctx, scaledPoints, 'red', 3, [8, 4])
 
     if (scaledPoints.length > 1) {
-      // Calculate midpoint for grade
       const midIndex = Math.floor(scaledPoints.length / 2)
       const gradePoint = scaledPoints[midIndex]
 
-      // Draw grade label with red background
       ctx.font = 'bold 14px Arial'
       const gradeWidth = ctx.measureText(grade).width
-      const gradeHeight = 16 // Approximate text height including ascenders/descenders
+      const gradeHeight = 16
       const gradePadding = 2
 
-      // Draw red background - center on the text position
       ctx.fillStyle = 'red'
       ctx.fillRect(
         gradePoint.x - gradeWidth/2 - gradePadding,
-        gradePoint.y - gradeHeight/2 - 2, // Center vertically on text
+        gradePoint.y - gradeHeight/2 - 2,
         gradeWidth + gradePadding * 2,
         gradeHeight
       )
 
-      // Draw white text
       ctx.fillStyle = 'white'
       ctx.textAlign = 'center'
-      ctx.fillText(grade, gradePoint.x, gradePoint.y + 4) // Adjust baseline
+      ctx.fillText(grade, gradePoint.x, gradePoint.y + 4)
 
-      // Calculate end point for name (bottom of climb)
       const lastPoint = scaledPoints[scaledPoints.length - 1]
-      const nameX = lastPoint.x + 15 // Position to the right of endpoint
+      const nameX = lastPoint.x + 15
       const nameY = lastPoint.y + 5
 
-      // Draw name label with red background
       ctx.font = '12px Arial'
       const nameWidth = ctx.measureText(name).width
-      const nameHeight = 14 // Approximate text height
+      const nameHeight = 14
       const namePadding = 2
 
-      // Draw red background - position properly around text
       ctx.fillStyle = 'red'
       ctx.fillRect(
         nameX - namePadding,
-        nameY - nameHeight + 3, // Adjust to properly contain text
+        nameY - nameHeight + 3,
         nameWidth + namePadding * 2,
         nameHeight
       )
 
-      // Draw white text
       ctx.fillStyle = 'white'
       ctx.textAlign = 'left'
       ctx.fillText(name, nameX, nameY)
@@ -173,49 +165,37 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // Since canvas is now sized to match displayed image, scale directly
     const scaleX = canvas.width / image.naturalWidth
     const scaleY = canvas.height / image.naturalHeight
 
-    // Draw completed routes with labels, scaled to display size
     routes.forEach(route => {
       const isRouteSelected = selectedIds.includes(route.id)
       drawRouteWithLabels(ctx, route, scaleX, scaleY, isRouteSelected)
     })
 
-    // Draw current points (scaled)
     if (currentPoints.length > 0) {
-      // Scale current points to display size
-      const scaledCurrentPoints = currentPoints.map(point => ({
-        x: point.x * scaleX,
-        y: point.y * scaleY
-      }))
-
-      // Draw points
       ctx.fillStyle = 'blue'
-      scaledCurrentPoints.forEach(point => {
+      currentPoints.forEach(point => {
         ctx.beginPath()
         ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI)
         ctx.fill()
       })
 
-      // Draw connecting dotted curve
-      if (scaledCurrentPoints.length > 1) {
-        drawSmoothCurve(ctx, scaledCurrentPoints, 'blue', 2, [5, 5])
+      if (currentPoints.length > 1) {
+        drawSmoothCurve(ctx, currentPoints, 'blue', 2, [5, 5])
       }
 
-      // Preview labels for current route
-      if (scaledCurrentPoints.length > 1 && currentGrade && currentName) {
+      if (currentPoints.length > 1 && currentGrade && currentName) {
         const previewRoute: RouteWithLabels = {
           id: 'preview',
-          points: scaledCurrentPoints,
+          points: currentPoints,
           grade: currentGrade,
           name: currentName
         }
-        drawRouteWithLabels(ctx, previewRoute)
+        drawRouteWithLabels(ctx, previewRoute, 1, 1)
       }
     }
-   }, [routes, currentPoints, currentGrade, currentName, imageUrl])
+   }, [routes, currentPoints, currentGrade, currentName, imageUrl, selectedIds])
 
   useEffect(() => {
     if (imageLoaded) redraw()
@@ -230,7 +210,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     if (!ctx) return
 
     const handleImageLoad = () => {
-      // Size and position canvas to match the actual displayed image
       const container = canvas.parentElement
       if (container) {
         const containerRect = container.getBoundingClientRect()
@@ -239,18 +218,15 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
 
         let displayWidth, displayHeight, offsetX = 0, offsetY = 0
         if (imageAspect > containerAspect) {
-          // Image is wider than container - fit by width, center vertically
           displayWidth = containerRect.width
           displayHeight = containerRect.width / imageAspect
           offsetY = (containerRect.height - displayHeight) / 2
         } else {
-          // Image is taller than container - fit by height, center horizontally
           displayHeight = containerRect.height
           displayWidth = containerRect.height * imageAspect
           offsetX = (containerRect.width - displayWidth) / 2
         }
 
-        // Position canvas to match image position
         canvas.style.left = `${offsetX}px`
         canvas.style.top = `${offsetY}px`
         canvas.width = displayWidth
@@ -267,25 +243,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     }
 
     return () => image.removeEventListener('load', handleImageLoad)
-  }, [imageUrl])
+  }, [imageUrl, redraw])
 
-
-
-
-
-
-
-
-  const getMousePos = (e: React.MouseEvent) => {
-    const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
-
-    const rect = canvas.getBoundingClientRect()
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    }
-  }
 
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current
@@ -316,37 +275,29 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
         setCurrentGrade(clickedRoute.grade)
       }
     } else {
-      setCurrentPoints(prev => [...prev, { x, y }])
+      setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
       deselectRoute(selectedIds[0] || '')
       setSelectedRouteIndex(null)
     }
   }, [routes, selectedIds, selectRoute, deselectRoute])
 
   const handleCanvasTouch = useCallback((e: React.TouchEvent) => {
-    e.preventDefault() // Prevent scrolling/zooming
+    e.preventDefault()
     const canvas = canvasRef.current
     const image = imageRef.current
     if (!canvas || !image) return
 
     const touch = e.changedTouches[0]
 
-    // Get touch coordinates relative to canvas
     const canvasRect = canvas.getBoundingClientRect()
     const canvasX = touch.clientX - canvasRect.left
     const canvasY = touch.clientY - canvasRect.top
 
-    // Validate touch is within canvas bounds
     if (canvasX < 0 || canvasX > canvas.width || canvasY < 0 || canvasY > canvas.height) {
-      return // Touch outside canvas, ignore
+      return
     }
 
-    // Scale coordinates from display size to natural image size
-    const scaleX = image.naturalWidth / canvas.width
-    const scaleY = image.naturalHeight / canvas.height
-    const x = canvasX * scaleX
-    const y = canvasY * scaleY
-
-    setCurrentPoints(prev => [...prev, { x, y }])
+    setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
   }, [])
 
   const handleFinishRoute = useCallback(() => {
@@ -354,9 +305,18 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     if (currentPoints.length > 1) {
       const routeName = currentName.trim() || `Route ${routes.length + 1}`
       console.log('Finishing route:', routeName, currentGrade, currentPoints.length, 'points')
+
+      const scaleX = canvasRef.current ? canvasRef.current.width / (imageRef.current?.naturalWidth || 1) : 1
+      const scaleY = canvasRef.current ? canvasRef.current.height / (imageRef.current?.naturalHeight || 1) : 1
+
+      const naturalPoints = currentPoints.map(p => ({
+        x: p.x / scaleX,
+        y: p.y / scaleY
+      }))
+
       const newRoute: RouteWithLabels = {
         id: generateRouteId(),
-        points: [...currentPoints],
+        points: naturalPoints,
         grade: currentGrade,
         name: routeName
       }
@@ -381,7 +341,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
         console.log('Cannot finish: need 2+ points')
       }
     }
-  }, [currentPoints, currentName])
+  }, [currentPoints, currentName, handleFinishRoute])
 
 
 
@@ -394,10 +354,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
 
   const handleUndo = () => {
     if (currentPoints.length > 0) {
-      // Undo last point if currently drawing
       setCurrentPoints(prev => prev.slice(0, -1))
     } else if (routes.length > 0) {
-      // Undo last route if no current drawing
       setRoutes(prev => prev.slice(0, -1))
       if (selectedRouteIndex !== null && selectedRouteIndex >= routes.length - 1) {
         setSelectedRouteIndex(null)
@@ -411,7 +369,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
       alert('Please finish at least one route before saving')
       return
     }
-    // Save routes to localStorage for now, redirect to naming
     const routeData = {
       imageUrl,
       latitude,
@@ -436,7 +393,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     setSelectedRouteIndex(index)
     setCurrentName(route.name)
     setCurrentGrade(route.grade)
-    setCurrentPoints([]) // Clear current drawing
+    setCurrentPoints([])
   }
 
   const handleUpdateRoute = () => {
@@ -453,7 +410,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
 
     return (
     <div className="h-screen flex flex-col relative overflow-hidden bg-gray-900 dark:bg-gray-950">
-      {/* Image container - fills available space, no cropping */}
       <div className="flex-1 relative overflow-hidden flex items-center justify-center">
         <img
           ref={imageRef}
@@ -470,10 +426,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
         />
       </div>
 
-      {/* Compact controls overlay */}
       <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-3">
         <div className="flex flex-col gap-2 w-full max-w-md mx-auto">
-          {/* Top row: Name input and grade */}
           <div className="flex gap-2">
             <input
               type="text"
@@ -491,7 +445,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
             />
           </div>
 
-          {/* Second row: Action buttons */}
           <div className="flex gap-1">
             <button
               onClick={handleFinishRoute}
@@ -524,7 +477,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
             )}
           </div>
 
-          {/* Third row: Save button */}
           <button
             onClick={handleSave}
             className="bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
@@ -533,7 +485,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
             Save & Continue ({routes.length})
           </button>
 
-          {/* Routes list */}
           {routes.length > 0 && (
             <div className="mt-2 border-t border-gray-200 dark:border-gray-700 pt-2">
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Click a route to select:</p>
@@ -567,7 +518,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
             </div>
           )}
 
-          {/* Routes count */}
           {routes.length > 0 && (
             <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
               {routes.length} route{routes.length !== 1 ? 's' : ''} drawn

@@ -293,7 +293,7 @@ function getNextGradePoints(grade: string): number {
 function getGradeFromPoints(points: number): string {
   const grades = ['6A', '6A+', '6B', '6B+', '6C', '6C+', '7A', '7A+', '7B', '7B+', '7C', '7C+', '8A', '8A+', '8B', '8B+', '8C', '8C+']
   const pointsMap: Record<string, number> = {}
-  let basePoints = 100
+  const basePoints = 100
   grades.forEach((grade, i) => {
     pointsMap[grade] = basePoints + (i * 15)
   })
