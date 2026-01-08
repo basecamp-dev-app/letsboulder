@@ -82,57 +82,51 @@ function dataURLToBlob(dataURL: string): Blob {
 
 async function extractGpsFromFile(file: File): Promise<{ latitude: number; longitude: number } | null> {
   try {
-    const ExifReader = (await import('exifreader')).default
-    const tags = await ExifReader.load(file)
+    const exifr = (await import('exifr')).default
+    const buffer = await file.arrayBuffer()
 
-    const gpsTag = tags.GPS
-    if (gpsTag && gpsTag.description) {
-      const gpsDescription = gpsTag.description
-      const match = gpsDescription.match(/([-\d.]+)[,\s]+([-\d.]+)/)
-      if (match) {
-        const latitude = parseFloat(match[1])
-        const longitude = parseFloat(match[2])
-        if (!isNaN(latitude) && !isNaN(longitude)) {
-          return { latitude, longitude }
-        }
-      }
+    console.log('Parsing EXIF from file:', file.name, 'type:', file.type)
+
+    const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true })
+
+    console.log('EXIF data keys:', Object.keys(exifData || {}))
+    console.log('GPSLatitude:', exifData?.GPSLatitude)
+    console.log('GPSLongitude:', exifData?.GPSLongitude)
+    console.log('latitude:', exifData?.latitude)
+    console.log('longitude:', exifData?.longitude)
+
+    if (exifData?.latitude && exifData?.longitude) {
+      const result = { latitude: exifData.latitude, longitude: exifData.longitude }
+      console.log('GPS extracted:', result)
+      return result
     }
 
-    const latTag = tags.GPSLatitude
-    const lngTag = tags.GPSLongitude
-    if (latTag && lngTag && latTag.value && lngTag.value) {
-      const parseDmsRational = (value: unknown): number => {
-        if (!value || !Array.isArray(value)) return 0
-        if (Array.isArray(value[0])) {
-          const nested = value as [number, number][]
-          if (nested.length < 3) return 0
-          return (nested[0][0] / nested[0][1]) + (nested[1][0] / nested[1][1]) + (nested[2][0] / nested[2][1]) / 60
-        } else {
-          const flat = value as number[]
-          if (flat.length < 3) return 0
-          return (flat[0] / flat[1]) + (flat[2] / flat[3]) / 60
-        }
+    if (exifData?.GPSLatitude && exifData?.GPSLongitude) {
+      const parseDmsRational = (arr: number[]): number => {
+        if (!arr || arr.length < 6) return 0
+        return (arr[0] / arr[1]) + (arr[2] / arr[3]) / 60 + (arr[4] / arr[5]) / 3600
       }
-      const latitude = parseDmsRational(latTag.value)
-      const longitude = parseDmsRational(lngTag.value)
 
-      const latRef = ((tags.GPSLatitudeRef?.value) as string) || 'N'
-      const lngRef = ((tags.GPSLongitudeRef?.value) as string) || 'E'
+      const latRef = (exifData.GPSLatitudeRef as string) || 'N'
+      const lngRef = (exifData.GPSLongitudeRef as string) || 'E'
 
       const latMultiplier = latRef.includes('S') ? -1 : 1
       const lngMultiplier = lngRef.includes('W') ? -1 : 1
 
-      const finalLat = latitude * latMultiplier
-      const finalLng = longitude * lngMultiplier
+      const latitude = parseDmsRational(exifData.GPSLatitude) * latMultiplier
+      const longitude = parseDmsRational(exifData.GPSLongitude) * lngMultiplier
 
-      if (!isNaN(finalLat) && !isNaN(finalLng)) {
-        return { latitude: finalLat, longitude: finalLng }
+      if (!isNaN(latitude) && !isNaN(longitude)) {
+        const result = { latitude, longitude }
+        console.log('GPS extracted from DMS:', result)
+        return result
       }
     }
 
+    console.log('No GPS data found')
     return null
   } catch (err) {
-    console.error('ExifReader GPS extraction error:', err)
+    console.error('GPS extraction error:', err)
     return null
   }
 }
