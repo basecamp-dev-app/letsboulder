@@ -181,7 +181,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     drawSmoothCurve(ctx, scaledPoints, routeColor, 3, [8, 4])
 
     if (scaledPoints.length > 1) {
-      const bgColor = isPreview ? 'rgba(59, 130, 246, 0.95)' : 'rgba(220, 38, 38, 0.95)'
+      const bgColor = 'rgba(220, 38, 38, 0.95)'
 
       const gradePos = getGradeLabelPosition(scaledPoints, ctx.canvas.width, ctx.canvas.height, ctx)
       drawRoundedLabel(ctx, grade, gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
