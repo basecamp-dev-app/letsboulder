@@ -37,6 +37,7 @@ export function drawRoundedLabel(
   bgColor: string,
   font: string
 ): void {
+  console.log('Drawing label:', { text, x, y, bgColor, font })
   ctx.font = font
   const metrics = ctx.measureText(text)
   const padding = 6
@@ -60,6 +61,7 @@ export function drawRoundedLabel(
   ctx.quadraticCurveTo(bgX, bgY, bgX + cornerRadius, bgY)
   ctx.closePath()
 
+  console.log('Background rect:', { bgX, bgY, bgWidth, bgHeight, bgColor })
   ctx.fillStyle = bgColor
   ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
   ctx.shadowBlur = 3

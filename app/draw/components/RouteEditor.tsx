@@ -103,10 +103,12 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
 
     if (scaledPoints.length > 1) {
       const gradePos = getGradeLabelPosition(scaledPoints, ctx.canvas.width, ctx.canvas.height)
+      console.log('Grade pos:', gradePos, 'grade:', grade)
       drawRoundedLabel(ctx, grade, gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
 
       const truncatedName = getTruncatedText(ctx, name, 120)
       const namePos = getNameLabelPosition(scaledPoints)
+      console.log('Name pos:', namePos, 'name:', truncatedName)
       drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, '12px Arial')
     }
   }
