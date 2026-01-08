@@ -71,6 +71,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
         splinePoints.push({ x, y })
       }
     }
+
+    splinePoints.push(points[points.length - 1])
     return splinePoints
   }
 
