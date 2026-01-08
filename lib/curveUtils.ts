@@ -23,6 +23,8 @@ export function drawSmoothCurve(
     ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc)
   }
 
+  ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y)
+
   ctx.stroke()
   ctx.setLineDash([])
 }
@@ -80,14 +82,14 @@ export function getGradeLabelPosition(
 ): { x: number; y: number } {
   const midIndex = Math.floor(points.length / 2)
   const midPoint = points[midIndex]
-  return { x: midPoint.x, y: midPoint.y - 10 }
+  return { x: midPoint.x, y: midPoint.y }
 }
 
 export function getNameLabelPosition(
   points: RoutePoint[]
 ): { x: number; y: number } {
   const lastPoint = points[points.length - 1]
-  return { x: lastPoint.x + 12, y: lastPoint.y + 5 }
+  return { x: lastPoint.x + 10, y: lastPoint.y + 12 }
 }
 
 export function getTruncatedText(
