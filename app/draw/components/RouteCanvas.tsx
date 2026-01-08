@@ -72,7 +72,194 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
     ctx.setLineDash([])
   }
 
-  const drawRouteWithLabels = (ctx: CanvasRenderingContext2D, route: RouteWithLabels, scaleX = 1, scaleY = 1, isHighlighted = false) => {
+  function getPerpendicularDirection(p1: RoutePoint, p2: RoutePoint): { dx: number; dy: number } {
+    const dx = p2.x - p1.x
+    const dy = p2.y - p1.y
+    const len = Math.sqrt(dx * dx + dy * dy)
+    if (len === 0) return { dx: 1, dy: 0 }
+    return { dx: -dy / len, dy: dx / len }
+  }
+
+  function getTruncatedText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+    if (ctx.measureText(text).width <= maxWidth) return text
+    let truncated = text
+    while (truncated.length > 0 && ctx.measureText(truncated + '...').width > maxWidth) {
+      truncated = truncated.slice(0, -1)
+    }
+    return truncated + '...'
+  }
+
+  function clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value))
+  }
+
+  function drawRoundedLabel(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    bgColor: string,
+    textColor: string,
+    font: string,
+    align: 'left' | 'center' | 'right',
+    padding: number,
+    canvasWidth: number,
+    canvasHeight: number
+  ) {
+    ctx.font = font
+    const metrics = ctx.measureText(text)
+    const textHeight = parseInt(ctx.font, 10)
+    const cornerRadius = 4
+
+    let textX: number
+    if (align === 'center') {
+      textX = x - metrics.width / 2
+    } else if (align === 'left') {
+      textX = x
+    } else {
+      textX = x - metrics.width
+    }
+
+    const bgWidth = metrics.width + padding * 2
+    const bgHeight = textHeight + padding
+
+    let bgX = textX - padding
+    let bgY = y - textHeight + padding / 2
+
+    bgX = clamp(bgX, 2, canvasWidth - bgWidth - 2)
+    bgY = clamp(bgY, 2, canvasHeight - bgHeight - 2)
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.roundRect(bgX, bgY, bgWidth, bgHeight, cornerRadius)
+    ctx.fillStyle = bgColor
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
+    ctx.shadowBlur = 4
+    ctx.shadowOffsetX = 1
+    ctx.shadowOffsetY = 1
+    ctx.fill()
+    ctx.shadowColor = 'transparent'
+    ctx.restore()
+
+    ctx.fillStyle = textColor
+    ctx.textAlign = align
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, bgX + bgWidth / 2, bgY + bgHeight / 2)
+
+    return { x: bgX, y: bgY, width: bgWidth, height: bgHeight }
+  }
+
+  function getGradeLabelPosition(
+    points: RoutePoint[],
+    canvasWidth: number,
+    canvasHeight: number,
+    grade: string,
+    ctx: CanvasRenderingContext2D
+  ): { x: number; y: number } {
+    const midIndex = Math.floor(points.length / 2)
+    const midPoint = points[midIndex]
+
+    let perpDx = 0, perpDy = 0
+    if (points.length >= 3) {
+      const prevPoint = points[Math.max(0, midIndex - 1)]
+      const nextPoint = points[Math.min(points.length - 1, midIndex + 1)]
+      const perp = getPerpendicularDirection(prevPoint, nextPoint)
+      perpDx = perp.dx
+      perpDy = perp.dy
+    } else {
+      const perp = getPerpendicularDirection(points[0], points[1])
+      perpDx = perp.dx
+      perpDy = perp.dy
+    }
+
+    ctx.font = 'bold 14px Arial'
+    const metrics = ctx.measureText(grade)
+    const labelWidth = metrics.width + 12
+    const labelHeight = 22
+    const offsetDistance = 18
+
+    let tryCount = 0
+    while (tryCount < 4) {
+      const testX = midPoint.x + perpDx * offsetDistance
+      const testY = midPoint.y + perpDy * offsetDistance
+
+      if (
+        testX > 10 &&
+        testX < canvasWidth - labelWidth - 10 &&
+        testY > 10 &&
+        testY < canvasHeight - labelHeight - 10
+      ) {
+        return { x: testX, y: testY }
+      }
+
+      if (tryCount % 2 === 0) {
+        perpDx = -perpDx
+        perpDy = -perpDy
+      } else {
+        const altPerp = getPerpendicularDirection(
+          points[Math.max(0, midIndex - 1)],
+          points[Math.min(points.length - 1, midIndex + 1)]
+        )
+        perpDx = altPerp.dx
+        perpDy = altPerp.dy
+      }
+      tryCount++
+    }
+
+    return { x: midPoint.x - labelWidth / 2, y: midPoint.y - labelHeight - 5 }
+  }
+
+  function getNameLabelPosition(
+    points: RoutePoint[],
+    canvasWidth: number,
+    canvasHeight: number,
+    name: string,
+    ctx: CanvasRenderingContext2D
+  ): { x: number; y: number; align: 'left' | 'center' | 'right' } {
+    const lastPoint = points[points.length - 1]
+    const secondLastPoint = points[points.length - 2]
+
+    const perp = getPerpendicularDirection(secondLastPoint, lastPoint)
+    let perpDx = perp.dx
+    let perpDy = perp.dy
+
+    ctx.font = '12px Arial'
+    const truncatedName = getTruncatedText(ctx, name, 100)
+    const metrics = ctx.measureText(truncatedName)
+    const labelWidth = metrics.width + 10
+    const labelHeight = 20
+    const offsetDistance = 15
+
+    let tryCount = 0
+    while (tryCount < 4) {
+      const testX = lastPoint.x + perpDx * offsetDistance
+      const testY = lastPoint.y + perpDy * offsetDistance
+
+      let align: 'left' | 'center' | 'right' = 'left'
+      if (perpDx > 0.3) align = 'left'
+      else if (perpDx < -0.3) align = 'right'
+      else align = 'center'
+
+      const testBgX = align === 'center' ? testX - labelWidth / 2 : align === 'right' ? testX - labelWidth : testX
+
+      if (
+        testBgX > 5 &&
+        testBgX < canvasWidth - labelWidth - 5 &&
+        testY > 5 &&
+        testY < canvasHeight - labelHeight - 5
+      ) {
+        return { x: testX, y: testY, align }
+      }
+
+      perpDx = -perpDx
+      perpDy = -perpDy
+      tryCount++
+    }
+
+    return { x: lastPoint.x + 12, y: lastPoint.y + 8, align: 'left' }
+  }
+
+  const drawRouteWithLabels = (ctx: CanvasRenderingContext2D, route: RouteWithLabels, scaleX = 1, scaleY = 1, isHighlighted = false, isPreview = false) => {
     const { points, grade, name, id } = route
     const isSelectedRoute = selectedIds.includes(id)
 
@@ -88,49 +275,18 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
       ctx.shadowBlur = 0
     }
 
-    drawSmoothCurve(ctx, scaledPoints, 'red', 3, [8, 4])
+    const routeColor = isPreview ? '#3b82f6' : '#dc2626'
+    drawSmoothCurve(ctx, scaledPoints, routeColor, 3, [8, 4])
 
     if (scaledPoints.length > 1) {
-      const midIndex = Math.floor(scaledPoints.length / 2)
-      const gradePoint = scaledPoints[midIndex]
+      const bgColor = isPreview ? 'rgba(59, 130, 246, 0.95)' : 'rgba(220, 38, 38, 0.95)'
 
-      ctx.font = 'bold 14px Arial'
-      const gradeWidth = ctx.measureText(grade).width
-      const gradeHeight = 16
-      const gradePadding = 2
+      const gradePos = getGradeLabelPosition(scaledPoints, ctx.canvas.width, ctx.canvas.height, grade, ctx)
+      drawRoundedLabel(ctx, grade, gradePos.x, gradePos.y, bgColor, '#ffffff', 'bold 14px Arial', 'center', 6, ctx.canvas.width, ctx.canvas.height)
 
-      ctx.fillStyle = 'red'
-      ctx.fillRect(
-        gradePoint.x - gradeWidth/2 - gradePadding,
-        gradePoint.y - gradeHeight/2 - 2,
-        gradeWidth + gradePadding * 2,
-        gradeHeight
-      )
-
-      ctx.fillStyle = 'white'
-      ctx.textAlign = 'center'
-      ctx.fillText(grade, gradePoint.x, gradePoint.y + 4)
-
-      const lastPoint = scaledPoints[scaledPoints.length - 1]
-      const nameX = lastPoint.x + 15
-      const nameY = lastPoint.y + 5
-
-      ctx.font = '12px Arial'
-      const nameWidth = ctx.measureText(name).width
-      const nameHeight = 14
-      const namePadding = 2
-
-      ctx.fillStyle = 'red'
-      ctx.fillRect(
-        nameX - namePadding,
-        nameY - nameHeight + 3,
-        nameWidth + namePadding * 2,
-        nameHeight
-      )
-
-      ctx.fillStyle = 'white'
-      ctx.textAlign = 'left'
-      ctx.fillText(name, nameX, nameY)
+      const truncatedName = getTruncatedText(ctx, name, 120)
+      const namePos = getNameLabelPosition(scaledPoints, ctx.canvas.width, ctx.canvas.height, truncatedName, ctx)
+      drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, '#ffffff', '12px Arial', namePos.align, 5, ctx.canvas.width, ctx.canvas.height)
     }
   }
 
@@ -171,7 +327,7 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
           grade: currentGrade,
           name: currentName
         }
-        drawRouteWithLabels(ctx, previewRoute, 1, 1)
+        drawRouteWithLabels(ctx, previewRoute, 1, 1, false, true)
       }
     }
    }, [routes, currentPoints, currentGrade, currentName, imageUrl, selectedIds])
