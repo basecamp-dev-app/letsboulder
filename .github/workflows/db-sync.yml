@@ -16,8 +16,7 @@ on:
           - schema-only
 
 env:
-  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-  SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+  SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
 jobs:
   snapshot:
@@ -28,23 +27,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: 1.205.0
-
-      - name: Login and link to project
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      - name: Install PostgreSQL client
         run: |
-          supabase login --token "$SUPABASE_ACCESS_TOKEN"
-          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+          apt-get update && apt-get install -y postgresql-client
 
       - name: Generate schema snapshot
         run: |
           mkdir -p db/schema
-          supabase db dump --linked --schema-only > db/schema/schema.sql
-          echo "Schema snapshot created successfully"
+          pg_dump "$SUPABASE_DB_URL" --schema-only --no-owner > db/schema/schema.sql
+          echo "Schema snapshot created"
           wc -l db/schema/schema.sql
 
       - name: Create pull request
@@ -64,23 +55,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: 1.205.0
-
-      - name: Login and link to project
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      - name: Install PostgreSQL client
         run: |
-          supabase login --token "$SUPABASE_ACCESS_TOKEN"
-          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+          apt-get update && apt-get install -y postgresql-client
 
       - name: Generate full database dump
         run: |
           mkdir -p db/schema db/data db/scripts
-          supabase db dump --linked --schema-only > db/schema/production_schema.sql
-          supabase db dump --linked --data-only > db/data/production_data.sql
+          pg_dump "$SUPABASE_DB_URL" --schema-only --no-owner > db/schema/production_schema.sql
+          pg_dump "$SUPABASE_DB_URL" --data-only --no-owner > db/data/production_data.sql
           echo "Schema: $(wc -l < db/schema/production_schema.sql) lines"
           echo "Data: $(wc -l < db/data/production_data.sql) lines"
 
