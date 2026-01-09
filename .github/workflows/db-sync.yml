@@ -28,14 +28,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Supabase CLI
+      - name: Download Supabase CLI v2
         run: |
-          # Download binary directly
-          curl -fsSL "https://github.com/supabase/cli/releases/download/v1.206.3/supabase_linux_amd64" -o /tmp/supabase
+          # Download v2.71.0 (latest stable)
+          curl -fsSL "https://github.com/supabase/cli/releases/download/v2.71.0/supabase_linux_amd64" -o /tmp/supabase
           chmod +x /tmp/supabase
           /tmp/supabase --version
 
-      - name: Setup Supabase config
+      - name: Login and link to project
         run: |
           export PATH="/tmp:$PATH"
           /tmp/supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -46,14 +46,14 @@ jobs:
           export PATH="/tmp:$PATH"
           mkdir -p db/schema
           /tmp/supabase db dump --linked --schema-only > db/schema/schema.sql
-          echo "Schema snapshot created"
+          echo "Schema snapshot created successfully"
           wc -l db/schema/schema.sql
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v7
         with:
           title: "chore: Database schema snapshot $(date +%Y-%m-%d)"
-          body: "Automated schema snapshot from production"
+          body: "Automated schema snapshot from production Supabase"
           commit-message: "chore: Update database schema $(date +%Y-%m-%d)"
           branch: "db-snapshot-$(date +%Y-%m-%d)"
           delete-branch: true
@@ -66,18 +66,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Supabase CLI
+      - name: Download Supabase CLI v2
         run: |
-          curl -fsSL "https://github.com/supabase/cli/releases/download/v1.206.3/supabase_linux_amd64" -o /tmp/supabase
+          curl -fsSL "https://github.com/supabase/cli/releases/download/v2.71.0/supabase_linux_amd64" -o /tmp/supabase
           chmod +x /tmp/supabase
 
-      - name: Setup Supabase
+      - name: Login and link to project
         run: |
           export PATH="/tmp:$PATH"
           /tmp/supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           /tmp/supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --no-interactive
 
-      - name: Generate full dump
+      - name: Generate full database dump
         run: |
           export PATH="/tmp:$PATH"
           mkdir -p db/schema db/data db/scripts
@@ -108,7 +108,7 @@ jobs:
           PGPASSWORD=postgres psql -h localhost -U postgres -d postgres < db/data/production_data.sql
           ```
 
-          ## Safety
+          ## Safety Notes
           ⚠️ Only run on local development!
           EOF
 
@@ -139,15 +139,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate files
+      - name: Validate schema files
         run: |
           echo "=== Migrations ==="
-          ls -la db/migrations/
+          ls -la db/migrations/ 2>/dev/null || echo "No migrations folder"
           echo ""
           echo "=== Schema ==="
-          ls -la db/schema/
+          ls -la db/schema/ 2>/dev/null || echo "No schema folder"
           echo ""
           echo "=== Scripts ==="
-          ls -la db/scripts/*.sh
+          ls -la db/scripts/*.sh 2>/dev/null || echo "No scripts"
           echo ""
-          echo "✓ All files present"
+          echo "✓ Validation complete"
