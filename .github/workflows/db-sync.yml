@@ -35,7 +35,20 @@ jobs:
       - name: Generate schema snapshot
         run: |
           mkdir -p db/schema
-          pg_dump "$SUPABASE_DB_URL" --schema-only --no-owner > db/schema/schema.sql
+          echo "Connection string starts with: ${SUPABASE_DB_URL:0:50}..."
+          
+          # Parse connection string and use explicit flags
+          # Format: postgresql://postgres:password@host:5432/postgres
+          IFS='@' read -r user_part host_part <<< "$SUPABASE_DB_URL"
+          IFS=':' read -r user password <<< "${user_part#postgresql://}"
+          IFS=':' read -r host port_db <<< "$host_part"
+          IFS='/' read -r port dbname <<< "$port_db"
+          
+          echo "Host: $host"
+          echo "Port: $port"
+          echo "Database: $dbname"
+          
+          pg_dump "postgresql://$user:$password@$host:$port/$dbname" --schema-only --no-owner > db/schema/schema.sql
           echo "Schema snapshot created"
           wc -l db/schema/schema.sql
 
@@ -64,8 +77,15 @@ jobs:
       - name: Generate full database dump
         run: |
           mkdir -p db/schema db/data db/scripts
-          pg_dump "$SUPABASE_DB_URL" --schema-only --no-owner > db/schema/production_schema.sql
-          pg_dump "$SUPABASE_DB_URL" --data-only --no-owner > db/data/production_data.sql
+          
+          # Parse connection string
+          IFS='@' read -r user_part host_part <<< "$SUPABASE_DB_URL"
+          IFS=':' read -r user password <<< "${user_part#postgresql://}"
+          IFS=':' read -r host port_db <<< "$host_part"
+          IFS='/' read -r port dbname <<< "$port_db"
+          
+          pg_dump "postgresql://$user:$password@$host:$port/$dbname" --schema-only --no-owner > db/schema/production_schema.sql
+          pg_dump "postgresql://$user:$password@$host:$port/$dbname" --data-only --no-owner > db/data/production_data.sql
           echo "Schema: $(wc -l < db/schema/production_schema.sql) lines"
           echo "Data: $(wc -l < db/data/production_data.sql) lines"
 
