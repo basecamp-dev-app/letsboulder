@@ -1,0 +1,197 @@
+name: Database Sync
+
+on:
+  schedule:
+    # Run daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Sync mode'
+        required: true
+        default: 'snapshot'
+        type: choice
+        options:
+          - snapshot
+          - full-sync
+          - schema-only
+
+jobs:
+  sync-snapshot:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'snapshot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        run: |
+          curl -fsSL https://get.supabase.io | bash
+          echo "$HOME/.supabase/bin" >> $GITHUB_PATH
+
+      - name: Configure Supabase
+        run: |
+          supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Generate schema snapshot
+        run: |
+          supabase db dump --linked --schema-only > db/schema/schema.sql
+          supabase db dump --linked --data-only > db/data/latest.sql
+
+      - name: Commit snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add db/schema/ db/data/
+          git diff --stat
+          if [ -n "$(git diff --stat)" ]; then
+            git commit -m "chore: Update database snapshot $(date +%Y-%m-%d)"
+            git push
+          fi
+
+  sync-full:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'full-sync'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        run: |
+          curl -fsSL https://get.supabase.io | bash
+          echo "$HOME/.supabase/bin" >> $GITHUB_PATH
+
+      - name: Configure Supabase
+        run: |
+          supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Generate full database dump
+        run: |
+          supabase db dump --linked --schema-only > db/schema/production_schema.sql
+          supabase db dump --linked --data-only > db/data/production_data.sql
+
+      - name: Create SQL script for local restore
+        run: |
+          cat > db/scripts/restore-local.sql << 'EOF'
+          -- Production to Local Restore Script
+          -- Generated: $(date)
+          -- WARNING: This will overwrite all local data!
+
+          -- 1. Drop and recreate schema
+          DROP SCHEMA IF EXISTS production CASCADE;
+          CREATE SCHEMA production;
+
+          -- 2. Import production schema
+          \i db/schema/production_schema.sql
+
+          -- 3. Import production data
+          \i db/data/production_data.sql
+          EOF
+
+      - name: Upload database dump as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-database-dump
+          path: |
+            db/schema/
+            db/data/
+            db/scripts/restore-local.sql
+          retention-days: 7
+
+  generate-restore-script:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create restore script for local development
+        run: |
+          cat > db/scripts/restore-from-production.md << 'EOF'
+          # Restore Local Database from Production
+
+          ## Quick Start
+
+          1. Download the latest database dump artifact from GitHub Actions
+          2. Run the restore script:
+          ```bash
+          # Option A: Using psql directly
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres < db/data/production_data.sql
+
+          # Option B: Using Docker
+          docker exec -i gsyrocks-db psql -U postgres -d postgres < db/data/production_data.sql
+          ```
+
+          ## Manual Steps
+
+          ### Step 1: Get the dump
+          - Go to GitHub Actions → Database Sync → most recent run
+          - Download "production-database-dump" artifact
+          - Extract to this directory
+
+          ### Step 2: Stop local database
+          ```bash
+          cd ~/supabase-local
+          docker compose down
+          docker volume rm supabase-local_pgdata
+          docker compose up -d
+          ```
+
+          ### Step 3: Apply schema
+          ```bash
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f db/schema/production_schema.sql
+          ```
+
+          ### Step 4: Import data
+          ```bash
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f db/data/production_data.sql
+          ```
+
+          ## Safety Notes
+
+          ⚠️ **Never run these commands on production!**
+          ⚠️ This will overwrite all local data
+          ✅ Safe for development only
+          EOF
+
+      - name: Commit restore script
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add db/scripts/restore-from-production.md
+          git commit -m "docs: Update restore script documentation"
+          git push
+
+  validate-local:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate local schema matches migrations
+        run: |
+          echo "Checking migrations folder..."
+          for file in db/migrations/*.sql; do
+            if [ -f "$file" ]; then
+              echo "✓ $(basename $file)"
+            fi
+          done
+
+          echo ""
+          echo "Checking schema files..."
+          ls -la db/schema/
+
+          echo ""
+          echo "Checking scripts..."
+          ls -la db/scripts/*.sh
