@@ -260,7 +260,23 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
       }
 
       let cragId: string | null = null
+      let regionData: { country?: string; countryCode?: string; region?: string; town?: string } = {}
+
       if (latitude && longitude) {
+        // Detect region using Nominatim
+        try {
+          const locationRes = await fetch('/api/locations/detect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ latitude, longitude })
+          })
+          if (locationRes.ok) {
+            regionData = await locationRes.json()
+          }
+        } catch (e) {
+          console.warn('Location detection failed:', e)
+        }
+
         const { data: crag } = await supabase
           .from('crags')
           .select('id')
@@ -269,12 +285,13 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
           .maybeSingle()
 
         if (!crag) {
+          const cragName = regionData.town || regionData.region || `Crag at ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
           const { data: newCrag, error } = await supabase
             .from('crags')
             .insert({
               latitude,
               longitude,
-              name: `Crag at ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+              name: cragName
             })
             .select('id')
             .single()

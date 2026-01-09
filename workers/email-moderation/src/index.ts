@@ -971,6 +971,10 @@ interface RouteSubmission {
   imageUrl: string
   latitude: number
   longitude: number
+  country?: string
+  countryCode?: string
+  region?: string
+  town?: string
   submittedBy: string
   submittedByEmail: string
   status: string
@@ -1085,15 +1089,20 @@ async function sendRouteApprovalMessage(
 ): Promise<{ success: boolean; messageId?: string }> {
   const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${route.latitude},${route.longitude}&zoom=17&size=600x400&markers=${route.latitude},${route.longitude},red-pushpin`
   
+  const locationField = route.town || route.region 
+    ? `${route.town || ''}${route.town && route.region ? ', ' : ''}${route.region || ''}${route.country ? ' (' + route.country + ')' : ''}`
+    : `${route.latitude.toFixed(5)}, ${route.longitude.toFixed(5)}`
+
   const embed = {
     title: `🧗 ${route.name}`,
     color: 0xf1c40f,
     fields: [
       { name: '📊 Grade', value: route.grade, inline: true },
       { name: '👤 Submitted by', value: route.submittedBy, inline: true },
-      { name: '📍 Coordinates', value: `${route.latitude.toFixed(5)}, ${route.longitude.toFixed(5)}`, inline: false },
-      { name: '🔗 View on Map', value: `[Open in Google Maps](https://www.google.com/maps?q=${route.latitude},${route.longitude})`, inline: false },
-      { name: '🔗 View Route', value: `[gsyrocks.com/climb/${route.id}](https://gsyrocks.com/climb/${route.id})`, inline: false }
+      { name: '🌍 Location', value: locationField, inline: false },
+      { name: '🗺️ Coordinates', value: `${route.latitude.toFixed(5)}, ${route.longitude.toFixed(5)}`, inline: false },
+      { name: '🔗 Map', value: `[Google Maps](https://www.google.com/maps?q=${route.latitude},${route.longitude})`, inline: false },
+      { name: '🔗 Route', value: `[gsyrocks.com/climb/${route.id}](https://gsyrocks.com/climb/${route.id})`, inline: false }
     ],
     thumbnail: { url: route.imageUrl },
     image: { url: mapUrl },

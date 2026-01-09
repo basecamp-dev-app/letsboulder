@@ -59,6 +59,26 @@ export async function POST(request: NextRequest) {
 
     const routeId = crypto.randomUUID()
 
+    // Detect region using Nominatim
+    let regionData = { country: '', countryCode: '', region: '', town: '' }
+    try {
+      const locationRes = await fetch('https://nominatim.openstreetmap.org/reverse', {
+        method: 'GET',
+        headers: { 'User-Agent': 'gsyrocks-climbing-app' }
+      })
+      if (locationRes.ok) {
+        const data = await locationRes.json()
+        regionData = {
+          country: data.address?.country || '',
+          countryCode: (data.address?.country_code || '').toUpperCase(),
+          region: data.address?.county || data.address?.region || data.address?.state || '',
+          town: data.address?.town || data.address?.city || data.address?.village || ''
+        }
+      }
+    } catch (e) {
+      console.warn('[Route Submit] Location detection failed:', e)
+    }
+
     const { error: insertError } = await supabase
       .from('climbs')
       .insert({
@@ -96,6 +116,10 @@ export async function POST(request: NextRequest) {
           imageUrl,
           latitude,
           longitude,
+          country: regionData.country,
+          countryCode: regionData.countryCode,
+          region: regionData.region,
+          town: regionData.town,
           submittedBy: user.email?.split('@')[0] || 'Anonymous',
           submittedByEmail: user.email || ''
         })
