@@ -28,20 +28,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Login and link Supabase
+      - name: Download Supabase CLI
         run: |
-          supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --no-interactive
+          # Download binary directly
+          curl -fsSL "https://github.com/supabase/cli/releases/download/v1.206.3/supabase_linux_amd64" -o /tmp/supabase
+          chmod +x /tmp/supabase
+          /tmp/supabase --version
+
+      - name: Setup Supabase config
+        run: |
+          export PATH="/tmp:$PATH"
+          /tmp/supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          /tmp/supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --no-interactive
 
       - name: Generate schema snapshot
         run: |
+          export PATH="/tmp:$PATH"
           mkdir -p db/schema
-          supabase db dump --linked --schema-only > db/schema/schema.sql
+          /tmp/supabase db dump --linked --schema-only > db/schema/schema.sql
           echo "Schema snapshot created"
           wc -l db/schema/schema.sql
 
@@ -62,21 +66,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Login and link Supabase
+      - name: Download Supabase CLI
         run: |
-          supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --no-interactive
+          curl -fsSL "https://github.com/supabase/cli/releases/download/v1.206.3/supabase_linux_amd64" -o /tmp/supabase
+          chmod +x /tmp/supabase
+
+      - name: Setup Supabase
+        run: |
+          export PATH="/tmp:$PATH"
+          /tmp/supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          /tmp/supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --no-interactive
 
       - name: Generate full dump
         run: |
+          export PATH="/tmp:$PATH"
           mkdir -p db/schema db/data db/scripts
-          supabase db dump --linked --schema-only > db/schema/production_schema.sql
-          supabase db dump --linked --data-only > db/data/production_data.sql
+          /tmp/supabase db dump --linked --schema-only > db/schema/production_schema.sql
+          /tmp/supabase db dump --linked --data-only > db/data/production_data.sql
           echo "Schema: $(wc -l < db/schema/production_schema.sql) lines"
           echo "Data: $(wc -l < db/data/production_data.sql) lines"
 
