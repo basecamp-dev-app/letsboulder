@@ -337,9 +337,11 @@ export default {
 
   async fetch(request: Request, env: any, ctx: any): Promise<Response> {
     const url = new URL(request.url)
-    const path = url.pathname
+    const pathname = url.pathname
+    const searchParams = url.searchParams
+    console.log('[Worker] pathname:', pathname, 'searchParams:', searchParams.toString())
     
-    if (path === '/' || path === '/health') {
+    if (pathname === '/' || pathname === '/health') {
       return new Response(JSON.stringify({
         status: 'healthy',
         service: 'email-moderation-worker',
@@ -349,13 +351,21 @@ export default {
       })
     }
     
-    if (path === '/interactions') {
+    if (pathname === '/routes/discord-submit' && request.method === 'POST') {
+      console.log('[Worker] Route submission request received')
+      return handleRouteDiscordSubmit(request, env)
+    }
+
+    if (pathname === '/interactions') {
+      console.log('[Interactions] Matched /interactions, method:', request.method)
       const requestType = request.headers.get('x-discord-request-type')
+      console.log('[Interactions] requestType header:', requestType)
       
       if (requestType === '3' || request.method === 'GET') {
-        const params = new URL(request.url).searchParams
-        const challenge = params.get('challenge')
+        const challenge = searchParams.get('challenge')
+        console.log('[Interactions] Challenge from params:', challenge)
         if (challenge) {
+          console.log('[Interactions] Returning challenge:', challenge)
           return new Response(challenge, {
             headers: { 'Content-Type': 'text/plain' }
           })
@@ -365,17 +375,17 @@ export default {
       if (request.method === 'POST') {
         const signature = request.headers.get('x-signature-ed25519')
         const timestamp = request.headers.get('x-signature-timestamp')
-        
         const body = await request.text()
         
         if (!signature || !timestamp || !env.DISCORD_PUBLIC_KEY) {
-          return handleInteractionRaw(body, env)
+          console.warn('[Worker] Missing signature headers')
+          return new Response('Invalid signature', { status: 401 })
         }
         
         const isValid = await verifyDiscordSignature(body, timestamp, signature, env.DISCORD_PUBLIC_KEY)
         
         if (!isValid) {
-          console.warn('[Worker] Invalid Discord signature')
+          console.warn('[Worker] Invalid signature')
           return new Response('Invalid signature', { status: 401 })
         }
         
@@ -383,30 +393,7 @@ export default {
       }
     }
     
-    if (path === '/edit-submit' && request.method === 'POST') {
-      return handleEditSubmit(request, env)
-    }
-    
-    if (path === '/stats' && request.method === 'GET') {
-      if (env.EMAIL_APPROVAL_KV) {
-        return handleStats(env.EMAIL_APPROVAL_KV)
-      }
-      return new Response(JSON.stringify({ error: 'KV not available' }), {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' }
-      })
-    }
-    
-    if (path === '/api/routes/discord-submit' && request.method === 'POST') {
-      return handleRouteDiscordSubmit(request, env)
-    }
-    
-    if (path === '/health' && request.method === 'GET') {
-      return new Response(JSON.stringify({ status: 'ok', timestamp: Date.now() }), {
-        headers: { 'Content-Type': 'application/json' }
-      })
-    }
-    
+    console.log('[Worker] No route matched for:', pathname)
     return new Response('Not Found', { status: 404 })
   }
 }
@@ -1096,35 +1083,49 @@ async function sendRouteApprovalMessage(
   channelId: string,
   route: RouteSubmission
 ): Promise<{ success: boolean; messageId?: string }> {
+  const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${route.latitude},${route.longitude}&zoom=17&size=600x400&markers=${route.latitude},${route.longitude},red-pushpin`
+  
   const embed = {
-    title: '🧗 New Route Submission',
+    title: `🧗 ${route.name}`,
     color: 0xf1c40f,
     fields: [
-      { name: '🧗 Route', value: route.name, inline: true },
       { name: '📊 Grade', value: route.grade, inline: true },
-      { name: '📍 Location', value: `${route.latitude.toFixed(4)}, ${route.longitude.toFixed(4)}`, inline: true },
       { name: '👤 Submitted by', value: route.submittedBy, inline: true },
-      { name: '🕐 Submitted', value: new Date(route.createdAt).toLocaleString(), inline: true },
-      { name: '🔗 Link', value: `https://gsyrocks.com/climb/${route.id}`, inline: true }
+      { name: '📍 Coordinates', value: `${route.latitude.toFixed(5)}, ${route.longitude.toFixed(5)}`, inline: false },
+      { name: '🔗 View on Map', value: `[Open in Google Maps](https://www.google.com/maps?q=${route.latitude},${route.longitude})`, inline: false },
+      { name: '🔗 View Route', value: `[gsyrocks.com/climb/${route.id}](https://gsyrocks.com/climb/${route.id})`, inline: false }
     ],
-    image: { url: route.imageUrl },
+    thumbnail: { url: route.imageUrl },
+    image: { url: mapUrl },
     timestamp: new Date().toISOString(),
     footer: { text: `Route ID: ${route.id}` }
   }
 
   try {
-    const discordResponse = await fetch('https://discord.com/api/v10/channels/1458920160424628305/messages', {
+    const discordResponse = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bot ${botToken}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ content: 'Worker test' })
+      body: JSON.stringify({
+        content: '🧗 **New route submitted for approval!**',
+        embeds: [embed],
+        components: [
+          {
+            type: 1,
+            components: [
+              { type: 2, style: 3, label: '✅ Approve', custom_id: `approve_route_${route.id}` },
+              { type: 2, style: 4, label: '❌ Reject', custom_id: `reject_route_${route.id}` }
+            ]
+          }
+        ]
+      })
     })
 
-    console.log('[Route Discord] Direct test status:', discordResponse.status)
     const text = await discordResponse.text()
-    console.log('[Route Discord] Direct test response:', text)
+    console.log('[Route Discord] Response status:', discordResponse.status)
+    console.log('[Route Discord] Response:', text)
     
     if (!discordResponse.ok) {
       return { success: false }

@@ -79,53 +79,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save route' }, { status: 500 })
     }
 
-    const discordBotToken = process.env.DISCORD_BOT_TOKEN
-    const discordChannelId = process.env.DISCORD_ROUTE_APPROVAL_CHANNEL_ID
+    const workerUrl = process.env.ROUTE_WORKER_URL || 'https://email-moderation-production.patrickhadow.workers.dev'
+    const workerApiKey = process.env.WORKER_API_KEY
 
-    if (discordBotToken && discordChannelId) {
-      try {
-        console.log('[Route Submit] Posting to Discord directly...')
-        
-        const discordResponse = await fetch(`https://discord.com/api/v10/channels/${discordChannelId}/messages`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bot ${discordBotToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            content: 'New route submitted for approval!',
-            embeds: [{
-              title: 'New Route Submission',
-              color: 0xf1c40f,
-              fields: [
-                { name: 'Route', value: name, inline: true },
-                { name: 'Grade', value: grade, inline: true },
-                { name: 'Location', value: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, inline: true },
-                { name: 'Submitted by', value: user.email?.split('@')[0] || 'Anonymous', inline: true }
-              ],
-              footer: { text: `ID: ${routeId}` }
-            }],
-            components: [{
-              type: 1,
-              components: [
-                { type: 2, style: 3, label: 'Approve', custom_id: `approve_route_${routeId}` },
-                { type: 2, style: 4, label: 'Reject', custom_id: `reject_route_${routeId}` }
-              ]
-            }]
-          })
+    try {
+      const workerResponse = await fetch(`${workerUrl}/routes/discord-submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${workerApiKey}`
+        },
+        body: JSON.stringify({
+          routeId,
+          name,
+          grade,
+          imageUrl,
+          latitude,
+          longitude,
+          submittedBy: user.email?.split('@')[0] || 'Anonymous',
+          submittedByEmail: user.email || ''
         })
+      })
 
-        console.log('[Route Submit] Discord response status:', discordResponse.status)
-        
-        if (discordResponse.ok) {
-          const messageData = await discordResponse.json()
-          console.log('[Route Submit] Discord message ID:', messageData.id)
-        }
-      } catch (discordError) {
-        console.error('[Route Submit] Failed to post to Discord:', discordError)
+      const workerResult = await workerResponse.json()
+      console.log('[Route Submit] Worker response:', workerResult)
+
+      if (!workerResponse.ok) {
+        console.error('[Route Submit] Worker failed:', workerResult)
       }
-    } else {
-      console.warn('[Route Submit] Discord credentials not configured')
+    } catch (workerError) {
+      console.error('[Route Submit] Worker request failed:', workerError)
     }
 
     return NextResponse.json({
