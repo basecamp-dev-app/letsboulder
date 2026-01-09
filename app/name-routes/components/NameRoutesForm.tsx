@@ -188,7 +188,7 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
         .select('id')
         .eq('latitude', routeData.latitude)
         .eq('longitude', routeData.longitude)
-        .single()
+        .maybeSingle()
 
       if (!crag) {
         const { data: newCrag, error } = await supabase

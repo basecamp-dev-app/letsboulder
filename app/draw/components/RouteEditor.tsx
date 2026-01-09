@@ -266,7 +266,7 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
           .select('id')
           .eq('latitude', latitude)
           .eq('longitude', longitude)
-          .single()
+          .maybeSingle()
 
         if (!crag) {
           const { data: newCrag, error } = await supabase
