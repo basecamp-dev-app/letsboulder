@@ -28,15 +28,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
         with:
-          node-version: '20'
-
-      - name: Install Supabase CLI
-        run: |
-          npm install -g @supabase/cli@v1.205.0
-          which supabase
+          version: latest
 
       - name: Login and link Supabase
         run: |
@@ -67,14 +62,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
         with:
-          node-version: '20'
-
-      - name: Install Supabase CLI
-        run: |
-          npm install -g @supabase/cli@v1.205.0
+          version: latest
 
       - name: Login and link Supabase
         run: |
