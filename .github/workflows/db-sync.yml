@@ -2,7 +2,6 @@ name: Database Sync
 
 on:
   schedule:
-    # Run daily at 6 AM UTC
     - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
@@ -16,91 +15,91 @@ on:
           - full-sync
           - schema-only
 
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
 jobs:
-  sync-snapshot:
+  snapshot:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'snapshot'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Install Supabase CLI
         run: |
-          # Install via npm
-          npm install -g @supabase/cli
+          npm install -g @supabase/cli@v1.205.0
+          which supabase
 
-      - name: Configure Supabase
+      - name: Login and link Supabase
         run: |
           supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --no-interactive
 
       - name: Generate schema snapshot
         run: |
           mkdir -p db/schema
           supabase db dump --linked --schema-only > db/schema/schema.sql
-          supabase db dump --linked --data-only > db/data/latest.sql
+          echo "Schema snapshot created"
+          wc -l db/schema/schema.sql
 
-      - name: Create pull request with changes
+      - name: Create pull request
         uses: peter-evans/create-pull-request@v7
         with:
-          title: "chore: Update database snapshot $(date +%Y-%m-%d)"
-          body: "Automated database schema snapshot from production"
-          commit-message: "chore: Update database schema snapshot $(date +%Y-%m-%d)"
+          title: "chore: Database schema snapshot $(date +%Y-%m-%d)"
+          body: "Automated schema snapshot from production"
+          commit-message: "chore: Update database schema $(date +%Y-%m-%d)"
           branch: "db-snapshot-$(date +%Y-%m-%d)"
           delete-branch: true
 
-  sync-full:
+  full-sync:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'full-sync'
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Install Supabase CLI
         run: |
-          npm install -g @supabase/cli
+          npm install -g @supabase/cli@v1.205.0
 
-      - name: Configure Supabase
+      - name: Login and link Supabase
         run: |
           supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --no-interactive
 
-      - name: Generate full database dump
+      - name: Generate full dump
         run: |
           mkdir -p db/schema db/data db/scripts
           supabase db dump --linked --schema-only > db/schema/production_schema.sql
           supabase db dump --linked --data-only > db/data/production_data.sql
+          echo "Schema: $(wc -l < db/schema/production_schema.sql) lines"
+          echo "Data: $(wc -l < db/data/production_data.sql) lines"
 
       - name: Create restore script
         run: |
           cat > db/scripts/restore-from-production.md << 'EOF'
           # Restore Local Database from Production
 
-          ## Quick Start
+          ## Download Artifact
+          1. Go to GitHub Actions → Database Sync → latest run
+          2. Download "production-database-dump" artifact
+          3. Extract to project root
 
-          1. Download artifact from GitHub Actions run
-          2. Extract to db/ folder
-          3. Run: 
-             ```
-             PGPASSWORD=postgres psql -h localhost -U postgres -d postgres < db/data/production_data.sql
-             ```
-
-          ## Full Steps
-
-          ### Step 1: Download artifact
-          - Go to GitHub Actions → Database Sync → latest run
-          - Download "production-database-dump" artifact
-          - Extract to project root
-
-          ### Step 2: Restore to local database
+          ## Restore Commands
           ```bash
           cd ~/supabase-local
           docker compose down
@@ -108,40 +107,32 @@ jobs:
           docker compose up -d
           sleep 5
 
-          # Apply schema
           PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f db/schema/production_schema.sql
-
-          # Import data
           PGPASSWORD=postgres psql -h localhost -U postgres -d postgres < db/data/production_data.sql
           ```
 
-          ## Safety Notes
-          ⚠️ Never run on production!
-          ✅ Safe for local development only
+          ## Safety
+          ⚠️ Only run on local development!
           EOF
 
-      - name: Upload database dump as artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: production-database-dump
           path: |
             db/schema/
             db/data/
-            db/scripts/restore-from-production.md
+            db/scripts/
           retention-days: 7
 
-      - name: Create pull request with dump
+      - name: Create pull request
         uses: peter-evans/create-pull-request@v7
         with:
           title: "chore: Production database dump $(date +%Y-%m-%d)"
           body: "Full database dump for local development"
-          commit-message: "chore: Add production database dump $(date +%Y-%m-%d)"
+          commit-message: "chore: Add production dump $(date +%Y-%m-%d)"
           branch: "db-dump-$(date +%Y-%m-%d)"
           delete-branch: true
-          add-paths: |
-            db/schema/production_schema.sql
-            db/data/production_data.sql
-            db/scripts/restore-from-production.md
 
   schema-only:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'schema-only'
@@ -151,46 +142,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate schema files
+      - name: Validate files
         run: |
-          echo "Checking migrations..."
+          echo "=== Migrations ==="
           ls -la db/migrations/
-
           echo ""
-          echo "Checking schema files..."
+          echo "=== Schema ==="
           ls -la db/schema/
-
           echo ""
-          echo "Checking scripts..."
+          echo "=== Scripts ==="
           ls -la db/scripts/*.sh
-
           echo ""
-          echo "Validation complete!"
-
-  snapshot-daily:
-    # Runs daily at 6 AM UTC (no manual trigger needed)
-    # Just creates schema snapshot without push
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Supabase CLI
-        run: npm install -g @supabase/cli
-
-      - name: Generate schema snapshot
-        run: |
-          mkdir -p db/schema
-          supabase db dump --linked --schema-only > db/schema/schema.sql
-          echo "Schema snapshot generated"
-          cat db/schema/schema.sql | head -20
-
-      - name: Upload schema as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: daily-schema-snapshot
-          path: db/schema/schema.sql
-          retention-days: 1
+          echo "✓ All files present"
