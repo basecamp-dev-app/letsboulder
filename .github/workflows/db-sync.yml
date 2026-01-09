@@ -34,8 +34,10 @@ jobs:
           version: 1.205.0
 
       - name: Login and link to project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          echo "${{ secrets.SUPABASE_ACCESS_TOKEN }}" | supabase login --token stdin
+          supabase login --token "$SUPABASE_ACCESS_TOKEN"
           supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} -p
 
       - name: Generate schema snapshot
@@ -68,8 +70,10 @@ jobs:
           version: 1.205.0
 
       - name: Login and link to project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          echo "${{ secrets.SUPABASE_ACCESS_TOKEN }}" | supabase login --token stdin
+          supabase login --token "$SUPABASE_ACCESS_TOKEN"
           supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} -p
 
       - name: Generate full database dump
