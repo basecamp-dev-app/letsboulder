@@ -7,9 +7,20 @@ import { createClient } from '@/lib/supabase'
 interface MobileNavSheetProps {
   isOpen: boolean
   onClose: () => void
+  onOpenFeedback?: () => void
 }
 
 const NAV_ITEMS = [
+  {
+    label: 'Feedback',
+    href: '#',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+      </svg>
+    ),
+    isFeedback: true
+  },
   {
     label: 'Leaderboard',
     href: '/leaderboard',
@@ -40,7 +51,7 @@ const NAV_ITEMS = [
   }
 ]
 
-export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps) {
+export default function MobileNavSheet({ isOpen, onClose, onOpenFeedback }: MobileNavSheetProps) {
   const pathname = usePathname()
   const router = useRouter()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,9 +72,13 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
     return () => subscription.unsubscribe()
   }, [])
 
-  const handleNavigation = (href: string) => {
+  const handleNavigation = (href: string, isFeedback?: boolean) => {
     onClose()
-    router.push(href)
+    if (isFeedback && onOpenFeedback) {
+      onOpenFeedback()
+    } else {
+      router.push(href)
+    }
   }
 
   const handleSignOut = async () => {
@@ -92,14 +107,14 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
           {NAV_ITEMS.map((item) => (
             <button
               key={item.href}
-              onClick={() => handleNavigation(item.href)}
+              onClick={() => handleNavigation(item.href, item.isFeedback)}
               className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-colors ${
-                pathname === item.href
+                item.isFeedback || pathname === item.href
                   ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
             >
-              <span className={pathname === item.href ? 'text-gray-900 dark:text-white' : 'text-gray-500'}>
+              <span className={item.isFeedback || pathname === item.href ? 'text-gray-900 dark:text-white' : 'text-gray-500'}>
                 {item.icon}
               </span>
               <span className="font-medium">{item.label}</span>
