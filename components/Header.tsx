@@ -33,13 +33,18 @@ const MORE_MENU_ITEMS = [
 
 const MORE_MENU_ITEMS_WITH_TYPES: { label: string; href: string }[] = MORE_MENU_ITEMS
 
-export default function Header() {
+export default function Header({
+  isFeedbackModalOpen,
+  onCloseFeedbackModal,
+}: {
+  isFeedbackModalOpen: boolean
+  onCloseFeedbackModal: () => void
+}) {
   const [user, setUser] = useState<User | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [showMoreDropdown, setShowMoreDropdown] = useState(false)
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLDivElement>(null)
@@ -221,7 +226,7 @@ export default function Header() {
             Upload
           </Link>
           <button
-            onClick={() => setShowFeedbackModal(true)}
+            onClick={onCloseFeedbackModal}
             className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           >
             Feedback
@@ -272,7 +277,7 @@ export default function Header() {
             )}
           </div>
         </nav>
-        <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} />
+        <FeedbackModal isOpen={isFeedbackModalOpen} onClose={onCloseFeedbackModal} />
       </div>
     </header>
   )
