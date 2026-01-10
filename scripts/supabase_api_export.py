@@ -17,13 +17,13 @@ import urllib.error
 from pathlib import Path
 
 SUPABASE_PROJECT = os.environ.get('SUPABASE_PROJECT')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
 
 ALL_TABLES = ['regions', 'crags', 'climbs', 'user_climbs', 'admin_actions']
 BASE_URL = f'https://{SUPABASE_PROJECT}.supabase.co/rest/v1'
 HEADERS = {
-    'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
-    'apikey': SUPABASE_SERVICE_KEY,
+    'Authorization': f'Bearer {SUPABASE_SERVICE_ROLE_KEY}',
+    'apikey': SUPABASE_SERVICE_ROLE_KEY,
     'Content-Type': 'application/json',
     'Prefer': 'count=exact'
 }
@@ -195,9 +195,9 @@ def main():
     if mode == 'schema':
         copy_schema_from_migrations()
     elif mode == 'data':
-        if not SUPABASE_SERVICE_KEY:
-            print('❌ Error: SUPABASE_SERVICE_KEY must be set for data export')
-            print('  export SUPABASE_SERVICE_KEY=your_service_role_key')
+        if not SUPABASE_SERVICE_ROLE_KEY:
+            print('❌ Error: SUPABASE_SERVICE_ROLE_KEY must be set for data export')
+            print('  export SUPABASE_SERVICE_ROLE_KEY=your_service_role_key')
             sys.exit(1)
         export_data()
     elif mode == 'full':

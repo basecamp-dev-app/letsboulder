@@ -1,241 +1,58 @@
-# Database Sync Strategy
+# Database Setup
 
-This document describes how to keep local development environment in sync with production Supabase.
-
-## Overview
+## Schema (Image-Centric)
 
 ```
-Production Supabase (Live)
-         │
-         │ [GitHub Actions - Daily]
-         ▼
-    GitHub Actions Workflow
-         │
-         │ [Creates artifacts]
-         ▼
-    db/schema/schema.sql (snapshot)
-    db/data/production_data.sql (data dump)
-         │
-         │ [git pull]
-         ▼
-Local Development Environment
-    (Docker PostgreSQL)
+images (one pin per photo with GPS)
+  └── route_lines (routes drawn on image)
+        └── climbs (name, grade, status)
 ```
 
-## Quick Start
-
-### Daily Workflow
+## Local Development with Supabase CLI
 
 ```bash
-# 1. Pull latest changes (includes database snapshot)
-git pull origin main
+# Start local Supabase
+supabase start
 
-# 2. Sync local database with production
-./db/scripts/sync-local.sh
-
-# 3. Start development
-npm run dev
-```
-
-### Full Sync (with production data)
-
-```bash
-# 1. Run GitHub Actions workflow
-# Go to: https://github.com/gsyrocks/gsyrocks/actions/workflows/db-sync.yml
-# Click "Run workflow" → "Full sync"
-
-# 2. Download artifact
-gh run download -n production-database-dump -D db/data
-
-# 3. Restore to local
-PGPASSWORD=postgres psql -h localhost -U postgres -d postgres < db/data/production_data.sql
-
-# 4. Start dev server
-npm run dev
-```
-
-## File Structure
-
-```
-db/
-├── migrations/              # Schema changes (version controlled)
-│   ├── 000001_initial_schema.sql
-│   ├── 000002_add_regions.sql
-│   ├── 000003_add_location_fields_to_crags.sql
-│   ├── 000004_seed_worldwide_regions.sql
-│   └── 000005_crag_region_reports.sql
-├── schema/                  # Database snapshots
-│   └── schema.sql          # Latest schema from production
-├── data/                   # Data dumps (not in git)
-│   └── production_data.sql # Latest production data
-├── seed/                   # Seed data
-│   └── 001_regions.sql
-└── scripts/
-    ├── restore-from-production.md
-    └── supabase_api_export.py  # API-based export script
-```
-
-## GitHub Actions Workflow
-
-The `db-sync.yml` workflow runs automatically:
-
-1. **Daily at 6 AM UTC** - Creates schema snapshot
-2. **On demand** - Full sync with data
-
-### Running Manually
-
-1. Go to https://github.com/gsyrocks/gsyrocks/actions/workflows/db-sync.yml
-2. Click "Run workflow"
-3. Choose mode:
-   - **snapshot** - Schema only (fast)
-   - **full-sync** - Schema + data (slower, creates artifact)
-   - **schema-only** - Quick validation
-
-### Downloading Artifacts
-
-```bash
-# Install GitHub CLI if not installed
-brew install gh  # macOS
-# or
-sudo apt install gh  # Linux
-
-# Login
-gh auth login
-
-# Download latest artifact
-gh run download -n production-database-dump -D db/data
-```
-
-## Local Development Setup
-
-### Prerequisites
-
-- Docker
-- PostgreSQL client
-
-### Starting Local Database
-
-```bash
-cd ~/supabase-local
-docker compose up -d
-
-# Verify
-docker ps
-PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -c "\dt"
-```
-
-### Resetting Local Database
-
-```bash
-cd ~/supabase-local
-docker compose down
-docker volume rm supabase-local_pgdata
-docker compose up -d
-
-# Re-apply migrations
-PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f db/migrations/*.sql
-```
-
-## Production Safety
-
-⚠️ **Important Safety Notes**
-
-- **Never** run production sync commands on production
-- **Always** test migrations locally first
-- **Keep** production credentials in GitHub Secrets, never in code
-- **Use** separate database for development
-
-### GitHub Secrets Required
-
-| Secret | Description |
-|--------|-------------|
-| `SUPABASE_PROJECT_REF` | Your Supabase project ID (e.g., `glxnbxbkedeogtcivpsx`) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key from Supabase Dashboard → Settings → API |
-
-### Setting Up Secrets
-
-1. Go to https://github.com/gsyrocks/gsyrocks/settings/secrets/actions
-2. Add:
-   - `SUPABASE_PROJECT_REF`: From Supabase Dashboard URL
-   - `SUPABASE_SERVICE_ROLE_KEY`: From Supabase Dashboard → Settings → API → `service_role` key
-
-## Troubleshooting
-
-### "Connection refused" to local database
-
-```bash
-# Check if Docker is running
-docker ps
-
-# Start Docker
-sudo systemctl start docker
-
-# Start database
-cd ~/supabase-local
-docker compose up -d
-```
-
-### "Permission denied" errors
-
-```bash
-# Add user to docker group
-sudo usermod -aG docker $USER
-# Log out and back in
-```
-
-### Migration conflicts
-
-```bash
 # Reset local database
-cd ~/supabase-local
-docker compose down
-docker volume rm supabase-local_pgdata
-docker compose up -d
+supabase db reset --yes
 
-# Re-apply migrations
-PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f db/migrations/*.sql
+# View local Studio
+# Open http://localhost:54323
+
+# Push schema changes to production
+supabase db push
 ```
 
-## Commands Reference
+## Migration Files
+
+```
+supabase/migrations/
+  └── 20260110180000_image_centric_schema.sql  # New image-centric schema
+```
+
+## Key Tables
+
+| Table | Purpose |
+|-------|---------|
+| `regions` | Geographic areas (seeded with 27 worldwide) |
+| `crags` | Climbing areas with fixed GPS |
+| `images` | Photos with GPS (one pin per image) |
+| `climbs` | Route metadata (name, grade, status) |
+| `route_lines` | Links climbs to images with coordinates |
+
+## Supabase CLI
 
 ```bash
-# Generate schema snapshot (from migrations)
-python3 scripts/supabase_api_export.py schema
+# Link to project
+supabase link --project-ref glxnbxbkedeogtcivpsx
 
-# Export production data via Supabase REST API
-python3 scripts/supabase_api_export.py data
+# Push migrations to production
+supabase db push
 
-# Export both schema and data
-python3 scripts/supabase_api_export.py full
+# Pull schema from production
+supabase db pull
 
-# Apply migrations to local
-PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f db/migrations/*.sql
-
-# Restore production data to local
-PGPASSWORD=postgres psql -h localhost -U postgres -d postgres < db/data/production_data.sql
-
-# Connect to local database
-PGPASSWORD=postgres psql -h localhost -U postgres -d postgres
+# View status
+supabase status
 ```
-
-### Local Export (Requires Service Role Key)
-
-```bash
-export SUPABASE_PROJECT=glxnbxbkedeogtcivpsx
-export SUPABASE_SERVICE_KEY=your_service_role_key
-python3 scripts/supabase_api_export.py full
-```
-
-## Best Practices
-
-1. **Pull before developing**: `git pull && ./db/scripts/sync-local.sh`
-2. **Test migrations locally** before pushing to main
-3. **Keep migrations small** and focused
-4. **Document changes** in migration comments
-5. **Back up** before major changes
-
-## Support
-
-- Supabase CLI: https://supabase.com/docs/guides/cli
-- PostgreSQL: https://www.postgresql.org/docs/
-- GitHub Actions: https://docs.github.com/en/actions

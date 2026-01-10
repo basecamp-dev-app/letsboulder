@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     const submittedBy = user.email?.split('@')[0] || 'User'
 
-    const workerUrl = process.env.ROUTE_WORKER_URL || 'https://email-moderation-production.patrickhadow.workers.dev'
+    const workerUrl = process.env.WORKER_URL || 'https://email-moderation-production.patrickhadow.workers.dev'
     const workerApiKey = process.env.WORKER_API_KEY
 
     try {

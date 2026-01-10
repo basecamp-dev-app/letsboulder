@@ -192,24 +192,54 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
 
       if (!user) throw new Error('Not authenticated')
 
-      // Create climbs with selected crag
-      const climbs = forms.map((form, index) => ({
-        crag_id: selectedCrag.id,
+      // Step 1: Create image record
+      const { data: image, error: imageError } = await supabase
+        .from('images')
+        .insert({
+          url: routeData.imageUrl,
+          latitude: routeData.latitude,
+          longitude: routeData.longitude,
+          capture_date: routeData.captureDate,
+          crag_id: selectedCrag.id,
+          created_by: user.id
+        })
+        .select()
+        .single()
+
+      if (imageError) throw imageError
+
+      // Step 2: Create climb records
+      const climbsData = forms.map(form => ({
         name: form.name,
         grade: form.grade,
-        description: form.description,
-        coordinates: routeData.routes[index],
-        image_url: routeData.imageUrl,
-        image_capture_date: routeData.captureDate,
-        created_by: user.id,
-        status: 'pending'
+        description: form.description || null,
+        route_type: 'sport',
+        status: 'pending',
+        user_id: user.id
       }))
 
-      const { error } = await supabase
+      const { data: climbs, error: climbsError } = await supabase
         .from('climbs')
-        .insert(climbs)
+        .insert(climbsData)
+        .select()
 
-      if (error) throw error
+      if (climbsError) throw climbsError
+      if (!climbs || climbs.length === 0) throw new Error('Failed to create climbs')
+
+      // Step 3: Create route_lines records linking climbs to image
+      const routeLinesData = routeData.routes.map((route, index) => ({
+        image_id: image.id,
+        climb_id: climbs[index].id,
+        points: route.points,
+        color: 'red',
+        sequence_order: index
+      }))
+
+      const { error: routeLinesError } = await supabase
+        .from('route_lines')
+        .insert(routeLinesData)
+
+      if (routeLinesError) throw routeLinesError
 
       // Clear session and redirect
       localStorage.removeItem('routeSession')
