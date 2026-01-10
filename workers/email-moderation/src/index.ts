@@ -168,6 +168,86 @@ async function handleStats(kv: any): Promise<Response> {
   }
 }
 
+async function handleResendWebhook(request: Request, env: any): Promise<Response> {
+  try {
+    const body: any = await request.json()
+    console.log('[Resend] Webhook received:', JSON.stringify(body).substring(0, 500))
+    
+    const { from, to, subject, text, html, headers, attachments } = body
+    
+    const emailId = `email_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    console.log(`[Resend] Processing email: ${emailId} from ${from}`)
+    
+    const emailData = {
+      id: emailId,
+      from: from || 'unknown',
+      to: to || 'unknown',
+      subject: subject || '(No subject)',
+      text: text || '',
+      html: html || '',
+      date: new Date().toISOString(),
+      attachments: (attachments || []).map((a: any) => ({
+        name: a.filename || a.name,
+        size: a.size || 0,
+        type: a.content_type || a.type
+      })),
+      headers: headers || {}
+    }
+    
+    // Generate AI reply
+    let aiReply: string | null = null
+    if (env.GEMINI_API_KEY && emailData.text) {
+      const category = classifyEmail(emailData)
+      try {
+        console.log('[Resend] Generating AI reply...')
+        aiReply = await generateAIReply(emailData, category, env.GEMINI_API_KEY)
+        if (aiReply) {
+          console.log('[Resend] AI reply generated successfully')
+        }
+      } catch (e) {
+        console.log('[Resend] AI reply generation failed:', e)
+      }
+    }
+    
+    const pendingEmail = {
+      ...emailData,
+      aiReply,
+      suggestedTone: getSuggestedTone(classifyEmail(emailData)),
+      detectedCategory: classifyEmail(emailData),
+      status: 'pending',
+      createdAt: Date.now(),
+      isSuspicious: false
+    }
+    
+    // Save to KV
+    if (env.EMAIL_APPROVAL_KV) {
+      try {
+        await env.EMAIL_APPROVAL_KV.put(`email:${emailId}`, JSON.stringify(pendingEmail), { expirationTtl: 604800 })
+        console.log('[Resend] Email saved to KV')
+      } catch (e) {
+        console.log('[Resend] KV save failed:', e)
+      }
+    }
+    
+    // Send to Discord
+    if (env.DISCORD_BOT_TOKEN && env.DISCORD_APPROVAL_CHANNEL_ID) {
+      try {
+        const sent = await sendBotMessageWithButtons(env.DISCORD_BOT_TOKEN, env.DISCORD_APPROVAL_CHANNEL_ID, pendingEmail, false)
+        console.log('[Resend] Discord bot message sent:', sent)
+      } catch (e) {
+        console.log('[Resend] Discord bot error:', e)
+      }
+    }
+    
+    console.log('[Resend] Email processing complete')
+    
+    return new Response(JSON.stringify({ success: true }), { headers: { 'Content-Type': 'application/json' } })
+  } catch (error) {
+    console.error('[Resend] Error:', error)
+    return new Response(JSON.stringify({ error: 'Failed to process email' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+  }
+}
+
 export default {
   async email(message: any, env: any, ctx: any) {
     console.log('[Worker] Email received')
@@ -190,18 +270,36 @@ export default {
       console.log(`[Worker] Headers extracted: ${Object.keys(headers).length} headers`)
       
       let textContent = ''
+      let htmlContent = ''
+      
+      // Try multiple methods to extract email content
       try {
-        textContent = await message.text()
+        if (typeof message.text === 'function') {
+          textContent = await message.text() || ''
+          console.log('[Worker] Extracted text via message.text(), length:', textContent.length)
+        }
       } catch (e) {
-        console.log('[Worker] Could not extract text content')
+        console.log('[Worker] message.text() failed:', e)
       }
       
-      let htmlContent = ''
       try {
-        htmlContent = await message.html()
+        if (typeof message.html === 'function') {
+          htmlContent = await message.html() || ''
+          console.log('[Worker] Extracted html via message.html(), length:', htmlContent.length)
+        }
       } catch (e) {
-        console.log('[Worker] Could not extract HTML content')
+        console.log('[Worker] message.html() failed:', e)
       }
+      
+      // Debug: log what methods are available on message
+      console.log('[Worker] message type:', typeof message)
+      console.log('[Worker] message keys:', message ? Object.keys(message).join(', ') : 'null')
+      console.log('[Worker] message json:', message ? JSON.stringify(message).substring(0, 500) : 'null')
+      console.log('[Worker] env keys:', Object.keys(env || {}).filter(k => !k.includes('KV')).join(', '))
+      console.log('[Worker] GEMINI_API_KEY present:', !!env?.GEMINI_API_KEY)
+      console.log('[Worker] GEMINI_API_KEY first 10 chars:', env?.GEMINI_API_KEY?.substring(0, 10) || 'NOT FOUND')
+      
+      console.log('[Worker] Final - Text:', textContent.length, 'HTML:', htmlContent.length)
       
       const emailData = {
         id: emailId,
@@ -261,16 +359,29 @@ export default {
       console.log(`[Worker] Category: ${category}`)
       
       let aiReply: string | null = null
+      console.log('[Worker] env keys:', Object.keys(env || {}).filter(k => !k.includes('KV')).join(', '))
+      console.log('[Worker] GEMINI_API_KEY present:', !!env?.GEMINI_API_KEY)
+      console.log('[Worker] GEMINI_API_KEY first 10 chars:', env?.GEMINI_API_KEY?.substring(0, 10) || 'NOT FOUND')
       if (env.GEMINI_API_KEY) {
-        try {
-          console.log('[Worker] Generating AI reply...')
-          aiReply = await generateAIReply(emailData, category, env.GEMINI_API_KEY)
-          if (aiReply) {
-            console.log('[Worker] AI reply generated successfully')
+        if (!emailData.text || emailData.text.length < 5) {
+          console.log('[Worker] Skipping AI reply - no email content to reply to')
+          aiReply = null
+        } else {
+          try {
+            console.log('[Worker] Generating AI reply...')
+            console.log('[Worker] Email text preview:', emailData.text.substring(0, 100))
+            aiReply = await generateAIReply(emailData, category, env.GEMINI_API_KEY)
+            if (aiReply) {
+              console.log('[Worker] AI reply generated successfully, length:', aiReply.length)
+            } else {
+              console.log('[Worker] AI reply returned null')
+            }
+          } catch (e) {
+            console.log('[Worker] AI reply generation failed:', e)
           }
-        } catch (e) {
-          console.log('[Worker] AI reply generation failed:', e)
         }
+      } else {
+        console.log('[Worker] GEMINI_API_KEY not set in env')
       }
       
       const pendingEmail = {
@@ -359,6 +470,21 @@ export default {
     if (pathname === '/feedback' && request.method === 'POST') {
       console.log('[Worker] Feedback request received')
       return handleFeedbackSubmit(request, env)
+    }
+
+    if (pathname === '/resend-webhook' && request.method === 'POST') {
+      console.log('[Worker] Resend webhook received')
+      return handleResendWebhook(request, env)
+    }
+
+    if (pathname === '/stats' && request.method === 'GET') {
+      if (env.EMAIL_APPROVAL_KV) {
+        return handleStats(env.EMAIL_APPROVAL_KV)
+      }
+      return new Response(JSON.stringify({ error: 'KV not available' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
     if (pathname === '/interactions') {
@@ -807,19 +933,49 @@ async function handleReject(email: any, env: any, userId: string): Promise<Respo
 }
 
 async function handleView(email: any, env: any, userId: string): Promise<Response> {
+  // Fetch full email from KV if not fully loaded
+  let fullEmail = email
+  if (!email.text && email.id) {
+    try {
+      const emailStr = await env.EMAIL_APPROVAL_KV.get(`email:${email.id}`, 'text')
+      if (emailStr) {
+        fullEmail = JSON.parse(emailStr)
+      }
+    } catch (e) {
+      console.log('[View] Failed to fetch full email:', e)
+    }
+  }
+  
+  // Generate AI reply on-demand if not already generated
+  if (!fullEmail.aiReply && fullEmail.text && env.GEMINI_API_KEY) {
+    try {
+      console.log('[View] Generating AI reply on-demand...')
+      fullEmail.aiReply = await generateAIReply(fullEmail, fullEmail.detectedCategory || 'general_inquiry', env.GEMINI_API_KEY)
+      // Save the generated reply
+      if (fullEmail.id && env.EMAIL_APPROVAL_KV) {
+        await env.EMAIL_APPROVAL_KV.put(`email:${fullEmail.id}`, JSON.stringify(fullEmail))
+        console.log('[View] Saved AI reply to KV')
+      }
+    } catch (e) {
+      console.log('[View] AI reply generation failed:', e)
+    }
+  }
+  
+  const emailContent = fullEmail.text || fullEmail.html || '[No email content available - email body not captured by Cloudflare Email Routing. Cloudflare Email Routing only passes metadata, not body content.]'
+  
   const fullContent = `**Full Email**
-From: ${email.from}
-Subject: ${email.subject}
-Date: ${email.date}
+From: ${fullEmail.from}
+Subject: ${fullEmail.subject}
+Date: ${fullEmail.date}
 
-${email.text}
+${emailContent}
 
-${email.attachments?.length > 0 ? `Attachments: ${email.attachments.map((a: any) => a.name).join(', ')}` : 'No attachments'}
+${fullEmail.attachments?.length > 0 ? `Attachments: ${fullEmail.attachments.map((a: any) => a.name).join(', ')}` : 'No attachments'}
 
 ---
 
 **AI Suggested Reply:**
-${email.aiReply || 'No AI reply generated'}`
+${fullEmail.aiReply || 'No AI reply available - email body was empty when received. Cloudflare Email Routing does not pass email body content to workers.'}`
   
   if (env.DISCORD_LOG_WEBHOOK_URL) {
     await sendLogMessage(env.DISCORD_LOG_WEBHOOK_URL, '📋 Full Email Viewed',
