@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
+import FeedbackModal from '@/components/FeedbackModal'
 
 interface SearchResult {
   type: 'crag' | 'climb'
@@ -38,6 +39,7 @@ export default function Header() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [showMoreDropdown, setShowMoreDropdown] = useState(false)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLDivElement>(null)
@@ -218,6 +220,12 @@ export default function Header() {
           <Link href="/upload-climb" className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Upload
           </Link>
+          <button
+            onClick={() => setShowFeedbackModal(true)}
+            className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          >
+            Feedback
+          </button>
           <div ref={moreRef} className="relative">
             <button
               onClick={() => setShowMoreDropdown(!showMoreDropdown)}
@@ -264,6 +272,7 @@ export default function Header() {
             )}
           </div>
         </nav>
+        <FeedbackModal isOpen={showFeedbackModal} onClose={() => setShowFeedbackModal(false)} />
       </div>
     </header>
   )

@@ -356,6 +356,11 @@ export default {
       return handleRouteDiscordSubmit(request, env)
     }
 
+    if (pathname === '/feedback' && request.method === 'POST') {
+      console.log('[Worker] Feedback request received')
+      return handleFeedbackSubmit(request, env)
+    }
+
     if (pathname === '/interactions') {
       console.log('[Interactions] Matched /interactions, method:', request.method)
       const requestType = request.headers.get('x-discord-request-type')
@@ -1307,5 +1312,128 @@ async function sendRouteApprovalEmail(
   }
 }
 
-export type { RouteSubmission }
+interface FeedbackSubmission {
+  message: string
+  submittedBy?: string
+  isAnonymous: boolean
+  timestamp: number
+}
+
+async function handleFeedbackSubmit(request: Request, env: any): Promise<Response> {
+  try {
+    const authHeader = request.headers.get('Authorization')
+    const expectedToken = env.WORKER_API_KEY
+
+    if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    const body = await request.json() as any
+    const { message, submittedBy, isAnonymous } = body
+
+    if (!message || message.trim().length === 0) {
+      return new Response(JSON.stringify({ error: 'Message is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    if (message.length > 2000) {
+      return new Response(JSON.stringify({ error: 'Message too long (max 2000 characters)' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    const feedback: FeedbackSubmission = {
+      message: message.trim(),
+      submittedBy: isAnonymous ? undefined : submittedBy,
+      isAnonymous,
+      timestamp: Date.now()
+    }
+
+    const channelId = env.DISCORD_FEEDBACK_CHANNEL_ID
+    const botToken = env.DISCORD_BOT_TOKEN
+
+    if (!channelId) {
+      console.error('[Feedback] ERROR: DISCORD_FEEDBACK_CHANNEL_ID not set in environment')
+      return new Response(JSON.stringify({
+        success: true,
+        warning: 'Feedback saved but Discord notification not sent: missing channel ID'
+      }), { headers: { 'Content-Type': 'application/json' } })
+    }
+
+    if (!botToken) {
+      console.error('[Feedback] ERROR: DISCORD_BOT_TOKEN not set in environment')
+      return new Response(JSON.stringify({
+        success: true,
+        warning: 'Feedback saved but Discord notification not sent: missing bot token'
+      }), { headers: { 'Content-Type': 'application/json' } })
+    }
+
+    const result = await sendFeedbackMessage(botToken, channelId, feedback)
+
+    console.log('[Feedback] Discord result:', result)
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: result.success ? 'Feedback sent!' : 'Feedback saved'
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  } catch (error) {
+    console.error('[Feedback] Error:', error)
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+}
+
+async function sendFeedbackMessage(
+  botToken: string,
+  channelId: string,
+  feedback: FeedbackSubmission
+): Promise<{ success: boolean }> {
+  const displayName = feedback.isAnonymous ? 'Anonymous' : (feedback.submittedBy || 'Unknown User')
+
+  const embed = {
+    title: '💬 New Feedback',
+    color: 0x5865f2,
+    description: feedback.message,
+    fields: [
+      { name: '👤 From', value: displayName, inline: true },
+      { name: '🕐 Time', value: new Date(feedback.timestamp).toLocaleString(), inline: true }
+    ],
+    timestamp: new Date().toISOString(),
+    footer: { text: 'gsyrocks Feedback' }
+  }
+
+  try {
+    const discordResponse = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bot ${botToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        embeds: [embed]
+      })
+    })
+
+    const text = await discordResponse.text()
+    console.log('[Feedback Discord] Response status:', discordResponse.status)
+
+    if (!discordResponse.ok) {
+      return { success: false }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('[Feedback Discord Bot] Error:', error)
+    return { success: false }
+  }
+}
+
+export type { RouteSubmission, FeedbackSubmission }
 export { sendRouteApprovalMessage, handleApproveRoute, handleRejectRoute }
