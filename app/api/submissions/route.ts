@@ -201,9 +201,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create route lines' }, { status: 500 })
     }
 
-    for (let i = 0; i < climbs.length; i++) {
-      await triggerDiscordModeration(climbDataToSubmission(climbs[i], body.routes[i], imageUrl, imageLat!, imageLng!, regionData, user))
-    }
+    await triggerImageDiscordNotification({
+      imageId: imageId!,
+      imageUrl,
+      latitude: imageLat!,
+      longitude: imageLng!,
+      region: regionData,
+      submittedBy: user.email?.split('@')[0] || 'Anonymous',
+      submittedByEmail: user.email || '',
+      routes: climbs.map((climb, index) => ({
+        id: climb.id,
+        name: climb.name,
+        grade: climb.grade,
+        description: body.routes[index].description?.trim() || null
+      }))
+    })
 
     return NextResponse.json({
       success: true,
@@ -240,25 +252,28 @@ async function getRegionData(supabase: ReturnType<typeof createServerClient>, im
   }
 }
 
-interface DiscordSubmission {
-  routeId: string
-  name: string
-  grade: string
+interface ImageDiscordSubmission {
+  imageId: string
   imageUrl: string
   latitude: number
   longitude: number
   region: string
-  town?: string
   submittedBy: string
   submittedByEmail: string
+  routes: {
+    id: string
+    name: string | null
+    grade: string
+    description: string | null
+  }[]
 }
 
-async function triggerDiscordModeration(submission: DiscordSubmission) {
+async function triggerImageDiscordNotification(submission: ImageDiscordSubmission) {
   try {
     const workerUrl = process.env.WORKER_URL || 'https://email-moderation-production.patrickhadow.workers.dev'
     const workerApiKey = process.env.WORKER_API_KEY
 
-    await fetch(`${workerUrl}/routes/discord-submit`, {
+    await fetch(`${workerUrl}/images/discord-submit`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -267,29 +282,7 @@ async function triggerDiscordModeration(submission: DiscordSubmission) {
       body: JSON.stringify(submission)
     })
   } catch (error) {
-    console.error('Failed to trigger Discord moderation:', error)
-  }
-}
-
-function climbDataToSubmission(
-  climb: { id: string; name: string; grade: string },
-  route: NewRouteData,
-  imageUrl: string,
-  latitude: number,
-  longitude: number,
-  region: string,
-  user: { email?: string | null }
-): DiscordSubmission {
-  return {
-    routeId: climb.id,
-    name: climb.name,
-    grade: climb.grade,
-    imageUrl,
-    latitude,
-    longitude,
-    region,
-    submittedBy: user.email?.split('@')[0] || 'Anonymous',
-    submittedByEmail: user.email || ''
+    console.error('Failed to trigger Discord notification:', error)
   }
 }
 

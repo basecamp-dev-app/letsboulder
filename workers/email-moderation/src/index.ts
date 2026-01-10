@@ -507,6 +507,11 @@ export default {
       return handleRouteDiscordSubmit(request, env)
     }
 
+    if (pathname === '/images/discord-submit' && request.method === 'POST') {
+      console.log('[Worker] Image submission request received')
+      return handleImageDiscordSubmit(request, env)
+    }
+
     if (pathname === '/feedback' && request.method === 'POST') {
       console.log('[Worker] Feedback request received')
       return handleFeedbackSubmit(request, env)
@@ -1274,6 +1279,154 @@ async function handleRouteDiscordSubmit(request: Request, env: any): Promise<Res
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     })
+  }
+}
+
+interface ImageSubmission {
+  imageId: string
+  imageUrl: string
+  latitude: number
+  longitude: number
+  region: string
+  submittedBy: string
+  submittedByEmail: string
+  routes: {
+    id: string
+    name: string | null
+    grade: string
+    description: string | null
+  }[]
+}
+
+async function handleImageDiscordSubmit(request: Request, env: any): Promise<Response> {
+  try {
+    const authHeader = request.headers.get('Authorization')
+    const expectedToken = env.WORKER_API_KEY
+
+    if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
+    }
+
+    const body = await request.json() as ImageSubmission
+    const { imageId, imageUrl, latitude, longitude, region, submittedBy, submittedByEmail, routes } = body
+
+    if (!imageId || !imageUrl || !latitude || !longitude || !routes || routes.length === 0) {
+      console.log('[Image Submit] Missing fields:', { imageId, imageUrl, latitude, longitude, routesCount: routes?.length })
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    const channelId = env.DISCORD_ROUTE_APPROVAL_CHANNEL_ID
+    const botToken = env.DISCORD_BOT_TOKEN
+
+    if (!channelId || !botToken) {
+      console.error('[Image Submit] Missing Discord config')
+      return new Response(JSON.stringify({ 
+        success: true,
+        warning: 'Discord notification not sent: missing config'
+      }), { headers: { 'Content-Type': 'application/json' } })
+    }
+
+    console.log('[Image Submit] Calling Discord API for image with', routes.length, 'routes...')
+    const result = await sendImageApprovalMessage(botToken, channelId, {
+      imageId,
+      imageUrl,
+      latitude,
+      longitude,
+      region,
+      submittedBy: submittedBy || 'Anonymous',
+      submittedByEmail: submittedByEmail || '',
+      routes
+    })
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      messageId: result.messageId 
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  } catch (error) {
+    console.error('[Image Submit] Error:', error)
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+}
+
+async function sendImageApprovalMessage(
+  botToken: string,
+  channelId: string,
+  image: ImageSubmission
+): Promise<{ success: boolean; messageId?: string }> {
+  const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${image.latitude},${image.longitude}&zoom=17&size=600x400&markers=${image.latitude},${image.longitude},red-pushpin`
+  
+  const locationField = image.region 
+    ? image.region 
+    : `${image.latitude.toFixed(5)}, ${image.longitude.toFixed(5)}`
+
+  const routeTable = image.routes.map(r => {
+    const name = r.name || 'Unnamed'
+    const grade = r.grade || '?'
+    return `\`${name.padEnd(20)}\` | \`${grade}\``
+  }).join('\n')
+
+  const routeCount = image.routes.length
+
+  const embed = {
+    title: `🧗 ${routeCount} route${routeCount !== 1 ? 's' : ''} submitted`,
+    color: 0xf1c40f,
+    fields: [
+      { name: '📍 Location', value: locationField, inline: false },
+      { name: '👤 Submitted by', value: image.submittedBy, inline: true },
+      { name: '🗺️ Coordinates', value: `${image.latitude.toFixed(5)}, ${image.longitude.toFixed(5)}`, inline: false },
+      { name: '🔗 Map', value: `[Google Maps](https://www.google.com/maps?q=${image.latitude},${image.longitude})`, inline: false },
+      { name: '🔗 Image', value: `[gsyrocks.com/image/${image.imageId}](https://gsyrocks.com/image/${image.imageId})`, inline: false },
+      { name: '📋 Routes', value: `**Route Name** | **Grade**\n${'-'.repeat(24)}\n${routeTable}`, inline: false }
+    ],
+    thumbnail: { url: image.imageUrl },
+    image: { url: mapUrl },
+    timestamp: new Date().toISOString(),
+    footer: { text: `Image ID: ${image.imageId} | ${routeCount} route${routeCount !== 1 ? 's' : ''}` }
+  }
+
+  try {
+    const discordResponse = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bot ${botToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        content: `🧗 **${routeCount} new route${routeCount !== 1 ? 's' : ''} submitted for approval!**`,
+        embeds: [embed],
+        components: [
+          {
+            type: 1,
+            components: [
+              { type: 2, style: 3, label: '✅ Approve All', custom_id: `approve_image_${image.imageId}` },
+              { type: 2, style: 4, label: '❌ Reject All', custom_id: `reject_image_${image.imageId}` }
+            ]
+          }
+        ]
+      })
+    })
+
+    const text = await discordResponse.text()
+    console.log('[Image Discord] Response status:', discordResponse.status)
+    
+    if (!discordResponse.ok) {
+      console.log('[Image Discord] Error:', text)
+      return { success: false }
+    }
+
+    const messageData = JSON.parse(text) as { id?: string }
+    return { success: true, messageId: messageData.id }
+  } catch (error) {
+    console.error('[Image Discord Bot] Error:', error)
+    return { success: false }
   }
 }
 

@@ -49,6 +49,17 @@ export default function ClimbPage() {
 
       try {
         const supabase = createClient()
+        const { data: routeLine, error: routeLineError } = await supabase
+          .from('route_lines')
+          .select('image_id')
+          .eq('climb_id', climbId)
+          .single()
+
+        if (!routeLineError && routeLine?.image_id) {
+          router.replace(`/image/${routeLine.image_id}`)
+          return
+        }
+
         const { data, error } = await supabase
           .from('climbs')
           .select('id, name, grade, image_url, coordinates')
@@ -91,7 +102,7 @@ export default function ClimbPage() {
     }
 
     loadClimb()
-  }, [climbId])
+  }, [climbId, router])
 
   const drawRoute = useCallback((ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, isLogged: boolean) => {
     if (points.length < 2) return
