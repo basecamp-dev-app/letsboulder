@@ -25,7 +25,7 @@ export default function UploadClimbPage() {
     if (!user) {
       router.push('/auth')
     } else {
-      router.push('/upload')
+      router.push('/submit')
     }
   }
 

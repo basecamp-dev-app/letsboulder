@@ -10,13 +10,30 @@ interface ImageUploaderProps {
   onUploading: (uploading: boolean, progress: number, step: string) => void
 }
 
-async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeight: number): Promise<File> {
+async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeight: number, previewBlob: Blob | null = null): Promise<File> {
+  let sourceData: string | ArrayBuffer | null = null
+
+  if (isHeicFile(file)) {
+    if (previewBlob) {
+      sourceData = await blobToDataURL(previewBlob)
+    } else {
+      try {
+        const jpegBlob = await heicToJpegBlob(file)
+        sourceData = await blobToDataURL(jpegBlob)
+      } catch (err) {
+        console.error('HEIC conversion error:', err)
+        throw new Error('Failed to convert HEIC image. Please try a different file.')
+      }
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    
+
     reader.onload = (e) => {
       const img = new Image()
-      
+      const imgSrc = sourceData || (e.target?.result as string)
+
       img.onload = () => {
         const canvas = document.createElement('canvas')
         const ctx = canvas.getContext('2d')
@@ -49,7 +66,7 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
           const blob = dataURLToBlob(compressedDataUrl)
           
           if (blob.size <= targetSize || quality <= 0.4) {
-            const compressedFile = new File([blob], file.name, {
+            const compressedFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
               type: 'image/jpeg',
               lastModified: Date.now()
             })
@@ -70,14 +87,19 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
         console.error('File size:', file.size)
         reject(new Error(`Failed to load image for compression. File type: ${file.type}`))
       }
-      img.src = e.target?.result as string
+      img.src = imgSrc
     }
     
     reader.onerror = (e) => {
       console.error('FileReader error:', e)
       reject(new Error('Failed to read file'))
     }
-    reader.readAsDataURL(file)
+
+    if (sourceData) {
+      reader.onload({ target: { result: sourceData } } as ProgressEvent<FileReader>)
+    } else {
+      reader.readAsDataURL(file)
+    }
   })
 }
 
@@ -91,6 +113,15 @@ function dataURLToBlob(dataURL: string): Blob {
     u8arr[n] = bstr.charCodeAt(n)
   }
   return new Blob([u8arr], { type: mime })
+}
+
+async function blobToDataURL(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
 }
 
 async function extractGpsFromFile(file: File): Promise<GpsData | null> {
@@ -161,6 +192,13 @@ function isHeicFile(file: File): boolean {
   )
 }
 
+async function heicToJpegBlob(file: File): Promise<Blob> {
+  const heic2any = (await import('heic2any')).default
+  const blob = file instanceof Blob ? file : new Blob([file], { type: 'image/heic' })
+  const jpegBlob = await heic2any({ blob, toType: 'image/jpeg', quality: 0.9 })
+  return Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob
+}
+
 export default function ImageUploader({ onComplete, onError, onUploading }: ImageUploaderProps) {
   const [file, setFile] = useState<File | null>(null)
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
@@ -204,7 +242,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     onError('')
     setFile(null)
     setCompressedFile(null)
-    setPreviewUrl(URL.createObjectURL(selectedFile))
     setShowManualGps(false)
 
     if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
@@ -221,24 +258,26 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     console.log('Processing file:', selectedFile.name, selectedFile.size, selectedFile.type)
 
     try {
-      const captureDate = await extractCaptureDate(selectedFile)
-      setImageCaptureDate(captureDate)
-
-      let extractedGps: GpsData | null = null
+      let previewBlob: Blob | null = null
 
       if (isHeicFile(selectedFile)) {
         try {
-          onUploading(true, 5, 'Extracting GPS from HEIC...')
-          extractedGps = await extractGpsFromFile(selectedFile)
+          onUploading(true, 5, 'Loading HEIC preview...')
+          previewBlob = await heicToJpegBlob(selectedFile)
+          setPreviewUrl(URL.createObjectURL(previewBlob))
+
+          onUploading(true, 10, 'Extracting GPS from HEIC...')
+          const extractedGps = await extractGpsFromFile(selectedFile)
 
           if (!extractedGps) {
             onUploading(false, 0, '')
             setShowManualGps(true)
+            setFile(selectedFile)
             return
           }
 
           setGpsData(extractedGps)
-          onUploading(true, 10, 'Converting HEIC...')
+          onUploading(true, 15, 'Converting HEIC...')
         } catch (err) {
           console.error('HEIC conversion error:', err)
           onError('Failed to process HEIC image. Please convert to JPEG first.')
@@ -246,21 +285,19 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           return
         }
       } else {
-        try {
-          onUploading(true, 5, 'Extracting GPS...')
-          extractedGps = await extractGpsFromFile(selectedFile)
-          if (extractedGps) {
-            setGpsData(extractedGps)
-          } else {
-            setShowManualGps(true)
-          }
-        } catch (err) {
-          console.error('GPS extraction error:', err)
+        setPreviewUrl(URL.createObjectURL(selectedFile))
+
+        onUploading(true, 5, 'Extracting GPS...')
+        const extractedGps = await extractGpsFromFile(selectedFile)
+        if (extractedGps) {
+          setGpsData(extractedGps)
+        } else {
+          setShowManualGps(true)
         }
       }
 
       setFile(selectedFile)
-      await compressImage(selectedFile)
+      await compressImage(selectedFile, previewBlob)
     } catch (err) {
       console.error('Error processing file:', err)
       onError('Failed to process image. Please try a different file.')
@@ -268,12 +305,12 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     }
   }
 
-  const compressImage = async (originalFile: File) => {
+  const compressImage = async (originalFile: File, previewBlob: Blob | null = null) => {
     try {
       setCompressing(true)
-      onUploading(true, 10, 'Compressing image...')
+      onUploading(true, 20, 'Compressing image...')
 
-      const compressed = await compressImageNative(originalFile, 0.3, 1200)
+      const compressed = await compressImageNative(originalFile, 0.3, 1200, previewBlob)
 
       setCompressedFile(compressed)
       setShowManualGps(gpsData === null)

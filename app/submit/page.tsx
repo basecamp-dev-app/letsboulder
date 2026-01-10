@@ -223,6 +223,7 @@ export default function SubmitPage() {
         )
 
       case 'draw':
+        console.log('Rendering draw step, image:', step.image)
         return (
           <div className="h-[calc(100vh-200px)]">
             <button
