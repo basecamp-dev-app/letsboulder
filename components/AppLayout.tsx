@@ -12,6 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <Header
         isFeedbackModalOpen={showFeedbackModal}
         onCloseFeedbackModal={() => setShowFeedbackModal(false)}
+        onOpenFeedback={() => setShowFeedbackModal(true)}
       />
       {children}
       <Footer onOpenFeedback={() => setShowFeedbackModal(true)} />

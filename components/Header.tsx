@@ -36,9 +36,11 @@ const MORE_MENU_ITEMS_WITH_TYPES: { label: string; href: string }[] = MORE_MENU_
 export default function Header({
   isFeedbackModalOpen,
   onCloseFeedbackModal,
+  onOpenFeedback,
 }: {
   isFeedbackModalOpen: boolean
   onCloseFeedbackModal: () => void
+  onOpenFeedback: () => void
 }) {
   const [user, setUser] = useState<User | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -226,7 +228,7 @@ export default function Header({
             Upload
           </Link>
           <button
-            onClick={onCloseFeedbackModal}
+            onClick={onOpenFeedback}
             className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           >
             Feedback
