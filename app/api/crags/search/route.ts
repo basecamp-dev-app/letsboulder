@@ -1,33 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams
+  const cookies = request.cookies
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookies.getAll() },
+        setAll() {},
+      },
+    }
+  )
+
+  const { searchParams } = new URL(request.url)
   const query = searchParams.get('q')?.toLowerCase() || ''
+  const regionId = searchParams.get('region_id')
 
   if (!query || query.length < 2) {
     return NextResponse.json([])
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
   try {
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/crags?select=id,name,region_name,tide_level,latitude,longitude,report_count,is_flagged&name=ilike.*${encodeURIComponent(query)}*&order=name.asc&limit=30`,
-      {
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
-        },
-      }
-    )
+    let select = supabase
+      .from('crags')
+      .select('id,name,region_id,latitude,longitude,report_count,is_flagged')
+      .ilike('name', `%${query}%`)
+      .order('name', { ascending: true })
+      .limit(30)
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch crags')
+    if (regionId) {
+      select = select.eq('region_id', regionId)
     }
 
-    const crags = await response.json()
-    return NextResponse.json(crags)
+    const { data, error } = await select
+
+    if (error) {
+      console.error('Supabase error:', error)
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(data || [])
   } catch (error) {
     console.error('Error searching crags:', error)
     return NextResponse.json(

@@ -4,14 +4,18 @@ interface CreateCragRequest {
   name: string
   latitude: number
   longitude: number
-  tide_level?: number
+  region_id?: string
   region_name?: string
+  rock_type?: string
+  type?: 'sport' | 'boulder' | 'trad' | 'mixed'
+  description?: string
+  access_notes?: string
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: CreateCragRequest = await request.json()
-    const { name, latitude, longitude, tide_level, region_name } = body
+    const { name, latitude, longitude, region_id, region_name, rock_type, type, description, access_notes } = body
 
     if (!name || !latitude || !longitude) {
       return NextResponse.json(
@@ -23,7 +27,44 @@ export async function POST(request: NextRequest) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-    // Check if crag already exists at these coordinates
+    let resolvedRegionId = region_id
+
+    if (!resolvedRegionId && region_name) {
+      const regionSearchResponse = await fetch(
+        `${supabaseUrl}/rest/v1/regions?select=id,name&name=ilike.${encodeURIComponent(region_name)}&limit=1`,
+        {
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'apikey': supabaseKey,
+          },
+        }
+      )
+
+      if (regionSearchResponse.ok) {
+        const regions = await regionSearchResponse.json()
+        if (regions.length > 0) {
+          resolvedRegionId = regions[0].id
+        } else {
+          const createRegionResponse = await fetch(
+            `${supabaseUrl}/rest/v1/regions`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseKey}`,
+                'apikey': supabaseKey,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal',
+              },
+              body: JSON.stringify({ name: region_name }),
+            }
+          )
+          if (createRegionResponse.ok) {
+            resolvedRegionId = createRegionResponse.headers.get('location')?.split('/').pop() || undefined
+          }
+        }
+      }
+    }
+
     const checkResponse = await fetch(
       `${supabaseUrl}/rest/v1/crags?select=id,name&latitude=eq.${latitude}&longitude=eq.${longitude}&limit=1`,
       {
@@ -49,34 +90,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if crag with same name and region exists
-    if (region_name) {
-      const nameCheckResponse = await fetch(
-        `${supabaseUrl}/rest/v1/crags?select=id,name,region_name&name=eq.${encodeURIComponent(name)}&region_name=eq.${encodeURIComponent(region_name)}&limit=1`,
-        {
-          headers: {
-            'Authorization': `Bearer ${supabaseKey}`,
-            'apikey': supabaseKey,
-          },
-        }
-      )
-
-      if (nameCheckResponse.ok) {
-        const existingSameName = await nameCheckResponse.json()
-        if (existingSameName.length > 0) {
-          return NextResponse.json(
-            { 
-              error: `A crag named "${name}" already exists in ${region_name}`,
-              existingCragId: existingSameName[0].id,
-              existingCragName: existingSameName[0].name,
-              code: 'DUPLICATE_NAME'
-            },
-            { status: 409 }
-          )
-        }
-      }
-    }
-
     const response = await fetch(
       `${supabaseUrl}/rest/v1/crags`,
       {
@@ -91,8 +104,11 @@ export async function POST(request: NextRequest) {
           name,
           latitude,
           longitude,
-          tide_level: tide_level || null,
-          region_name: region_name || null,
+          region_id: resolvedRegionId || undefined,
+          rock_type: rock_type || undefined,
+          type: type || 'sport',
+          description: description || undefined,
+          access_notes: access_notes || undefined,
         }),
       }
     )
@@ -123,13 +139,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const createdCragId = response.headers.get('location')?.split('/').pop()
+
     const createdCrag = {
-      id: response.headers.get('location')?.split('/').pop(),
+      id: createdCragId,
       name,
       latitude,
       longitude,
-      tide_level: tide_level || null,
-      region_name: region_name || null,
+      region_id: resolvedRegionId || null,
+      rock_type: rock_type || null,
+      type: type || 'sport',
+      created_at: new Date().toISOString(),
     }
 
     return NextResponse.json(createdCrag, { status: 201 })
