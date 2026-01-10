@@ -12,11 +12,11 @@ DISCORD_FEEDBACK_CHANNEL_ID = "1459470631379796113"
 
 [[kv_namespaces]]
 binding = "EMAIL_APPROVAL_KV"
-id = "df97da21f82a45f58003899bd2D32cea"
+id = "ab785c626c3847fca5118ab58ff211e1"
 
 [[kv_namespaces]]
 binding = "ROUTE_APPROVAL_KV"
-id = "911099e7bbe845e189cd7dfa4ff0ed72"
+id = "592b2fafe2a94a1ebdf08b12a3b3caa7"
 
 [observability]
 enabled = true
