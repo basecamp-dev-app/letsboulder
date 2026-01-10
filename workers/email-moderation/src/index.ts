@@ -173,25 +173,63 @@ async function handleResendWebhook(request: Request, env: any): Promise<Response
     const body: any = await request.json()
     console.log('[Resend] Webhook received:', JSON.stringify(body).substring(0, 500))
     
-    const { from, to, subject, text, html, headers, attachments } = body
+    const eventType = body.type
+    const emailId = body.data?.email_id || body.email_id
     
-    const emailId = `email_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
-    console.log(`[Resend] Processing email: ${emailId} from ${from}`)
+    console.log(`[Resend] Event type: ${eventType}, email_id: ${emailId}`)
     
-    const emailData = {
-      id: emailId,
-      from: from || 'unknown',
-      to: to || 'unknown',
-      subject: subject || '(No subject)',
-      text: text || '',
-      html: html || '',
+    let emailData: any = {
+      id: `email_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+      from: body.data?.from || body.from || 'unknown',
+      to: body.data?.to || body.to || 'unknown',
+      subject: body.data?.subject || body.subject || '(No subject)',
+      text: '',
+      html: '',
       date: new Date().toISOString(),
-      attachments: (attachments || []).map((a: any) => ({
-        name: a.filename || a.name,
-        size: a.size || 0,
-        type: a.content_type || a.type
-      })),
-      headers: headers || {}
+      attachments: [],
+      headers: {}
+    }
+    
+    // If we have email_id, fetch full email content from Resend API
+    if (emailId && env.RESEND_API_KEY) {
+      try {
+        console.log(`[Resend] Fetching full email content for: ${emailId}`)
+        
+        const apiResponse = await fetch(`https://api.resend.com/emails/${emailId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        if (apiResponse.ok) {
+          const emailDetails: any = await apiResponse.json()
+          console.log('[Resend] Email details retrieved:', JSON.stringify(emailDetails).substring(0, 500))
+          
+          // Extract full content from API response
+          emailData.text = emailDetails.text || emailDetails.body || ''
+          emailData.html = emailDetails.html || ''
+          emailData.headers = emailDetails.headers || {}
+          
+          // Parse attachments from the email object
+          if (emailDetails.attachments && Array.isArray(emailDetails.attachments)) {
+            emailData.attachments = emailDetails.attachments.map((a: any) => ({
+              name: a.filename || a.name,
+              size: a.size || 0,
+              type: a.content_type || a.type
+            }))
+          }
+          
+          console.log(`[Resend] Full content retrieved - Text: ${emailData.text.length} chars, HTML: ${emailData.html.length} chars`)
+        } else {
+          console.log(`[Resend] Failed to fetch email details: ${apiResponse.status}`)
+        }
+      } catch (apiError) {
+        console.error('[Resend] Error fetching email details:', apiError)
+      }
+    } else if (!env.RESEND_API_KEY) {
+      console.log('[Resend] RESEND_API_KEY not set - cannot fetch full email content')
     }
     
     // Generate AI reply
@@ -207,6 +245,8 @@ async function handleResendWebhook(request: Request, env: any): Promise<Response
       } catch (e) {
         console.log('[Resend] AI reply generation failed:', e)
       }
+    } else if (!emailData.text) {
+      console.log('[Resend] No email text content available for AI reply generation')
     }
     
     const pendingEmail = {
@@ -222,7 +262,7 @@ async function handleResendWebhook(request: Request, env: any): Promise<Response
     // Save to KV
     if (env.EMAIL_APPROVAL_KV) {
       try {
-        await env.EMAIL_APPROVAL_KV.put(`email:${emailId}`, JSON.stringify(pendingEmail), { expirationTtl: 604800 })
+        await env.EMAIL_APPROVAL_KV.put(`email:${emailData.id}`, JSON.stringify(pendingEmail), { expirationTtl: 604800 })
         console.log('[Resend] Email saved to KV')
       } catch (e) {
         console.log('[Resend] KV save failed:', e)
