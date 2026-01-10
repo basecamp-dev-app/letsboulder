@@ -60,21 +60,19 @@ npm run dev
 db/
 ├── migrations/              # Schema changes (version controlled)
 │   ├── 000001_initial_schema.sql
-│   └── 000002_add_regions.sql
+│   ├── 000002_add_regions.sql
+│   ├── 000003_add_location_fields_to_crags.sql
+│   ├── 000004_seed_worldwide_regions.sql
+│   └── 000005_crag_region_reports.sql
 ├── schema/                  # Database snapshots
 │   └── schema.sql          # Latest schema from production
 ├── data/                   # Data dumps (not in git)
 │   └── production_data.sql # Latest production data
 ├── seed/                   # Seed data
 │   └── 001_regions.sql
-├── metadata/               # Database metadata
-│   ├── tables.txt
-│   └── indexes.txt
 └── scripts/
-    ├── db_snapshot.sh      # Generate schema snapshot
-    ├── db_validate.sh      # Validate schema
-    ├── sync-local.sh       # Sync local with production
-    └── restore-from-production.md
+    ├── restore-from-production.md
+    └── supabase_api_export.py  # API-based export script
 ```
 
 ## GitHub Actions Workflow
@@ -151,15 +149,15 @@ PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f db/migrations/*
 
 | Secret | Description |
 |--------|-------------|
-| `SUPABASE_ACCESS_TOKEN` | Supabase account token |
-| `SUPABASE_PROJECT_REF` | Your Supabase project ID |
+| `SUPABASE_PROJECT_REF` | Your Supabase project ID (e.g., `glxnbxbkedeogtcivpsx`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key from Supabase Dashboard → Settings → API |
 
 ### Setting Up Secrets
 
 1. Go to https://github.com/gsyrocks/gsyrocks/settings/secrets/actions
 2. Add:
-   - `SUPABASE_ACCESS_TOKEN`: From https://supabase.com/dashboard/account/tokens
    - `SUPABASE_PROJECT_REF`: From Supabase Dashboard URL
+   - `SUPABASE_SERVICE_ROLE_KEY`: From Supabase Dashboard → Settings → API → `service_role` key
 
 ## Troubleshooting
 
@@ -201,23 +199,31 @@ PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f db/migrations/*
 ## Commands Reference
 
 ```bash
-# Generate schema snapshot
-./db/scripts/db_snapshot.sh
+# Generate schema snapshot (from migrations)
+python3 scripts/supabase_api_export.py schema
 
-# Validate schema
-./db/scripts/db_validate.sh
+# Export production data via Supabase REST API
+python3 scripts/supabase_api_export.py data
 
-# Sync local with production
-./db/scripts/sync-local.sh
+# Export both schema and data
+python3 scripts/supabase_api_export.py full
 
 # Apply migrations to local
 PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f db/migrations/*.sql
 
+# Restore production data to local
+PGPASSWORD=postgres psql -h localhost -U postgres -d postgres < db/data/production_data.sql
+
 # Connect to local database
 PGPASSWORD=postgres psql -h localhost -U postgres -d postgres
+```
 
-# Connect to production (via Supabase CLI)
-supabase db dump --linked
+### Local Export (Requires Service Role Key)
+
+```bash
+export SUPABASE_PROJECT=glxnbxbkedeogtcivpsx
+export SUPABASE_SERVICE_KEY=your_service_role_key
+python3 scripts/supabase_api_export.py full
 ```
 
 ## Best Practices

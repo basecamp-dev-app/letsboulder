@@ -48,3 +48,7 @@ bun.lockb
 
 # Proxy
 proxy.out.json
+
+# Supabase local development
+supabase/.temp/
+supabase/config.toml

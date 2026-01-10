@@ -16,7 +16,8 @@ on:
           - schema-only
 
 env:
-  SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+  SUPABASE_PROJECT: ${{ secrets.SUPABASE_PROJECT_REF }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
 jobs:
   snapshot:
@@ -27,13 +28,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Generate schema snapshot
         run: |
-          python3 .github/scripts/pg_dump_wrapper.py schema
+          python3 scripts/supabase_api_export.py schema
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v7
@@ -52,17 +54,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install PostgreSQL client
-        run: |
-          sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Generate schema dump
+      - name: Generate schema snapshot
         run: |
-          python3 .github/scripts/pg_dump_wrapper.py full_schema
+          python3 scripts/supabase_api_export.py schema
 
       - name: Generate data dump
         run: |
-          python3 .github/scripts/pg_dump_wrapper.py data
+          python3 scripts/supabase_api_export.py data
 
       - name: Create restore script
         run: |
@@ -82,7 +85,7 @@ jobs:
           docker compose up -d
           sleep 5
 
-          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f db/schema/production_schema.sql
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres -f db/migrations/*.sql
           PGPASSWORD=postgres psql -h localhost -U postgres -d postgres < db/data/production_data.sql
           ```
 
@@ -95,6 +98,7 @@ jobs:
         with:
           name: production-database-dump
           path: |
+            db/migrations/
             db/schema/
             db/data/
             db/scripts/

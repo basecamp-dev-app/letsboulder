@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
+import CragSelector from '../../components/CragSelector'
 
 interface RoutePoint {
   x: number
@@ -33,6 +34,7 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
   const [routeData, setRouteData] = useState<RouteData | null>(null)
   const [forms, setForms] = useState<RouteForm[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [selectedCrag, setSelectedCrag] = useState<{ id: string; name: string } | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
 
@@ -173,7 +175,15 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
   }
 
   const handleSubmit = async () => {
-    if (!routeData || forms.some(form => !form.name)) return
+    if (!routeData || forms.some(form => !form.name)) {
+      alert('Please fill in names for all routes')
+      return
+    }
+
+    if (!selectedCrag) {
+      alert('Please select or create a crag')
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -182,32 +192,9 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
 
       if (!user) throw new Error('Not authenticated')
 
-      // First, check if crag exists or create it
-      let { data: crag } = await supabase
-        .from('crags')
-        .select('id')
-        .eq('latitude', routeData.latitude)
-        .eq('longitude', routeData.longitude)
-        .maybeSingle()
-
-      if (!crag) {
-        const { data: newCrag, error } = await supabase
-          .from('crags')
-          .insert({
-            latitude: routeData.latitude,
-            longitude: routeData.longitude,
-            name: `Crag at ${routeData.latitude.toFixed(4)}, ${routeData.longitude.toFixed(4)}`
-          })
-          .select('id')
-          .single()
-
-        if (error) throw error
-        crag = newCrag
-      }
-
-      // Create climbs
+      // Create climbs with selected crag
       const climbs = forms.map((form, index) => ({
-        crag_id: crag.id,
+        crag_id: selectedCrag.id,
         name: form.name,
         grade: form.grade,
         description: form.description,
@@ -243,6 +230,15 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="max-w-2xl mx-auto">
+      <div className="mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-900">
+        <CragSelector
+          latitude={routeData.latitude}
+          longitude={routeData.longitude}
+          onSelect={(crag) => setSelectedCrag({ id: crag.id, name: crag.name })}
+          selectedCragId={selectedCrag?.id}
+        />
+      </div>
+
       <div className="mb-6 relative">
         <img
           ref={imageRef}
@@ -297,7 +293,7 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
       ))}
       <button
         onClick={handleSubmit}
-        disabled={submitting || forms.some(form => !form.name)}
+        disabled={submitting || forms.some(form => !form.name) || !selectedCrag}
         className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded disabled:opacity-50 hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
       >
         {submitting ? 'Submitting...' : 'Submit for Approval'}

@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { RoutePoint, generateRouteId } from '@/lib/useRouteSelection'
 import { drawSmoothCurve, drawRoundedLabel, getGradeLabelPosition, getNameLabelPosition, getTruncatedText } from '@/lib/curveUtils'
+import CragSelector from '../../components/CragSelector'
 
 const FRENCH_GRADES = [
   '5A', '5A+', '5B', '5B+', '5C', '5C+',
@@ -42,6 +43,7 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
   const [currentDescription, setCurrentDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [gradePickerOpen, setGradePickerOpen] = useState(false)
+  const [selectedCrag, setSelectedCrag] = useState<{ id: string; name: string } | null>(null)
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current
@@ -247,6 +249,16 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
       return
     }
 
+    if (!selectedCrag) {
+      alert('Please select or create a crag')
+      return
+    }
+
+    if (!latitude || !longitude) {
+      alert('GPS coordinates are required')
+      return
+    }
+
     setSubmitting(true)
     try {
       const { createClient } = await import('@/lib/supabase')
@@ -259,52 +271,8 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
         return
       }
 
-      let cragId: string | null = null
-      let regionData: { country?: string; countryCode?: string; region?: string; town?: string } = {}
-
-      if (latitude && longitude) {
-        // Detect region using Nominatim
-        try {
-          const locationRes = await fetch('/api/locations/detect', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ latitude, longitude })
-          })
-          if (locationRes.ok) {
-            regionData = await locationRes.json()
-          }
-        } catch (e) {
-          console.warn('Location detection failed:', e)
-        }
-
-        const { data: crag } = await supabase
-          .from('crags')
-          .select('id')
-          .eq('latitude', latitude)
-          .eq('longitude', longitude)
-          .maybeSingle()
-
-        if (!crag) {
-          const cragName = regionData.town || regionData.region || `Crag at ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-          const { data: newCrag, error } = await supabase
-            .from('crags')
-            .insert({
-              latitude,
-              longitude,
-              name: cragName
-            })
-            .select('id')
-            .single()
-
-          if (error) throw error
-          cragId = newCrag?.id || null
-        } else {
-          cragId = crag.id
-        }
-      }
-
       const climbs = routes.map(route => ({
-        crag_id: cragId,
+        crag_id: selectedCrag.id,
         name: route.name,
         grade: route.grade,
         description: route.description || null,
@@ -386,6 +354,21 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
 
         {mode === 'draw' ? (
           <div className="flex flex-col gap-3">
+            {!hasGps && (
+              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-sm text-yellow-800 dark:text-yellow-200">
+                GPS coordinates not available. Please ensure location services are enabled.
+              </div>
+            )}
+
+            {latitude && longitude && (
+              <CragSelector
+                latitude={latitude}
+                longitude={longitude}
+                onSelect={(crag) => setSelectedCrag({ id: crag.id, name: crag.name })}
+                selectedCragId={selectedCrag?.id}
+              />
+            )}
+
             <div className="flex gap-2">
               <input
                 type="text"
@@ -429,8 +412,8 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
             {routes.length > 0 && (
               <button
                 onClick={handleSave}
-                disabled={submitting}
-                className="w-full bg-green-600 text-white px-4 py-3 rounded text-sm font-medium hover:bg-green-700 transition-colors"
+                disabled={submitting || routes.some(r => !r.name || !r.grade) || !selectedCrag}
+                className="w-full bg-green-600 text-white px-4 py-3 rounded text-sm font-medium disabled:opacity-50 hover:bg-green-700 transition-colors"
               >
                 {submitting ? 'Saving...' : 'Save All Routes'}
               </button>
@@ -511,7 +494,7 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
             {routes.length > 0 && (
               <button
                 onClick={handleSave}
-                disabled={submitting || routes.some(r => !r.name || !r.grade)}
+                disabled={submitting || routes.some(r => !r.name || !r.grade) || !selectedCrag}
                 className="w-full bg-green-600 text-white px-4 py-3 rounded text-sm font-medium disabled:opacity-50 hover:bg-green-700 transition-colors"
               >
                 {submitting ? 'Saving...' : 'Save All Routes'}
