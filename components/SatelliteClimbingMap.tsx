@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
-import Image from 'next/image'
 import L from 'leaflet'
 import { useSearchParams } from 'next/navigation'
 import { MapPin, Loader2, RefreshCw } from 'lucide-react'
@@ -234,7 +233,7 @@ export default function SatelliteClimbingMap() {
       if (cragsError) {
         console.error('Crags error:', cragsError)
       } else if (cragsData) {
-        console.log('Crags with boundaries:', cragsData.length)
+        console.log(`Found ${cragsData.length} crags with boundaries`)
         setCrags(cragsData as CragData[])
       }
 
@@ -432,7 +431,7 @@ export default function SatelliteClimbingMap() {
         {/* Crag Polygons */}
         {crags.map(crag => {
           const coords = crag.boundary ? geoJsonPolygonToLeaflet(crag.boundary as any) : null
-          if (!coords) return null
+          if (!coords || coords.length === 0) return null
           return (
             <Polygon
               key={crag.id}
@@ -526,12 +525,10 @@ export default function SatelliteClimbingMap() {
               >
                 <div className="w-40 cursor-pointer">
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
-                    <Image
+                    <img
                       src={image.url}
                       alt="Routes"
-                      fill
-                      className="object-cover"
-                      sizes="160px"
+                      className="w-full h-full object-cover"
                     />
                   </div>
                   <p className="font-semibold text-sm text-gray-900">
