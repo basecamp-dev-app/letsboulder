@@ -1,9 +1,0 @@
-# Sensitive secrets - keep secure
-# Copy this file to .dev.vars and fill in actual values
-# DO NOT commit .dev.vars with real values!
-
-DISCORD_BOT_TOKEN=
-DISCORD_PUBLIC_KEY=
-DISCORD_LOG_WEBHOOK_URL=
-RESEND_API_KEY=
-GEMINI_API_KEY=

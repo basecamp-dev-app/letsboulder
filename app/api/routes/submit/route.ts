@@ -90,49 +90,13 @@ export async function POST(request: NextRequest) {
         longitude,
         image_url: imageUrl,
         user_id: user.id,
-        status: 'discord_pending',
+        status: 'pending',
         created_at: new Date().toISOString()
       })
 
     if (insertError) {
       console.error('Route insert error:', insertError)
       return NextResponse.json({ error: 'Failed to save route' }, { status: 500 })
-    }
-
-    const workerUrl = process.env.WORKER_URL || 'https://email-moderation-production.patrickhadow.workers.dev'
-    const workerApiKey = process.env.WORKER_API_KEY
-
-    try {
-      const workerResponse = await fetch(`${workerUrl}/routes/discord-submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${workerApiKey}`
-        },
-        body: JSON.stringify({
-          routeId,
-          name,
-          grade,
-          imageUrl,
-          latitude,
-          longitude,
-          country: regionData.country,
-          countryCode: regionData.countryCode,
-          region: regionData.region,
-          town: regionData.town,
-          submittedBy: user.email?.split('@')[0] || 'Anonymous',
-          submittedByEmail: user.email || ''
-        })
-      })
-
-      const workerResult = await workerResponse.json()
-      console.log('[Route Submit] Worker response:', workerResult)
-
-      if (!workerResponse.ok) {
-        console.error('[Route Submit] Worker failed:', workerResult)
-      }
-    } catch (workerError) {
-      console.error('[Route Submit] Worker request failed:', workerError)
     }
 
     return NextResponse.json({

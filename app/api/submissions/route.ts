@@ -206,22 +206,6 @@ export async function POST(request: NextRequest) {
       await updateCragBoundary(supabase, cragId)
     }
 
-    await triggerImageDiscordNotification({
-      imageId: imageId!,
-      imageUrl,
-      latitude: imageLat!,
-      longitude: imageLng!,
-      region: regionData,
-      submittedBy: user.email?.split('@')[0] || 'Anonymous',
-      submittedByEmail: user.email || '',
-      routes: climbs.map((climb, index) => ({
-        id: climb.id,
-        name: climb.name,
-        grade: climb.grade,
-        description: body.routes[index].description?.trim() || null
-      }))
-    })
-
     return NextResponse.json({
       success: true,
       climbsCreated: climbs.length,
@@ -254,40 +238,6 @@ async function getRegionData(supabase: ReturnType<typeof createServerClient>, im
     return ''
   } catch {
     return ''
-  }
-}
-
-interface ImageDiscordSubmission {
-  imageId: string
-  imageUrl: string
-  latitude: number
-  longitude: number
-  region: string
-  submittedBy: string
-  submittedByEmail: string
-  routes: {
-    id: string
-    name: string | null
-    grade: string
-    description: string | null
-  }[]
-}
-
-async function triggerImageDiscordNotification(submission: ImageDiscordSubmission) {
-  try {
-    const workerUrl = process.env.WORKER_URL || 'https://email-moderation-production.patrickhadow.workers.dev'
-    const workerApiKey = process.env.WORKER_API_KEY
-
-    await fetch(`${workerUrl}/images/discord-submit`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${workerApiKey}`
-      },
-      body: JSON.stringify(submission)
-    })
-  } catch (error) {
-    console.error('Failed to trigger Discord notification:', error)
   }
 }
 
