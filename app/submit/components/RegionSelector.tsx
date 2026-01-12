@@ -9,6 +9,7 @@ interface RegionSelectorProps {
   initialLng?: number | null
   preselectedRegion?: Region | null
   loadingRegion?: boolean
+  onClearPreselected?: () => void
 }
 
 export default function RegionSelector({
@@ -16,7 +17,8 @@ export default function RegionSelector({
   initialLat = null,
   initialLng = null,
   preselectedRegion,
-  loadingRegion = false
+  loadingRegion = false,
+  onClearPreselected
 }: RegionSelectorProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Region[]>([])
@@ -151,6 +153,7 @@ export default function RegionSelector({
             onClick={() => {
               setQuery('')
               setResults([])
+              onClearPreselected?.()
             }}
             className="w-full mt-2 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg"
           >

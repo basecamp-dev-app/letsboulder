@@ -73,6 +73,10 @@ function SubmitPageContent() {
     })
   }, [context.imageGps])
 
+  const handleClearPreselectedRegion = useCallback(() => {
+    setPreselectedRegion(null)
+  }, [])
+
   const handleLocationConfirm = useCallback((gps: GpsData) => {
     const currentStep = step as { step: string; regionId?: string; regionName?: string }
     setContext(prev => ({ ...prev, imageGps: gps }))
@@ -285,6 +289,7 @@ function SubmitPageContent() {
               initialLng={step.imageGps?.longitude ?? 0}
               preselectedRegion={preselectedRegion}
               loadingRegion={loadingRegion}
+              onClearPreselected={handleClearPreselectedRegion}
             />
           </div>
         )
