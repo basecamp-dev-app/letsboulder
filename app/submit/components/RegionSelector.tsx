@@ -119,10 +119,8 @@ export default function RegionSelector({
     setNewRegionName('')
     setNewRegionCountry('')
     setErrorMessage('')
-    if (preselectedRegion) {
-      setQuery(preselectedRegion.name)
-      setResults([preselectedRegion])
-    }
+    setQuery('')
+    setResults([])
   }
 
   if (preselectedRegion && !showCreate) {
@@ -139,23 +137,26 @@ export default function RegionSelector({
           </div>
         )}
 
-        <button
-          onClick={() => handleSelect(preselectedRegion)}
-          className="w-full py-4 bg-green-600 text-white text-lg rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-sm"
-        >
-          Continue with {preselectedRegion.name}
-        </button>
-
-        <button
-          onClick={() => {
-            setShowCreate(true)
-            setQuery('')
-            setResults([])
-          }}
-          className="w-full py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-        >
-          Not the right region? Choose another
-        </button>
+        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+          <p className="text-sm text-green-700 dark:text-green-300 mb-2">
+            Auto-detected region
+          </p>
+          <button
+            onClick={() => handleSelect(preselectedRegion)}
+            className="w-full py-3 bg-green-600 text-white text-lg rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-sm"
+          >
+            {preselectedRegion.name}
+          </button>
+          <button
+            onClick={() => {
+              setQuery('')
+              setResults([])
+            }}
+            className="w-full mt-2 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg"
+          >
+            Change region...
+          </button>
+        </div>
       </div>
     )
   }
@@ -251,7 +252,50 @@ export default function RegionSelector({
 
             {query.length >= 2 && !loading && results.length === 0 && (
               <div className="absolute z-10 w-full mt-1 p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg text-sm text-gray-500 dark:text-gray-400 text-center">
-                No regions found matching "{query}"
+                No regions found matching &ldquo;{query}&rdquo;
+              </div>
+            )}
+
+            {results.length > 0 && (
+              <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
+                {results.map((region) => (
+                  <li
+                    key={region.id}
+                    onClick={() => handleSelect(region)}
+                    className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                      {region.name}
+                    </div>
+                    {region.country_code && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {region.country_code}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {query.length >= 2 && !loading && results.length === 0 && (
+              <div className="pt-2">
+                <button
+                  onClick={handleShowCreate}
+                  className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                >
+                  Don&apos;t see your region? Create new
+                </button>
+              </div>
+            )}
+
+            {results.length > 0 && (
+              <div className="pt-2">
+                <button
+                  onClick={handleShowCreate}
+                  className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                >
+                  Don&apos;t see your region? Create new
+                </button>
               </div>
             )}
           </div>
