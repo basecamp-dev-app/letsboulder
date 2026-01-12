@@ -14,7 +14,7 @@ interface ImageRoute {
     name: string | null
     grade: string | null
     description: string | null
-  }
+  } | null
 }
 
 interface ImageModalProps {
@@ -73,44 +73,39 @@ export default function ImageModal({ image, onClose, userLogs, onLogClimb }: Ima
   }, [])
 
   useEffect(() => {
-    if (!image || !imageLoaded || !canvasRef.current) return
+    if (!image || !imageLoaded || !canvasRef.current || !imageRef.current) return
 
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     const img = imageRef.current
-    if (!img) return
+    
+    // Get the actual rendered size of the image
+    const naturalWidth = img.naturalWidth || 800
+    const naturalHeight = img.naturalHeight || 600
 
-    const container = canvas.parentElement
-    if (!container) return
-
-    const containerRect = container.getBoundingClientRect()
-    const imageAspect = img.naturalWidth / img.naturalHeight
-    const containerAspect = containerRect.width / containerRect.height
-
-    let displayWidth, displayHeight, offsetX = 0, offsetY = 0
-    if (imageAspect > containerAspect) {
-      displayWidth = containerRect.width
-      displayHeight = containerRect.width / imageAspect
-      offsetY = (containerRect.height - displayHeight) / 2
-    } else {
-      displayHeight = containerRect.height
-      displayWidth = containerRect.height * imageAspect
-      offsetX = (containerRect.width - displayWidth) / 2
-    }
-
-    canvas.style.left = `${offsetX}px`
-    canvas.style.top = `${offsetY}px`
-    canvas.width = displayWidth
-    canvas.height = displayHeight
+    // Set canvas to match image size exactly
+    canvas.width = naturalWidth
+    canvas.height = naturalHeight
+    
+    // Style the canvas to match the image's display size
+    canvas.style.width = '100%'
+    canvas.style.height = '100%'
+    canvas.style.maxWidth = '100%'
+    canvas.style.maxHeight = '100%'
+    canvas.style.objectFit = 'contain'
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    const scaleX = displayWidth / img.naturalWidth
-    const scaleY = displayHeight / img.naturalHeight
+    // Points are stored as percentages (0-1) of the full image
+    // Scale them to canvas coordinates
+    const scaleX = naturalWidth
+    const scaleY = naturalHeight
 
-    image.route_lines.forEach((route, index) => {
+    image.route_lines.forEach((route) => {
+      if (!route.climb) return
+      
       const isSelected = selectedRoute?.id === route.id
       const isLogged = !!userLogs[route.climb.id]
       const color = isLogged ? '#22c55e' : (isSelected ? '#3b82f6' : route.color)
@@ -138,20 +133,20 @@ export default function ImageModal({ image, onClose, userLogs, onLogClimb }: Ima
       
       <div className="fixed inset-0 z-[1001] pointer-events-none pt-12">
         <div className="absolute top-16 bottom-16 left-0 right-0 pointer-events-auto">
-          <div className="relative w-full h-full">
+          <div className="relative w-full h-full flex items-center justify-center">
             <Image
               ref={imageRef}
               src={image.url}
               alt="Climbing routes"
-              fill
-              className="object-contain"
-              sizes="100vw"
+              width={800}
+              height={600}
+              className="max-w-full max-h-full object-contain"
               onLoadingComplete={() => setImageLoaded(true)}
               priority
             />
             <canvas
               ref={canvasRef}
-              className="absolute inset-0 w-full h-full pointer-events-auto"
+              className="absolute pointer-events-auto"
               style={{ touchAction: 'none' }}
               onClick={() => setSelectedRoute(null)}
             />
@@ -159,8 +154,12 @@ export default function ImageModal({ image, onClose, userLogs, onLogClimb }: Ima
         </div>
 
         <button
-          onClick={onClose}
-          className="absolute top-16 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-[1002]"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onClose()
+          }}
+          className="absolute top-16 right-4 text-white bg-black bg-opacity-50 rounded-full p-2 z-[1002] hover:bg-opacity-70"
         >
           <X className="w-5 h-5" />
         </button>
@@ -171,7 +170,7 @@ export default function ImageModal({ image, onClose, userLogs, onLogClimb }: Ima
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-black dark:text-white text-lg font-semibold">
-                    {selectedRoute.climb.name || 'Unnamed'}, {selectedRoute.climb.grade}
+                    {selectedRoute.climb?.name || 'Unnamed'}, {selectedRoute.climb?.grade || ''}
                   </p>
                 </div>
                 <button
@@ -187,9 +186,9 @@ export default function ImageModal({ image, onClose, userLogs, onLogClimb }: Ima
                   <label key={status} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
-                      name={`log-${selectedRoute.climb.id}`}
-                      checked={userLogs[selectedRoute.climb.id] === status}
-                      onChange={() => onLogClimb(selectedRoute.climb.id, status)}
+                      name={`log-${selectedRoute.climb?.id || ''}`}
+                      checked={selectedRoute.climb ? userLogs[selectedRoute.climb.id] === status : false}
+                      onChange={() => selectedRoute.climb && onLogClimb(selectedRoute.climb.id, status)}
                       className="w-4 h-4"
                     />
                     <span className="text-sm capitalize text-gray-700 dark:text-gray-300">{status}</span>
@@ -197,7 +196,7 @@ export default function ImageModal({ image, onClose, userLogs, onLogClimb }: Ima
                 ))}
               </div>
 
-              {selectedRoute.climb.description && (
+              {selectedRoute.climb?.description && (
                 <p className="text-gray-700 dark:text-gray-300 text-sm mt-2">
                   {selectedRoute.climb.description}
                 </p>
@@ -211,6 +210,7 @@ export default function ImageModal({ image, onClose, userLogs, onLogClimb }: Ima
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {image.route_lines.map((route, index) => {
+                  if (!route.climb) return null
                   const isLogged = !!userLogs[route.climb.id]
                   return (
                     <button

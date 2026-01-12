@@ -5,7 +5,7 @@ import { useRouteSelection, RoutePoint, generateRouteId, findRouteAtPoint } from
 import GradePicker from '@/app/draw/components/GradePicker'
 import type { ImageSelection, NewRouteData, RouteLine } from '@/lib/submission-types'
 
-interface RouteWithLabels {
+interface ExistingRoute {
   id: string
   points: RoutePoint[]
   grade: string
@@ -61,7 +61,8 @@ function drawRoundedLabel(
   x: number,
   y: number,
   bgColor: string,
-  font: string
+  font: string,
+  textColor: string = '#ffffff'
 ) {
   ctx.font = font
   const metrics = ctx.measureText(text)
@@ -73,119 +74,225 @@ function drawRoundedLabel(
   const bgX = x - bgWidth / 2
   const bgY = y - bgHeight / 2
 
-  ctx.save()
-  drawRoundedRect(ctx, bgX, bgY, bgWidth, bgHeight, cornerRadius)
   ctx.fillStyle = bgColor
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
-  ctx.shadowBlur = 3
-  ctx.shadowOffsetX = 1
-  ctx.shadowOffsetY = 1
+  drawRoundedRect(ctx, bgX, bgY, bgWidth, bgHeight, cornerRadius)
   ctx.fill()
-  ctx.shadowColor = 'transparent'
-  ctx.restore()
 
-  ctx.fillStyle = 'white'
+  ctx.fillStyle = textColor
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(text, x, y)
 }
 
-function getGradeLabelPosition(
-  points: RoutePoint[]
-): { x: number; y: number } {
+function getGradeLabelPosition(points: RoutePoint[]): RoutePoint {
+  if (points.length < 2) return { x: 0, y: 0 }
   const midIndex = Math.floor(points.length / 2)
-  const midPoint = points[midIndex]
-  return { x: midPoint.x, y: midPoint.y - 10 }
+  return {
+    x: points[midIndex].x,
+    y: points[midIndex].y - 15
+  }
 }
 
-function getNameLabelPosition(
-  points: RoutePoint[]
-): { x: number; y: number } {
+function getNameLabelPosition(points: RoutePoint[]): RoutePoint {
+  if (points.length < 2) return { x: 0, y: 0 }
   const lastPoint = points[points.length - 1]
-  return { x: lastPoint.x + 12, y: lastPoint.y + 5 }
+  return {
+    x: lastPoint.x,
+    y: lastPoint.y + 20
+  }
 }
 
 function getTruncatedText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-  if (ctx.measureText(text).width <= maxWidth) return text
-  let truncated = text
-  while (truncated.length > 0 && ctx.measureText(truncated + '...').width > maxWidth) {
-    truncated = truncated.slice(0, -1)
+  const metrics = ctx.measureText(text)
+  if (metrics.width <= maxWidth) return text
+
+  while (text.length > 0) {
+    const testText = text + '...'
+    const testMetrics = ctx.measureText(testText)
+    if (testMetrics.width <= maxWidth) {
+      return testText
+    }
+    text = text.slice(0, -1)
   }
-  return truncated + '...'
+  return '...'
 }
 
-function convertToNaturalCoords(points: RoutePoint[], scaleX: number, scaleY: number): RoutePoint[] {
-  return points.map(p => ({
-    x: p.x / scaleX,
-    y: p.y / scaleY
-  }))
-}
-
-export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRouteLines = [] }: RouteCanvasProps) {
+export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRouteLines }: RouteCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const resizeObserverRef = useRef<ResizeObserver | null>(null)
 
+  const imageUrl = imageSelection.mode === 'existing' ? imageSelection.imageUrl : imageSelection.uploadedUrl
+
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [isPanning, setIsPanning] = useState(false)
+  const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 })
   const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>([])
-  const [completedRoutes, setCompletedRoutes] = useState<RouteWithLabels[]>([])
   const [currentName, setCurrentName] = useState('')
-  const [currentGrade, setCurrentGrade] = useState('5A')
+  const [currentGrade, setCurrentGrade] = useState('6A')
+  const [gradePickerOpen, setGradePickerOpen] = useState(false)
+  const [completedRoutes, setCompletedRoutes] = useState<ExistingRoute[]>([])
+  const [existingRoutes] = useState<ExistingRoute[]>(() => {
+    if (existingRouteLines && existingRouteLines.length > 0) {
+      return existingRouteLines.map((rl, index) => ({
+        id: `existing-${rl.id}`,
+        points: rl.points,
+        grade: rl.climb?.grade || '6A',
+        name: rl.climb?.name || `Route ${index + 1}`
+      }))
+    }
+    return []
+  })
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
-  const [gradePickerOpen, setGradePickerOpen] = useState(false)
-  const { selectedIds, selectRoute, deselectRoute } = useRouteSelection()
 
-  const imageUrl = imageSelection.mode === 'existing' 
-    ? imageSelection.imageUrl 
-    : imageSelection.uploadedUrl
+  const { selectRoute, deselectRoute, clearSelection, selectedIds } = useRouteSelection()
+
+  const getMousePos = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: (e.clientX - rect.left) * zoom,
+      y: (e.clientY - rect.top) * zoom
+    }
+  }, [zoom])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+      setIsPanning(true)
+      setLastPanPoint({ x: e.clientX, y: e.clientY })
+      return
+    }
+
+    if (e.button === 0 && !e.altKey) {
+      const pos = getMousePos(e)
+
+      const allRoutes = [...existingRoutes, ...completedRoutes]
+      const clickedRoute = findRouteAtPoint(allRoutes, pos, 20)
+
+      if (clickedRoute) {
+        const routeId = clickedRoute.id
+        if (selectedIds.includes(routeId)) {
+          deselectRoute(routeId)
+        } else {
+          selectRoute(routeId)
+        }
+        return
+      }
+
+      clearSelection()
+
+      if (currentPoints.length === 0) {
+        setCurrentPoints([pos])
+      } else {
+        setCurrentPoints(prev => [...prev, pos])
+      }
+    }
+  }, [getMousePos, currentPoints, existingRoutes, completedRoutes, selectedIds, selectRoute, deselectRoute, clearSelection])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isPanning) {
+      const dx = e.clientX - lastPanPoint.x
+      const dy = e.clientY - lastPanPoint.y
+      setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }))
+      setLastPanPoint({ x: e.clientX, y: e.clientY })
+      return
+    }
+
+    if (e.buttons === 1 && !e.altKey && currentPoints.length > 0) {
+      const pos = getMousePos(e)
+      const lastPoint = currentPoints[currentPoints.length - 1]
+      const distance = Math.sqrt(
+        Math.pow(pos.x - lastPoint.x, 2) + Math.pow(pos.y - lastPoint.y, 2)
+      )
+
+      if (distance > 10) {
+        setCurrentPoints(prev => [...prev, pos])
+      }
+    }
+  }, [isPanning, lastPanPoint, getMousePos, currentPoints])
+
+  const handleMouseUp = useCallback(() => {
+    setIsPanning(false)
+  }, [])
+
+  const handleCompleteRoute = useCallback(() => {
+    if (currentPoints.length < 2) return
+
+    const routeId = generateRouteId()
+    const route: ExistingRoute = {
+      id: routeId,
+      points: currentPoints,
+      name: currentName || `Route ${completedRoutes.length + 1}`,
+      grade: currentGrade
+    }
+
+    setCompletedRoutes(prev => [...prev, route])
+    setCurrentPoints([])
+    setCurrentName('')
+    setCurrentGrade('6A')
+    selectRoute(routeId)
+  }, [currentPoints, currentName, currentGrade, completedRoutes, selectRoute])
+
+  const handleDeleteSelected = useCallback(() => {
+    setCompletedRoutes(prev => prev.filter(route => !selectedIds.includes(route.id)))
+    clearSelection()
+  }, [selectedIds, clearSelection])
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current
-    const image = imageRef.current
-    if (!canvas || !image || !image.complete) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx) return
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    const scaleX = canvas.width / image.naturalWidth
-    const scaleY = canvas.height / image.naturalHeight
+    ctx.save()
+    ctx.translate(pan.x, pan.y)
+    ctx.scale(zoom, zoom)
 
-    existingRouteLines.forEach((routeLine) => {
-      const scaledPoints = routeLine.points.map(point => ({
-        x: point.x * scaleX,
-        y: point.y * scaleY
-      }))
-      
-      ctx.shadowColor = '#6b7280'
-      ctx.shadowBlur = 2
-      drawSmoothCurve(ctx, scaledPoints, '#9ca3af', 2, [4, 4])
+    existingRoutes.forEach(route => {
+      const isSelected = selectedIds.includes(route.id)
+      const lineColor = isSelected ? '#fbbf24' : '#9ca3af'
+      const lineWidth = isSelected ? 3 : 2
+
+      ctx.shadowColor = isSelected ? '#fbbf24' : '#6b7280'
+      ctx.shadowBlur = isSelected ? 8 : 2
+      drawSmoothCurve(ctx, route.points, lineColor, lineWidth, [4, 4])
       ctx.shadowBlur = 0
+
+      if (route.points.length > 1 && isSelected) {
+        const bgColor = 'rgba(251, 191, 36, 0.95)'
+        const gradePos = getGradeLabelPosition(route.points)
+        drawRoundedLabel(ctx, route.grade, gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
+
+        const truncatedName = getTruncatedText(ctx, route.name, 150)
+        const namePos = getNameLabelPosition(route.points)
+        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, '12px Arial')
+      }
     })
 
     completedRoutes.forEach(route => {
       const isSelected = selectedIds.includes(route.id)
-      
+
       if (isSelected) {
         ctx.shadowColor = '#fbbf24'
         ctx.shadowBlur = 10
-        const scaledPoints = route.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }))
-        drawSmoothCurve(ctx, scaledPoints, '#fbbf24', 5, [8, 4])
+        drawSmoothCurve(ctx, route.points, '#fbbf24', 4)
         ctx.shadowBlur = 0
       }
 
-      const scaledPoints = route.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }))
-      drawSmoothCurve(ctx, scaledPoints, '#dc2626', 3, [8, 4])
+      drawSmoothCurve(ctx, route.points, '#dc2626', isSelected ? 4 : 3, [8, 4])
 
-      if (scaledPoints.length > 1) {
+      if (route.points.length > 1) {
         const bgColor = 'rgba(220, 38, 38, 0.95)'
-        const gradePos = getGradeLabelPosition(scaledPoints)
+        const gradePos = getGradeLabelPosition(route.points)
         drawRoundedLabel(ctx, route.grade, gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
 
-        const truncatedName = getTruncatedText(ctx, route.name, 120)
-        const namePos = getNameLabelPosition(scaledPoints)
+        const truncatedName = getTruncatedText(ctx, route.name, 150)
+        const namePos = getNameLabelPosition(route.points)
         drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, '12px Arial')
       }
     })
@@ -194,7 +301,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
       ctx.fillStyle = '#3b82f6'
       currentPoints.forEach(point => {
         ctx.beginPath()
-        ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI)
+        ctx.arc(point.x, point.y, 6, 0, 2 * Math.PI)
         ctx.fill()
       })
 
@@ -203,24 +310,72 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
       }
 
       if (currentPoints.length > 1 && currentGrade && currentName) {
-        const scaledPoints = currentPoints.map(p => ({ x: p.x, y: p.y }))
-        drawSmoothCurve(ctx, scaledPoints, '#3b82f6', 3, [8, 4])
+        drawSmoothCurve(ctx, currentPoints, '#3b82f6', 3, [8, 4])
 
-        const gradePos = getGradeLabelPosition(scaledPoints)
+        const gradePos = getGradeLabelPosition(currentPoints)
         drawRoundedLabel(ctx, currentGrade, gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', 'bold 14px Arial')
 
-        const truncatedName = getTruncatedText(ctx, currentName, 120)
-        const namePos = getNameLabelPosition(scaledPoints)
+        const truncatedName = getTruncatedText(ctx, currentName, 150)
+        const namePos = getNameLabelPosition(currentPoints)
         drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, 'rgba(59, 130, 246, 0.95)', '12px Arial')
       }
     }
-  }, [completedRoutes, currentPoints, currentGrade, currentName, existingRouteLines, selectedIds])
+
+    ctx.restore()
+  }, [completedRoutes, currentPoints, currentGrade, currentName, existingRoutes, selectedIds, pan, zoom])
 
   useEffect(() => {
     if (imageLoaded) {
       redraw()
     }
   }, [imageLoaded, redraw])
+
+  useEffect(() => {
+    const image = imageRef.current
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    if (!image || !image.naturalWidth || !image.naturalHeight || !canvas || !container) return
+
+    // Use natural dimensions from the original image
+    const naturalWidth = image.naturalWidth
+    const naturalHeight = image.naturalHeight
+    const containerRect = container.getBoundingClientRect()
+
+    const normalizedRoutes = completedRoutes.map((route, index) => ({
+      id: route.id,
+      name: route.name,
+      grade: route.grade,
+      // Store original dimensions for display
+      _imageWidth: naturalWidth,
+      _imageHeight: naturalHeight,
+      points: route.points.map(p => ({
+        x: p.x / naturalWidth,
+        y: p.y / naturalHeight
+      })),
+      sequenceOrder: index
+    }))
+
+    console.log('=== SUBMISSION DEBUG ===')
+    console.log('naturalSize:', naturalWidth, 'x', naturalHeight)
+    console.log('containerSize:', containerRect.width, 'x', containerRect.height)
+    console.log('canvasSize:', canvas.width, 'x', canvas.height)
+    console.log('routeCount:', completedRoutes.length)
+
+    completedRoutes.forEach((route, i) => {
+      const origFirst = route.points[0]
+      const origLast = route.points[route.points.length - 1]
+      const normFirst = normalizedRoutes[i]?.points[0]
+      const normLast = normalizedRoutes[i]?.points[normalizedRoutes[i].points.length - 1]
+
+      console.log(`Route ${i} ORIGINAL first:`, origFirst.x.toFixed(2), ',', origFirst.y.toFixed(2))
+      console.log(`Route ${i} ORIGINAL last:`, origLast.x.toFixed(2), ',', origLast.y.toFixed(2))
+      console.log(`Route ${i} NORMALIZED first:`, normFirst.x.toFixed(4), ',', normFirst.y.toFixed(4))
+      console.log(`Route ${i} NORMALIZED last:`, normLast.x.toFixed(4), ',', normLast.y.toFixed(4))
+    })
+    console.log('=== END SUBMISSION DEBUG ===')
+
+    onRoutesUpdate(normalizedRoutes)
+  }, [completedRoutes, onRoutesUpdate])
 
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -229,293 +384,152 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     if (!canvas || !image || !container || !image.complete) return
 
     const containerRect = container.getBoundingClientRect()
-    const imageAspect = image.naturalWidth / image.naturalHeight
-    const containerAspect = containerRect.width / containerRect.height
-
-    let displayWidth, displayHeight, offsetX = 0, offsetY = 0
-
-    if (imageAspect > containerAspect) {
-      displayWidth = containerRect.width
-      displayHeight = containerRect.width / imageAspect
-      offsetY = (containerRect.height - displayHeight) / 2
-    } else {
-      displayHeight = containerRect.height
-      displayWidth = containerRect.height * imageAspect
-      offsetX = (containerRect.width - displayWidth) / 2
-    }
-
-    canvas.style.left = `${offsetX}px`
-    canvas.style.top = `${offsetY}px`
-    canvas.width = displayWidth
-    canvas.height = displayHeight
-
-    setImageLoaded(true)
-  }, [])
+    canvas.width = containerRect.width * zoom
+    canvas.height = containerRect.height * zoom
+    redraw()
+  }, [zoom, redraw])
 
   useEffect(() => {
-    const image = imageRef.current
-    if (!image) return
-
-    const handleLoad = () => {
-      setupCanvas()
-    }
-
-    if (image.complete) {
-      handleLoad()
-    } else {
-      image.addEventListener('load', handleLoad)
-    }
-
-    return () => image.removeEventListener('load', handleLoad)
-  }, [imageUrl, setupCanvas])
+    setupCanvas()
+  }, [setupCanvas])
 
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    resizeObserverRef.current = new ResizeObserver(() => {
-      if (imageLoaded) {
-        setupCanvas()
-        redraw()
-      }
-    })
-
-    resizeObserverRef.current.observe(container)
-    return () => {
-      resizeObserverRef.current?.disconnect()
-    }
-  }, [imageLoaded, setupCanvas, redraw])
-
-  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
-    const canvas = canvasRef.current
-    const image = imageRef.current
-    if (!canvas || !image || !imageLoaded) return
-
-    const canvasRect = canvas.getBoundingClientRect()
-    const canvasX = e.clientX - canvasRect.left
-    const canvasY = e.clientY - canvasRect.top
-
-    if (canvasX < 0 || canvasX > canvas.width || canvasY < 0 || canvasY > canvas.height) {
-      return
-    }
-
-    const scaleX = image.naturalWidth / canvas.width
-    const scaleY = image.naturalHeight / canvas.height
-    const x = canvasX * scaleX
-    const y = canvasY * scaleY
-
-    const clickedRoute = findRouteAtPoint(completedRoutes, { x, y }, 20)
-
-    if (clickedRoute) {
-      selectRoute(clickedRoute.id)
-      setCurrentName(clickedRoute.name)
-      setCurrentGrade(clickedRoute.grade)
-      setCurrentPoints([])
-    } else {
-      setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
-      deselectRoute(selectedIds[0] || '')
-    }
-  }, [completedRoutes, selectedIds, imageLoaded, selectRoute, deselectRoute])
-
-  const handleCanvasTouch = useCallback((e: React.TouchEvent) => {
-    e.preventDefault()
-    const canvas = canvasRef.current
-    if (!canvas || !imageLoaded) return
-
-    const touch = e.changedTouches[0]
-    const canvasRect = canvas.getBoundingClientRect()
-    const canvasX = touch.clientX - canvasRect.left
-    const canvasY = touch.clientY - canvasRect.top
-
-    if (canvasX < 0 || canvasX > canvas.width || canvasY < 0 || canvasY > canvas.height) {
-      return
-    }
-
-    setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
-  }, [imageLoaded])
-
-  const handleFinishRoute = useCallback(() => {
-    if (currentPoints.length < 2) return
-
-    const canvas = canvasRef.current
-    const image = imageRef.current
-    if (!canvas || !image) return
-
-    const scaleX = canvas.width / image.naturalWidth
-    const scaleY = canvas.height / image.naturalHeight
-
-    const naturalPoints = convertToNaturalCoords(currentPoints, scaleX, scaleY)
-    const routeName = currentName.trim() || `Route ${completedRoutes.length + 1}`
-
-    const newRoute: RouteWithLabels = {
-      id: generateRouteId(),
-      points: naturalPoints,
-      grade: currentGrade,
-      name: routeName
-    }
-
-    const updatedRoutes = [...completedRoutes, newRoute]
-    setCompletedRoutes(updatedRoutes)
-    onRoutesUpdate(updatedRoutes.map((r, i) => ({
-      id: r.id,
-      name: r.name,
-      grade: r.grade,
-      points: r.points,
-      sequenceOrder: i
-    })))
-
-    setCurrentPoints([])
-    setCurrentName('')
-    setCurrentGrade('5A')
-    deselectRoute(selectedIds[0] || '')
-  }, [currentPoints, currentName, currentGrade, completedRoutes, onRoutesUpdate, selectedIds, deselectRoute])
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && currentPoints.length >= 2) {
-        handleFinishRoute()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentPoints, currentName, currentGrade, handleFinishRoute])
-
-  const handleUndo = useCallback(() => {
-    if (currentPoints.length > 0) {
-      setCurrentPoints(prev => prev.slice(0, -1))
-    } else if (completedRoutes.length > 0) {
-      const updatedRoutes = completedRoutes.slice(0, -1)
-      setCompletedRoutes(updatedRoutes)
-      onRoutesUpdate(updatedRoutes.map((r, i) => ({
-        id: r.id,
-        name: r.name,
-        grade: r.grade,
-        points: r.points,
-        sequenceOrder: i
-      })))
-      deselectRoute(selectedIds[0] || '')
-    }
-  }, [currentPoints, completedRoutes, onRoutesUpdate, selectedIds, deselectRoute])
-
-  const handleClearCurrent = useCallback(() => {
-    setCurrentPoints([])
-    setCurrentName('')
-    deselectRoute(selectedIds[0] || '')
-  }, [selectedIds, deselectRoute])
-
-  if (imageError) {
-    return (
-      <div className="flex items-center justify-center h-64 bg-red-50 dark:bg-red-900/20 rounded-lg">
-        <div className="text-center p-4">
-          <p className="text-red-600 dark:text-red-400 mb-2">Failed to load image</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Image URL: {imageUrl}</p>
-        </div>
-      </div>
-    )
-  }
+    window.addEventListener('resize', setupCanvas)
+    return () => window.removeEventListener('resize', setupCanvas)
+  }, [setupCanvas])
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-900 rounded-lg" ref={containerRef}>
-        <img
-          ref={imageRef}
-          src={imageUrl}
-          alt="Climbing area"
-          className="max-w-full max-h-full object-contain"
-          onError={() => setImageError(true)}
-        />
-        <canvas
-          ref={canvasRef}
-          className="absolute cursor-crosshair"
-          onClick={handleCanvasClick}
-          onTouchEnd={handleCanvasTouch}
-          style={{ pointerEvents: 'auto', touchAction: 'none' }}
-        />
-      </div>
+    <div className="relative w-full h-full bg-gray-100 dark:bg-gray-900 overflow-hidden" ref={containerRef}>
+      <img
+        ref={imageRef}
+        src={imageUrl}
+        alt="Route"
+        className={`absolute inset-0 w-full h-full object-contain ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+        onLoad={() => setImageLoaded(true)}
+        onError={() => setImageError(true)}
+        draggable={false}
+      />
 
-      <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 mt-2 rounded-lg">
-        <div className="flex flex-col gap-3">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Route name"
-              value={currentName}
-              onChange={(e) => setCurrentName(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
+      {imageError && (
+        <div className="absolute inset-0 flex items-center justify-center text-red-500">
+          Failed to load image
+        </div>
+      )}
+
+      {!imageLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+        </div>
+      )}
+
+      <canvas
+        ref={canvasRef}
+        className="absolute cursor-crosshair"
+        style={{
+          left: 0,
+          top: 0,
+          width: '100%',
+          height: '100%'
+        }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      />
+
+      {currentPoints.length >= 2 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+          <button
+            onClick={() => setCurrentPoints([])}
+            className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleCompleteRoute}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Complete Route
+          </button>
+        </div>
+      )}
+
+      <div className="absolute top-4 right-4 flex flex-col gap-2">
+        <div className="bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Zoom: {Math.round(zoom * 100)}%</p>
+          <div className="flex gap-1">
             <button
-              onClick={() => setGradePickerOpen(true)}
-              className="w-20 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-center hover:bg-gray-50 dark:hover:bg-gray-600"
+              onClick={() => setZoom(z => Math.min(z * 1.2, 5))}
+              className="p-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
             >
-              {currentGrade}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setZoom(z => Math.max(z * 0.8, 0.5))}
+              className="p-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+              </svg>
             </button>
           </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={handleFinishRoute}
-              disabled={currentPoints.length < 2}
-              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Finish Route
-            </button>
-            <button
-              onClick={handleUndo}
-              disabled={currentPoints.length === 0 && completedRoutes.length === 0}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
-            >
-              Undo
-            </button>
-            <button
-              onClick={handleClearCurrent}
-              disabled={currentPoints.length === 0 && selectedIds.length === 0}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
-            >
-              Clear
-            </button>
-          </div>
-
-          {completedRoutes.length > 0 && (
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Drawn routes ({completedRoutes.length})
-              </p>
-              <div className="max-h-32 overflow-y-auto space-y-1">
-                {completedRoutes.map((route, index) => {
-                  const isSelected = selectedIds.includes(route.id)
-                  return (
-                    <button
-                      key={route.id}
-                      onClick={() => selectRoute(route.id)}
-                      className={`w-full text-left px-3 py-2 rounded flex items-center gap-2 transition-colors ${
-                        isSelected
-                          ? 'bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-400'
-                          : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      <span className={`w-6 h-6 text-xs rounded-full flex items-center justify-center ${
-                        isSelected ? 'bg-yellow-500 text-white' : 'bg-red-500 text-white'
-                      }`}>
-                        {index + 1}
-                      </span>
-                      <span className="flex-1 text-sm text-gray-900 dark:text-gray-100 truncate">{route.name}</span>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">{route.grade}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
         </div>
 
-        <GradePicker
-          isOpen={gradePickerOpen}
-          onClose={() => setGradePickerOpen(false)}
-          onSelect={(grade) => setCurrentGrade(grade)}
-          currentGrade={currentGrade}
-          mode="select"
+        <div className="bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+            Routes: {completedRoutes.length}
+            {existingRoutes.length > 0 && ` (${existingRoutes.length} existing)`}
+          </p>
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleDeleteSelected}
+              className="p-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900/50"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="absolute top-4 left-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Controls</p>
+        <p className="text-xs text-gray-600 dark:text-gray-300">Click to draw</p>
+        <p className="text-xs text-gray-600 dark:text-gray-300">Middle-click or Alt+drag to pan</p>
+        <p className="text-xs text-gray-600 dark:text-gray-300">Scroll to zoom</p>
+        <p className="text-xs text-gray-600 dark:text-gray-300">Click route to select</p>
+      </div>
+
+      <div className="absolute bottom-4 right-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
+        <input
+          type="text"
+          value={currentName}
+          onChange={(e) => setCurrentName(e.target.value)}
+          placeholder="Route name"
+          className="w-32 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-1"
         />
+        <div className="relative">
+          <button
+            onClick={() => setGradePickerOpen(!gradePickerOpen)}
+            className="w-full px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          >
+            {currentGrade}
+          </button>
+          {gradePickerOpen && (
+            <GradePicker
+              isOpen={gradePickerOpen}
+              currentGrade={currentGrade}
+              onSelect={(grade) => {
+                setCurrentGrade(grade)
+                setGradePickerOpen(false)
+              }}
+              onClose={() => setGradePickerOpen(false)}
+            />
+          )}
+        </div>
       </div>
     </div>
   )

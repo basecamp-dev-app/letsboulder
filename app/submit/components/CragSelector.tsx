@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { Crag, Region } from '@/lib/submission-types'
 
 interface CragSelectorProps {
-  region: Region
+  region: Pick<Region, 'id' | 'name'>
   latitude: number
   longitude: number
   onSelect: (crag: Crag) => void

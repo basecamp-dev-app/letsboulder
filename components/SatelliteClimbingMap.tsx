@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
 import Image from 'next/image'
 import L from 'leaflet'
 import { useSearchParams } from 'next/navigation'
-import { MapPin, Loader2 } from 'lucide-react'
+import { MapPin, Loader2, RefreshCw } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
 import ImageModal from './ImageModal'
 
@@ -48,7 +48,7 @@ interface ImageRoute {
     name: string | null
     grade: string | null
     description: string | null
-  }
+  } | null
 }
 
 interface ImageData {
@@ -57,6 +57,8 @@ interface ImageData {
   latitude: number | null
   longitude: number | null
   route_lines: ImageRoute[]
+  is_verified: boolean
+  verification_count: number
 }
 
 export default function SatelliteClimbingMap() {
@@ -76,77 +78,147 @@ export default function SatelliteClimbingMap() {
   const [toast, setToast] = useState<{id: string, status: string} | null>(null)
   const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
   const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
+  const [useUserLocation, setUseUserLocation] = useState(false)
   const [setLocationMode, setSetLocationMode] = useState(false)
   const [setLocationPending, setSetLocationPending] = useState<{lat: number; lng: number} | null>(null)
   const [isSavingLocation, setIsSavingLocation] = useState(false)
 
   const CACHE_KEY = 'gsyrocks_images_cache'
-  const CACHE_DURATION = 24 * 60 * 60 * 1000
+  const CACHE_DURATION = 60 * 60 * 1000 // 1 hour cache
 
-  const loadImages = useCallback(async (forceRefresh = false) => {
-    if (!forceRefresh) {
-      const cached = localStorage.getItem(CACHE_KEY)
-      if (cached) {
-        const { data, timestamp } = JSON.parse(cached)
-        if (Date.now() - timestamp < CACHE_DURATION) {
-          setImages(data)
-          setLoading(false)
-          return
-        }
-      }
+  const loadImages = useCallback(async () => {
+    console.log('loadImages called')
+    
+    if (!isClient) {
+      console.log('Not isClient, returning early')
+      setLoading(false)
+      return
     }
+
+    const cacheKey = CACHE_KEY + '_v3' // New cache key to force refresh
+    
+    // Always fetch fresh data
+    console.log('Fetching fresh data...')
+    localStorage.removeItem(cacheKey)
 
     try {
       const supabase = createClient()
-      const { data, error } = await supabase
+      console.log('Fetching images from Supabase...')
+      
+      // First get all images with latitude
+      const { data: imagesData, error: imagesError } = await supabase
         .from('images')
+        .select('id, url, latitude, longitude, is_verified, verification_count')
+        .not('latitude', 'is', null)
+        .order('created_at', { ascending: false })
+
+      console.log('Images query result:', imagesData?.length || 0, 'images')
+      if (imagesError) {
+        console.error('Images error:', imagesError)
+      }
+
+      if (!imagesData || imagesData.length === 0) {
+        console.log('No images found')
+        setImages([])
+        setLoading(false)
+        return
+      }
+
+      // Get route_lines for each image separately
+      const imageIds = imagesData.map(img => img.id)
+      console.log('Image IDs:', imageIds.length)
+      
+      const { data: routeLinesData, error: rlError } = await supabase
+        .from('route_lines')
         .select(`
           id,
-          url,
-          latitude,
-          longitude,
-          route_lines!inner (
+          image_id,
+          points,
+          color,
+          climb_id,
+          climbs (
             id,
-            points,
-            color,
-            climb!inner (
-              id,
-              name,
-              grade,
-              description,
-              status
-            )
+            name,
+            grade,
+            description,
+            status
           )
         `)
-        .not('latitude', 'is', null)
-        .eq('route_lines.climb.status', 'approved')
+        .in('image_id', imageIds)
 
-      if (error) {
-        console.error('Error fetching images:', error)
-      } else {
-        const imagesData = (data || []).map((img: any) => ({
-          id: img.id,
-          url: img.url,
-          latitude: img.latitude,
-          longitude: img.longitude,
-          route_lines: img.route_lines.map((rl: any) => ({
+      console.log('Route lines query result:', routeLinesData?.length || 0)
+      if (rlError) {
+        console.error('Route lines error:', rlError)
+      }
+
+      if (!routeLinesData || routeLinesData.length === 0) {
+        console.log('No route lines found')
+        setImages([])
+        setLoading(false)
+        return
+      }
+
+      // Build a map of image_id -> route_lines
+      const routeLinesMap = new Map()
+      for (const rl of routeLinesData) {
+        const existing = routeLinesMap.get(rl.image_id) || []
+        existing.push(rl)
+        routeLinesMap.set(rl.image_id, existing)
+      }
+
+      // Log what we found
+      for (const [imgId, rls] of routeLinesMap) {
+        const approvedCount = rls.filter((rl: any) => rl.climbs?.status === 'approved').length
+        console.log(`Image ${imgId}: ${rls.length} route lines, ${approvedCount} approved`)
+      }
+
+      // Filter and format images with valid route_lines
+      const formattedImages: ImageData[] = []
+      
+      for (const img of imagesData) {
+        const routeLines = routeLinesMap.get(img.id) || []
+        
+        // Include all climbs regardless of status
+        const validRouteLines = routeLines
+          .filter((rl: any) => rl.climbs)
+          .map((rl: any) => ({
             id: rl.id,
             points: rl.points,
             color: rl.color,
-            climb: rl.climb
+            climb: {
+              id: rl.climbs.id,
+              name: rl.climbs.name,
+              grade: rl.climbs.grade,
+              description: rl.climbs.description
+            }
           }))
-        })) as ImageData[]
-        setImages(imagesData)
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-          data: imagesData,
-          timestamp: Date.now()
-        }))
+
+        if (validRouteLines.length > 0) {
+          formattedImages.push({
+            id: img.id,
+            url: img.url,
+            latitude: img.latitude,
+            longitude: img.longitude,
+            is_verified: img.is_verified || false,
+            verification_count: img.verification_count || 0,
+            route_lines: validRouteLines
+          })
+        }
       }
+      
+      console.log('Final formatted images:', formattedImages.length)
+      console.log('Image IDs being rendered:', formattedImages.map(i => i.id))
+      const cacheKey = CACHE_KEY + '_v3'
+      setImages(formattedImages)
+      localStorage.setItem(cacheKey, JSON.stringify({
+        data: formattedImages,
+        timestamp: Date.now()
+      }))
     } catch (err) {
       console.error('Network error fetching images:', err)
     }
     setLoading(false)
-  }, [])
+  }, [isClient])
 
   const handleLogClimb = async (climbId: string, status: string) => {
     if (!user) {
@@ -181,7 +253,7 @@ export default function SatelliteClimbingMap() {
   useEffect(() => {
     if (!isClient) return
     loadImages()
-  }, [isClient, loadImages])
+  }, [isClient])
 
   useEffect(() => {
     if (!isClient) return
@@ -195,9 +267,6 @@ export default function SatelliteClimbingMap() {
         const { latitude, longitude } = position.coords
         setUserLocation([latitude, longitude])
         setLocationStatus('tracking')
-        if (mapRef.current) {
-          mapRef.current.setView([latitude, longitude], 12)
-        }
       },
       () => setLocationStatus('error'),
       { enableHighAccuracy: true, timeout: 15000 }
@@ -276,6 +345,13 @@ export default function SatelliteClimbingMap() {
     setIsClient(true)
   }, [])
 
+  useEffect(() => {
+    if (!mapRef.current || !userLocation) return
+    if (useUserLocation) {
+      mapRef.current.setView(userLocation, 12)
+    }
+  }, [useUserLocation, userLocation])
+
   const skeletonPins = useMemo(() => {
     if (images.length > 0) return []
     const regions = [
@@ -308,8 +384,12 @@ export default function SatelliteClimbingMap() {
         whenReady={() => {
           setMapLoaded(true)
           setTimeout(() => {
-            if (defaultLocation && mapRef.current) {
-              mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
+            if (mapRef.current) {
+              if (useUserLocation && userLocation) {
+                mapRef.current.setView(userLocation, 12)
+              } else if (defaultLocation) {
+                mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
+              }
             }
           }, 100)
         }}
@@ -351,7 +431,7 @@ export default function SatelliteClimbingMap() {
             icon={L.divIcon({
               className: 'image-marker',
               html: `<div style="
-                background: #ef4444;
+                background: ${image.is_verified ? '#22c55e' : '#eab308'};
                 width: 24px;
                 height: 24px;
                 border-radius: 50%;
@@ -406,6 +486,9 @@ export default function SatelliteClimbingMap() {
                   <p className="font-semibold text-sm text-gray-900">
                     {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
                   </p>
+                  <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
+                    {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
+                  </p>
                 </div>
               </Tooltip>
             )}
@@ -419,18 +502,57 @@ export default function SatelliteClimbingMap() {
         </div>
       )}
 
+      <button
+        onClick={() => {
+          const cacheKey = CACHE_KEY + '_v3'
+          localStorage.removeItem(cacheKey)
+          // Force re-render by updating state
+          setLoading(true)
+          setTimeout(() => {
+            loadImages()
+          }, 50)
+        }}
+        className="absolute top-4 right-4 z-[1000] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700"
+      >
+        <RefreshCw className="w-4 h-4" />
+        Refresh
+      </button>
+
+      {userLocation && (
+        <button
+          onClick={() => {
+            setUseUserLocation(!useUserLocation)
+            if (mapRef.current) {
+              if (!useUserLocation) {
+                mapRef.current.setView(userLocation, 12)
+              } else if (defaultLocation) {
+                mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
+              }
+            }
+          }}
+          className={`absolute top-4 right-32 z-[1000] border rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2 ${
+            useUserLocation
+              ? 'bg-blue-600 text-white border-blue-700'
+              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+          }`}
+        >
+          <MapPin className="w-4 h-4" />
+          {useUserLocation ? 'My Location' : 'Use My Location'}
+        </button>
+      )}
+
       {locationStatus === 'requesting' && (
         <div className="absolute top-4 right-20 z-[1000] bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm">
           Requesting location...
         </div>
       )}
 
-      {defaultLocation && !isAtDefaultLocation && (
+      {useUserLocation && userLocation && defaultLocation && (
         <button
           onClick={() => {
+            setUseUserLocation(false)
             if (mapRef.current) {
               mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
-              setIsAtDefaultLocation(true)
             }
           }}
           className="absolute bottom-24 left-4 z-[1000] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2"
@@ -440,7 +562,7 @@ export default function SatelliteClimbingMap() {
         </button>
       )}
 
-      {setLocationMode && (
+      {!useUserLocation && defaultLocation && !isAtDefaultLocation && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-blue-600 text-white rounded-lg px-4 py-2 text-sm shadow-lg">
           Click on the map to set your default location
         </div>

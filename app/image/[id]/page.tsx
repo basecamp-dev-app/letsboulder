@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState, useRef } from 'react'
+import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import { RoutePoint } from '@/lib/useRouteSelection'
-import { Loader2, Share2, ArrowLeft } from 'lucide-react'
+import { Loader2, Share2, CheckCircle, AlertCircle, X } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -15,45 +16,175 @@ import {
   DialogFooter
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import GradeVoting from '@/components/GradeVoting'
+import CorrectionSection from '@/components/CorrectionSection'
+import type { ClimbStatusResponse } from '@/lib/verification-types'
 
-interface ImageRoute {
-  id: string
-  points: RoutePoint[]
-  color: string
-  climb: {
-    id: string
-    name: string | null
-    grade: string | null
-    description: string | null
+function smoothSvgPath(points: RoutePoint[], width: number, height: number): string {
+  if (points.length < 2) return ''
+  if (points.length === 2) {
+    return `M ${points[0].x * width} ${points[0].y * height} L ${points[1].x * width} ${points[1].y * height}`
   }
+  
+  let path = `M ${points[0].x * width} ${points[0].y * height}`
+  
+  for (let i = 1; i < points.length - 1; i++) {
+    const xc = (points[i].x + points[i + 1].x) / 2 * width
+    const yc = (points[i].y + points[i + 1].y) / 2 * height
+    path += ` Q ${points[i].x * width} ${points[i].y * height} ${xc} ${yc}`
+  }
+  
+  const last = points[points.length - 1]
+  path += ` Q ${last.x * width} ${last.y * height} ${last.x * width} ${last.y * height}`
+  
+  return path
 }
 
-interface ImageData {
-  id: string
+interface ImageWrapperProps {
   url: string
-  latitude: number | null
-  longitude: number | null
-  route_lines: ImageRoute[]
+  routeLines: ImageRoute[]
+  selectedRoute: ImageRoute | null
+}
+
+function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
+  const [imgSize, setImgSize] = useState<{ width: number; height: number } | null>(null)
+  const imgRef = useRef<HTMLImageElement>(null)
+
+  useEffect(() => {
+    const img = imgRef.current
+    if (!img) return
+
+    const updateSize = () => {
+      const rect = img.getBoundingClientRect()
+      setImgSize({ width: rect.width, height: rect.height })
+      console.log('Image rendered size:', rect.width.toFixed(1), 'x', rect.height.toFixed(1))
+    }
+
+    // Use ResizeObserver to track size changes
+    const observer = new ResizeObserver(updateSize)
+    observer.observe(img)
+
+    // Initial size after load
+    if (img.complete) {
+      updateSize()
+    }
+
+    return () => observer.disconnect()
+  }, [url])
+
+  return (
+    <div className="relative w-fit h-fit">
+      <Image
+        ref={imgRef}
+        src={url}
+        alt="Climbing routes"
+        width={800}
+        height={600}
+        className="max-w-full max-h-[calc(100vh-300px)] object-contain"
+        priority
+      />
+      {imgSize && (
+        <svg
+          className="absolute inset-0 w-full h-full pointer-events-none z-10"
+          viewBox={`0 0 ${imgSize.width} ${imgSize.height}`}
+          preserveAspectRatio="none"
+        >
+          <rect x="0" y="0" width={imgSize.width} height={imgSize.height} fill="transparent" stroke="yellow" strokeWidth="2" />
+          <line x1={imgSize.width * 0.5} y1="0" x2={imgSize.width * 0.5} y2={imgSize.height} stroke="cyan" strokeWidth="2" />
+          <line x1="0" y1={imgSize.height * 0.5} x2={imgSize.width} y2={imgSize.height * 0.5} stroke="cyan" strokeWidth="2" />
+          <rect 
+            x={imgSize.width * 0.25} 
+            y={imgSize.height * 0.25} 
+            width={imgSize.width * 0.5} 
+            height={imgSize.height * 0.5} 
+            fill="none" 
+            stroke="lime" 
+            strokeWidth="2" 
+            strokeDasharray="5,5" 
+          />
+          {routeLines.map((route) => {
+            const isSelected = selectedRoute?.id === route.id
+            const color = isSelected ? '#00ff00' : (route.color || '#ff00ff')
+            const strokeWidth = isSelected ? 3 : 2
+            
+            console.log('Route points:', route.points.map(p => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(' '))
+            
+            return (
+              <g key={route.id}>
+                <path
+                  d={smoothSvgPath(route.points, imgSize.width, imgSize.height)}
+                  stroke={color}
+                  strokeWidth={strokeWidth}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {route.points.length > 0 && (
+                  <>
+                    <circle
+                      cx={route.points[0].x * imgSize.width}
+                      cy={route.points[0].y * imgSize.height}
+                      r="6"
+                      fill={color}
+                      stroke="white"
+                      strokeWidth="2"
+                    />
+                    <text
+                      x={route.points[0].x * imgSize.width}
+                      y={route.points[0].y * imgSize.height - 12}
+                      fill="white"
+                      fontSize="14"
+                      textAnchor="middle"
+                      fontFamily="monospace"
+                    >
+                      {route.points[0].x.toFixed(3)},{route.points[0].y.toFixed(3)}
+                    </text>
+                    <circle
+                      cx={route.points[route.points.length - 1].x * imgSize.width}
+                      cy={route.points[route.points.length - 1].y * imgSize.height}
+                      r="6"
+                      fill={color}
+                      stroke="white"
+                      strokeWidth="2"
+                    />
+                    <text
+                      x={route.points[route.points.length - 1].x * imgSize.width}
+                      y={route.points[route.points.length - 1].y * imgSize.height + 24}
+                      fill="white"
+                      fontSize="14"
+                      textAnchor="middle"
+                      fontFamily="monospace"
+                    >
+                      {route.points[route.points.length - 1].x.toFixed(3)},{route.points[route.points.length - 1].y.toFixed(3)}
+                    </text>
+                  </>
+                )}
+              </g>
+            )
+          })}
+        </svg>
+      )}
+    </div>
+  )
 }
 
 export default function ImagePage() {
   const params = useParams()
-  const router = useRouter()
   const imageId = params.id as string
-
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const imageRef = useRef<HTMLImageElement>(null)
 
   const [image, setImage] = useState<ImageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [imageLoaded, setImageLoaded] = useState(false)
   const [selectedRoute, setSelectedRoute] = useState<ImageRoute | null>(null)
   const [userLogs, setUserLogs] = useState<Record<string, string>>({})
   const [logging, setLogging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [shareToast, setShareToast] = useState<string | null>(null)
+  const [cragId, setCragId] = useState<string | null>(null)
+  const [cragName, setCragName] = useState<string | null>(null)
+  const [climbStatus, setClimbStatus] = useState<ClimbStatusResponse | null>(null)
+  const [verificationLoading, setVerificationLoading] = useState(false)
 
   useEffect(() => {
     const loadImage = async () => {
@@ -64,11 +195,21 @@ export default function ImagePage() {
 
         const { data: imageData, error: imageError } = await supabase
           .from('images')
-          .select('id, url, latitude, longitude')
+          .select('id, url, latitude, longitude, crag_id, width, height')
           .eq('id', imageId)
           .single()
 
         if (imageError) throw imageError
+
+        let cragName = null
+        if (imageData.crag_id) {
+          const { data: cragData } = await supabase
+            .from('crags')
+            .select('name')
+            .eq('id', imageData.crag_id)
+            .single()
+          cragName = cragData?.name
+        }
 
         const { data: routeLines, error: routeError } = await supabase
           .from('route_lines')
@@ -76,7 +217,7 @@ export default function ImagePage() {
             id,
             points,
             color,
-            climb:climb_id (
+            climbs:climb_id (
               id,
               name,
               grade,
@@ -91,7 +232,7 @@ export default function ImagePage() {
           id: string
           points: RoutePoint[]
           color: string | null
-          climb: Array<{
+          climbs: Array<{
             id: string
             name: string | null
             grade: string | null
@@ -102,12 +243,12 @@ export default function ImagePage() {
         const formattedRoutes: ImageRoute[] = (routeLines as RawRouteLine[] || []).map((rl) => ({
           id: rl.id,
           points: rl.points,
-          color: rl.color || 'red',
+          color: rl.color || '#ff00ff',
           climb: {
-            id: rl.climb[0]?.id || '',
-            name: rl.climb[0]?.name,
-            grade: rl.climb[0]?.grade,
-            description: rl.climb[0]?.description
+            id: rl.climbs[0]?.id || '',
+            name: rl.climbs[0]?.name,
+            grade: rl.climbs[0]?.grade,
+            description: rl.climbs[0]?.description
           }
         }))
 
@@ -115,10 +256,12 @@ export default function ImagePage() {
           ...imageData,
           route_lines: formattedRoutes
         })
+        setCragId(imageData.crag_id)
+        setCragName(cragName || null)
 
         const { data: { user } } = await supabase.auth.getUser()
         if (user && formattedRoutes.length > 0) {
-          const climbIds = formattedRoutes.map(r => r.climb.id)
+          const climbIds = formattedRoutes.map(r => r.climb?.id).filter((id): id is string => id != null)
           const { data: logs } = await supabase
             .from('logs')
             .select('climb_id, status')
@@ -133,9 +276,9 @@ export default function ImagePage() {
             setUserLogs(logsMap)
           }
         }
-        } catch {
-          console.error('Error loading image:')
-          setError('Failed to load image')
+      } catch (err) {
+        console.error('Error loading image:', err)
+        setError('Failed to load image')
       } finally {
         setLoading(false)
       }
@@ -144,96 +287,57 @@ export default function ImagePage() {
     loadImage()
   }, [imageId])
 
-  const drawRoute = useCallback((ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, isLogged: boolean) => {
-    if (points.length < 2) return
-
-    ctx.strokeStyle = color
-    ctx.lineWidth = width
-    ctx.setLineDash(isLogged ? [] : [8, 4])
-
-    ctx.beginPath()
-    ctx.moveTo(points[0].x, points[0].y)
-
-    for (let i = 1; i < points.length - 1; i++) {
-      const xc = (points[i].x + points[i + 1].x) / 2
-      const yc = (points[i].y + points[i + 1].y) / 2
-      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc)
-    }
-
-    ctx.quadraticCurveTo(
-      points[points.length - 1].x,
-      points[points.length - 1].y,
-      points[points.length - 1].x,
-      points[points.length - 1].y
-    )
-    ctx.stroke()
-    ctx.setLineDash([])
-
-    if (points.length > 0) {
-      ctx.fillStyle = color
-      const lastPoint = points[points.length - 1]
-      ctx.beginPath()
-      ctx.arc(lastPoint.x, lastPoint.y, 6, 0, 2 * Math.PI)
-      ctx.fill()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!image || !imageLoaded || !canvasRef.current) return
-
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const img = imageRef.current
-    if (!img) return
-
-    const container = canvas.parentElement
-    if (!container) return
-
-    const containerRect = container.getBoundingClientRect()
-    const imageAspect = img.naturalWidth / img.naturalHeight
-    const containerAspect = containerRect.width / containerRect.height
-
-    let displayWidth, displayHeight, offsetX = 0, offsetY = 0
-    if (imageAspect > containerAspect) {
-      displayWidth = containerRect.width
-      displayHeight = containerRect.width / imageAspect
-      offsetY = (containerRect.height - displayHeight) / 2
-    } else {
-      displayHeight = containerRect.height
-      displayWidth = containerRect.height * imageAspect
-      offsetX = (containerRect.width - displayWidth) / 2
-    }
-
-    canvas.style.left = `${offsetX}px`
-    canvas.style.top = `${offsetY}px`
-    canvas.width = displayWidth
-    canvas.height = displayHeight
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    const scaleX = displayWidth / img.naturalWidth
-    const scaleY = displayHeight / img.naturalHeight
-
-    image.route_lines.forEach((route) => {
-      const isSelected = selectedRoute?.id === route.id
-      const isLogged = !!userLogs[route.climb.id]
-      const color = isLogged ? '#22c55e' : (isSelected ? '#3b82f6' : route.color)
-      const width = isSelected ? 4 : 3
-
-      const scaledPoints = route.points.map(p => ({
-        x: p.x * scaleX,
-        y: p.y * scaleY
-      }))
-
-      drawRoute(ctx, scaledPoints, color, width, isLogged)
-    })
-  }, [image, imageLoaded, selectedRoute, userLogs, drawRoute])
-
   const handleRouteClick = (route: ImageRoute, event: React.MouseEvent) => {
     event.stopPropagation()
     setSelectedRoute(selectedRoute?.id === route.id ? null : route)
+    if (selectedRoute?.id !== route.id) {
+      setClimbStatus(null)
+      if (route.climb?.id) {
+        fetchClimbStatus(route.climb.id)
+      }
+    }
+  }
+
+  const fetchClimbStatus = async (climbId: string) => {
+    try {
+      const response = await fetch(`/api/climbs/${climbId}/status`)
+      if (response.ok) {
+        const status = await response.json()
+        setClimbStatus(status)
+      }
+    } catch {
+      console.error('Failed to fetch climb status')
+    }
+  }
+
+  const handleVerify = async () => {
+    if (!selectedRoute || !climbStatus) return
+    setVerificationLoading(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        window.location.href = `/auth?imageId=${imageId}`
+        return
+      }
+
+      const method = climbStatus.user_has_verified ? 'DELETE' : 'POST'
+      if (selectedRoute.climb?.id) {
+        const response = await fetch(`/api/climbs/${selectedRoute.climb.id}/verify`, {
+          method
+        })
+
+        if (response.ok) {
+          fetchClimbStatus(selectedRoute.climb.id)
+        }
+      }
+    } catch {
+      setToast('Failed to update verification')
+      setTimeout(() => setToast(null), 2000)
+    } finally {
+      setVerificationLoading(false)
+    }
   }
 
   const handleLogClimb = async (climbId: string, status: 'flash' | 'top' | 'try') => {
@@ -243,7 +347,7 @@ export default function ImagePage() {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
-        router.push(`/auth?imageId=${imageId}`)
+        window.location.href = `/auth?imageId=${imageId}`
         return
       }
 
@@ -262,7 +366,7 @@ export default function ImagePage() {
       setToast(`Route logged as ${status}!`)
       setTimeout(() => setToast(null), 2000)
     } catch {
-      console.error('Log error:')
+      console.error('Log error:', err)
       setToast('Failed to log route')
       setTimeout(() => setToast(null), 2000)
     } finally {
@@ -270,13 +374,9 @@ export default function ImagePage() {
     }
   }
 
-  const getShareUrl = () => {
-    return window.location.href
-  }
-
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(getShareUrl())
+      await navigator.clipboard.writeText(window.location.href)
       setShareToast('Link copied!')
       setTimeout(() => setShareToast(null), 2000)
     } catch {
@@ -299,7 +399,7 @@ export default function ImagePage() {
         <div className="text-center">
           <p className="text-red-400 mb-4">{error || 'Image not found'}</p>
           <button
-            onClick={() => router.push('/map')}
+            onClick={() => window.location.href = '/map'}
             className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700"
           >
             Back to Map
@@ -324,12 +424,21 @@ export default function ImagePage() {
 
       <div className="flex items-center gap-2 p-4 bg-gray-900 border-b border-gray-800">
         <button
-          onClick={() => router.back()}
+          onClick={() => window.location.href = '/map'}
           className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+          aria-label="Close and go to map"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <X className="w-5 h-5" />
         </button>
         <h1 className="text-lg font-semibold text-white">Routes on this image</h1>
+        {cragId && cragName && (
+          <Link
+            href={`/crag/${cragId}`}
+            className="ml-2 px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            View {cragName} →
+          </Link>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => setShareModalOpen(true)}
@@ -341,25 +450,8 @@ export default function ImagePage() {
         </div>
       </div>
 
-      <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4">
-        <div className="relative max-w-full max-h-[50vh]">
-          <Image
-            ref={imageRef}
-            src={image.url}
-            alt="Climbing routes"
-            width={800}
-            height={600}
-            className="max-w-full max-h-[50vh] object-contain"
-            onLoadingComplete={() => setImageLoaded(true)}
-            priority
-          />
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full pointer-events-auto"
-            style={{ touchAction: 'none' }}
-            onClick={() => setSelectedRoute(null)}
-          />
-        </div>
+      <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4 bg-gray-950">
+        <ImageWrapper url={image.url} routeLines={image.route_lines} selectedRoute={selectedRoute} />
       </div>
 
       <div className="bg-gray-900 border-t border-gray-800 p-4 max-h-[40vh] overflow-y-auto">
@@ -367,9 +459,22 @@ export default function ImagePage() {
           <div>
             <div className="flex items-start justify-between gap-2 mb-4">
               <div>
-                <p className="text-white text-lg font-semibold">
-                  {selectedRoute.climb.name || 'Unnamed'}, {selectedRoute.climb.grade}
-                </p>
+                <div className="flex items-center gap-2">
+                  {climbStatus?.is_verified ? (
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-yellow-500" />
+                  )}
+                  <p className="text-white text-lg font-semibold">
+                    {selectedRoute.climb?.name || 'Unnamed'}, {selectedRoute.climb?.grade}
+                  </p>
+                </div>
+                {climbStatus && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {climbStatus.verification_count}/3 verifications
+                    {climbStatus.is_verified ? ' - Verified' : ' - Needs 3 to verify'}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setSelectedRoute(null)}
@@ -384,9 +489,9 @@ export default function ImagePage() {
                 <label key={status} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
-                    name={`log-${selectedRoute.climb.id}`}
-                    checked={userLogs[selectedRoute.climb.id] === status}
-                    onChange={() => handleLogClimb(selectedRoute.climb.id, status)}
+                    name={`log-${selectedRoute.climb?.id}`}
+                    checked={userLogs[selectedRoute.climb?.id || ''] === status}
+                    onChange={() => selectedRoute.climb?.id && handleLogClimb(selectedRoute.climb.id, status)}
                     disabled={logging}
                     className="w-4 h-4"
                   />
@@ -395,10 +500,51 @@ export default function ImagePage() {
               ))}
             </div>
 
-            {selectedRoute.climb.description && (
-              <p className="text-gray-400 text-sm">
+            {climbStatus && (
+              <div className="mb-4 p-3 bg-gray-800 rounded-lg">
+                <button
+                  onClick={handleVerify}
+                  disabled={verificationLoading}
+                  className={`w-full py-2 rounded-lg font-medium transition-colors ${
+                    climbStatus.user_has_verified
+                      ? 'bg-green-900/50 text-green-400 border border-green-700 hover:bg-green-900/70'
+                      : 'bg-gray-700 text-white hover:bg-gray-600'
+                  }`}
+                >
+                  {verificationLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                  ) : climbStatus.user_has_verified ? (
+                    '✓ Verified (click to unverify)'
+                  ) : (
+                    'Verify this route'
+                  )}
+                </button>
+              </div>
+            )}
+
+            {climbStatus && (
+              <GradeVoting
+                climbId={selectedRoute.climb?.id || ''}
+                currentGrade={selectedRoute.climb?.grade || ''}
+                votes={climbStatus.grade_votes}
+                userVote={climbStatus.user_grade_vote}
+                onVote={async () => { if (selectedRoute.climb?.id) fetchClimbStatus(selectedRoute.climb.id) }}
+              />
+            )}
+
+            {selectedRoute.climb?.description && (
+              <p className="text-gray-400 text-sm mt-4">
                 {selectedRoute.climb.description}
               </p>
+            )}
+
+            {climbStatus && (
+              <CorrectionSection
+                climbId={selectedRoute.climb?.id || ''}
+                corrections={climbStatus.corrections}
+                onSubmitCorrection={async () => { if (selectedRoute.climb?.id) fetchClimbStatus(selectedRoute.climb.id) }}
+                onVoteCorrection={async () => { if (selectedRoute.climb?.id) fetchClimbStatus(selectedRoute.climb.id) }}
+              />
             )}
           </div>
         ) : (
@@ -411,8 +557,8 @@ export default function ImagePage() {
               <p className="text-gray-400 text-sm">No routes on this image yet.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {image.route_lines.map((route, index) => {
-                  const isLogged = !!userLogs[route.climb.id]
+            {image.route_lines.map((route, index) => {
+                  const isLogged = route.climb?.id ? !!userLogs[route.climb.id] : false
                   return (
                     <button
                       key={route.id}
@@ -425,12 +571,12 @@ export default function ImagePage() {
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-gray-100">
-                          {route.climb.name || `Route ${index + 1}`}
+                          {route.climb?.name || `Route ${index + 1}`}
                         </span>
                         <span className={`text-sm px-2 py-0.5 rounded ${
                           isLogged ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-300'
                         }`}>
-                          {route.climb.grade}
+                          {route.climb?.grade}
                         </span>
                       </div>
                       {isLogged && (

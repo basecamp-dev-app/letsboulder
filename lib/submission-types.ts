@@ -63,6 +63,12 @@ export interface RouteLine {
   color: string
   sequence_order: number
   created_at: string
+  climb?: {
+    id: string
+    name: string | null
+    grade: string
+    status: string
+  }
 }
 
 export interface RoutePoint {
@@ -106,20 +112,22 @@ export interface GpsData {
 export type ImageSelection = ExistingImageSelection | NewImageSelection
 
 export interface SubmissionContext {
-  region: { id: string; name: string } | null
-  crag: { id: string; name: string; latitude: number; longitude: number } | null
+  region: Pick<Region, 'id' | 'name'> | null
+  crag: Pick<Crag, 'id' | 'name' | 'latitude' | 'longitude'> | null
   image: ImageSelection | null
+  imageGps: { latitude: number; longitude: number } | null
   routes: NewRouteData[]
 }
 
 export type SubmissionStep =
-  | { step: 'region' }
-  | { step: 'crag'; regionId: string; regionName: string }
-  | { step: 'image'; regionId: string; regionName: string; cragId: string; cragName: string }
-  | { step: 'draw'; regionId: string; regionName: string; cragId: string; cragName: string; image: ImageSelection }
-  | { step: 'review'; regionId: string; regionName: string; cragId: string; cragName: string; image: ImageSelection; routes: NewRouteData[] }
+  | { step: 'image' }
+  | { step: 'region'; imageGps: { latitude: number; longitude: number } | null }
+  | { step: 'location'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string }
+  | { step: 'crag'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string }
+  | { step: 'draw'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string; cragId: string; cragName: string; image: ImageSelection }
+  | { step: 'review'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string; cragId: string; cragName: string; image: ImageSelection; routes: NewRouteData[] }
   | { step: 'submitting' }
-  | { step: 'success'; climbsCreated: number }
+  | { step: 'success'; climbsCreated: number; imageId?: string }
   | { step: 'error'; message: string }
 
 export function isValidGrade(grade: string): grade is Grade {

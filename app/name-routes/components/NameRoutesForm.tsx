@@ -214,7 +214,7 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
         grade: form.grade,
         description: form.description || null,
         route_type: 'sport',
-        status: 'pending',
+        status: 'approved',
         user_id: user.id
       }))
 
@@ -243,8 +243,8 @@ export default function NameRoutesForm({ sessionId }: { sessionId: string }) {
 
       // Clear session and redirect
       localStorage.removeItem('routeSession')
-      alert('Routes submitted for approval!')
-      window.location.href = '/'
+      alert('Routes submitted! They are now visible on the map. After 3 community verifications, they will be marked as verified.')
+      window.location.href = '/map'
 
     } catch (error) {
       console.error('Submit error:', error)

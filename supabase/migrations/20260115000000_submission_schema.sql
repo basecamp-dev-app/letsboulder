@@ -102,34 +102,66 @@ CREATE INDEX IF NOT EXISTS idx_route_lines_climb ON route_lines(climb_id);
 -- =====================================================
 
 -- Regions: Public read, authenticated create
-ALTER TABLE regions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read regions" ON regions FOR SELECT USING (true);
-CREATE POLICY "Authenticated create regions" ON regions FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+DO $$ BEGIN
+  ALTER TABLE regions ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Public read regions" ON regions FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Authenticated create regions" ON regions FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- Crags: Public read, authenticated create
-ALTER TABLE crags ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read crags" ON crags FOR SELECT USING (true);
-CREATE POLICY "Authenticated create crags" ON crags FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+DO $$ BEGIN
+  ALTER TABLE crags ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Public read crags" ON crags FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Authenticated create crags" ON crags FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- Images: Public read, owner create
-ALTER TABLE images ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read images" ON images FOR SELECT USING (true);
-CREATE POLICY "Owner create images" ON images FOR INSERT WITH CHECK (auth.uid() = created_by);
+DO $$ BEGIN
+  ALTER TABLE images ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Public read images" ON images FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Owner create images" ON images FOR INSERT WITH CHECK (auth.uid() = created_by);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- Climbs: Public read, owner create, owner update (pending only)
-ALTER TABLE climbs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read climbs" ON climbs FOR SELECT USING (true);
-CREATE POLICY "Owner create climbs" ON climbs FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Owner update own pending climbs" ON climbs FOR UPDATE 
-  USING (auth.uid() = user_id AND status = 'pending')
-  WITH CHECK (auth.uid() = user_id AND status = 'pending');
+DO $$ BEGIN
+  ALTER TABLE climbs ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Public read climbs" ON climbs FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Owner create climbs" ON climbs FOR INSERT WITH CHECK (auth.uid() = user_id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Owner update own pending climbs" ON climbs FOR UPDATE 
+    USING (auth.uid() = user_id AND status = 'pending')
+    WITH CHECK (auth.uid() = user_id AND status = 'pending');
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- Route Lines: Public read, owner create (via climbs ownership)
-ALTER TABLE route_lines ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read route_lines" ON route_lines FOR SELECT USING (true);
-CREATE POLICY "Owner create route_lines" ON route_lines FOR INSERT WITH CHECK (
-  EXISTS (SELECT 1 FROM climbs WHERE id = route_lines.climb_id AND user_id = auth.uid())
-);
+DO $$ BEGIN
+  ALTER TABLE route_lines ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Public read route_lines" ON route_lines FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Owner create route_lines" ON route_lines FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM climbs WHERE id = route_lines.climb_id AND user_id = auth.uid())
+  );
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- =====================================================
 -- SEED INITIAL REGIONS

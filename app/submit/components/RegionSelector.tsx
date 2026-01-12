@@ -5,14 +5,18 @@ import type { Region } from '@/lib/submission-types'
 
 interface RegionSelectorProps {
   onSelect: (region: Region) => void
-  onCreateNew?: (name: string, countryCode?: string) => void
-  selectedRegionId?: string | null
+  initialLat?: number | null
+  initialLng?: number | null
+  preselectedRegion?: Region | null
+  loadingRegion?: boolean
 }
 
 export default function RegionSelector({
   onSelect,
-  onCreateNew,
-  selectedRegionId
+  initialLat = null,
+  initialLng = null,
+  preselectedRegion,
+  loadingRegion = false
 }: RegionSelectorProps) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Region[]>([])
@@ -21,8 +25,14 @@ export default function RegionSelector({
   const [newRegionName, setNewRegionName] = useState('')
   const [newRegionCountry, setNewRegionCountry] = useState('')
   const [isCreating, setIsCreating] = useState(false)
-  const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+
+  useEffect(() => {
+    if (preselectedRegion && query === '') {
+      setQuery(preselectedRegion.name)
+      setResults([preselectedRegion])
+    }
+  }, [preselectedRegion])
 
   const searchRegions = useCallback(async (searchQuery: string) => {
     if (searchQuery.length < 2) {
@@ -34,7 +44,9 @@ export default function RegionSelector({
     setErrorMessage('')
 
     try {
-      const response = await fetch(`/api/regions?q=${encodeURIComponent(searchQuery)}`)
+      const params = new URLSearchParams({ q: searchQuery })
+      const response = await fetch(`/api/regions/search?${params}`)
+      
       if (response.ok) {
         const data = await response.json()
         setResults(data)
@@ -60,10 +72,6 @@ export default function RegionSelector({
   }, [query, searchRegions])
 
   const handleSelect = (region: Region) => {
-    setQuery(region.name)
-    setResults([])
-    setSuccessMessage('')
-    setErrorMessage('')
     onSelect(region)
   }
 
@@ -72,7 +80,6 @@ export default function RegionSelector({
 
     setIsCreating(true)
     setErrorMessage('')
-    setSuccessMessage('')
 
     try {
       const response = await fetch('/api/regions', {
@@ -88,37 +95,23 @@ export default function RegionSelector({
 
       if (response.ok) {
         const newRegion = await response.json()
-        setSuccessMessage(`Region "${newRegion.name}" created successfully!`)
-        setShowCreate(false)
-        setNewRegionName('')
-        setNewRegionCountry('')
-        setQuery(newRegion.name)
-        onSelect(newRegion)
-        onCreateNew?.(newRegion.name, newRegion.country_code || undefined)
-        setResults([newRegion])
-        setTimeout(() => setSuccessMessage(''), 3000)
+        handleSelect(newRegion)
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Failed to create region' }))
-        
-        if (errorData.code === 'DUPLICATE' && errorData.existingId) {
-          setErrorMessage(errorData.error)
-          setTimeout(() => {
-            setShowCreate(false)
-            setNewRegionName('')
-            setNewRegionCountry('')
-            setQuery(errorData.existingName)
-            searchRegions(errorData.existingName)
-          }, 2000)
-        } else {
-          setErrorMessage(errorData.error || 'Failed to create region')
-        }
+        setErrorMessage(errorData.error || 'Failed to create region')
       }
-    } catch (error) {
-      console.error('Error creating region:', error)
-      setErrorMessage('Failed to create region. Please try again.')
+    } catch {
+      setErrorMessage('Failed to create region')
     } finally {
       setIsCreating(false)
     }
+  }
+
+  const handleShowCreate = () => {
+    setShowCreate(true)
+    setQuery('')
+    setResults([])
+    setErrorMessage('')
   }
 
   const handleCancelCreate = () => {
@@ -126,32 +119,49 @@ export default function RegionSelector({
     setNewRegionName('')
     setNewRegionCountry('')
     setErrorMessage('')
+    if (preselectedRegion) {
+      setQuery(preselectedRegion.name)
+      setResults([preselectedRegion])
+    }
   }
 
-  const handleShowCreate = () => {
-    setShowCreate(true)
-    setErrorMessage('')
-    setSuccessMessage('')
+  if (preselectedRegion && !showCreate) {
+    return (
+      <div className="space-y-4">
+        {loadingRegion && (
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex items-center gap-2">
+              <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                Finding region from GPS...
+              </p>
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={() => handleSelect(preselectedRegion)}
+          className="w-full py-4 bg-green-600 text-white text-lg rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-sm"
+        >
+          Continue with {preselectedRegion.name}
+        </button>
+
+        <button
+          onClick={() => {
+            setShowCreate(true)
+            setQuery('')
+            setResults([])
+          }}
+          className="w-full py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+        >
+          Not the right region? Choose another
+        </button>
+      </div>
+    )
   }
 
   return (
-    <div className="region-selector">
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-        Region
-      </label>
-
-      {successMessage && (
-        <div className="mb-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
-          {successMessage}
-        </div>
-      )}
-
-      {errorMessage && (
-        <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-          {errorMessage}
-        </div>
-      )}
-
+    <div className="space-y-4">
       {showCreate ? (
         <div className="space-y-3">
           <input
@@ -207,14 +217,9 @@ export default function RegionSelector({
               onChange={(e) => {
                 setQuery(e.target.value)
                 setResults([])
-                setSuccessMessage('')
-                setErrorMessage('')
               }}
               placeholder="Search for a region..."
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              onFocus={() => {
-                if (query.length >= 2) searchRegions(query)
-              }}
             />
 
             {loading && (
@@ -229,37 +234,37 @@ export default function RegionSelector({
                   <li
                     key={region.id}
                     onClick={() => handleSelect(region)}
-                    className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                      selectedRegionId === region.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                    }`}
+                    className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 dark:text-gray-100">
-                          {region.name}
-                        </div>
-                        {region.country_code && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {region.country_code}
-                          </div>
-                        )}
-                      </div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                      {region.name}
                     </div>
+                    {region.country_code && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {region.country_code}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
 
-            {query.length >= 2 && !loading && results.length === 0 && !successMessage && (
+            {query.length >= 2 && !loading && results.length === 0 && (
               <div className="absolute z-10 w-full mt-1 p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg text-sm text-gray-500 dark:text-gray-400 text-center">
-                No regions found matching &quot;{query}&quot;
+                No regions found matching "{query}"
               </div>
             )}
           </div>
 
+          {errorMessage && (
+            <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+              {errorMessage}
+            </div>
+          )}
+
           <button
             onClick={handleShowCreate}
-            className="mt-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
+            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
           >
             + Create new region
           </button>

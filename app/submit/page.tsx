@@ -1,29 +1,93 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import type { SubmissionStep, Region, Crag, ImageSelection, NewRouteData, SubmissionContext } from '@/lib/submission-types'
+import type { SubmissionStep, Region, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData } from '@/lib/submission-types'
 import RegionSelector from './components/RegionSelector'
 import CragSelector from './components/CragSelector'
 import ImagePicker from './components/ImagePicker'
 import RouteCanvas from './components/RouteCanvas'
+import LocationPicker from './components/LocationPicker'
 
 export default function SubmitPage() {
-  const [step, setStep] = useState<SubmissionStep>({ step: 'region' })
+  const [step, setStep] = useState<SubmissionStep>({ step: 'image' })
   const [context, setContext] = useState<SubmissionContext>({
     region: null,
     crag: null,
     image: null,
+    imageGps: null,
     routes: []
   })
+  const [preselectedRegion, setPreselectedRegion] = useState<Region | null>(null)
+  const [loadingRegion, setLoadingRegion] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    const imageGps = 'imageGps' in step ? step.imageGps : null
+    if (imageGps) {
+      setLoadingRegion(true)
+      fetch(`/api/regions/by-location?lat=${imageGps.latitude}&lng=${imageGps.longitude}`)
+        .then(res => {
+          if (res.ok) return res.json()
+          return null
+        })
+        .then(data => {
+          if (data) {
+            setPreselectedRegion({
+              id: data.id,
+              name: data.name,
+              country_code: data.country_code,
+              center_lat: data.center_lat,
+              center_lon: data.center_lon,
+              created_at: ''
+            })
+          }
+        })
+        .catch(err => console.error('Error finding region:', err))
+        .finally(() => setLoadingRegion(false))
+    } else {
+      setPreselectedRegion(null)
+    }
+  }, ['imageGps' in step ? step.imageGps : null])
+
+  const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
+    const gps = gpsData ? { latitude: gpsData.latitude, longitude: gpsData.longitude } : null
+    setContext(prev => ({ ...prev, image: selection, imageGps: gps }))
+    setStep({ step: 'region', imageGps: gps })
+  }, [])
+
   const handleRegionSelect = useCallback((region: Region) => {
     setContext(prev => ({ ...prev, region: { id: region.id, name: region.name } }))
-    setStep({ step: 'crag', regionId: region.id, regionName: region.name })
-  }, [])
+    setStep({ 
+      step: 'location', 
+      imageGps: context.imageGps,
+      regionId: region.id, 
+      regionName: region.name 
+    })
+  }, [context.imageGps])
+
+  const handleLocationConfirm = useCallback((gps: GpsData) => {
+    const currentStep = step as { step: string; regionId?: string; regionName?: string }
+    setContext(prev => ({ ...prev, imageGps: gps }))
+    setStep({ 
+      step: 'crag', 
+      imageGps: gps,
+      regionId: currentStep.regionId!, 
+      regionName: currentStep.regionName! 
+    })
+  }, [step])
+
+  const handleLocationSkip = useCallback(() => {
+    const currentStep = step as { step: string; regionId?: string; regionName?: string }
+    setStep({ 
+      step: 'crag', 
+      imageGps: context.imageGps,
+      regionId: currentStep.regionId!, 
+      regionName: currentStep.regionName! 
+    })
+  }, [context.imageGps, step])
 
   const handleCragSelect = useCallback((crag: Crag) => {
     setContext(prev => ({ 
@@ -31,25 +95,15 @@ export default function SubmitPage() {
       crag: { id: crag.id, name: crag.name, latitude: crag.latitude, longitude: crag.longitude }
     }))
     setStep({ 
-      step: 'image', 
+      step: 'draw', 
+      imageGps: context.imageGps,
       regionId: context.region!.id, 
       regionName: context.region!.name,
       cragId: crag.id, 
-      cragName: crag.name 
+      cragName: crag.name,
+      image: context.image!
     })
-  }, [context.region])
-
-  const handleImageSelect = useCallback((selection: ImageSelection) => {
-    setContext(prev => ({ ...prev, image: selection }))
-    setStep({
-      step: 'draw',
-      regionId: context.region!.id,
-      regionName: context.region!.name,
-      cragId: context.crag!.id,
-      cragName: context.crag!.name,
-      image: selection
-    })
-  }, [context.region, context.crag])
+  }, [context.imageGps, context.region, context.image])
 
   const handleRoutesUpdate = useCallback((routes: NewRouteData[]) => {
     setContext(prev => ({ ...prev, routes }))
@@ -63,6 +117,7 @@ export default function SubmitPage() {
     setError(null)
     setStep({
       step: 'review',
+      imageGps: context.imageGps,
       regionId: context.region!.id,
       regionName: context.region!.name,
       cragId: context.crag!.id,
@@ -71,6 +126,45 @@ export default function SubmitPage() {
       routes: context.routes
     })
   }, [context])
+
+  const handleBack = useCallback(() => {
+    setError(null)
+    switch (step.step) {
+      case 'image':
+        setStep({ step: 'image' })
+        setPreselectedRegion(null)
+        break
+      case 'region':
+        setStep({ step: 'image' })
+        setPreselectedRegion(null)
+        break
+      case 'location':
+        setStep({ step: 'region', imageGps: context.imageGps })
+        break
+      case 'crag':
+        setStep({ step: 'location', imageGps: context.imageGps, regionId: context.region!.id, regionName: context.region!.name })
+        break
+      case 'draw':
+        setStep({ 
+          step: 'crag', 
+          imageGps: context.imageGps,
+          regionId: context.region!.id, 
+          regionName: context.region!.name 
+        })
+        break
+      case 'review':
+        setStep({ 
+          step: 'draw', 
+          imageGps: context.imageGps,
+          regionId: context.region!.id, 
+          regionName: context.region!.name,
+          cragId: context.crag!.id, 
+          cragName: context.crag!.name,
+          image: context.image!
+        })
+        break
+    }
+  }, [step, context])
 
   const handleSubmit = async () => {
     if (!context.region || !context.crag || !context.image || context.routes.length === 0) {
@@ -100,23 +194,11 @@ export default function SubmitPage() {
         width: context.image.width,
         height: context.image.height,
         cragId: context.crag.id,
-        routes: context.routes.map((r, i) => ({
-          name: r.name,
-          grade: r.grade,
-          description: r.description,
-          points: r.points,
-          sequenceOrder: i
-        }))
+        routes: context.routes
       } : {
         mode: 'existing' as const,
         imageId: context.image.imageId,
-        routes: context.routes.map((r, i) => ({
-          name: r.name,
-          grade: r.grade,
-          description: r.description,
-          points: r.points,
-          sequenceOrder: i
-        }))
+        routes: context.routes
       }
 
       const response = await fetch('/api/submissions', {
@@ -125,63 +207,96 @@ export default function SubmitPage() {
         body: JSON.stringify(payload)
       })
 
-      const result = await response.json()
-
       if (!response.ok) {
-        throw new Error(result.error || 'Submission failed')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Submission failed')
       }
 
-      setStep({ step: 'success', climbsCreated: result.climbsCreated })
+      const data = await response.json()
+      setStep({ 
+        step: 'success', 
+        climbsCreated: data.climbsCreated,
+        imageId: data.imageId
+      })
     } catch (err) {
-      console.error('Submission error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to submit routes')
-    } finally {
+      setError(err instanceof Error ? err.message : 'Submission failed')
       setSubmitting(false)
     }
   }
 
-  const handleBack = () => {
-    setError(null)
-    if (step.step === 'crag') {
-      setStep({ step: 'region' })
-    } else if (step.step === 'image') {
-      setStep({ step: 'crag', regionId: context.region!.id, regionName: context.region!.name })
-    } else if (step.step === 'draw') {
-      setStep({ 
-        step: 'image', 
-        regionId: context.region!.id, 
-        regionName: context.region!.name,
-        cragId: context.crag!.id, 
-        cragName: context.crag!.name 
-      })
-    } else if (step.step === 'review') {
-      setStep({
-        step: 'draw',
-        regionId: context.region!.id,
-        regionName: context.region!.name,
-        cragId: context.crag!.id,
-        cragName: context.crag!.name,
-        image: context.image!
-      })
-    }
-  }
-
   const handleStartOver = () => {
-    setContext({ region: null, crag: null, image: null, routes: [] })
-    setStep({ step: 'region' })
+    setContext({ region: null, crag: null, image: null, imageGps: null, routes: [] })
+    setStep({ step: 'image' })
+    setPreselectedRegion(null)
     setError(null)
   }
 
   const renderStep = () => {
     switch (step.step) {
+      case 'image':
+        return (
+          <div className="max-w-md mx-auto">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Upload Route Photo</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Upload a photo of the route to begin. GPS location will be extracted to help find the crag.
+            </p>
+            <ImagePicker
+              onSelect={(selection, gpsData) => handleImageSelect(selection, gpsData)}
+              showBackButton={false}
+            />
+          </div>
+        )
+
       case 'region':
         return (
           <div className="max-w-md mx-auto">
+            <button
+              onClick={handleBack}
+              className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
+            >
+              ← Back to image
+            </button>
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Select a Region</h2>
+            {step.imageGps && (
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  📍 Location detected from image
+                </p>
+              </div>
+            )}
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Start by selecting the region where your climb is located.
+              Select the region where your climb is located.
             </p>
-            <RegionSelector onSelect={handleRegionSelect} />
+            <RegionSelector 
+              onSelect={handleRegionSelect}
+              initialLat={step.imageGps?.latitude ?? 0}
+              initialLng={step.imageGps?.longitude ?? 0}
+              preselectedRegion={preselectedRegion}
+              loadingRegion={loadingRegion}
+            />
+          </div>
+        )
+
+      case 'location':
+        const locationStep = step as { imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string }
+        return (
+          <div className="max-w-md mx-auto">
+            <button
+              onClick={handleBack}
+              className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
+            >
+              ← Back to region
+            </button>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Set Route Location</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Set the exact location of the route. This helps others find it on the map.
+            </p>
+            <LocationPicker
+              initialGps={locationStep.imageGps}
+              onConfirm={handleLocationConfirm}
+              onSkip={handleLocationSkip}
+              regionName={locationStep.regionName}
+            />
           </div>
         )
 
@@ -195,45 +310,32 @@ export default function SubmitPage() {
               ← Back to region
             </button>
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Select a Crag</h2>
-            <CragSelector
-              region={{ id: step.regionId, name: step.regionName, country_code: null, center_lat: null, center_lon: null, created_at: '' }}
-              latitude={0}
-              longitude={0}
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Select the crag where your climb is located.
+            </p>
+            <CragSelector 
+              region={{ id: step.regionId!, name: step.regionName! }}
+              latitude={context.imageGps?.latitude ?? 0}
+              longitude={context.imageGps?.longitude ?? 0}
               onSelect={handleCragSelect}
             />
           </div>
         )
 
-      case 'image':
-        return (
-          <div className="max-w-md mx-auto">
-            <button
-              onClick={handleBack}
-              className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
-            >
-              ← Back to crag
-            </button>
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Select an Image</h2>
-            <ImagePicker
-              cragId={step.cragId}
-              cragName={step.cragName}
-              onSelect={handleImageSelect}
-            />
-          </div>
-        )
-
       case 'draw':
-        console.log('Rendering draw step, image:', step.image)
         return (
-          <div className="h-[calc(100vh-200px)]">
-            <button
-              onClick={handleBack}
-              className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
-            >
-              ← Back to image
-            </button>
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Draw Your Routes</h2>
-            <div className="h-[calc(100%-80px)]">
+          <div className="h-[calc(100vh-64px)]">
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={handleBack}
+                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 flex items-center gap-1"
+              >
+                ← Back to crag
+              </button>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Draw Your Routes</h2>
+              <div className="w-20" />
+            </div>
+            <div className="h-[calc(100%-48px)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
               <RouteCanvas
                 imageSelection={step.image}
                 onRoutesUpdate={handleRoutesUpdate}
@@ -242,7 +344,7 @@ export default function SubmitPage() {
             {context.routes.length > 0 && (
               <button
                 onClick={handleContinueToReview}
-                className="mt-2 w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                className="mt-4 w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
               >
                 Review ({context.routes.length}) →
               </button>
@@ -295,9 +397,9 @@ export default function SubmitPage() {
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
-              {submitting ? 'Submitting...' : 'Submit for Approval'}
+              {submitting ? 'Submitting...' : 'Submit Routes'}
             </button>
           </div>
         )
@@ -305,49 +407,40 @@ export default function SubmitPage() {
       case 'success':
         return (
           <div className="max-w-md mx-auto text-center">
-            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
+            <div className="mb-6">
+              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Routes Submitted!</h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                {step.climbsCreated} route{step.climbsCreated !== 1 ? 's' : ''} visible on map. After 3 community verifications, they'll be marked as verified.
+              </p>
             </div>
-            <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Submission Received!</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Your {step.climbsCreated} route{step.climbsCreated !== 1 ? 's' : ''} ha{step.climbsCreated === 1 ? 's' : 've'} been submitted for approval.
-              You&apos;ll receive an email once they&apos;re reviewed.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={handleStartOver}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
-              >
-                Submit More
-              </button>
-              <Link
-                href="/"
-                className="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-6 py-2 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
-                Go Home
-              </Link>
-            </div>
-          </div>
-        )
 
-      case 'error':
-        return (
-          <div className="max-w-md mx-auto text-center">
-            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Submission Failed</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">{step.message}</p>
             <button
-              onClick={handleBack}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+              onClick={handleStartOver}
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors mb-4"
             >
-              Try Again
+              Submit More Routes
             </button>
+
+            {step.imageId && (
+              <Link
+                href={`/image/${step.imageId}`}
+                className="block w-full bg-gray-800 text-white py-3 rounded-lg font-medium hover:bg-gray-700 transition-colors mb-4"
+              >
+                View Routes on Image →
+              </Link>
+            )}
+
+            <Link
+              href="/map"
+              className="block text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+            >
+              ← Back to Map
+            </Link>
           </div>
         )
 
@@ -357,13 +450,20 @@ export default function SubmitPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950">
-      <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Submit Routes</h1>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <Link href="/" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Climbing Routes
+          </Link>
+          <nav className="flex items-center gap-4">
+            <Link href="/map" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">
+              Map
+            </Link>
+          </nav>
         </div>
       </header>
-      
+
       <main className="max-w-4xl mx-auto px-4 py-8">
         {renderStep()}
       </main>

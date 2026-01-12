@@ -101,13 +101,11 @@ export async function POST(request: NextRequest) {
     let imageUrl: string = ''
     let imageLat: number | null = null
     let imageLng: number | null = null
+    let existingCragId: string | null = null
 
     if (body.mode === 'new') {
       if (!body.imageUrl) {
         return NextResponse.json({ error: 'Image URL is required' }, { status: 400 })
-      }
-      if (body.imageLat === null || body.imageLng === null) {
-        return NextResponse.json({ error: 'GPS coordinates are required for new images' }, { status: 400 })
       }
       if (!body.cragId) {
         return NextResponse.json({ error: 'Crag ID is required' }, { status: 400 })
@@ -157,6 +155,7 @@ export async function POST(request: NextRequest) {
       imageUrl = existingImage.url
       imageLat = existingImage.latitude
       imageLng = existingImage.longitude
+      existingCragId = existingImage.crag_id
     }
 
     const regionData = await getRegionData(supabase, imageId!)
@@ -166,7 +165,7 @@ export async function POST(request: NextRequest) {
       grade: route.grade,
       description: route.description?.trim() || null,
       route_type: 'sport',
-      status: 'pending' as const,
+      status: 'approved' as const,
       user_id: user.id
     }))
 
@@ -199,6 +198,12 @@ export async function POST(request: NextRequest) {
     if (routeLinesError) {
       console.error('Error creating route_lines:', routeLinesError)
       return NextResponse.json({ error: 'Failed to create route lines' }, { status: 500 })
+    }
+
+    const cragId = body.mode === 'new' ? body.cragId : existingCragId
+
+    if (cragId) {
+      await updateCragBoundary(supabase, cragId)
     }
 
     await triggerImageDiscordNotification({
@@ -283,6 +288,22 @@ async function triggerImageDiscordNotification(submission: ImageDiscordSubmissio
     })
   } catch (error) {
     console.error('Failed to trigger Discord notification:', error)
+  }
+}
+
+async function updateCragBoundary(supabase: ReturnType<typeof createServerClient>, cragId: string) {
+  try {
+    const { data: routeData } = await supabase
+      .rpc('compute_crag_boundary', { crag_id: cragId })
+
+    if (routeData) {
+      await supabase
+        .from('crags')
+        .update({ boundary: routeData })
+        .eq('id', cragId)
+    }
+  } catch (error) {
+    console.error('Failed to update crag boundary:', error)
   }
 }
 

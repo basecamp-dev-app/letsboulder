@@ -178,7 +178,7 @@ async function handleResendWebhook(request: Request, env: any): Promise<Response
     
     console.log(`[Resend] Event type: ${eventType}, email_id: ${emailId}`)
     
-    let emailData: any = {
+    const emailData: any = {
       id: `email_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       from: body.data?.from || body.from || 'unknown',
       to: body.data?.to || body.to || 'unknown',
