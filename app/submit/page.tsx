@@ -199,12 +199,18 @@ function SubmitPageContent() {
         captureDate: context.image.captureDate,
         width: context.image.width,
         height: context.image.height,
-        cragId: context.crag.id,
+        cragId: step.step === 'review' ? step.cragId : context.crag?.id,
         routes: context.routes
       } : {
         mode: 'existing' as const,
         imageId: context.image.imageId,
         routes: context.routes
+      }
+
+      if (context.image.mode === 'new' && !payload.cragId) {
+        setError('Please select a crag before submitting')
+        setSubmitting(false)
+        return
       }
 
       const response = await fetch('/api/submissions', {
@@ -421,7 +427,7 @@ function SubmitPageContent() {
               </div>
               <h2 className="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Routes Submitted!</h2>
               <p className="text-gray-600 dark:text-gray-400">
-                {step.climbsCreated} route{step.climbsCreated !== 1 ? 's' : ''} visible on map. After 3 community verifications, they'll be marked as verified.
+                {step.climbsCreated} route{step.climbsCreated !== 1 ? 's' : ''} visible on map. After 3 community verifications, they&apos;ll be marked as verified.
               </p>
             </div>
 
@@ -478,19 +484,5 @@ function SubmitPageContent() {
 }
 
 export default function SubmitPage() {
-  const [mounted, setMounted] = useState(false)
-  
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-  
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
-      </div>
-    )
-  }
-  
   return <SubmitPageContent />
 }
