@@ -4,11 +4,9 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
-import { useSearchParams } from 'next/navigation'
 import { MapPin, Loader2, RefreshCw } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
 import { geoJsonPolygonToLeaflet } from '@/lib/geo-utils'
-import ImageModal from './ImageModal'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -74,21 +72,15 @@ interface CragData {
 }
 
 export default function SatelliteClimbingMap() {
-  const searchParams = useSearchParams()
   const mapRef = useRef<L.Map | null>(null)
   const [images, setImages] = useState<ImageData[]>([])
   const [crags, setCrags] = useState<CragData[]>([])
   const [loading, setLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
-  const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
-  const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
   const [mapLoaded, setMapLoaded] = useState(false)
-  const [userLogs, setUserLogs] = useState<Record<string, string>>({})
   const [user, setUser] = useState<any>(null)
-  const [toast, setToast] = useState<{id: string, status: string} | null>(null)
   const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
   const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
   const [useUserLocation, setUseUserLocation] = useState(false)
@@ -97,7 +89,6 @@ export default function SatelliteClimbingMap() {
   const [isSavingLocation, setIsSavingLocation] = useState(false)
 
   const CACHE_KEY = 'gsyrocks_images_cache'
-  const CACHE_DURATION = 60 * 60 * 1000 // 1 hour cache
 
   const loadImages = useCallback(async () => {
     console.log('loadImages called')
@@ -247,36 +238,6 @@ export default function SatelliteClimbingMap() {
     setLoading(false)
   }, [isClient])
 
-  const handleLogClimb = async (climbId: string, status: string) => {
-    if (!user) {
-      window.location.href = `/auth?climbId=${climbId}`
-      return
-    }
-
-    const supabase = createClient()
-    setUserLogs(prev => ({ ...prev, [climbId]: status }))
-
-    const { error } = await supabase
-      .from('user_climbs')
-      .upsert({
-        user_id: user.id,
-        climb_id: climbId,
-        style: status,
-        date_climbed: new Date().toISOString().split('T')[0]
-      }, { onConflict: 'user_id,climb_id' })
-
-    if (error) {
-      setUserLogs(prev => {
-        const next = { ...prev }
-        delete next[climbId]
-        return next
-      })
-    } else {
-      setToast({ id: climbId, status })
-      setTimeout(() => setToast(null), 2000)
-    }
-  }
-
   useEffect(() => {
     if (!isClient) return
     loadImages()
@@ -303,21 +264,12 @@ export default function SatelliteClimbingMap() {
   useEffect(() => {
     if (!isClient) return
 
-    const fetchUserAndLogs = async () => {
+    const fetchUser = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       setUser(user)
 
       if (user) {
-        const { data: logs } = await supabase
-          .from('user_climbs')
-          .select('climb_id, style')
-          .eq('user_id', user.id)
-
-        const logsMap: Record<string, string> = {}
-        logs?.forEach(log => { logsMap[log.climb_id] = log.style })
-        setUserLogs(logsMap)
-
         const { data: profile } = await supabase
           .from('profiles')
           .select('default_location_lat, default_location_lng, default_location_zoom')
@@ -333,7 +285,7 @@ export default function SatelliteClimbingMap() {
         }
       }
     }
-    fetchUserAndLogs()
+    fetchUser()
   }, [isClient])
 
   useEffect(() => {
@@ -500,46 +452,33 @@ export default function SatelliteClimbingMap() {
             eventHandlers={{
               click: (e: L.LeafletMouseEvent) => {
                 e.originalEvent.stopPropagation()
-                if (selectedImageId !== image.id) {
-                  setSelectedImageId(image.id)
-                }
+                // Navigate to image page
+                window.location.href = `/image/${image.id}`
               },
             }}
           >
-            {selectedImageId === image.id && (
-              <Tooltip
-                direction="top"
-                offset={[0, -30]}
-                opacity={1}
-                permanent={true}
-                interactive={true}
-                eventHandlers={{
-                  click: () => {
-                    setSelectedImage(image)
-                    setSelectedImageId(null)
-                    if (mapRef.current && image.latitude && image.longitude) {
-                      mapRef.current.setView([image.latitude, image.longitude], Math.min(mapRef.current.getZoom() + 2, 18))
-                    }
-                  }
-                }}
-              >
-                <div className="w-40 cursor-pointer">
-                  <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
-                    <img
-                      src={image.url}
-                      alt="Routes"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <p className="font-semibold text-sm text-gray-900">
-                    {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
-                  </p>
-                  <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
-                    {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
-                  </p>
+            <Tooltip
+              direction="top"
+              offset={[0, -30]}
+              opacity={1}
+            >
+              <div className="w-40">
+                <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
+                  <img
+                    src={image.url}
+                    alt="Routes"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
-              </Tooltip>
-            )}
+                <p className="font-semibold text-sm text-gray-900">
+                  {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
+                </p>
+                <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
+                  {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">Click to view →</p>
+              </div>
+            </Tooltip>
           </Marker>
         ))}
       </MapContainer>
@@ -659,21 +598,6 @@ export default function SatelliteClimbingMap() {
               {isSavingLocation ? <Loader2 className="w-4 h-4 inline animate-spin mr-1" /> : null}
               {isSavingLocation ? 'Saving...' : 'Save'}
             </button>
-          </div>
-        </div>
-      )}
-
-      <ImageModal
-        image={selectedImage}
-        onClose={() => setSelectedImage(null)}
-        userLogs={userLogs}
-        onLogClimb={handleLogClimb}
-      />
-
-      {toast && (
-        <div className="absolute bottom-52 left-1/2 -translate-x-1/2 z-[1003]">
-          <div className="bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
-            ✓ Climb logged to your logbook
           </div>
         </div>
       )}
