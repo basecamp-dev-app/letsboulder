@@ -146,6 +146,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
   })
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null)
 
   const { selectRoute, deselectRoute, clearSelection, selectedIds } = useRouteSelection()
 
@@ -330,52 +331,35 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     }
   }, [imageLoaded, redraw])
 
+  // Set up canvas to match image dimensions and normalize routes
   useEffect(() => {
     const image = imageRef.current
     const canvas = canvasRef.current
     const container = containerRef.current
-    if (!image || !image.naturalWidth || !image.naturalHeight || !canvas || !container) return
+    if (!image || !canvas || !container || !image.complete || !imageDimensions) return
 
-    // Use natural dimensions from the original image
-    const naturalWidth = image.naturalWidth
-    const naturalHeight = image.naturalHeight
-    const containerRect = container.getBoundingClientRect()
+    // Size canvas to match image's rendered size
+    canvas.width = imageDimensions.width
+    canvas.height = imageDimensions.height
 
-    const normalizedRoutes = completedRoutes.map((route, index) => ({
-      id: route.id,
-      name: route.name,
-      grade: route.grade,
-      // Store original dimensions for display
-      _imageWidth: naturalWidth,
-      _imageHeight: naturalHeight,
-      points: route.points.map(p => ({
-        x: p.x / naturalWidth,
-        y: p.y / naturalHeight
-      })),
-      sequenceOrder: index
-    }))
+    // Normalize points to 0-1 using the image's rendered dimensions
+    const normalizedRoutes = completedRoutes.map((route, index) => {
+      const normalized = route.points.map(p => ({
+        x: p.x / imageDimensions.width,
+        y: p.y / imageDimensions.height
+      }))
 
-    console.log('=== SUBMISSION DEBUG ===')
-    console.log('naturalSize:', naturalWidth, 'x', naturalHeight)
-    console.log('containerSize:', containerRect.width, 'x', containerRect.height)
-    console.log('canvasSize:', canvas.width, 'x', canvas.height)
-    console.log('routeCount:', completedRoutes.length)
-
-    completedRoutes.forEach((route, i) => {
-      const origFirst = route.points[0]
-      const origLast = route.points[route.points.length - 1]
-      const normFirst = normalizedRoutes[i]?.points[0]
-      const normLast = normalizedRoutes[i]?.points[normalizedRoutes[i].points.length - 1]
-
-      console.log(`Route ${i} ORIGINAL first:`, origFirst.x.toFixed(2), ',', origFirst.y.toFixed(2))
-      console.log(`Route ${i} ORIGINAL last:`, origLast.x.toFixed(2), ',', origLast.y.toFixed(2))
-      console.log(`Route ${i} NORMALIZED first:`, normFirst.x.toFixed(4), ',', normFirst.y.toFixed(4))
-      console.log(`Route ${i} NORMALIZED last:`, normLast.x.toFixed(4), ',', normLast.y.toFixed(4))
+      return {
+        id: route.id,
+        name: route.name,
+        grade: route.grade,
+        points: normalized,
+        sequenceOrder: index
+      }
     })
-    console.log('=== END SUBMISSION DEBUG ===')
 
     onRoutesUpdate(normalizedRoutes)
-  }, [completedRoutes, onRoutesUpdate])
+  }, [completedRoutes, imageDimensions, onRoutesUpdate])
 
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -405,7 +389,14 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         src={imageUrl}
         alt="Route"
         className={`absolute inset-0 w-full h-full object-contain ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-        onLoad={() => setImageLoaded(true)}
+        onLoad={() => {
+          const img = imageRef.current
+          if (img) {
+            const rect = img.getBoundingClientRect()
+            setImageDimensions({ width: rect.width, height: rect.height })
+          }
+          setImageLoaded(true)
+        }}
         onError={() => setImageError(true)}
         draggable={false}
       />

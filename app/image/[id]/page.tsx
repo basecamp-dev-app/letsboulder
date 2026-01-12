@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import { RoutePoint } from '@/lib/useRouteSelection'
 import { Loader2, Share2, CheckCircle, AlertCircle, X } from 'lucide-react'
@@ -57,7 +56,6 @@ function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
     const updateSize = () => {
       const rect = img.getBoundingClientRect()
       setImgSize({ width: rect.width, height: rect.height })
-      console.log('Image rendered size:', rect.width.toFixed(1), 'x', rect.height.toFixed(1))
     }
 
     // Use ResizeObserver to track size changes
@@ -74,40 +72,30 @@ function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
 
   return (
     <div className="relative w-fit h-fit">
-      <Image
+      <img
         ref={imgRef}
         src={url}
         alt="Climbing routes"
-        width={800}
-        height={600}
-        className="max-w-full max-h-[calc(100vh-300px)] object-contain"
-        priority
+        className="max-w-full max-h-[calc(100vh-300px)] object-contain block"
+        onLoad={() => {
+          const img = imgRef.current
+          if (img) {
+            const rect = img.getBoundingClientRect()
+            setImgSize({ width: rect.width, height: rect.height })
+          }
+        }}
       />
       {imgSize && (
         <svg
-          className="absolute inset-0 w-full h-full pointer-events-none z-10"
+          className="absolute top-0 left-0 w-full h-full pointer-events-none z-10"
+          style={{ width: imgSize.width, height: imgSize.height }}
           viewBox={`0 0 ${imgSize.width} ${imgSize.height}`}
           preserveAspectRatio="none"
         >
-          <rect x="0" y="0" width={imgSize.width} height={imgSize.height} fill="transparent" stroke="yellow" strokeWidth="2" />
-          <line x1={imgSize.width * 0.5} y1="0" x2={imgSize.width * 0.5} y2={imgSize.height} stroke="cyan" strokeWidth="2" />
-          <line x1="0" y1={imgSize.height * 0.5} x2={imgSize.width} y2={imgSize.height * 0.5} stroke="cyan" strokeWidth="2" />
-          <rect 
-            x={imgSize.width * 0.25} 
-            y={imgSize.height * 0.25} 
-            width={imgSize.width * 0.5} 
-            height={imgSize.height * 0.5} 
-            fill="none" 
-            stroke="lime" 
-            strokeWidth="2" 
-            strokeDasharray="5,5" 
-          />
           {routeLines.map((route) => {
             const isSelected = selectedRoute?.id === route.id
             const color = isSelected ? '#00ff00' : (route.color || '#ff00ff')
             const strokeWidth = isSelected ? 3 : 2
-            
-            console.log('Route points:', route.points.map(p => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(' '))
             
             return (
               <g key={route.id}>
@@ -129,16 +117,6 @@ function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
                       stroke="white"
                       strokeWidth="2"
                     />
-                    <text
-                      x={route.points[0].x * imgSize.width}
-                      y={route.points[0].y * imgSize.height - 12}
-                      fill="white"
-                      fontSize="14"
-                      textAnchor="middle"
-                      fontFamily="monospace"
-                    >
-                      {route.points[0].x.toFixed(3)},{route.points[0].y.toFixed(3)}
-                    </text>
                     <circle
                       cx={route.points[route.points.length - 1].x * imgSize.width}
                       cy={route.points[route.points.length - 1].y * imgSize.height}
@@ -147,16 +125,6 @@ function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
                       stroke="white"
                       strokeWidth="2"
                     />
-                    <text
-                      x={route.points[route.points.length - 1].x * imgSize.width}
-                      y={route.points[route.points.length - 1].y * imgSize.height + 24}
-                      fill="white"
-                      fontSize="14"
-                      textAnchor="middle"
-                      fontFamily="monospace"
-                    >
-                      {route.points[route.points.length - 1].x.toFixed(3)},{route.points[route.points.length - 1].y.toFixed(3)}
-                    </text>
                   </>
                 )}
               </g>
