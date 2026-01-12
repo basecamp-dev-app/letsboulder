@@ -8,6 +8,7 @@ import L from 'leaflet'
 import { useSearchParams } from 'next/navigation'
 import { MapPin, Loader2, RefreshCw } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
+import { geoJsonPolygonToLeaflet } from '@/lib/geo-utils'
 import ImageModal from './ImageModal'
 
 import 'leaflet/dist/leaflet.css'
@@ -23,6 +24,7 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
+const Polygon = dynamic(() => import('react-leaflet').then(mod => mod.Polygon), { ssr: false })
 
 interface DefaultLocation {
   lat: number
@@ -61,10 +63,22 @@ interface ImageData {
   verification_count: number
 }
 
+interface CragData {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+  boundary: {
+    type: 'Polygon'
+    coordinates: number[][][]
+  } | null
+}
+
 export default function SatelliteClimbingMap() {
   const searchParams = useSearchParams()
   const mapRef = useRef<L.Map | null>(null)
   const [images, setImages] = useState<ImageData[]>([])
+  const [crags, setCrags] = useState<CragData[]>([])
   const [loading, setLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
@@ -210,6 +224,20 @@ export default function SatelliteClimbingMap() {
       console.log('Image IDs being rendered:', formattedImages.map(i => i.id))
       const cacheKey = CACHE_KEY + '_v3'
       setImages(formattedImages)
+
+      // Fetch crags with boundaries
+      const { data: cragsData, error: cragsError } = await supabase
+        .from('crags')
+        .select('id, name, latitude, longitude, boundary')
+        .not('boundary', 'is', null)
+
+      if (cragsError) {
+        console.error('Crags error:', cragsError)
+      } else if (cragsData) {
+        console.log('Crags with boundaries:', cragsData.length)
+        setCrags(cragsData as CragData[])
+      }
+
       localStorage.setItem(cacheKey, JSON.stringify({
         data: formattedImages,
         timestamp: Date.now()
@@ -400,6 +428,29 @@ export default function SatelliteClimbingMap() {
           attribution='Tiles © Esri'
           maxZoom={19}
         />
+
+        {/* Crag Polygons */}
+        {crags.map(crag => {
+          const coords = crag.boundary ? geoJsonPolygonToLeaflet(crag.boundary as any) : null
+          if (!coords) return null
+          return (
+            <Polygon
+              key={crag.id}
+              positions={coords}
+              pathOptions={{
+                color: '#3b82f6',
+                fillColor: '#3b82f6',
+                fillOpacity: 0.15,
+                weight: 2,
+                dashArray: '5, 10'
+              }}
+            >
+              <Tooltip direction="center" opacity={1}>
+                <span className="font-semibold">{crag.name}</span>
+              </Tooltip>
+            </Polygon>
+          )
+        })}
 
         {userLocation && (
           <Marker
