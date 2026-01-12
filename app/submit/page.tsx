@@ -4,15 +4,16 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase'
+import nextDynamic from 'next/dynamic'
 import type { SubmissionStep, Region, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData } from '@/lib/submission-types'
-import RegionSelector from './components/RegionSelector'
-import CragSelector from './components/CragSelector'
-import ImagePicker from './components/ImagePicker'
-import RouteCanvas from './components/RouteCanvas'
-import LocationPicker from './components/LocationPicker'
 
-export const dynamic = 'force-dynamic'
+const dynamic = nextDynamic
+
+const RegionSelector = dynamic(() => import('./components/RegionSelector'), { ssr: false })
+const CragSelector = dynamic(() => import('./components/CragSelector'), { ssr: false })
+const ImagePicker = dynamic(() => import('./components/ImagePicker'), { ssr: false })
+const RouteCanvas = dynamic(() => import('./components/RouteCanvas'), { ssr: false })
+const LocationPicker = dynamic(() => import('./components/LocationPicker'), { ssr: false })
 
 function SubmitPageContent() {
   const [step, setStep] = useState<SubmissionStep>({ step: 'image' })
@@ -180,6 +181,7 @@ function SubmitPageContent() {
     setError(null)
 
     try {
+      const { createClient } = await import('@/lib/supabase')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
 

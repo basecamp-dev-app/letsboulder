@@ -1,10 +1,18 @@
 'use client'
 
-'use client'
-
 import { useState, useCallback } from 'react'
 import type { ImageSelection, NewImageSelection, GpsData } from '@/lib/submission-types'
-import ImageUploader from './ImageUploader'
+import dynamic from 'next/dynamic'
+
+const ImageUploader = dynamic(() => import('./ImageUploader'), {
+  ssr: false,
+  loading: () => (
+    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+      <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto" />
+      <p className="text-sm text-gray-500 mt-2">Loading uploader...</p>
+    </div>
+  )
+})
 
 interface ImagePickerProps {
   onSelect: (selection: ImageSelection, gpsData: GpsData | null) => void

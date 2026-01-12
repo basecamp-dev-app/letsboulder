@@ -3,7 +3,6 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { createClient } from '@/lib/supabase'
 import type { NewImageSelection, GpsData } from '@/lib/submission-types'
 
 interface ImageUploaderProps {
@@ -358,6 +357,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     onUploading(true, 0, 'Uploading...')
 
     try {
+      const { createClient } = await import('@/lib/supabase')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
 
