@@ -43,7 +43,7 @@ export async function GET() {
       points: rl.points,
       pointsType: typeof rl.points,
       pointsLength: Array.isArray(rl.points) ? rl.points.length : 'not array',
-      climb: rl.climbs?.name
+      climb: rl.climbs?.[0]?.name || null
     }))
 
     return NextResponse.json({
