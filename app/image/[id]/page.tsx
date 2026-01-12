@@ -19,6 +19,28 @@ import GradeVoting from '@/components/GradeVoting'
 import CorrectionSection from '@/components/CorrectionSection'
 import type { ClimbStatusResponse } from '@/lib/verification-types'
 
+interface ImageRoute {
+  id: string
+  points: RoutePoint[]
+  color: string
+  climb: {
+    id: string
+    name: string | null
+    grade: string | null
+    description: string | null
+  } | null
+}
+
+interface ImageData {
+  id: string
+  url: string
+  latitude: number | null
+  longitude: number | null
+  route_lines: ImageRoute[]
+  width?: number
+  height?: number
+}
+
 function smoothSvgPath(points: RoutePoint[], width: number, height: number): string {
   if (points.length < 2) return ''
   if (points.length === 2) {
@@ -333,7 +355,7 @@ export default function ImagePage() {
       setUserLogs(prev => ({ ...prev, [climbId]: status }))
       setToast(`Route logged as ${status}!`)
       setTimeout(() => setToast(null), 2000)
-    } catch {
+    } catch (err) {
       console.error('Log error:', err)
       setToast('Failed to log route')
       setTimeout(() => setToast(null), 2000)

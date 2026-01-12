@@ -289,23 +289,6 @@ export default function SatelliteClimbingMap() {
   }, [isClient])
 
   useEffect(() => {
-    if (!mapRef.current) return
-
-    const map = mapRef.current
-    const handleClick = (e: L.LeafletMouseEvent) => {
-      if (!e.originalEvent.target || !(e.originalEvent.target as HTMLElement).closest('.image-marker')) {
-        setSelectedImageId(null)
-      }
-      if (setLocationMode && mapRef.current) {
-        const center = mapRef.current.getCenter()
-        setSetLocationPending({ lat: center.lat, lng: center.lng })
-      }
-    }
-    map.on('click', handleClick)
-    return () => { map.off('click', handleClick) }
-  }, [setLocationMode])
-
-  useEffect(() => {
     if (!mapRef.current || !defaultLocation) return
     const map = mapRef.current
     const handleMoveEnd = () => {

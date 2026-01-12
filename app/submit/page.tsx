@@ -1,5 +1,7 @@
 'use client'
 
+'use client'
+
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -10,7 +12,9 @@ import ImagePicker from './components/ImagePicker'
 import RouteCanvas from './components/RouteCanvas'
 import LocationPicker from './components/LocationPicker'
 
-export default function SubmitPage() {
+export const dynamic = 'force-dynamic'
+
+function SubmitPageContent() {
   const [step, setStep] = useState<SubmissionStep>({ step: 'image' })
   const [context, setContext] = useState<SubmissionContext>({
     region: null,
@@ -469,4 +473,22 @@ export default function SubmitPage() {
       </main>
     </div>
   )
+}
+
+export default function SubmitPage() {
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+  
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+  
+  return <SubmitPageContent />
 }

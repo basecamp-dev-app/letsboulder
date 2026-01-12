@@ -1,5 +1,7 @@
 'use client'
 
+'use client'
+
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useRouteSelection, RoutePoint, generateRouteId, findRouteAtPoint } from '@/lib/useRouteSelection'
 import GradePicker from '@/app/draw/components/GradePicker'

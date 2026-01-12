@@ -1,5 +1,7 @@
 'use client'
 
+'use client'
+
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { NewImageSelection, GpsData } from '@/lib/submission-types'
