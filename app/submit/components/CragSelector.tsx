@@ -32,6 +32,28 @@ export default function CragSelector({
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
 
+  // Auto-select crag if preselected
+  useEffect(() => {
+    if (selectedCragId && query === '' && !showCreate) {
+      // Auto-select the preselected crag after a brief delay to allow component to initialize
+      const fetchCrag = async () => {
+        try {
+          const response = await fetch(`/api/crags/search?q=${encodeURIComponent('')}&region_id=${region.id}`)
+          if (response.ok) {
+            const crags = await response.json()
+            const preselectedCrag = crags.find((c: Crag) => c.id === selectedCragId)
+            if (preselectedCrag) {
+              handleSelect(preselectedCrag)
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching preselected crag:', error)
+        }
+      }
+      fetchCrag()
+    }
+  }, [selectedCragId, region.id])
+
   const searchCrags = useCallback(async (searchQuery: string) => {
     if (searchQuery.length < 2) {
       setResults([])

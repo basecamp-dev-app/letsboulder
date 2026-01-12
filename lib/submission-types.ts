@@ -123,7 +123,7 @@ export type SubmissionStep =
   | { step: 'image' }
   | { step: 'region'; imageGps: { latitude: number; longitude: number } | null }
   | { step: 'location'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string }
-  | { step: 'crag'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string }
+  | { step: 'crag'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string; cragId?: string; cragName?: string }
   | { step: 'draw'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string; cragId: string; cragName: string; image: ImageSelection }
   | { step: 'review'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string; cragId: string; cragName: string; image: ImageSelection; routes: NewRouteData[] }
   | { step: 'submitting' }

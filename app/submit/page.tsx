@@ -158,7 +158,9 @@ function SubmitPageContent() {
           step: 'crag', 
           imageGps: context.imageGps,
           regionId: context.region!.id, 
-          regionName: context.region!.name 
+          regionName: context.region!.name,
+          cragId: context.crag?.id,
+          cragName: context.crag?.name
         })
         break
       case 'review':
@@ -318,6 +320,7 @@ function SubmitPageContent() {
         )
 
       case 'crag':
+        const cragStep = step as { regionId: string; regionName: string; cragId?: string; cragName?: string }
         return (
           <div className="max-w-md mx-auto">
             <button
@@ -331,10 +334,11 @@ function SubmitPageContent() {
               Select the crag where your climb is located.
             </p>
             <CragSelector 
-              region={{ id: step.regionId!, name: step.regionName! }}
+              region={{ id: cragStep.regionId!, name: cragStep.regionName! }}
               latitude={context.imageGps?.latitude ?? 0}
               longitude={context.imageGps?.longitude ?? 0}
               onSelect={handleCragSelect}
+              selectedCragId={cragStep.cragId}
             />
           </div>
         )
