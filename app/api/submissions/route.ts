@@ -160,14 +160,17 @@ export async function POST(request: NextRequest) {
 
     const regionData = await getRegionData(supabase, imageId!)
 
-    const climbsData = body.routes.map(route => ({
-      name: route.name.trim(),
-      grade: route.grade,
-      description: route.description?.trim() || null,
-      route_type: 'sport',
-      status: 'approved' as const,
-      user_id: user.id
-    }))
+    const climbsData = body.routes.map((route, index) => {
+      const trimmedName = route.name.trim()
+      return {
+        name: trimmedName || `Route ${index + 1}`,
+        grade: route.grade,
+        description: route.description?.trim() || null,
+        route_type: 'sport',
+        status: 'approved' as const,
+        user_id: user.id
+      }
+    })
 
     const { data: climbs, error: climbsError } = await supabase
       .from('climbs')

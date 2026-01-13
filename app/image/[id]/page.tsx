@@ -204,12 +204,12 @@ export default function ImagePage() {
           points: RoutePoint[]
           color: string | null
           climb_id: string
-          climbs: Array<{
+          climbs: {
             id: string
             name: string | null
             grade: string | null
             description: string | null
-          }> | null
+          } | null
         }
 
         const formattedRoutes: ImageRoute[] = (routeLines as unknown as RawRouteLine[] || []).map((rl) => ({
@@ -217,10 +217,10 @@ export default function ImagePage() {
           points: rl.points,
           color: rl.color || '#ff00ff',
           climb: {
-            id: rl.climbs?.[0]?.id || rl.climb_id || '',
-            name: rl.climbs?.[0]?.name || null,
-            grade: rl.climbs?.[0]?.grade || null,
-            description: rl.climbs?.[0]?.description || null
+            id: rl.climbs?.id || rl.climb_id || '',
+            name: (rl.climbs?.name || '').trim() || null,
+            grade: (rl.climbs?.grade || '').trim() || null,
+            description: (rl.climbs?.description || '').trim() || null
           }
         }))
 
@@ -543,7 +543,7 @@ export default function ImagePage() {
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-gray-100">
-                          {route.climb?.name || `Route ${index + 1}`}
+                          {(route.climb?.name || '').trim() || `Route ${index + 1}`}
                         </span>
                         <span className={`text-sm px-2 py-0.5 rounded ${
                           isLogged ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-300'
