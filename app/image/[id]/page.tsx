@@ -129,26 +129,6 @@ function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                {route.points.length > 0 && (
-                  <>
-                    <circle
-                      cx={route.points[0].x * imgSize.width}
-                      cy={route.points[0].y * imgSize.height}
-                      r="6"
-                      fill={color}
-                      stroke="white"
-                      strokeWidth="2"
-                    />
-                    <circle
-                      cx={route.points[route.points.length - 1].x * imgSize.width}
-                      cy={route.points[route.points.length - 1].y * imgSize.height}
-                      r="6"
-                      fill={color}
-                      stroke="white"
-                      strokeWidth="2"
-                    />
-                  </>
-                )}
               </g>
             )
           })}

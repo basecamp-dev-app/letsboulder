@@ -62,14 +62,6 @@ export default function ImageModal({ image, onClose, userLogs, onLogClimb }: Ima
     )
     ctx.stroke()
     ctx.setLineDash([])
-
-    if (points.length > 0) {
-      ctx.fillStyle = color
-      const lastPoint = points[points.length - 1]
-      ctx.beginPath()
-      ctx.arc(lastPoint.x, lastPoint.y, 6, 0, 2 * Math.PI)
-      ctx.fill()
-    }
   }, [])
 
   useEffect(() => {
