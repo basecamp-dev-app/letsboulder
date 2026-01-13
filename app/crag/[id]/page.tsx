@@ -5,22 +5,27 @@ import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { geoJsonPolygonToLeaflet, getPolygonCenter, GeoJSONPolygon } from '@/lib/geo-utils'
-import L from 'leaflet'
 
 import 'leaflet/dist/leaflet.css'
-
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-})
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Polygon = dynamic(() => import('react-leaflet').then(mod => mod.Polygon), { ssr: false })
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
+
+let L: typeof import('leaflet') | null = null
+
+if (typeof window !== 'undefined') {
+  L = require('leaflet')
+  delete (L!.Icon.Default.prototype as any)._getIconUrl
+  L!.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  })
+}
 
 interface Crag {
   id: string
@@ -39,13 +44,29 @@ interface Crag {
   }
 }
 
+interface RoutePoint {
+  x: number
+  y: number
+}
+
+interface ImageRoute {
+  id: string
+  points: RoutePoint[]
+  color: string
+  climb: {
+    id: string
+    name: string | null
+    grade: string | null
+    description: string | null
+  } | null
+}
+
 interface ImageData {
   id: string
   url: string
   latitude: number | null
   longitude: number | null
-  created_at: string
-  route_lines_count: number
+  route_lines: ImageRoute[]
   is_verified: boolean
   verification_count: number
 }
@@ -55,6 +76,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   const [images, setImages] = useState<ImageData[]>([])
   const [loading, setLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
+  const [mapReady, setMapReady] = useState(false)
   const mapRef = useRef<L.Map | null>(null)
 
   useEffect(() => {
@@ -85,7 +107,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
 
       const { data: imagesData, error: imagesError } = await supabase
         .from('images')
-        .select('id, url, latitude, longitude, created_at, is_verified, verification_count, route_lines(count)')
+        .select('id, url, latitude, longitude, is_verified, verification_count')
         .eq('crag_id', id)
         .not('latitude', 'is', null)
         .order('created_at', { ascending: false })
@@ -94,16 +116,70 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
         console.error('Error fetching images:', imagesError)
       }
 
-      const formattedImages = (imagesData || []).map((img: any) => ({
-        id: img.id,
-        url: img.url,
-        latitude: img.latitude,
-        longitude: img.longitude,
-        created_at: img.created_at,
-        is_verified: img.is_verified || false,
-        verification_count: img.verification_count || 0,
-        route_lines_count: Array.isArray(img.route_lines) && img.route_lines[0] ? (img.route_lines[0] as { count: number }).count : 0
-      }))
+      if (!imagesData || imagesData.length === 0) {
+        setCrag(cragData)
+        setImages([])
+        setLoading(false)
+        return
+      }
+
+      const imageIds = imagesData.map(img => img.id)
+
+      const { data: routeLinesData, error: rlError } = await supabase
+        .from('route_lines')
+        .select(`
+          id,
+          image_id,
+          points,
+          color,
+          climb_id,
+          climbs (
+            id,
+            name,
+            grade,
+            description,
+            status
+          )
+        `)
+        .in('image_id', imageIds)
+
+      if (rlError) {
+        console.error('Route lines error:', rlError)
+      }
+
+      const routeLinesMap = new Map()
+      for (const rl of routeLinesData || []) {
+        const existing = routeLinesMap.get(rl.image_id) || []
+        existing.push(rl)
+        routeLinesMap.set(rl.image_id, existing)
+      }
+
+      const formattedImages: ImageData[] = imagesData.map(img => {
+        const routeLines = routeLinesMap.get(img.id) || []
+        const validRouteLines = routeLines
+          .filter((rl: any) => rl.climbs)
+          .map((rl: any) => ({
+            id: rl.id,
+            points: rl.points,
+            color: rl.color,
+            climb: {
+              id: rl.climbs.id,
+              name: rl.climbs.name,
+              grade: rl.climbs.grade,
+              description: rl.climbs.description
+            }
+          }))
+
+        return {
+          id: img.id,
+          url: img.url,
+          latitude: img.latitude,
+          longitude: img.longitude,
+          is_verified: img.is_verified || false,
+          verification_count: img.verification_count || 0,
+          route_lines: validRouteLines
+        }
+      })
 
       setCrag(cragData)
       setImages(formattedImages)
@@ -114,12 +190,12 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   }, [isClient, params])
 
   useEffect(() => {
-    if (!isClient || !mapRef.current || !crag) return
+    if (!mapRef.current) return
 
-    const center = crag.boundary ? getPolygonCenter(crag.boundary) : null
-    const viewCenter: [number, number] = center ? [center[0], center[1]] : [crag.latitude, crag.longitude]
+    const center = crag?.boundary ? getPolygonCenter(crag.boundary) : null
+    const viewCenter: [number, number] = center ? [center[0], center[1]] : [crag?.latitude ?? 0, crag?.longitude ?? 0]
     mapRef.current.setView(viewCenter, 14)
-  }, [isClient, crag])
+  }, [crag])
 
   if (!isClient) {
     return <div className="h-screen w-full bg-gray-900" />
@@ -153,14 +229,17 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
           style={{ height: '100%', width: '100%' }}
           zoomControl={true}
           scrollWheelZoom={true}
+          whenReady={() => setMapReady(true)}
         >
-          <TileLayer
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            attribution='Tiles © Esri'
-            maxZoom={19}
-          />
+          {mapReady && (
+            <>
+              <TileLayer
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                attribution='Tiles © Esri'
+                maxZoom={19}
+              />
 
-          {boundaryCoords && (
+              {boundaryCoords && (
             <Polygon
               positions={boundaryCoords}
               pathOptions={{
@@ -177,63 +256,64 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
             </Polygon>
           )}
 
-          <Marker
-            position={[crag.latitude, crag.longitude]}
-            icon={L.divIcon({
-              className: 'crag-marker',
-              html: `<div style="
-                background: #3b82f6;
-                width: 28px;
-                height: 28px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-size: 12px;
-                font-weight: bold;
-                border: 3px solid white;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-              ">📍</div>`,
-              iconSize: [28, 28],
-              iconAnchor: [14, 14]
-            })}
-          >
-            <Tooltip direction="top" offset={[0, -30]} opacity={1}>
-              <div>
-                <p className="font-semibold">{crag.name}</p>
-                {crag.regions && <p className="text-sm">{crag.regions.name}</p>}
-              </div>
-            </Tooltip>
-          </Marker>
-
-          {images.map((image) => (
-            image.latitude && image.longitude && (
-              <Marker
-                key={image.id}
-                position={[image.latitude, image.longitude]}
-                icon={L.divIcon({
-                  className: 'image-marker',
-                  html: `<div style="
-                    background: ${image.is_verified ? '#22c55e' : '#eab308'};
-                    width: 20px;
-                    height: 20px;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: white;
-                    font-size: 10px;
-                    font-weight: bold;
-                    border: 2px solid white;
-                    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-                  ">${image.route_lines_count}</div>`,
-                  iconSize: [20, 20],
-                  iconAnchor: [10, 10]
-                })}
-              />
-            )
+          {images.map(image => (
+            <Marker
+              key={image.id}
+              position={[image.latitude || 0, image.longitude || 0]}
+              icon={L?.divIcon({
+                className: 'image-marker',
+                html: `<div style="
+                  background: ${image.is_verified ? '#22c55e' : '#eab308'};
+                  width: 24px;
+                  height: 24px;
+                  border-radius: 50%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  color: white;
+                  font-size: 11px;
+                  font-weight: bold;
+                  border: 2px solid white;
+                  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                ">${image.route_lines.length}</div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+              })}
+              eventHandlers={{
+                click: (e: L.LeafletMouseEvent) => {
+                  e.originalEvent.stopPropagation()
+                },
+              }}
+            >
+              <Popup
+                closeButton={false}
+                className="image-popup"
+              >
+                <div
+                  className="w-40 cursor-pointer pt-1"
+                  onClick={() => {
+                    window.location.href = `/image/${image.id}`
+                  }}
+                >
+                  <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
+                    <img
+                      src={image.url}
+                      alt="Routes"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <p className="font-semibold text-sm text-gray-900">
+                    {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
+                  </p>
+                  <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
+                    {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
+                  </p>
+                </div>
+              </Popup>
+            </Marker>
           ))}
+          </>
+          )}
         </MapContainer>
 
         <Link
@@ -267,7 +347,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
           )}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
             <p className="text-sm text-gray-500 dark:text-gray-400">Routes</p>
-            <p className="font-medium text-gray-900 dark:text-gray-100">{images.reduce((sum, img) => sum + img.route_lines_count, 0)}</p>
+            <p className="font-medium text-gray-900 dark:text-gray-100">{images.reduce((sum, img) => sum + img.route_lines.length, 0)}</p>
           </div>
         </div>
 
@@ -304,7 +384,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
                         className="absolute inset-0 w-full h-full object-cover"
                       />
                       <div className="absolute bottom-2 right-2 bg-gray-900/80 text-white text-xs px-2 py-1 rounded-full">
-                        {image.route_lines_count} routes
+                        {image.route_lines.length} routes
                       </div>
                       <div className={`absolute top-2 right-2 px-1.5 py-0.5 rounded text-xs font-medium ${
                         image.is_verified

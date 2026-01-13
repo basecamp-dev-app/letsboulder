@@ -72,6 +72,14 @@ interface CragData {
   } | null
 }
 
+interface CragPin {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+  imageCount: number
+}
+
 export default function SatelliteClimbingMap() {
   const mapRef = useRef<L.Map | null>(null)
   const [images, setImages] = useState<ImageData[]>([])
@@ -88,6 +96,7 @@ export default function SatelliteClimbingMap() {
   const [setLocationMode, setSetLocationMode] = useState(false)
   const [setLocationPending, setSetLocationPending] = useState<{lat: number; lng: number} | null>(null)
   const [isSavingLocation, setIsSavingLocation] = useState(false)
+  const [cragPins, setCragPins] = useState<CragPin[]>([])
 
   const CACHE_KEY = 'gsyrocks_images_cache'
 
@@ -113,8 +122,9 @@ export default function SatelliteClimbingMap() {
       // First get all images with latitude
       const { data: imagesData, error: imagesError } = await supabase
         .from('images')
-        .select('id, url, latitude, longitude, is_verified, verification_count')
+        .select('id, url, latitude, longitude, is_verified, verification_count, crag_id')
         .not('latitude', 'is', null)
+        .not('crag_id', 'is', null)
         .order('created_at', { ascending: false })
 
       console.log('Images query result:', imagesData?.length || 0, 'images')
@@ -211,10 +221,45 @@ export default function SatelliteClimbingMap() {
         }
       }
       
-      console.log('Final formatted images:', formattedImages.length)
-      console.log('Image IDs being rendered:', formattedImages.map(i => i.id))
-      const cacheKey = CACHE_KEY + '_v3'
-      setImages(formattedImages)
+       console.log('Final formatted images:', formattedImages.length)
+       console.log('Image IDs being rendered:', formattedImages.map(i => i.id))
+       const cacheKey = CACHE_KEY + '_v3'
+       setImages(formattedImages)
+
+       // Group images by crag_id and calculate average positions for crags with 2+ images
+       const cragsWithImages = new Map<string, typeof imagesData>()
+       for (const img of imagesData) {
+         if (!img.crag_id) continue
+         const existing = cragsWithImages.get(img.crag_id) || []
+         existing.push(img)
+         cragsWithImages.set(img.crag_id, existing)
+       }
+
+       // Fetch crag names for those with images
+       const cragIds = Array.from(cragsWithImages.keys())
+       const { data: cragsInfo, error: cragsInfoError } = await supabase
+         .from('crags')
+         .select('id, name')
+         .in('id', cragIds)
+
+       const cragNames = new Map(cragsInfo?.map(c => [c.id, c.name]) || [])
+
+       // Calculate average position for crags with 2+ images
+       const pins: CragPin[] = []
+       for (const [cragId, cragImages] of cragsWithImages) {
+         if (cragImages.length >= 2) {
+           const avgLat = cragImages.reduce((sum, img) => sum + (img.latitude || 0), 0) / cragImages.length
+           const avgLng = cragImages.reduce((sum, img) => sum + (img.longitude || 0), 0) / cragImages.length
+           pins.push({
+             id: cragId,
+             name: cragNames.get(cragId) || 'Unknown',
+             latitude: avgLat,
+             longitude: avgLng,
+             imageCount: cragImages.length
+           })
+         }
+       }
+       setCragPins(pins)
 
       // Fetch crags with boundaries
       const { data: cragsData, error: cragsError } = await supabase
@@ -464,6 +509,40 @@ export default function SatelliteClimbingMap() {
                   </p>
                 </div>
             </Popup>
+          </Marker>
+        ))}
+
+        {cragPins.map(crag => (
+          <Marker
+            key={crag.id}
+            position={[crag.latitude, crag.longitude]}
+            icon={L.divIcon({
+              className: 'crag-pin',
+              html: `<div style="
+                background: #3b82f6;
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 18px;
+                border: 2px solid white;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+              ">⛰️</div>`,
+              iconSize: [32, 32],
+              iconAnchor: [16, 16]
+            })}
+            zIndexOffset={1000}
+            eventHandlers={{
+              click: () => {
+                window.location.href = `/crag/${crag.id}`
+              },
+            }}
+          >
+            <Tooltip direction="center" opacity={1}>
+              <span className="font-semibold">{crag.name}</span>
+            </Tooltip>
           </Marker>
         ))}
       </MapContainer>
