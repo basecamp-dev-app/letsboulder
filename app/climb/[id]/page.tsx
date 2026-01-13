@@ -84,7 +84,7 @@ export default function ClimbPage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
           const { data: logs } = await supabase
-            .from('logs')
+            .from('user_climbs')
             .select('climb_id')
             .eq('user_id', user.id)
             .eq('climb_id', climbId)
@@ -238,7 +238,7 @@ export default function ClimbPage() {
     }
   }, [climb, selectedIds, selectRoute, deselectRoute])
 
-  const handleLog = async (status: 'flash' | 'top' | 'try') => {
+  const handleLog = async (style: 'flash' | 'top' | 'try') => {
     if (!climb || selectedIds.length === 0 && !climb.logged) return
 
     setLogging(true)
@@ -256,7 +256,7 @@ export default function ClimbPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           climbIds: [climbId],
-          status
+          style
         })
       })
 
@@ -264,7 +264,7 @@ export default function ClimbPage() {
 
       setClimb(prev => prev ? { ...prev, logged: true } : null)
       clearSelection()
-      setToast(`Route logged as ${status}!`)
+      setToast(`Route logged as ${style}!`)
       setTimeout(() => setToast(null), 2000)
     } catch (err) {
       console.error('Log error:', err)

@@ -64,15 +64,15 @@ export function AccountSection({ user }: AccountSectionProps) {
       }
 
       const { data: logsData } = await supabase
-        .from('logs')
+        .from('user_climbs')
         .select('*')
         .eq('user_id', user.id)
 
       if (logsData && logsData.length > 0) {
         const totalClimbs = logsData.length
-        const totalFlashes = logsData.filter(l => l.status === 'flash').length
-        const totalTops = logsData.filter(l => l.status === 'top').length
-        const totalTries = logsData.filter(l => l.status === 'try').length
+        const totalFlashes = logsData.filter(l => l.style === 'flash').length
+        const totalTops = logsData.filter(l => l.style === 'top').length
+        const totalTries = logsData.filter(l => l.style === 'try').length
 
         const twoMonthsAgo = new Date()
         twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2)
@@ -81,7 +81,7 @@ export function AccountSection({ user }: AccountSectionProps) {
         let totalPoints = 0
         recentLogs.forEach(log => {
           const gradePoints = getGradePoints('6A')
-          totalPoints += log.status === 'flash' ? gradePoints + 10 : gradePoints
+          totalPoints += log.style === 'flash' ? gradePoints + 10 : gradePoints
         })
 
         const avgPoints = recentLogs.length > 0 ? Math.round(totalPoints / recentLogs.length) : getGradePoints('6A')

@@ -23,26 +23,27 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { climbIds, status = 'top' } = body
+    const { climbIds, style = 'top' } = body
 
     if (!climbIds || !Array.isArray(climbIds) || climbIds.length === 0) {
       return NextResponse.json({ error: 'climbIds array is required' }, { status: 400 })
     }
 
-    const validStatuses = ['flash', 'top', 'try']
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+    const validStyles = ['flash', 'top', 'try']
+    if (!validStyles.includes(style)) {
+      return NextResponse.json({ error: 'Invalid style' }, { status: 400 })
     }
 
     const logs = climbIds.map(climbId => ({
       user_id: user.id,
       climb_id: climbId,
-      status,
+      style,
+      date_climbed: new Date().toISOString().split('T')[0],
       created_at: new Date().toISOString()
     }))
 
     const { error } = await supabase
-      .from('logs')
+      .from('user_climbs')
       .upsert(logs, { onConflict: 'user_id,climb_id' })
 
     if (error) {
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       logged: climbIds.length,
-      status
+      style
     })
 
   } catch (error) {

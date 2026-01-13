@@ -235,15 +235,15 @@ export default function ImagePage() {
         if (user && formattedRoutes.length > 0) {
           const climbIds = formattedRoutes.map(r => r.climb?.id).filter((id): id is string => id != null)
           const { data: logs } = await supabase
-            .from('logs')
-            .select('climb_id, status')
+            .from('user_climbs')
+            .select('climb_id, style')
             .eq('user_id', user.id)
             .in('climb_id', climbIds)
 
           if (logs) {
             const logsMap: Record<string, string> = {}
             logs.forEach(log => {
-              logsMap[log.climb_id] = log.status
+              logsMap[log.climb_id] = log.style
             })
             setUserLogs(logsMap)
           }
@@ -312,7 +312,7 @@ export default function ImagePage() {
     }
   }
 
-  const handleLogClimb = async (climbId: string, status: 'flash' | 'top' | 'try') => {
+  const handleLogClimb = async (climbId: string, style: 'flash' | 'top' | 'try') => {
     setLogging(true)
     try {
       const supabase = createClient()
@@ -328,14 +328,14 @@ export default function ImagePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           climbIds: [climbId],
-          status
+          style
         })
       })
 
       if (!response.ok) throw new Error('Failed to log')
 
-      setUserLogs(prev => ({ ...prev, [climbId]: status }))
-      setToast(`Route logged as ${status}!`)
+      setUserLogs(prev => ({ ...prev, [climbId]: style }))
+      setToast(`Route logged as ${style}!`)
       setTimeout(() => setToast(null), 2000)
     } catch (err) {
       console.error('Log error:', err)

@@ -16,7 +16,7 @@ import { Trash2, Loader2 } from 'lucide-react'
 interface LoggedClimb {
   id: string
   climb_id: string
-  status: string
+  style: string
   created_at: string
   points?: number
   climbs: {
@@ -90,15 +90,43 @@ function LogbookContent() {
       setUser(user)
 
       if (user) {
-        const { data: logsData } = await supabase
-          .from('logs')
-          .select('*, climbs(name, grade, image_url, crags(name))')
+        const { data: logsData, error: logsError } = await supabase
+          .from('user_climbs')
+          .select('*, climbs(id, name, grade)')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
 
-        const logsWithPoints = logsData?.map(log => ({
+        if (logsError) {
+          console.error('Logs query error:', logsError)
+        }
+
+        const climbIds = logsData?.map(log => log.climb_id).filter(Boolean) || []
+
+        let cragsByClimbId: Record<string, string> = {}
+        if (climbIds.length > 0) {
+          const { data: routeLinesData } = await supabase
+            .from('route_lines')
+            .select('climb_id, images!inner(crags!inner(name))')
+            .in('climb_id', climbIds)
+
+          if (routeLinesData) {
+            routeLinesData.forEach((rl: any) => {
+              if (rl.climb_id && rl.images?.crags?.name) {
+                cragsByClimbId[rl.climb_id] = rl.images.crags.name
+              }
+            })
+          }
+        }
+
+        const logsWithPoints = logsData?.map((log) => ({
           ...log,
-          points: log.status === 'flash'
+          climbs: {
+            ...log.climbs,
+            crags: {
+              name: cragsByClimbId[log.climb_id] || 'Unknown crag'
+            }
+          },
+          points: log.style === 'flash'
             ? getGradePoints(log.climbs?.grade || '6A') + 10
             : getGradePoints(log.climbs?.grade || '6A')
         })) || []
@@ -207,8 +235,8 @@ function LogbookContent() {
                           <p className="text-sm text-gray-500 dark:text-gray-400">{log.climbs?.crags?.name}</p>
                         </div>
                       </div>
-                      <span className={`px-2 py-1 rounded text-sm font-medium ${statusStyles[log.status as keyof typeof statusStyles]}`}>
-                        {log.status === 'flash' && '⚡ '}
+                        <span className={`px-2 py-1 rounded text-sm font-medium ${statusStyles[log.style as keyof typeof statusStyles]}`}>
+                          {log.style === 'flash' && '⚡ '}
                         {log.climbs?.grade}
                       </span>
                     </div>
@@ -275,12 +303,12 @@ function LogbookContent() {
                       <Link href={`/climb/${log.climb_id}`} className="hover:underline">
                         <p className="font-medium text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
                       </Link>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {log.climbs?.crags?.name} • {new Date(log.created_at).toLocaleDateString()}
-                      </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {log.climbs?.crags?.name} • {new Date(log.created_at).toLocaleDateString()}
+                        </p>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusStyles[log.status as keyof typeof statusStyles]}`}>
-                      {log.status === 'flash' && '⚡ '}
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusStyles[log.style as keyof typeof statusStyles]}`}>
+                      {log.style === 'flash' && '⚡ '}
                       {log.climbs?.grade}
                     </span>
                     {deletingId === log.id ? (

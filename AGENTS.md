@@ -121,9 +121,12 @@ export async function POST(request: NextRequest) {
 - Cloudflare Workers: `workers/`
 
 ### Common Patterns
-- **Canvas drawing**: Use `useRef` for canvas element, handle touch and mouse events, persist to localStorage for session
-- **Leaflet maps**: Use `react-leaflet` components, custom CSS for markers, handle geolocation
+- **Canvas drawing**: Use `useRef` for canvas, quadratic curves, touch/mouse events
+- **Leaflet maps**: Use `react-leaflet`, custom CSS for markers, handle geolocation
 - **GPS extraction**: Use `exifr` to parse image metadata for coordinates
+- **HEIC conversion**: Use `heic2any` for HEIC image support
+- **Image compression**: Use `browser-image-compression` for client-side optimization
+- **Route grading**: French grade system, support grade voting/consensus
 
 ### Supabase Usage
 - Client components: `createClient` from `@/lib/supabase`
@@ -135,7 +138,6 @@ export async function POST(request: NextRequest) {
 - Database schema and migrations in `db/` directory
 - Run migrations: `supabase db push` or `supabase migration up`
 - Generate types: `supabase gen types typescript --local > types/database.types.ts`
-- Access db helper: `import { db } from '@/db'` (if using Drizzle/Kysely)
 
 ### Cloudflare Workers
 - Worker scripts in `workers/` directory
@@ -143,7 +145,7 @@ export async function POST(request: NextRequest) {
 - Environment variables in `wrangler.toml`
 
 ### Next.js Specifics
-- Use Next.js App Router (Next 16)
+- Use Next.js App Router (Next 16.0.10)
 - Server components by default, opt-in to client with `'use client'`
 - Image domains: configured in `next.config.ts`
 - TypeScript plugins enabled in `tsconfig.json`

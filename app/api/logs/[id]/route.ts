@@ -27,7 +27,7 @@ export async function DELETE(
     const { id } = await params
 
     const { error } = await supabase
-      .from('logs')
+      .from('user_climbs')
       .delete()
       .eq('id', id)
       .eq('user_id', user.id)

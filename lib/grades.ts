@@ -93,7 +93,7 @@ export function getInitials(username: string): string {
 
 interface LogEntry {
   id: string
-  status: string
+  style: string
   created_at: string
   climbs?: {
     grade: string
@@ -138,7 +138,7 @@ export function calculateStats(logs: LogEntry[]): StatsResult {
   // Calculate 2-month average (top 10 hardest with flash bonus)
   const twoMonthWithPoints = twoMonthLogs.map(log => {
     const basePoints = getGradePoints(log.climbs?.grade || '6A')
-    const points = log.status === 'flash' ? basePoints + FLASH_BONUS : basePoints
+    const points = log.style === 'flash' ? basePoints + FLASH_BONUS : basePoints
     return { ...log, points }
   }).sort((a, b) => b.points - a.points)
 
@@ -163,7 +163,7 @@ export function calculateStats(logs: LogEntry[]): StatsResult {
     
     if (monthlyData[monthKey]) {
       const points = getGradePoints(log.climbs?.grade || '6A')
-      if (log.status === 'flash') {
+      if (log.style === 'flash') {
         monthlyData[monthKey].flash += points + FLASH_BONUS
         monthlyData[monthKey].top += points + FLASH_BONUS
       } else {
@@ -195,9 +195,9 @@ export function calculateStats(logs: LogEntry[]): StatsResult {
   })
 
   // Calculate totals
-  const totalFlashes = logs.filter(l => l.status === 'flash').length
-  const totalTops = logs.filter(l => l.status === 'top').length
-  const totalTries = logs.filter(l => l.status === 'try').length
+  const totalFlashes = logs.filter(l => l.style === 'flash').length
+  const totalTops = logs.filter(l => l.style === 'top').length
+  const totalTries = logs.filter(l => l.style === 'try').length
 
   return {
     top10Hardest,

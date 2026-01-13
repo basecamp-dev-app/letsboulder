@@ -34,17 +34,17 @@ export async function GET(request: NextRequest) {
 
     // Build the query with optional country filter
     let query = supabase
-      .from('logs')
+      .from('user_climbs')
       .select(`
         user_id,
         created_at,
-        status,
+        style,
         climbs!inner(
           grade,
           crags!inner(country)
         )
       `, { count: 'exact' })
-      .eq('status', 'top')
+      .eq('style', 'top')
       .gte('created_at', new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString())
 
     // Apply country filter if not 'all'
