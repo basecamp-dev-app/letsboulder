@@ -91,6 +91,30 @@
   filter: brightness(1.2);
 }
 
+/* Image popup styling */
+.leaflet-popup {
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 8px !important;
+  padding: 8px !important;
+}
+
+.leaflet-popup-content {
+  margin: 8px !important;
+  overflow: hidden;
+}
+
+.leaflet-popup-content .relative {
+  overflow: hidden;
+}
+
+.leaflet-popup-content img {
+  display: block;
+}
+
 /* Climb marker - orange circle with white border */
 .climb-marker {
   background: #ff5533 !important;

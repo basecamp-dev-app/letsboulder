@@ -56,9 +56,7 @@ interface User {
   created_at: string
 }
 
-async function getUser(): Promise<User | null> {
-  // implementation
-}
+async function getUser(): Promise<User | null> { /* implementation */ }
 ```
 
 ### React Components
@@ -69,12 +67,9 @@ async function getUser(): Promise<User | null> {
 
 ```typescript
 'use client'
-
 import { useState } from 'react'
 
-interface UploadFormProps {
-  onUploadComplete?: (url: string) => void
-}
+interface UploadFormProps { onUploadComplete?: (url: string) => void }
 
 export default function UploadForm({ onUploadComplete }: UploadFormProps) {
   const [uploading, setUploading] = useState(false)
@@ -96,9 +91,7 @@ export default function UploadForm({ onUploadComplete }: UploadFormProps) {
 
 ```typescript
 export async function POST(request: NextRequest) {
-  try {
-    // implementation
-  } catch (error) {
+  try { /* implementation */ } catch (error) {
     console.error('Route error:', error)
     return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })
   }
@@ -115,13 +108,15 @@ export async function POST(request: NextRequest) {
 - Use utility classes for layout, spacing, colors
 - Responsive design with mobile-first approach
 - Dark mode support via `dark:` modifier
+- shadcn/ui components in `components/ui/` (built on Radix UI)
+- Use `cn()` utility for class merging (`import { cn } from '@/lib/utils'`)
 
 ### File Organization
 - Components: `app/[feature]/components/` or `components/`
 - Pages: `app/[feature]/page.tsx`
 - Layouts: `app/[feature]/layout.tsx`
 - API routes: `app/api/[feature]/route.ts`
-- Shared utilities: `lib/` (e.g., `lib/supabase.ts`)
+- Shared utilities: `lib/`
 - Shared types: `types/`
 - Cloudflare Workers: `workers/`
 
@@ -135,6 +130,17 @@ export async function POST(request: NextRequest) {
 - API routes/server components: `createServerClient` with cookies
 - Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - Always handle null states gracefully
+
+### Database
+- Database schema and migrations in `db/` directory
+- Run migrations: `supabase db push` or `supabase migration up`
+- Generate types: `supabase gen types typescript --local > types/database.types.ts`
+- Access db helper: `import { db } from '@/db'` (if using Drizzle/Kysely)
+
+### Cloudflare Workers
+- Worker scripts in `workers/` directory
+- Deploy with `wrangler deploy`
+- Environment variables in `wrangler.toml`
 
 ### Next.js Specifics
 - Use Next.js App Router (Next 16)

@@ -21,6 +21,7 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
 const Polygon = dynamic(() => import('react-leaflet').then(mod => mod.Polygon), { ssr: false })
 
 interface DefaultLocation {
@@ -435,33 +436,34 @@ export default function SatelliteClimbingMap() {
             eventHandlers={{
               click: (e: L.LeafletMouseEvent) => {
                 e.originalEvent.stopPropagation()
-                // Navigate to image page
-                window.location.href = `/image/${image.id}`
               },
             }}
           >
-            <Tooltip
-              direction="top"
-              offset={[0, -30]}
-              opacity={1}
+            <Popup
+              closeButton={false}
+              className="image-popup"
             >
-              <div className="w-40">
-                <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
-                  <img
-                    src={image.url}
-                    alt="Routes"
-                    className="w-full h-full object-cover"
-                  />
+                <div
+                  className="w-40 cursor-pointer pt-1"
+                  onClick={() => {
+                    window.location.href = `/image/${image.id}`
+                  }}
+                >
+                  <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
+                    <img
+                      src={image.url}
+                      alt="Routes"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <p className="font-semibold text-sm text-gray-900">
+                    {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
+                  </p>
+                  <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
+                    {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
+                  </p>
                 </div>
-                <p className="font-semibold text-sm text-gray-900">
-                  {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
-                </p>
-                <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
-                  {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
-                </p>
-                <p className="text-xs text-blue-600 mt-1">Click to view →</p>
-              </div>
-            </Tooltip>
+            </Popup>
           </Marker>
         ))}
       </MapContainer>

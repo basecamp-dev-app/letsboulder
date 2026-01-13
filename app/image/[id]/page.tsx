@@ -187,7 +187,8 @@ export default function ImagePage() {
             id,
             points,
             color,
-            climbs:climb_id (
+            climb_id,
+            climbs (
               id,
               name,
               grade,
@@ -202,23 +203,24 @@ export default function ImagePage() {
           id: string
           points: RoutePoint[]
           color: string | null
+          climb_id: string
           climbs: Array<{
             id: string
             name: string | null
             grade: string | null
             description: string | null
-          }>
+          }> | null
         }
 
-        const formattedRoutes: ImageRoute[] = (routeLines as RawRouteLine[] || []).map((rl) => ({
+        const formattedRoutes: ImageRoute[] = (routeLines as unknown as RawRouteLine[] || []).map((rl) => ({
           id: rl.id,
           points: rl.points,
           color: rl.color || '#ff00ff',
           climb: {
-            id: rl.climbs[0]?.id || '',
-            name: rl.climbs[0]?.name,
-            grade: rl.climbs[0]?.grade,
-            description: rl.climbs[0]?.description
+            id: rl.climbs?.[0]?.id || rl.climb_id || '',
+            name: rl.climbs?.[0]?.name || null,
+            grade: rl.climbs?.[0]?.grade || null,
+            description: rl.climbs?.[0]?.description || null
           }
         }))
 
@@ -380,7 +382,7 @@ export default function ImagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-gray-950 flex flex-col pt-12">
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg">
           {toast}
@@ -392,7 +394,7 @@ export default function ImagePage() {
         </div>
       )}
 
-      <div className="flex items-center gap-2 p-4 bg-gray-900 border-b border-gray-800">
+      <div className="sticky top-0 z-40 flex items-center gap-2 p-4 bg-gray-900 border-b border-gray-800">
         <button
           onClick={() => window.location.href = '/map'}
           className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
