@@ -27,7 +27,6 @@ const MORE_MENU_ITEMS = [
   { label: 'Leaderboard', href: '/leaderboard' },
   { label: 'About', href: '/about' },
   { label: 'Settings', href: '/settings' },
-  { label: 'Profile', href: '/logbook' },
 ]
 
 const MORE_MENU_ITEMS_WITH_TYPES: { label: string; href: string }[] = MORE_MENU_ITEMS
