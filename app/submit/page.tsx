@@ -213,7 +213,7 @@ function SubmitPageContent() {
         captureDate: context.image.captureDate,
         width: context.image.width,
         height: context.image.height,
-        cragId: step.step === 'review' ? step.cragId : context.crag?.id,
+        cragId: context.crag?.id || ('cragId' in step ? (step as { cragId?: string }).cragId : undefined),
         routes: context.routes
       } : {
         mode: 'existing' as const,
