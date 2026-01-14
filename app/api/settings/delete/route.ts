@@ -3,6 +3,8 @@ import { createServerClient } from '@supabase/ssr'
 
 export async function DELETE(request: NextRequest) {
   const cookies = request.cookies
+  const { searchParams } = new URL(request.url)
+  const deleteRouteUploads = searchParams.get('delete_route_uploads') === 'true'
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,7 +24,29 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Delete user's profile (cascades to climbs via RLS)
+    if (deleteRouteUploads) {
+      const { data: files } = await supabase.storage
+        .from('route-uploads')
+        .list(user.id, { limit: 1000 })
+
+      if (files && files.length > 0) {
+        const paths = files.map(f => `${user.id}/${f.name}`)
+        await supabase.storage.from('route-uploads').remove(paths)
+      }
+    }
+
+    const { data: avatarFiles } = await supabase.storage
+      .from('avatars')
+      .list(user.id, { limit: 10 })
+
+    if (avatarFiles && avatarFiles.length > 0) {
+      const paths = avatarFiles.map(f => `${user.id}/${f.name}`)
+      await supabase.storage.from('avatars').remove(paths)
+    }
+
+    await supabase.from('admin_actions').delete().eq('user_id', user.id)
+    await supabase.from('user_climbs').delete().eq('user_id', user.id)
+
     const { error: profileError } = await supabase
       .from('profiles')
       .delete()
@@ -33,7 +57,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to delete profile' }, { status: 500 })
     }
 
-    // Sign out the user
     await supabase.auth.signOut()
 
     return NextResponse.json({ success: true })
