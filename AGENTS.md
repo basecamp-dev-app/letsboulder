@@ -64,10 +64,14 @@ async function getUser(): Promise<User | null> { /* implementation */ }
 - Default export for page and component files
 - Functional components with hooks (useState, useEffect, etc.)
 - Prop typing: explicit interfaces for component props
+- Use `next/dynamic` with `ssr: false` for Leaflet maps and canvas components
 
 ```typescript
 'use client'
 import { useState } from 'react'
+import nextDynamic from 'next/dynamic'
+
+const RouteCanvas = dynamic(() => import('./components/RouteCanvas'), { ssr: false })
 
 interface UploadFormProps { onUploadComplete?: (url: string) => void }
 
@@ -102,6 +106,22 @@ export async function POST(request: NextRequest) {
 - Use `NextRequest` and `NextResponse` from `next/server`
 - Validate inputs early, return 400 for invalid data
 - Return JSON responses with appropriate status codes
+- Use `createServerClient` for Supabase in API routes
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+
+export async function POST(request: NextRequest) {
+  const cookies = request.cookies
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll() { return cookies.getAll() }, setAll() {} } }
+  )
+  // ...
+}
+```
 
 ### Styling
 - Tailwind CSS v4 (`@import "tailwindcss"` in globals.css)
@@ -118,18 +138,18 @@ export async function POST(request: NextRequest) {
 - API routes: `app/api/[feature]/route.ts`
 - Shared utilities: `lib/`
 - Shared types: `types/`
-- Cloudflare Workers: `workers/`
+- Database: `db/` (schema, migrations)
 
 ### Common Patterns
 - **Canvas drawing**: Use `useRef` for canvas, quadratic curves, touch/mouse events
 - **Leaflet maps**: Use `react-leaflet`, custom CSS for markers, handle geolocation
 - **GPS extraction**: Use `exifr` to parse image metadata for coordinates
 - **HEIC conversion**: Use `heic2any` for HEIC image support
-- **Image compression**: Use `browser-image-compression` for client-side optimization
-- **Route grading**: French grade system, support grade voting/consensus
+- **Route grading**: French grade system (5A to 9C+)
+- **Dynamic imports**: Always use `next/dynamic` with `ssr: false` for map/canvas components
 
 ### Supabase Usage
-- Client components: `createClient` from `@/lib/supabase`
+- Client components: `createBrowserClient` from `@/lib/supabase`
 - API routes/server components: `createServerClient` with cookies
 - Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - Always handle null states gracefully
@@ -139,15 +159,10 @@ export async function POST(request: NextRequest) {
 - Run migrations: `supabase db push` or `supabase migration up`
 - Generate types: `supabase gen types typescript --local > types/database.types.ts`
 
-### Cloudflare Workers
-- Worker scripts in `workers/` directory
-- Deploy with `wrangler deploy`
-- Environment variables in `wrangler.toml`
-
 ### Next.js Specifics
-- Use Next.js App Router (Next 16.0.10)
+- Next.js 16 App Router (Next 16.0.10) + React 19
 - Server components by default, opt-in to client with `'use client'`
-- Image domains: configured in `next.config.ts`
+- Image domains configured in `next.config.ts`
 - TypeScript plugins enabled in `tsconfig.json`
 
 ### Miscellaneous

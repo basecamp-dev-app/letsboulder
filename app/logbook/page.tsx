@@ -85,56 +85,70 @@ function LogbookContent() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
+      try {
+        const supabase = createClient()
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-      if (user) {
-        const { data: logsData, error: logsError } = await supabase
-          .from('user_climbs')
-          .select('*, climbs(id, name, grade)')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-
-        if (logsError) {
-          console.error('Logs query error:', logsError)
-        }
-
-        const climbIds = logsData?.map(log => log.climb_id).filter(Boolean) || []
-
-        let cragsByClimbId: Record<string, string> = {}
-        if (climbIds.length > 0) {
-          const { data: routeLinesData } = await supabase
-            .from('route_lines')
-            .select('climb_id, images!inner(crags!inner(name))')
-            .in('climb_id', climbIds)
-
-          if (routeLinesData) {
-            routeLinesData.forEach((rl: any) => {
-              if (rl.climb_id && rl.images?.crags?.name) {
-                cragsByClimbId[rl.climb_id] = rl.images.crags.name
-              }
-            })
+        if (userError) {
+          console.error('Auth error:', userError)
+          if (userError.name === 'AuthSessionMissingError' || userError.message.includes('session')) {
+            setLoading(false)
+            return
           }
         }
 
-        const logsWithPoints = logsData?.map((log) => ({
-          ...log,
-          climbs: {
-            ...log.climbs,
-            crags: {
-              name: cragsByClimbId[log.climb_id] || 'Unknown crag'
-            }
-          },
-          points: log.style === 'flash'
-            ? getGradePoints(log.climbs?.grade || '6A') + 10
-            : getGradePoints(log.climbs?.grade || '6A')
-        })) || []
+        setUser(user)
 
-        setLogs(logsWithPoints)
-        setStats(calculateStats(logsWithPoints))
+        if (user) {
+          const { data: logsData, error: logsError } = await supabase
+            .from('user_climbs')
+            .select('*, climbs(id, name, grade)')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+
+          if (logsError) {
+            console.error('Logs query error:', logsError)
+          }
+
+          const climbIds = logsData?.map(log => log.climb_id).filter(Boolean) || []
+
+          let cragsByClimbId: Record<string, string> = {}
+          if (climbIds.length > 0) {
+            const { data: routeLinesData } = await supabase
+              .from('route_lines')
+              .select('climb_id, images!inner(crags!inner(name))')
+              .in('climb_id', climbIds)
+
+            if (routeLinesData) {
+              routeLinesData.forEach((rl: any) => {
+                if (rl.climb_id && rl.images?.crags?.name) {
+                  cragsByClimbId[rl.climb_id] = rl.images.crags.name
+                }
+              })
+            }
+          }
+
+          const logsWithPoints = logsData?.map((log) => ({
+            ...log,
+            climbs: {
+              ...log.climbs,
+              crags: {
+                name: cragsByClimbId[log.climb_id] || 'Unknown crag'
+              }
+            },
+            points: log.style === 'flash'
+              ? getGradePoints(log.climbs?.grade || '6A') + 10
+              : getGradePoints(log.climbs?.grade || '6A')
+          })) || []
+
+          setLogs(logsWithPoints)
+          setStats(calculateStats(logsWithPoints))
+        }
+      } catch (err) {
+        console.error('Unexpected error checking auth:', err)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     checkUser()
   }, [])

@@ -87,6 +87,7 @@ export default function RootLayout({
         <link rel="canonical" href="https://gsyrocks.com" />
         <link rel="icon" href="/favicon.png" type="image/png" sizes="32x32" />
         <link rel="apple-touch-icon" href="/favicon.png" />
+        <link rel="manifest" href="/manifest.json" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
