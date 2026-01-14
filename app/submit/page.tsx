@@ -480,19 +480,6 @@ function SubmitPageContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Climbing Routes
-          </Link>
-          <nav className="flex items-center gap-4">
-            <Link href="/map" className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">
-              Map
-            </Link>
-          </nav>
-        </div>
-      </header>
-
       <main className="max-w-4xl mx-auto px-4 py-8">
         {renderStep()}
       </main>
