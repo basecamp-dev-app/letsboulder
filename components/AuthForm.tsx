@@ -5,6 +5,9 @@ import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
+const DEV_USER_EMAIL = 'dev@gsyrocks.com'
+const DEV_USER_PASSWORD = 'devpassword123'
+
 export default function AuthForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -13,6 +16,7 @@ export default function AuthForm() {
   const [success, setSuccess] = useState<string | null>(null)
   const [origin, setOrigin] = useState('')
   const [isDevMode, setIsDevMode] = useState(false)
+  const [devLoading, setDevLoading] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const climbId = searchParams?.get('climbId')
@@ -21,11 +25,63 @@ export default function AuthForm() {
 
   useEffect(() => {
     setOrigin(window.location.origin)
-    // Check for dev mode: ?dev=true AND env flag is set
     if (searchParams?.get('dev') === 'true' && process.env.NEXT_PUBLIC_DEV_PASSWORD_AUTH === 'true') {
       setIsDevMode(true)
     }
   }, [searchParams])
+
+  const handleDevAutoLogin = async () => {
+    setDevLoading(true)
+    setError(null)
+    const supabase = createClient()
+
+    try {
+      const { data: existingUser } = await supabase.auth.signInWithPassword({
+        email: DEV_USER_EMAIL,
+        password: DEV_USER_PASSWORD,
+      })
+
+      if (existingUser.user) {
+        router.push('/')
+        return
+      }
+    } catch (signInError: any) {
+      if (signInError.message !== 'Invalid login credentials') {
+        setError(signInError.message)
+        setDevLoading(false)
+        return
+      }
+    }
+
+    try {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: DEV_USER_EMAIL,
+        password: DEV_USER_PASSWORD,
+      })
+
+      if (signUpError) {
+        if (signUpError.message.includes('already registered')) {
+          const { error: reauthError } = await supabase.auth.signInWithPassword({
+            email: DEV_USER_EMAIL,
+            password: DEV_USER_PASSWORD,
+          })
+          if (reauthError) {
+            setError('Dev user exists but password differs. Try resetting password or use different dev email.')
+          } else {
+            router.push('/')
+          }
+        } else {
+          setError(signUpError.message)
+        }
+      } else if (signUpData.user) {
+        router.push('/')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to create dev user')
+    }
+
+    setDevLoading(false)
+  }
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,29 +104,6 @@ export default function AuthForm() {
       setError(error.message)
     } else {
       setSuccess('Check your email for a magic link!')
-    }
-    setLoading(false)
-  }
-
-  const handlePasswordLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email || !password) {
-      setError('Please enter email and password')
-      return
-    }
-    setLoading(true)
-    setError(null)
-    setSuccess(null)
-    const supabase = createClient()
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    if (error) {
-      setError(error.message)
-    } else {
-      router.push(climbId ? `/map?climbId=${climbId}` : '/')
     }
     setLoading(false)
   }
@@ -159,52 +192,26 @@ export default function AuthForm() {
           ) : (
             <>
               <p className="text-gray-600 dark:text-gray-400 text-center mb-8 text-sm">
-                Developer password login (env flag required)
+                Developer auto-login (creates dev user if needed)
               </p>
 
-              <form onSubmit={handlePasswordLogin} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                    placeholder="you@example.com"
-                    required
-                  />
+              <button
+                onClick={handleDevAutoLogin}
+                disabled={devLoading}
+                className="w-full bg-green-600 dark:bg-green-700 text-white dark:text-gray-100 py-4 px-6 rounded-lg font-semibold hover:bg-green-700 dark:hover:bg-green-600 transition-colors disabled:opacity-50 mb-4"
+              >
+                {devLoading ? 'Setting up dev user...' : 'Auto-Login as Dev User'}
+              </button>
+
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-6">
+                Creates/uses: {DEV_USER_EMAIL}
+              </p>
+
+              {error && (
+                <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg mb-4">
+                  {error}
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                    placeholder="••••••••"
-                    required
-                  />
-                </div>
-
-                {error && (
-                  <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Signing in...' : 'Sign In'}
-                </button>
-              </form>
+              )}
 
               <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <Link href="/auth" className="text-gray-500 dark:text-gray-400 text-sm hover:underline block text-center">
