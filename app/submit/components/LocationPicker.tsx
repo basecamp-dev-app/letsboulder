@@ -21,7 +21,7 @@ L.Icon.Default.mergeOptions({
 interface LocationPickerProps {
   initialGps: GpsData | null
   onConfirm: (gps: GpsData) => void
-  onSkip: () => void
+  onSkip?: () => void
   regionName?: string
   cragName?: string
 }
@@ -54,6 +54,11 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
   
   const handlePositionChange = useCallback((e: any) => {
     const { lat, lng } = e.target.getLatLng()
+    setPosition([lat, lng])
+  }, [])
+
+  const handleMapClick = useCallback((e: L.LeafletMouseEvent) => {
+    const { lat, lng } = e.latlng
     setPosition([lat, lng])
   }, [])
   
@@ -127,7 +132,7 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
           Set Route Location
         </h3>
         <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-          Drag the pin on the map to the exact location.
+          Click or drag the pin on the map to the exact location.
         </p>
       </div>
       
@@ -142,13 +147,15 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             attribution='Tiles © Esri'
           />
-          {position && (
-            <Marker
-              position={position}
-              draggable={true}
-              eventHandlers={{ dragend: handlePositionChange }}
-            />
-          )}
+          <Marker
+            position={position || [51.505, -0.09]}
+            draggable={true}
+            eventHandlers={{
+              dragend: handlePositionChange,
+              click: handleMapClick
+            }}
+            opacity={position ? 1 : 0}
+          />
         </MapContainer>
       </div>
       
@@ -200,12 +207,14 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
       )}
       
       <div className="flex gap-2 pt-2">
-        <button
-          onClick={onSkip}
-          className="flex-1 py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-        >
-          Skip
-        </button>
+        {onSkip && (
+          <button
+            onClick={onSkip}
+            className="flex-1 py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+          >
+            Skip
+          </button>
+        )}
         <button
           onClick={handleConfirm}
           disabled={!position}

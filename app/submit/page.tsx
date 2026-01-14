@@ -60,7 +60,17 @@ function SubmitPageContent() {
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
     const gps = gpsData ? { latitude: gpsData.latitude, longitude: gpsData.longitude } : null
     setContext(prev => ({ ...prev, image: selection, imageGps: gps }))
-    setStep({ step: 'region', imageGps: gps })
+    
+    if (gps) {
+      setStep({ step: 'region', imageGps: gps })
+    } else {
+      setStep({ 
+        step: 'location', 
+        imageGps: null,
+        regionId: '', 
+        regionName: '' 
+      })
+    }
   }, [])
 
   const handleRegionSelect = useCallback((region: Region) => {
@@ -304,7 +314,7 @@ function SubmitPageContent() {
               onClick={handleBack}
               className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
             >
-              ← Back to region
+              ← Back to image
             </button>
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Set Route Location</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -327,7 +337,7 @@ function SubmitPageContent() {
               onClick={handleBack}
               className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
             >
-              ← Back to region
+              ← Back to image
             </button>
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Select a Crag</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
