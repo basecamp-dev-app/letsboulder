@@ -3,7 +3,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import type { NewImageSelection } from '@/lib/submission-types'
+import type { NewImageSelection, GpsData } from '@/lib/submission-types'
 
 interface ImageUploaderProps {
   onComplete: (result: NewImageSelection) => void
@@ -144,9 +144,55 @@ async function heicToJpegBlob(file: File): Promise<Blob> {
   return Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob
 }
 
+async function extractGpsFromFile(file: File): Promise<GpsData | null> {
+  try {
+    const exifr = (await import('exifr')).default
+    const buffer = await file.arrayBuffer()
+    const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true })
+
+    if (exifData?.latitude && exifData?.longitude) {
+      return { latitude: exifData.latitude, longitude: exifData.longitude }
+    }
+
+    if (exifData?.GPSLatitude && exifData?.GPSLongitude) {
+      const latRef = exifData.GPSLatitudeRef || 'N'
+      const lonRef = exifData.GPSLongitudeRef || 'W'
+
+      const lat = convertDmsToDecimal(exifData.GPSLatitude, latRef)
+      const lon = convertDmsToDecimal(exifData.GPSLongitude, lonRef)
+
+      if (lat !== null && lon !== null) {
+        return { latitude: lat, longitude: lon }
+      }
+    }
+
+    return null
+  } catch (err) {
+    console.error('GPS extraction error:', err)
+    return null
+  }
+}
+
+function convertDmsToDecimal(dms: number[], ref: string): number | null {
+  if (!dms || dms.length < 3) return null
+
+  const degrees = dms[0]
+  const minutes = dms[1]
+  const seconds = dms[2]
+
+  let decimal = degrees + minutes / 60 + seconds / 3600
+
+  if (ref === 'S' || ref === 'W') {
+    decimal = -decimal
+  }
+
+  return decimal
+}
+
 export default function ImageUploader({ onComplete, onError, onUploading }: ImageUploaderProps) {
   const [file, setFile] = useState<File | null>(null)
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
+  const [gpsData, setGpsData] = useState<GpsData | null>(null)
   const [compressing, setCompressing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -184,6 +230,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     onError('')
     setFile(null)
     setCompressedFile(null)
+    setGpsData(null)
     setAttestationChecked(false)
 
     if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
@@ -220,6 +267,16 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       }
 
       setFile(selectedFile)
+
+      onUploading(true, 18, 'Extracting GPS...')
+      const extractedGps = await extractGpsFromFile(selectedFile)
+      if (extractedGps) {
+        console.log('GPS extracted from image:', extractedGps)
+        setGpsData(extractedGps)
+      } else {
+        console.log('No GPS data found in image')
+      }
+
       await compressImage(selectedFile, previewBlob)
     } catch (err) {
       console.error('Error processing file:', err)
@@ -304,7 +361,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       const result: NewImageSelection = {
         mode: 'new',
         file: fileToUpload,
-        gpsData: null,
+        gpsData: gpsData,
         captureDate: null,
         width: img.naturalWidth || 0,
         height: img.naturalHeight || 0,
@@ -340,6 +397,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
               onClick={() => {
                 setFile(null)
                 setCompressedFile(null)
+                setGpsData(null)
                 setPreviewUrl(null)
                 setAttestationChecked(false)
                 if (fileInputRef.current) fileInputRef.current.value = ''
