@@ -111,6 +111,11 @@ export async function GET(request: NextRequest) {
 
     const profilesMap = new Map(profiles?.map(p => [p.id, p]) || [])
 
+    const getUsername = (userId: string, profile: any): string => {
+      if (profile?.username) return profile.username
+      return `Climber ${userId.slice(0, 4)}`
+    }
+
     const leaderboard = userIds.map(userId => {
       const userClimbsArr = userClimbsMap[userId] || []
       const climbCount = userClimbsArr.length
@@ -130,7 +135,7 @@ export async function GET(request: NextRequest) {
       return {
         rank: 0,
         user_id: userId,
-        username: profile?.username || 'Unknown',
+        username: getUsername(userId, profile),
         avatar_url: profile?.avatar_url,
         avg_grade: getGradeFromPoints(avgPoints),
         climb_count: climbCount,
