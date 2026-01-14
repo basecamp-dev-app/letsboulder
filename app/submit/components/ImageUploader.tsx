@@ -2,8 +2,8 @@
 
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
-import type { NewImageSelection, GpsData } from '@/lib/submission-types'
+import { useState, useRef, useCallback } from 'react'
+import type { NewImageSelection } from '@/lib/submission-types'
 
 interface ImageUploaderProps {
   onComplete: (result: NewImageSelection) => void
@@ -125,62 +125,6 @@ async function blobToDataURL(blob: Blob): Promise<string> {
   })
 }
 
-async function extractGpsFromFile(file: File): Promise<GpsData | null> {
-  try {
-    const exifr = (await import('exifr')).default
-    const buffer = await file.arrayBuffer()
-    const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true })
-
-    if (exifData?.latitude && exifData?.longitude) {
-      return { latitude: exifData.latitude, longitude: exifData.longitude }
-    }
-
-    if (exifData?.GPSLatitude && exifData?.GPSLongitude) {
-      const parseDmsRational = (arr: number[]): number => {
-        if (!arr || arr.length < 6) return 0
-        return (arr[0] / arr[1]) + (arr[2] / arr[3]) / 60 + (arr[4] / arr[5]) / 3600
-      }
-
-      const latRef = (exifData.GPSLatitudeRef as string) || 'N'
-      const lngRef = (exifData.GPSLongitudeRef as string) || 'E'
-
-      const latMultiplier = latRef.includes('S') ? -1 : 1
-      const lngMultiplier = lngRef.includes('W') ? -1 : 1
-
-      const latitude = parseDmsRational(exifData.GPSLatitude) * latMultiplier
-      const longitude = parseDmsRational(exifData.GPSLongitude) * lngMultiplier
-
-      if (!isNaN(latitude) && !isNaN(longitude)) {
-        return { latitude, longitude }
-      }
-    }
-
-    return null
-  } catch (err) {
-    console.error('GPS extraction error:', err)
-    return null
-  }
-}
-
-async function extractCaptureDate(file: File): Promise<string | null> {
-  try {
-    const exifr = (await import('exifr')).default
-    const buffer = await file.arrayBuffer()
-    const exifData = await exifr.parse(buffer)
-    const dateStr = exifData?.DateTimeOriginal || exifData?.DateTimeDigitized
-    if (dateStr) {
-      const date = new Date(dateStr)
-      if (!isNaN(date.getTime())) {
-        return date.toISOString()
-      }
-    }
-    return null
-  } catch (err) {
-    console.error('DateTime extraction error:', err)
-    return null
-  }
-}
-
 function isHeicFile(file: File): boolean {
   const name = file.name.toLowerCase()
   const type = file.type.toLowerCase()
@@ -203,14 +147,11 @@ async function heicToJpegBlob(file: File): Promise<Blob> {
 export default function ImageUploader({ onComplete, onError, onUploading }: ImageUploaderProps) {
   const [file, setFile] = useState<File | null>(null)
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
-  const [imageCaptureDate, setImageCaptureDate] = useState<string | null>(null)
-  const [gpsData, setGpsData] = useState<GpsData | null>(null)
   const [compressing, setCompressing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [manualGps, setManualGps] = useState<{ lat: string; lng: string }>({ lat: '', lng: '' })
-  const [showManualGps, setShowManualGps] = useState(false)
+  const [attestationChecked, setAttestationChecked] = useState(false)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -243,7 +184,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     onError('')
     setFile(null)
     setCompressedFile(null)
-    setShowManualGps(false)
+    setAttestationChecked(false)
 
     if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
       onError('Please select an image file (JPEG, PNG, WebP, HEIC, etc.)')
@@ -267,18 +208,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           previewBlob = await heicToJpegBlob(selectedFile)
           setPreviewUrl(URL.createObjectURL(previewBlob))
 
-          onUploading(true, 10, 'Extracting GPS from HEIC...')
-          const extractedGps = await extractGpsFromFile(selectedFile)
-
-          if (!extractedGps) {
-            onUploading(false, 0, '')
-            setShowManualGps(true)
-            setFile(selectedFile)
-            return
-          }
-
-          setGpsData(extractedGps)
-          onUploading(true, 15, 'Converting HEIC...')
+          onUploading(true, 15, 'Compressing HEIC...')
         } catch (err) {
           console.error('HEIC conversion error:', err)
           onError('Failed to process HEIC image. Please convert to JPEG first.')
@@ -287,14 +217,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
         }
       } else {
         setPreviewUrl(URL.createObjectURL(selectedFile))
-
-        onUploading(true, 5, 'Extracting GPS...')
-        const extractedGps = await extractGpsFromFile(selectedFile)
-        if (extractedGps) {
-          setGpsData(extractedGps)
-        } else {
-          setShowManualGps(true)
-        }
       }
 
       setFile(selectedFile)
@@ -314,7 +236,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       const compressed = await compressImageNative(originalFile, 0.3, 1200, previewBlob)
 
       setCompressedFile(compressed)
-      setShowManualGps(gpsData === null)
       onUploading(false, 0, '')
 
     } catch (err) {
@@ -336,23 +257,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
 
     console.log('Confirming with file:', fileToUpload.name)
     console.log('File size:', fileToUpload.size)
-    console.log('GPS data:', gpsData)
-    console.log('Manual GPS:', manualGps)
-
-    if (!gpsData && (!manualGps.lat || !manualGps.lng)) {
-      onError('GPS coordinates are required. Please enter them manually.')
-      return
-    }
-
-    const finalGps = gpsData || { 
-      latitude: parseFloat(manualGps.lat), 
-      longitude: parseFloat(manualGps.lng) 
-    }
-
-    if (isNaN(finalGps.latitude) || isNaN(finalGps.longitude)) {
-      onError('Invalid GPS coordinates')
-      return
-    }
 
     onUploading(true, 0, 'Uploading...')
 
@@ -400,8 +304,8 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       const result: NewImageSelection = {
         mode: 'new',
         file: fileToUpload,
-        gpsData: finalGps,
-        captureDate: imageCaptureDate,
+        gpsData: null,
+        captureDate: null,
         width: img.naturalWidth || 0,
         height: img.naturalHeight || 0,
         uploadedUrl: publicUrl
@@ -437,8 +341,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
                 setFile(null)
                 setCompressedFile(null)
                 setPreviewUrl(null)
-                setGpsData(null)
-                setShowManualGps(false)
+                setAttestationChecked(false)
                 if (fileInputRef.current) fileInputRef.current.value = ''
               }}
               className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
@@ -449,47 +352,28 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
             </button>
           </div>
 
-          {gpsData ? (
-            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded text-sm text-green-700 dark:text-green-400">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span>GPS: {gpsData.latitude.toFixed(6)}, {gpsData.longitude.toFixed(6)}</span>
-              </div>
-            </div>
-          ) : null}
-
-          {showManualGps && !gpsData && (
-            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
-              <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-2">
-                No GPS data found. Please enter coordinates manually (required):
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  step="0.000001"
-                  placeholder="Latitude"
-                  value={manualGps.lat}
-                  onChange={(e) => setManualGps(prev => ({ ...prev, lat: e.target.value }))}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                />
-                <input
-                  type="number"
-                  step="0.000001"
-                  placeholder="Longitude"
-                  value={manualGps.lng}
-                  onChange={(e) => setManualGps(prev => ({ ...prev, lng: e.target.value }))}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                />
-              </div>
-            </div>
-          )}
+          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={attestationChecked}
+                onChange={(e) => {
+                  setAttestationChecked(e.target.checked)
+                  if (e.target.checked) {
+                    handleConfirm()
+                  }
+                }}
+                className="mt-1"
+              />
+              <span className="text-sm text-blue-700 dark:text-blue-300">
+                I confirm I have rights to this image and it shows a climbing route
+              </span>
+            </label>
+          </div>
 
           <button
             onClick={handleConfirm}
-            disabled={compressing || (!gpsData && (!manualGps.lat || !manualGps.lng))}
+            disabled={compressing || !attestationChecked}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {compressing ? 'Compressing...' : 'Confirm & Continue'}
@@ -517,7 +401,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
             {isDragging ? 'Drop image here' : 'Click or drag image to upload'}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            GPS-enabled photo required (JPEG, PNG, HEIC), max 20MB
+            JPEG, PNG, HEIC, WebP, max 20MB
           </p>
         </div>
       )}
