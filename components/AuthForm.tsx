@@ -156,7 +156,7 @@ export default function AuthForm() {
                     disabled={loading}
                     className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
                   >
-                    {loading ? 'Sending...' : 'Send Magic Link'}
+                    {loading ? 'Sending...' : 'Email Me a Magic Link'}
                   </button>
                 )}
 
@@ -166,7 +166,7 @@ export default function AuthForm() {
                   </div>
                 )}
 
-                {success && !emailValid && (
+                {success && (
                   <div className="text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
                     {success}
                   </div>
