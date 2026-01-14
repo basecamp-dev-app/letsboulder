@@ -3,6 +3,38 @@ import exifr from 'exifr'
 
 export async function POST(request: NextRequest) {
   try {
+    const contentType = request.headers.get('content-type') || ''
+
+    if (contentType.includes('application/json')) {
+      const { url } = await request.json()
+
+      if (!url) {
+        return NextResponse.json({ error: 'No URL provided' }, { status: 400 })
+      }
+
+      console.log('Extracting GPS from URL:', url)
+
+      const response = await fetch(url)
+      if (!response.ok) {
+        return NextResponse.json({ error: 'Failed to fetch image from URL' }, { status: 400 })
+      }
+
+      const arrayBuffer = await response.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+
+      const exifData = await exifr.parse(buffer)
+
+      if (!exifData?.latitude || !exifData?.longitude) {
+        return NextResponse.json({ latitude: null, longitude: null, altitude: null })
+      }
+
+      return NextResponse.json({
+        latitude: exifData.latitude,
+        longitude: exifData.longitude,
+        altitude: exifData.altitude
+      })
+    }
+
     const formData = await request.formData()
     const file = formData.get('file') as File
 
