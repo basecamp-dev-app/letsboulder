@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { getGradePoints, getGradeFromPoints, FLASH_BONUS } from '@/lib/grades'
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
@@ -36,15 +37,15 @@ export async function GET(request: NextRequest) {
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
     const { data: logs, error } = await supabase
-      .from('user_climbs')
+      .from('logs')
       .select(`
         id,
         user_id,
         created_at,
-        style,
-        climbs(id, grade)
+        status,
+        climbs!inner(id, grade)
       `, { count: 'exact' })
-      .eq('style', 'top')
+      .eq('status', 'top')
       .gte('created_at', sixtyDaysAgo)
 
     if (error) {
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const climbIds = [...new Set(logs?.map((log: any) => log.climb_id) || [])]
+    const climbIds = [...new Set(logs?.map((log: any) => log.climbs?.id).filter(Boolean) || [])]
 
     const climbToRegion: Record<string, { id: string; name: string }> = {}
     if (climbIds.length > 0) {
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
 
     let filteredLogs = logs || []
     if (regionParam) {
-      filteredLogs = filteredLogs.filter((log: any) => climbToRegion[log.climb_id]?.id === regionParam)
+      filteredLogs = filteredLogs.filter((log: any) => climbToRegion[log.climbs?.id]?.id === regionParam)
     }
 
     if (genderParam) {
@@ -107,9 +108,11 @@ export async function GET(request: NextRequest) {
 
       let totalPoints = 0
       userLogsArr.forEach((log: any) => {
-        const climb = log.climbs as any
+        const climb = log.climbs
         if (climb && climb.grade) {
-          totalPoints += getGradePoints(climb.grade)
+          const basePoints = getGradePoints(climb.grade)
+          const points = log.status === 'flash' ? basePoints + FLASH_BONUS : basePoints
+          totalPoints += points
         }
       })
       const avgPoints = climbCount > 0 ? Math.round(totalPoints / climbCount) : 0
@@ -144,28 +147,4 @@ export async function GET(request: NextRequest) {
     console.error('Leaderboard error:', error)
     return NextResponse.json({ error: 'Failed to fetch leaderboard' }, { status: 500 })
   }
-}
-
-const gradePoints: Record<string, number> = {
-  'V0': 580, 'V1': 596, 'V2': 612, 'V3': 628, 'V4': 644, 'V5': 660,
-  'V6': 676, 'V7': 692, 'V8': 708, 'V9': 724, 'V10': 740,
-}
-
-function getGradePoints(grade: string): number {
-  return gradePoints[grade] || 600
-}
-
-function getGradeFromPoints(points: number): string {
-  let closest = '?'
-  let minDiff = Infinity
-
-  for (const [grade, gradePointsVal] of Object.entries(gradePoints)) {
-    const diff = Math.abs(gradePointsVal - points)
-    if (diff < minDiff) {
-      minDiff = diff
-      closest = grade
-    }
-  }
-
-  return closest
 }
