@@ -34,6 +34,7 @@ export default function CragSelector({
 
   // Auto-select crag if preselected
   useEffect(() => {
+    console.log('CragSelector useEffect: selectedCragId=', selectedCragId, 'query=', query, 'showCreate=', showCreate)
     if (selectedCragId && query === '' && !showCreate) {
       // Auto-select the preselected crag after a brief delay to allow component to initialize
       const fetchCrag = async () => {
@@ -96,6 +97,7 @@ export default function CragSelector({
   }, [query, searchCrags])
 
   const handleSelect = (crag: Crag) => {
+    console.log('CragSelector handleSelect:', crag.id, crag.name)
     setQuery(crag.name)
     setResults([])
     setSuccessMessage('')
@@ -135,6 +137,7 @@ export default function CragSelector({
 
       if (response.ok) {
         const newCrag = await response.json()
+        console.log('Crag created successfully:', newCrag.id, newCrag.name)
         setSuccessMessage(`Crag "${newCrag.name}" created successfully!`)
         setShowCreate(false)
         setNewCragName('')
