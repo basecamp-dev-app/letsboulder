@@ -11,7 +11,7 @@ interface AccountSectionProps {
 interface ProfileData {
   username?: string
   avatar_url?: string
-  name?: string
+  display_name?: string
   gender?: string
   bio?: string
   default_location?: string
@@ -46,7 +46,7 @@ export function AccountSection({ user }: AccountSectionProps) {
       if (profileData) {
         setProfile(profileData)
         setFormData({
-          firstName: profileData.name || '',
+          firstName: profileData.display_name || '',
           lastName: '',
           gender: profileData.gender || '',
           bio: profileData.bio || '',

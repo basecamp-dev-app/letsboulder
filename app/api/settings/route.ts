@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('username, name, gender, avatar_url, bio, grade_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference')
+      .select('username, display_name, gender, avatar_url, bio, grade_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference')
       .eq('id', user.id)
       .single()
 
@@ -33,10 +33,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 })
     }
 
-    return NextResponse.json({
+      return NextResponse.json({
       settings: {
         username: profile?.username || '',
-        firstName: profile?.name || '',
+        firstName: profile?.display_name || '',
         lastName: '',
         gender: profile?.gender || '',
         avatarUrl: profile?.avatar_url || '',
@@ -95,8 +95,8 @@ export async function PUT(request: NextRequest) {
     if (defaultLocationLng !== undefined) updateData.default_location_lng = defaultLocationLng === null ? null : Number(defaultLocationLng)
     if (defaultLocationZoom !== undefined) updateData.default_location_zoom = defaultLocationZoom === null ? null : Number(defaultLocationZoom)
     if (themePreference !== undefined) updateData.theme_preference = themePreference
-    // Map firstName to 'name' column (last_name doesn't exist in schema)
-    if (firstName !== undefined) updateData.name = firstName.slice(0, 100)
+    // Map firstName to 'display_name' column
+    if (firstName !== undefined) updateData.display_name = firstName.slice(0, 100)
     // lastName is ignored - column doesn't exist in schema
     updateData.updated_at = new Date().toISOString()
 
