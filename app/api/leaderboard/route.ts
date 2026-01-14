@@ -37,15 +37,15 @@ export async function GET(request: NextRequest) {
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
     let query = supabase
-      .from('logs')
+      .from('user_climbs')
       .select(`
         id,
         user_id,
         created_at,
-        status,
+        style,
         climbs!inner(id, grade)
       `, { count: 'exact' })
-      .eq('status', 'top')
+      .in('style', ['top', 'flash'])
       .gte('created_at', sixtyDaysAgo)
 
     if (genderParam) {
@@ -65,17 +65,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const { data: logs, error } = await query
+    const { data: userClimbs, error } = await query
 
     if (error) {
       console.error('Query error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    let filteredLogs = logs || []
+    let filteredClimbs = userClimbs || []
     
     if (regionParam) {
-      const climbIds = [...new Set(filteredLogs.map((log: any) => log.climbs?.id).filter(Boolean) || [])]
+      const climbIds = [...new Set(filteredClimbs.map((uc: any) => uc.climbs?.id).filter(Boolean) || [])]
       if (climbIds.length > 0) {
         const { data: routeLinesData } = await supabase
           .from('route_lines')
@@ -88,21 +88,21 @@ export async function GET(request: NextRequest) {
             regionClimbIds.add(rl.climb_id)
           }
         })
-        filteredLogs = filteredLogs.filter((log: any) => regionClimbIds.has(log.climbs?.id))
+        filteredClimbs = filteredClimbs.filter((uc: any) => regionClimbIds.has(uc.climbs?.id))
       }
     }
 
-    const totalUsers = new Set(filteredLogs.map((log: any) => log.user_id)).size
+    const totalUsers = new Set(filteredClimbs.map((uc: any) => uc.user_id)).size
 
-    const userLogs: Record<string, typeof filteredLogs> = {}
-    filteredLogs.forEach((log: any) => {
-      if (!userLogs[log.user_id]) {
-        userLogs[log.user_id] = []
+    const userClimbsMap: Record<string, typeof filteredClimbs> = {}
+    filteredClimbs.forEach((uc: any) => {
+      if (!userClimbsMap[uc.user_id]) {
+        userClimbsMap[uc.user_id] = []
       }
-      userLogs[log.user_id].push(log)
+      userClimbsMap[uc.user_id].push(uc)
     })
 
-    const userIds = Object.keys(userLogs)
+    const userIds = Object.keys(userClimbsMap)
 
     const { data: profiles } = await supabase
       .from('profiles')
@@ -112,15 +112,15 @@ export async function GET(request: NextRequest) {
     const profilesMap = new Map(profiles?.map(p => [p.id, p]) || [])
 
     const leaderboard = userIds.map(userId => {
-      const userLogsArr = userLogs[userId] || []
-      const climbCount = userLogsArr.length
+      const userClimbsArr = userClimbsMap[userId] || []
+      const climbCount = userClimbsArr.length
 
       let totalPoints = 0
-      userLogsArr.forEach((log: any) => {
-        const climb = Array.isArray(log.climbs) ? log.climbs[0] : log.climbs
+      userClimbsArr.forEach((uc: any) => {
+        const climb = Array.isArray(uc.climbs) ? uc.climbs[0] : uc.climbs
         if (climb && climb.grade) {
           const basePoints = getGradePoints(climb.grade)
-          const points = log.status === 'flash' ? basePoints + FLASH_BONUS : basePoints
+          const points = uc.style === 'flash' ? basePoints + FLASH_BONUS : basePoints
           totalPoints += points
         }
       })
