@@ -192,7 +192,7 @@ function convertDmsToDecimal(dms: number[], ref: string): number | null {
 export default function ImageUploader({ onComplete, onError, onUploading }: ImageUploaderProps) {
   const [file, setFile] = useState<File | null>(null)
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
-  const [gpsData, setGpsData] = useState<GpsData | null>(null)
+  const gpsDataRef = useRef<GpsData | null>(null)
   const [compressing, setCompressing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -230,7 +230,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     onError('')
     setFile(null)
     setCompressedFile(null)
-    setGpsData(null)
+    gpsDataRef.current = null
     setAttestationChecked(false)
 
     if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
@@ -272,9 +272,10 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       const extractedGps = await extractGpsFromFile(selectedFile)
       if (extractedGps) {
         console.log('GPS extracted from image:', extractedGps)
-        setGpsData(extractedGps)
+        gpsDataRef.current = extractedGps
       } else {
         console.log('No GPS data found in image')
+        gpsDataRef.current = null
       }
 
       await compressImage(selectedFile, previewBlob)
@@ -361,7 +362,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       const result: NewImageSelection = {
         mode: 'new',
         file: fileToUpload,
-        gpsData: gpsData,
+        gpsData: gpsDataRef.current,
         captureDate: null,
         width: img.naturalWidth || 0,
         height: img.naturalHeight || 0,
@@ -397,7 +398,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
               onClick={() => {
                 setFile(null)
                 setCompressedFile(null)
-                setGpsData(null)
+                gpsDataRef.current = null
                 setPreviewUrl(null)
                 setAttestationChecked(false)
                 if (fileInputRef.current) fileInputRef.current.value = ''
