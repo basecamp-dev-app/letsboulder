@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
-    const { data: logs, error } = await supabase
+    let query = supabase
       .from('logs')
       .select(`
         id,
@@ -48,39 +48,48 @@ export async function GET(request: NextRequest) {
       .eq('status', 'top')
       .gte('created_at', sixtyDaysAgo)
 
+    if (genderParam) {
+      const { data: genderProfiles } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('gender', genderParam)
+      
+      const genderUserIds = genderProfiles?.map(p => p.id) || []
+      if (genderUserIds.length > 0) {
+        query = query.in('user_id', genderUserIds)
+      } else {
+        return NextResponse.json({
+          leaderboard: [],
+          pagination: { page, limit, total_users: 0, total_pages: 0 },
+        })
+      }
+    }
+
+    const { data: logs, error } = await query
+
     if (error) {
       console.error('Query error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const climbIds = [...new Set(logs?.map((log: any) => log.climbs?.id).filter(Boolean) || [])]
+    let filteredLogs = logs || []
+    
+    if (regionParam) {
+      const climbIds = [...new Set(filteredLogs.map((log: any) => log.climbs?.id).filter(Boolean) || [])]
+      if (climbIds.length > 0) {
+        const { data: routeLinesData } = await supabase
+          .from('route_lines')
+          .select('climb_id, images!inner(crags!inner(regions!inner(id, name))))')
+          .in('climb_id', climbIds)
 
-    const climbToRegion: Record<string, { id: string; name: string }> = {}
-    if (climbIds.length > 0) {
-      const { data: routeLinesData } = await supabase
-        .from('route_lines')
-        .select('climb_id, images!inner(crags!inner(regions!inner(id, name))))')
-        .in('climb_id', climbIds)
-
-      if (routeLinesData) {
-        routeLinesData.forEach((rl: any) => {
-          if (rl.climb_id && rl.images?.crags?.regions) {
-            climbToRegion[rl.climb_id] = {
-              id: rl.images.crags.regions.id,
-              name: rl.images.crags.regions.name
-            }
+        const regionClimbIds = new Set<string>()
+        routeLinesData?.forEach((rl: any) => {
+          if (rl.climb_id && rl.images?.crags?.regions?.id === regionParam) {
+            regionClimbIds.add(rl.climb_id)
           }
         })
+        filteredLogs = filteredLogs.filter((log: any) => regionClimbIds.has(log.climbs?.id))
       }
-    }
-
-    let filteredLogs = logs || []
-    if (regionParam) {
-      filteredLogs = filteredLogs.filter((log: any) => climbToRegion[log.climbs?.id]?.id === regionParam)
-    }
-
-    if (genderParam) {
-      filteredLogs = filteredLogs.filter((log: any) => log.user_id === genderParam)
     }
 
     const totalUsers = new Set(filteredLogs.map((log: any) => log.user_id)).size
@@ -108,7 +117,7 @@ export async function GET(request: NextRequest) {
 
       let totalPoints = 0
       userLogsArr.forEach((log: any) => {
-        const climb = log.climbs
+        const climb = Array.isArray(log.climbs) ? log.climbs[0] : log.climbs
         if (climb && climb.grade) {
           const basePoints = getGradePoints(climb.grade)
           const points = log.status === 'flash' ? basePoints + FLASH_BONUS : basePoints

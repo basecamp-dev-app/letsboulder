@@ -28,6 +28,7 @@ export function AccountSection({ user }: AccountSectionProps) {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    gender: '',
     bio: '',
     defaultLocation: ''
   })
@@ -58,6 +59,7 @@ export function AccountSection({ user }: AccountSectionProps) {
         setFormData({
           firstName: profileData.name || '',
           lastName: '',
+          gender: profileData.gender || '',
           bio: profileData.bio || '',
           defaultLocation: profileData.default_location || ''
         })
@@ -219,14 +221,18 @@ export function AccountSection({ user }: AccountSectionProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-          <input
-            type="email"
-            value={user?.email || ''}
-            disabled
-            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-          />
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Email cannot be changed</p>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gender</label>
+          <select
+            value={formData.gender}
+            onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+          >
+            <option value="">Prefer not to say</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Used for segmented leaderboards</p>
         </div>
 
         <div>
