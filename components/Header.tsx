@@ -6,7 +6,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
-import FeedbackModal from '@/components/FeedbackModal'
 
 interface SearchResult {
   type: 'crag' | 'climb'
@@ -33,15 +32,7 @@ const MORE_MENU_ITEMS = [
 
 const MORE_MENU_ITEMS_WITH_TYPES: { label: string; href: string }[] = MORE_MENU_ITEMS
 
-export default function Header({
-  isFeedbackModalOpen,
-  onCloseFeedbackModal,
-  onOpenFeedback,
-}: {
-  isFeedbackModalOpen: boolean
-  onCloseFeedbackModal: () => void
-  onOpenFeedback: () => void
-}) {
+export default function Header() {
   const [user, setUser] = useState<User | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
@@ -227,12 +218,6 @@ export default function Header({
           <Link href="/submit" className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Upload
           </Link>
-          <button
-            onClick={onOpenFeedback}
-            className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            Feedback
-          </button>
           <div ref={moreRef} className="relative">
             <button
               onClick={() => setShowMoreDropdown(!showMoreDropdown)}
@@ -279,7 +264,6 @@ export default function Header({
             )}
           </div>
         </nav>
-        <FeedbackModal isOpen={isFeedbackModalOpen} onClose={onCloseFeedbackModal} />
       </div>
     </header>
   )

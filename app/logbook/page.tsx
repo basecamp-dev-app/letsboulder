@@ -112,7 +112,7 @@ function LogbookContent() {
 
           const climbIds = logsData?.map(log => log.climb_id).filter(Boolean) || []
 
-          let cragsByClimbId: Record<string, string> = {}
+          const cragsByClimbId: Record<string, string> = {}
           if (climbIds.length > 0) {
             const { data: routeLinesData } = await supabase
               .from('route_lines')

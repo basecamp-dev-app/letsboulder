@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import MobileNavSheet from './MobileNavSheet'
 
-export default function Footer({ onOpenFeedback }: { onOpenFeedback?: () => void }) {
+export default function Footer() {
   const pathname = usePathname()
   const [isNavSheetOpen, setIsNavSheetOpen] = useState(false)
 
@@ -65,7 +65,7 @@ export default function Footer({ onOpenFeedback }: { onOpenFeedback?: () => void
         </nav>
       </footer>
 
-      <MobileNavSheet isOpen={isNavSheetOpen} onClose={() => setIsNavSheetOpen(false)} onOpenFeedback={onOpenFeedback} />
+      <MobileNavSheet isOpen={isNavSheetOpen} onClose={() => setIsNavSheetOpen(false)} />
     </>
   )
 }
