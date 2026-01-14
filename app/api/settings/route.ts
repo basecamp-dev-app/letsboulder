@@ -81,7 +81,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { bio, gradeSystem, units, isPublic, defaultLocation, defaultLocationName, defaultLocationLat, defaultLocationLng, defaultLocationZoom, themePreference, firstName, lastName } = body
+    const { bio, gradeSystem, units, isPublic, defaultLocation, defaultLocationName, defaultLocationLat, defaultLocationLng, defaultLocationZoom, themePreference, firstName } = body
 
     const updateData: Record<string, unknown> = {}
 
@@ -95,36 +95,21 @@ export async function PUT(request: NextRequest) {
     if (defaultLocationLng !== undefined) updateData.default_location_lng = defaultLocationLng === null ? null : Number(defaultLocationLng)
     if (defaultLocationZoom !== undefined) updateData.default_location_zoom = defaultLocationZoom === null ? null : Number(defaultLocationZoom)
     if (themePreference !== undefined) updateData.theme_preference = themePreference
-    // Map firstName to 'display_name' column
     if (firstName !== undefined) updateData.display_name = firstName.slice(0, 100)
-    // lastName is ignored - column doesn't exist in schema
     updateData.updated_at = new Date().toISOString()
 
-    // Try UPDATE first (profile already exists)
-    console.log('Attempting UPDATE with data:', JSON.stringify(updateData, null, 2))
-    const { error: updateError } = await supabase
+    // Use upsert to handle both new and existing profiles
+    const { error: upsertError } = await supabase
       .from('profiles')
-      .update(updateData)
-      .eq('id', user.id)
-
-    if (updateError) {
-      console.error('UPDATE error:', JSON.stringify(updateError, null, 2))
-      
-      // If UPDATE fails, try INSERT (first time profile creation)
-      const insertData = { ...updateData, id: user.id }
-      console.log('Attempting INSERT with data:', JSON.stringify(insertData, null, 2))
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert(insertData)
-      
-      if (insertError) {
-        console.error('INSERT error:', JSON.stringify(insertError, null, 2))
-        return NextResponse.json({ 
-          error: 'Failed to update settings',
-          details: insertError.message,
-          code: insertError.code
-        }, { status: 500 })
-      }
+      .upsert({ ...updateData, id: user.id })
+    
+    if (upsertError) {
+      console.error('UPSERT error:', JSON.stringify(upsertError, null, 2))
+      return NextResponse.json({ 
+        error: 'Failed to update settings',
+        details: upsertError.message,
+        code: upsertError.code
+      }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
