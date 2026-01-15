@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -50,23 +50,9 @@ export default function LeaderboardPage() {
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
 
-  useEffect(() => {
-    const supabase = createClient()
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-    }
-    getUser()
-  }, [])
-
-  useEffect(() => {
-    if (user !== null) {
-      fetchLeaderboard()
-    }
-  }, [gender, country, page, user])
-
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     setLoading(true)
     try {
       const response = await fetch(
@@ -82,6 +68,40 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false)
     }
+  }, [gender, country, page])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null)
+        setAuthChecked(true)
+      }
+    )
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (authChecked && user !== null) {
+      fetchLeaderboard()
+    }
+  }, [gender, country, page, user, authChecked, fetchLeaderboard])
+
+  if (!authChecked) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">
+          Leaderboard
+        </h1>
+        <Card>
+          <CardContent className="py-12">
+            <div className="flex items-center justify-center">
+              <div className="w-8 h-8 border-4 border-gray-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (user === null) {
