@@ -46,8 +46,8 @@ export function AccountSection({ user }: AccountSectionProps) {
       if (profileData) {
         setProfile(profileData)
         setFormData({
-          firstName: profileData.display_name || '',
-          lastName: '',
+          firstName: profileData.first_name || '',
+          lastName: profileData.last_name || '',
           gender: profileData.gender || '',
           bio: profileData.bio || '',
           defaultLocation: profileData.default_location || ''

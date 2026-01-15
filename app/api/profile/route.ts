@@ -97,6 +97,19 @@ export async function PUT(request: NextRequest) {
     if (last_name !== undefined) updateData.last_name = last_name.trim()
     if (gender !== undefined) updateData.gender = gender
 
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', user.id)
+      .single()
+
+    if (!existingProfile?.email) {
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (authUser?.email) {
+        updateData.email = authUser.email
+      }
+    }
+
     const { data: updated, error: updateError } = await supabase
       .from('profiles')
       .update(updateData)

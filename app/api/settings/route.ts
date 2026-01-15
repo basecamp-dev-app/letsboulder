@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('username, display_name, gender, avatar_url, bio, grade_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference')
+      .select('username, first_name, last_name, display_name, gender, avatar_url, bio, grade_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference')
       .eq('id', user.id)
       .single()
 
@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
       settings: {
         username: profile?.username || '',
-        firstName: profile?.display_name || '',
-        lastName: '',
+        firstName: profile?.first_name || '',
+        lastName: profile?.last_name || '',
         gender: profile?.gender || '',
         avatarUrl: profile?.avatar_url || '',
         bio: profile?.bio || '',
@@ -81,7 +81,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { bio, gradeSystem, units, isPublic, defaultLocation, defaultLocationName, defaultLocationLat, defaultLocationLng, defaultLocationZoom, themePreference, firstName } = body
+    const { bio, gradeSystem, units, isPublic, defaultLocation, defaultLocationName, defaultLocationLat, defaultLocationLng, defaultLocationZoom, themePreference, firstName, lastName } = body
 
     const updateData: Record<string, unknown> = {}
 
@@ -95,7 +95,8 @@ export async function PUT(request: NextRequest) {
     if (defaultLocationLng !== undefined) updateData.default_location_lng = defaultLocationLng === null ? null : Number(defaultLocationLng)
     if (defaultLocationZoom !== undefined) updateData.default_location_zoom = defaultLocationZoom === null ? null : Number(defaultLocationZoom)
     if (themePreference !== undefined) updateData.theme_preference = themePreference
-    if (firstName !== undefined) updateData.display_name = firstName.slice(0, 100)
+    if (firstName !== undefined) updateData.first_name = firstName.slice(0, 100)
+    if (lastName !== undefined) updateData.last_name = lastName.slice(0, 100)
     updateData.updated_at = new Date().toISOString()
 
     // Use upsert to handle both new and existing profiles
