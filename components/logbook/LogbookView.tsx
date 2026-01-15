@@ -46,7 +46,7 @@ interface LogbookViewProps {
   profile?: Profile
 }
 
-export default function LogbookView({ isOwnProfile, initialLogs = [] }: LogbookViewProps) {
+export default function LogbookView({ isOwnProfile, initialLogs = [], profile }: LogbookViewProps) {
   const [logs, setLogs] = useState<Climb[]>(initialLogs)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const { toasts, addToast, removeToast } = useToast()
@@ -79,6 +79,37 @@ export default function LogbookView({ isOwnProfile, initialLogs = [] }: LogbookV
   return (
     <div className="container mx-auto px-4 py-8">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      {!isOwnProfile && profile && (
+        <Card className="mb-8">
+          <CardContent className="flex flex-col sm:flex-row items-center gap-6 py-6 px-4">
+            {profile.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt={profile.username}
+                className="w-20 h-20 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                <span className="text-2xl font-medium text-gray-600 dark:text-gray-300">
+                  {profile.username?.slice(0, 2).toUpperCase()}
+                </span>
+              </div>
+            )}
+            <div className="text-center sm:text-left">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">
+                {profile.display_name || profile.username}
+              </h1>
+              <p className="text-gray-500 dark:text-gray-400">@{profile.username}</p>
+              {profile.bio && (
+                <p className="text-gray-600 dark:text-gray-300 mt-3 max-w-xl">
+                  {profile.bio}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {logs.length === 0 ? (
         <Card>
