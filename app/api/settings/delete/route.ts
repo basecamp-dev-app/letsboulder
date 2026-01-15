@@ -57,6 +57,16 @@ export async function DELETE(request: NextRequest) {
         console.error('Error deleting images:', imagesError)
         return NextResponse.json({ error: 'Failed to delete images' }, { status: 500 })
       }
+    } else {
+      const { error: imagesError } = await supabase
+        .from('images')
+        .update({ created_by: null })
+        .eq('created_by', user.id)
+      
+      if (imagesError) {
+        console.error('Error making images anonymous:', imagesError)
+        return NextResponse.json({ error: 'Failed to make images anonymous' }, { status: 500 })
+      }
     }
 
     const { error: profileError } = await supabase
