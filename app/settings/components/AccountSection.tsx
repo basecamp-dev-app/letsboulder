@@ -122,7 +122,7 @@ export function AccountSection({ user }: AccountSectionProps) {
             onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
           >
-            <option value="">Prefer not to say</option>
+            <option value="prefer_not_to_say">Prefer not to say</option>
             <option value="male">Male</option>
             <option value="female">Female</option>
             <option value="other">Other</option>
