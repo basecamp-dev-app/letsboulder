@@ -1,9 +1,17 @@
 import { MetadataRoute } from 'next'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://gsyrocks.com'
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+  )
 
-  return [
+  const staticRoutes: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
       lastModified: new Date(),
@@ -71,4 +79,33 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.3,
     },
   ]
+
+  const [cragsResult, climbsResult, imagesResult] = await Promise.all([
+    supabase.from('crags').select('id, updated_at').eq('is_active', true).limit(1000),
+    supabase.from('climbs').select('id, updated_at').eq('status', 'active').limit(1000),
+    supabase.from('images').select('id, updated_at').eq('is_verified', true).limit(1000),
+  ])
+
+  const dynamicRoutes: MetadataRoute.Sitemap = [
+    ...(cragsResult.data || []).map((crag) => ({
+      url: `${baseUrl}/crag/${crag.id}`,
+      lastModified: new Date(crag.updated_at || Date.now()),
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    })),
+    ...(climbsResult.data || []).map((climb) => ({
+      url: `${baseUrl}/climb/${climb.id}`,
+      lastModified: new Date(climb.updated_at || Date.now()),
+      changeFrequency: 'weekly' as const,
+      priority: 0.6,
+    })),
+    ...(imagesResult.data || []).map((image) => ({
+      url: `${baseUrl}/image/${image.id}`,
+      lastModified: new Date(image.updated_at || Date.now()),
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
+    })),
+  ]
+
+  return [...staticRoutes, ...dynamicRoutes]
 }
