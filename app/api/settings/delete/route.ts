@@ -47,6 +47,18 @@ export async function DELETE(request: NextRequest) {
     await supabase.from('admin_actions').delete().eq('user_id', user.id)
     await supabase.from('user_climbs').delete().eq('user_id', user.id)
 
+    if (deleteRouteUploads) {
+      const { error: imagesError } = await supabase
+        .from('images')
+        .delete()
+        .eq('created_by', user.id)
+      
+      if (imagesError) {
+        console.error('Error deleting images:', imagesError)
+        return NextResponse.json({ error: 'Failed to delete images' }, { status: 500 })
+      }
+    }
+
     const { error: profileError } = await supabase
       .from('profiles')
       .delete()
