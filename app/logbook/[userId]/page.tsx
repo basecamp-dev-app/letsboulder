@@ -38,6 +38,8 @@ interface Profile {
   total_points?: number
   highest_grade?: string
   is_public?: boolean
+  first_name?: string
+  last_name?: string
 }
 
 async function getProfile(userId: string): Promise<Profile | null> {
@@ -56,7 +58,7 @@ async function getProfile(userId: string): Promise<Profile | null> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade, is_public')
+    .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade, is_public, first_name, last_name')
     .eq('id', userId)
     .single()
 

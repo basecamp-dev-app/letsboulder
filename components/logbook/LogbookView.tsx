@@ -37,6 +37,8 @@ interface Profile {
   total_climbs?: number
   total_points?: number
   highest_grade?: string
+  first_name?: string
+  last_name?: string
 }
 
 interface LogbookViewProps {
@@ -98,7 +100,9 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
             )}
             <div className="text-center sm:text-left">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">
-                {profile.display_name || profile.username}
+                {profile.first_name || profile.last_name 
+                  ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
+                  : profile.display_name || profile.username}
               </h1>
               <p className="text-gray-500 dark:text-gray-400">@{profile.username}</p>
               {profile.bio && (
