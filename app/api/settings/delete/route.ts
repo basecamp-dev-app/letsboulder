@@ -72,6 +72,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await supabase.auth.signOut()
+    await supabase.auth.admin.deleteUser(user.id)
 
     return NextResponse.json({ success: true })
 
