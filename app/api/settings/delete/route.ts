@@ -46,27 +46,19 @@ export async function DELETE(request: NextRequest) {
 
     await supabase.from('admin_actions').delete().eq('user_id', user.id)
     await supabase.from('user_climbs').delete().eq('user_id', user.id)
+    await supabase.from('climb_corrections').delete().eq('user_id', user.id)
+    await supabase.from('correction_votes').delete().eq('user_id', user.id)
+    await supabase.from('logs').delete().eq('user_id', user.id)
+    await supabase.from('climb_verifications').delete().eq('user_id', user.id)
+    await supabase.from('grade_votes').delete().eq('user_id', user.id)
+    await supabase.from('route_grades').delete().eq('user_id', user.id)
 
     if (deleteRouteUploads) {
-      const { error: imagesError } = await supabase
-        .from('images')
-        .delete()
-        .eq('created_by', user.id)
-      
-      if (imagesError) {
-        console.error('Error deleting images:', imagesError)
-        return NextResponse.json({ error: 'Failed to delete images' }, { status: 500 })
-      }
+      await supabase.from('images').delete().eq('created_by', user.id)
+      await supabase.from('climbs').delete().eq('user_id', user.id)
     } else {
-      const { error: imagesError } = await supabase
-        .from('images')
-        .update({ created_by: null })
-        .eq('created_by', user.id)
-      
-      if (imagesError) {
-        console.error('Error making images anonymous:', imagesError)
-        return NextResponse.json({ error: 'Failed to make images anonymous' }, { status: 500 })
-      }
+      await supabase.from('images').update({ created_by: null }).eq('created_by', user.id)
+      await supabase.from('climbs').update({ user_id: null }).eq('user_id', user.id)
     }
 
     const { error: profileError } = await supabase
