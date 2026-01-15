@@ -81,7 +81,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { bio, gradeSystem, units, isPublic, defaultLocation, defaultLocationName, defaultLocationLat, defaultLocationLng, defaultLocationZoom, themePreference, firstName, lastName } = body
+    const { bio, gradeSystem, units, isPublic, defaultLocation, defaultLocationName, defaultLocationLat, defaultLocationLng, defaultLocationZoom, themePreference, firstName, lastName, gender } = body
 
     const updateData: Record<string, unknown> = {}
 
@@ -97,6 +97,7 @@ export async function PUT(request: NextRequest) {
     if (themePreference !== undefined) updateData.theme_preference = themePreference
     if (firstName !== undefined) updateData.first_name = firstName.slice(0, 100)
     if (lastName !== undefined) updateData.last_name = lastName.slice(0, 100)
+    if (gender !== undefined) updateData.gender = gender
     updateData.updated_at = new Date().toISOString()
 
     // Use upsert to handle both new and existing profiles
