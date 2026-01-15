@@ -78,6 +78,47 @@ DO $$ BEGIN
 EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- =====================================================
+-- USER_CLIMBS: RLS for public logbook access
+-- =====================================================
+
+-- Enable RLS on user_climbs if not already enabled
+DO $$ BEGIN
+    ALTER TABLE user_climbs ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Public read access to user_climbs for users with public profiles
+-- This policy allows reading user_climbs where the owner has is_public = true
+DO $$ BEGIN
+    CREATE POLICY "Public read user_climbs for public profiles" ON user_climbs FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE profiles.id = user_climbs.user_id
+            AND profiles.is_public = true
+        )
+    );
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Owner can always read their own user_climbs
+DO $$ BEGIN
+    CREATE POLICY "Owner read own user_climbs" ON user_climbs FOR SELECT USING (auth.uid() = user_id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Owner can create user_climbs
+DO $$ BEGIN
+    CREATE POLICY "Owner create user_climbs" ON user_climbs FOR INSERT WITH CHECK (auth.uid() = user_id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Owner can update their own user_climbs
+DO $$ BEGIN
+    CREATE POLICY "Owner update user_climbs" ON user_climbs FOR UPDATE USING (auth.uid() = user_id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Owner can delete their own user_climbs
+DO $$ BEGIN
+    CREATE POLICY "Owner delete user_climbs" ON user_climbs FOR DELETE USING (auth.uid() = user_id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- =====================================================
 -- CLIMBS: RLS for viewing climbs in public logbooks
 -- =====================================================
 
@@ -125,4 +166,5 @@ $$ LANGUAGE plpgsql STABLE;
 
 SELECT 'Profiles RLS enabled: ' || (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'profiles') as status;
 SELECT 'Logs RLS enabled: ' || (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'logs') as status;
+SELECT 'User_climbs RLS enabled: ' || (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'user_climbs') as status;
 SELECT 'is_public column added to profiles' as status;

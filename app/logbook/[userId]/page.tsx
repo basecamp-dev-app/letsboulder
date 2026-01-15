@@ -82,7 +82,7 @@ async function getPublicLogs(userId: string): Promise<Climb[]> {
   )
 
   const { data: logsData, error: logsError } = await supabase
-    .from('logs')
+    .from('user_climbs')
     .select('*, climbs(id, name, grade)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
