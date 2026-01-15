@@ -11,11 +11,14 @@ interface DeletionFlowProps {
   user: User | null
 }
 
+const CONFIRMATION_TEXT = 'delete my account'
+
 export function DeletionFlow({ user }: DeletionFlowProps) {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteRouteUploads, setDeleteRouteUploads] = useState(false)
   const [imageCount, setImageCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
   const supabase = createClient()
 
   useEffect(() => {
@@ -65,6 +68,8 @@ export function DeletionFlow({ user }: DeletionFlowProps) {
       setLoading(false)
     }
   }
+
+  const isConfirmed = confirmText.toLowerCase().trim() === CONFIRMATION_TEXT
 
   return (
     <div className="space-y-6">
@@ -119,13 +124,29 @@ export function DeletionFlow({ user }: DeletionFlowProps) {
                   </label>
                 </div>
 
+                <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                    To confirm, type: <code className="bg-red-100 dark:bg-red-800 px-2 py-0.5 rounded">{CONFIRMATION_TEXT}</code>
+                  </p>
+                  <input
+                    type="text"
+                    value={confirmText}
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    placeholder={CONFIRMATION_TEXT}
+                    className="w-full px-3 py-2 border border-red-300 dark:border-red-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400"
+                  />
+                </div>
+
                 <p className="mt-4 font-medium text-red-600 dark:text-red-400">
                   This action cannot be undone.
                 </p>
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
-              <Button variant="outline" onClick={() => setDeleteModalOpen(false)}>
+              <Button variant="outline" onClick={() => {
+                setDeleteModalOpen(false)
+                setConfirmText('')
+              }}>
                 Cancel
               </Button>
               <Button variant="secondary" onClick={handleExportData}>
@@ -134,7 +155,7 @@ export function DeletionFlow({ user }: DeletionFlowProps) {
               <Button
                 variant="destructive"
                 onClick={handleDeleteAccount}
-                disabled={loading}
+                disabled={!isConfirmed || loading}
               >
                 {loading ? 'Deleting...' : 'Delete Forever'}
               </Button>
