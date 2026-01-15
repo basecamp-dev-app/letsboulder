@@ -8,7 +8,7 @@ import { AccountSection } from './components/AccountSection'
 import { LocationSectionWrapper } from './components/LocationSectionWrapper'
 import { PreferencesSection } from './components/PreferencesSection'
 import { PrivacySection } from './components/PrivacySection'
-import { AccountActionsSection } from './components/AccountActionsSection'
+import { DeletionFlow } from './components/DeletionFlow'
 
 const SECTIONS = [
   {
@@ -150,7 +150,7 @@ export default function SettingsPage() {
               {activeSection === 'location' && <LocationSectionWrapper user={user} />}
               {activeSection === 'preferences' && <PreferencesSection />}
               {activeSection === 'privacy' && <PrivacySection />}
-              {activeSection === 'actions' && <AccountActionsSection user={user} />}
+              {activeSection === 'actions' && <DeletionFlow user={user} />}
             </div>
           </div>
         </div>
