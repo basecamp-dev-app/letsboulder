@@ -235,7 +235,10 @@ export default function LeaderboardPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
+                        <Link
+                          href={`/logbook/${entry.user_id}`}
+                          className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+                        >
                           {entry.avatar_url ? (
                             <img
                               src={entry.avatar_url}
@@ -252,7 +255,7 @@ export default function LeaderboardPage() {
                           <span className="font-medium text-gray-900 dark:text-gray-100">
                             {entry.username}
                           </span>
-                        </div>
+                        </Link>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
