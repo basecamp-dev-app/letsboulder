@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import exifr from 'exifr'
+import { validateImageSignature } from '@/lib/file-validation'
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,6 +51,11 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
+
+    const signatureValidation = validateImageSignature(buffer)
+    if (!signatureValidation.valid) {
+      return NextResponse.json({ error: signatureValidation.error }, { status: 400 })
+    }
 
     // Add timeout to EXIF parsing to prevent server hangs
     const exifPromise = exifr.parse(buffer)
