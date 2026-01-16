@@ -28,13 +28,13 @@ export default function GearCard({ product }: GearCardProps) {
 
   return (
     <Card className="h-full flex flex-col hover:shadow-md transition-shadow overflow-hidden">
-      <div className="aspect-square relative bg-gray-100 dark:bg-gray-800">
+      <div className="aspect-[3/4] relative bg-gray-100 dark:bg-gray-800 p-2">
         {product.imagePath ? (
           <Image
             src={`/gear/${product.imagePath}`}
             alt={product.name}
             fill
-            className="object-cover"
+            className="object-contain"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
         ) : (

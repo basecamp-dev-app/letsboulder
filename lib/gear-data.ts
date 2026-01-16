@@ -68,6 +68,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4qzkY91',
     category: 'Harnesses & Helmets',
     description: 'Adjustable all-around climbing harness for sport and trad',
+    imagePath: 'petzl-corax-harness.jpg',
   },
   {
     id: 'smd-carabiner',
