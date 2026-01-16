@@ -94,8 +94,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const totalUsers = new Set(filteredClimbs.map((uc: any) => uc.user_id)).size
-
     const userClimbsMap: Record<string, typeof filteredClimbs> = {}
     filteredClimbs.forEach((uc: any) => {
       if (!userClimbsMap[uc.user_id]) {
@@ -108,10 +106,13 @@ export async function GET(request: NextRequest) {
 
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, username, first_name, last_name, display_name, avatar_url, gender')
+      .select('id, username, first_name, last_name, display_name, avatar_url, gender, is_public')
+      .eq('is_public', true)
       .in('id', userIds)
 
     const profilesMap = new Map(profiles?.map(p => [p.id, p]) || [])
+
+    const publicUserIds = userIds.filter(userId => profilesMap.has(userId))
 
     const getUsername = (userId: string, profile: any): string => {
       if (profile?.first_name && profile?.last_name) {
@@ -123,7 +124,7 @@ export async function GET(request: NextRequest) {
       return `Climber ${userId.slice(0, 4)}`
     }
 
-    const leaderboard = userIds.map(userId => {
+    const leaderboard = publicUserIds.map(userId => {
       const userClimbsArr = userClimbsMap[userId] || []
       const climbCount = userClimbsArr.length
 
@@ -153,6 +154,7 @@ export async function GET(request: NextRequest) {
       entry.rank = index + 1
     })
 
+    const publicTotalUsers = publicUserIds.length
     const paginatedLeaderboard = leaderboard.slice(offset, offset + limit)
 
     return NextResponse.json({
@@ -160,8 +162,8 @@ export async function GET(request: NextRequest) {
       pagination: {
         page,
         limit,
-        total_users: totalUsers,
-        total_pages: Math.ceil(totalUsers / limit),
+        total_users: publicTotalUsers,
+        total_pages: Math.ceil(publicTotalUsers / limit),
       },
     }, {
       headers: {

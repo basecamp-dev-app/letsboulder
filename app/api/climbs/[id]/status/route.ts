@@ -86,7 +86,7 @@ export async function GET(
       userGradeVote = userGrade?.grade || null
     }
 
-    // Get corrections
+    // Get corrections (only show user info for public profiles)
     const { data: corrections } = await supabase
       .from('climb_corrections')
       .select(`
@@ -102,9 +102,10 @@ export async function GET(
         rejection_count,
         created_at,
         resolved_at,
-        profiles:user_id (id, email)
+        profiles!inner(is_public)
       `)
       .eq('climb_id', climbId)
+      .eq('profiles.is_public', true)
       .order('created_at', { ascending: false })
 
     const formattedCorrections = (corrections || []).map((c: Record<string, unknown>) => ({
@@ -120,7 +121,7 @@ export async function GET(
       rejection_count: c.rejection_count,
       created_at: c.created_at,
       resolved_at: c.resolved_at,
-      user: c.profiles ? { id: (c.profiles as { id: string }).id, email: '' } : null
+      user: { id: c.user_id as string, email: '' }
     }))
 
     const pendingCorrections = (formattedCorrections as ClimbCorrection[]).filter(
