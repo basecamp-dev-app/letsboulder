@@ -25,6 +25,7 @@ interface CragData {
 
 const MORE_MENU_ITEMS = [
   { label: 'Leaderboard', href: '/leaderboard' },
+  { label: 'Gear', href: '/gear' },
   { label: 'About', href: '/about' },
   { label: 'Settings', href: '/settings' },
 ]
