@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 
 interface DeletionFlowProps {
-  user: User | null
+  user: User
 }
 
 const CONFIRMATION_TEXT = 'delete my account'
@@ -23,16 +23,13 @@ export function DeletionFlow({ user }: DeletionFlowProps) {
   const supabase = createClient()
 
   const fetchImageCount = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
     const { count } = await supabase
       .from('images')
       .select('*', { count: 'exact', head: true })
       .eq('created_by', user.id)
 
     setImageCount(count || 0)
-  }, [supabase])
+  }, [user.id, supabase])
 
   useEffect(() => {
     fetchImageCount()

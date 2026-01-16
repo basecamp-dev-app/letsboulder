@@ -5,23 +5,14 @@ import { createClient } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 
 interface AccountSectionProps {
-  user: User | null
-}
-
-interface ProfileData {
-  username?: string
-  avatar_url?: string
-  display_name?: string
-  gender?: string
-  bio?: string
-  default_location?: string
+  user: User
 }
 
 export function AccountSection({ user }: AccountSectionProps) {
+  const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const [profile, setProfile] = useState<ProfileData | null>(null)
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -32,11 +23,6 @@ export function AccountSection({ user }: AccountSectionProps) {
 
   useEffect(() => {
     const fetchData = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (!user) return
-
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -44,7 +30,6 @@ export function AccountSection({ user }: AccountSectionProps) {
         .single()
 
       if (profileData) {
-        setProfile(profileData)
         setFormData({
           firstName: profileData.first_name || '',
           lastName: profileData.last_name || '',
@@ -58,7 +43,7 @@ export function AccountSection({ user }: AccountSectionProps) {
     }
 
     fetchData()
-  }, [])
+  }, [user.id, supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

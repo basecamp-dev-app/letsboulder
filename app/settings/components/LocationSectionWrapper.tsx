@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { LocationSection } from './LocationSection'
 
 interface LocationSectionWrapperProps {
-  user: User | null
+  user: User
 }
 
 export function LocationSectionWrapper({ user }: LocationSectionWrapperProps) {
