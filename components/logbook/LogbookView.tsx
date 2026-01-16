@@ -2,13 +2,18 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import GradeHistoryChart from '@/components/GradeHistoryChart'
 import GradePyramid from '@/components/GradePyramid'
 import { calculateStats, getLowestGrade, getGradeFromPoints } from '@/lib/grades'
 import { Trash2, Loader2, Mountain } from 'lucide-react'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
+
+const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
+  ssr: false,
+  loading: () => <div className="h-64 flex items-center justify-center text-gray-400">Loading chart...</div>
+})
 
 interface Climb {
   id: string
