@@ -1,28 +1,15 @@
 'use client'
 
-import { useState } from 'react'
 import { User } from '@supabase/supabase-js'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 interface SponsorshipSectionProps {
   user: User
 }
 
 export function SponsorshipSection({ user }: SponsorshipSectionProps) {
-  const [loading, setLoading] = useState(false)
-
-  const handleOpenPostHog = async () => {
-    setLoading(true)
-    try {
-      window.open('https://app.posthog.com', '_blank')
-    } catch (error) {
-      console.error('Failed to open PostHog:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -31,10 +18,10 @@ export function SponsorshipSection({ user }: SponsorshipSectionProps) {
       <CardContent className="space-y-4">
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
-            Analytics for Sponsors
+            Sponsor Report
           </h4>
           <p className="text-sm text-blue-700 dark:text-blue-300 mb-4">
-            We use PostHog to track app usage and generate sponsorship reports. 
+            We use PostHog to track app usage and generate sponsorship reports.
             This helps demonstrate engagement to potential sponsors.
           </p>
           <div className="space-y-2 text-sm text-blue-600 dark:text-blue-400">
@@ -66,14 +53,11 @@ export function SponsorshipSection({ user }: SponsorshipSectionProps) {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <Button
-            variant="outline"
-            onClick={handleOpenPostHog}
-            disabled={loading}
-            className="flex-1"
-          >
-            {loading ? 'Opening...' : 'View Analytics Dashboard'}
-          </Button>
+          <Link href="/sponsors" className="flex-1">
+            <Button variant="outline" className="w-full">
+              View Sponsor Report
+            </Button>
+          </Link>
         </div>
 
         <p className="text-xs text-gray-500 dark:text-gray-400 text-center">

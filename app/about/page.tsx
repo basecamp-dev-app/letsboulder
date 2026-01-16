@@ -97,6 +97,8 @@ export default function AboutPage() {
             {' · '}
             <Link href="/terms" className="hover:underline">Terms</Link>
             {' · '}
+            <Link href="/sponsors" className="hover:underline">Sponsors</Link>
+            {' · '}
             <a href="mailto:hello@gsyrocks.com" className="hover:underline">Contact</a>
           </p>
         </div>
