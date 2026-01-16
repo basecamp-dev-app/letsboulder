@@ -53,11 +53,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to submit report' }, { status: 500 })
     }
 
-    const { error: countError } = await supabase.rpc('increment_crag_report_count', { target_crag_id: crag_id })
+    const { data: crag } = await supabase
+      .from('crags')
+      .select('report_count')
+      .eq('id', crag_id)
+      .single()
 
-    if (countError) {
-      console.error('Error incrementing report count:', countError)
-    }
+    const newCount = (crag?.report_count || 0) + 1
+
+    await supabase
+      .from('crags')
+      .update({ report_count: newCount })
+      .eq('id', crag_id)
 
     return NextResponse.json(
       { message: 'Crag reported successfully. Our moderators will review it.' },
