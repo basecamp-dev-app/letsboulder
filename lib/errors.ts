@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 export interface SanitizedErrorResponse {
   error: string
@@ -41,19 +41,21 @@ export function generateErrorId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-export function sanitizeError(error: unknown, context?: string): SanitizedErrorResponse {
+function createErrorJson(error: unknown, context?: string): SanitizedErrorResponse {
   const errorId = generateErrorId()
-  
   console.error(`[${errorId}] ${context || 'Error'}:`, error)
-  
   return {
     error: getErrorMessage(error),
     errorId
   }
 }
 
+export function sanitizeError(error: unknown, context?: string): SanitizedErrorResponse {
+  return createErrorJson(error, context)
+}
+
 export function createErrorResponse(error: unknown, context?: string, status: number = 500): NextResponse {
-  const sanitized = sanitizeError(error, context)
+  const sanitized = createErrorJson(error, context)
   return NextResponse.json(sanitized, { status })
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { createErrorResponse, sanitizeError } from '@/lib/errors'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (error) {
-      return sanitizeError(error, 'Error fetching profile')
+      return createErrorResponse(error, 'Error fetching profile')
     }
 
       return NextResponse.json({
