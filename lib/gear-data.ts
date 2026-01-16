@@ -4,6 +4,7 @@ export interface GearProduct {
   url: string
   category: string
   description: string
+  imagePath?: string
 }
 
 export const CATEGORIES = [
@@ -27,6 +28,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4aWXbeh',
     category: 'Belay Devices',
     description: 'Compact belay device with assisted-braking for 8.9-10.5mm ropes',
+    imagePath: 'petzl-grigri-2.jpg',
   },
   {
     id: 'verso',
@@ -34,6 +36,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/45fzDxx',
     category: 'Belay Devices',
     description: 'Lightweight belay device with anti-panic handle for 8.9-10.5mm ropes',
+    imagePath: 'petzl-verso.jpg',
   },
   {
     id: 'id-l',
@@ -41,6 +44,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/49pEO0r',
     category: 'Belay Devices',
     description: 'Self-braking descender with anti-panic for single ropes 8.9-10.5mm',
+    imagePath: 'petzl-id-l.jpg',
   },
   {
     id: 'reverso',
@@ -48,6 +52,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/45ijYO6',
     category: 'Belay Devices',
     description: 'Versatile belay device for lead climbing and rappelling',
+    imagePath: 'petzl-reverso.jpg',
   },
   {
     id: 'vertex-vent',
@@ -55,6 +60,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/49zEjQc',
     category: 'Harnesses & Helmets',
     description: 'Lightweight ventilated climbing helmet with adjustable fit',
+    imagePath: 'petzl-vertex-vent.jpg',
   },
   {
     id: 'corax-harness',
@@ -65,10 +71,11 @@ export const products: GearProduct[] = [
   },
   {
     id: 'smd-carabiner',
-    name: 'Petzl SM\'D',
+    name: "Petzl SM'D",
     url: 'https://amzn.to/4qUzGHp',
     category: 'Hardware',
     description: 'Compact asymmetrical D-carabiner with screwgate for quickdraws',
+    imagePath: 'petzl-smd-carabiner.jpg',
   },
   {
     id: 'micro-traxion',
@@ -76,6 +83,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4sOgxca',
     category: 'Hardware',
     description: 'Compact rope clamp with pulley for rescue and hauling',
+    imagePath: 'petzl-micro-traxion.jpg',
   },
   {
     id: 'conga-8',
@@ -83,6 +91,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/49GtbAW',
     category: 'Hardware',
     description: 'Ultra-light cordelette pulley for progression systems',
+    imagePath: 'petzl-conga-8.jpg',
   },
   {
     id: 'spirit-express',
@@ -90,6 +99,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4sK5uR8',
     category: 'Hardware',
     description: 'Lightweight quickdraw with Express clips for sport climbing',
+    imagePath: 'petzl-spirit-express.jpg',
   },
   {
     id: 'ouistiti',
@@ -97,6 +107,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3Li2qef',
     category: 'Hardware',
     description: 'Compact belay device designed for children and beginners',
+    imagePath: 'petzl-ouistiti.jpg',
   },
   {
     id: 'rope-9-2mm',
@@ -104,6 +115,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4sJ7WY3',
     category: 'Ropes & Rope Bags',
     description: 'Ultra-lightweight single rope for gym and indoor climbing',
+    imagePath: 'petzl-rope-9-2mm.jpg',
   },
   {
     id: 'psychibag',
@@ -111,6 +123,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3Nq2UQ0',
     category: 'Ropes & Rope Bags',
     description: 'Compact rope bag with tarp for easy rope management',
+    imagePath: 'psychibag.jpg',
   },
   {
     id: 'bug-pack',
@@ -118,6 +131,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4qrc3qd',
     category: 'Ropes & Rope Bags',
     description: 'Lightweight pack with rope tarp for approaches and cragging',
+    imagePath: 'petzl-bug.jpg',
   },
   {
     id: 'tarp',
@@ -125,6 +139,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/45VukU6',
     category: 'Ropes & Rope Bags',
     description: 'Compact tarp for rope protection and gear organization',
+    imagePath: 'petzl-tarp.jpg',
   },
   {
     id: 'circuit-crashpad',
@@ -132,6 +147,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3LKTyOi',
     category: 'Bouldering',
     description: 'Ultralight crash pad with carrying system for bouldering',
+    imagePath: 'black-diamond-circuit.jpg',
   },
   {
     id: 'liquid-chalk',
@@ -139,6 +155,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3NpbWwH',
     category: 'Bouldering',
     description: 'Liquid chalk for superior grip in climbing and fitness',
+    imagePath: 'novu-liquid-chalk.jpg',
   },
   {
     id: 'chalk-block',
@@ -146,6 +163,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/45htbGh',
     category: 'Bouldering',
     description: 'Professional chalk block for enhanced grip and friction',
+    imagePath: 'firstaid4sport-chalk.jpg',
   },
   {
     id: 'climbing-brush',
@@ -153,6 +171,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3LIm9DM',
     category: 'Bouldering',
     description: "Boar's hair brush with built-in skin file for holds",
+    imagePath: 'madu-brush.jpg',
   },
   {
     id: 'tarantula',
@@ -160,6 +179,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4r1lNrc',
     category: 'Footwear',
     description: 'Beginner-friendly climbing shoes with comfortable fit',
+    imagePath: 'la-sportiva-tarantula.jpg',
   },
   {
     id: 'tx4-evo',
@@ -167,6 +187,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4qWlcXC',
     category: 'Footwear',
     description: 'Gore-Tex approach shoes for technical terrain and climbing',
+    imagePath: 'la-sportiva-tx4.jpg',
   },
   {
     id: 'thermos-470ml',
@@ -174,6 +195,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/49nZ82a',
     category: 'Nutrition & Hydration',
     description: 'Stainless steel food flask keeps meals hot for 9 hours',
+    imagePath: 'thermos-470ml.jpg',
   },
   {
     id: 'thermos-1-2l',
@@ -181,6 +203,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3Ze1Y3I',
     category: 'Nutrition & Hydration',
     description: 'Large capacity travel flask keeps drinks hot for 24 hours',
+    imagePath: 'thermos-1-2l.jpg',
   },
   {
     id: 'protein-bars',
@@ -188,6 +211,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4bluAzF',
     category: 'Nutrition & Hydration',
     description: 'Peanut and chocolate protein cereal bars, gluten-free',
+    imagePath: 'nature-valley-bars.jpg',
   },
   {
     id: 'protein-bar-grenade',
@@ -195,6 +219,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4pDwvTl',
     category: 'Nutrition & Hydration',
     description: 'High protein, low sugar protein bar with Oreo flavor',
+    imagePath: 'grenade-protein-bar.jpg',
   },
   {
     id: 'nakd-bars',
@@ -202,6 +227,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3NwZ87n',
     category: 'Nutrition & Hydration',
     description: 'Vegan, gluten-free fruit and nut snack bars',
+    imagePath: 'nakd-bars.jpg',
   },
   {
     id: 'sunscreen',
@@ -209,6 +235,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4qrbSLz',
     category: 'Sun & Skin Care',
     description: 'Invisible fluid sunscreen for sensitive skin, SPF50+',
+    imagePath: 'la-roche-posay-sunscreen.jpg',
   },
   {
     id: 'vaseline',
@@ -216,6 +243,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4pDbg47',
     category: 'Sun & Skin Care',
     description: 'Original pure petroleum jelly for dry skin protection',
+    imagePath: 'vaseline.jpg',
   },
   {
     id: 'cerave',
@@ -223,6 +251,15 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3NwZ2g1',
     category: 'Sun & Skin Care',
     description: 'Face and body cream with ceramides and hyaluronic acid',
+    imagePath: 'cerave.jpg',
+  },
+  {
+    id: 'tacvasen-hoodie',
+    name: 'TACVASEN Hoodie',
+    url: 'https://amzn.to/3LONbJN',
+    category: 'Sun & Skin Care',
+    description: 'UPF 50+ sun protection long sleeve quick dry outdoor hoodie',
+    imagePath: 'tacvasen-hoodie.jpg',
   },
   {
     id: 'clipstick',
@@ -230,6 +267,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/45htsch',
     category: 'Tools & Accessories',
     description: 'Extendable clipstick for clipping bolts and quickdraws',
+    imagePath: 'beta-stick-evo.jpg',
   },
   {
     id: 'cordex-gloves',
@@ -237,6 +275,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4q12SMh',
     category: 'Tools & Accessories',
     description: 'Reinforced belay gloves for durability and grip',
+    imagePath: 'petzl-cordex-gloves.jpg',
   },
   {
     id: 'belay-glasses',
@@ -244,6 +283,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3YHWr5u',
     category: 'Tools & Accessories',
     description: 'Ergonomic belay glasses for comfortable spotting',
+    imagePath: 'belay-glasses.jpg',
   },
   {
     id: 'walkie-talkie',
@@ -251,6 +291,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/49zFlvy',
     category: 'Tools & Accessories',
     description: 'License-free PMR446 two-way radio for outdoor communication',
+    imagePath: 'retevis-rt24.jpg',
   },
   {
     id: 'first-aid-kit',
@@ -258,6 +299,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/49CNa3A',
     category: 'Camping & Safety',
     description: 'Complete first aid kit with emergency blanket and supplies',
+    imagePath: 'first-aid-kit.jpg',
   },
   {
     id: 'jetboil',
@@ -265,6 +307,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3NwZhHX',
     category: 'Camping & Safety',
     description: 'Fast boil stove system for camping and backpacking',
+    imagePath: 'jetboil-flash.jpg',
   },
   {
     id: 'camping-chair',
@@ -272,5 +315,6 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3ZlyG3b',
     category: 'Camping & Safety',
     description: 'Oversized camping chair supporting up to 230kg',
+    imagePath: 'ever-advanced-chair.jpg',
   },
 ]

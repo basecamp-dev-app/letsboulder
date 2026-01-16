@@ -1,13 +1,10 @@
 'use client'
 
+import Image from 'next/image'
 import { GearProduct } from '@/lib/gear-data'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ShieldCheck, HardHat, Link2, Scroll, Mountain, Footprints, CupSoda, Sun, Wrench, Tent } from 'lucide-react'
-
-interface GearCardProps {
-  product: GearProduct
-}
 
 const categoryIcons: Record<string, typeof ShieldCheck> = {
   'Belay Devices': ShieldCheck,
@@ -30,14 +27,24 @@ export default function GearCard({ product }: GearCardProps) {
   const Icon = categoryIcons[product.category] || Wrench
 
   return (
-    <Card className="h-full flex flex-col hover:shadow-md transition-shadow">
-      <CardContent className="p-5 flex flex-col h-full">
-        <div className="mb-4">
-          <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-            <Icon className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+    <Card className="h-full flex flex-col hover:shadow-md transition-shadow overflow-hidden">
+      <div className="aspect-square relative bg-gray-100 dark:bg-gray-800">
+        {product.imagePath ? (
+          <Image
+            src={`/gear/${product.imagePath}`}
+            alt={product.name}
+            fill
+            className="object-cover"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Icon className="w-12 h-12 text-gray-300 dark:text-gray-600" />
           </div>
-        </div>
-        
+        )}
+      </div>
+      
+      <CardContent className="p-5 flex flex-col flex-grow">
         <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
           {product.name}
         </h3>
