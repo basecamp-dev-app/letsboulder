@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
@@ -31,13 +32,12 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return createErrorResponse(error, 'Profile fetch error')
     }
 
     return NextResponse.json(profile)
   } catch (error) {
-    console.error('Profile fetch error:', error)
-    return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 })
+    return createErrorResponse(error, 'Profile fetch error')
   }
 }
 
@@ -129,12 +129,11 @@ export async function PUT(request: NextRequest) {
           suggestions
         }, { status: 409 })
       }
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return createErrorResponse(updateError, 'Profile update error')
     }
 
     return NextResponse.json(updated)
   } catch (error) {
-    console.error('Profile update error:', error)
-    return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 })
+    return createErrorResponse(error, 'Profile update error')
   }
 }

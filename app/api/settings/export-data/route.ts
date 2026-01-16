@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
@@ -60,7 +61,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Export data error:', error)
-    return NextResponse.json({ error: 'Failed to export data' }, { status: 500 })
+    return createErrorResponse(error, 'Export data error')
   }
 }

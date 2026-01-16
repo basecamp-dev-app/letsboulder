@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { jwtVerify } from 'jose'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { createErrorResponse, sanitizeError } from '@/lib/errors'
 
 const DELETE_TOKEN_SECRET = new TextEncoder().encode(
   process.env.DELETE_ACCOUNT_SECRET || 'default-dev-secret-change-in-production'
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     const { payload: verified } = await jwtVerify(token, DELETE_TOKEN_SECRET)
     payload = verified
   } catch (error) {
-    console.error('Token verification failed:', error)
+    sanitizeError(error, 'Token verification failed')
     return NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 })
   }
 
@@ -100,8 +101,7 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
 
     if (profileError) {
-      console.error('Error deleting profile:', profileError)
-      return NextResponse.json({ error: 'Failed to delete profile' }, { status: 500 })
+      return createErrorResponse(profileError, 'Error deleting profile')
     }
 
     await supabase.auth.signOut()
@@ -110,7 +110,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
 
   } catch (error) {
-    console.error('Account deletion error:', error)
-    return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 })
+    return createErrorResponse(error, 'Account deletion error')
   }
 }

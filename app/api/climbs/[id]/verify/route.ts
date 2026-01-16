@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function POST(
   request: NextRequest,
@@ -82,11 +83,7 @@ export async function POST(
       })
 
     if (insertError) {
-      console.error('Error adding verification:', insertError)
-      return NextResponse.json(
-        { error: 'Failed to verify route' },
-        { status: 500 }
-      )
+      return createErrorResponse(insertError, 'Error adding verification')
     }
 
     // Get verification count
@@ -106,11 +103,7 @@ export async function POST(
         : `Verified (${verificationCount}/3 needed for full verification)`
     })
   } catch (error) {
-    console.error('Verification error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Verification error')
   }
 }
 
@@ -156,11 +149,7 @@ export async function DELETE(
       .eq('user_id', user.id)
 
     if (deleteError) {
-      console.error('Error removing verification:', deleteError)
-      return NextResponse.json(
-        { error: 'Failed to remove verification' },
-        { status: 500 }
-      )
+      return createErrorResponse(deleteError, 'Error removing verification')
     }
 
     // Get verification count
@@ -176,10 +165,6 @@ export async function DELETE(
       message: 'Verification removed'
     })
   } catch (error) {
-    console.error('Remove verification error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Remove verification error')
   }
 }

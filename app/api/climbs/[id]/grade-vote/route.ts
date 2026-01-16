@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { createErrorResponse } from '@/lib/errors'
 
 const VALID_GRADES = [
   '5A', '5A+', '5B', '5B+', '5C', '5C+',
@@ -79,11 +80,7 @@ export async function POST(
       })
 
     if (upsertError) {
-      console.error('Error saving grade vote:', upsertError)
-      return NextResponse.json(
-        { error: 'Failed to save grade vote' },
-        { status: 500 }
-      )
+      return createErrorResponse(upsertError, 'Error saving grade vote')
     }
 
     // Get updated vote distribution
@@ -113,11 +110,7 @@ export async function POST(
       message: 'Grade vote recorded'
     })
   } catch (error) {
-    console.error('Grade vote error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Grade vote error')
   }
 }
 
@@ -163,11 +156,7 @@ export async function DELETE(
       .eq('user_id', user.id)
 
     if (deleteError) {
-      console.error('Error removing grade vote:', deleteError)
-      return NextResponse.json(
-        { error: 'Failed to remove grade vote' },
-        { status: 500 }
-      )
+      return createErrorResponse(deleteError, 'Error removing grade vote')
     }
 
     return NextResponse.json({
@@ -175,10 +164,6 @@ export async function DELETE(
       message: 'Grade vote removed'
     })
   } catch (error) {
-    console.error('Remove grade vote error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Remove grade vote error')
   }
 }

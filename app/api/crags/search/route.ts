@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
 
 export const revalidate = 30
 
@@ -39,19 +40,11 @@ export async function GET(request: NextRequest) {
     const { data, error } = await select
 
     if (error) {
-      console.error('Supabase error:', error)
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      )
+      return createErrorResponse(error, 'Supabase error')
     }
 
     return NextResponse.json(data || [])
   } catch (error) {
-    console.error('Error searching crags:', error)
-    return NextResponse.json(
-      { error: 'Failed to search crags' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Error searching crags')
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse, sanitizeError } from '@/lib/errors'
 
 const MAX_ROUTES_PER_DAY = 5
 
@@ -131,8 +132,7 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (imageError) {
-        console.error('Error creating image:', imageError)
-        return NextResponse.json({ error: 'Failed to create image' }, { status: 500 })
+        return createErrorResponse(imageError, 'Error creating image')
       }
 
       imageId = image.id
@@ -178,8 +178,7 @@ export async function POST(request: NextRequest) {
       .select('id, name, grade')
 
     if (climbsError) {
-      console.error('Error creating climbs:', climbsError)
-      return NextResponse.json({ error: 'Failed to create climbs' }, { status: 500 })
+      return createErrorResponse(climbsError, 'Error creating climbs')
     }
 
     if (!climbs || climbs.length === 0) {
@@ -199,8 +198,7 @@ export async function POST(request: NextRequest) {
       .insert(routeLinesData)
 
     if (routeLinesError) {
-      console.error('Error creating route_lines:', routeLinesError)
-      return NextResponse.json({ error: 'Failed to create route lines' }, { status: 500 })
+      return createErrorResponse(routeLinesError, 'Error creating route_lines')
     }
 
     const cragId = body.mode === 'new' ? body.cragId : existingCragId
@@ -216,8 +214,7 @@ export async function POST(request: NextRequest) {
       imageId: imageId || undefined
     })
   } catch (error) {
-    console.error('Submission error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return createErrorResponse(error, 'Submission error')
   }
 }
 
@@ -256,7 +253,7 @@ async function updateCragBoundary(supabase: ReturnType<typeof createServerClient
         .eq('id', cragId)
     }
   } catch (error) {
-    console.error('Failed to update crag boundary:', error)
+    sanitizeError(error, 'Failed to update crag boundary')
   }
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { createErrorResponse } from '@/lib/errors'
 
 const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse'
 
@@ -62,7 +63,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Reverse geocoding error:', error)
-    return NextResponse.json({ error: 'Failed to reverse geocode' }, { status: 500 })
+    return createErrorResponse(error, 'Reverse geocoding error')
   }
 }

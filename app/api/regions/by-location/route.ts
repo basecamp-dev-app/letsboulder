@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { sanitizeError } from '@/lib/errors'
 
 export const runtime = 'edge'
 
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
       center_lon: data.center_lon
     })
   } catch (error) {
-    console.error('Region by location error:', error)
+    sanitizeError(error, 'Region by location error')
     return NextResponse.json(null, { status: 200 })
   }
 }

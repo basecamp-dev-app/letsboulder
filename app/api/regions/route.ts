@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
 
 export const dynamic = 'force-static'
 export const revalidate = 3600
@@ -25,11 +26,7 @@ export async function GET(request: NextRequest) {
       .order('name', { ascending: true })
 
     if (error) {
-      console.error('Error fetching regions:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch regions' },
-        { status: 500 }
-      )
+      return createErrorResponse(error, 'Error fetching regions')
     }
 
     return NextResponse.json(data || [], {
@@ -38,11 +35,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Regions API error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Regions API error')
   }
 }
 
@@ -89,11 +82,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
 
     if (checkError) {
-      console.error('Error checking existing region:', checkError)
-      return NextResponse.json(
-        { error: 'Failed to check for existing region' },
-        { status: 500 }
-      )
+      return createErrorResponse(checkError, 'Error checking existing region')
     }
 
     if (existing && existing.length > 0) {
@@ -118,19 +107,11 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (insertError) {
-      console.error('Error creating region:', insertError)
-      return NextResponse.json(
-        { error: 'Failed to create region' },
-        { status: 500 }
-      )
+      return createErrorResponse(insertError, 'Error creating region')
     }
 
     return NextResponse.json(region, { status: 201 })
   } catch (error) {
-    console.error('Region create error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Region create error')
   }
 }

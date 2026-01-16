@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
 
 export const revalidate = 60
 
@@ -33,19 +34,11 @@ export async function GET(request: NextRequest) {
     const { data, error } = await queryBuilder
 
     if (error) {
-      console.error('Error fetching regions:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch regions' },
-        { status: 500 }
-      )
+      return createErrorResponse(error, 'Error fetching regions')
     }
 
     return NextResponse.json(data || [])
   } catch (error) {
-    console.error('Regions search API error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Regions search API error')
   }
 }

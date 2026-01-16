@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
@@ -67,11 +68,7 @@ export async function GET(request: NextRequest) {
         .single()
 
       if (error) {
-        console.error('Error fetching image:', error)
-        return NextResponse.json(
-          { error: 'Failed to fetch image' },
-          { status: 500 }
-        )
+        return createErrorResponse(error, 'Error fetching image')
       }
 
       const routeLines = includeRoutes && image.route_lines
@@ -117,11 +114,7 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1)
 
     if (error) {
-      console.error('Error fetching images:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch images' },
-        { status: 500 }
-      )
+      return createErrorResponse(error, 'Error fetching images')
     }
 
     const formatted = (data || []).map((img: Record<string, unknown>) => ({
@@ -138,10 +131,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(formatted)
   } catch (error) {
-    console.error('Images search API error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Images search API error')
   }
 }

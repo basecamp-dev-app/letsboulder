@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { createErrorResponse, sanitizeError } from '@/lib/errors'
 
 export async function POST(request: NextRequest) {
   if (process.env.DEV_PASSWORD_AUTH !== 'true') {
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
   const devPassword = process.env.DEV_USER_PASSWORD
 
   if (!devEmail || !devPassword) {
-    console.error('Dev credentials not configured')
+    sanitizeError(new Error('Dev credentials not configured'), 'Dev credentials not configured')
     return NextResponse.json({ error: 'Dev auth misconfigured' }, { status: 500 })
   }
 
@@ -39,8 +40,8 @@ export async function POST(request: NextRequest) {
     }
   } catch (signInError: unknown) {
     if (signInError instanceof Error && signInError.message !== 'Invalid login credentials') {
-      console.error('Dev signin error:', signInError)
-      return NextResponse.json({ error: signInError.message }, { status: 500 })
+      sanitizeError(signInError, 'Dev signin error')
+      return createErrorResponse(signInError, 'Dev signin error')
     }
   }
 
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
         const url = new URL('/', request.nextUrl.origin)
         return NextResponse.redirect(url)
       }
-      return NextResponse.json({ error: signUpError.message }, { status: 500 })
+      return createErrorResponse(signUpError, 'Dev signup error')
     }
 
     if (signUpData.user) {
@@ -73,9 +74,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(url)
     }
   } catch (err: unknown) {
-    console.error('Dev signup error:', err)
-    const errorMessage = err instanceof Error ? err.message : 'Failed to create dev user'
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    sanitizeError(err, 'Dev signup error')
+    return createErrorResponse(err, 'Dev signup error')
   }
 
   return NextResponse.json({ error: 'Authentication failed' }, { status: 500 })

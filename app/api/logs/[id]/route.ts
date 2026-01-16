@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function DELETE(
   request: NextRequest,
@@ -33,12 +34,11 @@ export async function DELETE(
       .eq('user_id', user.id)
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return createErrorResponse(error, 'Delete log error')
     }
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Delete log error:', error)
-    return NextResponse.json({ error: 'Failed to delete log' }, { status: 500 })
+    return createErrorResponse(error, 'Delete log error')
   }
 }

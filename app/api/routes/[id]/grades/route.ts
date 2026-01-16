@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function GET(
   request: NextRequest,
@@ -29,8 +30,7 @@ export async function GET(
       .single()
     
     if (routeError && routeError.code !== 'PGRST116') {
-      console.error('Route fetch error:', routeError)
-      return NextResponse.json({ error: 'Failed to fetch route' }, { status: 500 })
+      return createErrorResponse(routeError, 'Route fetch error')
     }
     
     let userVote = null
@@ -77,8 +77,7 @@ export async function GET(
       distribution: gradeDistribution
     })
   } catch (error) {
-    console.error('Grades API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return createErrorResponse(error, 'Grades API error')
   }
 }
 
@@ -137,13 +136,11 @@ export async function POST(
       })
     
     if (upsertError) {
-      console.error('Grade upsert error:', upsertError)
-      return NextResponse.json({ error: 'Failed to save grade' }, { status: 500 })
+      return createErrorResponse(upsertError, 'Grade upsert error')
     }
     
     return NextResponse.json({ success: true, grade })
   } catch (error) {
-    console.error('Grade submission error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return createErrorResponse(error, 'Grade submission error')
   }
 }

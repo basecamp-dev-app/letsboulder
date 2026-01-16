@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { SignJWT } from 'jose'
 import { Resend } from 'resend'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { createErrorResponse } from '@/lib/errors'
 
 const DELETE_TOKEN_SECRET = new TextEncoder().encode(
   process.env.DELETE_ACCOUNT_SECRET || 'default-dev-secret-change-in-production'
@@ -69,7 +70,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
 
   } catch (error) {
-    console.error('Initiate delete error:', error)
-    return NextResponse.json({ error: 'Failed to initiate deletion' }, { status: 500 })
+    return createErrorResponse(error, 'Initiate delete error')
   }
 }

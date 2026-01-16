@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function GET(
   request: NextRequest,
@@ -145,11 +146,7 @@ export async function GET(
       pending_corrections: pendingCorrections
     })
   } catch (error) {
-    console.error('Get climb status error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Get climb status error')
   }
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse, sanitizeError } from '@/lib/errors'
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
@@ -29,8 +30,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('Error fetching profile:', error)
-      return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 })
+      return sanitizeError(error, 'Error fetching profile')
     }
 
       return NextResponse.json({
@@ -54,8 +54,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Settings GET error:', error)
-    return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 })
+    return createErrorResponse(error, 'Settings GET error')
   }
 }
 
@@ -106,18 +105,12 @@ export async function PUT(request: NextRequest) {
       .upsert({ ...updateData, id: user.id })
     
     if (upsertError) {
-      console.error('UPSERT error:', JSON.stringify(upsertError, null, 2))
-      return NextResponse.json({ 
-        error: 'Failed to update settings',
-        details: upsertError.message,
-        code: upsertError.code
-      }, { status: 500 })
+      return createErrorResponse(upsertError, 'UPSERT error')
     }
 
     return NextResponse.json({ success: true })
 
   } catch (error) {
-    console.error('Settings PUT error:', error)
-    return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 })
+    return createErrorResponse(error, 'Settings PUT error')
   }
 }

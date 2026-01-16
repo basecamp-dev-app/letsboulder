@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
 
 interface ReportCragRequest {
   crag_id: string
@@ -49,8 +50,7 @@ export async function POST(request: NextRequest) {
       })
 
     if (reportError) {
-      console.error('Error creating report:', reportError)
-      return NextResponse.json({ error: 'Failed to submit report' }, { status: 500 })
+      return createErrorResponse(reportError, 'Error creating report')
     }
 
     const { data: crag } = await supabase
@@ -71,10 +71,6 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
-    console.error('Error reporting crag:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to report crag' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Error reporting crag')
   }
 }

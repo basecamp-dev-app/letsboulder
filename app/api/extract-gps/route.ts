@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import exifr from 'exifr'
 import { validateImageSignature } from '@/lib/file-validation'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function POST(request: NextRequest) {
   try {
@@ -80,7 +81,6 @@ export async function POST(request: NextRequest) {
       altitude: exifData.altitude
     })
   } catch (error) {
-    console.error('GPS extraction error:', error)
-    return NextResponse.json({ error: 'Failed to extract GPS data' }, { status: 500 })
+    return createErrorResponse(error, 'GPS extraction error')
   }
 }

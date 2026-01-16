@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function POST(request: NextRequest) {
   const cookies = request.cookies
@@ -47,8 +48,7 @@ export async function POST(request: NextRequest) {
       .upsert(logs, { onConflict: 'user_id,climb_id' })
 
     if (error) {
-      console.error('Failed to log climbs:', error)
-      return NextResponse.json({ error: 'Failed to log climbs' }, { status: 500 })
+      return createErrorResponse(error, 'Failed to log climbs')
     }
 
     return NextResponse.json({
@@ -58,7 +58,6 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Log routes error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return createErrorResponse(error, 'Log routes error')
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
 
 const MAX_ROUTES_PER_DAY = 5
 
@@ -95,8 +96,7 @@ export async function POST(request: NextRequest) {
       })
 
     if (insertError) {
-      console.error('Route insert error:', insertError)
-      return NextResponse.json({ error: 'Failed to save route' }, { status: 500 })
+      return createErrorResponse(insertError, 'Route insert error')
     }
 
     return NextResponse.json({
@@ -105,8 +105,7 @@ export async function POST(request: NextRequest) {
       message: 'Route submitted for review. You will receive an email when it is approved.'
     })
   } catch (error) {
-    console.error('Route submission error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return createErrorResponse(error, 'Route submission error')
   }
 }
 

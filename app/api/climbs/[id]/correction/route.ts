@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { createErrorResponse } from '@/lib/errors'
 
 const VALID_CORRECTION_TYPES = ['location', 'name', 'line', 'grade']
 
@@ -107,11 +108,7 @@ export async function POST(
       .single()
 
     if (insertError) {
-      console.error('Error creating correction:', insertError)
-      return NextResponse.json(
-        { error: 'Failed to create correction' },
-        { status: 500 }
-      )
+      return createErrorResponse(insertError, 'Error creating correction')
     }
 
     return NextResponse.json({
@@ -127,11 +124,7 @@ export async function POST(
       message: 'Correction submitted. Community will review and approve/reject.'
     })
   } catch (error) {
-    console.error('Correction error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Correction error')
   }
 }
 
@@ -175,11 +168,7 @@ export async function GET(
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching corrections:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch corrections' },
-        { status: 500 }
-      )
+      return createErrorResponse(error, 'Error fetching corrections')
     }
 
     return NextResponse.json({
@@ -187,10 +176,6 @@ export async function GET(
       count: corrections?.length || 0
     })
   } catch (error) {
-    console.error('Get corrections error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Get corrections error')
   }
 }

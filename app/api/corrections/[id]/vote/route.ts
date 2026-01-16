@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function POST(
   request: NextRequest,
@@ -98,11 +99,7 @@ export async function POST(
         .eq('user_id', user.id)
 
       if (updateError) {
-        console.error('Error updating vote:', updateError)
-        return NextResponse.json(
-          { error: 'Failed to update vote' },
-          { status: 500 }
-        )
+        return createErrorResponse(updateError, 'Error updating vote')
       }
 
       // Update correction counts
@@ -165,11 +162,7 @@ export async function POST(
       })
 
     if (insertError) {
-      console.error('Error adding vote:', insertError)
-      return NextResponse.json(
-        { error: 'Failed to record vote' },
-        { status: 500 }
-      )
+      return createErrorResponse(insertError, 'Error adding vote')
     }
 
     // Get updated counts
@@ -220,11 +213,7 @@ export async function POST(
       message
     })
   } catch (error) {
-    console.error('Correction vote error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Correction vote error')
   }
 }
 
@@ -326,11 +315,7 @@ export async function DELETE(
       .eq('user_id', user.id)
 
     if (deleteError) {
-      console.error('Error removing vote:', deleteError)
-      return NextResponse.json(
-        { error: 'Failed to remove vote' },
-        { status: 500 }
-      )
+      return createErrorResponse(deleteError, 'Error removing vote')
     }
 
     // Update counts
@@ -355,10 +340,6 @@ export async function DELETE(
       message: 'Vote removed'
     })
   } catch (error) {
-    console.error('Remove vote error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Remove vote error')
   }
 }

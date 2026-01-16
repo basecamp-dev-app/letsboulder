@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { rateLimit, RATE_LIMITS, createRateLimitResponse } from '@/lib/rate-limit'
+import { createErrorResponse } from '@/lib/errors'
 
 interface CreateCragRequest {
   name: string
@@ -109,19 +110,11 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (createError) {
-      console.error('Error creating crag:', createError)
-      return NextResponse.json(
-        { error: createError.message },
-        { status: 500 }
-      )
+      return createErrorResponse(createError, 'Error creating crag')
     }
 
     return NextResponse.json(createdCrag, { status: 201 })
   } catch (error) {
-    console.error('Error creating crag:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create crag' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Error creating crag')
   }
 }

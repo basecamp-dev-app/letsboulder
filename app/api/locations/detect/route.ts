@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { createErrorResponse } from '@/lib/errors'
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,11 +46,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Geocoding error:', error)
-    return NextResponse.json(
-      { error: 'Failed to detect location' },
-      { status: 500 }
-    )
+    return createErrorResponse(error, 'Geocoding error')
   }
 }
 

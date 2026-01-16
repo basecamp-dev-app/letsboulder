@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getGradePoints, getGradeFromPoints, FLASH_BONUS } from '@/lib/grades'
+import { createErrorResponse } from '@/lib/errors'
 
 export const revalidate = 60
 
@@ -70,8 +71,7 @@ export async function GET(request: NextRequest) {
     const { data: userClimbs, error } = await query
 
     if (error) {
-      console.error('Query error:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return createErrorResponse(error, 'Query error')
     }
 
     let filteredClimbs = userClimbs || []
@@ -171,7 +171,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Leaderboard error:', error)
-    return NextResponse.json({ error: 'Failed to fetch leaderboard' }, { status: 500 })
+    return createErrorResponse(error, 'Leaderboard error')
   }
 }
