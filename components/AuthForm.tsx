@@ -5,9 +5,6 @@ import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-const DEV_USER_EMAIL = 'dev@gsyrocks.com'
-const DEV_USER_PASSWORD = 'devpassword123'
-
 export default function AuthForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -33,54 +30,23 @@ export default function AuthForm() {
   const handleDevAutoLogin = async () => {
     setDevLoading(true)
     setError(null)
-    const supabase = createClient()
 
     try {
-      const { data: existingUser } = await supabase.auth.signInWithPassword({
-        email: DEV_USER_EMAIL,
-        password: DEV_USER_PASSWORD,
+      const response = await fetch('/api/dev-auth', {
+        method: 'POST',
       })
 
-      if (existingUser.user) {
-        router.push('/')
-        return
-      }
-    } catch (signInError: any) {
-      if (signInError.message !== 'Invalid login credentials') {
-        setError(signInError.message)
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Dev authentication failed')
         setDevLoading(false)
         return
       }
-    }
-
-    try {
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: DEV_USER_EMAIL,
-        password: DEV_USER_PASSWORD,
-      })
-
-      if (signUpError) {
-        if (signUpError.message.includes('already registered')) {
-          const { error: reauthError } = await supabase.auth.signInWithPassword({
-            email: DEV_USER_EMAIL,
-            password: DEV_USER_PASSWORD,
-          })
-          if (reauthError) {
-            setError('Dev user exists but password differs. Try resetting password or use different dev email.')
-          } else {
-            router.push('/')
-          }
-        } else {
-          setError(signUpError.message)
-        }
-      } else if (signUpData.user) {
-        router.push('/')
-      }
     } catch (err: any) {
-      setError(err.message || 'Failed to create dev user')
+      setError(err.message || 'Failed to authenticate')
+      setDevLoading(false)
     }
-
-    setDevLoading(false)
   }
 
   const handleMagicLink = async (e: React.FormEvent) => {
@@ -204,7 +170,7 @@ export default function AuthForm() {
               </button>
 
               <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-6">
-                Creates/uses: {DEV_USER_EMAIL}
+                Dev user authentication
               </p>
 
               {error && (
