@@ -23,6 +23,20 @@ function AuthCallbackContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const attemptCountRef = useRef(0)
 
+  const validateRedirect = (path: string | null): string => {
+    const allowedPaths = ['/', '/map', '/logbook', '/leaderboard', '/settings', '/submit', '/upload-climb']
+
+    if (!path) return '/map'
+
+    if (/^(https?:)?\/\//i.test(path) || path.includes('..') || path.includes('//')) {
+      return '/map'
+    }
+
+    const isAllowed = allowedPaths.some(allowed => path === allowed || path.startsWith(allowed + '/'))
+
+    return isAllowed ? path : '/map'
+  }
+
   useEffect(() => {
     const TIMEOUT_MS = 10000
     const RETRY_INTERVAL_MS = 500
@@ -75,7 +89,7 @@ function AuthCallbackContent() {
 
       if (hasSession) {
         setStatus('success')
-        const redirectTo = searchParams.get('redirect_to') || '/map'
+        const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         console.log(`Callback: redirecting to ${redirectTo}`)
         router.push(redirectTo)
       } else {
@@ -147,7 +161,7 @@ function AuthCallbackContent() {
 
       if (hasSession) {
         setStatus('success')
-        const redirectTo = searchParams.get('redirect_to') || '/map'
+        const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         router.push(redirectTo)
       } else {
         setStatus('error')
