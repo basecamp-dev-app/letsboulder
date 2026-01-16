@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { geoJsonPolygonToLeaflet, getPolygonCenter, GeoJSONPolygon } from '@/lib/geo-utils'
@@ -296,12 +297,14 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
                   }}
                 >
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
-                    <img
-                      src={image.url}
-                      alt="Routes"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                      <Image
+                        src={image.url}
+                        alt="Routes"
+                        fill
+                        className="object-cover"
+                        sizes="160px"
+                      />
+                    </div>
                   <p className="font-semibold text-sm text-gray-900">
                     {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
                   </p>
@@ -378,10 +381,12 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
                     className="block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                   >
                     <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
-                      <img
+                      <Image
                         src={image.url}
                         alt="Route image"
-                        className="absolute inset-0 w-full h-full object-cover"
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 33vw, 25vw"
                       />
                       <div className="absolute bottom-2 right-2 bg-gray-900/80 text-white text-xs px-2 py-1 rounded-full">
                         {image.route_lines.length} routes
