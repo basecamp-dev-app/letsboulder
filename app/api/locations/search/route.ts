@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search'
 
+export const runtime = 'edge'
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const query = searchParams.get('q')
@@ -41,7 +43,11 @@ export async function GET(request: NextRequest) {
       },
     }))
 
-    return NextResponse.json({ results })
+    return NextResponse.json({ results }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+      },
+    })
   } catch (error) {
     console.error('Location search error:', error)
     return NextResponse.json({ error: 'Failed to search locations' }, { status: 500 })

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+export const dynamic = 'force-static'
+export const revalidate = 3600
+
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
   
@@ -29,7 +32,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json(data || [])
+    return NextResponse.json(data || [], {
+      headers: {
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+      },
+    })
   } catch (error) {
     console.error('Regions API error:', error)
     return NextResponse.json(

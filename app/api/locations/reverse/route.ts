@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse'
 
+export const runtime = 'edge'
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const lat = searchParams.get('lat')
@@ -47,7 +49,11 @@ export async function GET(request: NextRequest) {
       },
     }
 
-    return NextResponse.json(result)
+    return NextResponse.json(result, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
+      },
+    })
   } catch (error) {
     console.error('Reverse geocoding error:', error)
     return NextResponse.json({ error: 'Failed to reverse geocode' }, { status: 500 })

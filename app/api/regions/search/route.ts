@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+export const revalidate = 60
+
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
   const { searchParams } = new URL(request.url)

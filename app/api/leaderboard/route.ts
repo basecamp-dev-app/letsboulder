@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getGradePoints, getGradeFromPoints, FLASH_BONUS } from '@/lib/grades'
 
+export const revalidate = 60
+
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
   const searchParams = request.nextUrl.searchParams
@@ -164,6 +166,10 @@ export async function GET(request: NextRequest) {
         limit,
         total_users: totalUsers,
         total_pages: Math.ceil(totalUsers / limit),
+      },
+    }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
       },
     })
   } catch (error) {
