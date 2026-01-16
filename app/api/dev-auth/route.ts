@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   if (process.env.DEV_PASSWORD_AUTH !== 'true') {
     return NextResponse.json({ error: 'Dev auth disabled' }, { status: 403 })
+  }
+
+  const rateLimitResult = rateLimit(request, 'strict')
+  const rateLimitResponse = createRateLimitResponse(rateLimitResult)
+  if (!rateLimitResult.success) {
+    return rateLimitResponse
   }
 
   const devEmail = process.env.DEV_USER_EMAIL

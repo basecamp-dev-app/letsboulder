@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search'
 
@@ -10,6 +11,12 @@ export async function GET(request: NextRequest) {
 
   if (!query || query.trim().length < 2) {
     return NextResponse.json({ error: 'Query must be at least 2 characters' }, { status: 400 })
+  }
+
+  const rateLimitResult = rateLimit(request, 'externalApi')
+  const rateLimitResponse = createRateLimitResponse(rateLimitResult)
+  if (!rateLimitResult.success) {
+    return rateLimitResponse
   }
 
   try {

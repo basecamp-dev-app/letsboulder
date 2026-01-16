@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
 const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse'
 
@@ -18,6 +19,12 @@ export async function GET(request: NextRequest) {
 
   if (isNaN(latNum) || isNaN(lngNum) || latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
     return NextResponse.json({ error: 'Invalid coordinates' }, { status: 400 })
+  }
+
+  const rateLimitResult = rateLimit(request, 'externalApi')
+  const rateLimitResponse = createRateLimitResponse(rateLimitResult)
+  if (!rateLimitResult.success) {
+    return rateLimitResponse
   }
 
   try {

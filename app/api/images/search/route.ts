@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
+
+  const rateLimitResult = rateLimit(request, 'publicSearch')
+  const rateLimitResponse = createRateLimitResponse(rateLimitResult)
+  if (!rateLimitResult.success) {
+    return rateLimitResponse
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

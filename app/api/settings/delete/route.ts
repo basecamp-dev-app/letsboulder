@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { jwtVerify } from 'jose'
+import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
 const DELETE_TOKEN_SECRET = new TextEncoder().encode(
   process.env.DELETE_ACCOUNT_SECRET || 'default-dev-secret-change-in-production'
@@ -44,6 +45,12 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const rateLimitResult = rateLimit(request, 'sensitive', user.id)
+    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
+    if (!rateLimitResult.success) {
+      return rateLimitResponse
     }
 
     if (user.id !== payload.userId) {

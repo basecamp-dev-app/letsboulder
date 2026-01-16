@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { rateLimit, RATE_LIMITS, createRateLimitResponse } from '@/lib/rate-limit'
 
 interface CreateCragRequest {
   name: string
@@ -11,6 +12,10 @@ interface CreateCragRequest {
   type?: 'sport' | 'boulder' | 'trad' | 'mixed'
   description?: string
   access_notes?: string
+}
+
+export async function GET() {
+  return NextResponse.json({ message: 'Crags endpoint', method: 'POST', rate_limit: `${RATE_LIMITS.authenticatedWrite.maxRequests} per ${RATE_LIMITS.authenticatedWrite.windowMs / 60000} hours` })
 }
 
 export async function POST(request: NextRequest) {
@@ -31,6 +36,12 @@ export async function POST(request: NextRequest) {
 
     const body: CreateCragRequest = await request.json()
     const { name, latitude, longitude, region_id, region_name, rock_type, type, description, access_notes } = body
+
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user?.id)
+    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
+    if (!rateLimitResult.success) {
+      return rateLimitResponse
+    }
 
     if (!name || !latitude || !longitude) {
       return NextResponse.json(

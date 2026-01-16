@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,6 +10,12 @@ export async function POST(request: NextRequest) {
         { error: 'Missing latitude or longitude' },
         { status: 400 }
       )
+    }
+
+    const rateLimitResult = rateLimit(request, 'externalApi')
+    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
+    if (!rateLimitResult.success) {
+      return rateLimitResponse
     }
 
     // Use Nominatim for reverse geocoding (free, no API key required)
