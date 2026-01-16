@@ -1,11 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { jwtVerify } from 'jose'
 
-export async function DELETE(request: NextRequest) {
-  const cookies = request.cookies
+const DELETE_TOKEN_SECRET = new TextEncoder().encode(
+  process.env.DELETE_ACCOUNT_SECRET || 'default-dev-secret-change-in-production'
+)
+
+export async function POST(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const deleteRouteUploads = searchParams.get('delete_route_uploads') === 'true'
+  const token = searchParams.get('token')
 
+  if (!token) {
+    return NextResponse.json({ error: 'Missing confirmation token' }, { status: 400 })
+  }
+
+  let payload
+  try {
+    const { payload: verified } = await jwtVerify(token, DELETE_TOKEN_SECRET)
+    payload = verified
+  } catch (error) {
+    console.error('Token verification failed:', error)
+    return NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 })
+  }
+
+  if (payload.action !== 'delete-account') {
+    return NextResponse.json({ error: 'Invalid token purpose' }, { status: 400 })
+  }
+
+  const cookies = request.cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -24,7 +46,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (deleteRouteUploads) {
+    if (user.id !== payload.userId) {
+      return NextResponse.json({ error: 'Token does not match user' }, { status: 403 })
+    }
+
+    if (payload.deleteRouteUploads) {
       const { data: files } = await supabase.storage
         .from('route-uploads')
         .list(user.id, { limit: 1000 })
@@ -53,7 +79,7 @@ export async function DELETE(request: NextRequest) {
     await supabase.from('grade_votes').delete().eq('user_id', user.id)
     await supabase.from('route_grades').delete().eq('user_id', user.id)
 
-    if (deleteRouteUploads) {
+    if (payload.deleteRouteUploads) {
       await supabase.from('images').delete().eq('created_by', user.id)
       await supabase.from('climbs').delete().eq('user_id', user.id)
     } else {
