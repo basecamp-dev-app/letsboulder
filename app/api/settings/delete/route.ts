@@ -3,12 +3,16 @@ import { createServerClient } from '@supabase/ssr'
 import { jwtVerify } from 'jose'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse, sanitizeError } from '@/lib/errors'
+import { withCsrfProtection } from '@/lib/csrf-server'
 
 const DELETE_TOKEN_SECRET = new TextEncoder().encode(
   process.env.DELETE_ACCOUNT_SECRET || 'default-dev-secret-change-in-production'
 )
 
 export async function POST(request: NextRequest) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
   const { searchParams } = new URL(request.url)
   const token = searchParams.get('token')
 

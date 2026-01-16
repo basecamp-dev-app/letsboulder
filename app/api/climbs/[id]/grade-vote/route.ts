@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
+import { withCsrfProtection } from '@/lib/csrf-server'
 
 const VALID_GRADES = [
   '5A', '5A+', '5B', '5B+', '5C', '5C+',
@@ -15,6 +16,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
   const cookies = request.cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -118,6 +122,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
   const cookies = request.cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

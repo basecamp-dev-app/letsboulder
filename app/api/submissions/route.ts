@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse, sanitizeError } from '@/lib/errors'
+import { withCsrfProtection } from '@/lib/csrf-server'
 
 const MAX_ROUTES_PER_DAY = 5
 
@@ -46,6 +47,9 @@ interface RoutePoint {
 type SubmissionRequest = NewImageSubmission | ExistingImageSubmission
 
 export async function POST(request: NextRequest) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
   const cookies = request.cookies
   
   const supabase = createServerClient(

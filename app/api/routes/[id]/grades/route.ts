@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
+import { withCsrfProtection } from '@/lib/csrf-server'
 
 export async function GET(
   request: NextRequest,
@@ -85,6 +86,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
   const { id: routeId } = await params
   const cookies = request.cookies
 

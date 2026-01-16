@@ -4,6 +4,7 @@ import { SignJWT } from 'jose'
 import { Resend } from 'resend'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
+import { withCsrfProtection } from '@/lib/csrf-server'
 
 const DELETE_TOKEN_SECRET = new TextEncoder().encode(
   process.env.DELETE_ACCOUNT_SECRET || 'default-dev-secret-change-in-production'
@@ -11,6 +12,9 @@ const DELETE_TOKEN_SECRET = new TextEncoder().encode(
 const DELETE_TOKEN_EXPIRY = 10 * 60 * 1000
 
 export async function POST(request: NextRequest) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
   const cookies = request.cookies
   const { searchParams } = new URL(request.url)
   const deleteRouteUploads = searchParams.get('delete_route_uploads') === 'true'
