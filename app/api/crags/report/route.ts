@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
 interface ReportCragRequest {
   crag_id: string
@@ -6,7 +7,21 @@ interface ReportCragRequest {
 }
 
 export async function POST(request: NextRequest) {
+  const cookies = request.cookies
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll() { return cookies.getAll() }, setAll() {} } }
+  )
+
   try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     const body: ReportCragRequest = await request.json()
     const { crag_id, reason } = body
 
@@ -24,53 +39,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const { error: reportError } = await supabase
+      .from('crag_reports')
+      .insert({
+        crag_id,
+        reason,
+        status: 'pending',
+        reporter_id: user.id,
+      })
 
-    // Create the report
-    const response = await fetch(
-      `${supabaseUrl}/rest/v1/crag_reports`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify({
-          crag_id,
-          reason,
-          status: 'pending',
-        }),
-      }
-    )
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Error creating report:', errorText)
-      return NextResponse.json(
-        { error: 'Failed to submit report' },
-        { status: 500 }
-      )
+    if (reportError) {
+      console.error('Error creating report:', reportError)
+      return NextResponse.json({ error: 'Failed to submit report' }, { status: 500 })
     }
 
-    // Increment report count on crag
-    const updateResponse = await fetch(
-      `${supabaseUrl}/rest/v1/crags?id=eq.${crag_id}`,
-      {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify({
-          report_count: 1,
-        }),
-      }
-    )
+    const { error: countError } = await supabase.rpc('increment_crag_report_count', { target_crag_id: crag_id })
+
+    if (countError) {
+      console.error('Error incrementing report count:', countError)
+    }
 
     return NextResponse.json(
       { message: 'Crag reported successfully. Our moderators will review it.' },
