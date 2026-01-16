@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import nextDynamic from 'next/dynamic'
 import type { SubmissionStep, Region, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData } from '@/lib/submission-types'
+import { trackRouteSubmitted } from '@/lib/posthog'
 
 const dynamic = nextDynamic
 
@@ -243,6 +244,9 @@ function SubmitPageContent() {
       }
 
       const data = await response.json()
+
+      trackRouteSubmitted(data.climbsCreated)
+
       setStep({ 
         step: 'success', 
         climbsCreated: data.climbsCreated,

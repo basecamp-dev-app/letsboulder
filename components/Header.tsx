@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
+import { trackSearchPerformed, trackSearchResultClicked } from '@/lib/posthog'
 
 interface SearchResult {
   type: 'crag' | 'climb'
@@ -126,6 +127,7 @@ export default function Header() {
     }
 
     setSearchResults(results)
+    trackSearchPerformed(query, results.length)
     setIsSearching(false)
   }, [])
 
@@ -139,6 +141,7 @@ export default function Header() {
   const handleResultClick = (result: SearchResult) => {
     setShowSearchDropdown(false)
     setSearchQuery('')
+    trackSearchResultClicked(result.id, result.type, result.name)
     if (result.type === 'climb' && result.latitude && result.longitude) {
       router.push(`/map?lat=${result.latitude}&lng=${result.longitude}&zoom=16&climbId=${result.id}`)
     } else if (result.latitude && result.longitude) {

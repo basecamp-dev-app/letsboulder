@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Lock, ArrowLeft } from 'lucide-react'
+import ProfileViewTracker from './components/ProfileViewTracker'
 
 interface PublicLogbookPageProps {
   params: Promise<{ userId: string }>
@@ -213,11 +214,14 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
   const logs = await getPublicLogs(userId)
 
   return (
-    <LogbookView
-      userId={userId}
-      isOwnProfile={false}
-      initialLogs={logs}
-      profile={profile}
-    />
+    <>
+      <ProfileViewTracker />
+      <LogbookView
+        userId={userId}
+        isOwnProfile={false}
+        initialLogs={logs}
+        profile={profile}
+      />
+    </>
   )
 }

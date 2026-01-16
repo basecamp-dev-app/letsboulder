@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import LocationConfirmModal from '@/components/LocationConfirmModal'
+import { trackUploadStarted, trackUploadCompleted } from '@/lib/posthog'
 
 async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeight: number): Promise<File> {
   return new Promise((resolve, reject) => {
@@ -351,7 +352,8 @@ export default function UploadForm() {
 
     setFile(fileToProcess)
 
-    // Start compression
+    trackUploadStarted('new')
+
     await compressImage(fileToProcess)
   }
 
@@ -439,6 +441,8 @@ export default function UploadForm() {
       setUploadedImageUrl(publicUrl)
       setShowLocationConfirm(true)
       setUploading(false)
+
+      trackUploadCompleted(data.path, 0)
 
     } catch (err) {
       console.error('Upload error:', err)

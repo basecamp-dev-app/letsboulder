@@ -9,6 +9,7 @@ import { RoutePoint } from '@/lib/useRouteSelection'
 import { geoJsonPolygonToLeaflet } from '@/lib/geo-utils'
 
 import 'leaflet/dist/leaflet.css'
+import { trackEvent, trackRouteClicked } from '@/lib/posthog'
 
 delete (L.Icon.Default.prototype as any)._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -368,6 +369,10 @@ export default function SatelliteClimbingMap() {
         scrollWheelZoom={true}
         whenReady={() => {
           setMapLoaded(true)
+          trackEvent('map_viewed', {
+            has_user_location: !!userLocation,
+            use_default_location: !useUserLocation,
+          })
           setTimeout(() => {
             if (mapRef.current) {
               if (useUserLocation && userLocation) {
@@ -458,7 +463,7 @@ export default function SatelliteClimbingMap() {
             eventHandlers={{
               click: (e: L.LeafletMouseEvent) => {
                 e.originalEvent.stopPropagation()
-                // Navigate to image page
+                trackRouteClicked(image.id, `${image.route_lines.length} routes`)
                 window.location.href = `/image/${image.id}`
               },
             }}

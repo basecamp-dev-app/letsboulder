@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { trackEvent } from '@/lib/posthog'
 
 interface LeaderboardEntry {
   rank: number
@@ -62,6 +63,13 @@ export default function LeaderboardPage() {
       if (response.ok) {
         setLeaderboard(data.leaderboard)
         setPagination(data.pagination)
+
+        trackEvent('leaderboard_viewed', {
+          gender,
+          country,
+          page,
+          total_users: data.pagination.total_users,
+        })
       }
     } catch (error) {
       console.error('Failed to fetch leaderboard:', error)
@@ -147,6 +155,11 @@ export default function LeaderboardPage() {
                 <button
                   key={option.value}
                   onClick={() => {
+                    trackEvent('leaderboard_filter_changed', {
+                      filter_type: 'gender',
+                      old_value: gender,
+                      new_value: option.value,
+                    })
                     setGender(option.value)
                     setPage(1)
                   }}
@@ -163,6 +176,11 @@ export default function LeaderboardPage() {
             <select
               value={country}
               onChange={(e) => {
+                trackEvent('leaderboard_filter_changed', {
+                  filter_type: 'country',
+                  old_value: country,
+                  new_value: e.target.value,
+                })
                 setCountry(e.target.value)
                 setPage(1)
               }}

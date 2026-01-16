@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import GradeVoting from '@/components/GradeVoting'
 import CorrectionSection from '@/components/CorrectionSection'
 import type { ClimbStatusResponse } from '@/lib/verification-types'
+import { trackEvent, trackClimbLogged } from '@/lib/posthog'
 
 interface ImageRoute {
   id: string
@@ -231,6 +232,13 @@ export default function ImagePage() {
         setCragId(imageData.crag_id)
         setCragName(cragName || null)
 
+        trackEvent('route_image_viewed', {
+          image_id: imageId,
+          route_count: formattedRoutes.length,
+          has_crag: !!imageData.crag_id,
+          crag_name: cragName,
+        })
+
         const { data: { user } } = await supabase.auth.getUser()
         if (user && formattedRoutes.length > 0) {
           const climbIds = formattedRoutes.map(r => r.climb?.id).filter((id): id is string => id != null)
@@ -333,6 +341,14 @@ export default function ImagePage() {
       })
 
       if (!response.ok) throw new Error('Failed to log')
+
+      const route = image?.route_lines.find(r => r.climb?.id === climbId)
+      trackClimbLogged(
+        climbId,
+        route?.climb?.name || 'Unknown',
+        route?.climb?.grade || 'Unknown',
+        style
+      )
 
       setUserLogs(prev => ({ ...prev, [climbId]: style }))
       setToast(`Route logged as ${style}!`)

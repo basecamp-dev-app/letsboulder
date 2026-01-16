@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { trackAuthLoginSuccess } from '@/lib/posthog'
 
 function LoadingFallback() {
   return (
@@ -89,6 +90,7 @@ function AuthCallbackContent() {
 
       if (hasSession) {
         setStatus('success')
+        trackAuthLoginSuccess('magic_link')
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         console.log(`Callback: redirecting to ${redirectTo}`)
         router.push(redirectTo)
