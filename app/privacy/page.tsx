@@ -41,7 +41,7 @@ export default function PrivacyPage() {
             2.2 Information Collected Automatically
           </h3>
           <p className="text-gray-700 dark:text-gray-300">
-            Usage data, IP address, browser type, operating system, cookies, and similar tracking technologies
+            Usage data, IP address, browser type, operating system, cookies, and similar tracking technologies. We use PostHog, a privacy-first analytics service, to help us understand how users interact with our app.
           </p>
         </section>
 
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
             4.2 Service Providers
           </h3>
           <p className="text-gray-700 dark:text-gray-300">
-            We use Supabase for authentication/database and Vercel for hosting. These services have access to information necessary to perform their functions.
+            We use Supabase for authentication/database, Vercel for hosting, and PostHog for analytics. These services have access to information necessary to perform their functions.
           </p>
 
           <h3 className="text-lg font-medium mt-4 mb-2 text-gray-900 dark:text-gray-100">
@@ -113,8 +113,12 @@ export default function PrivacyPage() {
           <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 space-y-1">
             <li>Access and correct your personal information</li>
             <li>Request deletion of your account and data</li>
+            <li>Download a copy of your data at any time through your account settings</li>
             <li>Opt out of leaderboard display (leave username blank)</li>
           </ul>
+          <p className="text-gray-700 dark:text-gray-300 mt-4">
+            Your data will be permanently removed within 30 days of account deletion.
+          </p>
         </section>
 
         <section className="mb-8">
@@ -122,13 +126,25 @@ export default function PrivacyPage() {
             8. Cookies
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            We use cookies for authentication, preferences, and analytics. You can control cookies through your browser settings.
+            We use cookies for authentication, preferences, and analytics through third-party services including PostHog. You can control cookies through your browser settings.
           </p>
         </section>
 
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            9. Children&apos;s Privacy
+            9. Analytics
+          </h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            We use PostHog, a privacy-respecting analytics tool, to understand how users interact with our application. PostHog helps us improve our services by showing us aggregate usage patterns. PostHog does not sell your data and is configured to minimize personal information collection.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300 mt-2">
+            You can opt out of analytics tracking by contacting us at hello@gsyrocks.com.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
+            10. Children&apos;s Privacy
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
             gsyrocks is not intended for children under 13. We do not knowingly collect information from children under 13.
@@ -137,7 +153,7 @@ export default function PrivacyPage() {
 
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            10. Changes to This Policy
+            11. Changes to This Policy
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
             We may update this policy from time to time. We will notify you of material changes by posting the new policy on this page.
@@ -146,7 +162,7 @@ export default function PrivacyPage() {
 
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            11. Contact Us
+            12. Contact Us
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
             If you have questions about this Privacy Policy, please contact us at{' '}
