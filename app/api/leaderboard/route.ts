@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, username, first_name, last_name, display_name, email, avatar_url, gender')
+      .select('id, username, first_name, last_name, display_name, avatar_url, gender')
       .in('id', userIds)
 
     const profilesMap = new Map(profiles?.map(p => [p.id, p]) || [])
@@ -119,10 +119,6 @@ export async function GET(request: NextRequest) {
       }
       if (profile?.display_name) {
         return profile.display_name
-      }
-      if (profile?.email) {
-        const emailPrefix = profile.email.split('@')[0]
-        if (emailPrefix) return emailPrefix
       }
       return `Climber ${userId.slice(0, 4)}`
     }
