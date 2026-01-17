@@ -2,14 +2,36 @@
 
 import posthog from 'posthog-js'
 
-const POSTHOG_INITIALIZED = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_POSTHOG_API_KEY
+const isBrowser = typeof window !== 'undefined'
+const POSTHOG_API_KEY = process.env.NEXT_PUBLIC_POSTHOG_API_KEY
+const POSTHOG_INSTANCE_URL = process.env.NEXT_PUBLIC_POSTHOG_INSTANCE_URL || 'https://us.i.posthog.com'
+const POSTHOG_INITIALIZED = isBrowser && POSTHOG_API_KEY
+
+console.log('[PostHog] Init check:', {
+  isBrowser,
+  hasApiKey: !!POSTHOG_API_KEY,
+  apiKeyPrefix: POSTHOG_API_KEY?.substring(0, 10),
+  initialized: POSTHOG_INITIALIZED
+})
 
 if (POSTHOG_INITIALIZED) {
-  posthog.init(process.env.NEXT_PUBLIC_POSTHOG_API_KEY!, {
-    api_host: process.env.NEXT_PUBLIC_POSTHOG_INSTANCE_URL || 'https://us.i.posthog.com',
-    person_profiles: 'identified_only',
-    capture_pageview: false,
-  })
+  try {
+    posthog.init(POSTHOG_API_KEY!, {
+      api_host: POSTHOG_INSTANCE_URL,
+      person_profiles: 'identified_only',
+      capture_pageview: false,
+      loaded: () => {
+        console.log('[PostHog] Loaded successfully')
+        if (isBrowser) {
+          (window as unknown as { posthog: typeof posthog }).posthog = posthog
+        }
+      },
+    })
+  } catch (error) {
+    console.error('[PostHog] Initialization failed:', error)
+  }
+} else {
+  console.warn('[PostHog] Skipped - missing NEXT_PUBLIC_POSTHOG_API_KEY')
 }
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
@@ -20,8 +42,10 @@ export const trackEvent = (
   event: string,
   properties?: Record<string, unknown>
 ) => {
-  if (typeof window !== 'undefined') {
+  if (isBrowser && posthog) {
     posthog.capture(event, properties)
+  } else {
+    console.warn('[PostHog] trackEvent called but posthog not initialized')
   }
 }
 
@@ -99,19 +123,19 @@ export const trackAuthLoginSuccess = (method: string) => {
 export const setUserProperties = (
   properties: Record<string, unknown>
 ) => {
-  if (typeof window !== 'undefined') {
+  if (isBrowser && posthog) {
     posthog.setPersonProperties(properties)
   }
 }
 
 export const identifyUser = (userId: string, properties?: Record<string, unknown>) => {
-  if (typeof window !== 'undefined') {
+  if (isBrowser && posthog) {
     posthog.identify(userId, properties)
   }
 }
 
 export const resetPostHog = () => {
-  if (typeof window !== 'undefined') {
+  if (isBrowser && posthog) {
     posthog.reset()
   }
 }

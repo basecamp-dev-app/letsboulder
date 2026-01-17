@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AppLayout from "@/components/AppLayout";
+import { PostHogProvider } from "@/lib/posthog";
+import PageViewTracker from "@/components/PageViewTracker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -136,7 +138,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased pt-12 pb-16 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
       >
-        <AppLayout>{children}</AppLayout>
+        <PostHogProvider>
+          <PageViewTracker />
+          <AppLayout>{children}</AppLayout>
+        </PostHogProvider>
       </body>
     </html>
   );
