@@ -10,7 +10,7 @@ interface HogQLResponse {
   is_cached?: boolean
 }
 
-async function posthogQuery(sql: string): Promise<HogQLResponse> {
+async function posthogQuery(sql: string): Promise<{ results: unknown; is_cached?: boolean }> {
   if (!PERSONAL_API_KEY || !PROJECT_ID) {
     throw new Error('PostHog credentials not configured: NEXT_PUBLIC_POSTHOG_PROJECT_ID and POSTHOG_PERSONAL_API_KEY must be set')
   }
@@ -34,10 +34,13 @@ async function posthogQuery(sql: string): Promise<HogQLResponse> {
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`PostHog API error: ${error}`)
+    console.error('[PostHog] API error:', response.status, error)
+    throw new Error(`PostHog API error: ${response.status} - ${error}`)
   }
 
-  return response.json()
+  const data = await response.json()
+  console.log('[PostHog] Query response:', { sql: sql.substring(0, 50), results: data.results, isCached: data.is_cached })
+  return data
 }
 
 function formatNumber(num: number | null | undefined): string {
@@ -51,7 +54,9 @@ export const getMAU = cache(async (): Promise<string> => {
   const response = await posthogQuery(
     'SELECT count(DISTINCT distinct_id) FROM events WHERE timestamp >= now() - INTERVAL 30 DAY'
   )
-  const count = (response.results as { count?: number })?.count ?? 0
+  const results = response.results as number[][]
+  const count = results?.[0]?.[0] ?? 0
+  console.log('[PostHog] getMAU raw response:', response.results)
   return formatNumber(count)
 })
 
@@ -59,7 +64,8 @@ export const getDAU = cache(async (): Promise<string> => {
   const response = await posthogQuery(
     'SELECT count(DISTINCT distinct_id) FROM events WHERE timestamp >= now() - INTERVAL 1 DAY'
   )
-  const count = (response.results as { count?: number })?.count ?? 0
+  const results = response.results as number[][]
+  const count = results?.[0]?.[0] ?? 0
   return formatNumber(count)
 })
 
@@ -67,7 +73,8 @@ export const getEventsThisMonth = cache(async (): Promise<string> => {
   const response = await posthogQuery(
     'SELECT count() FROM events WHERE timestamp >= now() - INTERVAL 1 MONTH'
   )
-  const count = (response.results as { count?: number })?.count ?? 0
+  const results = response.results as number[][]
+  const count = results?.[0]?.[0] ?? 0
   return formatNumber(count)
 })
 
@@ -75,7 +82,8 @@ export const getTotalUsers = cache(async (): Promise<string> => {
   const response = await posthogQuery(
     'SELECT count(DISTINCT distinct_id) FROM events'
   )
-  const count = (response.results as { count?: number })?.count ?? 0
+  const results = response.results as number[][]
+  const count = results?.[0]?.[0] ?? 0
   return formatNumber(count)
 })
 
@@ -83,10 +91,12 @@ export const getTopEvents = cache(async (): Promise<{ event: string; count: numb
   const response = await posthogQuery(
     'SELECT event, count() as count FROM events WHERE timestamp >= now() - INTERVAL 30 DAY GROUP BY event ORDER BY count() DESC LIMIT 10'
   )
-  const results = (response.results as { event?: string; count?: number }[]) || []
-  return results.slice(0, 5).map((row) => ({
-    event: row.event || 'unknown',
-    count: Number(row.count) || 0,
+  const results = response.results as unknown as Array<[string, number]>
+  console.log('[PostHog] getTopEvents raw response:', response.results)
+  const rows = Array.isArray(results) ? results : []
+  return rows.slice(0, 5).map((row: [string, number]) => ({
+    event: row[0] || 'unknown',
+    count: Number(row[1]) || 0,
   }))
 })
 
