@@ -265,25 +265,14 @@ export function AccountSection({ user }: AccountSectionProps) {
         </div>
 
         <div className="border border-red-200 dark:border-red-800 rounded-lg p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white">Change Profile Visibility</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Make your profile public or private</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleVisibilityToggle}
-              disabled={saving}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                isPublic ? 'bg-gray-900 dark:bg-gray-100' : 'bg-gray-300 dark:bg-gray-600'
-              } disabled:opacity-50`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  isPublic ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
+          <div>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white">Change Profile Visibility</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              This profile is currently {isPublic ? 'public' : 'private'}.
+            </p>
+            <Button variant="outline" onClick={handleVisibilityToggle} disabled={saving} className="mt-3">
+              Change Visibility
+            </Button>
           </div>
 
           <div className="pt-4 border-t border-red-200 dark:border-red-800">
