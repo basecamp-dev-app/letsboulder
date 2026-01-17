@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 function DeleteConfirmContent() {
   const router = useRouter()
@@ -20,7 +21,7 @@ function DeleteConfirmContent() {
 
     const deleteAccount = async () => {
       try {
-        const response = await fetch(`/api/settings/delete?token=${encodeURIComponent(token)}`, {
+        const response = await csrfFetch(`/api/settings/delete?token=${encodeURIComponent(token)}`, {
           method: 'POST',
         })
 

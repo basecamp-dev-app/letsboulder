@@ -6,6 +6,7 @@ import { User } from '@supabase/supabase-js'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface DeletionFlowProps {
   user: User
@@ -54,7 +55,7 @@ export function DeletionFlow({ user }: DeletionFlowProps) {
         params.set('delete_route_uploads', 'true')
       }
 
-      const response = await fetch(`/api/settings/initiate-delete?${params.toString()}`, {
+      const response = await csrfFetch(`/api/settings/initiate-delete?${params.toString()}`, {
         method: 'POST',
       })
 
