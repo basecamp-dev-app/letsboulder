@@ -267,7 +267,7 @@ export function AccountSection({ user }: AccountSectionProps) {
             <p className="text-xs text-white/70 mt-1">
               This profile is currently {isPublic ? 'public' : 'private'}.
             </p>
-            <Button variant="outline" onClick={handleVisibilityToggle} disabled={saving} className="mt-3 text-red-600 border-red-300 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20">
+            <Button variant="outline" onClick={handleVisibilityToggle} disabled={saving} className="text-red-600 border-red-300 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20">
               Change Visibility
             </Button>
           </div>
@@ -280,7 +280,9 @@ export function AccountSection({ user }: AccountSectionProps) {
 
             <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
               <DialogTrigger asChild>
-                <Button variant="destructive">Delete Account</Button>
+                <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20">
+                  Delete Account
+                </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
