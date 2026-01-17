@@ -40,6 +40,23 @@ export default function AuthForm() {
     }
   }
 
+  const handleMicrosoftSignIn = async () => {
+    setLoading(true)
+    setError(null)
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'azure',
+      options: {
+        redirectTo: `${origin}/auth/callback`,
+      },
+    })
+    trackAuthLoginAttempted('microsoft')
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+    }
+  }
+
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email) {
@@ -84,7 +101,7 @@ export default function AuthForm() {
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             <button
               onClick={handleGoogleSignIn}
               disabled={loading}
@@ -97,6 +114,20 @@ export default function AuthForm() {
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
               {loading ? 'Signing in...' : 'Continue with Google'}
+            </button>
+            
+            <button
+              onClick={handleMicrosoftSignIn}
+              disabled={loading}
+              className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-3"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#F25022" d="M1 1h10v10H1z"/>
+                <path fill="#7FBA00" d="M1 13h10v10H1z"/>
+                <path fill="#00A4EF" d="M13 1h10v10H13z"/>
+                <path fill="#FFB900" d="M13 13h10v10H13z"/>
+              </svg>
+              {loading ? 'Signing in...' : 'Continue with Microsoft'}
             </button>
           </div>
 
@@ -170,7 +201,7 @@ export default function AuthForm() {
                 onClick={() => setShowEmailSignIn(false)}
                 className="w-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors text-sm mt-4"
               >
-                ← Back to Google sign in
+                ← Back to sign in options
               </button>
             </div>
           )}
