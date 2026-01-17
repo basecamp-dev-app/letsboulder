@@ -259,7 +259,7 @@ export function AccountSection({ user }: AccountSectionProps) {
       <div className="border-t border-gray-200 dark:border-gray-700" />
 
       <div className="space-y-6">
-        <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">Danger Zone</h2>
+        <h2 className="text-lg font-semibold text-white">Danger Zone</h2>
 
         <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-6 space-y-6">
           <div>
