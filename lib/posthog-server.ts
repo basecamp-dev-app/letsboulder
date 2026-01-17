@@ -39,7 +39,6 @@ async function posthogQuery(sql: string): Promise<{ results: unknown; is_cached?
   }
 
   const data = await response.json()
-  console.log('[PostHog] Query response:', { sql: sql.substring(0, 50), results: data.results, isCached: data.is_cached })
   return data
 }
 
@@ -56,7 +55,6 @@ export const getMAU = cache(async (): Promise<string> => {
   )
   const results = response.results as number[][]
   const count = results?.[0]?.[0] ?? 0
-  console.log('[PostHog] getMAU raw response:', response.results)
   return formatNumber(count)
 })
 
@@ -92,7 +90,6 @@ export const getTopEvents = cache(async (): Promise<{ event: string; count: numb
     'SELECT event, count() as count FROM events WHERE timestamp >= now() - INTERVAL 30 DAY GROUP BY event ORDER BY count() DESC LIMIT 10'
   )
   const results = response.results as unknown as Array<[string, number]>
-  console.log('[PostHog] getTopEvents raw response:', response.results)
   const rows = Array.isArray(results) ? results : []
   return rows.slice(0, 5).map((row: [string, number]) => ({
     event: row[0] || 'unknown',
