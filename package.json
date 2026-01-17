@@ -26,7 +26,6 @@
     "next": "16.0.10",
     "piexifjs": "^1.0.6",
     "posthog-js": "^1.326.0",
-    "posthog-node": "^4.4.1",
     "react": "19.2.1",
     "react-dom": "19.2.1",
     "react-leaflet": "^5.0.0",

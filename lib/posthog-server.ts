@@ -1,24 +1,8 @@
-import { PostHog } from 'posthog-node'
 import { cache } from 'react'
 
 const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_INSTANCE_URL || 'https://us.i.posthog.com'
 const PROJECT_ID = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_ID
 const PERSONAL_API_KEY = process.env.POSTHOG_PERSONAL_API_KEY
-
-let posthogClient: PostHog | null = null
-
-function getClient(): PostHog {
-  if (!posthogClient) {
-    if (!PERSONAL_API_KEY || !PROJECT_ID) {
-      throw new Error('PostHog credentials not configured: NEXT_PUBLIC_POSTHOG_PROJECT_ID and POSTHOG_PERSONAL_API_KEY must be set')
-    }
-    posthogClient = new PostHog(PROJECT_ID, {
-      apiKey: PERSONAL_API_KEY,
-      host: POSTHOG_HOST,
-    })
-  }
-  return posthogClient
-}
 
 interface HogQLResponse {
   results: unknown
@@ -27,11 +11,33 @@ interface HogQLResponse {
 }
 
 async function posthogQuery(sql: string): Promise<HogQLResponse> {
-  const client = getClient()
-  return client.executeQuery({
-    query: sql,
-    kind: 'HogQLQuery',
+  if (!PERSONAL_API_KEY || !PROJECT_ID) {
+    throw new Error('PostHog credentials not configured: NEXT_PUBLIC_POSTHOG_PROJECT_ID and POSTHOG_PERSONAL_API_KEY must be set')
+  }
+
+  const url = `${POSTHOG_HOST}/api/projects/${PROJECT_ID}/query/`
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${PERSONAL_API_KEY}`,
+    },
+    body: JSON.stringify({
+      query: {
+        kind: 'HogQLQuery',
+        query: sql,
+      },
+    }),
+    next: { revalidate: 3600 },
   })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`PostHog API error: ${error}`)
+  }
+
+  return response.json()
 }
 
 function formatNumber(num: number | null | undefined): string {
