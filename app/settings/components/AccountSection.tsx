@@ -259,25 +259,22 @@ export function AccountSection({ user }: AccountSectionProps) {
       <div className="border-t border-gray-200 dark:border-gray-700" />
 
       <div className="space-y-6">
-        <div>
-          <h2 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">Danger Zone</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Irreversible and destructive actions.</p>
-        </div>
+        <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">Danger Zone</h2>
 
-        <div className="border border-red-200 dark:border-red-800 rounded-lg p-4 space-y-4">
+        <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-6 space-y-6">
           <div>
-            <h3 className="text-sm font-medium text-gray-900 dark:text-white">Change Profile Visibility</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <h3 className="text-sm font-medium text-white">Change Profile Visibility</h3>
+            <p className="text-xs text-white/70 mt-1">
               This profile is currently {isPublic ? 'public' : 'private'}.
             </p>
-            <Button variant="outline" onClick={handleVisibilityToggle} disabled={saving} className="mt-3">
+            <Button variant="outline" onClick={handleVisibilityToggle} disabled={saving} className="mt-3 text-red-600 border-red-300 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20">
               Change Visibility
             </Button>
           </div>
 
-          <div className="pt-4 border-t border-red-200 dark:border-red-800">
-            <h3 className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">Delete Account</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          <div className="border-t border-red-200 dark:border-red-800 pt-6">
+            <h3 className="text-sm font-medium text-white mb-2">Delete Account</h3>
+            <p className="text-sm text-white/70 mb-4">
               Permanently delete your account and all associated data. This action cannot be undone.
             </p>
 
