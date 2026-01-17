@@ -7,9 +7,7 @@ export function PreferencesSection() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [formData, setFormData] = useState({
-    themePreference: 'system',
-    gradeSystem: 'font',
-    units: 'metric'
+    themePreference: 'system'
   })
 
   useEffect(() => {
@@ -18,9 +16,7 @@ export function PreferencesSection() {
       if (response.ok) {
         const data = await response.json()
         setFormData({
-          themePreference: data.settings.themePreference || 'system',
-          gradeSystem: data.settings.gradeSystem || 'font',
-          units: data.settings.units || 'metric'
+          themePreference: data.settings.themePreference || 'system'
         })
       }
       setLoading(false)
@@ -59,7 +55,7 @@ export function PreferencesSection() {
   }
 
   if (loading) {
-    return <div className="animate-pulse space-y-4"><div className="h-10 bg-gray-200 dark:bg-gray-800 rounded" /><div className="h-10 bg-gray-200 dark:bg-gray-800 rounded" /><div className="h-10 bg-gray-200 dark:bg-gray-800 rounded" /></div>
+    return <div className="animate-pulse space-y-4"><div className="h-10 bg-gray-200 dark:bg-gray-800 rounded" /><div className="h-10 bg-gray-200 dark:bg-gray-800 rounded" /></div>
   }
 
   return (
@@ -92,32 +88,6 @@ export function PreferencesSection() {
             </button>
           ))}
         </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Grade System</label>
-        <select
-          value={formData.gradeSystem}
-          onChange={(e) => setFormData({ ...formData, gradeSystem: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-        >
-          <option value="font">Fontainebleau (French)</option>
-          <option value="vscale">V-Scale (American)</option>
-        </select>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Select your preferred grade system for displaying climb difficulties</p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Units</label>
-        <select
-          value={formData.units}
-          onChange={(e) => setFormData({ ...formData, units: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-        >
-          <option value="metric">Metric (cm, meters)</option>
-          <option value="imperial">Imperial (inches, feet)</option>
-        </select>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Select your preferred unit system for measurements</p>
       </div>
 
       {message && (
