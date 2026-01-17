@@ -158,6 +158,17 @@ export default function ImagePage() {
   const [verificationLoading, setVerificationLoading] = useState(false)
 
   useEffect(() => {
+    const checkAuth = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        window.location.href = `/auth?redirect_to=/image/${imageId}`
+      }
+    }
+    checkAuth()
+  }, [imageId])
+
+  useEffect(() => {
     const loadImage = async () => {
       if (!imageId) return
 

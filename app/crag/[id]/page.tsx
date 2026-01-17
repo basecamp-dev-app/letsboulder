@@ -81,6 +81,18 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   const mapRef = useRef<L.Map | null>(null)
 
   useEffect(() => {
+    const checkAuth = async () => {
+      const { id } = await params
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        window.location.href = `/auth?redirect_to=/crag/${id}`
+      }
+    }
+    checkAuth()
+  }, [params])
+
+  useEffect(() => {
     setIsClient(true)
   }, [])
 
@@ -292,8 +304,14 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
               >
                 <div
                   className="w-40 cursor-pointer pt-1"
-                  onClick={() => {
-                    window.location.href = `/image/${image.id}`
+                  onClick={async () => {
+                    const supabase = createClient()
+                    const { data: { user } } = await supabase.auth.getUser()
+                    if (!user) {
+                      window.location.href = `/auth?redirect_to=/image/${image.id}`
+                    } else {
+                      window.location.href = `/image/${image.id}`
+                    }
                   }}
                 >
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">

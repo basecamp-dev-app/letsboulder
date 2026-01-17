@@ -44,6 +44,17 @@ export default function ClimbPage() {
   const { selectedIds, selectRoute, deselectRoute, isSelected, clearSelection } = useRouteSelection()
 
   useEffect(() => {
+    const checkAuth = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        window.location.href = `/auth?redirect_to=/climb/${climbId}`
+      }
+    }
+    checkAuth()
+  }, [climbId])
+
+  useEffect(() => {
     const loadClimb = async () => {
       if (!climbId) return
 

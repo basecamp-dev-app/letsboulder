@@ -461,10 +461,16 @@ export default function SatelliteClimbingMap() {
               iconAnchor: [12, 12]
             })}
             eventHandlers={{
-              click: (e: L.LeafletMouseEvent) => {
+              click: async (e: L.LeafletMouseEvent) => {
                 e.originalEvent.stopPropagation()
                 trackRouteClicked(image.id, `${image.route_lines.length} routes`)
-                window.location.href = `/image/${image.id}`
+                const supabase = createClient()
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) {
+                  window.location.href = `/auth?redirect_to=/image/${image.id}`
+                } else {
+                  window.location.href = `/image/${image.id}`
+                }
               },
             }}
           >

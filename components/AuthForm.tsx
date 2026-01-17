@@ -15,6 +15,7 @@ export default function AuthForm() {
   const [showEmailSignIn, setShowEmailSignIn] = useState(false)
   const searchParams = useSearchParams()
   const climbId = searchParams?.get('climbId')
+  const redirectTo = searchParams?.get('redirect_to')
   
   const emailValid = email.includes('@') && email.length > 3
 
@@ -30,7 +31,9 @@ export default function AuthForm() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${origin}/auth/callback`,
+        redirectTo: redirectTo 
+          ? `${origin}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}`
+          : `${origin}/auth/callback`,
       },
     })
     trackAuthLoginAttempted('google')
@@ -54,7 +57,9 @@ export default function AuthForm() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${origin}/auth/callback`,
+        emailRedirectTo: redirectTo 
+          ? `${origin}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}`
+          : `${origin}/auth/callback`,
       },
     })
 
@@ -76,10 +81,10 @@ export default function AuthForm() {
             Sign in to gsyrocks
           </h1>
           
-          {climbId && (
+          {(climbId || redirectTo) && (
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4 text-center">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                Sign in to log this climb
+                Sign in to view this climb
               </p>
             </div>
           )}
