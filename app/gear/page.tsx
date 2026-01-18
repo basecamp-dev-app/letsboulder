@@ -12,16 +12,16 @@ export default function GearPage() {
   const [clickCounts, setClickCounts] = useState<Record<string, number>>({})
 
   useEffect(() => {
-    const STORAGE_KEY = 'gear_click_counts'
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        setTimeout(() => setClickCounts(parsed), 0)
-      } catch (e) {
-        console.warn('Failed to parse click counts:', e)
-      }
-    }
+    fetch('/api/gear-clicks')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data === 'object') {
+          setClickCounts(data)
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to fetch click counts:', err)
+      })
   }, [])
 
   const sortedProducts = useMemo(() => {

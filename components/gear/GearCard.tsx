@@ -34,10 +34,13 @@ export default function GearCard({ product }: GearCardProps) {
     const handleClick = () => {
       trackProductClicked(product.id, product.name, product.category)
 
-      const STORAGE_KEY = 'gear_click_counts'
-      const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
-      existing[product.id] = (existing[product.id] || 0) + 1
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing))
+      fetch('/api/gear-clicks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.id })
+      }).catch((err) => {
+        console.warn('Failed to track click:', err)
+      })
     }
 
     card.addEventListener('click', handleClick)
