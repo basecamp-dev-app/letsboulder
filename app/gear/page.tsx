@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { products, CATEGORIES } from '@/lib/gear-data'
 import GearCard from '@/components/gear/GearCard'
+import GearSkeleton from '@/components/gear/GearSkeleton'
 import CategoryTabs from '@/components/gear/CategoryTabs'
 import { Search } from 'lucide-react'
 
@@ -10,6 +11,7 @@ export default function GearPage() {
   const [activeCategory, setActiveCategory] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
   const [clickCounts, setClickCounts] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch('/api/gear-clicks')
@@ -21,6 +23,9 @@ export default function GearPage() {
       })
       .catch((err) => {
         console.warn('Failed to fetch click counts:', err)
+      })
+      .finally(() => {
+        setLoading(false)
       })
   }, [])
 
@@ -70,7 +75,11 @@ export default function GearPage() {
           />
         </div>
 
-        {sortedProducts.length === 0 ? (
+        {loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+            {Array(12).map((_, i) => <GearSkeleton key={i} />)}
+          </div>
+        ) : sortedProducts.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 dark:text-gray-400">
               No products found matching your search.
