@@ -52,7 +52,7 @@ export default function GearPage() {
         <div className="max-w-7xl mx-auto">
         <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-2 mb-2">
           <p className="text-xs text-amber-800 dark:text-amber-200">
-            Affiliate links - we earn a commission on purchases at no extra cost to you.
+            Amazon affiliate links - we earn a commission on Amazon purchases at no extra cost to you.
           </p>
         </div>
 
