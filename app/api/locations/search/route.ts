@@ -37,9 +37,24 @@ export async function GET(request: NextRequest) {
 
     const data = await response.json()
 
-    const results = data.map((item: any) => ({
+    interface NominatimApiItem {
+      lat: string
+      lon: string
+      display_name: string
+      type: string
+      address: {
+        city?: string
+        town?: string
+        village?: string
+        state?: string
+        country: string
+        country_code: string
+      }
+    }
+
+    const results = data.map((item: NominatimApiItem) => ({
       lat: parseFloat(item.lat),
-      lng: parseFloat(item.lon),
+      lon: parseFloat(item.lon),
       name: item.display_name.split(',')[0],
       display_name: item.display_name,
       type: item.type,

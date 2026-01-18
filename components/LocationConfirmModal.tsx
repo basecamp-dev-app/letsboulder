@@ -118,7 +118,7 @@ export default function LocationConfirmModal({
     }
   }, [hasGps, leaflet])
 
-  const handleMarkerDrag = useCallback((e: any) => {
+  const handleMarkerDrag = useCallback((e: L.LeafletEvent) => {
     if (!leaflet) return
     const marker = e.target
     const position = marker.getLatLng()

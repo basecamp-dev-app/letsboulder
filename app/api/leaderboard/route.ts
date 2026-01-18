@@ -2,8 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getGradePoints, getGradeFromPoints, FLASH_BONUS } from '@/lib/grades'
 import { createErrorResponse } from '@/lib/errors'
+import type { Profile } from '@/types/database'
 
 export const revalidate = 60
+
+interface UserClimbQueryResult {
+  id: string
+  user_id: string
+  created_at: string
+  style: 'top' | 'flash'
+  climbs: {
+    id: string
+    grade: string
+  }[]
+}
+
+interface RegionRouteLine {
+  climb_id: string
+  images: {
+    crags: {
+      regions: {
+        id: string
+      }
+    }
+  } | null
+}
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
@@ -74,10 +97,14 @@ export async function GET(request: NextRequest) {
       return createErrorResponse(error, 'Query error')
     }
 
-    let filteredClimbs = userClimbs || []
+    let filteredClimbs = userClimbs as UserClimbQueryResult[] | null
+    
+    if (!filteredClimbs) {
+      filteredClimbs = []
+    }
     
     if (regionParam) {
-      const climbIds = [...new Set(filteredClimbs.map((uc: any) => uc.climbs?.id).filter(Boolean) || [])]
+      const climbIds = [...new Set(filteredClimbs.map((uc) => uc.climbs[0]?.id).filter(Boolean) || [])]
       if (climbIds.length > 0) {
         const { data: routeLinesData } = await supabase
           .from('route_lines')
@@ -85,17 +112,22 @@ export async function GET(request: NextRequest) {
           .in('climb_id', climbIds)
 
         const regionClimbIds = new Set<string>()
-        routeLinesData?.forEach((rl: any) => {
-          if (rl.climb_id && rl.images?.crags?.regions?.id === regionParam) {
-            regionClimbIds.add(rl.climb_id)
+        if (routeLinesData) {
+          for (const rl of routeLinesData) {
+            if ('climb_id' in rl && 'images' in rl) {
+              const routeLine = rl as unknown as RegionRouteLine
+              if (routeLine.climb_id && routeLine.images?.crags?.regions?.id === regionParam) {
+                regionClimbIds.add(routeLine.climb_id)
+              }
+            }
           }
-        })
-        filteredClimbs = filteredClimbs.filter((uc: any) => regionClimbIds.has(uc.climbs?.id))
+        }
+        filteredClimbs = filteredClimbs.filter((uc) => uc.climbs[0] && regionClimbIds.has(uc.climbs[0].id))
       }
     }
 
-    const userClimbsMap: Record<string, typeof filteredClimbs> = {}
-    filteredClimbs.forEach((uc: any) => {
+    const userClimbsMap: Record<string, UserClimbQueryResult[]> = {}
+    filteredClimbs.forEach((uc) => {
       if (!userClimbsMap[uc.user_id]) {
         userClimbsMap[uc.user_id] = []
       }
@@ -114,7 +146,7 @@ export async function GET(request: NextRequest) {
 
     const publicUserIds = userIds.filter(userId => profilesMap.has(userId))
 
-    const getUsername = (userId: string, profile: any): string => {
+    const getUsername = (userId: string, profile: Profile | undefined): string => {
       if (profile?.first_name && profile?.last_name) {
         return `${profile.first_name} ${profile.last_name}`
       }
@@ -129,8 +161,8 @@ export async function GET(request: NextRequest) {
       const climbCount = userClimbsArr.length
 
       let totalPoints = 0
-      userClimbsArr.forEach((uc: any) => {
-        const climb = Array.isArray(uc.climbs) ? uc.climbs[0] : uc.climbs
+      userClimbsArr.forEach((uc) => {
+        const climb = uc.climbs[0]
         if (climb && climb.grade) {
           const basePoints = getGradePoints(climb.grade)
           const points = uc.style === 'flash' ? basePoints + FLASH_BONUS : basePoints

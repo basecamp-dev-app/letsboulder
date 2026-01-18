@@ -11,7 +11,7 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 
-delete (L.Icon.Default.prototype as any)._getIconUrl
+delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
@@ -32,7 +32,7 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
-  const mapRef = useRef<any>(null)
+  const mapRef = useRef<L.Map | null>(null)
   
   useEffect(() => {
     setIsClient(true)
@@ -52,7 +52,7 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
     }
   }, [position])
   
-  const handlePositionChange = useCallback((e: any) => {
+  const handlePositionChange = useCallback((e: L.LeafletEvent) => {
     const { lat, lng } = e.target.getLatLng()
     setPosition([lat, lng])
   }, [])

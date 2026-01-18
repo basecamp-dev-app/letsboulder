@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
+import type { User } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import LogbookView from '@/components/logbook/LogbookView'
@@ -55,7 +56,7 @@ export default function LogbookPage() {
 }
 
 function LogbookContent() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [logs, setLogs] = useState<LoggedClimb[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)

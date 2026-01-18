@@ -6,7 +6,8 @@ import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
 import { MapPin, Loader2, RefreshCw } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
-import { geoJsonPolygonToLeaflet } from '@/lib/geo-utils'
+import { geoJsonPolygonToLeaflet, type GeoJSONPolygon } from '@/lib/geo-utils'
+import type { User } from '@supabase/supabase-js'
 
 import 'leaflet/dist/leaflet.css'
 import { trackEvent, trackRouteClicked } from '@/lib/posthog'
@@ -80,6 +81,21 @@ interface CragPin {
   imageCount: number
 }
 
+interface RouteLineData {
+  id: string
+  image_id: string
+  points: unknown
+  color: string
+  climb_id: string
+  climbs: {
+    id: string
+    name: string | null
+    grade: string | null
+    description: string | null
+    status: string | null
+  }[] | null
+}
+
 export default function SatelliteClimbingMap() {
   const mapRef = useRef<L.Map | null>(null)
   const [images, setImages] = useState<ImageData[]>([])
@@ -89,7 +105,7 @@ export default function SatelliteClimbingMap() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
   const [mapLoaded, setMapLoaded] = useState(false)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
   const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
   const [useUserLocation, setUseUserLocation] = useState(false)
@@ -168,7 +184,7 @@ export default function SatelliteClimbingMap() {
       }
 
       // Build a map of image_id -> route_lines
-      const routeLinesMap = new Map()
+      const routeLinesMap = new Map<string, RouteLineData[]>()
       for (const rl of routeLinesData) {
         const existing = routeLinesMap.get(rl.image_id) || []
         existing.push(rl)
@@ -191,7 +207,7 @@ export default function SatelliteClimbingMap() {
 
       // Log what we found
       for (const [imgId, rls] of routeLinesMap) {
-        const approvedCount = rls.filter((rl: any) => rl.climbs?.status === 'approved').length
+        const approvedCount = rls.filter((rl) => rl.climbs?.[0]?.status === 'approved').length
       }
 
       // Filter and format images with valid route_lines
@@ -201,19 +217,22 @@ export default function SatelliteClimbingMap() {
         const routeLines = routeLinesMap.get(img.id) || []
         
         // Include all climbs regardless of status
-        const validRouteLines = routeLines
-          .filter((rl: any) => rl.climbs)
-          .map((rl: any) => ({
-            id: rl.id,
-            points: rl.points,
-            color: rl.color,
-            climb: {
-              id: rl.climbs.id,
-              name: rl.climbs.name,
-              grade: rl.climbs.grade,
-              description: rl.climbs.description
+        const validRouteLines: ImageRoute[] = routeLines
+          .filter((rl) => rl.climbs && rl.climbs.length > 0)
+          .map((rl) => {
+            const climbData = rl.climbs![0]
+            return {
+              id: rl.id,
+              points: rl.points as RoutePoint[],
+              color: rl.color,
+              climb: {
+                id: climbData.id,
+                name: climbData.name,
+                grade: climbData.grade,
+                description: climbData.description
+              }
             }
-          }))
+          })
 
         if (validRouteLines.length > 0) {
           // Compute verification status: image is verified if any climb has 3+ verifications
@@ -370,8 +389,14 @@ export default function SatelliteClimbingMap() {
     }
   }, [useUserLocation, userLocation])
 
+interface SkeletonPin {
+  id: string
+  latitude: number
+  longitude: number
+}
+
   const skeletonPins = useMemo(() => {
-    if (images.length > 0) return []
+    if (images.length > 0) return [] as SkeletonPin[]
     const regions = [
       { lat: 49.45, lng: -2.6, name: 'Guernsey' },
       { lat: 51.5, lng: -0.12, name: 'London' },
@@ -379,7 +404,7 @@ export default function SatelliteClimbingMap() {
       { lat: 34.0, lng: -118.2, name: 'Los Angeles' },
       { lat: 48.8, lng: 2.3, name: 'Paris' },
     ]
-    return regions.map((region, i) => ({
+    return regions.map((region, i): SkeletonPin => ({
       id: `skeleton-${i}`,
       latitude: region.lat + (Math.random() - 0.5) * 0.5,
       longitude: region.lng + (Math.random() - 0.5) * 0.5
@@ -427,7 +452,7 @@ export default function SatelliteClimbingMap() {
 
         {/* Crag Polygons */}
         {crags.map(crag => {
-          const coords = crag.boundary ? geoJsonPolygonToLeaflet(crag.boundary as any) : null
+          const coords = crag.boundary ? geoJsonPolygonToLeaflet(crag.boundary as GeoJSONPolygon) : null
           if (!coords || coords.length === 0) return null
           return (
             <Polygon
@@ -459,7 +484,7 @@ export default function SatelliteClimbingMap() {
           />
         )}
 
-        {(!mapLoaded || loading) && skeletonPins.map((pin: any) => (
+        {(!mapLoaded || loading) && skeletonPins.map((pin) => (
           <Marker
             key={pin.id}
             position={[pin.latitude, pin.longitude]}
