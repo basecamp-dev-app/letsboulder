@@ -76,7 +76,7 @@ export const getEventsThisMonth = cache(async (): Promise<string> => {
   return formatNumber(count)
 })
 
-export const getTotalUsers = cache(async (): Promise<string> => {
+export const getTrackedUsers = cache(async (): Promise<string> => {
   const response = await posthogQuery(
     'SELECT count(DISTINCT distinct_id) FROM events'
   )
@@ -101,16 +101,16 @@ export interface SponsorMetrics {
   mau: string
   dau: string
   eventsThisMonth: string
-  totalUsers: string
+  trackedUsers: string
   topEvents: { event: string; count: number }[]
 }
 
 export async function getSponsorMetrics(): Promise<SponsorMetrics> {
-  const [mau, dau, eventsThisMonth, totalUsers, topEvents] = await Promise.all([
+  const [mau, dau, eventsThisMonth, trackedUsers, topEvents] = await Promise.all([
     getMAU(),
     getDAU(),
     getEventsThisMonth(),
-    getTotalUsers(),
+    getTrackedUsers(),
     getTopEvents(),
   ])
 
@@ -118,7 +118,7 @@ export async function getSponsorMetrics(): Promise<SponsorMetrics> {
     mau,
     dau,
     eventsThisMonth,
-    totalUsers,
+    trackedUsers,
     topEvents,
   }
 }

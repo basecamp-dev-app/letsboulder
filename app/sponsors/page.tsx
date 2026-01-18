@@ -1,11 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getSponsorMetrics } from '@/lib/posthog-server'
+import { getRegisteredUserCount } from '@/lib/supabase-server'
 import Link from 'next/link'
 
 export const revalidate = 3600
 
 export default async function SponsorsPage() {
-  const metrics = await getSponsorMetrics()
+  const [registeredUsers, metrics] = await Promise.all([
+    getRegisteredUserCount(),
+    getSponsorMetrics(),
+  ])
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -22,28 +26,33 @@ export default async function SponsorsPage() {
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
           Key Metrics
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard
-            label="Monthly Active Users"
-            value={metrics.mau}
-            description="Unique users in last 30 days"
-          />
-          <MetricCard
-            label="Daily Active Users"
-            value={metrics.dau}
-            description="Unique users today"
-          />
-          <MetricCard
-            label="Events This Month"
-            value={metrics.eventsThisMonth}
-            description="Total interactions tracked"
-          />
-          <MetricCard
-            label="Total Users"
-            value={metrics.totalUsers}
-            description="All-time unique users"
-          />
-        </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <MetricCard
+              label="Monthly Active Users"
+              value={metrics.mau}
+              description="Unique users in last 30 days"
+            />
+            <MetricCard
+              label="Daily Active Users"
+              value={metrics.dau}
+              description="Unique users today"
+            />
+            <MetricCard
+              label="Events This Month"
+              value={metrics.eventsThisMonth}
+              description="Total interactions tracked"
+            />
+            <MetricCard
+              label="Registered Users"
+              value={registeredUsers}
+              description="Accounts created"
+            />
+            <MetricCard
+              label="Tracked Users"
+              value={metrics.trackedUsers}
+              description="Activity tracked"
+            />
+          </div>
       </section>
 
       <section className="mb-8">
@@ -163,7 +172,7 @@ export default async function SponsorsPage() {
           <a href="mailto:hello@gsyrocks.com" className="hover:underline">Contact</a>
         </p>
         <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-          Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} · Data provided by PostHog
+          Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} · Data provided by Supabase and PostHog
         </p>
       </div>
     </div>

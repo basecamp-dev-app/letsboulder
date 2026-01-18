@@ -153,6 +153,18 @@ export async function POST(request: NextRequest) {
 - API routes/server components: `createServerClient` with cookies
 - Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - Always handle null states gracefully
+- **System tables (auth.users)**: Use RPC functions with `SECURITY DEFINER` - see `get_user_count()` in database
+
+```typescript
+import { getServerClient } from '@/lib/supabase-server'
+
+export const getRegisteredUserCount = cache(async (): Promise<string> => {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase.rpc('get_user_count')
+  if (error || !data) return '0'
+  return formatNumber(data)
+})
+```
 
 ### Database
 - Database schema and migrations in `db/` directory
