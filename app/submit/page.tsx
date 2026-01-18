@@ -134,7 +134,7 @@ function SubmitPageContent() {
       cragName: crag.name,
       image: context.image!
     })
-  }, [context.imageGps, context.region, context.image])
+  }, [context.imageGps, context.region])
 
   const handleRoutesUpdate = useCallback((routes: NewRouteData[]) => {
     setContext(prev => ({ ...prev, routes }))
