@@ -24,7 +24,7 @@ export default function GearPage() {
 
   return (
     <div className="container mx-auto px-4">
-      <div className="max-w-5xl mx-auto">
+        <div className="max-w-7xl mx-auto">
         <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-2 mb-2">
           <p className="text-xs text-amber-800 dark:text-amber-200">
             Affiliate links - we earn a commission on purchases at no extra cost to you.
@@ -62,7 +62,7 @@ export default function GearPage() {
               Showing {filteredProducts.length} of {products.length} products
             </p>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
               {filteredProducts.map((product) => (
                 <GearCard key={product.id} product={product} />
               ))}
