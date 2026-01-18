@@ -3,6 +3,8 @@
 import Image from 'next/image'
 import { GearProduct } from '@/lib/gear-data'
 import { ShieldCheck, HardHat, Link2, Scroll, Mountain, Footprints, CupSoda, Sun, Wrench, Tent } from 'lucide-react'
+import { trackProductClicked } from '@/lib/posthog'
+import { useEffect, useRef } from 'react'
 
 const categoryIcons: Record<string, typeof ShieldCheck> = {
   'Belay Devices': ShieldCheck,
@@ -23,9 +25,28 @@ interface GearCardProps {
 
 export default function GearCard({ product }: GearCardProps) {
   const Icon = categoryIcons[product.category] || Wrench
+  const cardRef = useRef<HTMLAnchorElement>(null)
+
+  useEffect(() => {
+    const card = cardRef.current
+    if (!card) return
+
+    const handleClick = () => {
+      trackProductClicked(product.id, product.name, product.category)
+
+      const STORAGE_KEY = 'gear_click_counts'
+      const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+      existing[product.id] = (existing[product.id] || 0) + 1
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing))
+    }
+
+    card.addEventListener('click', handleClick)
+    return () => card.removeEventListener('click', handleClick)
+  }, [product.id, product.name, product.category])
 
   return (
     <a
+      ref={cardRef}
       href={product.url}
       target="_blank"
       rel="noopener noreferrer"

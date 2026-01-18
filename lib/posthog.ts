@@ -120,6 +120,14 @@ export const trackAuthLoginSuccess = (method: string) => {
   })
 }
 
+export const trackProductClicked = (productId: string, productName: string, category: string) => {
+  trackEvent('product_clicked', {
+    product_id: productId,
+    product_name: productName,
+    category,
+  })
+}
+
 export const setUserProperties = (
   properties: Record<string, unknown>
 ) => {

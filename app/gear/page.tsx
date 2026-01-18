@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { products, CATEGORIES } from '@/lib/gear-data'
 import GearCard from '@/components/gear/GearCard'
 import CategoryTabs from '@/components/gear/CategoryTabs'
@@ -9,9 +9,29 @@ import { Search } from 'lucide-react'
 export default function GearPage() {
   const [activeCategory, setActiveCategory] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
+  const [clickCounts, setClickCounts] = useState<Record<string, number>>({})
 
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+  useEffect(() => {
+    const STORAGE_KEY = 'gear_click_counts'
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        setTimeout(() => setClickCounts(parsed), 0)
+      } catch (e) {
+        console.warn('Failed to parse click counts:', e)
+      }
+    }
+  }, [])
+
+  const sortedProducts = useMemo(() => {
+    const sorted = [...products].sort((a, b) => {
+      const countA = clickCounts[a.id] || 0
+      const countB = clickCounts[b.id] || 0
+      return countB - countA
+    })
+
+    return sorted.filter((product) => {
       const matchesCategory = activeCategory === 'All' || product.category === activeCategory
       const matchesSearch =
         searchQuery === '' ||
@@ -20,7 +40,7 @@ export default function GearPage() {
         product.category.toLowerCase().includes(searchQuery.toLowerCase())
       return matchesCategory && matchesSearch
     })
-  }, [activeCategory, searchQuery])
+  }, [activeCategory, searchQuery, clickCounts])
 
   return (
     <div className="container mx-auto px-4">
@@ -50,7 +70,7 @@ export default function GearPage() {
           />
         </div>
 
-        {filteredProducts.length === 0 ? (
+        {sortedProducts.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 dark:text-gray-400">
               No products found matching your search.
@@ -59,11 +79,11 @@ export default function GearPage() {
         ) : (
           <>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-              Showing {filteredProducts.length} of {products.length} products
+              Showing {sortedProducts.length} of {products.length} products
             </p>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
-              {filteredProducts.map((product) => (
+              {sortedProducts.map((product) => (
                 <GearCard key={product.id} product={product} />
               ))}
             </div>
