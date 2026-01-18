@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { RoutePoint } from '@/lib/useRouteSelection'
@@ -162,11 +162,11 @@ export default function ImagePage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        window.location.href = `/auth?redirect_to=/image/${imageId}`
+        router.push(`/auth?redirect_to=/image/${imageId}`)
       }
     }
     checkAuth()
-  }, [imageId])
+  }, [imageId, router])
 
   useEffect(() => {
     const loadImage = async () => {

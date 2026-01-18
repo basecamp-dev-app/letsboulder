@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import nextDynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { SubmissionStep, Region, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData } from '@/lib/submission-types'
 import { trackRouteSubmitted } from '@/lib/posthog'
@@ -28,17 +29,18 @@ function SubmitPageContent() {
   const [loadingRegion, setLoadingRegion] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     const checkAuth = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        window.location.href = `/auth?redirect_to=/submit`
+        router.push('/auth?redirect_to=/submit')
       }
     }
     checkAuth()
-  }, [])
+  }, [router])
 
   useEffect(() => {
     const imageGps = 'imageGps' in step ? step.imageGps : null

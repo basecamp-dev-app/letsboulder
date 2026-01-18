@@ -27,10 +27,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return {
     title: `${climb.name} (${climb.grade}) | gsyrocks`,
     description: `Climb ${climb.name} graded ${climb.grade} in Guernsey. View route details, log your ascent, and track your progress.`,
+    alternates: {
+      canonical: `https://gsyrocks.com/climb/${id}`,
+    },
     openGraph: {
       title: `${climb.name} (${climb.grade}) | gsyrocks`,
       description: `Climb ${climb.name} graded ${climb.grade} in Guernsey.`,
-      url: `/climb/${id}`,
+      url: `https://gsyrocks.com/climb/${id}`,
     },
   }
 }

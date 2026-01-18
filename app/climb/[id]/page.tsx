@@ -48,11 +48,11 @@ export default function ClimbPage() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        window.location.href = `/auth?redirect_to=/climb/${climbId}`
+        router.push(`/auth?redirect_to=/climb/${climbId}`)
       }
     }
     checkAuth()
-  }, [climbId])
+  }, [climbId, router])
 
   useEffect(() => {
     const loadClimb = async () => {

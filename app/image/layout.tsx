@@ -30,10 +30,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return {
     title,
     description: `View climbing route image${cragName ? ` at ${cragName}` : ''} on gsyrocks. Explore routes, grades, and climbing details.`,
+    alternates: {
+      canonical: `https://gsyrocks.com/image/${id}`,
+    },
     openGraph: {
       title,
       description: `View climbing route image${cragName ? ` at ${cragName}` : ''} on gsyrocks.`,
-      url: `/image/${id}`,
+      url: `https://gsyrocks.com/image/${id}`,
       images: image.url ? [{ url: image.url, width: 1200, height: 630, alt: 'Route image' }] : [],
     },
   }

@@ -191,10 +191,13 @@ export async function generateMetadata({ params }: PublicLogbookPageProps) {
   return {
     title: `${profile.username}'s Logbook - gsyrocks`,
     description: `View ${profile.username}'s climbing logbook and achievements on gsyrocks.`,
+    alternates: {
+      canonical: `https://gsyrocks.com/logbook/${userId}`,
+    },
     openGraph: {
       title: `${profile.username}'s Logbook - gsyrocks`,
       description: `View ${profile.username}'s climbing logbook and achievements on gsyrocks.`,
-      url: `/logbook/${userId}`,
+      url: `https://gsyrocks.com/logbook/${userId}`,
     },
   }
 }

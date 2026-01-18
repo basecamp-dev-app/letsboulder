@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { geoJsonPolygonToLeaflet, getPolygonCenter, GeoJSONPolygon } from '@/lib/geo-utils'
 
 import 'leaflet/dist/leaflet.css'
@@ -79,6 +80,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   const [isClient, setIsClient] = useState(false)
   const [mapReady, setMapReady] = useState(false)
   const mapRef = useRef<L.Map | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -86,11 +88,11 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        window.location.href = `/auth?redirect_to=/crag/${id}`
+        router.push(`/auth?redirect_to=/crag/${id}`)
       }
     }
     checkAuth()
-  }, [params])
+  }, [params, router])
 
   useEffect(() => {
     setIsClient(true)
