@@ -142,6 +142,7 @@ function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
 export default function ImagePage() {
   const params = useParams()
   const imageId = params.id as string
+  const router = useRouter()
 
   const [image, setImage] = useState<ImageData | null>(null)
   const [loading, setLoading] = useState(true)
