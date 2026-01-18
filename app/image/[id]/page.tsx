@@ -5,16 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { RoutePoint } from '@/lib/useRouteSelection'
-import { Loader2, Share2, CheckCircle, AlertCircle, X } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import GradeVoting from '@/components/GradeVoting'
 import CorrectionSection from '@/components/CorrectionSection'
 import type { ClimbStatusResponse } from '@/lib/verification-types'
@@ -99,7 +90,7 @@ function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
         ref={imgRef}
         src={url}
         alt="Climbing routes"
-        className="max-w-full max-h-[calc(100vh-300px)] object-contain block"
+        className="max-w-full max-h-[calc(100vh-140px)] object-contain block"
         onLoad={() => {
           const img = imgRef.current
           if (img) {
@@ -151,8 +142,6 @@ export default function ImagePage() {
   const [userLogs, setUserLogs] = useState<Record<string, string>>({})
   const [logging, setLogging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
-  const [shareModalOpen, setShareModalOpen] = useState(false)
-  const [shareToast, setShareToast] = useState<string | null>(null)
   const [cragId, setCragId] = useState<string | null>(null)
   const [cragName, setCragName] = useState<string | null>(null)
   const [climbStatus, setClimbStatus] = useState<ClimbStatusResponse | null>(null)
@@ -374,17 +363,6 @@ export default function ImagePage() {
     }
   }
 
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href)
-      setShareToast('Link copied!')
-      setTimeout(() => setShareToast(null), 2000)
-    } catch {
-      setShareToast('Failed to copy link')
-      setTimeout(() => setShareToast(null), 2000)
-    }
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -410,51 +388,26 @@ export default function ImagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col pt-12">
+    <div className="min-h-screen bg-gray-950 flex flex-col">
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg">
           {toast}
         </div>
       )}
-      {shareToast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg">
-          {shareToast}
-        </div>
-      )}
 
-      <div className="sticky top-0 z-40 flex items-center gap-2 p-4 bg-gray-900 border-b border-gray-800">
-        <button
-          onClick={() => window.location.href = '/map'}
-          className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-          aria-label="Close and go to map"
-        >
-          <X className="w-5 h-5" />
-        </button>
-        <h1 className="text-lg font-semibold text-white">Routes on this image</h1>
-        {cragId && cragName && (
-          <Link
-            href={`/crag/${cragId}`}
-            className="ml-2 px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            View {cragName} →
-          </Link>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={() => setShareModalOpen(true)}
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-            aria-label="Share"
-          >
-            <Share2 className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4 bg-gray-950">
+      <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-950">
         <ImageWrapper url={image.url} routeLines={image.route_lines} selectedRoute={selectedRoute} />
       </div>
 
-      <div className="bg-gray-900 border-t border-gray-800 p-4 max-h-[40vh] overflow-y-auto">
+      {cragId && cragName && (
+        <div className="flex justify-center mt-2 pb-4">
+          <Link href={`/crag/${cragId}`} className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
+            View {cragName} →
+          </Link>
+        </div>
+      )}
+
+      <div className="bg-gray-900 border-t border-gray-800 p-4 max-h-[25vh] overflow-y-auto">
         {selectedRoute ? (
           <div>
             <div className="flex items-start justify-between gap-2 mb-4">
@@ -590,36 +543,6 @@ export default function ImagePage() {
           </div>
         )}
       </div>
-
-      <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
-        <DialogContent className="bg-gray-900 border-gray-800 text-white">
-          <DialogHeader>
-            <DialogTitle>Share Image</DialogTitle>
-            <DialogDescription className="text-gray-400">
-              Share this image with your climbing routes
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Button
-              variant="outline"
-              onClick={handleCopyLink}
-              className="w-full flex items-center justify-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800"
-            >
-              <Share2 className="w-6 h-6 text-gray-400" />
-              <span className="text-sm">Copy Link</span>
-            </Button>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setShareModalOpen(false)}
-              className="w-full"
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
