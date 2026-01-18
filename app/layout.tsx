@@ -88,7 +88,7 @@ export default function RootLayout({
       <head>
         <link rel="canonical" href="https://gsyrocks.com" />
         <link rel="icon" href="/favicon.png" type="image/png" sizes="32x32" />
-        <link rel="apple-touch-icon" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/manifest.json" />
         <script
           dangerouslySetInnerHTML={{
@@ -135,9 +135,9 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased pt-12 pb-16 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
-      >
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased pt-20 pb-16 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
+        >
         <PostHogProvider>
           <PageViewTracker />
           <AppLayout>{children}</AppLayout>

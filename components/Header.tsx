@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
 import { trackSearchPerformed, trackSearchResultClicked } from '@/lib/posthog'
+import { MORE_MENU_ITEMS } from '@/lib/nav-items'
 
 interface SearchResult {
   type: 'crag' | 'climb'
@@ -23,16 +24,6 @@ interface CragData {
   latitude: number | null
   longitude: number | null
 }
-
-const MORE_MENU_ITEMS = [
-  { label: 'Leaderboard', href: '/leaderboard' },
-  { label: 'Gear', href: '/gear' },
-  { label: 'About', href: '/about' },
-  { label: 'Settings', href: '/settings' },
-  { label: 'Sponsors', href: '/sponsors' },
-]
-
-const MORE_MENU_ITEMS_WITH_TYPES: { label: string; href: string }[] = MORE_MENU_ITEMS
 
 export default function Header() {
   const [user, setUser] = useState<User | null>(null)
@@ -212,17 +203,17 @@ export default function Header() {
           )}
         </div>
 
-        <nav className="hidden md:flex items-center gap-1">
-          <Link href="/logbook" className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+        <nav className="flex items-center gap-1">
+          <Link href="/logbook" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Logbook
           </Link>
-          <Link href="/map" className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <Link href="/map" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Map
           </Link>
-          <Link href="/submit" className="px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <Link href="/submit" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Upload
           </Link>
-          <div ref={moreRef} className="relative">
+          <div ref={moreRef} className="relative hidden md:block">
             <button
               onClick={() => setShowMoreDropdown(!showMoreDropdown)}
               className="flex items-center px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -232,9 +223,9 @@ export default function Header() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            {showMoreDropdown && (
-              <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-40 z-50">
-                {MORE_MENU_ITEMS_WITH_TYPES.map((item) => (
+              {showMoreDropdown && (
+                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-40 z-50">
+                  {MORE_MENU_ITEMS.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}

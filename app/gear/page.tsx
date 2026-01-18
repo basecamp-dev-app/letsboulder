@@ -23,32 +23,26 @@ export default function GearPage() {
   }, [activeCategory, searchQuery])
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4">
       <div className="max-w-5xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-          Essential Climbing Gear
-        </h1>
-        
-        <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            <strong>Disclosure:</strong> This page contains affiliate links. 
-            We may earn a commission on purchases made through our links 
-            at no extra cost to you.
+        <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-2 mb-2">
+          <p className="text-xs text-amber-800 dark:text-amber-200">
+            Affiliate links - we earn a commission on purchases at no extra cost to you.
           </p>
         </div>
 
-        <div className="relative mb-6">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             placeholder="Search products..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500"
           />
         </div>
 
-        <div className="mb-6">
+        <div className="mb-2">
           <CategoryTabs
             categories={CATEGORIES}
             activeCategory={activeCategory}
@@ -64,10 +58,11 @@ export default function GearPage() {
           </div>
         ) : (
           <>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
               Showing {filteredProducts.length} of {products.length} products
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+            <div className="grid grid-cols-2 gap-3">
               {filteredProducts.map((product) => (
                 <GearCard key={product.id} product={product} />
               ))}
