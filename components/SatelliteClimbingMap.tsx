@@ -101,10 +101,7 @@ export default function SatelliteClimbingMap() {
   const CACHE_KEY = 'gsyrocks_images_cache'
 
   const loadImages = useCallback(async () => {
-    console.log('loadImages called')
-    
     if (!isClient) {
-      console.log('Not isClient, returning early')
       setLoading(false)
       return
     }
@@ -112,12 +109,10 @@ export default function SatelliteClimbingMap() {
     const cacheKey = CACHE_KEY + '_v3' // New cache key to force refresh
     
     // Always fetch fresh data
-    console.log('Fetching fresh data...')
     localStorage.removeItem(cacheKey)
 
     try {
       const supabase = createClient()
-      console.log('Fetching images from Supabase...')
       
       // First get all images with latitude
       const { data: imagesData, error: imagesError } = await supabase
@@ -127,13 +122,13 @@ export default function SatelliteClimbingMap() {
         .not('crag_id', 'is', null)
         .order('created_at', { ascending: false })
 
-      console.log('Images query result:', imagesData?.length || 0, 'images')
       if (imagesError) {
-        console.error('Images error:', imagesError)
+        setImages([])
+        setLoading(false)
+        return
       }
 
       if (!imagesData || imagesData.length === 0) {
-        console.log('No images found')
         setImages([])
         setLoading(false)
         return
@@ -141,7 +136,6 @@ export default function SatelliteClimbingMap() {
 
       // Get route_lines for each image separately
       const imageIds = imagesData.map(img => img.id)
-      console.log('Image IDs:', imageIds.length)
       
       const { data: routeLinesData, error: rlError } = await supabase
         .from('route_lines')
@@ -161,13 +155,13 @@ export default function SatelliteClimbingMap() {
         `)
         .in('image_id', imageIds)
 
-      console.log('Route lines query result:', routeLinesData?.length || 0)
       if (rlError) {
-        console.error('Route lines error:', rlError)
+        setImages([])
+        setLoading(false)
+        return
       }
 
       if (!routeLinesData || routeLinesData.length === 0) {
-        console.log('No route lines found')
         setImages([])
         setLoading(false)
         return
@@ -198,7 +192,6 @@ export default function SatelliteClimbingMap() {
       // Log what we found
       for (const [imgId, rls] of routeLinesMap) {
         const approvedCount = rls.filter((rl: any) => rl.climbs?.status === 'approved').length
-        console.log(`Image ${imgId}: ${rls.length} route lines, ${approvedCount} approved`)
       }
 
       // Filter and format images with valid route_lines
@@ -244,9 +237,6 @@ export default function SatelliteClimbingMap() {
         }
       }
       
-      console.log('Final formatted images:', formattedImages.length)
-      console.log('Image IDs being rendered:', formattedImages.map(i => i.id))
-      const cacheKey = CACHE_KEY + '_v3'
       setImages(formattedImages)
 
       // Group images by crag_id and calculate average positions
@@ -291,9 +281,7 @@ export default function SatelliteClimbingMap() {
         .not('boundary', 'is', null)
 
       if (cragsError) {
-        console.error('Crags error:', cragsError)
       } else if (cragsData) {
-        console.log(`Found ${cragsData.length} crags with boundaries`)
         setCrags(cragsData as CragData[])
       }
 
@@ -302,7 +290,6 @@ export default function SatelliteClimbingMap() {
         timestamp: Date.now()
       }))
     } catch (err) {
-      console.error('Network error fetching images:', err)
     }
     setLoading(false)
   }, [isClient])

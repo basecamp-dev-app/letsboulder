@@ -14,8 +14,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'No URL provided' }, { status: 400 })
       }
 
-      console.log('Extracting GPS from URL:', url)
-
       const response = await fetch(url)
       if (!response.ok) {
         return NextResponse.json({ error: 'Failed to fetch image from URL' }, { status: 400 })

@@ -20,7 +20,6 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
         const jpegBlob = await heicToJpegBlob(file)
         sourceData = await blobToDataURL(jpegBlob)
       } catch (err) {
-        console.error('HEIC conversion error:', err)
         throw new Error('Failed to convert HEIC image. Please try a different file.')
       }
     }
@@ -81,16 +80,12 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
       }
       
       img.onerror = (e) => {
-        console.error('Image load error:', e)
-        console.error('File type:', file.type)
-        console.error('File size:', file.size)
         reject(new Error(`Failed to load image for compression. File type: ${file.type}`))
       }
       img.src = imgSrc
     }
     
-    reader.onerror = (e) => {
-      console.error('FileReader error:', e)
+    reader.onerror = () => {
       reject(new Error('Failed to read file'))
     }
 
@@ -166,7 +161,6 @@ async function extractGpsFromFile(file: File): Promise<GpsData | null> {
 
     return null
   } catch (err) {
-    console.error('GPS extraction error:', err)
     return null
   }
 }
@@ -237,14 +231,12 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     }
 
     const maxOriginalSize = 20 * 1024 * 1024
-    if (selectedFile.size > maxOriginalSize) {
-      onError(`File is too large (${(selectedFile.size / 1024 / 1024).toFixed(1)}MB). Maximum allowed: 20MB.`)
-      return
-    }
+      if (selectedFile.size > maxOriginalSize) {
+        onError(`File is too large (${(selectedFile.size / 1024 / 1024).toFixed(1)}MB). Maximum allowed: 20MB.`)
+        return
+      }
 
-    console.log('Processing file:', selectedFile.name, selectedFile.size, selectedFile.type)
-
-    try {
+      try {
       let previewBlob: Blob | null = null
 
       if (isHeicFile(selectedFile)) {
@@ -255,12 +247,10 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
 
           onUploading(true, 15, 'Extracting GPS...')
           const gps = await extractGpsFromFile(selectedFile)
-          console.log('HEIC GPS extraction result:', gps)
           setGpsData(gps)
 
           onUploading(true, 20, 'Compressing HEIC...')
         } catch (err) {
-          console.error('HEIC conversion error:', err)
           onError('Failed to process HEIC image. Please convert to JPEG first.')
           onUploading(false, 0, '')
           return
@@ -270,7 +260,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
 
         onUploading(true, 10, 'Extracting GPS...')
         const gps = await extractGpsFromFile(selectedFile)
-        console.log('JPEG GPS extraction result:', gps)
         setGpsData(gps)
 
         onUploading(true, 20, 'Compressing image...')
@@ -296,7 +285,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       onUploading(false, 0, '')
 
     } catch (err) {
-      console.error('Compression error:', err)
       onError('Failed to compress image. Please try a different image.')
       setFile(null)
       onUploading(false, 0, '')
@@ -311,9 +299,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       onError('No image selected. Please upload an image first.')
       return
     }
-
-    console.log('Confirming with file:', fileToUpload.name)
-    console.log('File size:', fileToUpload.size)
 
     onUploading(true, 0, 'Uploading...')
 
@@ -368,12 +353,10 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
         uploadedUrl: publicUrl
       }
 
-      console.log('Final result with GPS:', result.gpsData)
       onUploading(false, 100, '')
       onComplete(result)
 
     } catch (err) {
-      console.error('Upload error:', err)
       onError('Failed to upload image. Please try again.')
       onUploading(false, 0, '')
     }

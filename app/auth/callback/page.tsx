@@ -54,12 +54,10 @@ function AuthCallbackContent() {
         const { data, error } = await supabase.auth.getSession()
 
         if (error) {
-          console.error(`Auth callback error (attempt ${attemptCountRef.current}):`, error)
           return false
         }
 
         if (data.session) {
-          console.log('Callback: session established successfully')
           return true
         }
 
@@ -72,7 +70,6 @@ function AuthCallbackContent() {
 
         return false
       } catch (err) {
-        console.error(`Session check failed (attempt ${attemptCountRef.current}):`, err)
         attemptCountRef.current += 1
         if (attemptCountRef.current < MAX_RETRIES) {
           await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL_MS))
@@ -92,7 +89,6 @@ function AuthCallbackContent() {
         setStatus('success')
         trackAuthLoginSuccess('magic_link')
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
-        console.log(`Callback: redirecting to ${redirectTo}`)
         router.push(redirectTo)
       } else {
         setStatus('error')
@@ -131,7 +127,6 @@ function AuthCallbackContent() {
         const { data, error } = await supabase.auth.getSession()
 
         if (error) {
-          console.error('Auth callback error:', error)
           return false
         }
 
@@ -148,7 +143,6 @@ function AuthCallbackContent() {
 
         return false
       } catch (err) {
-        console.error('Session check failed:', err)
         attemptCountRef.current += 1
         if (attemptCountRef.current < MAX_RETRIES) {
           await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL_MS))

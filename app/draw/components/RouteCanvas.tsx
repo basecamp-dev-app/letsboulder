@@ -332,10 +332,8 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
   }, [])
 
   const handleFinishRoute = useCallback(() => {
-    console.log('Finish Route button clicked - Points:', currentPoints.length, 'Name:', currentName.trim())
     if (currentPoints.length > 1) {
       const routeName = currentName.trim() || `Route ${routes.length + 1}`
-      console.log('Finishing route:', routeName, currentGrade, currentPoints.length, 'points')
 
       const scaleX = canvasRef.current ? canvasRef.current.width / (imageRef.current?.naturalWidth || 1) : 1
       const scaleY = canvasRef.current ? canvasRef.current.height / (imageRef.current?.naturalHeight || 1) : 1
@@ -355,24 +353,18 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
       setCurrentPoints([])
       setCurrentName('')
       setSelectedRouteIndex(null)
-      console.log('Route finished, total routes:', routes.length + 1)
     } else {
-      console.log('Cannot finish route: points =', currentPoints.length)
       alert('Please add at least 2 points to the route')
     }
   }, [currentPoints, currentName, currentGrade, routes.length])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Enter') {
-      console.log('Enter key pressed - Points:', currentPoints.length, 'Name:', currentName.trim())
       if (currentPoints.length >= 2) {
-        console.log('Finishing route via Enter key')
         handleFinishRoute()
-      } else {
-        console.log('Cannot finish: need 2+ points')
       }
     }
-  }, [currentPoints, currentName, handleFinishRoute])
+  }, [currentPoints, handleFinishRoute])
 
 
 
@@ -395,7 +387,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
   }
 
   const handleSave = () => {
-    console.log('Save button clicked - routes to save:', routes.length)
     if (routes.length === 0) {
       alert('Please finish at least one route before saving')
       return
@@ -409,7 +400,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
       captureDate
     }
     localStorage.setItem('routeSession', JSON.stringify(routeData))
-    console.log('Routes saved, redirecting to name-routes')
     window.location.href = `/name-routes?sessionId=${sessionId}`
   }
 
@@ -462,7 +452,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
         alert(error.error || 'Failed to submit grade')
       }
     } catch (err) {
-      console.error('Grade vote error:', err)
       alert('Failed to submit grade')
     }
   }
@@ -479,7 +468,6 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
         })
       }
     } catch (err) {
-      console.error('Failed to fetch grade info:', err)
     }
   }
 

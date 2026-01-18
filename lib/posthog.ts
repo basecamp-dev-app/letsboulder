@@ -7,13 +7,6 @@ const POSTHOG_API_KEY = process.env.NEXT_PUBLIC_POSTHOG_API_KEY
 const POSTHOG_INSTANCE_URL = process.env.NEXT_PUBLIC_POSTHOG_INSTANCE_URL || 'https://us.i.posthog.com'
 const POSTHOG_INITIALIZED = isBrowser && POSTHOG_API_KEY
 
-console.log('[PostHog] Init check:', {
-  isBrowser,
-  hasApiKey: !!POSTHOG_API_KEY,
-  apiKeyPrefix: POSTHOG_API_KEY?.substring(0, 10),
-  initialized: POSTHOG_INITIALIZED
-})
-
 if (POSTHOG_INITIALIZED) {
   try {
     posthog.init(POSTHOG_API_KEY!, {
@@ -21,7 +14,6 @@ if (POSTHOG_INITIALIZED) {
       person_profiles: 'identified_only',
       capture_pageview: false,
       loaded: () => {
-        console.log('[PostHog] Loaded successfully')
         if (isBrowser) {
           (window as unknown as { posthog: typeof posthog }).posthog = posthog
         }
@@ -30,8 +22,6 @@ if (POSTHOG_INITIALIZED) {
   } catch (error) {
     console.error('[PostHog] Initialization failed:', error)
   }
-} else {
-  console.warn('[PostHog] Skipped - missing NEXT_PUBLIC_POSTHOG_API_KEY')
 }
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
@@ -44,8 +34,6 @@ export const trackEvent = (
 ) => {
   if (isBrowser && posthog) {
     posthog.capture(event, properties)
-  } else {
-    console.warn('[PostHog] trackEvent called but posthog not initialized')
   }
 }
 

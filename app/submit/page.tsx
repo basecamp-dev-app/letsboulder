@@ -63,8 +63,7 @@ function SubmitPageContent() {
             })
           }
         })
-        .catch(err => console.error('Error finding region:', err))
-        .finally(() => setLoadingRegion(false))
+        .catch(() => setLoadingRegion(false))
     } else {
       setPreselectedRegion(null)
     }
@@ -122,7 +121,6 @@ function SubmitPageContent() {
   }, [context.imageGps, step])
 
   const handleCragSelect = useCallback((crag: Crag) => {
-    console.log('handleCragSelect called with crag:', crag.id, crag.name)
     setContext(prev => ({ 
       ...prev, 
       crag: { id: crag.id, name: crag.name, latitude: crag.latitude, longitude: crag.longitude }
@@ -203,15 +201,12 @@ function SubmitPageContent() {
 
   const handleSubmit = async () => {
     if (!context.region || !context.crag || !context.image || context.routes.length === 0) {
-      console.error('Incomplete submission data:', { region: !!context.region, crag: !!context.crag, image: !!context.image, routesCount: context.routes.length })
       setError('Incomplete submission data')
       return
     }
 
     setSubmitting(true)
     setError(null)
-
-    console.log('Submitting with crag:', context.crag, 'step.cragId:', 'cragId' in step ? (step as { cragId?: string }).cragId : 'not in step')
 
     try {
       const { createClient } = await import('@/lib/supabase')
