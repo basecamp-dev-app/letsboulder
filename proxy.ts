@@ -1,10 +1,49 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const ALLOWED_REDIRECT_PATHS = [
+  '/',
+  '/map',
+  '/logbook',
+  '/leaderboard',
+  '/settings',
+  '/submit',
+  '/upload-climb',
+  '/crag/',
+  '/climb/',
+  '/image/',
+]
+
+function isAllowedRedirectPath(path: string): boolean {
+  return ALLOWED_REDIRECT_PATHS.some(allowed => {
+    if (allowed.endsWith('/')) {
+      return path.startsWith(allowed)
+    }
+    return path === allowed
+  })
+}
+
 export default async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
+
+  const { pathname, searchParams } = request.nextUrl
+
+  if (pathname === '/') {
+    return NextResponse.redirect(new URL('/map', request.url), 301)
+  }
+
+  if (pathname === '/auth') {
+    const redirectTo = searchParams.get('redirect_to')
+    if (redirectTo && isAllowedRedirectPath(redirectTo)) {
+      supabaseResponse.cookies.set('redirect_to', redirectTo, {
+        path: '/',
+        maxAge: 60 * 5,
+        httpOnly: true,
+      })
+    }
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,7 +66,6 @@ export default async function proxy(request: NextRequest) {
     }
   )
 
-  // This will refresh session if expired - required for Server Components
   await supabase.auth.getUser()
 
   return supabaseResponse
