@@ -109,9 +109,6 @@ export default function SatelliteClimbingMap() {
   const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
   const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
   const [useUserLocation, setUseUserLocation] = useState(false)
-  const [setLocationMode, setSetLocationMode] = useState(false)
-  const [setLocationPending, setSetLocationPending] = useState<{lat: number; lng: number} | null>(null)
-  const [isSavingLocation, setIsSavingLocation] = useState(false)
   const [cragPins, setCragPins] = useState<CragPin[]>([])
 
   const CACHE_KEY = 'gsyrocks_images_cache'
@@ -657,59 +654,6 @@ interface SkeletonPin {
           <MapPin className="w-4 h-4" />
           Go to Default Location
         </button>
-      )}
-
-      {!useUserLocation && defaultLocation && !isAtDefaultLocation && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] bg-blue-600 text-white rounded-lg px-4 py-2 text-sm shadow-lg">
-          Click on the map to set your default location
-        </div>
-      )}
-
-      {setLocationPending && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1001] bg-white dark:bg-gray-800 rounded-lg p-4 shadow-xl max-w-xs">
-          <p className="text-sm mb-3">Set default location here?</p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => { setSetLocationPending(null); setSetLocationMode(false) }}
-              className="flex-1 px-3 py-1.5 text-sm border rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={async () => {
-                if (!setLocationPending || !user) return
-                setIsSavingLocation(true)
-                try {
-                  const response = await fetch(`/api/locations/reverse?lat=${setLocationPending.lat}&lng=${setLocationPending.lng}`)
-                  const data = await response.json()
-                  await fetch('/api/settings', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      defaultLocationName: data.display_name || 'Custom Location',
-                      defaultLocationLat: setLocationPending.lat,
-                      defaultLocationLng: setLocationPending.lng,
-                      defaultLocationZoom: mapRef.current?.getZoom() || 12,
-                    }),
-                  })
-                  setDefaultLocation({ lat: setLocationPending.lat, lng: setLocationPending.lng, zoom: mapRef.current?.getZoom() || 12 })
-                  setSetLocationPending(null)
-                  setSetLocationMode(false)
-                  setIsAtDefaultLocation(true)
-                } catch {
-                  alert('Failed to save location')
-                } finally {
-                  setIsSavingLocation(false)
-                }
-              }}
-              disabled={isSavingLocation}
-              className="flex-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {isSavingLocation ? <Loader2 className="w-4 h-4 inline animate-spin mr-1" /> : null}
-              {isSavingLocation ? 'Saving...' : 'Save'}
-            </button>
-          </div>
-        </div>
       )}
     </div>
   )

@@ -83,7 +83,6 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [locationSelected, setLocationSelected] = useState<LocationResult | null>(null)
   const [locationModalOpen, setLocationModalOpen] = useState(false)
   const [locationLoading, setLocationLoading] = useState(false)
-  const [setFromMapMode, setSetFromMapMode] = useState(false)
 
   const [toast, setToast] = useState<string | null>(null)
 
@@ -282,7 +281,6 @@ export default function SettingsContent({ user }: SettingsContentProps) {
       setLocationModalOpen(false)
       setLocationSelected(null)
       setLocationSearchQuery('')
-      setSetFromMapMode(false)
       setToast('Saved')
     } catch {
       setToast('Failed to save')
@@ -310,16 +308,10 @@ export default function SettingsContent({ user }: SettingsContentProps) {
       setLocationSelected(null)
       setLocationSearchQuery('')
       setLocationZoomLevel(12)
-      setSetFromMapMode(false)
       setToast('Saved')
     } catch {
       setToast('Failed to save')
     }
-  }
-
-  const handleOpenMapForSelection = () => {
-    setSetFromMapMode(true)
-    window.open('/map?setLocation=true', '_blank', 'width=800,height=600')
   }
 
   const handleInitiateDelete = async () => {
@@ -615,7 +607,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <h3 className="font-semibold">Set Default Location</h3>
               <button
-                onClick={() => { setLocationModalOpen(false); setSetFromMapMode(false) }}
+                onClick={() => setLocationModalOpen(false)}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
               >
                 <X className="w-5 h-5" />
@@ -623,102 +615,48 @@ export default function SettingsContent({ user }: SettingsContentProps) {
             </div>
 
             <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-              {!setFromMapMode ? (
-                <>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      value={locationSearchQuery}
-                      onChange={(e) => { setLocationSearchQuery(e.target.value); handleLocationSearch(e.target.value) }}
-                      placeholder="Search for a location..."
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                    />
-                    {locationSearching && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400" />
-                    )}
-                  </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={locationSearchQuery}
+                  onChange={(e) => { setLocationSearchQuery(e.target.value); handleLocationSearch(e.target.value) }}
+                  placeholder="Search for a location..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                />
+                {locationSearching && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400" />
+                )}
+              </div>
 
-                  {locationSearchResults.length > 0 && (
-                    <div className="space-y-2">
-                      {locationSearchResults.map((result, index) => (
-                        <button
-                          key={index}
-                          onClick={() => handleSelectLocation(result)}
-                          className="w-full p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                        >
-                          <div className="flex items-start gap-2">
-                            <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-gray-100">{result.name}</p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                {result.address.city && `${result.address.city}, `}{result.address.country}
-                              </p>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {locationSearchQuery && locationSearchResults.length === 0 && !locationSearching && (
-                    <p className="text-center text-gray-500 dark:text-gray-400 py-4">No locations found</p>
-                  )}
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-200 dark:border-gray-700" />
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-2 bg-white dark:bg-gray-900 text-gray-500">or</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handleOpenMapForSelection}
-                    className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <MapPin className="w-4 h-4" />
-                    <span>Select from Map</span>
-                  </button>
-                </>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-600 dark:text-gray-400 mb-4">
-                    A new window has opened with the map. Navigate to your desired location and click the button there to set it as your default.
-                  </p>
-                  <Button variant="outline" onClick={() => setSetFromMapMode(false)}>Back to Search</Button>
+              {locationSearchResults.length > 0 && (
+                <div className="space-y-2">
+                  {locationSearchResults.map((result, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleSelectLocation(result)}
+                      className="w-full p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-gray-100">{result.name}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {result.address.city && `${result.address.city}, `}{result.address.country}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               )}
 
-              {locationSelected && !setFromMapMode && (
-                <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{locationSelected.name}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{locationSelected.display_name}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{locationSelected.lat.toFixed(4)}°, {locationSelected.lng.toFixed(4)}°</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Zoom Level: {locationZoomLevel}</label>
-                    <input
-                      type="range"
-                      min="2"
-                      max="18"
-                      value={locationZoomLevel}
-                      onChange={(e) => setLocationZoomLevel(parseInt(e.target.value))}
-                      className="w-full"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>Far</span>
-                      <span>Close</span>
-                    </div>
-                  </div>
-                </div>
+              {locationSearchQuery && locationSearchResults.length === 0 && !locationSearching && (
+                <p className="text-center text-gray-500 dark:text-gray-400 py-4">No locations found</p>
               )}
             </div>
 
-            {locationSelected && !setFromMapMode && (
+            {locationSelected && (
               <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex gap-2">
                 <Button
                   variant="outline"

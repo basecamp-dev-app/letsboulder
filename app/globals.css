@@ -135,6 +135,20 @@
   opacity: 0.6;
 }
 
+/* Location picker marker - red circle */
+.location-marker {
+  background: #ef4444 !important;
+  border: 2px solid white !important;
+  border-radius: 50% !important;
+  width: 20px !important;
+  height: 20px !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.location-marker:hover {
+  background: #f87171 !important;
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);

@@ -6,17 +6,11 @@ import type { GpsData } from '@/lib/submission-types'
 import dynamic from 'next/dynamic'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { useMapEvents } from 'react-leaflet'
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
-
-delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-})
 
 interface LocationPickerProps {
   initialGps: GpsData | null
@@ -26,26 +20,39 @@ interface LocationPickerProps {
   cragName?: string
 }
 
+function MapClickHandler({ onClick }: { onClick: (e: L.LeafletMouseEvent) => void }) {
+  useMapEvents({
+    click: onClick
+  })
+  return null
+}
+
 export default function LocationPicker({ initialGps, onConfirm, onSkip, regionName, cragName }: LocationPickerProps) {
   const [position, setPosition] = useState<[number, number] | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
+  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const mapRef = useRef<L.Map | null>(null)
-  
+  const hasGps = initialGps !== null
+
   useEffect(() => {
     setIsClient(true)
   }, [])
-  
+
+  useEffect(() => {
+    import('leaflet').then(L => {
+      setLeaflet(L)
+    })
+  }, [])
+
   useEffect(() => {
     if (initialGps) {
       setPosition([initialGps.latitude, initialGps.longitude])
-    } else if (regionName && cragName) {
-      handleSearchForCrag()
     }
-  }, [initialGps, regionName, cragName])
-  
+  }, [initialGps])
+
   useEffect(() => {
     if (position && mapRef.current) {
       mapRef.current.setView(position, 14)
@@ -58,10 +65,9 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
   }, [])
 
   const handleMapClick = useCallback((e: L.LeafletMouseEvent) => {
-    const { lat, lng } = e.latlng
-    setPosition([lat, lng])
+    setPosition([e.latlng.lat, e.latlng.lng])
   }, [])
-  
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) return
     
@@ -126,27 +132,40 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
   
   return (
     <div className="space-y-4">
-      <div className="h-80 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+      <div className="h-80 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 relative">
         <MapContainer
           ref={mapRef}
-          center={position || [51.505, -0.09]}
+          center={position || [20, 0]}
           zoom={position ? 14 : 2}
           style={{ height: '100%', width: '100%' }}
         >
+          <MapClickHandler onClick={handleMapClick} />
           <TileLayer
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             attribution='Tiles © Esri'
           />
-          <Marker
-            position={position || [51.505, -0.09]}
-            draggable={true}
-            eventHandlers={{
-              dragend: handlePositionChange,
-              click: handleMapClick
-            }}
-            opacity={position ? 1 : 0}
-          />
+          {position && leaflet && (
+            <Marker
+              position={position}
+              icon={leaflet.divIcon({
+                className: 'location-marker',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+              })}
+              draggable={true}
+              eventHandlers={{
+                dragend: handlePositionChange
+              }}
+            />
+          )}
         </MapContainer>
+        {!position && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div className="bg-black/60 text-white px-4 py-2 rounded-full text-sm">
+              {hasGps ? 'Loading GPS location...' : 'Tap map to place pin'}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 pt-2">
@@ -156,7 +175,7 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
           className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <MapPin className="w-4 h-4" />
-          Confirm Location
+          {hasGps ? 'Confirm Location' : 'Place Location'}
         </button>
       </div>
 
@@ -197,6 +216,7 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
           <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
             <MapPin className="w-4 h-4" />
             <span>{position[0].toFixed(6)}, {position[1].toFixed(6)}</span>
+            {hasGps && <span className="text-xs text-gray-400">(from image GPS)</span>}
           </p>
         </div>
       )}
