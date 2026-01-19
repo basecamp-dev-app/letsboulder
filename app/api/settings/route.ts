@@ -98,10 +98,34 @@ export async function PUT(request: NextRequest) {
     if (defaultLocationLng !== undefined) updateData.default_location_lng = defaultLocationLng === null ? null : Number(defaultLocationLng)
     if (defaultLocationZoom !== undefined) updateData.default_location_zoom = defaultLocationZoom === null ? null : Number(defaultLocationZoom)
     if (themePreference !== undefined) updateData.theme_preference = themePreference
-    if (firstName !== undefined) updateData.first_name = firstName.slice(0, 100)
-    if (lastName !== undefined) updateData.last_name = lastName.slice(0, 100)
     if (gender !== undefined) updateData.gender = gender
     updateData.updated_at = new Date().toISOString()
+
+    if (firstName !== undefined || lastName !== undefined) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('name_updated_at')
+        .eq('id', user.id)
+        .single()
+
+      const lastUpdate = profile?.name_updated_at
+      if (lastUpdate) {
+        const lastUpdateDate = new Date(lastUpdate)
+        const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+        
+        if (lastUpdateDate > sixtyDaysAgo) {
+          const daysRemaining = Math.ceil(60 - (Date.now() - lastUpdateDate.getTime()) / (24 * 60 * 60 * 1000))
+          return NextResponse.json(
+            { error: `You can only change your name once every 60 days. Please try again in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}.` },
+            { status: 429 }
+          )
+        }
+      }
+
+      if (firstName !== undefined) updateData.first_name = firstName.slice(0, 100)
+      if (lastName !== undefined) updateData.last_name = lastName.slice(0, 100)
+      updateData.name_updated_at = new Date().toISOString()
+    }
 
     // Use upsert to handle both new and existing profiles
     const { error: upsertError } = await supabase

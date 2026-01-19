@@ -143,7 +143,14 @@ export default function SettingsContent({ user }: SettingsContentProps) {
         body: JSON.stringify({ [field]: value })
       })
 
-      if (!response.ok) throw new Error('Failed to save')
+      if (!response.ok) {
+        const data = await response.json()
+        if (data.error) {
+          setToast(data.error)
+          return
+        }
+        throw new Error('Failed to save')
+      }
       setToast('Saved')
     } catch {
       setToast('Failed to save')
