@@ -86,6 +86,22 @@ function AuthCallbackContent() {
       const hasSession = await checkSession()
 
       if (hasSession) {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('first_name')
+            .eq('id', user.id)
+            .single()
+
+          if (!profile?.first_name) {
+            router.push('/auth/set-name')
+            return
+          }
+        }
+
         setStatus('success')
         trackAuthLoginSuccess('magic_link')
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
@@ -156,6 +172,22 @@ function AuthCallbackContent() {
       const hasSession = await checkSession()
 
       if (hasSession) {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('first_name')
+            .eq('id', user.id)
+            .single()
+
+          if (!profile?.first_name) {
+            router.push('/auth/set-name')
+            return
+          }
+        }
+
         setStatus('success')
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         router.push(redirectTo)
