@@ -75,10 +75,6 @@ export default function GearCard({ product }: GearCardProps) {
         <h3 className="font-medium text-gray-900 dark:text-gray-100 line-clamp-2 text-sm">
           {product.name}
         </h3>
-        
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2 flex-grow">
-          {product.description}
-        </p>
       </div>
     </a>
   )
