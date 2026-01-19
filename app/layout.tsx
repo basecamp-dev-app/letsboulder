@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
     images: [
       {
-        url: "/og.png",
+        url: "/logo.png",
         width: 1200,
         height: 630,
         alt: "gsyrocks - Guernsey Climbing Routes",
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "gsyrocks - Guernsey Climbing Routes",
     description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
-    images: ["/og.png"],
+    images: ["/logo.png"],
     creator: "@gsyrocks",
   },
   other: {
@@ -89,8 +89,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" href="/favicon.png" type="image/png" sizes="32x32" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="icon" href="/logo.png" type="image/png" sizes="32x32" />
+        <link rel="apple-touch-icon" href="/logo.png" />
         <link rel="manifest" href="/manifest.json" />
         <script
           dangerouslySetInnerHTML={{

@@ -155,7 +155,7 @@ export default function Header() {
         <Link href="/" className="flex items-center flex-shrink-0">
           <div className="relative w-12 h-12">
             <Image
-              src="/og.png"
+              src="/logo-header.png"
               alt="gsyrocks"
               fill
               className="object-contain dark:invert"
