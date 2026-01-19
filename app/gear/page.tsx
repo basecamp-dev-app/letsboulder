@@ -76,7 +76,7 @@ export default function GearPage() {
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-4 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-4">
             {Array(12).map((_, i) => <GearSkeleton key={i} />)}
           </div>
         ) : sortedProducts.length === 0 ? (
@@ -91,7 +91,7 @@ export default function GearPage() {
               Showing {sortedProducts.length} of {products.length} products
             </p>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+            <div className="grid grid-cols-4 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-4">
               {sortedProducts.map((product) => (
                 <GearCard key={product.id} product={product} />
               ))}

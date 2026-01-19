@@ -55,23 +55,23 @@ export default function GearCard({ product }: GearCardProps) {
       rel="noopener noreferrer"
       className="block h-full flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all snap-center overflow-hidden"
     >
-      <div className="h-48 relative bg-white flex items-center justify-center">
+      <div className="h-32 md:h-48 relative bg-white flex items-center justify-center">
         {product.imagePath ? (
           <Image
             src={`/gear/${product.imagePath}`}
             alt={product.name}
             fill
             className="object-contain"
-            sizes="(max-width: 768px) 42vw: (max-width: 1024px) 33vw: 16vw"
+            sizes="(max-width: 768px) 21vw: (max-width: 1024px) 33vw: 16vw"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <Icon className="w-16 h-16 text-gray-300 dark:text-gray-600" />
+            <Icon className="w-12 h-12 md:w-16 md:h-16 text-gray-300 dark:text-gray-600" />
           </div>
         )}
       </div>
       
-      <div className="p-4 flex flex-col flex-grow">
+      <div className="p-2 md:p-4 flex flex-col flex-grow">
         <h3 className="font-medium text-gray-900 dark:text-gray-100 line-clamp-2 text-sm">
           {product.name}
         </h3>

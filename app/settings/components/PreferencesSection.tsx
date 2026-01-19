@@ -26,8 +26,8 @@ export function PreferencesSection() {
     fetchSettings()
   }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleThemeChange = async (theme: string) => {
+    setFormData({ ...formData, themePreference: theme })
     setSaving(true)
     setMessage(null)
 
@@ -35,16 +35,16 @@ export function PreferencesSection() {
       const response = await csrfFetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ themePreference: theme })
       })
 
       if (!response.ok) throw new Error('Failed to save')
 
-      setMessage({ type: 'success', text: 'Preferences saved successfully' })
+      setMessage({ type: 'success', text: 'Preferences saved' })
 
-      if (formData.themePreference !== 'system') {
+      if (theme !== 'system') {
         document.documentElement.classList.remove('dark')
-        if (formData.themePreference === 'dark') {
+        if (theme === 'dark') {
           document.documentElement.classList.add('dark')
         }
       }
@@ -60,7 +60,7 @@ export function PreferencesSection() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Preferences</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">Customize your app experience.</p>
@@ -77,11 +77,12 @@ export function PreferencesSection() {
             <button
               key={option.value}
               type="button"
-              onClick={() => setFormData({ ...formData, themePreference: option.value })}
+              onClick={() => handleThemeChange(option.value)}
+              disabled={saving}
               className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-lg transition-colors ${
                 formData.themePreference === option.value
                   ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                  : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50'
               }`}
             >
               <span>{option.icon}</span>
@@ -96,16 +97,6 @@ export function PreferencesSection() {
           {message.text}
         </div>
       )}
-
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={saving}
-          className="px-6 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg font-medium hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50 transition-colors"
-        >
-          {saving ? 'Saving...' : 'Save Preferences'}
-        </button>
-      </div>
-    </form>
+    </div>
   )
 }

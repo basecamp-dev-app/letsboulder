@@ -259,28 +259,28 @@ export function AccountSection({ user }: AccountSectionProps) {
       <div className="border-t border-gray-200 dark:border-gray-700" />
 
       <div className="space-y-6">
-        <h2 className="text-lg font-semibold text-white">Danger Zone</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Danger Zone</h2>
 
-        <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-6 space-y-6">
+        <div className="border border-red-200 dark:border-red-800 rounded-lg p-6 space-y-6">
           <div>
-            <h3 className="text-sm font-medium text-white">Change Profile Visibility</h3>
-            <p className="text-xs text-white/70 mt-1">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white">Change Profile Visibility</h3>
+            <p className="text-xs text-gray-600 dark:text-white/70 mt-1">
               This profile is currently {isPublic ? 'public' : 'private'}.
             </p>
-            <Button variant="outline" onClick={handleVisibilityToggle} disabled={saving} className="text-red-600 border-red-300 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20">
+            <Button variant="outline" onClick={handleVisibilityToggle} disabled={saving} className="bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/10 dark:text-red-400 dark:hover:bg-red-900/20">
               Change Visibility
             </Button>
           </div>
 
-          <div className="border-t border-red-200 dark:border-red-800 pt-6">
-            <h3 className="text-sm font-medium text-white mb-2">Delete Account</h3>
-            <p className="text-sm text-white/70 mb-4">
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Delete Account</h3>
+            <p className="text-sm text-gray-600 dark:text-white/70 mb-4">
               Permanently delete your account and all associated data. This action cannot be undone.
             </p>
 
             <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="text-red-600 border-red-300 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20">
+                <Button variant="outline" className="bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/10 dark:text-red-400 dark:hover:bg-red-900/20">
                   Delete Account
                 </Button>
               </DialogTrigger>
