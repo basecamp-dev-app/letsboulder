@@ -22,10 +22,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Dev auth misconfigured' }, { status: 500 })
   }
 
+  const origin = request.nextUrl.origin
+  const redirectUrl = new URL('/', origin)
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll() { return request.cookies.getAll() }, setAll() {} } }
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value)
+          })
+        },
+      },
+    }
   )
 
   try {
@@ -35,8 +49,12 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingUser.user) {
-      const url = new URL('/', request.nextUrl.origin)
-      return NextResponse.redirect(url)
+      const response = NextResponse.redirect(redirectUrl, 302)
+      const sessionCookies = request.cookies.getAll()
+      sessionCookies.forEach(({ name, value }) => {
+        response.cookies.set(name, value)
+      })
+      return response
     }
   } catch (signInError: unknown) {
     if (signInError instanceof Error && signInError.message !== 'Invalid login credentials') {
@@ -63,15 +81,23 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           )
         }
-        const url = new URL('/', request.nextUrl.origin)
-        return NextResponse.redirect(url)
+        const response = NextResponse.redirect(redirectUrl, 302)
+        const sessionCookies = request.cookies.getAll()
+        sessionCookies.forEach(({ name, value }) => {
+          response.cookies.set(name, value)
+        })
+        return response
       }
       return createErrorResponse(signUpError, 'Dev signup error')
     }
 
     if (signUpData.user) {
-      const url = new URL('/', request.nextUrl.origin)
-      return NextResponse.redirect(url)
+      const response = NextResponse.redirect(redirectUrl, 302)
+      const sessionCookies = request.cookies.getAll()
+      sessionCookies.forEach(({ name, value }) => {
+        response.cookies.set(name, value)
+      })
+      return response
     }
   } catch (err: unknown) {
     sanitizeError(err, 'Dev signup error')
