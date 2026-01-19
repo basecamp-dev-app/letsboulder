@@ -45,6 +45,17 @@ export async function POST(request: NextRequest) {
     }
   )
 
+  const supabaseAdmin = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      cookies: {
+        getAll() { return cookies.getAll() },
+        setAll() {},
+      },
+    }
+  )
+
   try {
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -109,7 +120,7 @@ export async function POST(request: NextRequest) {
     }
 
     await supabase.auth.signOut()
-    await supabase.auth.admin.deleteUser(user.id)
+    await supabaseAdmin.auth.admin.deleteUser(user.id)
 
     return NextResponse.json({ success: true })
 
