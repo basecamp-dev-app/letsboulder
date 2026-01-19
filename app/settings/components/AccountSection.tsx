@@ -55,7 +55,7 @@ export function AccountSection({ user }: AccountSectionProps) {
         setFormData({
           firstName: profileData.first_name || '',
           lastName: profileData.last_name || '',
-          gender: profileData.gender || '',
+          gender: profileData.gender || 'prefer_not_to_say',
           bio: profileData.bio || '',
           defaultLocation: profileData.default_location || ''
         })
@@ -75,7 +75,7 @@ export function AccountSection({ user }: AccountSectionProps) {
     setMessage(null)
 
     try {
-      const response = await fetch('/api/settings', {
+      const response = await csrfFetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
@@ -96,7 +96,7 @@ export function AccountSection({ user }: AccountSectionProps) {
     setMessage(null)
 
     try {
-      const response = await fetch('/api/settings', {
+      const response = await csrfFetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isPublic: !isPublic })

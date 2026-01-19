@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { CsrfProvider } from "@/components/csrf-provider";
 import AppLayout from "@/components/AppLayout";
 import { PostHogProvider } from "@/lib/posthog";
 import PageViewTracker from "@/components/PageViewTracker";
@@ -141,6 +142,7 @@ export default function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} antialiased pt-20 pb-16 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
         >
         <PostHogProvider>
+          <CsrfProvider />
           <PageViewTracker />
           <AppLayout>{children}</AppLayout>
         </PostHogProvider>

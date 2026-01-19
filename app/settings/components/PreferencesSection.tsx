@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { csrfFetch, useCsrfToken } from '@/hooks/useCsrf'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 export function PreferencesSection() {
-  const csrfToken = useCsrfToken()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -56,7 +55,7 @@ export function PreferencesSection() {
     }
   }
 
-  if (loading || csrfToken === null) {
+  if (loading) {
     return <div className="animate-pulse space-y-4"><div className="h-10 bg-gray-200 dark:bg-gray-800 rounded" /><div className="h-10 bg-gray-200 dark:bg-gray-800 rounded" /></div>
   }
 
