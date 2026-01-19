@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import ReportCragModal from './ReportCragModal'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface Crag {
   id: string
@@ -91,7 +92,7 @@ export default function CragSelector({
     setSuccessMessage('')
 
     try {
-      const response = await fetch('/api/crags', {
+      const response = await csrfFetch('/api/crags', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

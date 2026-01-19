@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { MapPin, Search, Loader2, Globe } from 'lucide-react'
+import { MapPin, Search, Loader2 } from 'lucide-react'
 import type { GpsData } from '@/lib/submission-types'
 import dynamic from 'next/dynamic'
 import L from 'leaflet'
@@ -126,16 +126,6 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
   
   return (
     <div className="space-y-4">
-      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-        <h3 className="font-medium text-blue-900 dark:text-blue-100 flex items-center gap-2">
-          <Globe className="w-5 h-5" />
-          Set Route Location
-        </h3>
-        <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-          Click or drag the pin on the map to the exact location.
-        </p>
-      </div>
-      
       <div className="h-80 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
         <MapContainer
           ref={mapRef}
@@ -158,7 +148,18 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
           />
         </MapContainer>
       </div>
-      
+
+      <div className="flex gap-2 pt-2">
+        <button
+          onClick={handleConfirm}
+          disabled={!position}
+          className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          <MapPin className="w-4 h-4" />
+          Confirm Location
+        </button>
+      </div>
+
       <div className="flex gap-2">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -205,25 +206,6 @@ export default function LocationPicker({ initialGps, onConfirm, onSkip, regionNa
           {searchError}
         </div>
       )}
-      
-      <div className="flex gap-2 pt-2">
-        {onSkip && (
-          <button
-            onClick={onSkip}
-            className="flex-1 py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-          >
-            Skip
-          </button>
-        )}
-        <button
-          onClick={handleConfirm}
-          disabled={!position}
-          className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
-        >
-          <MapPin className="w-4 h-4" />
-          Confirm
-        </button>
-      </div>
     </div>
   )
 }

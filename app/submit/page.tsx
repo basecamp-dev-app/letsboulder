@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { SubmissionStep, Region, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData } from '@/lib/submission-types'
 import { trackRouteSubmitted } from '@/lib/posthog'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 const dynamic = nextDynamic
 
@@ -241,7 +242,7 @@ function SubmitPageContent() {
         return
       }
 
-      const response = await fetch('/api/submissions', {
+      const response = await csrfFetch('/api/submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -332,13 +333,9 @@ function SubmitPageContent() {
               ← Back to image
             </button>
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Set Route Location</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Set the exact location of the route. This helps others find it on the map.
-            </p>
             <LocationPicker
               initialGps={locationStep.imageGps}
               onConfirm={handleLocationConfirm}
-              onSkip={handleLocationSkip}
               regionName={locationStep.regionName}
             />
           </div>

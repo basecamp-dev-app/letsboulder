@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import type { Crag, Region } from '@/lib/submission-types'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface CragSelectorProps {
   region: Pick<Region, 'id' | 'name'>
@@ -117,7 +118,7 @@ export default function CragSelector({
     setSuccessMessage('')
 
     try {
-      const response = await fetch('/api/crags', {
+      const response = await csrfFetch('/api/crags', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
