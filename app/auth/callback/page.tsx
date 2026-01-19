@@ -4,6 +4,37 @@ import { useEffect, useState, useRef, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { trackAuthLoginSuccess } from '@/lib/posthog'
+import { SupabaseClient, User } from '@supabase/supabase-js'
+
+const syncOAuthProfile = async (supabase: SupabaseClient, user: User): Promise<boolean> => {
+  const metadata = user.user_metadata
+  const provider = metadata?.provider
+
+  if (provider === 'google' && metadata?.given_name && metadata?.family_name) {
+    await supabase.from('profiles').upsert({
+      id: user.id,
+      first_name: metadata.given_name,
+      last_name: metadata.family_name,
+      avatar_url: metadata.avatar_url,
+      email: user.email,
+    })
+    return true
+  }
+
+  if (metadata?.full_name) {
+    const nameParts = (metadata.full_name as string).split(' ')
+    await supabase.from('profiles').upsert({
+      id: user.id,
+      first_name: nameParts[0] || '',
+      last_name: nameParts.slice(1).join(' ') || '',
+      avatar_url: metadata.avatar_url,
+      email: user.email,
+    })
+    return true
+  }
+
+  return false
+}
 
 function LoadingFallback() {
   return (
@@ -90,6 +121,8 @@ function AuthCallbackContent() {
         const { data: { user } } = await supabase.auth.getUser()
 
         if (user) {
+          await syncOAuthProfile(supabase, user)
+
           const { data: profile } = await supabase
             .from('profiles')
             .select('first_name')
@@ -176,6 +209,8 @@ function AuthCallbackContent() {
         const { data: { user } } = await supabase.auth.getUser()
 
         if (user) {
+          await syncOAuthProfile(supabase, user)
+
           const { data: profile } = await supabase
             .from('profiles')
             .select('first_name')
