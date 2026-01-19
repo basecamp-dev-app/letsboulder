@@ -404,7 +404,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4pJ1hKR',
     category: 'Footwear',
     description: '',
-    imagePath: 'THE NORTH FACE Mens Thermoball Traction Snow Boots .jpg',
+    imagePath: "THE NORTH FACE Men's Thermoball Traction Snow Boots .jpg",
   },
   {
     id: 'rab-cirrus-hut-slippers',
