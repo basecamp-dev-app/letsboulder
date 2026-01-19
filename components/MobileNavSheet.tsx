@@ -107,22 +107,6 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
 
           {user ? (
             <button
-              onClick={() => handleNavigation('/settings')}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-colors ${
-                pathname === '/settings'
-                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-              }`}
-            >
-              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <span className="font-medium">Profile</span>
-            </button>
-          ) : null}
-
-          {user ? (
-            <button
               onClick={handleSignOut}
               className="w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
