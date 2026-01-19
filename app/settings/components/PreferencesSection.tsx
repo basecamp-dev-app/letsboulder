@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 export function PreferencesSection() {
   const [loading, setLoading] = useState(true)
@@ -31,7 +32,7 @@ export function PreferencesSection() {
     setMessage(null)
 
     try {
-      const response = await fetch('/api/settings', {
+      const response = await csrfFetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
