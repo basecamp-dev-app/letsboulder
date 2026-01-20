@@ -1,20 +1,23 @@
+
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { Crag, Region } from '@/lib/submission-types'
+import type { Crag } from '@/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 
 interface CragSelectorProps {
-  region: Pick<Region, 'id' | 'name'>
-  latitude: number
-  longitude: number
+  latitude?: number | null
+  longitude?: number | null
   onSelect: (crag: Crag) => void
   onCreateNew?: (name: string) => void
   selectedCragId?: string | null
 }
 
+interface CragSearchResult extends Crag {
+  distance?: number | null
+}
+
 export default function CragSelector({
-  region,
   latitude,
   longitude,
   onSelect,
@@ -22,7 +25,7 @@ export default function CragSelector({
   selectedCragId
 }: CragSelectorProps) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<Crag[]>([])
+  const [results, setResults] = useState<CragSearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [newCragName, setNewCragName] = useState('')
@@ -33,27 +36,6 @@ export default function CragSelector({
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
 
-  // Auto-select crag if preselected
-  useEffect(() => {
-    if (selectedCragId && query === '' && !showCreate) {
-      // Auto-select the preselected crag after a brief delay to allow component to initialize
-      const fetchCrag = async () => {
-        try {
-          const response = await fetch(`/api/crags/search?q=${encodeURIComponent('')}&region_id=${region.id}`)
-          if (response.ok) {
-            const crags = await response.json()
-            const preselectedCrag = crags.find((c: Crag) => c.id === selectedCragId)
-            if (preselectedCrag) {
-              handleSelect(preselectedCrag)
-            }
-          }
-        } catch (error) {
-        }
-      }
-      fetchCrag()
-    }
-  }, [selectedCragId, region.id])
-
   const searchCrags = useCallback(async (searchQuery: string) => {
     if (searchQuery.length < 2) {
       setResults([])
@@ -63,10 +45,11 @@ export default function CragSelector({
     setLoading(true)
     setErrorMessage('')
     try {
-      const params = new URLSearchParams({
-        q: searchQuery,
-        region_id: region.id
-      })
+      const params = new URLSearchParams({ q: searchQuery })
+      if (latitude !== null && latitude !== undefined && longitude !== null && longitude !== undefined) {
+        params.set('lat', latitude.toString())
+        params.set('lng', longitude.toString())
+      }
       const response = await fetch(`/api/crags/search?${params}`)
       if (response.ok) {
         const data = await response.json()
@@ -76,13 +59,13 @@ export default function CragSelector({
         setErrorMessage(errorData.error || 'Failed to search crags')
         setResults([])
       }
-    } catch (error) {
+      } catch {
       setErrorMessage('Failed to search crags')
       setResults([])
     } finally {
       setLoading(false)
     }
-  }, [region.id])
+  }, [latitude, longitude])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -105,8 +88,8 @@ export default function CragSelector({
   const handleCreate = async () => {
     if (!newCragName.trim()) return
 
-    const lat = parseFloat(newCragLat) || latitude
-    const lng = parseFloat(newCragLng) || longitude
+    const lat = parseFloat(newCragLat)
+    const lng = parseFloat(newCragLng)
 
     if (isNaN(lat) || isNaN(lng)) {
       setErrorMessage('Valid latitude and longitude are required')
@@ -127,7 +110,6 @@ export default function CragSelector({
           name: newCragName.trim(),
           latitude: lat,
           longitude: lng,
-          region_id: region.id,
           rock_type: newCragRockType.trim() || null
         }),
       })
@@ -147,7 +129,7 @@ export default function CragSelector({
         setTimeout(() => setSuccessMessage(''), 3000)
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Failed to create crag' }))
-        
+
         if (errorData.code === 'DUPLICATE' && errorData.existingCragId) {
           setErrorMessage(errorData.error)
           setTimeout(() => {
@@ -175,7 +157,7 @@ export default function CragSelector({
           setErrorMessage(errorData.error + (errorDetail ? `: ${errorDetail}` : ''))
         }
       }
-    } catch (error) {
+      } catch {
       setErrorMessage('Failed to create crag. Please try again.')
     } finally {
       setIsCreating(false)
@@ -199,12 +181,15 @@ export default function CragSelector({
     setNewCragLng(longitude ? longitude.toFixed(6) : '')
   }
 
+  const formatCoordinates = (lat?: number | null, lng?: number | null) => {
+    if (!lat || !lng) return null
+    const latDir = lat >= 0 ? 'N' : 'S'
+    const lngDir = lng >= 0 ? 'E' : 'W'
+    return `${Math.abs(lat).toFixed(4)}°${latDir}, ${Math.abs(lng).toFixed(4)}°${lngDir}`
+  }
+
   return (
     <div className="crag-selector">
-      <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-        Crags in <span className="font-medium text-gray-900 dark:text-gray-100">{region.name}</span>
-      </div>
-
       {successMessage && (
         <div className="mb-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
           {successMessage}
@@ -227,22 +212,77 @@ export default function CragSelector({
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
           />
+
+          {(latitude || longitude) && (
+            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Pin location: {formatCoordinates(latitude, longitude)}
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                navigator.geolocation.getCurrentPosition(
+                  (pos) => {
+                    setNewCragLat(pos.coords.latitude.toFixed(6))
+                    setNewCragLng(pos.coords.longitude.toFixed(6))
+                  },
+                  (err) => setErrorMessage('Could not get location: ' + err.message)
+                )
+              }}
+              className="col-span-2 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 flex items-center justify-center gap-2 text-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Use my current GPS
+            </button>
+            {(latitude || longitude) && (
+              <button
+                onClick={() => {
+                  if (latitude) setNewCragLat(latitude.toFixed(6))
+                  if (longitude) setNewCragLng(longitude.toFixed(6))
+                }}
+                className="col-span-2 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center gap-2 text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                </svg>
+                Use pin location
+              </button>
+            )}
+          </div>
+
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-center">— or enter coordinates —</p>
+
           <div className="grid grid-cols-2 gap-2">
             <input
               type="text"
               value={newCragLat}
               onChange={(e) => setNewCragLat(e.target.value)}
               placeholder="Latitude"
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                latitude && !newCragLat ? 'border-blue-300 dark:border-blue-700' : 'border-gray-300 dark:border-gray-600'
+              }`}
             />
             <input
               type="text"
               value={newCragLng}
               onChange={(e) => setNewCragLng(e.target.value)}
               placeholder="Longitude"
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                longitude && !newCragLng ? 'border-blue-300 dark:border-blue-700' : 'border-gray-300 dark:border-gray-600'
+              }`}
             />
           </div>
+
           <input
             type="text"
             value={newCragRockType}
@@ -253,7 +293,7 @@ export default function CragSelector({
           <div className="flex gap-2">
             <button
               onClick={handleCreate}
-              disabled={!newCragName.trim() || isCreating}
+              disabled={!newCragName.trim() || !newCragLat || !newCragLng || isCreating}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isCreating && (
@@ -264,7 +304,7 @@ export default function CragSelector({
             <button
               onClick={handleCancelCreate}
               disabled={isCreating}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+              className="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-400 dark:hover:bg-gray-600"
             >
               Cancel
             </button>
@@ -307,6 +347,17 @@ export default function CragSelector({
                   >
                     <div className="font-medium text-gray-900 dark:text-gray-100">
                       {crag.name}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      </svg>
+                      {formatCoordinates(crag.latitude, crag.longitude)}
+                      {crag.distance !== null && crag.distance !== undefined && (
+                        <span className="text-blue-600 dark:text-blue-400">
+                          • ~{crag.distance}km from your image
+                        </span>
+                      )}
                     </div>
                     {crag.rock_type && (
                       <div className="text-xs text-gray-500 dark:text-gray-400">

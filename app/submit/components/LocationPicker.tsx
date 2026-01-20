@@ -15,7 +15,6 @@ const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { 
 interface LocationPickerProps {
   initialGps: GpsData | null
   onConfirm: (gps: GpsData) => void
-  onSkip?: () => void
   regionName?: string
   cragName?: string
 }
@@ -27,7 +26,7 @@ function MapClickHandler({ onClick }: { onClick: (e: L.LeafletMouseEvent) => voi
   return null
 }
 
-export default function LocationPicker({ initialGps, onConfirm, onSkip, regionName, cragName }: LocationPickerProps) {
+export default function LocationPicker({ initialGps, onConfirm, regionName, cragName }: LocationPickerProps) {
   const [position, setPosition] = useState<[number, number] | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searching, setSearching] = useState(false)

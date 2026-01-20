@@ -8,8 +8,6 @@ interface CreateCragRequest {
   name: string
   latitude: number
   longitude: number
-  region_id?: string
-  region_name?: string
   rock_type?: string
   type?: 'sport' | 'boulder' | 'trad' | 'mixed'
   description?: string
@@ -40,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateCragRequest = await request.json()
-    const { name, latitude, longitude, region_id, region_name, rock_type, type, description, access_notes } = body
+    const { name, latitude, longitude, rock_type, type, description, access_notes } = body
 
     const rateLimitResult = rateLimit(request, 'authenticatedWrite', user?.id)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
@@ -53,30 +51,6 @@ export async function POST(request: NextRequest) {
         { error: 'Name, latitude, and longitude are required' },
         { status: 400 }
       )
-    }
-
-    let resolvedRegionId = region_id
-
-    if (!resolvedRegionId && region_name) {
-      const { data: regions } = await supabase
-        .from('regions')
-        .select('id, name')
-        .ilike('name', region_name)
-        .limit(1)
-
-      if (regions && regions.length > 0) {
-        resolvedRegionId = regions[0].id
-      } else {
-        const { data: newRegion, error: regionError } = await supabase
-          .from('regions')
-          .insert({ name: region_name })
-          .select('id')
-          .single()
-
-        if (!regionError && newRegion) {
-          resolvedRegionId = newRegion.id
-        }
-      }
     }
 
     const { data: existingCrags } = await supabase
@@ -104,13 +78,12 @@ export async function POST(request: NextRequest) {
         name,
         latitude,
         longitude,
-        region_id: resolvedRegionId || undefined,
         rock_type: rock_type || undefined,
         type: type || 'sport',
         description: description || undefined,
         access_notes: access_notes || undefined,
       })
-      .select('id, name, latitude, longitude, region_id, rock_type, type, created_at')
+      .select('id, name, latitude, longitude, rock_type, type, created_at')
       .single()
 
     if (createError) {

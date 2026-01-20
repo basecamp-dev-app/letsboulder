@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
@@ -5,29 +6,26 @@ import Link from 'next/link'
 import nextDynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import type { SubmissionStep, Region, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData } from '@/lib/submission-types'
+import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData } from '@/lib/submission-types'
 import { trackRouteSubmitted } from '@/lib/posthog'
 import { csrfFetch } from '@/hooks/useCsrf'
 
 const dynamic = nextDynamic
 
-const RegionSelector = dynamic(() => import('./components/RegionSelector'), { ssr: false })
 const CragSelector = dynamic(() => import('./components/CragSelector'), { ssr: false })
 const ImagePicker = dynamic(() => import('./components/ImagePicker'), { ssr: false })
 const RouteCanvas = dynamic(() => import('./components/RouteCanvas'), { ssr: false })
 const LocationPicker = dynamic(() => import('./components/LocationPicker'), { ssr: false })
+const RoutePreview = dynamic(() => import('./components/RoutePreview'), { ssr: false })
 
 function SubmitPageContent() {
   const [step, setStep] = useState<SubmissionStep>({ step: 'image' })
   const [context, setContext] = useState<SubmissionContext>({
-    region: null,
     crag: null,
     image: null,
     imageGps: null,
     routes: []
   })
-  const [preselectedRegion, setPreselectedRegion] = useState<Region | null>(null)
-  const [loadingRegion, setLoadingRegion] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -43,99 +41,37 @@ function SubmitPageContent() {
     checkAuth()
   }, [router])
 
-  useEffect(() => {
-    const imageGps = 'imageGps' in step ? step.imageGps : null
-    if (imageGps) {
-      setLoadingRegion(true)
-      fetch(`/api/regions/by-location?lat=${imageGps.latitude}&lng=${imageGps.longitude}`)
-        .then(res => {
-          if (res.ok) return res.json()
-          return null
-        })
-        .then(data => {
-          if (data) {
-            setPreselectedRegion({
-              id: data.id,
-              name: data.name,
-              country_code: data.country_code,
-              center_lat: data.center_lat,
-              center_lon: data.center_lon,
-              created_at: ''
-            })
-          }
-        })
-        .catch(() => setLoadingRegion(false))
-    } else {
-      setPreselectedRegion(null)
-    }
-  }, ['imageGps' in step ? step.imageGps : null])
-
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
     const gps = gpsData ? { latitude: gpsData.latitude, longitude: gpsData.longitude } : null
     setContext(prev => ({ ...prev, image: selection, imageGps: gps }))
-    
-    if (gps) {
-      setStep({ step: 'region', imageGps: gps })
-    } else {
-      setStep({ 
-        step: 'location', 
-        imageGps: null,
-        regionId: '', 
-        regionName: '' 
-      })
-    }
-  }, [])
 
-  const handleRegionSelect = useCallback((region: Region) => {
-    setContext(prev => ({ ...prev, region: { id: region.id, name: region.name } }))
-    setStep({ 
-      step: 'location', 
-      imageGps: context.imageGps,
-      regionId: region.id, 
-      regionName: region.name 
+    setStep({
+      step: 'location',
+      imageGps: gps
     })
-  }, [context.imageGps])
-
-  const handleClearPreselectedRegion = useCallback(() => {
-    setPreselectedRegion(null)
   }, [])
 
   const handleLocationConfirm = useCallback((gps: GpsData) => {
-    const currentStep = step as { step: string; regionId?: string; regionName?: string }
     setContext(prev => ({ ...prev, imageGps: gps }))
-    setStep({ 
-      step: 'crag', 
-      imageGps: gps,
-      regionId: currentStep.regionId!, 
-      regionName: currentStep.regionName! 
+    setStep({
+      step: 'crag',
+      imageGps: gps
     })
-  }, [step])
-
-  const handleLocationSkip = useCallback(() => {
-    const currentStep = step as { step: string; regionId?: string; regionName?: string }
-    setStep({ 
-      step: 'crag', 
-      imageGps: context.imageGps,
-      regionId: currentStep.regionId!, 
-      regionName: currentStep.regionName! 
-    })
-  }, [context.imageGps, step])
+  }, [])
 
   const handleCragSelect = useCallback((crag: Crag) => {
-    setContext(prev => ({ 
-      ...prev, 
+    setContext(prev => ({
+      ...prev,
       crag: { id: crag.id, name: crag.name, latitude: crag.latitude, longitude: crag.longitude }
     }))
-    setStep({ 
-      step: 'draw', 
+    setStep({
+      step: 'draw',
       imageGps: context.imageGps,
-      regionId: context.region!.id, 
-      regionName: context.region!.name,
-      cragId: crag.id, 
+      cragId: crag.id,
       cragName: crag.name,
       image: context.image!
     })
-  }, [context.imageGps, context.region])
+  }, [context.imageGps, context.image])
 
   const handleRoutesUpdate = useCallback((routes: NewRouteData[]) => {
     setContext(prev => ({ ...prev, routes }))
@@ -146,14 +82,16 @@ function SubmitPageContent() {
       setError('Please draw at least one route before continuing')
       return
     }
+    if (!context.crag) {
+      setError('Please select or create a crag before continuing')
+      return
+    }
     setError(null)
     setStep({
       step: 'review',
       imageGps: context.imageGps,
-      regionId: context.region!.id,
-      regionName: context.region!.name,
-      cragId: context.crag!.id,
-      cragName: context.crag!.name,
+      cragId: context.crag.id,
+      cragName: context.crag.name,
       image: context.image!,
       routes: context.routes
     })
@@ -164,35 +102,26 @@ function SubmitPageContent() {
     switch (step.step) {
       case 'image':
         setStep({ step: 'image' })
-        setPreselectedRegion(null)
-        break
-      case 'region':
-        setStep({ step: 'image' })
-        setPreselectedRegion(null)
         break
       case 'location':
-        setStep({ step: 'region', imageGps: context.imageGps })
+        setStep({ step: 'image' })
         break
       case 'crag':
-        setStep({ step: 'location', imageGps: context.imageGps, regionId: context.region!.id, regionName: context.region!.name })
+        setStep({ step: 'location', imageGps: context.imageGps })
         break
       case 'draw':
-        setStep({ 
-          step: 'crag', 
+        setStep({
+          step: 'crag',
           imageGps: context.imageGps,
-          regionId: context.region!.id, 
-          regionName: context.region!.name,
           cragId: context.crag?.id,
           cragName: context.crag?.name
         })
         break
       case 'review':
-        setStep({ 
-          step: 'draw', 
+        setStep({
+          step: 'draw',
           imageGps: context.imageGps,
-          regionId: context.region!.id, 
-          regionName: context.region!.name,
-          cragId: context.crag!.id, 
+          cragId: context.crag!.id,
           cragName: context.crag!.name,
           image: context.image!
         })
@@ -201,7 +130,7 @@ function SubmitPageContent() {
   }, [step, context])
 
   const handleSubmit = async () => {
-    if (!context.region || !context.crag || !context.image || context.routes.length === 0) {
+    if (!context.crag || !context.image || context.routes.length === 0) {
       setError('Incomplete submission data')
       return
     }
@@ -257,8 +186,8 @@ function SubmitPageContent() {
 
       trackRouteSubmitted(data.climbsCreated)
 
-      setStep({ 
-        step: 'success', 
+      setStep({
+        step: 'success',
         climbsCreated: data.climbsCreated,
         imageId: data.imageId
       })
@@ -269,9 +198,8 @@ function SubmitPageContent() {
   }
 
   const handleStartOver = () => {
-    setContext({ region: null, crag: null, image: null, imageGps: null, routes: [] })
+    setContext({ crag: null, image: null, imageGps: null, routes: [] })
     setStep({ step: 'image' })
-    setPreselectedRegion(null)
     setError(null)
   }
 
@@ -282,7 +210,7 @@ function SubmitPageContent() {
           <div className="max-w-md mx-auto">
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Upload Route Photo</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Upload a photo of the route to begin. GPS location will be extracted to help find the crag.
+              Upload a photo of the route to begin. GPS location will be extracted to help find nearby crags.
             </p>
             <ImagePicker
               onSelect={(selection, gpsData) => handleImageSelect(selection, gpsData)}
@@ -291,39 +219,8 @@ function SubmitPageContent() {
           </div>
         )
 
-      case 'region':
-        return (
-          <div className="max-w-md mx-auto">
-            <button
-              onClick={handleBack}
-              className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
-            >
-              ← Back to image
-            </button>
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Select a Region</h2>
-            {step.imageGps && (
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  📍 Location detected from image
-                </p>
-              </div>
-            )}
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Select the region where your climb is located.
-            </p>
-            <RegionSelector 
-              onSelect={handleRegionSelect}
-              initialLat={step.imageGps?.latitude ?? 0}
-              initialLng={step.imageGps?.longitude ?? 0}
-              preselectedRegion={preselectedRegion}
-              loadingRegion={loadingRegion}
-              onClearPreselected={handleClearPreselectedRegion}
-            />
-          </div>
-        )
-
       case 'location':
-        const locationStep = step as { imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string }
+        const locationStep = step as { imageGps: { latitude: number; longitude: number } | null }
         return (
           <div className="max-w-md mx-auto">
             <button
@@ -336,29 +233,27 @@ function SubmitPageContent() {
             <LocationPicker
               initialGps={locationStep.imageGps}
               onConfirm={handleLocationConfirm}
-              regionName={locationStep.regionName}
             />
           </div>
         )
 
       case 'crag':
-        const cragStep = step as { regionId: string; regionName: string; cragId?: string; cragName?: string }
+        const cragStep = step as { cragId?: string; cragName?: string }
         return (
           <div className="max-w-md mx-auto">
             <button
               onClick={handleBack}
               className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
             >
-              ← Back to image
+              ← Back to location
             </button>
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Select a Crag</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Select the crag where your climb is located.
+              Select or create a crag near your image location.
             </p>
-            <CragSelector 
-              region={{ id: cragStep.regionId!, name: cragStep.regionName! }}
-              latitude={context.imageGps?.latitude ?? 0}
-              longitude={context.imageGps?.longitude ?? 0}
+            <CragSelector
+              latitude={context.imageGps?.latitude ?? null}
+              longitude={context.imageGps?.longitude ?? null}
               onSelect={handleCragSelect}
               selectedCragId={cragStep.cragId}
             />
@@ -405,18 +300,25 @@ function SubmitPageContent() {
               ← Back to drawing
             </button>
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Review Submission</h2>
-            
+
+            <div className="mb-6 h-[500px] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+              <RoutePreview
+                imageSelection={context.image!}
+                routes={context.routes}
+              />
+            </div>
+
             <div className="space-y-4 mb-6">
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div className="text-sm text-gray-500 dark:text-gray-400">Region</div>
-                <div className="font-medium text-gray-900 dark:text-gray-100">{step.regionName}</div>
-              </div>
-              
               <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <div className="text-sm text-gray-500 dark:text-gray-400">Crag</div>
                 <div className="font-medium text-gray-900 dark:text-gray-100">{step.cragName}</div>
+                {context.crag && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {context.crag.latitude.toFixed(4)}, {context.crag.longitude.toFixed(4)}
+                  </div>
+                )}
               </div>
-              
+
               <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <div className="text-sm text-gray-500 dark:text-gray-400">Routes ({step.routes.length})</div>
                 {step.routes.map((route, i) => (

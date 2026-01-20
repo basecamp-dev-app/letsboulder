@@ -112,7 +112,6 @@ export interface GpsData {
 export type ImageSelection = ExistingImageSelection | NewImageSelection
 
 export interface SubmissionContext {
-  region: Pick<Region, 'id' | 'name'> | null
   crag: Pick<Crag, 'id' | 'name' | 'latitude' | 'longitude'> | null
   image: ImageSelection | null
   imageGps: { latitude: number; longitude: number } | null
@@ -121,11 +120,10 @@ export interface SubmissionContext {
 
 export type SubmissionStep =
   | { step: 'image' }
-  | { step: 'region'; imageGps: { latitude: number; longitude: number } | null }
-  | { step: 'location'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string }
-  | { step: 'crag'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string; cragId?: string; cragName?: string }
-  | { step: 'draw'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string; cragId: string; cragName: string; image: ImageSelection }
-  | { step: 'review'; imageGps: { latitude: number; longitude: number } | null; regionId: string; regionName: string; cragId: string; cragName: string; image: ImageSelection; routes: NewRouteData[] }
+  | { step: 'location'; imageGps: { latitude: number; longitude: number } | null }
+  | { step: 'crag'; imageGps: { latitude: number; longitude: number } | null; cragId?: string; cragName?: string }
+  | { step: 'draw'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection }
+  | { step: 'review'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; routes: NewRouteData[] }
   | { step: 'submitting' }
   | { step: 'success'; climbsCreated: number; imageId?: string }
   | { step: 'error'; message: string }

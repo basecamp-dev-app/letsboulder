@@ -106,11 +106,12 @@ function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
           viewBox={`0 0 ${imgSize.width} ${imgSize.height}`}
           preserveAspectRatio="none"
         >
-          {routeLines.map((route) => {
+          {routeLines.map((route, index) => {
             const isSelected = selectedRoute?.id === route.id
             const color = isSelected ? '#00ff00' : (route.color || '#ff00ff')
             const strokeWidth = isSelected ? 3 : 2
-            
+            const startPoint = route.points[0]
+
             return (
               <g key={route.id}>
                 <path
@@ -121,6 +122,27 @@ function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
+                {startPoint && (
+                  <>
+                    <circle
+                      cx={startPoint.x * imgSize.width}
+                      cy={startPoint.y * imgSize.height}
+                      r={12}
+                      fill="#dc2626"
+                    />
+                    <text
+                      x={startPoint.x * imgSize.width}
+                      y={startPoint.y * imgSize.height}
+                      fill="white"
+                      fontSize={10}
+                      fontWeight="bold"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                    >
+                      {index + 1}
+                    </text>
+                  </>
+                )}
               </g>
             )
           })}

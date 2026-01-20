@@ -189,7 +189,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [attestationChecked, setAttestationChecked] = useState(false)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -223,7 +222,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     setFile(null)
     setCompressedFile(null)
     setGpsData(null)
-    setAttestationChecked(false)
 
     if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
       onError('Please select an image file (JPEG, PNG, WebP, HEIC, etc.)')
@@ -383,7 +381,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
                 setCompressedFile(null)
                 setGpsData(null)
                 setPreviewUrl(null)
-                setAttestationChecked(false)
                 if (fileInputRef.current) fileInputRef.current.value = ''
               }}
               className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
@@ -395,30 +392,17 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           </div>
 
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={attestationChecked}
-                onChange={(e) => {
-                  setAttestationChecked(e.target.checked)
-                  if (e.target.checked) {
-                    handleConfirm()
-                  }
-                }}
-                className="mt-1"
-              />
-              <span className="text-sm text-blue-700 dark:text-blue-300">
-                I confirm I have rights to this image and it shows a climbing route
-              </span>
-            </label>
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              By uploading, you confirm this is your photo of a climbing route and you have permission to share it.
+            </p>
           </div>
 
           <button
             onClick={handleConfirm}
-            disabled={compressing || !attestationChecked}
+            disabled={compressing}
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {compressing ? 'Compressing...' : 'Confirm & Continue'}
+            {compressing ? 'Compressing...' : 'Upload Photo'}
           </button>
         </div>
       ) : (
