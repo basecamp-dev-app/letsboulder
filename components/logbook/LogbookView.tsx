@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import GradePyramid from '@/components/GradePyramid'
 import { calculateStats, getLowestGrade, getGradeFromPoints } from '@/lib/grades'
-import { Trash2, Loader2, Mountain } from 'lucide-react'
+import { Trash2, Loader2 } from 'lucide-react'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
+import { EmptyLogbook } from '@/components/logbook/logbook-states'
 
 const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
   ssr: false,
@@ -54,6 +55,7 @@ interface LogbookViewProps {
 }
 
 export default function LogbookView({ isOwnProfile, initialLogs = [], profile }: LogbookViewProps) {
+  const router = useRouter()
   const [logs, setLogs] = useState<Climb[]>(initialLogs)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const { toasts, addToast, removeToast } = useToast()
@@ -121,28 +123,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
       )}
 
       {logs.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 px-4">
-            <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
-              <Mountain className="w-8 h-8 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              {isOwnProfile ? 'No climbs logged yet' : 'No climbs logged'}
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6 max-w-sm">
-              {isOwnProfile
-                ? 'Start tracking your progress by visiting the map and logging your first climb.'
-                : 'This climber hasn\'t logged any climbs yet.'}
-            </p>
-            {isOwnProfile && (
-              <Link href="/map">
-                <Button className="gap-2">
-                  Go to Map
-                </Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
+        <EmptyLogbook onGoToMap={() => router.push('/map')} />
       ) : stats ? (
         <div className="space-y-6">
           <Card>

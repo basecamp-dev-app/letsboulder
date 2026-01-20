@@ -1,1 +1,1 @@
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS gender TEXT CHECK (gender IN ('male', 'female', 'other', 'prefer_not_to_say'));
+SELECT * FROM user_climbs WHERE user_id = 'your-user-id' LIMIT 5;

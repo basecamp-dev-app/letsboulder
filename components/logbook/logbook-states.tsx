@@ -21,7 +21,7 @@ export function EmptyLogbook({ onGoToMap }: EmptyLogbookProps) {
           No climbs logged yet
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6 max-w-sm">
-          Start tracking your progress by visiting the map and logging your first climb.
+          Tap a route on the map, select it, then tap Flash/Top/Try to log your ascent.
         </p>
         <Button onClick={onGoToMap} className="gap-2">
           <Plus className="w-4 h-4" />
