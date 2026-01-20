@@ -110,6 +110,7 @@ export default function SatelliteClimbingMap() {
   const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
   const [useUserLocation, setUseUserLocation] = useState(false)
   const [cragPins, setCragPins] = useState<CragPin[]>([])
+  const [singletonImageIds, setSingletonImageIds] = useState<Set<string>>(new Set())
 
   const CACHE_KEY = 'gsyrocks_images_cache'
 
@@ -275,6 +276,8 @@ export default function SatelliteClimbingMap() {
 
       // Calculate average position for crags with 2+ images
       const pins: CragPin[] = []
+      const singletonIds = new Set<string>()
+      
       for (const [cragId, cragImages] of cragsWithImages) {
         if (cragImages.length >= 2) {
           const avgLat = cragImages.reduce((sum, img) => sum + (img.latitude || 0), 0) / cragImages.length
@@ -286,9 +289,13 @@ export default function SatelliteClimbingMap() {
             longitude: avgLng,
             imageCount: cragImages.length
           })
+        } else if (cragImages.length === 1) {
+          // Track singleton images so their markers are rendered
+          singletonIds.add(cragImages[0].id)
         }
       }
       setCragPins(pins)
+      setSingletonImageIds(singletonIds)
 
       // Fetch crags with boundaries
       const { data: cragsData, error: cragsError } = await supabase
@@ -493,7 +500,7 @@ interface SkeletonPin {
           />
         ))}
 
-        {mapLoaded && !loading && images.map(image => (
+        {mapLoaded && !loading && images.filter(image => singletonImageIds.has(image.id)).map(image => (
           <Marker
             key={image.id}
             position={[image.latitude || 0, image.longitude || 0]}
