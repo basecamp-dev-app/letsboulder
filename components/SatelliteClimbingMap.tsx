@@ -660,7 +660,7 @@ interface SkeletonPin {
               mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
             }
           }}
-          className="absolute bottom-24 left-4 z-[1000] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2"
+          className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 z-[1000] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2"
         >
           <MapPin className="w-4 h-4" />
           Go to Default Location
