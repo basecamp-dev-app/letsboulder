@@ -173,6 +173,8 @@ export const getRegisteredUserCount = cache(async (): Promise<string> => {
 
 ### Database Workflow (2-Person Team)
 
+**Safety First:** `supabase db push` only modifies schema (tables, columns, functions, triggers). It does NOT delete or overwrite table data. However, always review migrations before pushing to prod.
+
 Development
 1. Create migration: `supabase migration new describe_change`
 2. Edit migration file in `supabase/migrations/`
@@ -181,19 +183,34 @@ Development
 Deploy to Dev
 1. Push code: `git add . && git commit -m "message" && git push origin dev`
 2. Vercel auto-deploys to dev.gsyrocks.com
-3. Run schema: `supabase link --project-ref licfcldjccnqtounaeld && supabase db push`
-4. Test: https://dev.gsyrocks.com
+3. Run schema: `supabase link --project-ref licfcldjccnqtounaeld`
+4. Preview changes: `supabase db push --dry-run`
+5. Apply if safe: `supabase db push`
+6. Test: https://dev.gsyrocks.com
 
 Deploy to Prod
 1. Merge: `git checkout main && git merge dev && git push origin main`
-2. Run schema: `supabase link --project-ref glxnbxbkedeogtcivpsx && supabase db push`
-3. Test: https://gsyrocks.com
+2. Link: `supabase link --project-ref glxnbxbkedeogtcivpsx`
+3. Preview: `supabase db push --dry-run`
+4. Apply: `supabase db push`
+5. Test: https://gsyrocks.com
 
-Sync Data (Optional)
+Sync Data (Optional - Manual Process)
+```bash
+# Export prod data (schema NOT included)
 supabase link --project-ref glxnbxbkedeogtcivpsx
 supabase db dump --linked --data-only -f /tmp/prod_data.sql
+
+# Import to dev (requires manual psql connection)
 supabase link --project-ref licfcldjccnqtounaeld
-psql <dev-connection> -f /tmp/prod_data.sql
+psql "<dev-connection-string>" -f /tmp/prod_data.sql
+```
+
+**Warnings:**
+- Never use `DROP TABLE`, `TRUNCATE`, or `DELETE` in migrations
+- Use `CREATE OR REPLACE` for functions instead of `DROP` + `CREATE`
+- Review all migrations with `git diff supabase/migrations/`
+- If migrations are out of sync, use `--include-all` only after verification
 
 ### Next.js Specifics
 - Next.js 16 App Router (Next 16.0.10) + React 19
