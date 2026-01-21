@@ -186,7 +186,7 @@ export default function Header() {
             </div>
           )}
           {showSearchDropdown && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto z-50">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-[60vh] overflow-y-auto z-50">
               {searchResults.map((result) => (
                 <button
                   key={`${result.type}-${result.id}`}
