@@ -482,10 +482,10 @@ export default function RouteCanvas({ imageUrl, latitude, longitude, sessionId, 
         />
         <canvas
           ref={canvasRef}
-          className="absolute cursor-crosshair"
+          className="absolute cursor-crosshair select-none"
           onClick={handleCanvasClick}
           onTouchEnd={handleCanvasTouch}
-          style={{ pointerEvents: 'auto', touchAction: 'none' }}
+          style={{ pointerEvents: 'auto', touchAction: 'none', WebkitTapHighlightColor: 'transparent' }}
         />
       </div>
 

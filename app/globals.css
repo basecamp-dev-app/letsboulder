@@ -235,3 +235,13 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+select-none {
+  user-select: none;
+  -webkit-user-select: none;
+}

@@ -163,6 +163,18 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     }
   }, [zoom])
 
+  const getTouchPos = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+
+    const rect = canvas.getBoundingClientRect()
+    const touch = e.touches[0] || e.changedTouches[0]
+    return {
+      x: (touch.clientX - rect.left) * zoom,
+      y: (touch.clientY - rect.top) * zoom
+    }
+  }, [zoom])
+
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       setIsPanning(true)
@@ -195,6 +207,37 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
       }
     }
   }, [getMousePos, currentPoints, existingRoutes, completedRoutes, selectedIds, selectRoute, deselectRoute, clearSelection])
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    const touch = e.changedTouches[0]
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const rect = canvas.getBoundingClientRect()
+    const canvasX = (touch.clientX - rect.left) * zoom
+    const canvasY = (touch.clientY - rect.top) * zoom
+
+    const allRoutes = [...existingRoutes, ...completedRoutes]
+    const clickedRoute = findRouteAtPoint(allRoutes, { x: canvasX, y: canvasY }, 20)
+
+    if (clickedRoute) {
+      const routeId = clickedRoute.id
+      if (selectedIds.includes(routeId)) {
+        deselectRoute(routeId)
+      } else {
+        selectRoute(routeId)
+      }
+      return
+    }
+
+    clearSelection()
+
+    if (currentPoints.length === 0) {
+      setCurrentPoints([{ x: canvasX, y: canvasY }])
+    } else {
+      setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
+    }
+  }, [zoom, currentPoints, existingRoutes, completedRoutes, selectedIds, selectRoute, deselectRoute, clearSelection])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isPanning) {
@@ -417,17 +460,20 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
 
       <canvas
         ref={canvasRef}
-        className="absolute cursor-crosshair"
+        className="absolute cursor-crosshair select-none"
         style={{
           left: 0,
           top: 0,
           width: '100%',
-          height: '100%'
+          height: '100%',
+          touchAction: 'none',
+          WebkitTapHighlightColor: 'transparent'
         }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onTouchEnd={handleTouchEnd}
       />
 
       {currentPoints.length >= 2 && (
