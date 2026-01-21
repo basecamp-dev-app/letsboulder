@@ -198,12 +198,12 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
             <CardContent>
               <div className="space-y-4">
                 {logs.slice(0, 20).map((log) => (
-                  <div key={log.id} className="flex items-center gap-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                  <div key={log.id} className="flex items-center gap-2 sm:gap-4 py-2 sm:py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
                     {log.climbs?.image_url && (
                       <img
                         src={log.climbs.image_url}
                         alt={log.climbs.name}
-                        className="w-12 h-12 object-cover rounded"
+                        className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded"
                       />
                     )}
                     <div className="flex-1">

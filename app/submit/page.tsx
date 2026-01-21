@@ -262,7 +262,7 @@ function SubmitPageContent() {
 
       case 'draw':
         return (
-          <div className="h-[calc(100vh-64px)]">
+          <div className="h-[calc(100dvh-5rem)] md:h-[calc(100vh-64px)]">
             <div className="flex items-center justify-between mb-4">
               <button
                 onClick={handleBack}

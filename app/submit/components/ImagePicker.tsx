@@ -3,13 +3,15 @@
 import { useState, useCallback } from 'react'
 import type { ImageSelection, NewImageSelection, GpsData } from '@/lib/submission-types'
 import dynamic from 'next/dynamic'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const ImageUploader = dynamic(() => import('./ImageUploader'), {
   ssr: false,
   loading: () => (
-    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
-      <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto" />
-      <p className="text-sm text-gray-500 mt-2">Loading uploader...</p>
+    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center space-y-4">
+      <Skeleton className="h-12 w-12 rounded-full mx-auto" />
+      <Skeleton className="h-4 w-48 mx-auto" />
+      <Skeleton className="h-10 w-32 mx-auto" />
     </div>
   )
 })

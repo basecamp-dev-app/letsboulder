@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useMapEvents } from 'react-leaflet'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
@@ -123,8 +124,15 @@ export default function LocationPicker({ initialGps, onConfirm, regionName, crag
   
   if (!isClient) {
     return (
-      <div className="h-80 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      <div className="space-y-4">
+        <div className="h-80 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+          <Skeleton className="h-full w-full rounded-lg" />
+        </div>
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <div className="flex gap-2">
+          <Skeleton className="h-10 flex-1 rounded-lg" />
+          <Skeleton className="h-10 w-20 rounded-lg" />
+        </div>
       </div>
     )
   }
@@ -206,7 +214,7 @@ export default function LocationPicker({ initialGps, onConfirm, regionName, crag
           className="w-full py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center gap-2"
         >
           <MapPin className="w-4 h-4" />
-          Use "{cragName}" crag location
+          Use &quot;{cragName}&quot; crag location
         </button>
       )}
       
