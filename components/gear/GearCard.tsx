@@ -56,9 +56,9 @@ export default function GearCard({ product }: GearCardProps) {
       className="block h-full flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all snap-center overflow-hidden"
     >
       <div className="h-32 md:h-48 relative bg-white flex items-center justify-center">
-        {product.imagePath ? (
+        {product.imagePath || product.imageUrl ? (
           <Image
-            src={`/gear/${product.imagePath}`}
+            src={product.imageUrl || `/gear/${product.imagePath}`}
             alt={product.name}
             fill
             className="object-contain"

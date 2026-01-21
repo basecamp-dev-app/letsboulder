@@ -5,6 +5,7 @@ export interface GearProduct {
   category: string
   description: string
   imagePath?: string
+  imageUrl?: string
 }
 
 export const CATEGORIES = [
@@ -476,7 +477,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3ZnSEdL',
     category: 'Ropes & Rope Bags',
     description: 'Durable dry-treated climbing rope with diameter optimized for versatile use',
-    imagePath: 'mammut-crag-dry-rope-9-5mm.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Mammut%20Crag%20Dry%20Rope%209%2C5%20mm.jpg',
   },
   {
     id: 'beal-karma-rope-9-8mm',
@@ -484,7 +485,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3Ny2aZa',
     category: 'Ropes & Rope Bags',
     description: 'Versatile single rope with Golden Dry treatment for excellent durability',
-    imagePath: 'beal-karma-9-8mm.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Beal%209.8mm%20Karma%20Climbing%20Rope%2C%20Red%2C%20One%20Size%20.jpg',
   },
   {
     id: 'beal-rando-rope-8mm-30m',
@@ -492,7 +493,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/49Oegov',
     category: 'Ropes & Rope Bags',
     description: 'Lightweight double/twin/half rope for alpine and glacier travel',
-    imagePath: 'beal-rando-8mm-30m.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Beal%20Rando%20Double%20%26%20Twin%20%26%20Half%20Ropes%208%20mm%20x%2030%20m%20.jpg',
   },
   {
     id: 'edelrid-on-sight-rope-9-8mm',
@@ -500,7 +501,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/49Oegov',
     category: 'Ropes & Rope Bags',
     description: 'High-performance single rope with Shield treatment for maximum durability',
-    imagePath: 'edelrid-on-sight-9-8mm.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/EDELRID%20On%20Sight%20Climbing%20Rope%209.8%20mm.jpg',
   },
   {
     id: 'edelrid-boa-rope-9-8mm',
@@ -508,7 +509,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4qtyGdr',
     category: 'Ropes & Rope Bags',
     description: 'Versatile climbing rope with excellent grip and durability',
-    imagePath: 'edelrid-boa-9-8mm.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/EDELRID%20Climbing%20Ropes%20Boa%209%2C8%20.jpg',
   },
   {
     id: 'black-diamond-quickdraws',
@@ -516,7 +517,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4pNYq2Y',
     category: 'Hardware',
     description: 'Durable quickdraws for sport climbing with dogbone protectors',
-    imagePath: 'black-diamond-quickdraws.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Black%20Diamond%20Quickdraws.jpg',
   },
   {
     id: 'edelrid-express-set-bulletproof',
@@ -524,7 +525,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/464WsnT',
     category: 'Hardware',
     description: 'Heavy-duty express set with rubber retainer for snag-free clipping',
-    imagePath: 'edelrid-express-set-bulletproof.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/EDELRID%20Express%20Set%20Bulletproof%20.jpg',
   },
   {
     id: 'petzl-meteor-helmet',
@@ -532,7 +533,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4sPhKj5',
     category: 'Harnesses & Helmets',
     description: 'Lightweight and ventilated helmet for climbing and mountaineering',
-    imagePath: 'petzl-meteor-helmet.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/PETZL%20Unisex%20Adult%20Meteor%20Helmet%20.jpg',
   },
   {
     id: 'black-diamond-half-dome-helmet',
@@ -540,7 +541,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4a6FxUs',
     category: 'Harnesses & Helmets',
     description: 'Classic climbing helmet with reliable protection and ventilation',
-    imagePath: 'black-diamond-half-dome-helmet.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Black%20Diamond%20Half%20Dome%20Helmet%20.jpg',
   },
   {
     id: 'petzl-sirocco-helmet',
@@ -548,7 +549,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/49yvIyy',
     category: 'Harnesses & Helmets',
     description: 'Ultra-lightweight helmet for climbing and mountain activities',
-    imagePath: 'petzl-sirocco-helmet.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Petzl%20Sirocco%20Helmet%2053-61%20cm%20.jpg',
   },
   {
     id: 'mammut-4-slide-harness',
@@ -556,7 +557,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3LSkT17',
     category: 'Harnesses & Helmets',
     description: 'Adjustable all-round harness for climbing and mountaineering',
-    imagePath: 'mammut-4-slide-harness.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Mammut%204%20Slide%20Harness%20Harnesses%20.jpg',
   },
   {
     id: 'black-diamond-solution-harness',
@@ -564,7 +565,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3ZmjoLA',
     category: 'Harnesses & Helmets',
     description: 'Lightweight sport climbing harness with Infinity loop',
-    imagePath: 'black-diamond-solution-harness.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Black%20Diamond%20Solution.jpg',
   },
   {
     id: 'la-sportiva-skwama',
@@ -572,7 +573,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4pSp2jI',
     category: 'Footwear',
     description: 'High-performance slipper-style climbing shoe with S-Heel technology',
-    imagePath: 'la-sportiva-skwama.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/La%20Sportiva%20Skwama.jpg',
   },
   {
     id: 'la-sportiva-finale',
@@ -580,7 +581,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4bFXlXF',
     category: 'Footwear',
     description: 'Versatile climbing shoe ideal for all-day comfort and performance',
-    imagePath: 'la-sportiva-finale.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/La%20Sportiva%20Finale.jpg',
   },
   {
     id: 'la-sportiva-katana-lace',
@@ -588,7 +589,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3LY54WH',
     category: 'Footwear',
     description: 'Precision lace-up shoe with excellent sensitivity and support',
-    imagePath: 'la-sportiva-katana-lace.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/La%20Sportiva%20Katana%20Lace.jpg',
   },
   {
     id: 'la-sportiva-solution-comp',
@@ -596,6 +597,6 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/45jclXM',
     category: 'Footwear',
     description: 'Competition-focused shoe with aggressive downturn and locking strap',
-    imagePath: 'la-sportiva-solution-comp.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/La%20Sportiva%20Solution%20Comp.jpg',
   },
 ]
