@@ -1,7 +1,7 @@
 -- Removed: drop statements for logs table (doesn't exist locally)
 -- Removed: drop extension pg_net
 
-  create table "public"."deletion_requests" (
+  create table if not exists "public"."deletion_requests" (
     "id" uuid not null default gen_random_uuid(),
     "user_id" uuid not null,
     "created_at" timestamp with time zone not null default now(),
@@ -14,7 +14,7 @@
 
 
 
-  create table "public"."product_clicks" (
+  create table if not exists "public"."product_clicks" (
     "product_id" text not null,
     "click_count" bigint default 0,
     "updated_at" timestamp with time zone default now()
@@ -49,23 +49,45 @@ create table if not exists "public"."profiles" (
 
   alter table "public"."profiles" add column if not exists "units" character varying(10) default 'metric'::character varying;
 
-CREATE UNIQUE INDEX deletion_requests_pkey ON public.deletion_requests USING btree (id);
+CREATE UNIQUE INDEX if not exists deletion_requests_pkey ON public.deletion_requests USING btree (id);
 
-CREATE INDEX idx_deletion_requests_scheduled ON public.deletion_requests USING btree (scheduled_at) WHERE ((cancelled_at IS NULL) AND (deleted_at IS NULL));
+CREATE INDEX if not exists idx_deletion_requests_scheduled ON public.deletion_requests USING btree (scheduled_at) WHERE ((cancelled_at IS NULL) AND (deleted_at IS NULL));
 
-CREATE INDEX idx_product_clicks_count ON public.product_clicks USING btree (click_count DESC);
+CREATE INDEX if not exists idx_product_clicks_count ON public.product_clicks USING btree (click_count DESC);
 
-CREATE INDEX idx_profiles_is_public ON public.profiles USING btree (is_public);
+CREATE INDEX if not exists idx_profiles_is_public ON public.profiles USING btree (is_public);
 
-CREATE UNIQUE INDEX product_clicks_pkey ON public.product_clicks USING btree (product_id);
+CREATE UNIQUE INDEX if not exists product_clicks_pkey ON public.product_clicks USING btree (product_id);
 
-alter table "public"."deletion_requests" add constraint "deletion_requests_pkey" PRIMARY KEY using index "deletion_requests_pkey";
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'deletion_requests') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'deletion_requests' AND constraint_name = 'deletion_requests_pkey') THEN
+      alter table "public"."deletion_requests" add constraint "deletion_requests_pkey" PRIMARY KEY using index "deletion_requests_pkey";
+    END IF;
+  END IF;
+END $$;
 
-alter table "public"."product_clicks" add constraint "product_clicks_pkey" PRIMARY KEY using index "product_clicks_pkey";
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'product_clicks') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'product_clicks' AND constraint_name = 'product_clicks_pkey') THEN
+      alter table "public"."product_clicks" add constraint "product_clicks_pkey" PRIMARY KEY using index "product_clicks_pkey";
+    END IF;
+  END IF;
+END $$;
 
-alter table "public"."deletion_requests" add constraint "deletion_requests_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
-
-alter table "public"."deletion_requests" validate constraint "deletion_requests_user_id_fkey";
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'deletion_requests') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'deletion_requests' AND constraint_name = 'deletion_requests_user_id_fkey') THEN
+      alter table "public"."deletion_requests" add constraint "deletion_requests_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'deletion_requests' AND constraint_name = 'deletion_requests_user_id_fkey') THEN
+      alter table "public"."deletion_requests" validate constraint "deletion_requests_user_id_fkey";
+    END IF;
+  END IF;
+END $$;
 
 set check_function_bodies = off;
 
@@ -203,23 +225,33 @@ grant truncate on table "public"."product_clicks" to "service_role";
 grant update on table "public"."product_clicks" to "service_role";
 
 
-  create policy "Public read user_climbs for public profiles"
-  on "public"."user_climbs"
-  as permissive
-  for select
-  to public
-using ((EXISTS ( SELECT 1
-   FROM public.profiles
-  WHERE ((profiles.id = user_climbs.user_id) AND (profiles.is_public = true)))));
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read user_climbs for public profiles' AND tablename = 'user_climbs') THEN
+    create policy "Public read user_climbs for public profiles"
+    on "public"."user_climbs"
+    as permissive
+    for select
+    to public
+    using ((EXISTS ( SELECT 1
+       FROM public.profiles
+      WHERE ((profiles.id = user_climbs.user_id) AND (profiles.is_public = true)))));
+  END IF;
+END $$;
 
 
 
-  create policy "Authenticated users can upload"
-  on "storage"."objects"
-  as permissive
-  for insert
-  to public
-with check (((bucket_id = 'route-uploads'::text) AND (auth.role() = 'authenticated'::text)));
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can upload' AND tablename = 'objects') THEN
+    create policy "Authenticated users can upload"
+    on "storage"."objects"
+    as permissive
+    for insert
+    to public
+    with check (((bucket_id = 'route-uploads'::text) AND (auth.role() = 'authenticated'::text)));
+  END IF;
+END $$;
 
 
 

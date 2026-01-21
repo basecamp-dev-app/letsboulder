@@ -39,7 +39,7 @@ CREATE OR REPLACE FUNCTION public.handle_user_metadata_update()
 RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.raw_user_meta_data IS DISTINCT FROM OLD.raw_user_meta_data
-     AND NEW.app_metadata->>'provider' = 'google' THEN
+     AND COALESCE(NEW.app_metadata->>'provider', '') = 'google' THEN
     UPDATE public.profiles
     SET
       first_name = COALESCE(

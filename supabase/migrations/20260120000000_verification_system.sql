@@ -85,28 +85,93 @@ CREATE INDEX IF NOT EXISTS idx_correction_votes_user ON correction_votes(user_id
 
 -- climb_verifications: Public read, authenticated create/delete (own vote only)
 ALTER TABLE climb_verifications ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read verifications" ON climb_verifications FOR SELECT USING (true);
-CREATE POLICY "Authenticated create verification" ON climb_verifications FOR INSERT WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Authenticated delete own verification" ON climb_verifications FOR DELETE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read verifications' AND tablename = 'climb_verifications') THEN
+    CREATE POLICY "Public read verifications" ON climb_verifications FOR SELECT USING (true);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated create verification' AND tablename = 'climb_verifications') THEN
+    CREATE POLICY "Authenticated create verification" ON climb_verifications FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated delete own verification' AND tablename = 'climb_verifications') THEN
+    CREATE POLICY "Authenticated delete own verification" ON climb_verifications FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- grade_votes: Public read, authenticated create/update/delete (own vote only)
 ALTER TABLE grade_votes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read grade votes" ON grade_votes FOR SELECT USING (true);
-CREATE POLICY "Authenticated create grade vote" ON grade_votes FOR INSERT WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Authenticated update own grade vote" ON grade_votes FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Authenticated delete own grade vote" ON grade_votes FOR DELETE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read grade votes' AND tablename = 'grade_votes') THEN
+    CREATE POLICY "Public read grade votes" ON grade_votes FOR SELECT USING (true);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated create grade vote' AND tablename = 'grade_votes') THEN
+    CREATE POLICY "Authenticated create grade vote" ON grade_votes FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated update own grade vote' AND tablename = 'grade_votes') THEN
+    CREATE POLICY "Authenticated update own grade vote" ON grade_votes FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated delete own grade vote' AND tablename = 'grade_votes') THEN
+    CREATE POLICY "Authenticated delete own grade vote" ON grade_votes FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- climb_corrections: Public read, authenticated create (own corrections only)
 ALTER TABLE climb_corrections ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read corrections" ON climb_corrections FOR SELECT USING (true);
-CREATE POLICY "Authenticated create correction" ON climb_corrections FOR INSERT WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Authenticated update own correction" ON climb_corrections FOR UPDATE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read corrections' AND tablename = 'climb_corrections') THEN
+    CREATE POLICY "Public read corrections" ON climb_corrections FOR SELECT USING (true);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated create correction' AND tablename = 'climb_corrections') THEN
+    CREATE POLICY "Authenticated create correction" ON climb_corrections FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated update own correction' AND tablename = 'climb_corrections') THEN
+    CREATE POLICY "Authenticated update own correction" ON climb_corrections FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- correction_votes: Public read, authenticated create (own votes only)
 ALTER TABLE correction_votes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public read correction votes" ON correction_votes FOR SELECT USING (true);
-CREATE POLICY "Authenticated create correction vote" ON correction_votes FOR INSERT WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Authenticated delete own correction vote" ON correction_votes FOR DELETE USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read correction votes' AND tablename = 'correction_votes') THEN
+    CREATE POLICY "Public read correction votes" ON correction_votes FOR SELECT USING (true);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated create correction vote' AND tablename = 'correction_votes') THEN
+    CREATE POLICY "Authenticated create correction vote" ON correction_votes FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated delete own correction vote' AND tablename = 'correction_votes') THEN
+    CREATE POLICY "Authenticated delete own correction vote" ON correction_votes FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- =====================================================
 -- HELPER FUNCTION: Check if climb is verified
