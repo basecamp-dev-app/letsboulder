@@ -420,14 +420,18 @@ interface SkeletonPin {
   }
 
   return (
-    <div className="h-screen w-full relative">
+    <div className="h-screen w-full p-4 relative">
       <MapContainer
         ref={mapRef as any}
         center={[20, 0]}
         zoom={2}
+        minZoom={2}
+        maxZoom={19}
+        maxBounds={[[-90, -180], [90, 180]]}
         style={{ height: '100%', width: '100%' }}
         zoomControl={false}
         scrollWheelZoom={true}
+        worldCopyJump={false}
         whenReady={() => {
           setMapLoaded(true)
           trackEvent('map_viewed', {
