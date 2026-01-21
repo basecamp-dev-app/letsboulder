@@ -171,6 +171,30 @@ export const getRegisteredUserCount = cache(async (): Promise<string> => {
 - Run migrations: `supabase db push` or `supabase migration up`
 - Generate types: `supabase gen types typescript --local > types/database.types.ts`
 
+### Database Workflow (2-Person Team)
+
+Development
+1. Create migration: `supabase migration new describe_change`
+2. Edit migration file in `supabase/migrations/`
+3. Test locally: `supabase migration up`
+
+Deploy to Dev
+1. Push code: `git add . && git commit -m "message" && git push origin dev`
+2. Vercel auto-deploys to dev.gsyrocks.com
+3. Run schema: `supabase link --project-ref licfcldjccnqtounaeld && supabase db push`
+4. Test: https://dev.gsyrocks.com
+
+Deploy to Prod
+1. Merge: `git checkout main && git merge dev && git push origin main`
+2. Run schema: `supabase link --project-ref glxnbxbkedeogtcivpsx && supabase db push`
+3. Test: https://gsyrocks.com
+
+Sync Data (Optional)
+supabase link --project-ref glxnbxbkedeogtcivpsx
+supabase db dump --linked --data-only -f /tmp/prod_data.sql
+supabase link --project-ref licfcldjccnqtounaeld
+psql <dev-connection> -f /tmp/prod_data.sql
+
 ### Next.js Specifics
 - Next.js 16 App Router (Next 16.0.10) + React 19
 - Server components by default, opt-in to client with `'use client'`
