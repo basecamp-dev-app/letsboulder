@@ -17,7 +17,7 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
   const roundedMin = Math.floor(domainMin / 50) * 50
 
   return (
-    <div className="w-full h-64">
+    <div className="w-full h-64 min-h-[200px] md:min-h-[256px]">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={data}

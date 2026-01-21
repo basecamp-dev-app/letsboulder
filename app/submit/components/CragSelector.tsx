@@ -209,7 +209,7 @@ export default function CragSelector({
             value={newCragName}
             onChange={(e) => setNewCragName(e.target.value)}
             placeholder="Enter crag name"
-            className="w-full px-3 py-2 pr-24 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-3 min-h-[48px] text-lg pr-24 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
           />
 
@@ -268,7 +268,7 @@ export default function CragSelector({
               value={newCragLat}
               onChange={(e) => setNewCragLat(e.target.value)}
               placeholder="Latitude"
-              className={`px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              className={`px-3 py-3 min-h-[48px] text-lg border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 latitude && !newCragLat ? 'border-blue-300 dark:border-blue-700' : 'border-gray-300 dark:border-gray-600'
               }`}
             />
@@ -277,7 +277,7 @@ export default function CragSelector({
               value={newCragLng}
               onChange={(e) => setNewCragLng(e.target.value)}
               placeholder="Longitude"
-              className={`px-3 py-2 border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              className={`px-3 py-3 min-h-[48px] text-lg border rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 longitude && !newCragLng ? 'border-blue-300 dark:border-blue-700' : 'border-gray-300 dark:border-gray-600'
               }`}
             />
@@ -288,7 +288,7 @@ export default function CragSelector({
             value={newCragRockType}
             onChange={(e) => setNewCragRockType(e.target.value)}
             placeholder="Rock type (optional, e.g., limestone, granite)"
-            className="w-full px-3 py-2 pr-24 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-3 min-h-[48px] text-lg pr-24 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <div className="flex gap-2">
             <button
@@ -323,7 +323,7 @@ export default function CragSelector({
                 setErrorMessage('')
               }}
               placeholder="Search for a crag..."
-              className="w-full px-3 py-2 pr-24 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-3 min-h-[48px] text-lg pr-24 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               onFocus={() => {
                 if (query.length >= 2) searchCrags(query)
               }}

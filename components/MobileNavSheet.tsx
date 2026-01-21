@@ -82,10 +82,10 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/50 z-[1200]"
+        className="fixed inset-0 bg-black/50 z-[1200] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
         onClick={onClose}
       />
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl z-[1201] p-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl z-[1201] p-4 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-0 data-[state=open]:slide-in-from-bottom-0">
         <div className="w-12 h-1 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-4" />
         <nav className="space-y-1">
           {MORE_MENU_ITEMS.map((item) => (

@@ -195,7 +195,7 @@ export default function LocationPicker({ initialGps, onConfirm, regionName, crag
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             placeholder="Search for a location..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            className="w-full pl-10 pr-4 py-3 min-h-[48px] text-lg border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           />
         </div>
         <button
