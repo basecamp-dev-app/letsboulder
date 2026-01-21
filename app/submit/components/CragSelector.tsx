@@ -209,7 +209,7 @@ export default function CragSelector({
             value={newCragName}
             onChange={(e) => setNewCragName(e.target.value)}
             placeholder="Enter crag name"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 pr-24 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
           />
 
@@ -288,7 +288,7 @@ export default function CragSelector({
             value={newCragRockType}
             onChange={(e) => setNewCragRockType(e.target.value)}
             placeholder="Rock type (optional, e.g., limestone, granite)"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 pr-24 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <div className="flex gap-2">
             <button
@@ -323,17 +323,24 @@ export default function CragSelector({
                 setErrorMessage('')
               }}
               placeholder="Search for a crag..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 pr-24 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               onFocus={() => {
                 if (query.length >= 2) searchCrags(query)
               }}
             />
 
             {loading && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="absolute right-24 top-1/2 -translate-y-1/2">
                 <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
               </div>
             )}
+
+            <button
+              onClick={handleShowCreate}
+              className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
+            >
+              + Create
+            </button>
 
             {results.length > 0 && (
               <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">

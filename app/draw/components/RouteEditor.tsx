@@ -309,7 +309,7 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
   }, [handleKeyDown])
 
   return (
-    <div className="h-screen flex flex-col relative overflow-hidden bg-gray-900 dark:bg-gray-950">
+    <div className="h-dvh flex flex-col relative overflow-hidden bg-gray-900 dark:bg-gray-950">
       <div className="flex-1 relative overflow-hidden flex items-center justify-center">
         <img
           ref={imageRef}
@@ -325,34 +325,36 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
         />
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
-        <div className="flex gap-2 mb-4">
+      <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-3">
+        <div className="flex gap-2 mb-3">
           <button
             onClick={() => setMode('draw')}
-            className={`flex-1 px-4 py-2 rounded text-sm font-medium transition-colors ${
+            className={`flex-1 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
               mode === 'draw' 
                 ? 'bg-blue-600 text-white' 
                 : 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
             }`}
           >
-            Draw ({currentPoints.length > 0 ? `${currentPoints.length} points` : 'Routes'})
+            Draw ({currentPoints.length > 0 ? `${currentPoints.length} pts` : 'Routes'})
           </button>
-          <button
-            onClick={() => setMode('review')}
-            className={`flex-1 px-4 py-2 rounded text-sm font-medium transition-colors ${
-              mode === 'review' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-            }`}
-          >
-            Review ({routes.length} routes)
-          </button>
+          {routes.length > 0 && (
+            <button
+              onClick={() => setMode('review')}
+              className={`flex-1 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                mode === 'review' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+              }`}
+            >
+              Review ({routes.length})
+            </button>
+          )}
         </div>
 
         {mode === 'draw' ? (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {!hasGps && (
-              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-sm text-yellow-800 dark:text-yellow-200">
+              <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-sm text-yellow-800 dark:text-yellow-200">
                 GPS coordinates not available. Please ensure location services are enabled.
               </div>
             )}
@@ -372,11 +374,11 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
                 placeholder="Route name"
                 value={currentName}
                 onChange={(e) => setCurrentName(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               />
               <button
                 onClick={() => setGradePickerOpen(true)}
-                className="w-20 px-2 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="w-16 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm text-center bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 {currentGrade}
               </button>
@@ -386,21 +388,21 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
               <button
                 onClick={handleFinishRoute}
                 disabled={currentPoints.length < 2 || !currentGrade}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50 hover:bg-blue-700 transition-colors"
+                className="flex-1 bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 hover:bg-blue-700 transition-colors"
               >
                 Finish Route
               </button>
               <button
                 onClick={handleUndo}
                 disabled={currentPoints.length === 0 && routes.length === 0}
-                className="bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-4 py-2 rounded text-sm font-medium disabled:opacity-50 hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
+                className="bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
               >
                 Undo
               </button>
               <button
                 onClick={handleClearCurrent}
                 disabled={currentPoints.length === 0}
-                className="bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-4 py-2 rounded text-sm font-medium disabled:opacity-50 hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
+                className="bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
               >
                 Clear
               </button>
@@ -410,14 +412,14 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
               <button
                 onClick={handleSave}
                 disabled={submitting || routes.some(r => !r.name || !r.grade) || !selectedCrag}
-                className="w-full bg-green-600 text-white px-4 py-3 rounded text-sm font-medium disabled:opacity-50 hover:bg-green-700 transition-colors"
+                className="w-full bg-green-600 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50 hover:bg-green-700 transition-colors"
               >
                 {submitting ? 'Saving...' : 'Save All Routes'}
               </button>
             )}
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {selectedRouteIndex !== null ? (
               <div className="flex flex-col gap-3 p-3 border border-yellow-400 dark:border-yellow-500 rounded bg-yellow-50 dark:bg-yellow-900/20">
                 <div className="flex items-center justify-between">
@@ -468,7 +470,7 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
               </p>
             )}
 
-            <div className="max-h-48 overflow-y-auto space-y-2">
+            <div className="max-h-[30vh] overflow-y-auto space-y-1">
               {routes.map((route, index) => (
                 <button
                   key={route.id}
@@ -492,7 +494,7 @@ export default function RouteEditor({ imageUrl, latitude, longitude, sessionId, 
               <button
                 onClick={handleSave}
                 disabled={submitting || routes.some(r => !r.name || !r.grade) || !selectedCrag}
-                className="w-full bg-green-600 text-white px-4 py-3 rounded text-sm font-medium disabled:opacity-50 hover:bg-green-700 transition-colors"
+                className="w-full bg-green-600 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50 hover:bg-green-700 transition-colors"
               >
                 {submitting ? 'Saving...' : 'Save All Routes'}
               </button>
