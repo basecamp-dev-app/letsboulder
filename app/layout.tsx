@@ -143,7 +143,7 @@ export default function RootLayout({
         />
       </head>
         <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased pt-20 pb-16 bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
+          className={`${geistSans.variable} ${geistMono.variable} antialiased pt-20 md:pb-16 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
         >
         <PostHogProvider>
           <CsrfProvider />

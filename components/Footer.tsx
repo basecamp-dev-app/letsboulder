@@ -32,7 +32,7 @@ export default function Footer() {
         </div>
       </footer>
 
-      <footer className="fixed bottom-0 left-0 right-0 z-[1100] bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 md:hidden">
+      <footer className="fixed bottom-0 left-0 right-0 z-[1100] bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 md:hidden pb-[env(safe-area-inset-bottom,0px)]">
         <nav className="flex justify-around py-3">
           <Link href="/logbook" className={`flex flex-col items-center ${isActive('/logbook') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
