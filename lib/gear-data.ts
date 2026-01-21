@@ -25,7 +25,7 @@ export const CATEGORIES = [
 export const products: GearProduct[] = [
   {
     id: 'grigri-2',
-    name: 'Petzl Grigri 2',
+    name: 'Petzl Grigri 2 Belay Device',
     url: 'https://amzn.to/4aWXbeh',
     category: 'Belay Devices',
     description: 'Compact belay device with assisted-braking for 8.9-10.5mm ropes',
@@ -33,7 +33,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'verso',
-    name: 'Petzl Verso',
+    name: 'Petzl Verso Belay Device',
     url: 'https://amzn.to/45fzDxx',
     category: 'Belay Devices',
     description: 'Lightweight belay device with anti-panic handle for 8.9-10.5mm ropes',
@@ -41,7 +41,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'id-l',
-    name: "Petzl I'D L",
+    name: "Petzl I'D L Descender",
     url: 'https://amzn.to/49pEO0r',
     category: 'Belay Devices',
     description: 'Self-braking descender with anti-panic for single ropes 8.9-10.5mm',
@@ -49,7 +49,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'reverso',
-    name: 'Petzl Reverso',
+    name: 'Petzl Reverso Belay Device',
     url: 'https://amzn.to/45ijYO6',
     category: 'Belay Devices',
     description: 'Versatile belay device for lead climbing and rappelling',
@@ -57,7 +57,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'vertex-vent',
-    name: 'Petzl Vertex Vent',
+    name: 'Petzl Vertex Vent Helmet',
     url: 'https://amzn.to/49zEjQc',
     category: 'Harnesses & Helmets',
     description: 'Lightweight ventilated climbing helmet with adjustable fit',
@@ -65,7 +65,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'corax-harness',
-    name: 'Petzl Corax',
+    name: 'Petzl Corax Harness',
     url: 'https://amzn.to/4qzkY91',
     category: 'Harnesses & Helmets',
     description: 'Adjustable all-around climbing harness for sport and trad',
@@ -73,7 +73,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'smd-carabiner',
-    name: "Petzl SM'D",
+    name: "Petzl SM'D Carabiner",
     url: 'https://amzn.to/4qUzGHp',
     category: 'Hardware',
     description: 'Compact asymmetrical D-carabiner with screwgate for quickdraws',
@@ -81,7 +81,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'micro-traxion',
-    name: 'Petzl Micro Traxion',
+    name: 'Petzl Micro Traxion Pulley',
     url: 'https://amzn.to/4sOgxca',
     category: 'Hardware',
     description: 'Compact rope clamp with pulley for rescue and hauling',
@@ -89,7 +89,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'conga-8',
-    name: 'Petzl Conga 8.0',
+    name: 'Petzl Conga 8.0 Pulley',
     url: 'https://amzn.to/49GtbAW',
     category: 'Hardware',
     description: 'Ultra-light cordelette pulley for progression systems',
@@ -97,7 +97,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'spirit-express',
-    name: 'Petzl Spirit Express',
+    name: 'Petzl Spirit Express Quickdraw',
     url: 'https://amzn.to/4sK5uR8',
     category: 'Hardware',
     description: 'Lightweight quickdraw with Express clips for sport climbing',
@@ -105,7 +105,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'ouistiti',
-    name: 'Petzl Ouistiti',
+    name: 'Petzl Ouistiti Belay Device',
     url: 'https://amzn.to/3Li2qef',
     category: 'Hardware',
     description: 'Compact belay device designed for children and beginners',
@@ -113,7 +113,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'rope-9-2mm',
-    name: 'Petzl 9.2mm X 30m',
+    name: 'Petzl 9.2mm x 30m Rope',
     url: 'https://amzn.to/4sJ7WY3',
     category: 'Ropes & Rope Bags',
     description: 'Ultra-lightweight single rope for gym and indoor climbing',
@@ -129,7 +129,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'bug-pack',
-    name: 'Petzl Bug',
+    name: 'Petzl Bug Pack',
     url: 'https://amzn.to/4qrc3qd',
     category: 'Ropes & Rope Bags',
     description: 'Lightweight pack with rope tarp for approaches and cragging',
@@ -145,7 +145,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'circuit-crashpad',
-    name: 'Black Diamond Circuit',
+    name: 'Black Diamond Circuit Crash Pad',
     url: 'https://amzn.to/3LKTyOi',
     category: 'Bouldering',
     description: 'Ultralight crash pad with carrying system for bouldering',
@@ -177,7 +177,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'tarantula',
-    name: 'La Sportiva Tarantula',
+    name: 'La Sportiva Tarantula Shoes',
     url: 'https://amzn.to/4r1lNrc',
     category: 'Footwear',
     description: 'Beginner-friendly climbing shoes with comfortable fit',
@@ -193,7 +193,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'thermos-470ml',
-    name: 'Thermos Stainless King (470ml)',
+    name: 'Thermos 470ml Flask',
     url: 'https://amzn.to/49nZ82a',
     category: 'Nutrition & Hydration',
     description: 'Stainless steel food flask keeps meals hot for 9 hours',
@@ -201,7 +201,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'thermos-1-2l',
-    name: 'Thermos Midnight Blue (1.2L)',
+    name: 'Thermos 1.2L Flask',
     url: 'https://amzn.to/3Ze1Y3I',
     category: 'Nutrition & Hydration',
     description: 'Large capacity travel flask keeps drinks hot for 24 hours',
@@ -225,7 +225,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'nakd-bars',
-    name: 'Nakd Fruit & Nut Bar Variety',
+    name: 'Nakd Fruit & Nut Bars',
     url: 'https://amzn.to/3NwZ87n',
     category: 'Nutrition & Hydration',
     description: 'Vegan, gluten-free fruit and nut snack bars',
@@ -233,7 +233,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'sunscreen',
-    name: 'La Roche-Posay Anthelios SPF50+',
+    name: 'La Roche-Posay SPF50+ Sunscreen',
     url: 'https://amzn.to/4qrbSLz',
     category: 'Sun & Skin Care',
     description: 'Invisible fluid sunscreen for sensitive skin, SPF50+',
@@ -257,7 +257,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'tacvasen-hoodie',
-    name: 'TACVASEN Hoodie',
+    name: 'TACVASEN UPF50+ Hoodie',
     url: 'https://amzn.to/3LONbJN',
     category: 'Sun & Skin Care',
     description: 'UPF 50+ sun protection long sleeve quick dry outdoor hoodie',
@@ -265,7 +265,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'clipstick',
-    name: 'Beta Stick EVO',
+    name: 'Beta Stick EVO Clipstick',
     url: 'https://amzn.to/45htsch',
     category: 'Tools & Accessories',
     description: 'Extendable clipstick for clipping bolts and quickdraws',
@@ -273,7 +273,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'cordex-gloves',
-    name: 'Petzl Cordex Plus',
+    name: 'Petzl Cordex Plus Gloves',
     url: 'https://amzn.to/4q12SMh',
     category: 'Tools & Accessories',
     description: 'Reinforced belay gloves for durability and grip',
@@ -289,7 +289,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'walkie-talkie',
-    name: 'Retevis RT24',
+    name: 'Retevis RT24 Walkie Talkie',
     url: 'https://amzn.to/49zFlvy',
     category: 'Tools & Accessories',
     description: 'License-free PMR446 two-way radio for outdoor communication',
@@ -297,7 +297,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'first-aid-kit',
-    name: 'First Aid Kit (130 Pieces)',
+    name: 'First Aid Kit (130pc)',
     url: 'https://amzn.to/49CNa3A',
     category: 'Camping & Safety',
     description: 'Complete first aid kit with emergency blanket and supplies',
@@ -329,7 +329,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'camp-nano-22',
-    name: 'CAMP Nano 22',
+    name: 'CAMP Nano 22 Cam',
     url: 'https://amzn.to/4qZwgDm',
     category: 'Hardware',
     description: 'Compact cam with thumb trigger for precision placements',
@@ -345,7 +345,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'sporttape-finger-tape',
-    name: 'SPORTTAPE 2 Rolls (20m) Zinc Oxide Finger Tape',
+    name: 'SPORTTAPE Finger Tape',
     url: 'https://amzn.to/4q4jKBP',
     category: 'Tools & Accessories',
     description: 'Essential finger tape for crack climbing',
@@ -353,7 +353,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'connect-adjust-self-single',
-    name: 'CONNECT ADJUST - REGULABLE SELF SINGLE',
+    name: 'CONNECT ADJUST Quickdraw',
     url: 'https://amzn.to/3YO1eCn',
     category: 'Hardware',
     description: 'Adjustable quickdraw for varied lengths',
@@ -361,7 +361,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'mammut-tubular-sling',
-    name: 'Mammut Tubular Sling 16.0 80cm',
+    name: 'Mammut Tubular Sling 80cm',
     url: 'https://amzn.to/49Ga6in',
     category: 'Hardware',
     description: 'Durable sewn sling for anchors and quickdraws',
@@ -369,7 +369,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'black-diamond-camalot-c4',
-    name: 'Black Diamond Camalot C4, 3',
+    name: 'Black Diamond Camalot C4',
     url: 'https://amzn.to/4sKVE1n',
     category: 'Hardware',
     description: 'Industry-standard cam with double-axle design',
@@ -377,7 +377,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'gramicci-japan-pants-olive',
-    name: 'Gramicci Japan Pants - Olive',
+    name: 'Gramicci Japan Pants',
     url: 'https://amzn.to/4a1CFrY',
     category: 'Camping & Safety',
     description: '',
@@ -393,7 +393,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'stanley-flip-straw-water-bottle',
-    name: 'Stanley Flip Straw 2.0 Water Bottle',
+    name: 'Stanley Water Bottle',
     url: 'https://amzn.to/45m09p7',
     category: 'Nutrition & Hydration',
     description: '',
@@ -401,7 +401,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'north-face-thermoball-snow-boots',
-    name: 'North Face Thermoball Snow Boots',
+    name: 'North Face Thermoball Boots',
     url: 'https://amzn.to/4pJ1hKR',
     category: 'Footwear',
     description: '',
@@ -433,7 +433,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'mini-wooden-climbing-device',
-    name: 'Mini Wooden Climbing Device',
+    name: 'Mini Wooden Climbing Board',
     url: 'https://amzn.to/4qtrLkp',
     category: 'Tools & Accessories',
     description: '',
@@ -465,7 +465,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'chalk-bag-bucket-bundle',
-    name: 'Chalk Bag Bucket Bundle',
+    name: 'Chalk Bag Bundle',
     url: 'https://amzn.to/4r1Y0ak',
     category: 'Bouldering',
     description: '',
@@ -481,7 +481,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'beal-karma-rope-9-8mm',
-    name: 'Beal Karma 9.8mm Climbing Rope',
+    name: 'Beal Karma 9.8mm Rope',
     url: 'https://amzn.to/3Ny2aZa',
     category: 'Ropes & Rope Bags',
     description: 'Versatile single rope with Golden Dry treatment for excellent durability',
@@ -569,7 +569,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'la-sportiva-skwama',
-    name: 'La Sportiva Skwama',
+    name: 'La Sportiva Skwama Shoes',
     url: 'https://amzn.to/4pSp2jI',
     category: 'Footwear',
     description: 'High-performance slipper-style climbing shoe with S-Heel technology',
@@ -577,7 +577,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'la-sportiva-finale',
-    name: 'La Sportiva Finale',
+    name: 'La Sportiva Finale Shoes',
     url: 'https://amzn.to/4bFXlXF',
     category: 'Footwear',
     description: 'Versatile climbing shoe ideal for all-day comfort and performance',
@@ -585,7 +585,7 @@ export const products: GearProduct[] = [
   },
   {
     id: 'la-sportiva-katana-lace',
-    name: 'La Sportiva Katana Lace',
+    name: 'La Sportiva Katana Lace Shoes',
     url: 'https://amzn.to/3LY54WH',
     category: 'Footwear',
     description: 'Precision lace-up shoe with excellent sensitivity and support',
