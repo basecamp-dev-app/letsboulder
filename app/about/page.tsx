@@ -1,7 +1,6 @@
 'use client'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import Link from 'next/link'
 
 export default function AboutPage() {
   return (
@@ -88,20 +87,6 @@ export default function AboutPage() {
             </div>
           </CardContent>
         </Card>
-
-        <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            <Link href="/about" className="hover:underline">About</Link>
-            {' · '}
-            <Link href="/privacy" className="hover:underline">Privacy</Link>
-            {' · '}
-            <Link href="/terms" className="hover:underline">Terms</Link>
-            {' · '}
-            <Link href="/sponsors" className="hover:underline">Sponsors</Link>
-            {' · '}
-            <a href="mailto:hello@gsyrocks.com" className="hover:underline">Contact</a>
-          </p>
-        </div>
       </div>
     </div>
   )

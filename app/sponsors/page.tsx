@@ -158,23 +158,6 @@ export default async function SponsorsPage() {
           </CardContent>
         </Card>
       </section>
-
-      <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-        <p className="text-gray-500 dark:text-gray-400 text-sm">
-          <Link href="/about" className="hover:underline">About</Link>
-          {' · '}
-          <Link href="/privacy" className="hover:underline">Privacy</Link>
-          {' · '}
-          <Link href="/terms" className="hover:underline">Terms</Link>
-          {' · '}
-          <Link href="/sponsors" className="hover:underline">Sponsors</Link>
-          {' · '}
-          <a href="mailto:hello@gsyrocks.com" className="hover:underline">Contact</a>
-        </p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-          Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} · Data provided by Supabase and PostHog
-        </p>
-      </div>
     </div>
   )
 }
