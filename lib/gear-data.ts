@@ -261,7 +261,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3LONbJN',
     category: 'Sun & Skin Care',
     description: 'UPF 50+ sun protection long sleeve quick dry outdoor hoodie',
-    imageUrl: `https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/TACVASEN%20Men's%20Hoodies%20UFP%2050%2B%20Sun%20Protection%20Performance.jpg`,
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/TACVASEN%20Men%27s%20Hoodies%20UPF%2050%2B%20Sun%20Protection%20Performance.jpg',
   },
   {
     id: 'clipstick',
