@@ -1,1 +1,1 @@
-SELECT * FROM user_climbs WHERE user_id = 'your-user-id' LIMIT 5;
+UPDATE profiles SET is_admin = true WHERE id = '4d4d6fce-ae24-4ca9-8efe-466d1046acab';
