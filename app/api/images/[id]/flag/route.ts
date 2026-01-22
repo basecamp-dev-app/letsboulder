@@ -87,6 +87,7 @@ export async function POST(
       .insert({
         image_id: imageId,
         crag_id: image.crag_id,
+        climb_id: null,
         flagger_id: user.id,
         flag_type,
         comment: trimmedComment,
@@ -110,6 +111,7 @@ export async function POST(
       message: 'Flag submitted successfully. An admin will review it soon.'
     })
   } catch (error) {
+    console.error('Flag error:', error)
     return createErrorResponse(error, 'Flag error')
   }
 }

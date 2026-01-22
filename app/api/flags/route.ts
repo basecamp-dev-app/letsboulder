@@ -7,11 +7,17 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status') || 'pending'
   const limit = parseInt(searchParams.get('limit') || '20')
   const offset = parseInt(searchParams.get('offset') || '0')
+  const cookies = request.cookies
 
-  const supabase = await createServerClient(
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return [] }, setAll() {} } }
+    {
+      cookies: {
+        getAll() { return cookies.getAll() },
+        setAll() {},
+      },
+    }
   )
 
   try {
@@ -42,10 +48,10 @@ export async function GET(request: NextRequest) {
         resolved_by,
         resolved_at,
         created_at,
-        flagger:flagger_id(id, email, username),
-        image:image_id(id, url),
-        crag:crag_id(id, name),
-        climbs:climb_id(id, name, grade)
+        flagger_id,
+        image_id,
+        crag_id,
+        climb_id
       `)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -60,13 +66,30 @@ export async function GET(request: NextRequest) {
       return createErrorResponse(error, 'Error fetching flags')
     }
 
+    const flagsWithRelations = await Promise.all((flags || []).map(async (flag) => {
+      const [image, crag, climb, flagger] = await Promise.all([
+        flag.image_id ? supabase.from('images').select('id, url').eq('id', flag.image_id).single() : { data: null },
+        flag.crag_id ? supabase.from('crags').select('id, name').eq('id', flag.crag_id).single() : { data: null },
+        flag.climb_id ? supabase.from('climbs').select('id, name, grade').eq('id', flag.climb_id).single() : { data: null },
+        flag.flagger_id ? supabase.from('profiles').select('id, email, username').eq('id', flag.flagger_id).single() : { data: null },
+      ])
+
+      return {
+        ...flag,
+        image: image.data,
+        crag: crag.data,
+        climbs: climb.data,
+        flagger: flagger.data,
+      }
+    }))
+
     const { count } = await supabase
       .from('climb_flags')
       .select('*', { count: 'exact', head: true })
       .eq('status', status !== 'all' ? status : 'pending')
 
     return NextResponse.json({
-      flags: flags || [],
+      flags: flagsWithRelations,
       count: count || 0,
     })
   } catch (error) {
