@@ -1,4 +1,7 @@
-import { RoutePoint } from './useRouteSelection'
+export interface RoutePoint {
+  x: number
+  y: number
+}
 
 export function drawSmoothCurve(
   ctx: CanvasRenderingContext2D,
@@ -29,13 +32,35 @@ export function drawSmoothCurve(
   ctx.setLineDash([])
 }
 
+export function drawRoundedRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+): void {
+  ctx.beginPath()
+  ctx.moveTo(x + radius, y)
+  ctx.lineTo(x + width - radius, y)
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius)
+  ctx.lineTo(x + width, y + height - radius)
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height)
+  ctx.lineTo(x + radius, y + height)
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius)
+  ctx.lineTo(x, y + radius)
+  ctx.quadraticCurveTo(x, y, x + radius, y)
+  ctx.closePath()
+}
+
 export function drawRoundedLabel(
   ctx: CanvasRenderingContext2D,
   text: string,
   x: number,
   y: number,
   bgColor: string,
-  font: string
+  font: string,
+  textColor: string = '#ffffff'
 ): void {
   ctx.font = font
   const metrics = ctx.measureText(text)
@@ -48,18 +73,7 @@ export function drawRoundedLabel(
   const bgY = y - bgHeight / 2
 
   ctx.save()
-  ctx.beginPath()
-  ctx.moveTo(bgX + cornerRadius, bgY)
-  ctx.lineTo(bgX + bgWidth - cornerRadius, bgY)
-  ctx.quadraticCurveTo(bgX + bgWidth, bgY, bgX + bgWidth, bgY + cornerRadius)
-  ctx.lineTo(bgX + bgWidth, bgY + bgHeight - cornerRadius)
-  ctx.quadraticCurveTo(bgX + bgWidth, bgY + bgHeight, bgX + bgWidth - cornerRadius, bgY + bgHeight)
-  ctx.lineTo(bgX + cornerRadius, bgY + bgHeight)
-  ctx.quadraticCurveTo(bgX, bgY + bgHeight, bgX, bgY + bgHeight - cornerRadius)
-  ctx.lineTo(bgX, bgY + cornerRadius)
-  ctx.quadraticCurveTo(bgX, bgY, bgX + cornerRadius, bgY)
-  ctx.closePath()
-
+  drawRoundedRect(ctx, bgX, bgY, bgWidth, bgHeight, cornerRadius)
   ctx.fillStyle = bgColor
   ctx.shadowColor = 'rgba(0, 0, 0, 0.3)'
   ctx.shadowBlur = 3
@@ -69,7 +83,7 @@ export function drawRoundedLabel(
   ctx.shadowColor = 'transparent'
   ctx.restore()
 
-  ctx.fillStyle = 'white'
+  ctx.fillStyle = textColor
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(text, x, y)
@@ -77,19 +91,29 @@ export function drawRoundedLabel(
 
 export function getGradeLabelPosition(
   points: RoutePoint[],
-  canvasWidth: number,
-  canvasHeight: number
+  _canvasWidth?: number,
+  _canvasHeight?: number,
+  offset: number = -15
 ): { x: number; y: number } {
+  if (points.length < 2) return { x: 0, y: 0 }
   const midIndex = Math.floor(points.length / 2)
-  const midPoint = points[midIndex]
-  return { x: midPoint.x, y: midPoint.y }
+  return {
+    x: points[midIndex].x,
+    y: points[midIndex].y + offset
+  }
 }
 
 export function getNameLabelPosition(
-  points: RoutePoint[]
+  points: RoutePoint[],
+  offsetX: number = 10,
+  offsetY: number = 12
 ): { x: number; y: number } {
+  if (points.length < 2) return { x: 0, y: 0 }
   const lastPoint = points[points.length - 1]
-  return { x: lastPoint.x + 10, y: lastPoint.y + 12 }
+  return {
+    x: lastPoint.x + offsetX,
+    y: lastPoint.y + offsetY
+  }
 }
 
 export function getTruncatedText(
@@ -97,12 +121,18 @@ export function getTruncatedText(
   text: string,
   maxWidth: number
 ): string {
-  if (ctx.measureText(text).width <= maxWidth) return text
-  let truncated = text
-  while (truncated.length > 0 && ctx.measureText(truncated + '...').width > maxWidth) {
-    truncated = truncated.slice(0, -1)
+  const metrics = ctx.measureText(text)
+  if (metrics.width <= maxWidth) return text
+
+  while (text.length > 0) {
+    const testText = text + '...'
+    const testMetrics = ctx.measureText(testText)
+    if (testMetrics.width <= maxWidth) {
+      return testText
+    }
+    text = text.slice(0, -1)
   }
-  return truncated + '...'
+  return '...'
 }
 
 export function generateRouteThumbnail(

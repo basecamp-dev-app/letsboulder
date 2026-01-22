@@ -1,10 +1,15 @@
 'use client'
 
-'use client'
-
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useRouteSelection, RoutePoint, generateRouteId, findRouteAtPoint } from '@/lib/useRouteSelection'
-import GradePicker from '@/app/draw/components/GradePicker'
+import { 
+  drawSmoothCurve, 
+  drawRoundedLabel,
+  getTruncatedText,
+  getGradeLabelPosition,
+  getNameLabelPosition
+} from '@/lib/canvas-utils'
+import GradePicker from '@/components/GradePicker'
 import type { ImageSelection, NewRouteData, RouteLine } from '@/lib/submission-types'
 
 interface ExistingRoute {
@@ -18,105 +23,6 @@ interface RouteCanvasProps {
   imageSelection: ImageSelection
   onRoutesUpdate: (routes: NewRouteData[]) => void
   existingRouteLines?: RouteLine[]
-}
-
-function drawSmoothCurve(ctx: CanvasRenderingContext2D, points: RoutePoint[], color: string, width: number, dash?: number[]) {
-  if (points.length < 2) return
-
-  ctx.strokeStyle = color
-  ctx.lineWidth = width
-  if (dash) ctx.setLineDash(dash)
-  else ctx.setLineDash([])
-
-  ctx.beginPath()
-  ctx.moveTo(points[0].x, points[0].y)
-
-  for (let i = 1; i < points.length - 1; i++) {
-    const xc = (points[i].x + points[i + 1].x) / 2
-    const yc = (points[i].y + points[i + 1].y) / 2
-    ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc)
-  }
-
-  ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y)
-
-  ctx.stroke()
-  ctx.setLineDash([])
-}
-
-function drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
-  ctx.beginPath()
-  ctx.moveTo(x + radius, y)
-  ctx.lineTo(x + width - radius, y)
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius)
-  ctx.lineTo(x + width, y + height - radius)
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height)
-  ctx.lineTo(x + radius, y + height)
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius)
-  ctx.lineTo(x, y + radius)
-  ctx.quadraticCurveTo(x, y, x + radius, y)
-  ctx.closePath()
-}
-
-function drawRoundedLabel(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  bgColor: string,
-  font: string,
-  textColor: string = '#ffffff'
-) {
-  ctx.font = font
-  const metrics = ctx.measureText(text)
-  const padding = 6
-  const cornerRadius = 4
-  const bgWidth = metrics.width + padding * 2
-  const bgHeight = parseInt(ctx.font, 10) + padding
-
-  const bgX = x - bgWidth / 2
-  const bgY = y - bgHeight / 2
-
-  ctx.fillStyle = bgColor
-  drawRoundedRect(ctx, bgX, bgY, bgWidth, bgHeight, cornerRadius)
-  ctx.fill()
-
-  ctx.fillStyle = textColor
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(text, x, y)
-}
-
-function getGradeLabelPosition(points: RoutePoint[]): RoutePoint {
-  if (points.length < 2) return { x: 0, y: 0 }
-  const midIndex = Math.floor(points.length / 2)
-  return {
-    x: points[midIndex].x,
-    y: points[midIndex].y - 15
-  }
-}
-
-function getNameLabelPosition(points: RoutePoint[]): RoutePoint {
-  if (points.length < 2) return { x: 0, y: 0 }
-  const lastPoint = points[points.length - 1]
-  return {
-    x: lastPoint.x,
-    y: lastPoint.y + 20
-  }
-}
-
-function getTruncatedText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-  const metrics = ctx.measureText(text)
-  if (metrics.width <= maxWidth) return text
-
-  while (text.length > 0) {
-    const testText = text + '...'
-    const testMetrics = ctx.measureText(testText)
-    if (testMetrics.width <= maxWidth) {
-      return testText
-    }
-    text = text.slice(0, -1)
-  }
-  return '...'
 }
 
 export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRouteLines }: RouteCanvasProps) {
@@ -149,8 +55,50 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null)
+  const [routeGradeInfo, setRouteGradeInfo] = useState<{
+    consensusGrade: string | null
+    voteCount: number
+    userVote: string | null
+  }>({ consensusGrade: null, voteCount: 0, userVote: null })
 
   const { selectRoute, deselectRoute, clearSelection, selectedIds } = useRouteSelection()
+
+  const fetchRouteGradeInfo = useCallback(async (routeId: string) => {
+    try {
+      const response = await fetch(`/api/routes/${routeId}/grades`)
+      if (response.ok) {
+        const data = await response.json()
+        setRouteGradeInfo({
+          consensusGrade: data.consensusGrade,
+          voteCount: data.voteCount,
+          userVote: data.userVote
+        })
+      }
+    } catch (err) {
+    }
+  }, [])
+
+  const handleGradeVote = useCallback(async (grade: string) => {
+    const selectedRoute = completedRoutes.find(r => selectedIds.includes(r.id))
+    if (!selectedRoute) return
+
+    try {
+      const response = await fetch(`/api/routes/${selectedRoute.id}/grades`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grade })
+      })
+
+      if (response.ok) {
+        fetchRouteGradeInfo(selectedRoute.id)
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to submit grade')
+      }
+    } catch (err) {
+      alert('Failed to submit grade')
+    }
+  }, [completedRoutes, selectedIds, fetchRouteGradeInfo])
 
   const getMousePos = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -160,18 +108,6 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     return {
       x: (e.clientX - rect.left) * zoom,
       y: (e.clientY - rect.top) * zoom
-    }
-  }, [zoom])
-
-  const getTouchPos = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
-
-    const rect = canvas.getBoundingClientRect()
-    const touch = e.touches[0] || e.changedTouches[0]
-    return {
-      x: (touch.clientX - rect.left) * zoom,
-      y: (touch.clientY - rect.top) * zoom
     }
   }, [zoom])
 
@@ -195,10 +131,17 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         } else {
           selectRoute(routeId)
         }
+        if (routeId.startsWith('existing-')) {
+          const actualRouteId = routeId.replace('existing-', '')
+          fetchRouteGradeInfo(actualRouteId)
+        } else {
+          fetchRouteGradeInfo(routeId)
+        }
         return
       }
 
       clearSelection()
+      setRouteGradeInfo({ consensusGrade: null, voteCount: 0, userVote: null })
 
       if (currentPoints.length === 0) {
         setCurrentPoints([pos])
@@ -206,7 +149,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         setCurrentPoints(prev => [...prev, pos])
       }
     }
-  }, [getMousePos, currentPoints, existingRoutes, completedRoutes, selectedIds, selectRoute, deselectRoute, clearSelection])
+  }, [getMousePos, currentPoints, existingRoutes, completedRoutes, selectedIds, selectRoute, deselectRoute, clearSelection, fetchRouteGradeInfo])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     const touch = e.changedTouches[0]
@@ -227,17 +170,24 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
       } else {
         selectRoute(routeId)
       }
+      if (routeId.startsWith('existing-')) {
+        const actualRouteId = routeId.replace('existing-', '')
+        fetchRouteGradeInfo(actualRouteId)
+      } else {
+        fetchRouteGradeInfo(routeId)
+      }
       return
     }
 
     clearSelection()
+    setRouteGradeInfo({ consensusGrade: null, voteCount: 0, userVote: null })
 
     if (currentPoints.length === 0) {
       setCurrentPoints([{ x: canvasX, y: canvasY }])
     } else {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
     }
-  }, [zoom, currentPoints, existingRoutes, completedRoutes, selectedIds, selectRoute, deselectRoute, clearSelection])
+  }, [zoom, currentPoints, existingRoutes, completedRoutes, selectedIds, selectRoute, deselectRoute, clearSelection, fetchRouteGradeInfo])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isPanning) {
@@ -376,18 +326,15 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     }
   }, [imageLoaded, redraw])
 
-  // Set up canvas to match image dimensions and normalize routes
   useEffect(() => {
     const image = imageRef.current
     const canvas = canvasRef.current
     const container = containerRef.current
     if (!image || !canvas || !container || !image.complete || !imageDimensions) return
 
-    // Size canvas to match image's rendered size
     canvas.width = imageDimensions.width
     canvas.height = imageDimensions.height
 
-    // Normalize points to 0-1 using the image's rendered dimensions
     const normalizedRoutes = completedRoutes.map((route, index) => {
       const normalized = route.points.map(p => ({
         x: p.x / imageDimensions.width,
@@ -540,6 +487,11 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         <p className="text-xs text-gray-600 dark:text-gray-300">Middle-click or Alt+drag to pan</p>
         <p className="text-xs text-gray-600 dark:text-gray-300">Scroll to zoom</p>
         <p className="text-xs text-gray-600 dark:text-gray-300">Click route to select</p>
+        {selectedIds.length > 0 && routeGradeInfo.voteCount > 0 && (
+          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+            Consensus: {routeGradeInfo.consensusGrade} ({routeGradeInfo.voteCount} votes)
+          </p>
+        )}
       </div>
 
       <div className="absolute bottom-4 right-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
@@ -552,7 +504,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         />
         <div className="relative">
           <button
-            onClick={() => setGradePickerOpen(!gradePickerOpen)}
+            onClick={() => setGradePickerOpen(true)}
             className="w-full px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
           >
             {currentGrade}
@@ -569,6 +521,14 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
             />
           )}
         </div>
+        {selectedIds.length > 0 && completedRoutes.some(r => selectedIds.includes(r.id)) && (
+          <button
+            onClick={() => setGradePickerOpen(true)}
+            className="w-full mt-1 px-2 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+          >
+            Log Grade
+          </button>
+        )}
       </div>
     </div>
   )

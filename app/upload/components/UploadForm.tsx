@@ -256,8 +256,13 @@ export default function UploadForm() {
 
   useEffect(() => {
     if (confirmedLat !== null && confirmedLng !== null && uploadedImageUrl) {
-      const captureDateParam = imageCaptureDate ? `&captureDate=${encodeURIComponent(imageCaptureDate)}` : ''
-      window.location.href = `/draw?imageUrl=${encodeURIComponent(uploadedImageUrl)}&lat=${confirmedLat}&lng=${confirmedLng}&hasGps=true&sessionId=${Date.now()}${captureDateParam}`
+      sessionStorage.setItem('pendingUpload', JSON.stringify({
+        imageUrl: uploadedImageUrl,
+        latitude: confirmedLat,
+        longitude: confirmedLng,
+        captureDate: imageCaptureDate
+      }))
+      window.location.href = '/submit'
     }
   }, [confirmedLat, confirmedLng, uploadedImageUrl, imageCaptureDate])
 

@@ -36,6 +36,34 @@ function SubmitPageContent() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         router.push('/auth?redirect_to=/submit')
+        return
+      }
+
+      const pendingUpload = sessionStorage.getItem('pendingUpload')
+      if (pendingUpload) {
+        try {
+          const data = JSON.parse(pendingUpload)
+          sessionStorage.removeItem('pendingUpload')
+
+          const newImageSelection: ImageSelection = {
+            mode: 'new',
+            file: new File([], 'uploaded.jpg'),
+            gpsData: { latitude: data.latitude, longitude: data.longitude },
+            captureDate: data.captureDate || null,
+            width: 1200,
+            height: 1200,
+            uploadedUrl: data.imageUrl
+          }
+
+          const gps = { latitude: data.latitude, longitude: data.longitude }
+          setContext(prev => ({ ...prev, image: newImageSelection, imageGps: gps }))
+          setStep({
+            step: 'crag',
+            imageGps: gps
+          })
+        } catch (e) {
+          sessionStorage.removeItem('pendingUpload')
+        }
       }
     }
     checkAuth()

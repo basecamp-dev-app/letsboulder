@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 const FRENCH_GRADES = [
   '5A', '5A+', '5B', '5B+', '5C', '5C+',
