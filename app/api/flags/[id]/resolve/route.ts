@@ -1,0 +1,166 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
+import { withCsrfProtection } from '@/lib/csrf-server'
+
+const VALID_ACTIONS = ['keep', 'edit', 'remove']
+
+interface FlagWithRelations {
+  id: string
+  status: string
+  climb_id: string
+  flagger_id: string | null
+  flag_type: string
+  comment: string
+  climb: { id: string; name: string } | null
+  crag: { id: string; name: string } | null
+  created_at: string
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
+  const cookies = request.cookies
+  const { id: flagId } = await params
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookies.getAll() },
+        setAll() {},
+      },
+    }
+  )
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    if (!flagId) {
+      return NextResponse.json({ error: 'Flag ID required' }, { status: 400 })
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile?.is_admin) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const { action, resolution_note } = body
+
+    if (!action || !VALID_ACTIONS.includes(action)) {
+      return NextResponse.json({ error: `Invalid action. Must be one of: ${VALID_ACTIONS.join(', ')}` }, { status: 400 })
+    }
+
+    const { data: flag, error: flagError } = await supabase
+      .from('climb_flags')
+      .select(`
+        id,
+        status,
+        climb_id,
+        flagger_id,
+        flag_type,
+        comment,
+        climb:climb_id(id, name),
+        crag:crag_id(id, name)
+      `)
+      .eq('id', flagId)
+      .single()
+
+    if (flagError || !flag) {
+      return NextResponse.json({ error: 'Flag not found' }, { status: 404 })
+    }
+
+    const typedFlag = flag as unknown as FlagWithRelations
+
+    if (typedFlag.status === 'resolved') {
+      return NextResponse.json({ error: 'This flag has already been resolved' }, { status: 400 })
+    }
+
+    const resolvedAt = new Date().toISOString()
+
+    if (action === 'remove') {
+      const { error: deleteError } = await supabase
+        .from('climbs')
+        .update({ deleted_at: resolvedAt })
+        .eq('id', typedFlag.climb_id)
+
+      if (deleteError) {
+        return createErrorResponse(deleteError, 'Error removing climb')
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from('climb_flags')
+      .update({
+        status: 'resolved',
+        action_taken: action,
+        resolved_by: user.id,
+        resolved_at: resolvedAt,
+      })
+      .eq('id', flagId)
+
+    if (updateError) {
+      return createErrorResponse(updateError, 'Error resolving flag')
+    }
+
+    const climbName = typedFlag.climb?.name || 'Unnamed route'
+    const cragName = typedFlag.crag?.name || 'Unknown crag'
+
+    if (typedFlag.flagger_id) {
+      let title = ''
+      let message = ''
+
+      switch (action) {
+        case 'keep':
+          title = 'Flag dismissed'
+          message = `Your flag for "${climbName}" at ${cragName} was reviewed and the climb was kept.`
+          break
+        case 'edit':
+          title = 'Flag resolved - climb edited'
+          message = `Your flag for "${climbName}" at ${cragName} was resolved by editing the climb.`
+          break
+        case 'remove':
+          title = 'Flag resolved - climb removed'
+          message = `Your flag for "${climbName}" at ${cragName} was resolved by removing the climb.`
+          break
+      }
+
+      await supabase.from('notifications').insert({
+        user_id: typedFlag.flagger_id,
+        type: 'flag_resolved',
+        title,
+        message: resolution_note ? `${message}\n\nNote: ${resolution_note}` : message,
+        link: `/climbs/${typedFlag.climb_id}`,
+      })
+    }
+
+    return NextResponse.json({
+      success: true,
+      flag: {
+        id: typedFlag.id,
+        status: 'resolved',
+        action_taken: action,
+        resolved_by: user.id,
+        resolved_at: resolvedAt,
+      },
+      message: `Flag resolved with action: ${action}`,
+    })
+  } catch (error) {
+    return createErrorResponse(error, 'Flag resolution error')
+  }
+}

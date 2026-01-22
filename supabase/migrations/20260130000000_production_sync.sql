@@ -15,6 +15,15 @@ CREATE TABLE IF NOT EXISTS grades (
     points INTEGER NOT NULL
 );
 
+-- Add primary key if not exists (using DO block to avoid errors)
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'grades_pkey'
+    ) THEN
+        ALTER TABLE grades ADD CONSTRAINT grades_pkey PRIMARY KEY (grade);
+    END IF;
+END $$;
+
 INSERT INTO grades (grade, points) VALUES
     ('1A', 100), ('1A+', 116), ('1B', 132), ('1B+', 148), ('1C', 164), ('1C+', 180),
     ('2A', 196), ('2A+', 212), ('2B', 228), ('2B+', 244), ('2C', 260), ('2C+', 276),
