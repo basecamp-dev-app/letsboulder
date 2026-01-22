@@ -90,12 +90,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" href="/favicon-light.png" sizes="32x32" media="(prefers-color-scheme: dark)" />
-        <link rel="icon" href="/favicon.png" sizes="32x32" media="(prefers-color-scheme: light)" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon-light.png" sizes="180x180" media="(prefers-color-scheme: dark)" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" media="(prefers-color-scheme: light)" />
-        <link rel="icon" href="/icon-192-light.png" sizes="192x192" media="(prefers-color-scheme: dark)" />
-        <link rel="icon" href="/icon-192.png" sizes="192x192" media="(prefers-color-scheme: light)" />
+        <link rel="icon" href="/favicon.png" sizes="32x32" media="(prefers-color-scheme: dark)" />
+        <link rel="icon" href="/favicon-light.png" sizes="32x32" media="(prefers-color-scheme: light)" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" media="(prefers-color-scheme: dark)" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon-light.png" sizes="180x180" media="(prefers-color-scheme: light)" />
+        <link rel="icon" href="/icon-192-dark.png" sizes="192x192" media="(prefers-color-scheme: dark)" />
+        <link rel="icon" href="/icon-192-light.png" sizes="192x192" media="(prefers-color-scheme: light)" />
         <link rel="manifest" href="/manifest.json" />
         <script
           dangerouslySetInnerHTML={{

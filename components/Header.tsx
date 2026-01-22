@@ -155,14 +155,14 @@ export default function Header() {
         <Link href="/" className="flex items-center flex-shrink-0">
           <div className="relative w-12 h-12">
             <Image
-              src="/logo.png"
+              src="/logo-light.png"
               alt="gsyrocks"
               fill
               className="object-contain dark:opacity-0"
               priority
             />
             <Image
-              src="/logo-light.png"
+              src="/logo-dark.png"
               alt="gsyrocks"
               fill
               className="object-contain opacity-0 dark:opacity-100"
