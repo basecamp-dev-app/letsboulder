@@ -5,9 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { RoutePoint } from '@/lib/useRouteSelection'
-import { Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { Loader2, CheckCircle, AlertCircle, Flag } from 'lucide-react'
 import GradeVoting from '@/components/GradeVoting'
 import CorrectionSection from '@/components/CorrectionSection'
+import FlagImageModal from '@/components/FlagImageModal'
 import type { ClimbStatusResponse } from '@/lib/verification-types'
 import { trackEvent, trackClimbLogged } from '@/lib/posthog'
 
@@ -168,6 +169,8 @@ export default function ImagePage() {
   const [cragName, setCragName] = useState<string | null>(null)
   const [climbStatus, setClimbStatus] = useState<ClimbStatusResponse | null>(null)
   const [verificationLoading, setVerificationLoading] = useState(false)
+  const [flagModalOpen, setFlagModalOpen] = useState(false)
+  const [userHasFlagged, setUserHasFlagged] = useState(false)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -279,6 +282,8 @@ export default function ImagePage() {
             setUserLogs(logsMap)
           }
         }
+
+        await checkFlagStatus(imageId)
       } catch (err) {
         console.error('Error loading image:', err)
         setError('Failed to load image')
@@ -310,6 +315,23 @@ export default function ImagePage() {
       }
     } catch {
       console.error('Failed to fetch climb status')
+    }
+  }
+
+  const checkFlagStatus = async (imgId: string) => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      const response = await fetch(`/api/images/${imgId}/flags`)
+      if (response.ok) {
+        const data = await response.json()
+        setUserHasFlagged(data.user_has_flagged)
+      }
+    } catch {
+      console.error('Failed to check flag status')
     }
   }
 
@@ -422,10 +444,43 @@ export default function ImagePage() {
       </div>
 
       {cragId && cragName && (
-        <div className="flex justify-center mt-2 pb-4">
+        <div className="flex justify-center mt-2 pb-4 gap-2">
           <Link href={`/crag/${cragId}`} className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
             View {cragName} →
           </Link>
+          {userHasFlagged ? (
+            <span className="px-3 py-1 bg-yellow-600 text-white text-sm rounded-lg flex items-center gap-1">
+              <Flag className="w-3 h-3" />
+              Flagged
+            </span>
+          ) : (
+            <button
+              onClick={() => setFlagModalOpen(true)}
+              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
+            >
+              <Flag className="w-3 h-3" />
+              Flag
+            </button>
+          )}
+        </div>
+      )}
+
+      {!cragId && (
+        <div className="flex justify-center mt-2 pb-4">
+          {userHasFlagged ? (
+            <span className="px-3 py-1 bg-yellow-600 text-white text-sm rounded-lg flex items-center gap-1">
+              <Flag className="w-3 h-3" />
+              Flagged
+            </span>
+          ) : (
+            <button
+              onClick={() => setFlagModalOpen(true)}
+              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
+            >
+              <Flag className="w-3 h-3" />
+              Flag
+            </button>
+          )}
         </div>
       )}
 
@@ -565,6 +620,18 @@ export default function ImagePage() {
           </div>
         )}
       </div>
+
+      {flagModalOpen && (
+        <FlagImageModal
+          imageId={imageId}
+          imageUrl={image.url}
+          onClose={() => setFlagModalOpen(false)}
+          onSubmitted={() => {
+            setUserHasFlagged(true)
+            checkFlagStatus(imageId)
+          }}
+        />
+      )}
     </div>
   )
 }

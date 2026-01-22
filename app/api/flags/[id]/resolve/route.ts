@@ -8,11 +8,13 @@ const VALID_ACTIONS = ['keep', 'edit', 'remove']
 interface FlagWithRelations {
   id: string
   status: string
-  climb_id: string
+  climb_id: string | null
+  image_id: string | null
   flagger_id: string | null
   flag_type: string
   comment: string
   climb: { id: string; name: string } | null
+  image: { id: string; url: string } | null
   crag: { id: string; name: string } | null
   created_at: string
 }
@@ -72,10 +74,12 @@ export async function POST(
         id,
         status,
         climb_id,
+        image_id,
         flagger_id,
         flag_type,
         comment,
         climb:climb_id(id, name),
+        image:image_id(id, url),
         crag:crag_id(id, name)
       `)
       .eq('id', flagId)
@@ -93,7 +97,7 @@ export async function POST(
 
     const resolvedAt = new Date().toISOString()
 
-    if (action === 'remove') {
+    if (action === 'remove' && typedFlag.climb_id) {
       const { error: deleteError } = await supabase
         .from('climbs')
         .update({ deleted_at: resolvedAt })
@@ -120,24 +124,45 @@ export async function POST(
 
     const climbName = typedFlag.climb?.name || 'Unnamed route'
     const cragName = typedFlag.crag?.name || 'Unknown crag'
+    const isImageFlag = !!typedFlag.image_id
 
     if (typedFlag.flagger_id) {
       let title = ''
       let message = ''
+      let link = ''
 
-      switch (action) {
-        case 'keep':
-          title = 'Flag dismissed'
-          message = `Your flag for "${climbName}" at ${cragName} was reviewed and the climb was kept.`
-          break
-        case 'edit':
-          title = 'Flag resolved - climb edited'
-          message = `Your flag for "${climbName}" at ${cragName} was resolved by editing the climb.`
-          break
-        case 'remove':
-          title = 'Flag resolved - climb removed'
-          message = `Your flag for "${climbName}" at ${cragName} was resolved by removing the climb.`
-          break
+      if (isImageFlag) {
+        switch (action) {
+          case 'keep':
+            title = 'Flag dismissed'
+            message = `Your flag for an image at ${cragName} was reviewed and no action was taken.`
+            break
+          case 'edit':
+            title = 'Flag resolved - image updated'
+            message = `Your flag for an image at ${cragName} was resolved by updating the image.`
+            break
+          case 'remove':
+            title = 'Flag resolved - image removed'
+            message = `Your flag for an image at ${cragName} was resolved by removing the image.`
+            break
+        }
+        link = `/image/${typedFlag.image_id}`
+      } else {
+        switch (action) {
+          case 'keep':
+            title = 'Flag dismissed'
+            message = `Your flag for "${climbName}" at ${cragName} was reviewed and the climb was kept.`
+            break
+          case 'edit':
+            title = 'Flag resolved - climb edited'
+            message = `Your flag for "${climbName}" at ${cragName} was resolved by editing the climb.`
+            break
+          case 'remove':
+            title = 'Flag resolved - climb removed'
+            message = `Your flag for "${climbName}" at ${cragName} was resolved by removing the climb.`
+            break
+        }
+        link = typedFlag.climb_id ? `/climbs/${typedFlag.climb_id}` : `/crag/${typedFlag.crag?.id}`
       }
 
       await supabase.from('notifications').insert({
@@ -145,7 +170,7 @@ export async function POST(
         type: 'flag_resolved',
         title,
         message: resolution_note ? `${message}\n\nNote: ${resolution_note}` : message,
-        link: `/climbs/${typedFlag.climb_id}`,
+        link,
       })
     }
 
