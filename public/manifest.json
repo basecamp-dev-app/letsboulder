@@ -42,21 +42,21 @@
       "short_name": "Map",
       "description": "Open the interactive climbing map",
       "url": "/map",
-      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-192-light.png", "sizes": "192x192" }]
     },
     {
       "name": "My Logbook",
       "short_name": "Logbook",
       "description": "View your climbing logbook",
       "url": "/logbook",
-      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-192-light.png", "sizes": "192x192" }]
     },
     {
       "name": "Add Climb",
       "short_name": "Add",
       "description": "Upload a new climb",
       "url": "/submit",
-      "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-192-light.png", "sizes": "192x192" }]
     }
   ]
 }
