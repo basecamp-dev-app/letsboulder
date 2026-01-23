@@ -302,7 +302,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
       ctx.fillStyle = '#3b82f6'
       currentPoints.forEach(point => {
         ctx.beginPath()
-        ctx.arc(point.x, point.y, 6, 0, 2 * Math.PI)
+        ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI)
         ctx.fill()
       })
 
