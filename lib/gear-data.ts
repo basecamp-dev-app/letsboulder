@@ -637,7 +637,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4pVu3Ig',
     category: 'Footwear',
     description: 'Versatile climbing shoe with aggressive downturn for all-day performance',
-    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Evolv%20Venga%20Shoe.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Evolv%20Kids%20Venga%20Climbing%20Shoe.jpg',
   },
   {
     id: 'la-sportiva-tx-guide',
@@ -645,7 +645,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/49QZPzR',
     category: 'Footwear',
     description: 'Technical approach shoe with durable rubber sole for mountain approaches',
-    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/La%20Sportiva%20TX%20Guide.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/La%20Sportiva%20TX%20Guide%20.jpg',
   },
   {
     id: 'scarpa-crux',
@@ -669,7 +669,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3Zsig9h',
     category: 'Harnesses & Helmets',
     description: 'Ultra-lightweight harness for sport climbing and alpine adventures',
-    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Petzl%20Sitta.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Petzl%20Sitta%20.jpg',
   },
   {
     id: 'petzl-sama',
@@ -677,7 +677,7 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/3Nz2xCQ',
     category: 'Harnesses & Helmets',
     description: 'Lightweight women\'s harness for sport climbing and gym climbing',
-    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Petzl%20Sama.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Petzl%20Sama%20.jpg',
   },
   {
     id: 'petzl-macchu',
@@ -685,6 +685,6 @@ export const products: GearProduct[] = [
     url: 'https://amzn.to/4qCI4f1',
     category: 'Harnesses & Helmets',
     description: 'Women\'s ultra-light harness designed for technical alpine climbing',
-    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Petzl%20Macchu.jpg',
+    imageUrl: 'https://glxnbxbkedeogtcivpsx.supabase.co/storage/v1/object/public/Gear%20Images/Petzl%20Macchu%20.jpg',
   },
 ]
