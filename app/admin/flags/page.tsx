@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Loader2, Check, Trash2 } from 'lucide-react'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface Flag {
   id: string
@@ -59,7 +60,7 @@ export default function AdminFlagsPage() {
   const handleResolve = async (flagId: string, action: 'keep' | 'edit' | 'remove') => {
     setResolving(flagId)
     try {
-      const response = await fetch(`/api/flags/${flagId}/resolve`, {
+      const response = await csrfFetch(`/api/flags/${flagId}/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
