@@ -150,7 +150,7 @@ export default function Header() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none">
+    <header className="fixed top-0 left-0 right-0 z-[5000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center gap-4">
         <Link href="/" className="flex items-center flex-shrink-0">
           <div className="relative w-16 h-16">
@@ -231,7 +231,7 @@ export default function Header() {
               </svg>
             </button>
               {showMoreDropdown && (
-                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-40 z-50">
+                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-40 z-[4000]">
                   {MORE_MENU_ITEMS.map((item) => (
                   <Link
                     key={item.href}

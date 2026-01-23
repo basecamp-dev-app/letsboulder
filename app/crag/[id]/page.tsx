@@ -289,7 +289,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
           center={[crag.latitude, crag.longitude]}
           zoom={14}
           style={{ height: '100%', width: '100%' }}
-          zoomControl={true}
+          zoomControl={false}
           scrollWheelZoom={true}
           whenReady={() => setMapReady(true)}
         >
