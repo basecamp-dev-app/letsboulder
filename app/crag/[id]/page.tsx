@@ -237,8 +237,52 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
 
   const boundaryCoords = crag.boundary ? geoJsonPolygonToLeaflet(crag.boundary) : null
 
+  const cragSchema = {
+    "@context": "https://schema.org",
+    "@type": "Place",
+    "name": crag.name,
+    "description": crag.description || `${crag.type || 'Bouldering'} crag in ${crag.regions?.name || 'Guernsey'}`,
+    "url": `https://gsyrocks.com/crag/${crag.id}`,
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": crag.regions?.name || "Guernsey",
+      "addressCountry": "GB"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": crag.latitude,
+      "longitude": crag.longitude
+    },
+    " amenityUsage": "Bouldering"
+  } as Record<string, unknown>
+
+  const additionalProperties: Record<string, unknown>[] = []
+  if (crag.rock_type) {
+    additionalProperties.push({
+      "@type": "PropertyValue",
+      "name": "rockType",
+      "value": crag.rock_type
+    })
+  }
+
+  if (crag.type) {
+    additionalProperties.push({
+      "@type": "PropertyValue",
+      "name": "climbingType",
+      "value": crag.type
+    })
+  }
+
+  if (additionalProperties.length > 0) {
+    cragSchema.additionalProperty = additionalProperties
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(cragSchema) }}
+      />
       <div className="relative h-[50vh] bg-gray-200 dark:bg-gray-800">
         <MapContainer
           ref={mapRef as React.RefObject<L.Map | null>}

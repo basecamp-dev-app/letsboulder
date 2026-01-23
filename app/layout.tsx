@@ -88,7 +88,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en-GB" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.png" sizes="32x32" media="(prefers-color-scheme: dark)" />
         <link rel="icon" href="/favicon-light.png" sizes="32x32" media="(prefers-color-scheme: light)" />
@@ -124,21 +124,45 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "WebSite",
-              name: "gsyrocks",
-              url: "https://gsyrocks.com",
-              description: "Discover and log climbing routes in Guernsey",
-              potentialAction: {
-                "@type": "SearchAction",
-                target: {
-                  "@type": "EntryPoint",
-                  urlTemplate: "https://gsyrocks.com/map?q={search_term_string}",
+            __html: JSON.stringify([
+              {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                name: "gsyrocks",
+                url: "https://gsyrocks.com",
+                description: "Discover and log climbing routes in Guernsey",
+                potentialAction: {
+                  "@type": "SearchAction",
+                  target: {
+                    "@type": "EntryPoint",
+                    urlTemplate: "https://gsyrocks.com/map?q={search_term_string}",
+                  },
+                  "query-input": "required name=search_term_string",
                 },
-                "query-input": "required name=search_term_string",
               },
-            }),
+              {
+                "@context": "https://schema.org",
+                "@type": "Organization",
+                name: "gsyrocks",
+                url: "https://gsyrocks.com",
+                logo: "https://gsyrocks.com/logo.png",
+                description: "Community-driven bouldering platform for Guernsey, Channel Islands. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
+                address: {
+                  "@type": "PostalAddress",
+                  addressLocality: "Guernsey",
+                  addressCountry: "GB"
+                },
+                sameAs: [
+                  "https://twitter.com/gsyrocks",
+                  "https://www.instagram.com/gsyrocks"
+                ],
+                contactPoint: {
+                  "@type": "ContactPoint",
+                  email: "hello@gsyrocks.com",
+                  contactType: "customer service"
+                }
+              }
+            ]),
           }}
         />
       </head>

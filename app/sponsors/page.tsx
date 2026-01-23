@@ -1,7 +1,14 @@
+import type { Metadata } from 'next'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getSponsorMetrics } from '@/lib/posthog-server'
 import { getRegisteredUserCount } from '@/lib/supabase-server'
 import Link from 'next/link'
+
+export const metadata: Metadata = {
+  title: 'Sponsor Report & Metrics | gsyrocks',
+  description: 'Monthly engagement metrics and sponsor report for gsyrocks. View our community growth, user engagement, and sponsorship opportunities for climbing brands.',
+  keywords: ['sponsor report', 'climbing metrics', 'engagement data', 'sponsorship opportunities', 'climbing platform'],
+}
 
 export const revalidate = 3600
 

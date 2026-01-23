@@ -1,3 +1,11 @@
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Privacy Policy | gsyrocks',
+  description: 'Learn how gsyrocks collects, uses, and protects your personal information. Our privacy policy covers data collection, cookies, analytics, and your privacy rights.',
+  keywords: ['privacy policy', 'data protection', 'GDPR', 'cookie policy', 'personal data'],
+}
+
 export default function PrivacyPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">

@@ -1,3 +1,11 @@
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Terms of Service | gsyrocks',
+  description: 'Terms of Service for gsyrocks. Read our terms governing the use of our bouldering logbook platform, including user conduct, content policies, and liability disclaimers.',
+  keywords: ['terms of service', 'terms and conditions', 'user agreement', 'climbing safety'],
+}
+
 export default function TermsPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">

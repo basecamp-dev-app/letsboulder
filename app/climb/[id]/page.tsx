@@ -363,8 +363,27 @@ export default function ClimbPage() {
     )
   }
 
+  const routeSchema = {
+    "@context": "https://schema.org",
+    "@type": "SportsActivityLocation",
+    "name": climb.name,
+    "description": `${climb.grade} bouldering route`,
+    "url": `https://gsyrocks.com/climb/${climb.id}`,
+    "image": climb.image_url,
+    "sport": "Bouldering",
+    "additionalProperty": {
+      "@type": "PropertyValue",
+      "name": "grade",
+      "value": climb.grade
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(routeSchema) }}
+      />
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg">
           {toast}
