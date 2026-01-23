@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
         pathname: '/storage/v1/object/public/**',
       },
       {
-        protocol: 'https',
+        protocol: 'http',
         hostname: 'localhost',
         pathname: '/storage/v1/object/public/**',
       },
