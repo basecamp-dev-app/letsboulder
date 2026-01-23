@@ -1,11 +1,10 @@
 'use client'
 
-import { useEffect, useState, useRef, type RefObject } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { geoJsonPolygonToLeaflet, getPolygonCenter, GeoJSONPolygon } from '@/lib/geo-utils'
 
 import 'leaflet/dist/leaflet.css'
@@ -103,19 +102,6 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   const [loading, setLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
   const mapRef = useRef<L.Map | null>(null)
-  const router = useRouter()
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { id } = await params
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push(`/auth?redirect_to=/crag/${id}`)
-      }
-    }
-    checkAuth()
-  }, [params, router])
 
   useEffect(() => {
     setupLeafletIcons()
@@ -412,10 +398,18 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
           ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {images.map((image) => (
-                  <Link
+                  <div
                     key={image.id}
-                    href={`/image/${image.id}`}
-                    className="block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                    className="block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={async () => {
+                      const supabase = createClient()
+                      const { data: { user } } = await supabase.auth.getUser()
+                      if (!user) {
+                        window.location.href = `/auth?redirect_to=/image/${image.id}`
+                      } else {
+                        window.location.href = `/image/${image.id}`
+                      }
+                    }}
                   >
                     <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
                       <Image
@@ -436,7 +430,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
                         {image.is_verified ? '✓' : `${image.verification_count}/3`}
                       </div>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
           )}
