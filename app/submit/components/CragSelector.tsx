@@ -17,6 +17,10 @@ interface CragSearchResult extends Crag {
   distance?: number | null
 }
 
+interface NearbyCragResult extends Crag {
+  distance?: number | null
+}
+
 export default function CragSelector({
   latitude,
   longitude,
@@ -35,6 +39,36 @@ export default function CragSelector({
   const [isCreating, setIsCreating] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [showNearby, setShowNearby] = useState(false)
+  const [nearbyCrags, setNearbyCrags] = useState<NearbyCragResult[]>([])
+  const [nearbyLoading, setNearbyLoading] = useState(false)
+
+  const fetchNearbyCrags = useCallback(async () => {
+    if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) {
+      return
+    }
+
+    setNearbyLoading(true)
+    try {
+      const params = new URLSearchParams({
+        lat: latitude.toString(),
+        lng: longitude.toString()
+      })
+      const response = await fetch(`/api/crags/nearby?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        setNearbyCrags(data)
+      }
+    } catch {
+      console.error('Failed to fetch nearby crags')
+    } finally {
+      setNearbyLoading(false)
+    }
+  }, [latitude, longitude])
+
+  useEffect(() => {
+    fetchNearbyCrags()
+  }, [fetchNearbyCrags])
 
   const searchCrags = useCallback(async (searchQuery: string) => {
     if (searchQuery.length < 2) {
@@ -80,6 +114,7 @@ export default function CragSelector({
   const handleSelect = (crag: Crag) => {
     setQuery(crag.name)
     setResults([])
+    setShowNearby(false)
     setSuccessMessage('')
     setErrorMessage('')
     onSelect(crag)
@@ -319,12 +354,14 @@ export default function CragSelector({
               onChange={(e) => {
                 setQuery(e.target.value)
                 setResults([])
+                setShowNearby(false)
                 setSuccessMessage('')
                 setErrorMessage('')
               }}
               placeholder="Search for a crag..."
               className="w-full px-3 py-3 min-h-[48px] text-lg pr-24 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               onFocus={() => {
+                setShowNearby(true)
                 if (query.length >= 2) searchCrags(query)
               }}
             />
@@ -341,6 +378,47 @@ export default function CragSelector({
             >
               + Create
             </button>
+
+            {showNearby && nearbyCrags.length > 0 && (
+              <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
+                {nearbyCrags.map((crag) => (
+                  <li
+                    key={crag.id}
+                    onClick={() => handleSelect(crag)}
+                    className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                      selectedCragId === crag.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                    }`}
+                  >
+                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                      {crag.name}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      </svg>
+                      {crag.distance !== null && crag.distance !== undefined ? (
+                        <span className="text-blue-600 dark:text-blue-400">
+                          ~{crag.distance}km from your image
+                        </span>
+                      ) : (
+                        formatCoordinates(crag.latitude, crag.longitude)
+                      )}
+                    </div>
+                    {crag.rock_type && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {crag.rock_type}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {showNearby && nearbyLoading && (
+              <div className="absolute z-10 w-full mt-1 p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg text-sm text-gray-500 dark:text-gray-400 text-center">
+                Loading nearby crags...
+              </div>
+            )}
 
             {results.length > 0 && (
               <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">

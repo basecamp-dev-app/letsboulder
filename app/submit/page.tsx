@@ -16,7 +16,6 @@ const CragSelector = dynamic(() => import('./components/CragSelector'), { ssr: f
 const ImagePicker = dynamic(() => import('./components/ImagePicker'), { ssr: false })
 const RouteCanvas = dynamic(() => import('./components/RouteCanvas'), { ssr: false })
 const LocationPicker = dynamic(() => import('./components/LocationPicker'), { ssr: false })
-const RoutePreview = dynamic(() => import('./components/RoutePreview'), { ssr: false })
 
 function SubmitPageContent() {
   const [step, setStep] = useState<SubmissionStep>({ step: 'image' })
@@ -105,26 +104,6 @@ function SubmitPageContent() {
     setContext(prev => ({ ...prev, routes }))
   }, [])
 
-  const handleContinueToReview = useCallback(() => {
-    if (context.routes.length === 0) {
-      setError('Please draw at least one route before continuing')
-      return
-    }
-    if (!context.crag) {
-      setError('Please select or create a crag before continuing')
-      return
-    }
-    setError(null)
-    setStep({
-      step: 'review',
-      imageGps: context.imageGps,
-      cragId: context.crag.id,
-      cragName: context.crag.name,
-      image: context.image!,
-      routes: context.routes
-    })
-  }, [context])
-
   const handleBack = useCallback(() => {
     setError(null)
     switch (step.step) {
@@ -143,15 +122,6 @@ function SubmitPageContent() {
           imageGps: context.imageGps,
           cragId: context.crag?.id,
           cragName: context.crag?.name
-        })
-        break
-      case 'review':
-        setStep({
-          step: 'draw',
-          imageGps: context.imageGps,
-          cragId: context.crag!.id,
-          cragName: context.crag!.name,
-          image: context.image!
         })
         break
     }
@@ -309,71 +279,13 @@ function SubmitPageContent() {
             </div>
             {context.routes.length > 0 && (
               <button
-                onClick={handleContinueToReview}
-                className="mt-4 w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="mt-4 w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                Review ({context.routes.length}) →
+                {submitting ? 'Submitting...' : 'Submit Routes'}
               </button>
             )}
-          </div>
-        )
-
-      case 'review':
-        return (
-          <div className="max-w-md mx-auto">
-            <button
-              onClick={handleBack}
-              className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
-            >
-              ← Back to drawing
-            </button>
-            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Review Submission</h2>
-
-            <div className="mb-6 h-[500px] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-              <RoutePreview
-                imageSelection={context.image!}
-                routes={context.routes}
-              />
-            </div>
-
-            <div className="space-y-4 mb-6">
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div className="text-sm text-gray-500 dark:text-gray-400">Crag</div>
-                <div className="font-medium text-gray-900 dark:text-gray-100">{step.cragName}</div>
-                {context.crag && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {context.crag.latitude.toFixed(4)}, {context.crag.longitude.toFixed(4)}
-                  </div>
-                )}
-              </div>
-
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <div className="text-sm text-gray-500 dark:text-gray-400">Routes ({step.routes.length})</div>
-                {step.routes.map((route, i) => (
-                  <div key={route.id} className="mt-2 flex items-center gap-2">
-                    <span className="w-6 h-6 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {i + 1}
-                    </span>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">{route.name}</span>
-                    <span className="text-gray-500 dark:text-gray-400">({route.grade})</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              {submitting ? 'Submitting...' : 'Submit Routes'}
-            </button>
           </div>
         )
 
