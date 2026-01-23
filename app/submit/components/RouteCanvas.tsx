@@ -54,7 +54,12 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
   })
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
-  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null)
+  const [imageDimensions, setImageDimensions] = useState<{
+    width: number
+    height: number
+    naturalWidth: number
+    naturalHeight: number
+  } | null>(null)
   const [routeGradeInfo, setRouteGradeInfo] = useState<{
     consensusGrade: string | null
     voteCount: number
@@ -336,17 +341,43 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     canvas.height = imageDimensions.height
 
     const normalizedRoutes = completedRoutes.map((route, index) => {
+      // The canvas fills the container but the image is letterboxed within it
+      // Calculate the actual displayed image bounds within the canvas
+      const canvasAspectRatio = imageDimensions.width / imageDimensions.height
+      const imageAspectRatio = imageDimensions.naturalWidth / imageDimensions.naturalHeight
+
+      let displayedImageWidth, displayedImageHeight, offsetX = 0, offsetY = 0
+
+      if (canvasAspectRatio > imageAspectRatio) {
+        // Image is letterboxed horizontally (black bars on sides)
+        displayedImageHeight = imageDimensions.height
+        displayedImageWidth = displayedImageHeight * imageAspectRatio
+        offsetX = (imageDimensions.width - displayedImageWidth) / 2
+      } else {
+        // Image is letterboxed vertically (black bars on top/bottom)
+        displayedImageWidth = imageDimensions.width
+        displayedImageHeight = displayedImageWidth / imageAspectRatio
+        offsetY = (imageDimensions.height - displayedImageHeight) / 2
+      }
+
       const normalized = route.points.map(p => ({
-        x: p.x / imageDimensions.width,
-        y: p.y / imageDimensions.height
+        // Convert canvas coordinates to displayed image coordinates, then to natural
+        x: ((p.x - offsetX) * imageDimensions.naturalWidth) / displayedImageWidth / imageDimensions.naturalWidth,
+        y: ((p.y - offsetY) * imageDimensions.naturalHeight) / displayedImageHeight / imageDimensions.naturalHeight
       }))
+
+
 
       return {
         id: route.id,
         name: route.name,
         grade: route.grade,
         points: normalized,
-        sequenceOrder: index
+        sequenceOrder: index,
+        imageWidth: imageDimensions.naturalWidth,
+        imageHeight: imageDimensions.naturalHeight,
+        imageNaturalWidth: imageDimensions.naturalWidth,
+        imageNaturalHeight: imageDimensions.naturalHeight
       }
     })
 
@@ -356,12 +387,11 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
     const image = imageRef.current
-    const container = containerRef.current
-    if (!canvas || !image || !container || !image.complete) return
+    if (!canvas || !image || !image.complete) return
 
-    const containerRect = container.getBoundingClientRect()
-    canvas.width = containerRect.width * zoom
-    canvas.height = containerRect.height * zoom
+    const rect = image.getBoundingClientRect()
+    canvas.width = rect.width
+    canvas.height = rect.height
     redraw()
   }, [zoom, redraw])
 
@@ -385,7 +415,12 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
           const img = imageRef.current
           if (img) {
             const rect = img.getBoundingClientRect()
-            setImageDimensions({ width: rect.width, height: rect.height })
+            setImageDimensions({
+              width: rect.width,
+              height: rect.height,
+              naturalWidth: img.naturalWidth,
+              naturalHeight: img.naturalHeight
+            })
           }
           setImageLoaded(true)
         }}

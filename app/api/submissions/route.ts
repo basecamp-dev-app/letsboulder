@@ -21,6 +21,8 @@ interface NewImageSubmission {
   captureDate: string | null
   width: number
   height: number
+  naturalWidth: number
+  naturalHeight: number
   cragId: string
   routes: NewRouteData[]
 }
@@ -32,11 +34,16 @@ interface ExistingImageSubmission {
 }
 
 interface NewRouteData {
+  id: string
   name: string
   grade: string
   description?: string
   points: RoutePoint[]
   sequenceOrder: number
+  imageWidth: number
+  imageHeight: number
+  imageNaturalWidth: number
+  imageNaturalHeight: number
 }
 
 interface RoutePoint {
@@ -130,6 +137,8 @@ export async function POST(request: NextRequest) {
           crag_id: body.cragId,
           width: body.width,
           height: body.height,
+          natural_width: body.naturalWidth,
+          natural_height: body.naturalHeight,
           created_by: user.id
         })
         .select('id')
@@ -194,7 +203,9 @@ export async function POST(request: NextRequest) {
       climb_id: climb.id,
       points: body.routes[index].points,
       color: 'red',
-      sequence_order: body.routes[index].sequenceOrder
+      sequence_order: body.routes[index].sequenceOrder,
+      image_width: body.routes[index].imageWidth,
+      image_height: body.routes[index].imageHeight
     }))
 
     const { error: routeLinesError } = await supabase

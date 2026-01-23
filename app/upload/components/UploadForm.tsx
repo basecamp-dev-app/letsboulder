@@ -141,7 +141,7 @@ async function injectGpsIntoJpeg(jpegBlob: Blob, latitude: number, longitude: nu
   const latRef = latitude < 0 ? 'S' : 'N'
   const lngRef = longitude < 0 ? 'W' : 'E'
 
-  const gps: Record<string, any> = {}
+  const gps: Record<number, unknown> = {}
   gps[piexif.GPSIFD.GPSVersionID] = [2, 2, 0, 0]
   gps[piexif.GPSIFD.GPSLatitudeRef] = latRef
   gps[piexif.GPSIFD.GPSLatitude] = degToDmsRational(Math.abs(latitude))

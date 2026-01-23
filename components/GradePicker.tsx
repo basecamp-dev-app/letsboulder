@@ -41,12 +41,6 @@ export default function GradePicker({
     }
   }, [isOpen])
 
-  useEffect(() => {
-    if (currentGrade) {
-      setSelectedGrade(currentGrade)
-    }
-  }, [currentGrade])
-
   const filteredGrades = FRENCH_GRADES.filter(grade =>
     grade.toLowerCase().includes(search.toLowerCase())
   )

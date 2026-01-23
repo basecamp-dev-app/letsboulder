@@ -91,19 +91,29 @@ export function getInitials(username: string): string {
     .slice(0, 2)
 }
 
-interface LogEntry {
+export interface LogEntry {
   id: string
   style: string
   created_at: string
   climbs?: {
     grade: string
+    name: string | null
+    crags?: {
+      name: string | null
+    } | null
   }
 }
 
+interface MonthlyGradeData {
+  month: string
+  top: number
+  flash: number
+}
+
 interface StatsResult {
-  top10Hardest: any[]
+  top10Hardest: LogEntry[]
   twoMonthAverage: number
-  gradeHistory: any[]
+  gradeHistory: MonthlyGradeData[]
   gradePyramid: Record<string, number>
   averageGrade: string
   totalClimbs: number

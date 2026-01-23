@@ -11,6 +11,7 @@ import CorrectionSection from '@/components/CorrectionSection'
 import FlagImageModal from '@/components/FlagImageModal'
 import type { ClimbStatusResponse } from '@/lib/verification-types'
 import { trackEvent, trackClimbLogged } from '@/lib/posthog'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface ImageRoute {
   id: string
@@ -22,6 +23,10 @@ interface ImageRoute {
     grade: string | null
     description: string | null
   } | null
+  imageWidth?: number | null
+  imageHeight?: number | null
+  imageNaturalWidth?: number
+  imageNaturalHeight?: number
 }
 
 interface ImageData {
@@ -32,6 +37,8 @@ interface ImageData {
   route_lines: ImageRoute[]
   width?: number
   height?: number
+  natural_width?: number | null
+  natural_height?: number | null
 }
 
 function smoothSvgPath(points: RoutePoint[], width: number, height: number): string {
@@ -58,35 +65,66 @@ interface ImageWrapperProps {
   url: string
   routeLines: ImageRoute[]
   selectedRoute: ImageRoute | null
+  naturalWidth: number
+  naturalHeight: number
 }
 
-function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
+interface ImageRenderInfo {
+  renderedX: number
+  renderedY: number
+  renderedWidth: number
+  renderedHeight: number
+}
+
+function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHeight }: ImageWrapperProps) {
   const [imgSize, setImgSize] = useState<{ width: number; height: number } | null>(null)
+  const [imageInfo, setImageInfo] = useState<ImageRenderInfo | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const img = imgRef.current
-    if (!img) return
+    const container = containerRef.current
+    if (!img || !container) return
 
     const updateSize = () => {
       const rect = img.getBoundingClientRect()
+      const containerRect = container.getBoundingClientRect()
       setImgSize({ width: rect.width, height: rect.height })
+      setImageInfo({
+        renderedX: rect.left - containerRect.left,
+        renderedY: rect.top - containerRect.top,
+        renderedWidth: rect.width,
+        renderedHeight: rect.height
+      })
     }
 
-    // Use ResizeObserver to track size changes
     const observer = new ResizeObserver(updateSize)
     observer.observe(img)
 
-    // Initial size after load
     if (img.complete) {
       updateSize()
     }
 
     return () => observer.disconnect()
-  }, [url])
+  }, [url, naturalWidth, naturalHeight])
+
+  const getViewBoxWidth = () => {
+    if (routeLines.length > 0 && routeLines[0]?.imageWidth) {
+      return routeLines[0].imageWidth
+    }
+    return naturalWidth
+  }
+
+  const getViewBoxHeight = () => {
+    if (routeLines.length > 0 && routeLines[0]?.imageHeight) {
+      return routeLines[0].imageHeight
+    }
+    return naturalHeight
+  }
 
   return (
-    <div className="relative w-fit h-fit">
+    <div className="relative w-fit h-fit" ref={containerRef}>
       <img
         ref={imgRef}
         src={url}
@@ -94,31 +132,50 @@ function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
         className="max-w-full max-h-[calc(100vh-140px)] object-contain block"
         onLoad={() => {
           const img = imgRef.current
-          if (img) {
+          const container = containerRef.current
+          if (img && container) {
             const rect = img.getBoundingClientRect()
+            const containerRect = container.getBoundingClientRect()
             setImgSize({ width: rect.width, height: rect.height })
+            setImageInfo({
+              renderedX: rect.left - containerRect.left,
+              renderedY: rect.top - containerRect.top,
+              renderedWidth: rect.width,
+              renderedHeight: rect.height
+            })
           }
         }}
       />
-      {imgSize && (
+      {imageInfo && (
         <svg
-          className="absolute top-0 left-0 w-full h-full pointer-events-none z-10"
-          style={{ width: imgSize.width, height: imgSize.height }}
-          viewBox={`0 0 ${imgSize.width} ${imgSize.height}`}
-          preserveAspectRatio="none"
+          className="absolute pointer-events-none z-10"
+          style={{
+            left: imageInfo.renderedX,
+            top: imageInfo.renderedY,
+            width: imageInfo.renderedWidth,
+            height: imageInfo.renderedHeight
+          }}
+          viewBox={`0 0 ${naturalWidth} ${naturalHeight}`}
         >
+
           {routeLines.map((route, index) => {
             const isSelected = selectedRoute?.id === route.id
             const color = isSelected ? '#00ff00' : (route.color || '#ff00ff')
             const strokeWidth = isSelected ? 3 : 2
             const startPoint = route.points[0]
 
+            // Routes are already normalized to natural dimensions
+            // No scaling needed since viewBox matches natural dimensions
+            const scaledPoints = route.points
+
+
+
             return (
               <g key={route.id}>
                 <path
-                  d={smoothSvgPath(route.points, imgSize.width, imgSize.height)}
+                  d={smoothSvgPath(scaledPoints, naturalWidth, naturalHeight)}
                   stroke={color}
-                  strokeWidth={strokeWidth}
+                  strokeWidth={strokeWidth + 0.5}
                   fill="none"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -126,16 +183,16 @@ function ImageWrapper({ url, routeLines, selectedRoute }: ImageWrapperProps) {
                 {startPoint && (
                   <>
                     <circle
-                      cx={startPoint.x * imgSize.width}
-                      cy={startPoint.y * imgSize.height}
-                      r={12}
+                      cx={startPoint.x * naturalWidth}
+                      cy={startPoint.y * naturalHeight}
+                      r={16}
                       fill="#dc2626"
                     />
                     <text
-                      x={startPoint.x * imgSize.width}
-                      y={startPoint.y * imgSize.height}
+                      x={startPoint.x * naturalWidth}
+                      y={startPoint.y * naturalHeight}
                       fill="white"
-                      fontSize={10}
+                      fontSize={12}
                       fontWeight="bold"
                       textAnchor="middle"
                       dominantBaseline="middle"
@@ -192,7 +249,7 @@ export default function ImagePage() {
 
         const { data: imageData, error: imageError } = await supabase
           .from('images')
-          .select('id, url, latitude, longitude, crag_id, width, height')
+          .select('id, url, latitude, longitude, crag_id, width, height, natural_width, natural_height')
           .eq('id', imageId)
           .single()
 
@@ -215,6 +272,8 @@ export default function ImagePage() {
             points,
             color,
             climb_id,
+            image_width,
+            image_height,
             climbs (
               id,
               name,
@@ -224,6 +283,10 @@ export default function ImagePage() {
           `)
           .eq('image_id', imageId)
 
+
+
+
+
         if (routeError) throw routeError
 
         type RawRouteLine = {
@@ -231,6 +294,8 @@ export default function ImagePage() {
           points: RoutePoint[]
           color: string | null
           climb_id: string
+          image_width: number | null
+          image_height: number | null
           climbs: {
             id: string
             name: string | null
@@ -243,6 +308,8 @@ export default function ImagePage() {
           id: rl.id,
           points: rl.points,
           color: rl.color || '#ff00ff',
+          imageWidth: rl.image_width,
+          imageHeight: rl.image_height,
           climb: {
             id: rl.climbs?.id || rl.climb_id || '',
             name: (rl.climbs?.name || '').trim() || null,
@@ -308,7 +375,7 @@ export default function ImagePage() {
 
   const fetchClimbStatus = async (climbId: string) => {
     try {
-      const response = await fetch(`/api/climbs/${climbId}/status`)
+      const response = await csrfFetch(`/api/climbs/${climbId}/status`)
       if (response.ok) {
         const status = await response.json()
         setClimbStatus(status)
@@ -325,7 +392,7 @@ export default function ImagePage() {
 
       if (!user) return
 
-      const response = await fetch(`/api/images/${imgId}/flags`)
+      const response = await csrfFetch(`/api/images/${imgId}/flags`)
       if (response.ok) {
         const data = await response.json()
         setUserHasFlagged(data.user_has_flagged)
@@ -349,7 +416,7 @@ export default function ImagePage() {
 
       const method = climbStatus.user_has_verified ? 'DELETE' : 'POST'
       if (selectedRoute.climb?.id) {
-        const response = await fetch(`/api/climbs/${selectedRoute.climb.id}/verify`, {
+        const response = await csrfFetch(`/api/climbs/${selectedRoute.climb.id}/verify`, {
           method
         })
 
@@ -376,7 +443,7 @@ export default function ImagePage() {
         return
       }
 
-      const response = await fetch('/api/log-routes', {
+      const response = await csrfFetch('/api/log-routes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -440,7 +507,13 @@ export default function ImagePage() {
       )}
 
       <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-950">
-        <ImageWrapper url={image.url} routeLines={image.route_lines} selectedRoute={selectedRoute} />
+        <ImageWrapper
+          url={image.url}
+          routeLines={image.route_lines}
+          selectedRoute={selectedRoute}
+          naturalWidth={image.natural_width || image.width || 800}
+          naturalHeight={image.natural_height || image.height || 600}
+        />
       </div>
 
       {cragId && cragName && (

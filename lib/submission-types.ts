@@ -39,6 +39,8 @@ export interface Image {
   crag_id: string | null
   width: number | null
   height: number | null
+  natural_width: number | null
+  natural_height: number | null
   created_by: string | null
   created_at: string
   route_lines_count?: number
@@ -83,6 +85,10 @@ export interface NewRouteData {
   description?: string
   points: RoutePoint[]
   sequenceOrder: number
+  imageWidth: number
+  imageHeight: number
+  imageNaturalWidth: number
+  imageNaturalHeight: number
 }
 
 export type ImageSelectionMode = 'existing' | 'new'
@@ -101,6 +107,8 @@ export interface NewImageSelection {
   captureDate: string | null
   width: number
   height: number
+  naturalWidth: number
+  naturalHeight: number
   uploadedUrl: string
 }
 

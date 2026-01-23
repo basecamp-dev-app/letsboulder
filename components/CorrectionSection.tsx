@@ -349,7 +349,7 @@ function CorrectionCard({
           </div>
           {correction.reason && (
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-              "{correction.reason}"
+              &quot;{correction.reason}&quot;
             </p>
           )}
           <p className="text-xs text-gray-500 dark:text-gray-400">

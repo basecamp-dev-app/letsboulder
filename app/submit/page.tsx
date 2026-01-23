@@ -51,6 +51,8 @@ function SubmitPageContent() {
             captureDate: data.captureDate || null,
             width: 1200,
             height: 1200,
+            naturalWidth: 1200,
+            naturalHeight: 1200,
             uploadedUrl: data.imageUrl
           }
 
@@ -155,6 +157,8 @@ function SubmitPageContent() {
         captureDate: context.image.captureDate,
         width: context.image.width,
         height: context.image.height,
+        naturalWidth: context.image.naturalWidth,
+        naturalHeight: context.image.naturalHeight,
         cragId: context.crag?.id || ('cragId' in step ? (step as { cragId?: string }).cragId : undefined),
         routes: context.routes
       } : {

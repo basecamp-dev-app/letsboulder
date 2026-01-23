@@ -348,6 +348,8 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
         captureDate: null,
         width: img.naturalWidth || 0,
         height: img.naturalHeight || 0,
+        naturalWidth: img.naturalWidth || 0,
+        naturalHeight: img.naturalHeight || 0,
         uploadedUrl: publicUrl
       }
 

@@ -6,7 +6,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import GradePyramid from '@/components/GradePyramid'
-import { calculateStats, getLowestGrade, getGradeFromPoints } from '@/lib/grades'
+import { calculateStats, getLowestGrade, getGradeFromPoints, type LogEntry } from '@/lib/grades'
 import { Trash2, Loader2 } from 'lucide-react'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { EmptyLogbook } from '@/components/logbook/logbook-states'
@@ -133,7 +133,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
             <CardContent>
               {stats.top10Hardest.length > 0 ? (
                 <div className="space-y-2">
-                  {stats.top10Hardest.map((log: any, index: number) => (
+                  {stats.top10Hardest.map((log: LogEntry, index: number) => (
                     <div key={log.id} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-gray-500 dark:text-gray-400 w-6">{index + 1}.</span>

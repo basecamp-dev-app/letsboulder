@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
@@ -17,16 +17,27 @@ const Polygon = dynamic(() => import('react-leaflet').then(mod => mod.Polygon), 
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
 
+interface LeafletIconDefault {
+  prototype: {
+    _getIconUrl?: () => void
+  }
+  mergeOptions: (options: Record<string, string>) => void
+}
+
 let L: typeof import('leaflet') | null = null
 
-if (typeof window !== 'undefined') {
-  L = require('leaflet')
-  delete (L!.Icon.Default.prototype as any)._getIconUrl
-  L!.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  })
+async function setupLeafletIcons() {
+  if (typeof window !== 'undefined') {
+    const leaflet = await import('leaflet')
+    L = leaflet as unknown as typeof import('leaflet')
+    const iconDefault = L!.Icon.Default as unknown as LeafletIconDefault
+    delete iconDefault.prototype._getIconUrl
+    iconDefault.mergeOptions({
+      iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    })
+  }
 }
 
 interface Crag {
@@ -63,6 +74,19 @@ interface ImageRoute {
   } | null
 }
 
+interface RawRouteLine {
+  id: string
+  image_id: string
+  points: RoutePoint[]
+  color: string
+  climbs?: {
+    id: string
+    name: string | null
+    grade: string | null
+    description: string | null
+  }
+}
+
 interface ImageData {
   id: string
   url: string
@@ -77,7 +101,6 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   const [crag, setCrag] = useState<Crag | null>(null)
   const [images, setImages] = useState<ImageData[]>([])
   const [loading, setLoading] = useState(true)
-  const [isClient, setIsClient] = useState(false)
   const [mapReady, setMapReady] = useState(false)
   const mapRef = useRef<L.Map | null>(null)
   const router = useRouter()
@@ -95,12 +118,10 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   }, [params, router])
 
   useEffect(() => {
-    setIsClient(true)
+    setupLeafletIcons()
   }, [])
 
   useEffect(() => {
-    if (!isClient) return
-
     async function loadCrag() {
       const supabase = createClient()
       const { id } = await params
@@ -172,8 +193,8 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
       const formattedImages: ImageData[] = imagesData.map(img => {
         const routeLines = routeLinesMap.get(img.id) || []
         const validRouteLines = routeLines
-          .filter((rl: any) => rl.climbs)
-          .map((rl: any) => ({
+          .filter((rl: RawRouteLine): rl is RawRouteLine & { climbs: NonNullable<RawRouteLine['climbs']> } => !!rl.climbs)
+          .map((rl: RawRouteLine & { climbs: NonNullable<RawRouteLine['climbs']> }) => ({
             id: rl.id,
             points: rl.points,
             color: rl.color,
@@ -202,7 +223,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
     }
 
     loadCrag()
-  }, [isClient, params])
+  }, [params])
 
   useEffect(() => {
     if (!mapRef.current) return
@@ -211,10 +232,6 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
     const viewCenter: [number, number] = center ? [center[0], center[1]] : [crag?.latitude ?? 0, crag?.longitude ?? 0]
     mapRef.current.setView(viewCenter, 14)
   }, [crag])
-
-  if (!isClient) {
-    return <div className="h-screen w-full bg-gray-900" />
-  }
 
   if (loading) {
     return (
@@ -238,7 +255,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="relative h-[50vh] bg-gray-200 dark:bg-gray-800">
         <MapContainer
-          ref={mapRef as any}
+          ref={mapRef as React.RefObject<L.Map | null>}
           center={[crag.latitude, crag.longitude]}
           zoom={14}
           style={{ height: '100%', width: '100%' }}

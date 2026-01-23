@@ -3,6 +3,12 @@ import exifr from 'exifr'
 import { validateImageSignature } from '@/lib/file-validation'
 import { createErrorResponse } from '@/lib/errors'
 
+interface ExifGpsData {
+  latitude?: number
+  longitude?: number
+  altitude?: number
+}
+
 export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get('content-type') || ''
@@ -62,7 +68,7 @@ export async function POST(request: NextRequest) {
       setTimeout(() => reject(new Error('EXIF parsing timeout')), 25000)
     )
 
-    const exifData = await Promise.race([exifPromise, timeoutPromise]) as any
+    const exifData = await Promise.race<ExifGpsData | undefined>([exifPromise, timeoutPromise])
 
     if (!exifData?.latitude || !exifData?.longitude) {
       // If no GPS data is found, return null coordinates instead of an error
