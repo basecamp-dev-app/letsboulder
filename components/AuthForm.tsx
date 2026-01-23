@@ -13,7 +13,6 @@ export default function AuthForm() {
   const [success, setSuccess] = useState<string | null>(null)
   const [origin, setOrigin] = useState('')
   const [showEmailSignIn, setShowEmailSignIn] = useState(false)
-  const [tosAccepted, setTosAccepted] = useState(false)
   const searchParams = useSearchParams()
   const climbId = searchParams?.get('climbId')
   const redirectTo = searchParams?.get('redirect_to')
@@ -158,11 +157,11 @@ export default function AuthForm() {
           )}
 
           <div className="space-y-4">
-            <button
-              onClick={handleGoogleSignIn}
-              disabled={loading || !tosAccepted}
-              className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-            >
+              <button
+                onClick={handleGoogleSignIn}
+                disabled={loading}
+                className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -219,7 +218,7 @@ export default function AuthForm() {
                 {emailValid && (
                   <button
                     type="submit"
-                    disabled={loading || !tosAccepted}
+                    disabled={loading}
                     className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? 'Sending...' : 'Email Me a Magic Link'}
@@ -249,19 +248,12 @@ export default function AuthForm() {
           )}
 
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex items-start gap-2 mb-4">
-              <input
-                type="checkbox"
-                id="tos"
-                checked={tosAccepted}
-                onChange={(e) => setTosAccepted(e.target.checked)}
-                className="mt-1 w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
-              />
-              <label htmlFor="tos" className="text-xs text-gray-600 dark:text-gray-400">
-                I agree to the <Link href="/terms" className="underline hover:text-gray-900 dark:hover:text-gray-200">Terms of Service</Link> and{' '}
-                <Link href="/privacy" className="underline hover:text-gray-900 dark:hover:text-gray-200">Privacy Policy</Link>
-              </label>
-            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-4">
+              By signing up, you agree to the{' '}
+              <Link href="/terms" className="underline hover:text-gray-900 dark:hover:text-gray-200">Terms of Service</Link>,{' '}
+              <Link href="/privacy" className="underline hover:text-gray-900 dark:hover:text-gray-200">Privacy Policy</Link>, and{' '}
+              <Link href="/cookies" className="underline hover:text-gray-900 dark:hover:text-gray-200">Cookie Use</Link>.
+            </p>
             <Link href="/" className="text-gray-500 dark:text-gray-400 text-sm hover:underline block text-center">
               ← Back to home
             </Link>
