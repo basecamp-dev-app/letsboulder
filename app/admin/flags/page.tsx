@@ -88,6 +88,12 @@ export default function AdminFlagsPage() {
     }
   }
 
+  const handleRemove = (flagId: string) => {
+    if (confirm('This will permanently delete the climb/image and all associated data. This action cannot be undone.')) {
+      handleResolve(flagId, 'remove')
+    }
+  }
+
   return (
     <div>
       {toast && (
@@ -200,7 +206,7 @@ export default function AdminFlagsPage() {
                         Keep
                       </button>
                       <button
-                        onClick={() => handleResolve(flag.id, 'remove')}
+                        onClick={() => handleRemove(flag.id)}
                         disabled={resolving === flag.id}
                         className={`flex items-center gap-2 px-4 py-2 ${ACTION_LABELS.remove.color} text-white rounded-lg font-medium disabled:opacity-50 transition-colors`}
                       >

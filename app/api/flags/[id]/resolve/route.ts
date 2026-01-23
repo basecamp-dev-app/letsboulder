@@ -97,14 +97,27 @@ export async function POST(
 
     const resolvedAt = new Date().toISOString()
 
-    if (action === 'remove' && typedFlag.climb_id) {
-      const { error: deleteError } = await supabase
-        .from('climbs')
-        .update({ deleted_at: resolvedAt })
-        .eq('id', typedFlag.climb_id)
+    if (action === 'remove') {
+      if (typedFlag.climb_id) {
+        const { error: deleteError } = await supabase
+          .from('climbs')
+          .delete()
+          .eq('id', typedFlag.climb_id)
 
-      if (deleteError) {
-        return createErrorResponse(deleteError, 'Error removing climb')
+        if (deleteError) {
+          return createErrorResponse(deleteError, 'Error removing climb')
+        }
+      }
+
+      if (typedFlag.image_id) {
+        const { error: deleteError } = await supabase
+          .from('images')
+          .delete()
+          .eq('id', typedFlag.image_id)
+
+        if (deleteError) {
+          return createErrorResponse(deleteError, 'Error removing image')
+        }
       }
     }
 
