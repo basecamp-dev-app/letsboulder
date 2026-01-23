@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useEffect, useState, useCallback, useRef, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
-import { MapPin, Loader2, RefreshCw } from 'lucide-react'
+import { MapPin, RefreshCw } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
 import { geoJsonPolygonToLeaflet, type GeoJSONPolygon } from '@/lib/geo-utils'
 import type { User } from '@supabase/supabase-js'
@@ -12,12 +12,23 @@ import type { User } from '@supabase/supabase-js'
 import 'leaflet/dist/leaflet.css'
 import { trackEvent, trackRouteClicked } from '@/lib/posthog'
 
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-})
+interface LeafletIconDefault {
+  prototype: {
+    _getIconUrl?: () => void
+  }
+  mergeOptions: (options: Record<string, string>) => void
+}
+
+function setupLeafletIcons() {
+  if (typeof window !== 'undefined') {
+    delete (L.Icon.Default as unknown as LeafletIconDefault).prototype._getIconUrl
+    ;(L.Icon.Default as unknown as LeafletIconDefault).mergeOptions({
+      iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    })
+  }
+}
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
@@ -111,6 +122,10 @@ export default function SatelliteClimbingMap() {
   const [useUserLocation, setUseUserLocation] = useState(false)
   const [cragPins, setCragPins] = useState<CragPin[]>([])
   const [singletonImageIds, setSingletonImageIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    setupLeafletIcons()
+  }, [])
 
   const CACHE_KEY = 'gsyrocks_images_cache'
 
@@ -393,27 +408,11 @@ export default function SatelliteClimbingMap() {
     }
   }, [useUserLocation, userLocation])
 
-interface SkeletonPin {
-  id: string
-  latitude: number
-  longitude: number
-}
 
-  const skeletonPins = useMemo(() => {
-    if (images.length > 0) return [] as SkeletonPin[]
-    const regions = [
-      { lat: 49.45, lng: -2.6, name: 'Guernsey' },
-      { lat: 51.5, lng: -0.12, name: 'London' },
-      { lat: 40.7, lng: -74.0, name: 'New York' },
-      { lat: 34.0, lng: -118.2, name: 'Los Angeles' },
-      { lat: 48.8, lng: 2.3, name: 'Paris' },
-    ]
-    return regions.map((region, i): SkeletonPin => ({
-      id: `skeleton-${i}`,
-      latitude: region.lat + (Math.random() - 0.5) * 0.5,
-      longitude: region.lng + (Math.random() - 0.5) * 0.5
-    }))
-  }, [images.length])
+
+
+
+
 
   if (!isClient) {
     return <div className="h-screen w-full bg-gray-900" />
@@ -422,7 +421,7 @@ interface SkeletonPin {
   return (
     <div className="h-screen w-full p-4 relative">
       <MapContainer
-        ref={mapRef as any}
+        ref={mapRef as RefObject<L.Map>}
         center={[20, 0]}
         zoom={2}
         minZoom={2}
@@ -492,17 +491,7 @@ interface SkeletonPin {
           />
         )}
 
-        {(!mapLoaded || loading) && skeletonPins.map((pin) => (
-          <Marker
-            key={pin.id}
-            position={[pin.latitude, pin.longitude]}
-            icon={L.divIcon({
-              className: 'image-marker skeleton',
-              iconSize: [12, 12],
-              iconAnchor: [6, 6]
-            })}
-          />
-        ))}
+
 
         {mapLoaded && !loading && images.filter(image => singletonImageIds.has(image.id)).map(image => (
           <Marker
@@ -601,11 +590,7 @@ interface SkeletonPin {
         ))}
       </MapContainer>
 
-      {(!mapLoaded || loading) && (
-        <div className="absolute top-4 left-4 z-[1000] bg-white bg-opacity-90 rounded-lg px-3 py-2 text-sm text-gray-700 shadow-md">
-          Loading routes...
-        </div>
-      )}
+
 
       <button
         onClick={() => {
