@@ -86,11 +86,11 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-white dark:bg-gray-950">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {!isOwnProfile && profile && (
-        <Card className="mb-8">
+        <Card className="m-0 border-x-0 border-t-0 rounded-none">
           <CardContent className="flex flex-col sm:flex-row items-center gap-6 py-6 px-4">
             {profile.avatar_url ? (
               <img
@@ -125,16 +125,16 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
       {logs.length === 0 ? (
         <EmptyLogbook onGoToMap={() => router.push('/map')} />
       ) : stats ? (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Top 10 Hardest (Last 60 Days)</CardTitle>
+        <div className="space-y-0">
+          <Card className="m-0 border-x-0 border-t-0 rounded-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Top 10 Hardest (Last 60 Days)</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {stats.top10Hardest.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-0">
                   {stats.top10Hardest.map((log: LogEntry, index: number) => (
-                    <div key={log.id} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                    <div key={log.id} className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-gray-500 dark:text-gray-400 w-6">{index + 1}.</span>
                         <div>
@@ -150,16 +150,16 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500 dark:text-gray-400">No climbs logged in the last 60 days</p>
+                <p className="text-gray-500 dark:text-gray-400 py-4">No climbs logged in the last 60 days</p>
               )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>2-Month Average</CardTitle>
+          <Card className="m-0 border-x-0 border-t-0 rounded-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">2-Month Average</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
                 {getGradeFromPoints(stats.twoMonthAverage)}
                 <span className="text-lg font-normal text-gray-500 dark:text-gray-400 ml-2">
@@ -169,36 +169,36 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Grade History (Last 365 Days)</CardTitle>
+          <Card className="m-0 border-x-0 border-t-0 rounded-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Grade History (Last 365 Days)</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {stats.gradeHistory.length > 0 ? (
                 <GradeHistoryChart data={stats.gradeHistory} />
               ) : (
-                <p className="text-gray-500 dark:text-gray-400">No data for the past year</p>
+                <p className="text-gray-500 dark:text-gray-400 py-4">No data for the past year</p>
               )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Grade Pyramid (Past Year)</CardTitle>
+          <Card className="m-0 border-x-0 border-t-0 rounded-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Grade Pyramid (Past Year)</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               <GradePyramid pyramid={stats.gradePyramid} lowestGrade={lowestGrade} />
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Climbs</CardTitle>
+          <Card className="m-0 border-x-0 border-t-0 rounded-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Recent Climbs</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <CardContent className="pt-0">
+              <div className="space-y-0">
                 {logs.slice(0, 20).map((log) => (
-                  <div key={log.id} className="flex items-center gap-2 sm:gap-4 py-2 sm:py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                  <div key={log.id} className="flex items-center gap-2 sm:gap-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
                     {log.climbs?.image_url && (
                       <img
                         src={log.climbs.image_url}

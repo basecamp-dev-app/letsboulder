@@ -128,8 +128,8 @@ async function getPublicLogs(userId: string): Promise<Climb[]> {
 
 function PrivateProfileCard({ username }: { username: string }) {
   return (
-    <div className="container mx-auto px-4 py-8">
-      <Card className="max-w-md mx-auto">
+    <div className="min-h-screen bg-white dark:bg-gray-950 px-4 py-8">
+      <Card className="max-w-sm mx-auto">
         <CardContent className="flex flex-col items-center justify-center py-12 px-4">
           <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
             <Lock className="w-8 h-8 text-gray-400" />
@@ -154,8 +154,8 @@ function PrivateProfileCard({ username }: { username: string }) {
 
 function ProfileNotFound() {
   return (
-    <div className="container mx-auto px-4 py-8">
-      <Card className="max-w-md mx-auto">
+    <div className="min-h-screen bg-white dark:bg-gray-950 px-4 py-8">
+      <Card className="max-w-sm mx-auto">
         <CardContent className="flex flex-col items-center justify-center py-12 px-4">
           <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
             <Lock className="w-8 h-8 text-gray-400" />
@@ -217,7 +217,7 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
   const logs = await getPublicLogs(userId)
 
   return (
-    <>
+    <div className="min-h-screen bg-white dark:bg-gray-950">
       <ProfileViewTracker />
       <LogbookView
         userId={userId}
@@ -225,6 +225,6 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
         initialLogs={logs}
         profile={profile}
       />
-    </>
+    </div>
   )
 }

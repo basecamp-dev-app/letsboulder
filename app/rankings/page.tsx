@@ -201,7 +201,7 @@ export default function LeaderboardPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="m-0 border-x-0 border-t-0 rounded-none">
         <CardContent className="p-0">
           {loading ? (
             <div className="p-8 text-center text-gray-500 text-sm">
