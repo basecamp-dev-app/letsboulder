@@ -1,12 +1,12 @@
 -- =====================================================
--- Fix profile creation for development
+-- Fix profile creation - PRODUCTION SAFE VERSION
 -- Created: 2026-01-24
 -- =====================================================
 
 -- Update handle_new_user to:
 -- 1. Skip profile creation if email is NULL
 -- 2. Prevent duplicate profiles for same email
--- 3. Set is_admin = true for all profiles
+-- 3. Preserve existing admin status (don't auto-set)
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
@@ -18,28 +18,28 @@ BEGIN
   
   -- Check if profile exists for this email
   IF EXISTS (SELECT 1 FROM public.profiles WHERE email = NEW.email) THEN
-    -- Update existing profile with new auth user ID and admin=true
+    -- Update existing profile with new auth user ID (preserve is_admin)
     UPDATE public.profiles 
-    SET id = NEW.id, is_admin = true, updated_at = NOW()
+    SET id = NEW.id, updated_at = NOW()
     WHERE email = NEW.email;
   ELSE
-    -- Create new profile with admin=true
+    -- Create new profile (is_admin defaults to false)
     INSERT INTO public.profiles (id, email, is_admin)
-    VALUES (NEW.id, NEW.email, true);
+    VALUES (NEW.id, NEW.email, false);
   END IF;
   
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Create function to ensure admin on login (UPDATE trigger)
-CREATE OR REPLACE FUNCTION public.ensure_dev_admin()
+-- Create function to sync profile on login
+CREATE OR REPLACE FUNCTION public.sync_profile_on_login()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Set admin for all profiles on login
   IF NEW.email IS NOT NULL THEN
+    -- Update existing profile's auth user ID without changing is_admin
     UPDATE public.profiles 
-    SET is_admin = true, updated_at = NOW()
+    SET id = NEW.id, updated_at = NOW()
     WHERE email = NEW.email;
   END IF;
   RETURN NEW;
@@ -53,15 +53,19 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_new_user();
 
--- Create update trigger for admin on login
+-- Create update trigger for profile sync on login
 DROP TRIGGER IF EXISTS on_auth_user_login ON auth.users;
 CREATE TRIGGER on_auth_user_login
   AFTER UPDATE ON auth.users
   FOR EACH ROW
-  EXECUTE FUNCTION public.ensure_dev_admin();
+  EXECUTE FUNCTION public.sync_profile_on_login();
 
 -- Clean up any existing NULL email profiles
 DELETE FROM public.profiles WHERE email IS NULL;
 
--- Update ALL profiles to be admins (local development only)
-UPDATE public.profiles SET is_admin = true;
+-- FOR LOCAL DEVELOPMENT ONLY: Set all existing profiles to admin
+-- Remove this line before pushing to production!
+-- UPDATE public.profiles SET is_admin = true;
+
+-- FOR PRODUCTION: Manually set admin for specific users
+-- Example: UPDATE public.profiles SET is_admin = true WHERE email = 'admin@example.com';
