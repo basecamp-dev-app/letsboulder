@@ -4,8 +4,8 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewFlag } from '@/lib/discord'
 
-const VALID_FLAG_TYPES = ['boundary', 'access', 'description', 'rock_type', 'name', 'other']
-const MAX_COMMENT_LENGTH = 250
+const DEFAULT_FLAG_TYPE = 'other'
+const DEFAULT_COMMENT = 'Flagged for admin review'
 
 export async function POST(
   request: NextRequest,
@@ -49,24 +49,6 @@ export async function POST(
       return NextResponse.json({ error: 'Crag ID required' }, { status: 400 })
     }
 
-    const body = await request.json()
-    const { flag_type, comment } = body
-
-    if (!flag_type || !VALID_FLAG_TYPES.includes(flag_type)) {
-      return NextResponse.json({
-        error: `Invalid flag type. Must be one of: ${VALID_FLAG_TYPES.join(', ')}`
-      }, { status: 400 })
-    }
-
-    const trimmedComment = comment?.trim() || ''
-    if (trimmedComment.length < 10) {
-      return NextResponse.json({ error: 'Comment must be at least 10 characters' }, { status: 400 })
-    }
-
-    if (trimmedComment.length > MAX_COMMENT_LENGTH) {
-      return NextResponse.json({ error: `Comment must be ${MAX_COMMENT_LENGTH} characters or less` }, { status: 400 })
-    }
-
     const { data: crag, error: cragError } = await supabase
       .from('crags')
       .select('id, name')
@@ -100,8 +82,8 @@ export async function POST(
         climb_id: null,
         image_id: null,
         flagger_id: user.id,
-        flag_type,
-        comment: trimmedComment,
+        flag_type: DEFAULT_FLAG_TYPE,
+        comment: DEFAULT_COMMENT,
         status: 'pending',
       })
       .select()
@@ -113,22 +95,16 @@ export async function POST(
 
     notifyNewFlag(supabase, {
       type: 'crag',
-      flagType: flag_type,
+      flagType: DEFAULT_FLAG_TYPE,
       cragName: crag.name,
       cragId: crag.id,
-      comment: trimmedComment,
+      comment: DEFAULT_COMMENT,
       flaggerId: user.id,
     }).catch(err => console.error('Discord notification error:', err))
 
     return NextResponse.json({
       success: true,
-      flag: {
-        id: flag.id,
-        flag_type,
-        comment: trimmedComment,
-        status: 'pending',
-      },
-      message: 'Flag submitted successfully. An admin will review it soon.'
+      message: 'Crag flagged for review'
     })
   } catch (error) {
     console.error('Crag flag error:', error)
