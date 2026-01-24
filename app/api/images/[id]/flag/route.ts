@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { notifyNewFlag } from '@/lib/discord'
 
 const VALID_FLAG_TYPES = ['location', 'route_line', 'route_name', 'image_quality', 'wrong_crag', 'other']
 const MAX_COMMENT_LENGTH = 250
@@ -99,6 +100,21 @@ export async function POST(
     if (flagError) {
       return createErrorResponse(flagError, 'Error creating flag')
     }
+
+    const { data: cragData } = await supabase
+      .from('crags')
+      .select('name')
+      .eq('id', image.crag_id)
+      .single()
+
+    notifyNewFlag(supabase, {
+      type: 'image',
+      flagType: flag_type,
+      cragName: cragData?.name || 'Unknown Crag',
+      cragId: image.crag_id,
+      comment: trimmedComment,
+      flaggerId: user.id,
+    }).catch(err => console.error('Discord notification error:', err))
 
     return NextResponse.json({
       success: true,

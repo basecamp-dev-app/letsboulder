@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse, sanitizeError } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { notifyNewSubmission } from '@/lib/discord'
 
 const MAX_ROUTES_PER_DAY = 5
 
@@ -220,6 +221,18 @@ export async function POST(request: NextRequest) {
 
     if (cragId) {
       await updateCragBoundary(supabase, cragId)
+
+      const { data: cragData } = await supabase
+        .from('crags')
+        .select('name')
+        .eq('id', cragId)
+        .single()
+
+      const cragName = cragData?.name || 'Unknown Crag'
+
+      notifyNewSubmission(supabase, climbs, cragName, cragId, user.id).catch(err => {
+        console.error('Discord notification error:', err)
+      })
     }
 
     return NextResponse.json({
