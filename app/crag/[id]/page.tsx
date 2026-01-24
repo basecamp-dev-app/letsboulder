@@ -125,7 +125,16 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
           .select('is_admin')
           .eq('id', user.id)
           .single()
-        setIsAdmin(profile?.is_admin || false)
+
+        const { data: authUser } = await supabase
+          .from('auth.users')
+          .select('raw_app_meta_data')
+          .eq('id', user.id)
+          .single()
+
+        const adminFromProfile = profile?.is_admin === true
+        const hasAuthAdmin = authUser?.raw_app_meta_data?.gsyrocks_admin === true
+        setIsAdmin(adminFromProfile || hasAuthAdmin)
       }
 
       const { data: cragData, error: cragError } = await supabase
