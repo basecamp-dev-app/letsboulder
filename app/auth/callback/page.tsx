@@ -21,6 +21,32 @@ const syncOAuthProfile = async (supabase: SupabaseClient, user: User): Promise<b
     return true
   }
 
+  if (provider === 'discord') {
+    const username = metadata?.username as string | undefined
+    const avatarHash = metadata?.avatar as string | undefined
+    const avatarUrl = avatarHash 
+      ? `https://cdn.discordapp.com/avatars/${user.id}/${avatarHash}.png`
+      : null
+
+    let firstName = ''
+    let lastName = ''
+
+    if (username) {
+      const nameParts = username.split('#')
+      firstName = nameParts[0] || username
+      lastName = nameParts[1] || ''
+    }
+
+    await supabase.from('profiles').upsert({
+      id: user.id,
+      first_name: firstName,
+      last_name: lastName,
+      avatar_url: avatarUrl,
+      email: user.email,
+    })
+    return true
+  }
+
   if (metadata?.full_name) {
     const nameParts = (metadata.full_name as string).split(' ')
     await supabase.from('profiles').upsert({
@@ -136,7 +162,8 @@ function AuthCallbackContent() {
         }
 
         setStatus('success')
-        trackAuthLoginSuccess('magic_link')
+        const authProvider = searchParams.get('auth_provider')
+        trackAuthLoginSuccess(authProvider || 'oauth')
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         router.push(redirectTo)
       } else {
@@ -224,6 +251,8 @@ function AuthCallbackContent() {
         }
 
         setStatus('success')
+        const authProvider = searchParams.get('auth_provider')
+        trackAuthLoginSuccess(authProvider || 'oauth')
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         router.push(redirectTo)
       } else {
