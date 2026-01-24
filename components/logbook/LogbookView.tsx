@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -10,6 +10,7 @@ import { calculateStats, getLowestGrade, getGradeFromPoints, type LogEntry } fro
 import { Trash2, Loader2 } from 'lucide-react'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { EmptyLogbook } from '@/components/logbook/logbook-states'
+import { getCsrfToken } from '@/lib/csrf-client'
 
 const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
   ssr: false,
@@ -60,13 +61,22 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const { toasts, addToast, removeToast } = useToast()
 
+  useEffect(() => {
+    fetch('/api/csrf').catch(console.error)
+  }, [])
+
   const stats = logs.length > 0 ? calculateStats(logs) : null
   const lowestGrade = stats ? getLowestGrade(stats.gradePyramid) : '6A'
 
   const handleDeleteLog = async (logId: string) => {
     setDeletingId(logId)
     try {
-      const response = await fetch(`/api/logs/${logId}`, { method: 'DELETE' })
+      const response = await fetch(`/api/logs/${logId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-csrf-token': getCsrfToken() || '',
+        },
+      })
       if (!response.ok) throw new Error()
 
       const updatedLogs = logs.filter(log => log.id !== logId)
