@@ -151,21 +151,14 @@ export default function Header() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-[5000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none">
-      <div className="container mx-auto px-4 py-3 flex justify-between items-center gap-4">
-        <Link href="/" className="flex items-center flex-shrink-0">
-          <div className="relative w-12 h-12">
+      <div className="container mx-auto px-4 py-2 flex justify-between items-center gap-4">
+        <Link href="/" className="flex items-center flex-shrink-0 -my-2">
+          <div className="relative w-16 h-16">
             <Image
               src="/logo-light.png"
               alt="gsyrocks"
               fill
-              className="object-contain dark:opacity-0"
-              priority
-            />
-            <Image
-              src="/logo-dark.png"
-              alt="gsyrocks"
-              fill
-              className="object-contain opacity-0 dark:opacity-100"
+              className="object-contain"
               priority
             />
           </div>
