@@ -5,7 +5,7 @@ const ALLOWED_REDIRECT_PATHS = [
   '/',
   '/map',
   '/logbook',
-  '/leaderboard',
+  '/rankings',
   '/settings',
   '/submit',
   '/upload-climb',

@@ -55,7 +55,7 @@ export default function Footer() {
           </Link>
           <button
             onClick={() => setIsNavSheetOpen(true)}
-            className={`flex flex-col items-center p-3 ${isActive('/leaderboard') || isActive('/about') || isActive('/settings') || isActive('/logbook') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+            className={`flex flex-col items-center p-3 ${isActive('/rankings') || isActive('/about') || isActive('/settings') || isActive('/logbook') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />

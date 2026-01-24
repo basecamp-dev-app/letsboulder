@@ -14,7 +14,7 @@ interface UserClimbQueryResult {
   climbs: {
     id: string
     grade: string
-  }[]
+  }
 }
 
 interface RegionRouteLine {
@@ -97,14 +97,14 @@ export async function GET(request: NextRequest) {
       return createErrorResponse(error, 'Query error')
     }
 
-    let filteredClimbs = userClimbs as UserClimbQueryResult[] | null
+    let filteredClimbs = userClimbs as unknown as UserClimbQueryResult[] | null
     
     if (!filteredClimbs) {
       filteredClimbs = []
     }
     
     if (regionParam) {
-      const climbIds = [...new Set(filteredClimbs.map((uc) => uc.climbs[0]?.id).filter(Boolean) || [])]
+      const climbIds = [...new Set(filteredClimbs.map((uc) => uc.climbs?.id).filter(Boolean) || [])]
       if (climbIds.length > 0) {
         const { data: routeLinesData } = await supabase
           .from('route_lines')
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-        filteredClimbs = filteredClimbs.filter((uc) => uc.climbs[0] && regionClimbIds.has(uc.climbs[0].id))
+        filteredClimbs = filteredClimbs.filter((uc) => uc.climbs && regionClimbIds.has(uc.climbs.id))
       }
     }
 
@@ -163,7 +163,7 @@ export async function GET(request: NextRequest) {
       let totalPoints = 0
       let validClimbCount = 0
       userClimbsArr.forEach((uc) => {
-        const climb = uc.climbs[0]
+        const climb = uc.climbs
         const basePoints = getGradePoints(climb?.grade)
         if (basePoints > 0) {
           const points = uc.style === 'flash' ? basePoints + FLASH_BONUS : basePoints
@@ -205,6 +205,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    return createErrorResponse(error, 'Leaderboard error')
+    return createErrorResponse(error, 'Rankings error')
   }
 }

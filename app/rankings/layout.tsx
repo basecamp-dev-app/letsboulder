@@ -1,24 +1,24 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Climbing Leaderboard',
-  description: 'See the most active climbers in Guernsey. Weekly leaderboards tracking sends, flashes, and attempts.',
+  title: 'Rankings',
+  description: 'See the most active climbers in Guernsey. Weekly rankings tracking sends, flashes, and attempts.',
   openGraph: {
-    title: 'Climbing Leaderboard - gsyrocks',
+    title: 'Rankings - gsyrocks',
     description: 'See the most active climbers in Guernsey.',
-    url: '/leaderboard',
+    url: '/rankings',
     images: [
       {
         url: '/logo.png',
         width: 1200,
         height: 630,
-        alt: 'Climbing Leaderboard - gsyrocks',
+        alt: 'Rankings - gsyrocks',
       },
     ],
   },
 }
 
-export default function LeaderboardLayout({
+export default function RankingsLayout({
   children,
 }: {
   children: React.ReactNode

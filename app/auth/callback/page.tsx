@@ -56,7 +56,7 @@ function AuthCallbackContent() {
   const attemptCountRef = useRef(0)
 
   const validateRedirect = (path: string | null): string => {
-    const allowedPaths = ['/', '/map', '/logbook', '/leaderboard', '/settings', '/submit', '/image/', '/climb/', '/crag/']
+    const allowedPaths = ['/', '/map', '/logbook', '/rankings', '/settings', '/submit', '/image/', '/climb/', '/crag/']
 
     if (!path) return '/map'
 

@@ -42,7 +42,7 @@ interface Profile {
 
 function LoadingFallback() {
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-white dark:bg-gray-950">
       <LogbookSkeleton />
     </div>
   )
@@ -155,7 +155,7 @@ function LogbookContent() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-white dark:bg-gray-950">
         <LogbookSkeleton />
       </div>
     )
@@ -163,8 +163,8 @@ function LogbookContent() {
 
   if (!user) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Card>
+      <div className="min-h-screen bg-white dark:bg-gray-950 px-4 py-8">
+        <Card className="max-w-sm mx-auto">
           <CardContent className="pt-6">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
               My Climbing Logbook

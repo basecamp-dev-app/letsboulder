@@ -1,5 +1,5 @@
 export const MORE_MENU_ITEMS = [
-  { label: 'Leaderboard', href: '/leaderboard' },
+  { label: 'Rankings', href: '/rankings' },
   { label: 'Gear', href: '/gear' },
   { label: 'Sponsors', href: '/sponsors' },
   { label: 'About', href: '/about' },
