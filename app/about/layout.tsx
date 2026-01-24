@@ -7,6 +7,14 @@ export const metadata: Metadata = {
     title: 'About gsyrocks',
     description: 'Learn about Guernsey climbing community platform.',
     url: '/about',
+    images: [
+      {
+        url: '/logo.png',
+        width: 1200,
+        height: 630,
+        alt: 'About gsyrocks',
+      },
+    ],
   },
 }
 

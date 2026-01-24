@@ -7,6 +7,14 @@ export const metadata: Metadata = {
     title: 'Climbing Leaderboard - gsyrocks',
     description: 'See the most active climbers in Guernsey.',
     url: '/leaderboard',
+    images: [
+      {
+        url: '/logo.png',
+        width: 1200,
+        height: 630,
+        alt: 'Climbing Leaderboard - gsyrocks',
+      },
+    ],
   },
 }
 

@@ -7,6 +7,14 @@ export const metadata: Metadata = {
     title: 'Interactive Climbing Map - gsyrocks',
     description: 'Explore climbing routes across Guernsey.',
     url: '/map',
+    images: [
+      {
+        url: '/logo.png',
+        width: 1200,
+        height: 630,
+        alt: 'Interactive Climbing Map - gsyrocks',
+      },
+    ],
   },
 }
 

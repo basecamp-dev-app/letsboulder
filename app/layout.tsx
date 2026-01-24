@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     template: "%s | gsyrocks",
   },
   description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
-  keywords: ["climbing", "Guernsey", "rock climbing", "routes", "bouldering", "outdoor climbing", "Channel Islands"],
+  keywords: ["gsyrocks", "climbing", "Guernsey", "rock climbing", "routes", "bouldering", "outdoor climbing", "Channel Islands"],
   authors: [{ name: "gsyrocks" }],
   creator: "gsyrocks",
   publisher: "gsyrocks",
