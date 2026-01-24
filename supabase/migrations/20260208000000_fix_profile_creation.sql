@@ -4,52 +4,44 @@
 -- =====================================================
 
 -- Update handle_new_user to:
--- 1. Prevent duplicate profiles for same email
--- 2. Set ALL profiles to admin (local development only)
+-- 1. Skip profile creation if email is NULL
+-- 2. Prevent duplicate profiles for same email
+-- 3. Set is_admin = true for all profiles
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
-DECLARE
-  existing_profile_id UUID;
 BEGIN
-  -- Check if this email already has a profile
-  SELECT id INTO existing_profile_id 
-  FROM public.profiles 
-  WHERE email = NEW.email;
-
-  IF existing_profile_id IS NOT NULL THEN
-    -- Update existing profile with new auth user ID
-    -- Set admin to true for all profiles in development
+  -- Skip if no email (Mailpit sometimes creates users without email)
+  IF NEW.email IS NULL THEN
+    RETURN NEW;
+  END IF;
+  
+  -- Check if profile exists for this email
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE email = NEW.email) THEN
+    -- Update existing profile with new auth user ID and admin=true
     UPDATE public.profiles 
     SET id = NEW.id, is_admin = true, updated_at = NOW()
     WHERE email = NEW.email;
   ELSE
     -- Create new profile with admin=true
-    INSERT INTO public.profiles (
-      id,
-      email,
-      theme_preference,
-      is_admin
-    ) VALUES (
-      NEW.id,
-      NEW.email,
-      'system',
-      true
-    );
+    INSERT INTO public.profiles (id, email, is_admin)
+    VALUES (NEW.id, NEW.email, true);
   END IF;
-
+  
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Create function to ensure dev users have admin on login
+-- Create function to ensure admin on login (UPDATE trigger)
 CREATE OR REPLACE FUNCTION public.ensure_dev_admin()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Set admin for all profiles on any update (login triggers update)
-  UPDATE public.profiles 
-  SET is_admin = true, updated_at = NOW()
-  WHERE email = NEW.email;
+  -- Set admin for all profiles on login
+  IF NEW.email IS NOT NULL THEN
+    UPDATE public.profiles 
+    SET is_admin = true, updated_at = NOW()
+    WHERE email = NEW.email;
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -68,5 +60,8 @@ CREATE TRIGGER on_auth_user_login
   FOR EACH ROW
   EXECUTE FUNCTION public.ensure_dev_admin();
 
--- Update ALL existing profiles to be admins (local development)
+-- Clean up any existing NULL email profiles
+DELETE FROM public.profiles WHERE email IS NULL;
+
+-- Update ALL profiles to be admins (local development only)
 UPDATE public.profiles SET is_admin = true;
