@@ -81,10 +81,10 @@ export default function AboutPage() {
               <h4 className="font-medium text-gray-900 dark:text-gray-100">How is my data used?</h4>
               <p className="text-sm text-gray-600 dark:text-gray-400">Your data is used only to power your personal logbook and the public leaderboard. We don&apos;t sell or share your information.</p>
             </div>
-            <div>
-              <h4 className="font-medium text-gray-900 dark:text-gray-100">Can I delete my data?</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Yes. Contact us and we&apos;ll remove your account and all associated data.</p>
-            </div>
+              <div>
+                <h4 className="font-medium text-gray-900 dark:text-gray-100">Can I delete my data?</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Yes. Join our Discord server and we&apos;ll remove your account and all associated data.</p>
+              </div>
           </CardContent>
         </Card>
       </div>

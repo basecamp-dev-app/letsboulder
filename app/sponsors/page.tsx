@@ -157,10 +157,11 @@ export default async function SponsorsPage() {
               </div>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Interested in sponsoring gsyrocks? Contact us at{' '}
-              <a href="mailto:hello@gsyrocks.com" className="underline hover:no-underline">
-                hello@gsyrocks.com
+              Interested in sponsoring gsyrocks?{' '}
+              <a href="https://discord.gg/vzAEMr2qrY" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">
+                Join our Discord server
               </a>
+              .
             </p>
           </CardContent>
         </Card>
