@@ -216,7 +216,44 @@ psql "<dev-connection-string>" -f /tmp/prod_data.sql
 - Next.js 16 App Router (Next 16.0.10) + React 19
 - Server components by default, opt-in to client with `'use client'`
 - Image domains configured in `next.config.ts`
-- TypeScript plugins enabled in `tsconfig.json`
+- TypeScript plugin enabled in `tsconfig.json`
+
+### CSRF Protection
+This project uses CSRF protection for state-changing API requests (POST, PUT, DELETE, etc.).
+
+**How it works:**
+1. The `CsrfProvider` component (in `app/layout.tsx`) automatically fetches a CSRF token on page load
+2. The token is stored in `localStorage` under the key `csrf_token`
+3. All authenticated write requests must include the token in the `x-csrf-token` header
+
+**For client-side requests:**
+Use the `csrfFetch` helper from `@/hooks/useCsrf` instead of the native `fetch`:
+
+```typescript
+import { csrfFetch } from '@/hooks/useCsrf'
+
+// Instead of:
+fetch('/api/settings', { method: 'PUT', body: JSON.stringify(data) })
+
+// Use:
+csrfFetch('/api/settings', { method: 'PUT', body: JSON.stringify(data) })
+```
+
+**For server-side API routes:**
+Use `withCsrfProtection` from `@/lib/csrf-server`:
+
+```typescript
+import { withCsrfProtection } from '@/lib/csrf-server'
+
+export async function POST(request: NextRequest) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
+  // ... handle the request
+}
+```
+
+**Common mistake:** Using regular `fetch` for DELETE/PUT/POST requests without the CSRF token will result in a 403 error with "Invalid or missing CSRF token".
 
 ### Miscellaneous
 - No comments unless explaining complex logic (per project preference)
