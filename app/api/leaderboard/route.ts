@@ -161,15 +161,17 @@ export async function GET(request: NextRequest) {
       const climbCount = userClimbsArr.length
 
       let totalPoints = 0
+      let validClimbCount = 0
       userClimbsArr.forEach((uc) => {
         const climb = uc.climbs[0]
-        if (climb && climb.grade) {
-          const basePoints = getGradePoints(climb.grade)
+        const basePoints = getGradePoints(climb?.grade)
+        if (basePoints > 0) {
           const points = uc.style === 'flash' ? basePoints + FLASH_BONUS : basePoints
           totalPoints += points
+          validClimbCount++
         }
       })
-      const avgPoints = climbCount > 0 ? Math.round(totalPoints / climbCount) : 0
+      const avgPoints = validClimbCount > 0 ? Math.round(totalPoints / validClimbCount) : 0
 
       const profile = profilesMap.get(userId)
       return {

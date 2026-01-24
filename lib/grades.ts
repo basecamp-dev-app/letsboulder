@@ -25,15 +25,21 @@ const gradeToPointsMap: Record<string, number> = {
   '9A': 868, '9A+': 884, '9B': 900, '9B+': 916, '9C': 932, '9C+': 948,
 }
 
+export function normalizeGrade(grade: string | null | undefined): string | null {
+  if (!grade) return null
+  return grade.trim().toUpperCase()
+}
+
+export function getGradePoints(grade: string | null | undefined): number {
+  const normalized = normalizeGrade(grade)
+  return normalized ? (gradeToPointsMap[normalized] || 0) : 0
+}
+
 export const gradePoints: Record<string, number> = gradeToPointsMap
 
 export const GRADES = Object.keys(gradeToPointsMap).sort((a, b) => 
   gradeToPointsMap[a] - gradeToPointsMap[b]
 )
-
-export function getGradePoints(grade: string): number {
-  return gradeToPointsMap[grade] || 0
-}
 
 export function getGradeFromPoints(points: number): string {
   let closest = '6A'
@@ -198,9 +204,9 @@ export function calculateStats(logs: LogEntry[]): StatsResult {
   GRADES.forEach(grade => gradePyramid[grade] = 0)
 
   yearLogs.forEach(log => {
-    const grade = log.climbs?.grade
-    if (grade && gradePyramid[grade] !== undefined) {
-      gradePyramid[grade]++
+    const normalizedGrade = normalizeGrade(log.climbs?.grade)
+    if (normalizedGrade && gradePyramid[normalizedGrade] !== undefined) {
+      gradePyramid[normalizedGrade]++
     }
   })
 
