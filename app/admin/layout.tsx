@@ -21,18 +21,12 @@ export default function AdminLayout({
     const checkAdmin = async () => {
       const supabase = createClient()
       
-      // Get user with force refresh to bypass any caching
       const { data: { user }, error: userError } = await supabase.auth.getUser()
 
       if (userError || !user) {
         router.push('/auth?redirect_to=' + pathname)
         return
       }
-
-      // Check both profile AND auth metadata for admin
-      const isDevLocalhost = typeof window !== 'undefined' && 
-        (window.location.hostname === 'localhost' || 
-         window.location.hostname === '127.0.0.1')
 
       // Check profile table
       const { data: profile } = await supabase
@@ -41,11 +35,11 @@ export default function AdminLayout({
         .eq('id', user.id)
         .single()
 
-      // Check auth metadata
+      // Check auth metadata as fallback
       const hasAuthAdmin = user.app_metadata?.gsyrocks_admin === true
 
       const adminFromProfile = profile?.is_admin === true
-      const isAdmin = adminFromProfile || hasAuthAdmin || isDevLocalhost
+      const isAdmin = adminFromProfile || hasAuthAdmin
 
       if (!isAdmin) {
         router.push('/')
