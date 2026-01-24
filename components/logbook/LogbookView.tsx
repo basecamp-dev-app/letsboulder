@@ -10,7 +10,7 @@ import { calculateStats, getLowestGrade, getGradeFromPoints, type LogEntry } fro
 import { Trash2, Loader2 } from 'lucide-react'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { EmptyLogbook } from '@/components/logbook/logbook-states'
-import { getCsrfToken } from '@/lib/csrf-client'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
   ssr: false,
@@ -61,22 +61,13 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const { toasts, addToast, removeToast } = useToast()
 
-  useEffect(() => {
-    fetch('/api/csrf').catch(console.error)
-  }, [])
-
   const stats = logs.length > 0 ? calculateStats(logs) : null
   const lowestGrade = stats ? getLowestGrade(stats.gradePyramid) : '6A'
 
   const handleDeleteLog = async (logId: string) => {
     setDeletingId(logId)
     try {
-      const response = await fetch(`/api/logs/${logId}`, {
-        method: 'DELETE',
-        headers: {
-          'x-csrf-token': getCsrfToken() || '',
-        },
-      })
+      const response = await csrfFetch(`/api/logs/${logId}`, { method: 'DELETE' })
       if (!response.ok) throw new Error()
 
       const updatedLogs = logs.filter(log => log.id !== logId)
