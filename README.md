@@ -4,11 +4,12 @@ A community-driven web app for climbers to discover and share bouldering routes.
 
 ## Features
 
-- **Interactive Satellite Map**: View all route locations with crag polygons
+- **Interactive Map**: View all route locations with crag polygons
 - **Route Submission**: Draw routes on photos with GPS location
 - **Route Verification**: Community voting system (3+ verifications to confirm)
 - **Grade Voting**: Crowd-sourced grade consensus
 - **Logbook**: Track your sends (flash/top/try)
+- **Rankings**: See top climbers by grade or tops in the last 60 days
 
 ## Tech Stack
 
@@ -36,4 +37,11 @@ Copy `.env.example` to `.env`:
 
 ## Deployment
 
-- **App**: Vercel (main branch)
+| Environment | URL | Branch |
+|-------------|-----|--------|
+| Development | [dev.gsyrocks.com](https://dev.gsyrocks.com) | `dev` |
+| Production | [gsyrocks.com](https://gsyrocks.com) | `main` |
+
+**App**: Vercel auto-deploys on push to `dev` and `main` branches
+
+**Database**: Run `supabase db push` after linking to the respective project

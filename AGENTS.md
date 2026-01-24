@@ -107,12 +107,17 @@ export async function POST(request: NextRequest) {
 - Validate inputs early, return 400 for invalid data
 - Return JSON responses with appropriate status codes
 - Use `createServerClient` for Supabase in API routes
+- Use `withCsrfProtection` for state-changing operations (POST, PUT, DELETE)
 
 ```typescript
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { withCsrfProtection } from '@/lib/csrf-server'
 
-export async function POST(request: NextRequest) {
+export async function PUT(request: NextRequest) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
   const cookies = request.cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -147,6 +152,8 @@ export async function POST(request: NextRequest) {
 - **HEIC conversion**: Use `heic2any` for HEIC image support
 - **Route grading**: French grade system (5A to 9C+)
 - **Dynamic imports**: Always use `next/dynamic` with `ssr: false` for map/canvas components
+- **Rankings**: Two sorting modes - `grade` (average grade) and `tops` (climb count), both limited to last 60 days
+- **Full-width mobile**: Use `min-h-screen bg-white dark:bg-gray-950` for page containers and `m-0 border-x-0 border-t-0 rounded-none` for cards
 
 ### Supabase Usage
 - Client components: `createBrowserClient` from `@/lib/supabase`
@@ -156,14 +163,18 @@ export async function POST(request: NextRequest) {
 - **System tables (auth.users)**: Use RPC functions with `SECURITY DEFINER` - see `get_user_count()` in database
 
 ```typescript
-import { getServerClient } from '@/lib/supabase-server'
+import { createServerClient } from '@supabase/ssr'
 
-export const getRegisteredUserCount = cache(async (): Promise<string> => {
-  const supabase = await getServerClient()
+export async function getUserCount(): Promise<number> {
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll() { return [] }, setAll() {} } }
+  )
   const { data, error } = await supabase.rpc('get_user_count')
-  if (error || !data) return '0'
-  return formatNumber(data)
-})
+  if (error || !data) return 0
+  return data
+}
 ```
 
 ### Database
@@ -233,10 +244,10 @@ Use the `csrfFetch` helper from `@/hooks/useCsrf` instead of the native `fetch`:
 import { csrfFetch } from '@/hooks/useCsrf'
 
 // Instead of:
-fetch('/api/settings', { method: 'PUT', body: JSON.stringify(data) })
+fetch('/api/rankings', { method: 'PUT', body: JSON.stringify(data) })
 
 // Use:
-csrfFetch('/api/settings', { method: 'PUT', body: JSON.stringify(data) })
+csrfFetch('/api/rankings', { method: 'PUT', body: JSON.stringify(data) })
 ```
 
 **For server-side API routes:**
