@@ -122,7 +122,6 @@ export default function SatelliteClimbingMap() {
   const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
   const [useUserLocation, setUseUserLocation] = useState(false)
   const [cragPins, setCragPins] = useState<CragPin[]>([])
-  const [singletonImageIds, setSingletonImageIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     setupLeafletIcons()
@@ -290,28 +289,21 @@ export default function SatelliteClimbingMap() {
 
       const cragNames = new Map(cragsInfo?.map(c => [c.id, c.name]) || [])
 
-      // Calculate average position for crags with 2+ images
+      // Calculate average position for crags with images
       const pins: CragPin[] = []
-      const singletonIds = new Set<string>()
       
       for (const [cragId, cragImages] of cragsWithImages) {
-        if (cragImages.length >= 2) {
-          const avgLat = cragImages.reduce((sum, img) => sum + (img.latitude || 0), 0) / cragImages.length
-          const avgLng = cragImages.reduce((sum, img) => sum + (img.longitude || 0), 0) / cragImages.length
-          pins.push({
-            id: cragId,
-            name: cragNames.get(cragId) || 'Unknown',
-            latitude: avgLat,
-            longitude: avgLng,
-            imageCount: cragImages.length
-          })
-        } else if (cragImages.length === 1) {
-          // Track singleton images so their markers are rendered
-          singletonIds.add(cragImages[0].id)
-        }
+        const avgLat = cragImages.reduce((sum, img) => sum + (img.latitude || 0), 0) / cragImages.length
+        const avgLng = cragImages.reduce((sum, img) => sum + (img.longitude || 0), 0) / cragImages.length
+        pins.push({
+          id: cragId,
+          name: cragNames.get(cragId) || 'Unknown',
+          latitude: avgLat,
+          longitude: avgLng,
+          imageCount: cragImages.length
+        })
       }
       setCragPins(pins)
-      setSingletonImageIds(singletonIds)
 
       // Fetch crags with boundaries
       const { data: cragsData, error: cragsError } = await supabase
@@ -361,9 +353,12 @@ export default function SatelliteClimbingMap() {
   useEffect(() => {
     if (!isClient) return
 
+    let ignore = false
+
     const fetchUser = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
+      if (ignore) return
       setUser(user)
 
       if (user) {
@@ -372,6 +367,8 @@ export default function SatelliteClimbingMap() {
           .select('default_location_lat, default_location_lng, default_location_zoom')
           .eq('id', user.id)
           .single()
+
+        if (ignore) return
 
         if (profile?.default_location_lat) {
           setDefaultLocation({
@@ -382,7 +379,17 @@ export default function SatelliteClimbingMap() {
         }
       }
     }
+
+    const handleFocus = () => {
+      fetchUser()
+    }
+
     fetchUser()
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      ignore = true
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [isClient])
 
   useEffect(() => {
@@ -425,8 +432,8 @@ export default function SatelliteClimbingMap() {
     <div className="h-screen w-full p-4 relative">
       <MapContainer
         ref={mapRef as RefObject<L.Map>}
-        center={[20, 0]}
-        zoom={2}
+        center={[49.45, -2.6]}
+        zoom={11}
         minZoom={2}
         maxZoom={19}
         maxBounds={[[-90, -180], [90, 180]]}
@@ -443,11 +450,11 @@ export default function SatelliteClimbingMap() {
           setTimeout(() => {
             if (mapRef.current) {
               if (useUserLocation && userLocation) {
-                mapRef.current.setView(userLocation, 5)
+                mapRef.current.setView(userLocation, 11)
               } else if (defaultLocation) {
                 mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
               } else {
-                mapRef.current.setView([49.45, -2.6], 5)
+                mapRef.current.setView([49.45, -2.6], 11)
               }
             }
           }, 100)
@@ -493,70 +500,6 @@ export default function SatelliteClimbingMap() {
             })}
           />
         )}
-
-
-
-        {mapLoaded && !loading && images.filter(image => singletonImageIds.has(image.id)).map(image => (
-          <Marker
-            key={image.id}
-            position={[image.latitude || 0, image.longitude || 0]}
-            icon={L.divIcon({
-              className: 'image-marker',
-              html: `<div style="
-                background: ${image.is_verified ? '#22c55e' : '#eab308'};
-                width: 24px;
-                height: 24px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-size: 11px;
-                font-weight: bold;
-                border: 2px solid white;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-              ">${image.route_lines.length}</div>`,
-              iconSize: [24, 24],
-              iconAnchor: [12, 12]
-            })}
-            eventHandlers={{
-              click: async (e: L.LeafletMouseEvent) => {
-                e.originalEvent.stopPropagation()
-                trackRouteClicked(image.id, `${image.route_lines.length} routes`)
-                const supabase = createClient()
-                const { data: { user } } = await supabase.auth.getUser()
-                if (!user) {
-                  window.location.href = `/auth?redirect_to=/image/${image.id}`
-                } else {
-                  window.location.href = `/image/${image.id}`
-                }
-              },
-            }}
-          >
-            <Tooltip
-              direction="top"
-              offset={[0, -30]}
-              opacity={1}
-            >
-              <div className="w-40">
-                <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
-                  <img
-                    src={image.url}
-                    alt="Routes"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <p className="font-semibold text-sm text-gray-900">
-                  {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
-                </p>
-                <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
-                  {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
-                </p>
-                <p className="text-xs text-blue-600 mt-1">Click to view →</p>
-              </div>
-            </Tooltip>
-          </Marker>
-        ))}
 
         {cragPins.map(crag => (
           <Marker

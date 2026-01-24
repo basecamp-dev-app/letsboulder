@@ -152,8 +152,8 @@ function SubmitPageContent() {
       const payload = context.image.mode === 'new' ? {
         mode: 'new' as const,
         imageUrl: context.image.uploadedUrl,
-        imageLat: context.image.gpsData?.latitude ?? null,
-        imageLng: context.image.gpsData?.longitude ?? null,
+        imageLat: context.imageGps?.latitude ?? null,
+        imageLng: context.imageGps?.longitude ?? null,
         captureDate: context.image.captureDate,
         width: context.image.width,
         height: context.image.height,
