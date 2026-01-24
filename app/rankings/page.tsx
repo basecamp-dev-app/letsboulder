@@ -276,9 +276,6 @@ export default function LeaderboardPage() {
                     <p className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">
                       {entry.username}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {entry.climb_count} climbs
-                    </p>
                   </div>
                   <div className="flex items-center gap-1">
                     {sortBy === 'grade' ? (
