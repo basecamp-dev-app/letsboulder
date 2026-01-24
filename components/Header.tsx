@@ -155,7 +155,7 @@ export default function Header() {
         <Link href="/" className="flex items-center flex-shrink-0 -my-2">
           <div className="relative w-16 h-16">
             <Image
-              src="/logo-light.png"
+              src="/logo.png"
               alt="gsyrocks"
               fill
               className="object-contain"
