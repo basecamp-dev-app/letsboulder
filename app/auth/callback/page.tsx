@@ -162,8 +162,8 @@ function AuthCallbackContent() {
         }
 
         setStatus('success')
-        const authProvider = searchParams.get('auth_provider')
-        trackAuthLoginSuccess(authProvider || 'oauth')
+        const provider = user?.user_metadata?.provider || 'oauth'
+        trackAuthLoginSuccess(provider)
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         router.push(redirectTo)
       } else {
@@ -251,8 +251,8 @@ function AuthCallbackContent() {
         }
 
         setStatus('success')
-        const authProvider = searchParams.get('auth_provider')
-        trackAuthLoginSuccess(authProvider || 'oauth')
+        const provider = user?.user_metadata?.provider || 'oauth'
+        trackAuthLoginSuccess(provider)
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         router.push(redirectTo)
       } else {

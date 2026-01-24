@@ -35,8 +35,8 @@ export default function AuthForm(_props: AuthFormProps) {
       provider: 'google',
       options: {
         redirectTo: redirectTo 
-          ? `${origin}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}&auth_provider=google`
-          : `${origin}/auth/callback?auth_provider=google`,
+          ? `${origin}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}`
+          : `${origin}/auth/callback`,
       },
     })
     trackAuthLoginAttempted('google')
@@ -54,8 +54,8 @@ export default function AuthForm(_props: AuthFormProps) {
       provider: 'discord',
       options: {
         redirectTo: redirectTo 
-          ? `${origin}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}&auth_provider=discord`
-          : `${origin}/auth/callback?auth_provider=discord`,
+          ? `${origin}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}`
+          : `${origin}/auth/callback`,
       },
     })
     trackAuthLoginAttempted('discord')
