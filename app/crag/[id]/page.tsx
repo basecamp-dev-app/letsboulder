@@ -5,7 +5,8 @@ import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { geoJsonPolygonToLeaflet, getPolygonCenter, GeoJSONPolygon } from '@/lib/geo-utils'
+import { geoJsonPolygonToLeaflet, getPolygonCenter } from '@/lib/geo-utils'
+import type { GeoJSONPolygon } from '@/types/database'
 
 import 'leaflet/dist/leaflet.css'
 

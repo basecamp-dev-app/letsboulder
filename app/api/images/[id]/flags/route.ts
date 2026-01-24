@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
+import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
 export async function GET(
   request: NextRequest,
@@ -19,6 +20,12 @@ export async function GET(
 
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
+    if (!rateLimitResult.success) {
+      return rateLimitResponse
     }
 
     if (!imageId) {

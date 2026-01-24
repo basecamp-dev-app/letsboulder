@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import type { NewImageSelection, GpsData } from '@/lib/submission-types'
+import { dataURLToBlob, blobToDataURL, isHeicFile } from '@/lib/image-utils'
 
 interface ImageUploaderProps {
   onComplete: (result: NewImageSelection) => void
@@ -97,39 +98,6 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
   })
 }
 
-function dataURLToBlob(dataURL: string): Blob {
-  const arr = dataURL.split(',')
-  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg'
-  const bstr = atob(arr[1])
-  let n = bstr.length
-  const u8arr = new Uint8Array(n)
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n)
-  }
-  return new Blob([u8arr], { type: mime })
-}
-
-async function blobToDataURL(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-}
-
-function isHeicFile(file: File): boolean {
-  const name = file.name.toLowerCase()
-  const type = file.type.toLowerCase()
-  return (
-    name.endsWith('.heic') ||
-    name.endsWith('.heif') ||
-    type === 'image/heic' ||
-    type === 'image/heif' ||
-    type === 'image/x-heic'
-  )
-}
-
 async function heicToJpegBlob(file: File): Promise<Blob> {
   const heic2any = (await import('heic2any')).default
   const blob = file instanceof Blob ? file : new Blob([file], { type: 'image/heic' })
@@ -189,33 +157,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
-    if (!selectedFile) return
-
-    await processFile(selectedFile)
-  }
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-
-    const droppedFile = e.dataTransfer.files[0]
-    if (!droppedFile) return
-
-    await processFile(droppedFile)
-  }, [])
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-  }, [])
 
   const processFile = async (selectedFile: File) => {
     onError('')
@@ -290,6 +231,34 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       setCompressing(false)
     }
   }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0]
+    if (!selectedFile) return
+
+    await processFile(selectedFile)
+  }
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+
+    const droppedFile = e.dataTransfer.files[0]
+    if (!droppedFile) return
+
+    await processFile(droppedFile)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
 
   const handleConfirm = async () => {
     const fileToUpload = compressedFile || file

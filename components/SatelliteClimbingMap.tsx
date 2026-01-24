@@ -6,7 +6,8 @@ import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
 import { MapPin, RefreshCw } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
-import { geoJsonPolygonToLeaflet, type GeoJSONPolygon } from '@/lib/geo-utils'
+import { geoJsonPolygonToLeaflet } from '@/lib/geo-utils'
+import type { GeoJSONPolygon } from '@/types/database'
 import type { User } from '@supabase/supabase-js'
 
 import 'leaflet/dist/leaflet.css'
@@ -95,7 +96,7 @@ interface CragPin {
 interface RouteLineData {
   id: string
   image_id: string
-  points: unknown
+  points: RoutePoint[]
   color: string
   climb_id: string
   climbs: {
@@ -319,6 +320,7 @@ export default function SatelliteClimbingMap() {
         .not('boundary', 'is', null)
 
       if (cragsError) {
+        console.error('Error loading crags:', cragsError)
       } else if (cragsData) {
         setCrags(cragsData as CragData[])
       }
@@ -328,6 +330,7 @@ export default function SatelliteClimbingMap() {
         timestamp: Date.now()
       }))
     } catch (err) {
+      console.error('Error loading images:', err)
     }
     setLoading(false)
   }, [isClient])

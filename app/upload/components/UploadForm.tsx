@@ -281,6 +281,7 @@ export default function UploadForm() {
     if (!droppedFile) return
 
     await processFile(droppedFile)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {

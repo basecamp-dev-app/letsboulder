@@ -34,7 +34,7 @@ export default function RegionSelector({
       setQuery(preselectedRegion.name)
       setResults([preselectedRegion])
     }
-  }, [preselectedRegion])
+  }, [preselectedRegion, query])
 
   const searchRegions = useCallback(async (searchQuery: string) => {
     if (searchQuery.length < 2) {

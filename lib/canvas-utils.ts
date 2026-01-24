@@ -1,7 +1,4 @@
-export interface RoutePoint {
-  x: number
-  y: number
-}
+import { RoutePoint } from './useRouteSelection'
 
 export function drawSmoothCurve(
   ctx: CanvasRenderingContext2D,

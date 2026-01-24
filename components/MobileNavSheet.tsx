@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { MORE_MENU_ITEMS } from '@/lib/nav-items'
+import type { User } from '@supabase/supabase-js'
 
 interface MobileNavSheetProps {
   isOpen: boolean
@@ -42,8 +43,7 @@ const NAV_ITEM_ICONS: Record<string, React.ReactNode> = {
 export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps) {
   const pathname = usePathname()
   const router = useRouter()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
     const supabase = createClient()

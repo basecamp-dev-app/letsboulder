@@ -80,6 +80,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         })
       }
     } catch (err) {
+      console.error('Error fetching route grade info:', err)
     }
   }, [])
 

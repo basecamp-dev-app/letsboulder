@@ -1,7 +1,4 @@
-export interface GeoJSONPolygon {
-  type: 'Polygon'
-  coordinates: number[][][]
-}
+import { GeoJSONPolygon } from '@/types/database'
 
 export function geoJsonPolygonToLeaflet(polygon: GeoJSONPolygon | null): [number, number][] | null {
   if (!polygon || !polygon.coordinates || polygon.coordinates.length === 0) {

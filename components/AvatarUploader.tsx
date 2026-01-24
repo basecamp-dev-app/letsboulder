@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
+import { dataURLToBlob } from '@/lib/image-utils'
 
 interface AvatarUploaderProps {
   avatarUrl?: string
@@ -159,7 +160,7 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
     }
   }
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     if (!uploading) {
       setIsOpen(false)
       setFile(null)
@@ -167,7 +168,7 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
       setError(null)
       setProgress(0)
     }
-  }
+  }, [uploading])
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -181,7 +182,7 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
       document.removeEventListener('keydown', handleEscape)
       document.body.style.overflow = 'unset'
     }
-  }, [isOpen, uploading])
+  }, [isOpen, uploading, closeModal])
 
   return (
     <>
@@ -385,18 +386,6 @@ async function compressImage(file: File, maxSizeKB: number, maxDim: number): Pro
     reader.onerror = () => reject(new Error('Failed to read file'))
     reader.readAsDataURL(file)
   })
-}
-
-function dataURLToBlob(dataURL: string): Blob {
-  const arr = dataURL.split(',')
-  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg'
-  const bstr = atob(arr[1])
-  let n = bstr.length
-  const u8arr = new Uint8Array(n)
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n)
-  }
-  return new Blob([u8arr], { type: mime })
 }
 
 function extractStoragePath(publicUrl: string): string | null {

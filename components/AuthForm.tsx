@@ -6,7 +6,9 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { trackAuthLoginAttempted } from '@/lib/posthog'
 
-export default function AuthForm() {
+interface AuthFormProps {}
+
+export default function AuthForm(_props: AuthFormProps) {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
