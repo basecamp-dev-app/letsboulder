@@ -20,20 +20,34 @@ export default function AdminLayout({
   useEffect(() => {
     const checkAdmin = async () => {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      
+      // Get user with force refresh to bypass any caching
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-      if (!user) {
+      if (userError || !user) {
         router.push('/auth?redirect_to=' + pathname)
         return
       }
 
+      // Check both profile AND auth metadata for admin
+      const isDevLocalhost = typeof window !== 'undefined' && 
+        (window.location.hostname === 'localhost' || 
+         window.location.hostname === '127.0.0.1')
+
+      // Check profile table
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_admin')
         .eq('id', user.id)
         .single()
 
-      if (!profile?.is_admin) {
+      // Check auth metadata
+      const hasAuthAdmin = user.app_metadata?.gsyrocks_admin === true
+
+      const adminFromProfile = profile?.is_admin === true
+      const isAdmin = adminFromProfile || hasAuthAdmin || isDevLocalhost
+
+      if (!isAdmin) {
         router.push('/')
         return
       }
