@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { geoJsonPolygonToLeaflet, getPolygonCenter } from '@/lib/geo-utils'
 import type { GeoJSONPolygon } from '@/types/database'
+import FlagCragModal from './components/FlagCragModal'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -102,6 +103,8 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   const [images, setImages] = useState<ImageData[]>([])
   const [loading, setLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [flagModalOpen, setFlagModalOpen] = useState(false)
   const mapRef = useRef<L.Map | null>(null)
 
   useEffect(() => {
@@ -112,6 +115,17 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
     async function loadCrag() {
       const supabase = createClient()
       const { id } = await params
+
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', user.id)
+          .single()
+        setIsAdmin(profile?.is_admin || false)
+      }
 
       const { data: cragData, error: cragError } = await supabase
         .from('crags')
@@ -396,10 +410,20 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
       </div>
 
       <div className="max-w-4xl mx-auto p-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{crag.name}</h1>
-          {crag.regions && (
-            <p className="text-lg text-gray-600 dark:text-gray-400">{crag.regions.name}</p>
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{crag.name}</h1>
+            {crag.regions && (
+              <p className="text-lg text-gray-600 dark:text-gray-400">{crag.regions.name}</p>
+            )}
+          </div>
+          {isAdmin && (
+            <button
+              onClick={() => setFlagModalOpen(true)}
+              className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-500 transition-colors"
+            >
+              🚩 Flag
+            </button>
           )}
         </div>
 
@@ -481,6 +505,14 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
           )}
         </div>
       </div>
+
+      {flagModalOpen && crag && (
+        <FlagCragModal
+          cragId={crag.id}
+          cragName={crag.name}
+          onClose={() => setFlagModalOpen(false)}
+        />
+      )}
     </div>
   )
 }

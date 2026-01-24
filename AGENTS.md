@@ -182,6 +182,43 @@ export async function getUserCount(): Promise<number> {
 - Run migrations: `supabase db push` or `supabase migration up`
 - Generate types: `supabase gen types typescript --local > types/database.types.ts`
 
+### Testing Migrations
+
+**CRITICAL: NEVER push migrations to production before testing on local Supabase first.**
+
+1. **Apply migrations to local database first:**
+   ```bash
+   # Apply all migrations to local Supabase
+   PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -f supabase/migrations/<migration_file>.sql
+   
+   # Or use the Supabase CLI
+   supabase migration up
+   ```
+
+2. **Verify migration was applied correctly:**
+   ```bash
+   # Check if policy was created
+   PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -c "SELECT policyname FROM pg_policies WHERE tablename = 'crags';"
+   
+   # Check foreign key constraints
+   PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -c "SELECT conname, confdeltype FROM pg_constraint WHERE conname IN ('climbs_crag_id_fkey', 'images_crag_id_fkey');"
+   ```
+
+3. **Test the feature locally:**
+   - Start the dev server: `npm run dev`
+   - Navigate to the feature and verify it works
+   - Check for any errors in browser console
+
+4. **Only then push to production:**
+   ```bash
+   supabase db push
+   ```
+
+**Why this matters:**
+- Catching migration errors locally prevents production downtime
+- Schema issues are easier to debug without real user data
+- Foreign key and constraint problems won't affect production users
+
 ### Database Workflow (2-Person Team)
 
 **Safety First:** `supabase db push` only modifies schema (tables, columns, functions, triggers). It does NOT delete or overwrite table data. However, always review migrations before pushing to prod.

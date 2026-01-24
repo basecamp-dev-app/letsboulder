@@ -8,6 +8,7 @@ const VALID_ACTIONS = ['keep', 'edit', 'remove']
 interface FlagWithRelations {
   id: string
   status: string
+  crag_id: string | null
   climb_id: string | null
   image_id: string | null
   flagger_id: string | null
@@ -73,6 +74,7 @@ export async function POST(
       .select(`
         id,
         status,
+        crag_id,
         climb_id,
         image_id,
         flagger_id,
@@ -98,6 +100,26 @@ export async function POST(
     const resolvedAt = new Date().toISOString()
 
     if (action === 'remove') {
+      if (typedFlag.crag_id && !typedFlag.climb_id && !typedFlag.image_id) {
+        const { data: climbData, error: climbFetchError } = await supabase
+          .from('climbs')
+          .select('id')
+          .eq('crag_id', typedFlag.crag_id)
+
+        if (climbFetchError) {
+          return createErrorResponse(climbFetchError, 'Error fetching climbs for deletion')
+        }
+
+        const { error: deleteCragError } = await supabase
+          .from('crags')
+          .delete()
+          .eq('id', typedFlag.crag_id)
+
+        if (deleteCragError) {
+          return createErrorResponse(deleteCragError, 'Error deleting crag')
+        }
+      }
+
       if (typedFlag.climb_id) {
         const { error: deleteError } = await supabase
           .from('climbs')
@@ -138,13 +160,26 @@ export async function POST(
     const climbName = typedFlag.climb?.name || 'Unnamed route'
     const cragName = typedFlag.crag?.name || 'Unknown crag'
     const isImageFlag = !!typedFlag.image_id
+    const isCragOnlyFlag = !typedFlag.climb_id && !typedFlag.image_id && !!typedFlag.crag_id
 
     if (typedFlag.flagger_id) {
       let title = ''
       let message = ''
       let link = ''
 
-      if (isImageFlag) {
+      if (isCragOnlyFlag) {
+        switch (action) {
+          case 'keep':
+            title = 'Flag dismissed'
+            message = `Your flag for crag "${cragName}" was reviewed and no action was taken.`
+            break
+          case 'remove':
+            title = 'Flag resolved - crag removed'
+            message = `Your flag for crag "${cragName}" was resolved by removing the crag and all associated climbs and images.`
+            break
+        }
+        link = `/crags`
+      } else if (isImageFlag) {
         switch (action) {
           case 'keep':
             title = 'Flag dismissed'

@@ -97,7 +97,7 @@ export async function notifyNewSubmission(
 }
 
 interface FlagType {
-  type: 'image' | 'climb'
+  type: 'image' | 'climb' | 'crag'
   flagType: string
   targetName?: string
   cragName: string
@@ -120,10 +120,17 @@ export async function notifyNewFlag(
     route_name: '🏷️ Wrong Route Name',
     image_quality: '📷 Image Quality',
     wrong_crag: '🗺️ Wrong Crag',
+    boundary: '🗺️ Wrong Boundary',
+    access: '🚧 Access Issue',
+    description: '📝 Wrong Description',
+    rock_type: '🪨 Wrong Rock Type',
+    name: '🏷️ Wrong Crag Name',
     other: '⚠️ Other',
   }
 
-  const targetDesc = flagInfo.type === 'climb'
+  const targetDesc = flagInfo.type === 'crag'
+    ? `Crag: ${flagInfo.cragName}`
+    : flagInfo.type === 'climb'
     ? `"${flagInfo.targetName}" at ${flagInfo.cragName}`
     : `Image at ${flagInfo.cragName}`
 
