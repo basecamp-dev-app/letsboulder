@@ -79,6 +79,7 @@ function RankBadge({ rank }: { rank: number }) {
 export default function LeaderboardPage() {
   const [gender, setGender] = useState('all')
   const [country, setCountry] = useState('all')
+  const [sortBy, setSortBy] = useState<'grade' | 'tops'>('grade')
   const [page, setPage] = useState(1)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
@@ -90,7 +91,7 @@ export default function LeaderboardPage() {
     setLoading(true)
     try {
       const response = await fetch(
-        `/api/rankings?gender=${gender}&country=${country}&page=${page}&limit=20`
+        `/api/rankings?gender=${gender}&country=${country}&sort=${sortBy}&page=${page}&limit=20`
       )
       const data = await response.json()
       if (response.ok) {
@@ -102,7 +103,7 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [gender, country, page])
+  }, [gender, country, sortBy, page])
 
   useEffect(() => {
     const supabase = createClient()
@@ -119,7 +120,7 @@ export default function LeaderboardPage() {
     if (authChecked && user !== null) {
       fetchLeaderboard()
     }
-  }, [gender, country, page, user, authChecked, fetchLeaderboard])
+  }, [gender, country, sortBy, page, user, authChecked, fetchLeaderboard])
 
   if (!authChecked) {
     return (
@@ -164,38 +165,68 @@ export default function LeaderboardPage() {
 
       <Card className="m-0 border-x-0 border-t-0 rounded-none">
         <CardContent className="py-2 px-3">
-          <div className="flex items-center gap-2">
-            <select
-              value={country}
-              onChange={(e) => {
-                setCountry(e.target.value)
-                setPage(1)
-              }}
-              className="flex-1 py-1.5 px-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            >
-              {COUNTRY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
-              {GENDER_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => {
-                    setGender(option.value)
-                    setPage(1)
-                  }}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                    gender === option.value
-                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <select
+                value={country}
+                onChange={(e) => {
+                  setCountry(e.target.value)
+                  setPage(1)
+                }}
+                className="flex-1 py-1.5 px-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              >
+                {COUNTRY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+                {GENDER_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setGender(option.value)
+                      setPage(1)
+                    }}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      gender === option.value
+                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 mx-auto">
+              <button
+                onClick={() => {
+                  setSortBy('grade')
+                  setPage(1)
+                }}
+                className={`px-4 py-1 text-xs font-medium rounded-md transition-colors ${
+                  sortBy === 'grade'
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                Grade
+              </button>
+              <button
+                onClick={() => {
+                  setSortBy('tops')
+                  setPage(1)
+                }}
+                className={`px-4 py-1 text-xs font-medium rounded-md transition-colors ${
+                  sortBy === 'tops'
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                Tops
+              </button>
             </div>
           </div>
         </CardContent>
@@ -250,9 +281,15 @@ export default function LeaderboardPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                      {entry.avg_grade}
-                    </span>
+                    {sortBy === 'grade' ? (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+                        {entry.avg_grade}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200">
+                        {entry.climb_count} tops
+                      </span>
+                    )}
                   </div>
                 </Link>
               ))}

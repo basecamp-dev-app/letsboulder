@@ -17,6 +17,16 @@ interface UserClimbQueryResult {
   }
 }
 
+interface LeaderboardEntryResult {
+  rank: number
+  user_id: string
+  username: string
+  avatar_url: string | null
+  avg_grade: string
+  climb_count: number
+  sort_value?: number
+}
+
 interface RegionRouteLine {
   climb_id: string
   images: {
@@ -34,6 +44,7 @@ export async function GET(request: NextRequest) {
 
   const gender = searchParams.get('gender')
   const region = searchParams.get('region')
+  const sort = searchParams.get('sort') || 'grade'
   const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')))
   const offset = (page - 1) * limit
@@ -43,6 +54,10 @@ export async function GET(request: NextRequest) {
     if (!allowedGenders.includes(gender)) {
       return NextResponse.json({ error: 'Invalid gender filter' }, { status: 400 })
     }
+  }
+
+  if (sort !== 'grade' && sort !== 'tops') {
+    return NextResponse.json({ error: 'Invalid sort parameter' }, { status: 400 })
   }
 
   const supabase = createServerClient(
@@ -172,6 +187,7 @@ export async function GET(request: NextRequest) {
         }
       })
       const avgPoints = validClimbCount > 0 ? Math.round(totalPoints / validClimbCount) : 0
+      const avgGrade = getGradeFromPoints(avgPoints)
 
       const profile = profilesMap.get(userId)
       return {
@@ -179,13 +195,15 @@ export async function GET(request: NextRequest) {
         user_id: userId,
         username: getUsername(userId, profile),
         avatar_url: profile?.avatar_url,
-        avg_grade: getGradeFromPoints(avgPoints),
+        avg_grade: avgGrade,
         climb_count: climbCount,
+        sort_value: sort === 'tops' ? climbCount : avgPoints,
       }
-    }).sort((a, b) => b.climb_count - a.climb_count)
+    }).sort((a, b) => b.sort_value - a.sort_value)
 
     leaderboard.forEach((entry, index) => {
       entry.rank = index + 1
+      delete (entry as { sort_value?: number }).sort_value
     })
 
     const publicTotalUsers = publicUserIds.length
