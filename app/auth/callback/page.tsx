@@ -159,6 +159,15 @@ function AuthCallbackContent() {
             router.push('/auth/set-name')
             return
           }
+
+          fetch('/api/welcome-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: user.email,
+              firstName: profile?.first_name || null,
+            }),
+          }).catch(console.error)
         }
 
         setStatus('success')
@@ -244,10 +253,19 @@ function AuthCallbackContent() {
             .eq('id', user.id)
             .single()
 
-          if (!profile?.first_name) {
+           if (!profile?.first_name) {
             router.push('/auth/set-name')
             return
           }
+
+          fetch('/api/welcome-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: user.email,
+              firstName: profile?.first_name || null,
+            }),
+          }).catch(console.error)
         }
 
         setStatus('success')
