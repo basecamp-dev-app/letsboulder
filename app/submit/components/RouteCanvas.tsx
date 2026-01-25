@@ -11,6 +11,7 @@ import {
 } from '@/lib/canvas-utils'
 import GradePicker from '@/components/GradePicker'
 import type { ImageSelection, NewRouteData, RouteLine } from '@/lib/submission-types'
+import { useSubmitContext } from '@/lib/submit-context'
 
 interface ExistingRoute {
   id: string
@@ -67,6 +68,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
   }>({ consensusGrade: null, voteCount: 0, userVote: null })
 
   const { selectRoute, deselectRoute, clearSelection, selectedIds } = useRouteSelection()
+  const { doneDrawing, setDoneDrawing } = useSubmitContext()
 
   const fetchRouteGradeInfo = useCallback(async (routeId: string) => {
     try {
@@ -474,6 +476,15 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
             Complete Route
           </button>
         </div>
+      )}
+
+      {completedRoutes.length > 0 && !doneDrawing && (
+        <button
+          onClick={() => setDoneDrawing(true)}
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        >
+          I'm Done Drawing
+        </button>
       )}
 
       <div className="absolute top-4 right-4 flex flex-col gap-2">

@@ -9,6 +9,8 @@ export interface SubmitContextType {
   isSubmitting: boolean
   setIsSubmitting: (submitting: boolean) => void
   canSubmit: boolean
+  doneDrawing: boolean
+  setDoneDrawing: (done: boolean) => void
 }
 
 const SubmitContext = createContext<SubmitContextType | null>(null)
@@ -22,6 +24,8 @@ export function useSubmitContext() {
       isSubmitting: false,
       setIsSubmitting: () => {},
       canSubmit: false,
+      doneDrawing: false,
+      setDoneDrawing: () => {},
     }
   }
   return context
@@ -30,6 +34,7 @@ export function useSubmitContext() {
 export function SubmitProvider({ children }: { children: ReactNode }) {
   const [routes, setRoutes] = useState<NewRouteData[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [doneDrawing, setDoneDrawing] = useState(false)
 
   return (
     <SubmitContext.Provider
@@ -39,6 +44,8 @@ export function SubmitProvider({ children }: { children: ReactNode }) {
         isSubmitting,
         setIsSubmitting,
         canSubmit: routes.length > 0,
+        doneDrawing,
+        setDoneDrawing,
       }}
     >
       {children}

@@ -19,7 +19,7 @@ const RouteCanvas = dynamic(() => import('./components/RouteCanvas'), { ssr: fal
 const LocationPicker = dynamic(() => import('./components/LocationPicker'), { ssr: false })
 
 function SubmitPageContent() {
-  const { routes, setRoutes, setIsSubmitting, isSubmitting } = useSubmitContext()
+  const { routes, setRoutes, setIsSubmitting, isSubmitting, doneDrawing } = useSubmitContext()
   const [step, setStep] = useState<SubmissionStep>({ step: 'image' })
   const [context, setContext] = useState<SubmissionContext>({
     crag: null,
@@ -28,6 +28,7 @@ function SubmitPageContent() {
     routes: []
   })
   const [error, setError] = useState<string | null>(null)
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -73,82 +74,13 @@ function SubmitPageContent() {
 
   useEffect(() => {
     const handleSubmitRoutes = () => {
-      if (routes.length > 0 && !isSubmitting) {
-        setIsSubmitting(true)
-        setError(null)
-
-        const submit = async () => {
-          if (!context.crag || !context.image || context.routes.length === 0) {
-            setError('Incomplete submission data')
-            setIsSubmitting(false)
-            return
-          }
-
-          try {
-            const { createClient } = await import('@/lib/supabase')
-            const supabase = createClient()
-            const { data: { user } } = await supabase.auth.getUser()
-
-            if (!user) {
-              setError('Please log in to submit routes')
-              setIsSubmitting(false)
-              return
-            }
-
-            const payload = context.image!.mode === 'new' ? {
-              mode: 'new' as const,
-              imageUrl: context.image!.uploadedUrl,
-              imageLat: context.imageGps?.latitude ?? null,
-              imageLng: context.imageGps?.longitude ?? null,
-              captureDate: context.image!.captureDate,
-              width: context.image!.width,
-              height: context.image!.height,
-              naturalWidth: context.image!.naturalWidth,
-              naturalHeight: context.image!.naturalHeight,
-              cragId: context.crag?.id,
-              routes: context.routes
-            } : {
-              mode: 'existing' as const,
-              imageId: context.image!.imageId,
-              routes: context.routes
-            }
-
-            if (context.image!.mode === 'new' && !payload.cragId) {
-              setError('Please select a crag before submitting')
-              setIsSubmitting(false)
-              return
-            }
-
-            const response = await csrfFetch('/api/submissions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            })
-
-            if (!response.ok) {
-              const errorData = await response.json().catch(() => ({}))
-              throw new Error(errorData.error || 'Submission failed')
-            }
-
-            const data = await response.json()
-            trackRouteSubmitted(data.climbsCreated)
-
-            setStep({
-              step: 'success',
-              climbsCreated: data.climbsCreated,
-              imageId: data.imageId
-            })
-          } catch (err) {
-            setError(err instanceof Error ? err.message : 'Submission failed')
-            setIsSubmitting(false)
-          }
-        }
-        submit()
+      if (routes.length > 0 && doneDrawing && !isSubmitting) {
+        setShowSubmitConfirm(true)
       }
     }
     window.addEventListener('submit-routes', handleSubmitRoutes)
     return () => window.removeEventListener('submit-routes', handleSubmitRoutes)
-  }, [routes.length, isSubmitting, context])
+  }, [routes.length, doneDrawing, isSubmitting])
 
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
     const gps = gpsData ? { latitude: gpsData.latitude, longitude: gpsData.longitude } : null
@@ -414,6 +346,33 @@ function SubmitPageContent() {
       <main className="max-w-4xl mx-auto px-4 py-8">
         {renderStep()}
       </main>
+
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 z-[2000] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full">
+            <p className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">
+              Submit {routes.length} route{routes.length !== 1 ? 's' : ''}?
+            </p>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Double-check you didn't miss any.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSubmitConfirm(false)}
+                className="flex-1 px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-gray-100 hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

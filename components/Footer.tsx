@@ -16,7 +16,10 @@ export default function Footer({ submitContext }: FooterProps) {
 
   const isActive = (path: string) => pathname === path
   const isSubmitPage = pathname === '/submit'
-  const showSubmitButton = isSubmitPage && submitContext?.canSubmit && !submitContext.isSubmitting
+  const showSubmitButton = isSubmitPage && 
+                           submitContext?.canSubmit && 
+                           submitContext?.doneDrawing && 
+                           !submitContext.isSubmitting
 
   return (
     <>
