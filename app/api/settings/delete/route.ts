@@ -73,11 +73,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Token does not match user' }, { status: 403 })
     }
 
-    await supabaseAdmin.from('deleted_accounts').insert({
-      user_id: user.id,
-      email: user.email,
-      delete_route_uploads: payload.deleteRouteUploads
-    })
+    if (payload.deleteRouteUploads) {
+      await supabaseAdmin.from('deleted_accounts').insert({
+        user_id: user.id,
+        email: user.email,
+        delete_route_uploads: payload.deleteRouteUploads
+      })
+
       const { data: files } = await supabase.storage
         .from('route-uploads')
         .list(user.id, { limit: 1000 })
