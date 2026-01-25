@@ -16,9 +16,7 @@ export default function Footer({ submitContext }: FooterProps) {
 
   const isActive = (path: string) => pathname === path
   const isSubmitPage = pathname === '/submit'
-  const showSubmitButton = isSubmitPage && 
-                           submitContext?.canSubmit && 
-                           !submitContext.isSubmitting
+  const canSubmit = (submitContext?.routes.length ?? 0) > 0 && !submitContext?.isSubmitting
 
   return (
     <>
@@ -55,12 +53,13 @@ export default function Footer({ submitContext }: FooterProps) {
             </svg>
             <span className="text-[10px] mt-0.5">Map</span>
           </Link>
-          {showSubmitButton && (
+          {isSubmitPage && (
             <button
-              onClick={() => window.dispatchEvent(new CustomEvent('submit-routes'))}
-              className="flex flex-col items-center p-2"
+              onClick={() => canSubmit && window.dispatchEvent(new CustomEvent('submit-routes'))}
+              disabled={!canSubmit}
+              className={`flex flex-col items-center p-2 ${!canSubmit ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <div className="px-4 py-1 rounded-lg bg-blue-600 text-white">
+              <div className={`px-4 py-1 rounded-lg ${canSubmit ? 'bg-blue-600 text-white' : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
                 <span className="text-[10px] font-medium">Submit</span>
               </div>
             </button>
