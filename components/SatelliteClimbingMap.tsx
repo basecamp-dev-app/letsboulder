@@ -125,6 +125,7 @@ export default function SatelliteClimbingMap() {
   const [cragPins, setCragPins] = useState<CragPin[]>([])
   const [toast, setToast] = useState<string | null>(null)
   const [saveLocationLoading, setSaveLocationLoading] = useState(false)
+  const [defaultLocationLoading, setDefaultLocationLoading] = useState(true)
 
   useEffect(() => {
     setupLeafletIcons()
@@ -373,6 +374,7 @@ export default function SatelliteClimbingMap() {
           .single()
 
         console.log('[Map] Profile fetch result:', { profile, error })
+        setDefaultLocationLoading(false)
 
         if (ignore) return
 
@@ -390,6 +392,8 @@ export default function SatelliteClimbingMap() {
         } else {
           console.log('[Map] No default_location in profile')
         }
+      } else {
+        setDefaultLocationLoading(false)
       }
     }
 
@@ -488,6 +492,14 @@ export default function SatelliteClimbingMap() {
 
   if (!isClient) {
     return <div className="h-screen w-full bg-gray-900" />
+  }
+
+  if (user && defaultLocationLoading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-900">
+        <div className="text-white">Loading...</div>
+      </div>
+    )
   }
 
   return (

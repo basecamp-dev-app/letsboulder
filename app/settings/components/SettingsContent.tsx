@@ -1,26 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { User } from '@supabase/supabase-js'
-import { Search, MapPin, X, Loader2, AlertTriangle } from 'lucide-react'
+import { Loader2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { csrfFetch } from '@/hooks/useCsrf'
-
-interface LocationResult {
-  lat: number
-  lng: number
-  name: string
-  display_name: string
-  type: string
-  address: {
-    city: string
-    state: string
-    country: string
-    country_code: string
-  }
-}
 
 interface SettingsContentProps {
   user: User
@@ -48,7 +34,6 @@ function Toast({ message, onClose }: { message: string | null; onClose: () => vo
 const TABS = [
   { id: 'profile', label: 'Profile' },
   { id: 'appearance', label: 'Appearance' },
-  { id: 'location', label: 'Location' },
   { id: 'privacy', label: 'Privacy' },
 ]
 
@@ -66,16 +51,6 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [isPublic, setIsPublic] = useState(true)
 
   const [themePreference, setThemePreference] = useState('system')
-
-  const [locationName, setLocationName] = useState<string | null>(null)
-  const [locationZoomLevel, setLocationZoomLevel] = useState(12)
-
-  const [locationSearchQuery, setLocationSearchQuery] = useState('')
-  const [locationSearchResults, setLocationSearchResults] = useState<LocationResult[]>([])
-  const [locationSearching, setLocationSearching] = useState(false)
-  const [locationSelected, setLocationSelected] = useState<LocationResult | null>(null)
-  const [locationModalOpen, setLocationModalOpen] = useState(false)
-  const [locationLoading, setLocationLoading] = useState(false)
 
   const [toast, setToast] = useState<string | null>(null)
   const [saveLoading, setSaveLoading] = useState(false)
@@ -100,15 +75,11 @@ export default function SettingsContent({ user }: SettingsContentProps) {
             gender: data.settings.gender || 'prefer_not_to_say',
             bio: data.settings.bio || ''
           })
-          setIsPublic(data.settings.isPublic !== false)
-          setThemePreference(data.settings.themePreference || 'system')
-          setLocationName(data.settings.defaultLocationName || null)
-          if (data.settings.defaultLocationZoom) {
-            setLocationZoomLevel(data.settings.defaultLocationZoom)
-          }
-        }
-        if (data.imageCount !== undefined) {
-          setImageCount(data.imageCount)
+           setIsPublic(data.settings.isPublic !== false)
+           setThemePreference(data.settings.themePreference || 'system')
+         }
+         if (data.imageCount !== undefined) {
+           setImageCount(data.imageCount)
         }
       } catch (error) {
         console.error('Error fetching settings:', error)
@@ -174,86 +145,6 @@ export default function SettingsContent({ user }: SettingsContentProps) {
     const newValue = !isPublic
     setIsPublic(newValue)
     setIsDirty(true)
-  }
-
-  const handleLocationSearch = async (query: string) => {
-    if (query.trim().length < 2) {
-      setLocationSearchResults([])
-      return
-    }
-
-    setLocationSearching(true)
-    try {
-      const response = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}`)
-      const data = await response.json()
-      setLocationSearchResults(data.results || [])
-    } catch (error) {
-      console.error('Search error:', error)
-      setLocationSearchResults([])
-    } finally {
-      setLocationSearching(false)
-    }
-  }
-
-  const handleSelectLocation = (location: LocationResult) => {
-    setLocationSelected(location)
-    setLocationSearchQuery(location.display_name)
-    setLocationSearchResults([])
-  }
-
-  const handleSaveLocation = async () => {
-    if (!locationSelected) return
-
-    setLocationLoading(true)
-    try {
-      const response = await csrfFetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          defaultLocationName: locationSelected.display_name,
-          defaultLocationLat: locationSelected.lat,
-          defaultLocationLng: locationSelected.lng,
-          defaultLocationZoom: locationZoomLevel
-        })
-      })
-
-      if (!response.ok) throw new Error('Failed to save location')
-
-      setLocationName(locationSelected.display_name)
-      setLocationModalOpen(false)
-      setLocationSelected(null)
-      setLocationSearchQuery('')
-      setToast('Saved')
-    } catch {
-      setToast('Failed to save')
-    } finally {
-      setLocationLoading(false)
-    }
-  }
-
-  const handleClearLocation = async () => {
-    try {
-      const response = await csrfFetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          defaultLocationName: null,
-          defaultLocationLat: null,
-          defaultLocationLng: null,
-          defaultLocationZoom: null
-        })
-      })
-
-      if (!response.ok) throw new Error('Failed to save')
-
-      setLocationName(null)
-      setLocationSelected(null)
-      setLocationSearchQuery('')
-      setLocationZoomLevel(12)
-      setToast('Saved')
-    } catch {
-      setToast('Failed to save')
-    }
   }
 
   const handleInitiateDelete = async () => {
@@ -422,29 +313,6 @@ export default function SettingsContent({ user }: SettingsContentProps) {
               </div>
             )}
 
-            {activeTab === 'location' && (
-              <div className="space-y-6 max-w-xl">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Set your default location for climbs and recommendations.</p>
-                {locationName ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <MapPin className="w-4 h-4" />
-                      <span>{locationName}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" onClick={() => setLocationModalOpen(true)}>Change Location</Button>
-                      <Button variant="ghost" onClick={handleClearLocation} className="text-red-600 hover:text-red-700">Clear</Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button onClick={() => setLocationModalOpen(true)} className="w-full">
-                    <MapPin className="w-4 h-4 mr-2" />
-                    Set Default Location
-                  </Button>
-                )}
-              </div>
-            )}
-
             {activeTab === 'privacy' && (
               <div className="space-y-8 max-w-xl">
                 <div className="space-y-4">
@@ -557,90 +425,6 @@ export default function SettingsContent({ user }: SettingsContentProps) {
       </div>
 
       <Toast message={toast} onClose={() => setToast(null)} />
-
-      {locationModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[1100] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-xl w-full max-w-md max-h-[90vh] overflow-hidden">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="font-semibold">Set Default Location</h3>
-              <button
-                onClick={() => setLocationModalOpen(false)}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={locationSearchQuery}
-                  onChange={(e) => { setLocationSearchQuery(e.target.value); handleLocationSearch(e.target.value) }}
-                  placeholder="Search for a location..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                />
-                {locationSearching && (
-                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400" />
-                )}
-              </div>
-
-              {locationSearchResults.length > 0 && (
-                <div className="space-y-2">
-                  {locationSearchResults.map((result, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleSelectLocation(result)}
-                      className="w-full p-3 text-left border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      <div className="flex items-start gap-2">
-                        <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-gray-100">{result.name}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {result.address.city && `${result.address.city}, `}{result.address.country}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {locationSearchQuery && locationSearchResults.length === 0 && !locationSearching && (
-                <p className="text-center text-gray-500 dark:text-gray-400 py-4">No locations found</p>
-              )}
-            </div>
-
-            {locationSelected && (
-              <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => { setLocationSelected(null); setLocationSearchQuery('') }}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSaveLocation}
-                  disabled={locationLoading}
-                  className="flex-1"
-                >
-                  {locationLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Location'
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
