@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
-import { MapPin, RefreshCw, Bookmark } from 'lucide-react'
+import { MapPin, Bookmark } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
 import { geoJsonPolygonToLeaflet } from '@/lib/geo-utils'
 import type { GeoJSONPolygon } from '@/types/database'
@@ -588,25 +588,6 @@ export default function SatelliteClimbingMap() {
       </MapContainer>
 
 
-
-      <button
-        onClick={() => {
-          if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate(50)
-          }
-          const cacheKey = CACHE_KEY + '_v3'
-          localStorage.removeItem(cacheKey)
-          setLoading(true)
-          setTimeout(() => {
-            loadImages()
-          }, 50)
-        }}
-        className="absolute bottom-4 left-4 z-[1000] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full p-3 shadow-md active:scale-95 transition-transform touch-manipulation"
-        aria-label="Refresh map data"
-      >
-        <RefreshCw className="w-5 h-5" />
-      </button>
-
       {userLocation && (
         <button
           onClick={() => {
@@ -633,7 +614,7 @@ export default function SatelliteClimbingMap() {
       <button
         onClick={handleSaveAsDefault}
         disabled={saveLocationLoading}
-        className="absolute top-4 right-4 z-[1000] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+        className="absolute left-4 top-[120px] z-[1100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
       >
         <Bookmark className="w-4 h-4" />
         {saveLocationLoading ? 'Saving...' : 'Save as Default'}
