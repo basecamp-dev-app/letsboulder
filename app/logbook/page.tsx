@@ -93,7 +93,7 @@ function LogbookContent() {
 
           const { data: logsData, error: logsError } = await supabase
             .from('user_climbs')
-            .select('*, climbs(id, name, grade)')
+            .select('*, climbs(id, name, grade, route_lines!inner(images!inner(crags!inner(name))))')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
 
@@ -101,37 +101,26 @@ function LogbookContent() {
             console.error('Logs query error:', logsError)
           }
 
-          const climbIds = logsData?.map(log => log.climb_id).filter(Boolean) || []
-
           const cragsByClimbId: Record<string, string> = {}
-          if (climbIds.length > 0) {
-            const { data: routeLinesData } = await supabase
-              .from('route_lines')
-              .select('climb_id, images!inner(crags!inner(name))')
-              .in('climb_id', climbIds)
-
-            if (routeLinesData) {
-              routeLinesData.forEach((rl) => {
-                const images = rl as { climb_id?: string; images?: { crags?: { name: string } } }
-                if (images.climb_id && images.images?.crags?.name) {
-                  cragsByClimbId[images.climb_id] = images.images.crags.name
-                }
-              })
-            }
-          }
-
-          const logsWithPoints = logsData?.map((log) => ({
-            ...log,
-            climbs: {
-              ...log.climbs,
-              crags: {
-                name: cragsByClimbId[log.climb_id] || 'Unknown crag'
+          const logsWithCrags = (logsData || []).map((log) => {
+            const routeLines = log.climbs?.route_lines as Array<{ images?: { crags?: { name: string } } }> | undefined
+            const cragName = routeLines?.[0]?.images?.crags?.name || 'Unknown crag'
+            cragsByClimbId[log.climb_id] = cragName
+            return {
+              ...log,
+              climbs: {
+                ...log.climbs,
+                crags: { name: cragName }
               }
-            },
+            }
+          })
+
+          const logsWithPoints = logsWithCrags.map((log) => ({
+            ...log,
             points: log.style === 'flash'
               ? getGradePoints(log.climbs?.grade) + 10
               : getGradePoints(log.climbs?.grade)
-          })) || []
+          }))
 
           setLogs(logsWithPoints)
         }

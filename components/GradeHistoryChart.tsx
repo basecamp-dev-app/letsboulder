@@ -79,7 +79,7 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
             strokeWidth={2}
             fill="url(#flashGradient)"
             name="flash"
-            animationDuration={1000}
+            animationDuration={300}
           />
           <Area
             type="monotone"
@@ -88,7 +88,7 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
             strokeWidth={2}
             fill="url(#topGradient)"
             name="top"
-            animationDuration={1000}
+            animationDuration={300}
           />
         </AreaChart>
       </ResponsiveContainer>

@@ -86,7 +86,7 @@ async function getPublicLogs(userId: string): Promise<Climb[]> {
 
   const { data: logsData, error: logsError } = await supabase
     .from('user_climbs')
-    .select('*, climbs(id, name, grade)')
+    .select('*, climbs(id, name, grade, route_lines!inner(images!inner(crags!inner(name))))')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
@@ -94,34 +94,18 @@ async function getPublicLogs(userId: string): Promise<Climb[]> {
     return []
   }
 
-  const climbIds = logsData.map(log => log.climb_id).filter(Boolean)
-
-  const cragsByClimbId: Record<string, string> = {}
-  if (climbIds.length > 0) {
-    const { data: routeLinesData } = await supabase
-      .from('route_lines')
-      .select('climb_id, images!inner(crags!inner(name))')
-      .in('climb_id', climbIds)
-
-    if (routeLinesData) {
-      routeLinesData.forEach((rl) => {
-        const images = rl.images as { crags?: { name: string } } | undefined
-        if (rl.climb_id && images?.crags?.name) {
-          cragsByClimbId[rl.climb_id] = images.crags.name
+  const logsWithCrags = logsData.map((log) => {
+    const routeLines = log.climbs?.route_lines as Array<{ images?: { crags?: { name: string } } }> | undefined
+    return {
+      ...log,
+      climbs: {
+        ...log.climbs,
+        crags: {
+          name: routeLines?.[0]?.images?.crags?.name || 'Unknown crag'
         }
-      })
-    }
-  }
-
-  const logsWithCrags = logsData.map((log) => ({
-    ...log,
-    climbs: {
-      ...log.climbs,
-      crags: {
-        name: cragsByClimbId[log.climb_id] || 'Unknown crag'
       }
     }
-  })) as Climb[]
+  }) as Climb[]
 
   return logsWithCrags
 }

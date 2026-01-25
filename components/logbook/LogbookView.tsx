@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -61,8 +61,13 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const { toasts, addToast, removeToast } = useToast()
 
-  const stats = logs.length > 0 ? calculateStats(logs) : null
+  const stats = useMemo(() => {
+    if (logs.length === 0) return null
+    return calculateStats(logs)
+  }, [logs])
   const lowestGrade = stats ? getLowestGrade(stats.gradePyramid) : '6A'
+
+  const recentLogs = useMemo(() => logs.slice(0, 20), [logs])
 
   const handleDeleteLog = async (logId: string) => {
     setDeletingId(logId)
@@ -198,7 +203,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
             </CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-0">
-                {logs.slice(0, 20).map((log) => (
+                {recentLogs.map((log) => (
                   <div key={log.id} className="flex items-center gap-2 sm:gap-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
                     {log.climbs?.image_url && (
                       <img
