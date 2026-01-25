@@ -614,10 +614,10 @@ export default function SatelliteClimbingMap() {
       <button
         onClick={handleSaveAsDefault}
         disabled={saveLocationLoading}
-        className="absolute left-4 top-[120px] z-[1100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+        className="absolute left-4 top-[80px] z-[1100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-xs shadow-md flex items-center gap-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
       >
-        <Bookmark className="w-4 h-4" />
-        {saveLocationLoading ? 'Saving...' : 'Save as Default'}
+        <Bookmark className="w-3.5 h-3.5" />
+        {saveLocationLoading ? 'Saving...' : 'Save view'}
       </button>
 
       {locationStatus === 'requesting' && (
