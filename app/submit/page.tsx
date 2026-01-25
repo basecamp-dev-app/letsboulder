@@ -72,6 +72,10 @@ function SubmitPageContent() {
   }, [router])
 
   useEffect(() => {
+    setRoutes(context.routes)
+  }, [context.routes, setRoutes])
+
+  useEffect(() => {
     const handleSubmitRoutes = () => {
       if (routes.length > 0 && !isSubmitting) {
         handleSubmit()
