@@ -131,6 +131,13 @@ export default function SatelliteClimbingMap() {
     setupLeafletIcons()
   }, [])
 
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [toast])
+
   const CACHE_KEY = 'gsyrocks_images_cache'
 
   const loadImages = useCallback(async () => {
@@ -432,7 +439,7 @@ export default function SatelliteClimbingMap() {
 
       if (response.ok) {
         setDefaultLocation({ lat: center.lat, lng: center.lng, zoom })
-        setToast('Default location saved')
+        setToast('view saved')
       } else {
         setToast('Failed to save location')
       }
