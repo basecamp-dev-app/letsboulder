@@ -4,6 +4,12 @@ import { useEffect } from 'react'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { PostHogProvider, trackEvent } from '@/lib/posthog'
+import { SubmitProvider, useSubmitContext } from '@/lib/submit-context'
+
+function FooterWithSubmit() {
+  const submitContext = useSubmitContext()
+  return <Footer submitContext={submitContext} />
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -15,9 +21,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <PostHogProvider>
-      <Header />
-      {children}
-      <Footer />
+      <SubmitProvider>
+        <Header />
+        {children}
+        <FooterWithSubmit />
+      </SubmitProvider>
     </PostHogProvider>
   )
 }

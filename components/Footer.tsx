@@ -4,12 +4,19 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import MobileNavSheet from './MobileNavSheet'
+import type { SubmitContextType } from '@/lib/submit-context'
 
-export default function Footer() {
+interface FooterProps {
+  submitContext?: SubmitContextType
+}
+
+export default function Footer({ submitContext }: FooterProps) {
   const pathname = usePathname()
   const [isNavSheetOpen, setIsNavSheetOpen] = useState(false)
 
   const isActive = (path: string) => pathname === path
+  const isSubmitPage = pathname === '/submit'
+  const showSubmitButton = isSubmitPage && submitContext?.canSubmit && !submitContext.isSubmitting
 
   return (
     <>
@@ -33,34 +40,46 @@ export default function Footer() {
       </footer>
 
       <footer className="fixed bottom-0 left-0 right-0 z-[1100] bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 md:hidden pb-[env(safe-area-inset-bottom,0px)]">
-        <nav className="flex justify-around py-2">
-          <Link href="/logbook" className={`flex flex-col items-center p-3 ${isActive('/logbook') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <nav className="flex justify-around py-1">
+          <Link href="/logbook" className={`flex flex-col items-center p-2 ${isActive('/logbook') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <span className="text-xs mt-1">Logbook</span>
+            <span className="text-[10px] mt-0.5">Logbook</span>
           </Link>
-          <Link href="/map" className={`flex flex-col items-center p-3 ${isActive('/map') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <Link href="/map" className={`flex flex-col items-center p-2 ${isActive('/map') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
             </svg>
-            <span className="text-xs mt-1">Map</span>
+            <span className="text-[10px] mt-0.5">Map</span>
           </Link>
-          <Link href="/submit" className={`flex flex-col items-center p-3 ${isActive('/submit') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span className="text-xs mt-1">Upload</span>
-          </Link>
+          {!isSubmitPage && (
+            <Link href="/submit" className={`flex flex-col items-center p-2 ${isActive('/submit') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="text-[10px] mt-0.5">Upload</span>
+            </Link>
+          )}
+          {showSubmitButton && (
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('submit-routes'))}
+              className="flex flex-col items-center p-2"
+            >
+              <div className="px-4 py-1 rounded-lg bg-blue-600 text-white">
+                <span className="text-[10px] font-medium">Submit Routes</span>
+              </div>
+            </button>
+          )}
           <button
             onClick={() => setIsNavSheetOpen(true)}
-            className={`flex flex-col items-center p-3 ${isActive('/rankings') || isActive('/about') || isActive('/settings') || isActive('/logbook') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+            className={`flex flex-col items-center p-2 ${isActive('/rankings') || isActive('/about') || isActive('/settings') || isActive('/logbook') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
             </svg>
-            <span className="text-xs mt-1">More</span>
+            <span className="text-[10px] mt-0.5">More</span>
           </button>
         </nav>
       </footer>

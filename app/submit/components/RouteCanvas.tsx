@@ -449,7 +449,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
           top: 0,
           width: '100%',
           height: '100%',
-          touchAction: 'none',
+          touchAction: currentPoints.length > 0 ? 'none' : 'pan-y',
           WebkitTapHighlightColor: 'transparent'
         }}
         onMouseDown={handleMouseDown}
@@ -495,7 +495,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         </div>
       </div>
 
-      <div className="absolute bottom-4 right-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
+      <div className="absolute top-20 right-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
         <input
           type="text"
           value={currentName}

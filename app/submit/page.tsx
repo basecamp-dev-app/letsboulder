@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase'
 import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData } from '@/lib/submission-types'
 import { trackRouteSubmitted } from '@/lib/posthog'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useSubmitContext } from '@/lib/submit-context'
 
 const dynamic = nextDynamic
 
@@ -18,6 +19,7 @@ const RouteCanvas = dynamic(() => import('./components/RouteCanvas'), { ssr: fal
 const LocationPicker = dynamic(() => import('./components/LocationPicker'), { ssr: false })
 
 function SubmitPageContent() {
+  const { routes, setRoutes, setIsSubmitting, isSubmitting } = useSubmitContext()
   const [step, setStep] = useState<SubmissionStep>({ step: 'image' })
   const [context, setContext] = useState<SubmissionContext>({
     crag: null,
@@ -25,7 +27,6 @@ function SubmitPageContent() {
     imageGps: null,
     routes: []
   })
-  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
@@ -69,6 +70,85 @@ function SubmitPageContent() {
     }
     checkAuth()
   }, [router])
+
+  useEffect(() => {
+    const handleSubmitRoutes = () => {
+      if (routes.length > 0 && !isSubmitting) {
+        setIsSubmitting(true)
+        setError(null)
+
+        const submit = async () => {
+          if (!context.crag || !context.image || context.routes.length === 0) {
+            setError('Incomplete submission data')
+            setIsSubmitting(false)
+            return
+          }
+
+          try {
+            const { createClient } = await import('@/lib/supabase')
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+
+            if (!user) {
+              setError('Please log in to submit routes')
+              setIsSubmitting(false)
+              return
+            }
+
+            const payload = context.image!.mode === 'new' ? {
+              mode: 'new' as const,
+              imageUrl: context.image!.uploadedUrl,
+              imageLat: context.imageGps?.latitude ?? null,
+              imageLng: context.imageGps?.longitude ?? null,
+              captureDate: context.image!.captureDate,
+              width: context.image!.width,
+              height: context.image!.height,
+              naturalWidth: context.image!.naturalWidth,
+              naturalHeight: context.image!.naturalHeight,
+              cragId: context.crag?.id,
+              routes: context.routes
+            } : {
+              mode: 'existing' as const,
+              imageId: context.image!.imageId,
+              routes: context.routes
+            }
+
+            if (context.image!.mode === 'new' && !payload.cragId) {
+              setError('Please select a crag before submitting')
+              setIsSubmitting(false)
+              return
+            }
+
+            const response = await csrfFetch('/api/submissions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}))
+              throw new Error(errorData.error || 'Submission failed')
+            }
+
+            const data = await response.json()
+            trackRouteSubmitted(data.climbsCreated)
+
+            setStep({
+              step: 'success',
+              climbsCreated: data.climbsCreated,
+              imageId: data.imageId
+            })
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Submission failed')
+            setIsSubmitting(false)
+          }
+        }
+        submit()
+      }
+    }
+    window.addEventListener('submit-routes', handleSubmitRoutes)
+    return () => window.removeEventListener('submit-routes', handleSubmitRoutes)
+  }, [routes.length, isSubmitting, context])
 
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
     const gps = gpsData ? { latitude: gpsData.latitude, longitude: gpsData.longitude } : null
@@ -135,7 +215,7 @@ function SubmitPageContent() {
       return
     }
 
-    setSubmitting(true)
+    setIsSubmitting(true)
     setError(null)
 
     try {
@@ -145,7 +225,7 @@ function SubmitPageContent() {
 
       if (!user) {
         setError('Please log in to submit routes')
-        setSubmitting(false)
+        setIsSubmitting(false)
         return
       }
 
@@ -169,7 +249,7 @@ function SubmitPageContent() {
 
       if (context.image.mode === 'new' && !payload.cragId) {
         setError('Please select a crag before submitting')
-        setSubmitting(false)
+        setIsSubmitting(false)
         return
       }
 
@@ -195,7 +275,7 @@ function SubmitPageContent() {
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission failed')
-      setSubmitting(false)
+      setIsSubmitting(false)
     }
   }
 
@@ -264,32 +344,23 @@ function SubmitPageContent() {
 
       case 'draw':
         return (
-          <div className="h-[calc(100dvh-5rem)] md:h-[calc(100vh-64px)]">
-            <div className="flex items-center justify-between mb-4">
+          <div className="h-[calc(100dvh-5rem)] md:h-[calc(100vh-64px)] flex flex-col">
+            <div className="flex items-center justify-between mb-2">
               <button
                 onClick={handleBack}
                 className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 flex items-center gap-1"
               >
-                ← Back to crag
+                ← Back
               </button>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Draw Your Routes</h2>
-              <div className="w-20" />
+              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Draw Routes</h2>
+              <div className="w-16" />
             </div>
-            <div className="h-[calc(100%-48px)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+            <div className="flex-1 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
               <RouteCanvas
                 imageSelection={step.image}
                 onRoutesUpdate={handleRoutesUpdate}
               />
             </div>
-            {context.routes.length > 0 && (
-              <button
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="mt-4 w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                {submitting ? 'Submitting...' : 'Submit Routes'}
-              </button>
-            )}
           </div>
         )
 
