@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
 import { trackSearchPerformed, trackSearchResultClicked } from '@/lib/posthog'
 import { MORE_MENU_ITEMS } from '@/lib/nav-items'
@@ -37,6 +37,7 @@ export default function Header(_props: HeaderProps) {
   const searchRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     const supabase = createClient()
@@ -152,7 +153,9 @@ export default function Header(_props: HeaderProps) {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-[5000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none">
+    <header className={`fixed top-0 left-0 right-0 z-[5000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none ${
+      pathname === '/map' ? 'block' : 'hidden md:block'
+    }`}>
       <div className="container mx-auto px-4 py-2 flex justify-between items-center gap-4">
         <Link href="/" className="flex items-center flex-shrink-0 -my-2">
           <div className="relative w-16 h-16">

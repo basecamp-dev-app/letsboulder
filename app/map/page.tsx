@@ -10,7 +10,7 @@ const SatelliteClimbingMap = dynamic(() => import('@/components/SatelliteClimbin
 
 export default function MapPage() {
   return (
-    <div className="absolute inset-0 overflow-visible">
+    <div className="absolute inset-0 overflow-visible pt-[5.5rem] md:pt-0">
       <SatelliteClimbingMap />
     </div>
   )
