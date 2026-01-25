@@ -19,7 +19,7 @@ const RouteCanvas = dynamic(() => import('./components/RouteCanvas'), { ssr: fal
 const LocationPicker = dynamic(() => import('./components/LocationPicker'), { ssr: false })
 
 function SubmitPageContent() {
-  const { routes, setRoutes, setIsSubmitting, isSubmitting, doneDrawing } = useSubmitContext()
+  const { routes, setRoutes, setIsSubmitting, isSubmitting } = useSubmitContext()
   const [step, setStep] = useState<SubmissionStep>({ step: 'image' })
   const [context, setContext] = useState<SubmissionContext>({
     crag: null,
@@ -28,7 +28,6 @@ function SubmitPageContent() {
     routes: []
   })
   const [error, setError] = useState<string | null>(null)
-  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -74,13 +73,13 @@ function SubmitPageContent() {
 
   useEffect(() => {
     const handleSubmitRoutes = () => {
-      if (routes.length > 0 && doneDrawing && !isSubmitting) {
-        setShowSubmitConfirm(true)
+      if (routes.length > 0 && !isSubmitting) {
+        handleSubmit()
       }
     }
     window.addEventListener('submit-routes', handleSubmitRoutes)
     return () => window.removeEventListener('submit-routes', handleSubmitRoutes)
-  }, [routes.length, doneDrawing, isSubmitting])
+  }, [routes.length, isSubmitting])
 
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
     const gps = gpsData ? { latitude: gpsData.latitude, longitude: gpsData.longitude } : null
@@ -346,33 +345,6 @@ function SubmitPageContent() {
       <main className="max-w-4xl mx-auto px-4 py-8">
         {renderStep()}
       </main>
-
-      {showSubmitConfirm && (
-        <div className="fixed inset-0 z-[2000] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full">
-            <p className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">
-              Submit {routes.length} route{routes.length !== 1 ? 's' : ''}?
-            </p>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Double-check you didn't miss any.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowSubmitConfirm(false)}
-                className="flex-1 px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-gray-100 hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmit}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -18,7 +18,6 @@ export default function Footer({ submitContext }: FooterProps) {
   const isSubmitPage = pathname === '/submit'
   const showSubmitButton = isSubmitPage && 
                            submitContext?.canSubmit && 
-                           submitContext?.doneDrawing && 
                            !submitContext.isSubmitting
 
   return (
@@ -56,6 +55,16 @@ export default function Footer({ submitContext }: FooterProps) {
             </svg>
             <span className="text-[10px] mt-0.5">Map</span>
           </Link>
+          {showSubmitButton && (
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('submit-routes'))}
+              className="flex flex-col items-center p-2"
+            >
+              <div className="px-4 py-1 rounded-lg bg-blue-600 text-white">
+                <span className="text-[10px] font-medium">Submit</span>
+              </div>
+            </button>
+          )}
           {!isSubmitPage && (
             <Link href="/submit" className={`flex flex-col items-center p-2 ${isActive('/submit') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -64,16 +73,6 @@ export default function Footer({ submitContext }: FooterProps) {
               </svg>
               <span className="text-[10px] mt-0.5">Upload</span>
             </Link>
-          )}
-          {showSubmitButton && (
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('submit-routes'))}
-              className="flex flex-col items-center p-2"
-            >
-              <div className="px-4 py-1 rounded-lg bg-blue-600 text-white">
-                <span className="text-[10px] font-medium">Submit Routes</span>
-              </div>
-            </button>
           )}
           <button
             onClick={() => setIsNavSheetOpen(true)}
