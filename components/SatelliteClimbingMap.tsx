@@ -4,11 +4,12 @@ import { useEffect, useState, useCallback, useRef, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
-import { MapPin, RefreshCw } from 'lucide-react'
+import { MapPin, RefreshCw, Bookmark } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
 import { geoJsonPolygonToLeaflet } from '@/lib/geo-utils'
 import type { GeoJSONPolygon } from '@/types/database'
 import type { User } from '@supabase/supabase-js'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 import 'leaflet/dist/leaflet.css'
 import { trackEvent, trackRouteClicked } from '@/lib/posthog'
@@ -122,6 +123,8 @@ export default function SatelliteClimbingMap() {
   const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
   const [useUserLocation, setUseUserLocation] = useState(false)
   const [cragPins, setCragPins] = useState<CragPin[]>([])
+  const [toast, setToast] = useState<string | null>(null)
+  const [saveLocationLoading, setSaveLocationLoading] = useState(false)
 
   useEffect(() => {
     setupLeafletIcons()
@@ -400,7 +403,41 @@ export default function SatelliteClimbingMap() {
       ignore = true
       window.removeEventListener('focus', handleFocus)
     }
-  }, [isClient])
+    }, [isClient])
+
+  const handleSaveAsDefault = async () => {
+    if (!mapRef.current || !user) {
+      setToast('Please log in to save a default location')
+      return
+    }
+
+    const center = mapRef.current.getCenter()
+    const zoom = mapRef.current.getZoom()
+
+    setSaveLocationLoading(true)
+    try {
+      const response = await csrfFetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          defaultLocationLat: center.lat,
+          defaultLocationLng: center.lng,
+          defaultLocationZoom: zoom
+        })
+      })
+
+      if (response.ok) {
+        setDefaultLocation({ lat: center.lat, lng: center.lng, zoom })
+        setToast('Default location saved')
+      } else {
+        setToast('Failed to save location')
+      }
+    } catch {
+      setToast('Failed to save location')
+    } finally {
+      setSaveLocationLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!mapRef.current || !defaultLocation) return
@@ -593,6 +630,15 @@ export default function SatelliteClimbingMap() {
         </button>
       )}
 
+      <button
+        onClick={handleSaveAsDefault}
+        disabled={saveLocationLoading}
+        className="absolute top-4 right-4 z-[1000] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+      >
+        <Bookmark className="w-4 h-4" />
+        {saveLocationLoading ? 'Saving...' : 'Save as Default'}
+      </button>
+
       {locationStatus === 'requesting' && (
         <div className="absolute top-4 right-20 z-[1000] bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm">
           Requesting location...
@@ -612,6 +658,12 @@ export default function SatelliteClimbingMap() {
           <MapPin className="w-4 h-4" />
           Go to Default Location
         </button>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-4 right-4 z-[1100] px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg shadow-lg text-sm">
+          {toast}
+        </div>
       )}
     </div>
   )
