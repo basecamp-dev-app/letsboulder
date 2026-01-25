@@ -416,9 +416,19 @@ export default function SatelliteClimbingMap() {
     if (useUserLocation) {
       mapRef.current.setView(userLocation, 5)
     }
-  }, [useUserLocation, userLocation])
+   }, [useUserLocation, userLocation])
 
+   useEffect(() => {
+     if (!mapRef.current || !mapLoaded) return
 
+     if (useUserLocation && userLocation) {
+       mapRef.current.setView(userLocation, 11)
+     } else if (defaultLocation) {
+       mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
+     } else {
+       mapRef.current.setView([49.45, -2.6], 11)
+     }
+   }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
 
 
 
@@ -447,17 +457,6 @@ export default function SatelliteClimbingMap() {
             has_user_location: !!userLocation,
             use_default_location: !useUserLocation,
           })
-          setTimeout(() => {
-            if (mapRef.current) {
-              if (useUserLocation && userLocation) {
-                mapRef.current.setView(userLocation, 11)
-              } else if (defaultLocation) {
-                mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
-              } else {
-                mapRef.current.setView([49.45, -2.6], 11)
-              }
-            }
-          }, 100)
         }}
       >
         <DefaultLocationWatcher defaultLocation={defaultLocation} mapRef={mapRef} />
