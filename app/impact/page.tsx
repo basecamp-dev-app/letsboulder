@@ -33,8 +33,7 @@ export default async function ImpactPage() {
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3">
             Community Pulse
           </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Together, we&apos;re building the most comprehensive bouldering database. Here&apos;s our collective impact.
+          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto hidden">
           </p>
         </div>
 
@@ -57,32 +56,6 @@ export default async function ImpactPage() {
             description="Photos shared"
             icon={<Camera className="w-5 h-5" />}
           />
-        </div>
-
-        <div className="mt-12 p-6 bg-gray-50 dark:bg-gray-900 rounded-xl">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
-            Why This Matters
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-600 dark:text-gray-400">
-            <div>
-              <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2"> Democratized Grade Consensus</h3>
-              <p className="text-sm">
-                Our 3+ verification system means grades reflect community wisdom, not just one person&apos;s opinion.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2"> Preserving Climbing History</h3>
-              <p className="text-sm">
-                By documenting routes and sharing photos, we&apos;re preserving climbing areas for future generations.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-          </p>
         </div>
       </div>
     </div>
