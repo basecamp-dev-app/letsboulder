@@ -6,8 +6,8 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 
 interface CreateCragRequest {
   name: string
-  latitude: number
-  longitude: number
+  latitude?: number
+  longitude?: number
   rock_type?: string
   type?: 'sport' | 'boulder' | 'trad' | 'mixed'
   description?: string
@@ -147,38 +147,47 @@ export async function POST(request: NextRequest) {
       return rateLimitResponse
     }
 
-    if (!name || !latitude || !longitude) {
+    if (!name) {
       return NextResponse.json(
-        { error: 'Name, latitude, and longitude are required' },
+        { error: 'Name is required' },
         { status: 400 }
       )
     }
 
-    const { data: existingCrags } = await supabase
-      .from('crags')
-      .select('id, name')
-      .eq('latitude', latitude)
-      .eq('longitude', longitude)
-      .limit(1)
-
-    if (existingCrags && existingCrags.length > 0) {
+    if ((latitude && !longitude) || (!latitude && longitude)) {
       return NextResponse.json(
-        {
-          error: `A crag already exists at these coordinates: "${existingCrags[0].name}"`,
-          existingCragId: existingCrags[0].id,
-          existingCragName: existingCrags[0].name,
-          code: 'DUPLICATE'
-        },
-        { status: 409 }
+        { error: 'Both latitude and longitude must be provided together, or neither' },
+        { status: 400 }
       )
+    }
+
+    if (latitude && longitude) {
+      const { data: existingCrags } = await supabase
+        .from('crags')
+        .select('id, name')
+        .eq('latitude', latitude)
+        .eq('longitude', longitude)
+        .limit(1)
+
+      if (existingCrags && existingCrags.length > 0) {
+        return NextResponse.json(
+          {
+            error: `A crag already exists at these coordinates: "${existingCrags[0].name}"`,
+            existingCragId: existingCrags[0].id,
+            existingCragName: existingCrags[0].name,
+            code: 'DUPLICATE'
+          },
+          { status: 409 }
+        )
+      }
     }
 
     const { data: createdCrag, error: createError } = await supabase
       .from('crags')
       .insert({
         name,
-        latitude,
-        longitude,
+        latitude: latitude || null,
+        longitude: longitude || null,
         rock_type: rock_type || undefined,
         type: type || 'sport',
         description: description || undefined,

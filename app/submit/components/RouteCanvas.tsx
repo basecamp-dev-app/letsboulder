@@ -478,28 +478,6 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
 
       <div className="absolute top-4 right-4 flex flex-col gap-2">
         <div className="bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Zoom: {Math.round(zoom * 100)}%</p>
-          <div className="flex gap-1">
-            <button
-              onClick={() => setZoom(z => Math.min(z * 1.2, 5))}
-              className="p-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setZoom(z => Math.max(z * 0.8, 0.5))}
-              className="p-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
             Routes: {completedRoutes.length}
             {existingRoutes.length > 0 && ` (${existingRoutes.length} existing)`}
@@ -515,19 +493,6 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
             </button>
           )}
         </div>
-      </div>
-
-      <div className="absolute top-4 left-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Controls</p>
-        <p className="text-xs text-gray-600 dark:text-gray-300">Click to draw</p>
-        <p className="text-xs text-gray-600 dark:text-gray-300">Middle-click or Alt+drag to pan</p>
-        <p className="text-xs text-gray-600 dark:text-gray-300">Scroll to zoom</p>
-        <p className="text-xs text-gray-600 dark:text-gray-300">Click route to select</p>
-        {selectedIds.length > 0 && routeGradeInfo.voteCount > 0 && (
-          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-            Consensus: {routeGradeInfo.consensusGrade} ({routeGradeInfo.voteCount} votes)
-          </p>
-        )}
       </div>
 
       <div className="absolute bottom-4 right-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
