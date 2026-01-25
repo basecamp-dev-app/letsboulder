@@ -114,36 +114,58 @@ export async function PUT(request: NextRequest) {
     if (gender !== undefined) updateData.gender = gender
     updateData.updated_at = new Date().toISOString()
 
+    let nameChangeBlocked = false
+
     if (firstName !== undefined || lastName !== undefined) {
-      const { data: profile } = await supabase
+      const { data: currentProfile } = await supabase
         .from('profiles')
-        .select('name_updated_at')
+        .select('first_name, last_name, name_updated_at')
         .eq('id', user.id)
         .single()
 
-      const lastUpdate = profile?.name_updated_at
-      if (lastUpdate) {
-        const lastUpdateDate = new Date(lastUpdate)
-        const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
-        
-        if (lastUpdateDate > sixtyDaysAgo) {
-          const daysRemaining = Math.ceil(60 - (Date.now() - lastUpdateDate.getTime()) / (24 * 60 * 60 * 1000))
-          return NextResponse.json(
-            { error: `You can only change your name once every 60 days. Please try again in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}.` },
-            { status: 429 }
-          )
+      const currentFirstName = currentProfile?.first_name || ''
+      const currentLastName = currentProfile?.last_name || ''
+
+      const isFirstNameChanging = firstName !== undefined && firstName !== currentFirstName
+      const isLastNameChanging = lastName !== undefined && lastName !== currentLastName
+      const isNameChanging = isFirstNameChanging || isLastNameChanging
+
+      if (isNameChanging) {
+        const lastUpdate = currentProfile?.name_updated_at
+        if (lastUpdate) {
+          const lastUpdateDate = new Date(lastUpdate)
+          const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+
+          if (lastUpdateDate > sixtyDaysAgo) {
+            const daysRemaining = Math.ceil(60 - (Date.now() - lastUpdateDate.getTime()) / (24 * 60 * 60 * 1000))
+            nameChangeBlocked = true
+          } else {
+            if (isFirstNameChanging) updateData.first_name = firstName.slice(0, 100)
+            if (isLastNameChanging) updateData.last_name = lastName.slice(0, 100)
+            updateData.name_updated_at = new Date().toISOString()
+          }
+        } else {
+          if (isFirstNameChanging) updateData.first_name = firstName.slice(0, 100)
+          if (isLastNameChanging) updateData.last_name = lastName.slice(0, 100)
+          updateData.name_updated_at = new Date().toISOString()
         }
       }
-
-      if (firstName !== undefined) updateData.first_name = firstName.slice(0, 100)
-      if (lastName !== undefined) updateData.last_name = lastName.slice(0, 100)
-      updateData.name_updated_at = new Date().toISOString()
     }
 
-    // Use upsert to handle both new and existing profiles
     const { error: upsertError } = await supabase
       .from('profiles')
       .upsert({ ...updateData, id: user.id })
+
+    if (upsertError) {
+      return createErrorResponse(upsertError, 'UPSERT error')
+    }
+
+    if (nameChangeBlocked) {
+      return NextResponse.json({
+        success: true,
+        warning: 'Name change was blocked because you changed it within the last 60 days. Other settings were saved.'
+      })
+    }
     
     if (upsertError) {
       return createErrorResponse(upsertError, 'UPSERT error')
