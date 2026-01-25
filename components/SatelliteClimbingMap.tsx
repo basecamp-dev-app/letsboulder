@@ -358,24 +358,34 @@ export default function SatelliteClimbingMap() {
     const fetchUser = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
+      console.log('[Map] fetchUser - user:', user?.id)
       if (ignore) return
       setUser(user)
 
       if (user) {
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('default_location_lat, default_location_lng, default_location_zoom')
           .eq('id', user.id)
           .single()
 
+        console.log('[Map] Profile fetch result:', { profile, error })
+
         if (ignore) return
 
         if (profile?.default_location_lat) {
+          console.log('[Map] Setting defaultLocation:', {
+            lat: profile.default_location_lat,
+            lng: profile.default_location_lng,
+            zoom: profile.default_location_zoom || 12
+          })
           setDefaultLocation({
             lat: profile.default_location_lat,
             lng: profile.default_location_lng,
             zoom: profile.default_location_zoom || 12
           })
+        } else {
+          console.log('[Map] No default_location in profile')
         }
       }
     }
@@ -418,17 +428,22 @@ export default function SatelliteClimbingMap() {
     }
    }, [useUserLocation, userLocation])
 
-   useEffect(() => {
-     if (!mapRef.current || !mapLoaded) return
+    useEffect(() => {
+      if (!mapRef.current || !mapLoaded) return
 
-     if (useUserLocation && userLocation) {
-       mapRef.current.setView(userLocation, 11)
-     } else if (defaultLocation) {
-       mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
-     } else {
-       mapRef.current.setView([49.45, -2.6], 11)
-     }
-   }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
+      console.log('[Map] Centering effect - mapLoaded:', mapLoaded, 'useUserLocation:', useUserLocation, 'userLocation:', userLocation, 'defaultLocation:', defaultLocation)
+
+      if (useUserLocation && userLocation) {
+        console.log('[Map] Centering on userLocation:', userLocation)
+        mapRef.current.setView(userLocation, 11)
+      } else if (defaultLocation) {
+        console.log('[Map] Centering on defaultLocation:', { lat: defaultLocation.lat, lng: defaultLocation.lng, zoom: defaultLocation.zoom })
+        mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
+      } else {
+        console.log('[Map] No location, falling back to Guernsey')
+        mapRef.current.setView([49.45, -2.6], 11)
+      }
+    }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
 
 
 
