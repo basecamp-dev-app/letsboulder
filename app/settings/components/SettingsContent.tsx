@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { User } from '@supabase/supabase-js'
-import { Search, MapPin, X, Loader2 } from 'lucide-react'
+import { Search, MapPin, X, Loader2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -28,19 +28,6 @@ interface SettingsContentProps {
 
 const CONFIRMATION_TEXT = 'delete my account'
 
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value)
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value)
-    }, delay)
-    return () => clearTimeout(handler)
-  }, [value, delay])
-
-  return debouncedValue
-}
-
 function Toast({ message, onClose }: { message: string | null; onClose: () => void }) {
   useEffect(() => {
     if (message) {
@@ -58,8 +45,16 @@ function Toast({ message, onClose }: { message: string | null; onClose: () => vo
   )
 }
 
+const TABS = [
+  { id: 'profile', label: 'Profile' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'location', label: 'Location' },
+  { id: 'privacy', label: 'Privacy' },
+]
+
 export default function SettingsContent({ user }: SettingsContentProps) {
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('profile')
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -67,6 +62,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
     gender: '',
     bio: ''
   })
+  const [isDirty, setIsDirty] = useState(false)
   const [isPublic, setIsPublic] = useState(true)
 
   const [themePreference, setThemePreference] = useState('system')
@@ -82,6 +78,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [locationLoading, setLocationLoading] = useState(false)
 
   const [toast, setToast] = useState<string | null>(null)
+  const [saveLoading, setSaveLoading] = useState(false)
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteRouteUploads, setDeleteRouteUploads] = useState(false)
@@ -89,8 +86,6 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [deleteSent, setDeleteSent] = useState(false)
-
-  const debouncedBio = useDebounce(formData.bio, 1000)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -125,12 +120,25 @@ export default function SettingsContent({ user }: SettingsContentProps) {
     fetchData()
   }, [])
 
-  const saveField = useCallback(async (field: string, value: string | boolean) => {
+  const handleFormChange = (field: string, value: string | boolean) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    setIsDirty(true)
+  }
+
+  const handleSave = async () => {
+    setSaveLoading(true)
     try {
       const response = await csrfFetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: value })
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          gender: formData.gender,
+          bio: formData.bio,
+          isPublic,
+          themePreference
+        })
       })
 
       if (!response.ok) {
@@ -141,88 +149,31 @@ export default function SettingsContent({ user }: SettingsContentProps) {
         }
         throw new Error('Failed to save')
       }
+      setIsDirty(false)
       setToast('Saved')
     } catch {
       setToast('Failed to save')
+    } finally {
+      setSaveLoading(false)
     }
-  }, [])
-
-  const saveBio = useCallback(async (bio: string) => {
-    if (bio === formData.bio) return
-    try {
-      const response = await csrfFetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bio })
-      })
-
-      if (!response.ok) throw new Error('Failed to save')
-      setToast('Saved')
-    } catch {
-      setToast('Failed to save')
-    }
-  }, [formData.bio])
-
-  useEffect(() => {
-    if (debouncedBio !== formData.bio) return
-    if (debouncedBio === '' && formData.bio === '') return
-    saveBio(debouncedBio)
-  }, [debouncedBio, formData.bio, saveBio])
-
-  const handleFirstNameBlur = () => {
-    saveField('firstName', formData.firstName)
-  }
-
-  const handleLastNameBlur = () => {
-    saveField('lastName', formData.lastName)
-  }
-
-  const handleGenderChange = (gender: string) => {
-    setFormData({ ...formData, gender })
-    saveField('gender', gender)
   }
 
   const handleThemeChange = async (theme: string) => {
     setThemePreference(theme)
+    setIsDirty(true)
 
-    try {
-      const response = await csrfFetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ themePreference: theme })
-      })
-
-      if (!response.ok) throw new Error('Failed to save')
-      setToast('Saved')
-
-      if (theme !== 'system') {
-        document.documentElement.classList.remove('dark')
-        if (theme === 'dark') {
-          document.documentElement.classList.add('dark')
-        }
+    if (theme !== 'system') {
+      document.documentElement.classList.remove('dark')
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark')
       }
-    } catch {
-      console.error('Failed to save theme')
     }
   }
 
   const handleVisibilityToggle = async () => {
     const newValue = !isPublic
     setIsPublic(newValue)
-
-    try {
-      const response = await csrfFetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isPublic: newValue })
-      })
-
-      if (!response.ok) throw new Error('Failed to save')
-      setToast('Saved')
-    } catch {
-      setIsPublic(!newValue)
-      setToast('Failed to save')
-    }
+    setIsDirty(true)
   }
 
   const handleLocationSearch = async (query: string) => {
@@ -330,7 +281,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-        <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto px-4 py-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Settings</h1>
           <div className="space-y-8 animate-pulse">
             <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded w-1/3" />
@@ -346,7 +297,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   if (deleteSent) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-        <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto px-4 py-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Settings</h1>
           <div className="max-w-2xl space-y-8">
             <div className="p-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-center">
@@ -368,225 +319,240 @@ export default function SettingsContent({ user }: SettingsContentProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Settings</h1>
 
-        <div className="space-y-12 max-w-2xl">
-          <section>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Update your profile information below.</p>
-
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
-                  <input
-                    type="text"
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    onBlur={handleFirstNameBlur}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
-                  <input
-                    type="text"
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    onBlur={handleLastNameBlur}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gender</label>
-                <select
-                  value={formData.gender}
-                  onChange={(e) => handleGenderChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                >
-                  <option value="prefer_not_to_say">Prefer not to say</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </select>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Used for segmented leaderboards</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bio</label>
-                <textarea
-                  value={formData.bio}
-                  onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                  rows={4}
-                  maxLength={500}
-                  placeholder="Tell us about yourself..."
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent resize-none"
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{formData.bio.length}/500 characters</p>
-              </div>
-            </div>
-          </section>
-
-          <div className="border-t border-gray-200 dark:border-gray-700" />
-
-          <section>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Choose your preferred appearance.</p>
-
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { value: 'light', label: 'Light', icon: '☀️' },
-                { value: 'dark', label: 'Dark', icon: '🌙' },
-                { value: 'system', label: 'System', icon: '💻' }
-              ].map((option) => (
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="border-b border-gray-200 dark:border-gray-700">
+            <nav className="flex -mb-px overflow-x-auto">
+              {TABS.map((tab) => (
                 <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => handleThemeChange(option.value)}
-                  className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-lg transition-colors ${
-                    themePreference === option.value
-                      ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                      : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    activeTab === tab.id
+                      ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
                   }`}
                 >
-                  <span>{option.icon}</span>
-                  <span className="text-sm font-medium">{option.label}</span>
+                  {tab.label}
                 </button>
               ))}
-            </div>
-          </section>
+            </nav>
+          </div>
 
-          <div className="border-t border-gray-200 dark:border-gray-700" />
-
-          <section>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Set your default location for climbs and recommendations.</p>
-
-            {locationName ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <MapPin className="w-4 h-4" />
-                  <span>{locationName}</span>
+          <div className="p-6">
+            {activeTab === 'profile' && (
+              <div className="space-y-6 max-w-xl">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+                    <input
+                      type="text"
+                      value={formData.firstName}
+                      onChange={(e) => handleFormChange('firstName', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+                    <input
+                      type="text"
+                      value={formData.lastName}
+                      onChange={(e) => handleFormChange('lastName', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                    />
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setLocationModalOpen(true)}>Change Location</Button>
-                  <Button variant="ghost" onClick={handleClearLocation} className="text-red-600 hover:text-red-700">Clear</Button>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gender</label>
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => handleFormChange('gender', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                  >
+                    <option value="prefer_not_to_say">Prefer not to say</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Used for segmented leaderboards</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bio</label>
+                  <textarea
+                    value={formData.bio}
+                    onChange={(e) => handleFormChange('bio', e.target.value)}
+                    rows={4}
+                    maxLength={500}
+                    placeholder="Tell us about yourself..."
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent resize-none"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{formData.bio.length}/500 characters</p>
                 </div>
               </div>
-            ) : (
-              <Button onClick={() => setLocationModalOpen(true)} className="w-full">
-                <MapPin className="w-4 h-4 mr-2" />
-                Set Default Location
-              </Button>
             )}
-          </section>
 
-          <div className="border-t border-gray-200 dark:border-gray-700" />
+            {activeTab === 'appearance' && (
+              <div className="space-y-6 max-w-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Choose your preferred appearance.</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'light', label: 'Light', icon: '☀️' },
+                    { value: 'dark', label: 'Dark', icon: '🌙' },
+                    { value: 'system', label: 'System', icon: '💻' }
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleThemeChange(option.value)}
+                      className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-lg transition-colors ${
+                        themePreference === option.value
+                          ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <span>{option.icon}</span>
+                      <span className="text-sm font-medium">{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          <section>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Control who can see your profile and climbs.</p>
+            {activeTab === 'location' && (
+              <div className="space-y-6 max-w-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Set your default location for climbs and recommendations.</p>
+                {locationName ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      <MapPin className="w-4 h-4" />
+                      <span>{locationName}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setLocationModalOpen(true)}>Change Location</Button>
+                      <Button variant="ghost" onClick={handleClearLocation} className="text-red-600 hover:text-red-700">Clear</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button onClick={() => setLocationModalOpen(true)} className="w-full">
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Set Default Location
+                  </Button>
+                )}
+              </div>
+            )}
 
-            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white">Profile Visibility</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {activeTab === 'privacy' && (
+              <div className="space-y-8 max-w-xl">
+                <div className="space-y-4">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Profile Visibility</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     Your profile is currently {isPublic ? 'public' : 'private'}.
                   </p>
-                </div>
-                <Button variant="outline" onClick={handleVisibilityToggle} className="bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/10 dark:text-red-400 dark:hover:bg-red-900/20">
-                  {isPublic ? 'Make Private' : 'Make Public'}
-                </Button>
-              </div>
-            </div>
-          </section>
-
-          <div className="border-t border-gray-200 dark:border-gray-700" />
-
-          <section>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Irreversible and destructive actions.</p>
-
-            <div className="border border-red-200 dark:border-red-800 rounded-lg p-6 space-y-6">
-              <div>
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Delete Account</h3>
-                <p className="text-sm text-gray-600 dark:text-white/70 mb-4">
-                  Permanently delete your account and all associated data. This action cannot be undone.
-                </p>
-
-                <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/10 dark:text-red-400 dark:hover:bg-red-900/20">
-                      Delete Account
+                  <div>
+                    <Button variant="outline" onClick={handleVisibilityToggle} className="bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/10 dark:text-red-400 dark:hover:bg-red-900/20">
+                      {isPublic ? 'Make Private' : 'Make Public'}
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Delete Account?</DialogTitle>
-                      <DialogDescription className="text-left">
-                        This will permanently delete your account and all of your data, including:
-                        <ul className="list-disc pl-5 mt-2 space-y-1 text-sm">
-                          <li>Your profile and climb logs</li>
-                          <li>Grade votes and verifications</li>
-                          <li>Climb corrections and reports</li>
-                          <li>Your avatar image</li>
-                        </ul>
+                  </div>
+                </div>
 
-                        <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                          <label className="flex items-start gap-3 cursor-pointer">
-                            <Checkbox
-                              checked={deleteRouteUploads}
-                              onCheckedChange={(checked) => setDeleteRouteUploads(checked === true)}
+                <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+                    <DialogTrigger asChild>
+                      <button className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">
+                        <AlertTriangle className="w-4 h-4" />
+                        Delete Account
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Delete Account?</DialogTitle>
+                        <DialogDescription className="text-left">
+                          This will permanently delete your account and all of your data, including:
+                          <ul className="list-disc pl-5 mt-2 space-y-1 text-sm">
+                            <li>Your profile and climb logs</li>
+                            <li>Grade votes and verifications</li>
+                            <li>Climb corrections and reports</li>
+                            <li>Your avatar image</li>
+                          </ul>
+
+                          <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                            <label className="flex items-start gap-3 cursor-pointer">
+                              <Checkbox
+                                checked={deleteRouteUploads}
+                                onCheckedChange={(checked) => setDeleteRouteUploads(checked === true)}
+                              />
+                              <div className="text-sm">
+                                <span className="font-medium text-gray-900 dark:text-white">Also delete my uploaded images</span>
+                                {imageCount !== null && imageCount > 0 && (
+                                  <p className="text-gray-500 dark:text-gray-400 mt-0.5">{imageCount} images will be permanently deleted</p>
+                                )}
+                                {imageCount === 0 && (
+                                  <p className="text-gray-500 dark:text-gray-400 mt-0.5">No images to delete</p>
+                                )}
+                                {!deleteRouteUploads && imageCount !== null && imageCount > 0 && (
+                                  <p className="text-gray-500 dark:text-gray-400 mt-0.5">Your images will remain but become anonymous</p>
+                                )}
+                              </div>
+                            </label>
+                          </div>
+
+                          <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                            <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                              To confirm, type: <code className="bg-red-100 dark:bg-red-800 px-2 py-0.5 rounded">{CONFIRMATION_TEXT}</code>
+                            </p>
+                            <input
+                              type="text"
+                              value={confirmText}
+                              onChange={(e) => setConfirmText(e.target.value)}
+                              placeholder={CONFIRMATION_TEXT}
+                              className="w-full px-3 py-2 border border-red-300 dark:border-red-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400"
                             />
-                            <div className="text-sm">
-                              <span className="font-medium text-gray-900 dark:text-white">Also delete my uploaded images</span>
-                              {imageCount !== null && imageCount > 0 && (
-                                <p className="text-gray-500 dark:text-gray-400 mt-0.5">{imageCount} images will be permanently deleted</p>
-                              )}
-                              {imageCount === 0 && (
-                                <p className="text-gray-500 dark:text-gray-400 mt-0.5">No images to delete</p>
-                              )}
-                              {!deleteRouteUploads && imageCount !== null && imageCount > 0 && (
-                                <p className="text-gray-500 dark:text-gray-400 mt-0.5">Your images will remain but become anonymous</p>
-                              )}
-                            </div>
-                          </label>
-                        </div>
+                          </div>
 
-                        <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                          <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                            To confirm, type: <code className="bg-red-100 dark:bg-red-800 px-2 py-0.5 rounded">{CONFIRMATION_TEXT}</code>
+                          <p className="mt-4 font-medium text-red-600 dark:text-red-400">
+                            This action cannot be undone. A confirmation email will be sent.
                           </p>
-                          <input
-                            type="text"
-                            value={confirmText}
-                            onChange={(e) => setConfirmText(e.target.value)}
-                            placeholder={CONFIRMATION_TEXT}
-                            className="w-full px-3 py-2 border border-red-300 dark:border-red-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400"
-                          />
-                        </div>
-
-                        <p className="mt-4 font-medium text-red-600 dark:text-red-400">
-                          This action cannot be undone. A confirmation email will be sent.
-                        </p>
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
-                      <Button variant="outline" onClick={() => { setDeleteModalOpen(false); setConfirmText('') }}>
-                        Cancel
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={handleInitiateDelete}
-                        disabled={!isConfirmed || deleteLoading}
-                      >
-                        {deleteLoading ? 'Sending...' : 'Send Confirmation Email'}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                        </DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
+                        <Button variant="outline" onClick={() => { setDeleteModalOpen(false); setConfirmText('') }}>
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={handleInitiateDelete}
+                          disabled={!isConfirmed || deleteLoading}
+                        >
+                          {deleteLoading ? 'Sending...' : 'Send Confirmation Email'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
-            </div>
-          </section>
+            )}
+          </div>
+
+          <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+            <Button
+              onClick={handleSave}
+              disabled={!isDirty || saveLoading}
+              className="min-w-[120px]"
+            >
+              {saveLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 
