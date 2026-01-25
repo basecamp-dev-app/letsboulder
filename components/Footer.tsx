@@ -25,9 +25,6 @@ export default function Footer() {
             <Link href="/terms" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               Terms
             </Link>
-            <Link href="/sponsors" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
-              Sponser
-            </Link>
             <a href="https://discord.gg/vzAEMr2qrY" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               Discord
             </a>
