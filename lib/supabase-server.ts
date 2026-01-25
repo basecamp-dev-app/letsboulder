@@ -33,3 +33,59 @@ export const getRegisteredUserCount = cache(async (): Promise<string> => {
   if (error || !data) return '0'
   return formatNumber(data)
 })
+
+export const getVerifiedRoutesCount = cache(async (): Promise<number> => {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase.rpc('get_verified_routes_count')
+
+  if (error || !data) return 0
+  return data
+})
+
+export const getTotalSendsCount = cache(async (): Promise<number> => {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase.rpc('get_total_sends_count')
+
+  if (error || !data) return 0
+  return data
+})
+
+export const getBouldersWithGpsCount = cache(async (): Promise<number> => {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase.rpc('get_boulders_with_gps_count')
+
+  if (error || !data) return 0
+  return data
+})
+
+export const getCommunityPhotosCount = cache(async (): Promise<number> => {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase.rpc('get_community_photos_count')
+
+  if (error || !data) return 0
+  return data
+})
+
+export const getActiveClimbersCount = cache(async (): Promise<number> => {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase.rpc('get_active_climbers_count')
+
+  if (error || !data) return 0
+  return data
+})
+
+export const getTotalClimbsCount = cache(async (): Promise<number> => {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase.rpc('get_total_climbs_count')
+
+  if (error || !data) return 0
+  return data
+})
+
+export const getTotalLogsCount = cache(async (): Promise<number> => {
+  const supabase = await getServerClient()
+  const { data, error } = await supabase.rpc('get_total_logs_count')
+
+  if (error || !data) return 0
+  return data
+})

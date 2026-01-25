@@ -58,6 +58,14 @@ export const getMAU = cache(async (): Promise<string> => {
   return formatNumber(count)
 })
 
+export const getMauCount = cache(async (): Promise<number> => {
+  const response = await posthogQuery(
+    'SELECT count(DISTINCT distinct_id) FROM events WHERE timestamp >= now() - INTERVAL 30 DAY'
+  )
+  const results = response.results as number[][]
+  return results?.[0]?.[0] ?? 0
+})
+
 export const getDAU = cache(async (): Promise<string> => {
   const response = await posthogQuery(
     'SELECT count(DISTINCT distinct_id) FROM events WHERE timestamp >= now() - INTERVAL 1 DAY'
@@ -103,15 +111,17 @@ export interface SponsorMetrics {
   eventsThisMonth: string
   trackedUsers: string
   topEvents: { event: string; count: number }[]
+  mauCount: number
 }
 
 export async function getSponsorMetrics(): Promise<SponsorMetrics> {
-  const [mau, dau, eventsThisMonth, trackedUsers, topEvents] = await Promise.all([
+  const [mau, dau, eventsThisMonth, trackedUsers, topEvents, mauCount] = await Promise.all([
     getMAU(),
     getDAU(),
     getEventsThisMonth(),
     getTrackedUsers(),
     getTopEvents(),
+    getMauCount(),
   ])
 
   return {
@@ -120,5 +130,6 @@ export async function getSponsorMetrics(): Promise<SponsorMetrics> {
     eventsThisMonth,
     trackedUsers,
     topEvents,
+    mauCount,
   }
 }
