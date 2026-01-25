@@ -19,7 +19,6 @@ export default function AuthForm(_props: AuthFormProps) {
   const searchParams = useSearchParams()
   const climbId = searchParams?.get('climbId')
   const redirectTo = searchParams?.get('redirect_to')
-  const isDevMode = searchParams?.get('dev') === 'true'
   
   const emailValid = email.includes('@') && email.length > 3
 
@@ -94,72 +93,6 @@ export default function AuthForm(_props: AuthFormProps) {
       setSuccess('Check your email for a magic link!')
     }
     setLoading(false)
-  }
-
-  const handleDevSignIn = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setSuccess(null)
-
-    try {
-      const response = await fetch('/api/dev-auth', {
-        method: 'POST',
-      })
-
-      if (response.redirected) {
-        window.location.href = response.url
-        return
-      }
-
-      const data = await response.json()
-      if (!response.ok) {
-        setError(data.error || 'Dev authentication failed')
-      }
-    } catch {
-      setError('An unexpected error occurred')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (isDevMode) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-        <div className="w-full max-w-md">
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8">
-            <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
-              Developer Login
-            </h1>
-            <p className="text-center text-gray-600 dark:text-gray-400 mb-6 text-sm">
-              Sign in with dev credentials configured in environment variables
-            </p>
-
-            <form onSubmit={handleDevSignIn} className="space-y-4">
-              {error && (
-                <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-green-600 dark:bg-green-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-green-700 dark:hover:bg-green-600 transition-colors disabled:opacity-50"
-              >
-                {loading ? 'Signing in...' : 'Sign in as Developer'}
-              </button>
-            </form>
-
-            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-              <Link href="/auth" className="text-gray-500 dark:text-gray-400 text-sm hover:underline block text-center">
-                ← Back to regular sign in
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -290,11 +223,6 @@ export default function AuthForm(_props: AuthFormProps) {
             <Link href="/" className="text-gray-500 dark:text-gray-400 text-sm hover:underline block text-center">
               ← Back to home
             </Link>
-            {process.env.NEXT_PUBLIC_DEV_PASSWORD_AUTH === 'true' && (
-              <p className="mt-2 text-xs text-center text-gray-400">
-                Developers: <Link href="/auth?dev=true" className="underline">password login</Link>
-              </p>
-            )}
           </div>
         </div>
       </div>

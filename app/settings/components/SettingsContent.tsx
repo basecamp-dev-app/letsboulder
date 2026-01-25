@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { User } from '@supabase/supabase-js'
-import { createClient } from '@/lib/supabase'
 import { Search, MapPin, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -60,8 +59,6 @@ function Toast({ message, onClose }: { message: string | null; onClose: () => vo
 }
 
 export default function SettingsContent({ user }: SettingsContentProps) {
-  const supabase = createClient()
-
   const [loading, setLoading] = useState(true)
 
   const [formData, setFormData] = useState({
@@ -88,7 +85,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteRouteUploads, setDeleteRouteUploads] = useState(false)
-  const [imageCount, setImageCount] = useState<number | null>(null)
+  const [imageCount, setImageCount] = useState<number>(0)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [deleteSent, setDeleteSent] = useState(false)
@@ -115,6 +112,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
             setLocationZoomLevel(data.settings.defaultLocationZoom)
           }
         }
+        if (data.imageCount !== undefined) {
+          setImageCount(data.imageCount)
+        }
       } catch (error) {
         console.error('Error fetching settings:', error)
       } finally {
@@ -123,16 +123,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
     }
 
     fetchData()
-
-    const fetchImageCount = async () => {
-      const { count } = await supabase
-        .from('images')
-        .select('*', { count: 'exact', head: true })
-        .eq('created_by', user.id)
-      setImageCount(count || 0)
-    }
-    fetchImageCount()
-  }, [user.id, supabase])
+  }, [])
 
   const saveField = useCallback(async (field: string, value: string | boolean) => {
     try {

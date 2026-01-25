@@ -35,6 +35,11 @@ export async function GET(request: NextRequest) {
       return createErrorResponse(error, 'Error fetching profile')
     }
 
+    const { count: imageCount } = await supabase
+      .from('images')
+      .select('*', { count: 'exact', head: true })
+      .eq('created_by', user.id)
+
       return NextResponse.json({
       settings: {
         username: profile?.username || '',
@@ -52,7 +57,8 @@ export async function GET(request: NextRequest) {
         defaultLocationLng: profile?.default_location_lng || null,
         defaultLocationZoom: profile?.default_location_zoom || null,
         themePreference: profile?.theme_preference || 'system'
-      }
+      },
+      imageCount: imageCount || 0
     })
 
   } catch (error) {
