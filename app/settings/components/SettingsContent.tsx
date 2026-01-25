@@ -171,10 +171,12 @@ export default function SettingsContent({ user }: SettingsContentProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Settings</h1>
-          <div className="space-y-8 animate-pulse">
+      <div className="min-h-screen bg-white dark:bg-gray-950">
+        <div className="px-0">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 px-4 py-3 border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-950 z-10">
+            Settings
+          </h1>
+          <div className="p-4 space-y-4 animate-pulse">
             <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded w-1/3" />
             <div className="h-32 bg-gray-200 dark:bg-gray-800 rounded" />
             <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded w-1/3" />
@@ -187,11 +189,13 @@ export default function SettingsContent({ user }: SettingsContentProps) {
 
   if (deleteSent) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Settings</h1>
-          <div className="max-w-2xl space-y-8">
-            <div className="p-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-center">
+      <div className="min-h-screen bg-white dark:bg-gray-950">
+        <div className="px-0">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 px-4 py-3 border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-950 z-10">
+            Settings
+          </h1>
+          <div className="p-4">
+            <div className="p-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-center max-w-2xl mx-auto">
               <svg className="w-12 h-12 text-green-600 dark:text-green-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
@@ -201,7 +205,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
               </p>
               <p className="text-xs text-green-600 dark:text-green-400">The link will expire in 10 minutes.</p>
             </div>
-            <Button variant="outline" onClick={() => setDeleteSent(false)}>Send Again</Button>
+            <div className="mt-4 text-center">
+              <Button variant="outline" onClick={() => setDeleteSent(false)}>Send Again</Button>
+            </div>
           </div>
         </div>
       </div>
@@ -209,11 +215,13 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">Settings</h1>
+    <div className="min-h-screen bg-white dark:bg-gray-950">
+      <div className="px-0">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 px-4 py-3 border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-950 z-10">
+          Settings
+        </h1>
 
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 border-x-0 border-t-0 rounded-none">
           <div className="border-b border-gray-200 dark:border-gray-700">
             <nav className="flex -mb-px overflow-x-auto">
               {TABS.map((tab) => (

@@ -654,7 +654,7 @@ export default function SatelliteClimbingMap() {
       )}
 
       {toast && (
-        <div className="fixed bottom-4 right-4 z-[1100] px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg shadow-lg text-sm">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[1100] px-4 py-2 bg-green-600 text-white rounded-lg shadow-lg text-sm font-medium">
           {toast}
         </div>
       )}
