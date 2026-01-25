@@ -1,9 +1,0 @@
-# Database Tables
-# Generated from schema migration
-# Updated: 2026-01-09
-
-regions
-crags
-climbs
-user_climbs
-admin_actions
