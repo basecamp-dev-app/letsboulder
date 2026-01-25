@@ -71,6 +71,6 @@ CREATE OR REPLACE FUNCTION public.get_total_logs_count()
  LANGUAGE sql
  SECURITY DEFINER
 AS $function$
-  SELECT COUNT(*) FROM logs;
+  SELECT COUNT(*) FROM user_climbs;
 $function$
 ;
