@@ -65,6 +65,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     voteCount: number
     userVote: string | null
   }>({ consensusGrade: null, voteCount: 0, userVote: null })
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
 
   const { selectRoute, deselectRoute, clearSelection, selectedIds } = useRouteSelection()
 
@@ -476,6 +477,17 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         </div>
       )}
 
+      {currentPoints.length < 2 && completedRoutes.length > 0 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+          <button
+            onClick={() => setShowSubmitConfirm(true)}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Submit Routes
+          </button>
+        </div>
+      )}
+
       <div className="absolute top-4 right-4 flex flex-col gap-2">
         <div className="bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
@@ -531,6 +543,36 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
           </button>
         )}
       </div>
+
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 z-[2000] bg-black/50 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4">
+            <p className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">
+              Submit {completedRoutes.length} route{completedRoutes.length !== 1 ? 's' : ''}?
+            </p>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Double-check you didn't miss any.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSubmitConfirm(false)}
+                className="flex-1 px-4 py-2 bg-gray-300 dark:bg-gray-700 rounded-lg text-gray-900 dark:text-gray-100 hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowSubmitConfirm(false)
+                  window.dispatchEvent(new CustomEvent('submit-routes'))
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
