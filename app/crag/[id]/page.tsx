@@ -11,6 +11,12 @@ import type { GeoJSONPolygon } from '@/types/database'
 
 import 'leaflet/dist/leaflet.css'
 
+function getAverageCoordinates(images: { latitude: number; longitude: number }[]): [number, number] {
+  const totalLat = images.reduce((sum, img) => sum + img.latitude, 0)
+  const totalLng = images.reduce((sum, img) => sum + img.longitude, 0)
+  return [totalLat / images.length, totalLng / images.length]
+}
+
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
@@ -44,8 +50,8 @@ async function setupLeafletIcons() {
 interface Crag {
   id: string
   name: string
-  latitude: number
-  longitude: number
+  latitude: number | null
+  longitude: number | null
   region_id: string | null
   description: string | null
   access_notes: string | null
@@ -101,6 +107,7 @@ interface ImageData {
 export default function CragPage({ params }: { params: Promise<{ id: string }> }) {
   const [crag, setCrag] = useState<Crag | null>(null)
   const [images, setImages] = useState<ImageData[]>([])
+  const [cragCenter, setCragCenter] = useState<[number, number] | null>(null)
   const [loading, setLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -157,8 +164,9 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
         console.error('Error fetching images:', imagesError)
       }
 
-      if (!imagesData || imagesData.length === 0) {
+if (!imagesData || imagesData.length === 0) {
         setCrag(cragData)
+        setCragCenter(cragData.latitude && cragData.longitude ? [cragData.latitude, cragData.longitude] : null)
         setImages([])
         setLoading(false)
         return
@@ -224,6 +232,8 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
 
       setCrag(cragData)
       setImages(formattedImages)
+      const avgCoords = getAverageCoordinates(formattedImages.filter(img => img.latitude !== null && img.longitude !== null) as { latitude: number; longitude: number }[])
+      setCragCenter(avgCoords)
       setLoading(false)
     }
 
@@ -231,12 +241,12 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   }, [params])
 
   useEffect(() => {
-    if (!mapRef.current) return
+    if (!mapRef.current || !cragCenter) return
 
-    const center = crag?.boundary ? getPolygonCenter(crag.boundary) : null
-    const viewCenter: [number, number] = center ? [center[0], center[1]] : [crag?.latitude ?? 0, crag?.longitude ?? 0]
+    const boundaryCenter = crag?.boundary ? getPolygonCenter(crag.boundary) : null
+    const viewCenter: [number, number] = boundaryCenter ? [boundaryCenter[0], boundaryCenter[1]] : cragCenter
     mapRef.current.setView(viewCenter, 14)
-  }, [crag])
+  }, [crag, cragCenter])
 
   const handleFlagCrag = async (cragId: string) => {
     if (isFlagging) return
@@ -337,7 +347,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
       <div className="relative h-[50vh] bg-gray-200 dark:bg-gray-800">
         <MapContainer
           ref={mapRef as React.RefObject<L.Map | null>}
-          center={[crag.latitude, crag.longitude]}
+          center={cragCenter || [crag.latitude || 0, crag.longitude || 0]}
           zoom={14}
           style={{ height: '100%', width: '100%' }}
           zoomControl={false}
