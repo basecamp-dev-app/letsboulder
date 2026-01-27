@@ -40,19 +40,22 @@ export default function ClimbPage() {
   const [toast, setToast] = useState<string | null>(null)
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [shareToast, setShareToast] = useState<string | null>(null)
+  const [user, setUser] = useState<{ id: string } | null>(null)
 
   const { selectedIds, selectRoute, deselectRoute, isSelected, clearSelection } = useRouteSelection()
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const supabase = createClient()
+    const supabase = createClient()
+    const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push(`/auth?redirect_to=/climb/${climbId}`)
-      }
+      setUser(user)
     }
-    checkAuth()
-  }, [climbId, router])
+    getUser()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   useEffect(() => {
     const loadClimb = async () => {
@@ -437,35 +440,46 @@ export default function ClimbPage() {
 
           {!climb.logged && (
             <div className="space-y-3">
-              <p className="text-gray-400 text-sm">
-                {selectedIds.includes(climb.id)
-                  ? 'Route selected - choose an option below'
-                  : 'Click the route to select it'}
-              </p>
+              {!user ? (
+                <button
+                  onClick={() => router.push(`/auth?redirect_to=/climb/${climbId}`)}
+                  className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+                >
+                  Sign in to Log This Climb
+                </button>
+              ) : (
+                <>
+                  <p className="text-gray-400 text-sm">
+                    {selectedIds.includes(climb.id)
+                      ? 'Route selected - choose an option below'
+                      : 'Click the route to select it'}
+                  </p>
 
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => handleLog('flash')}
-                  disabled={logging || !selectedIds.includes(climb.id)}
-                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-                >
-                  ⚡ Flash
-                </button>
-                <button
-                  onClick={() => handleLog('top')}
-                  disabled={logging || !selectedIds.includes(climb.id)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-                >
-                  Send
-                </button>
-                <button
-                  onClick={() => handleLog('try')}
-                  disabled={logging || !selectedIds.includes(climb.id)}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-                >
-                  Try
-                </button>
-              </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => handleLog('flash')}
+                      disabled={logging || !selectedIds.includes(climb.id)}
+                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                    >
+                      ⚡ Flash
+                    </button>
+                    <button
+                      onClick={() => handleLog('top')}
+                      disabled={logging || !selectedIds.includes(climb.id)}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                    >
+                      Send
+                    </button>
+                    <button
+                      onClick={() => handleLog('try')}
+                      disabled={logging || !selectedIds.includes(climb.id)}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                    >
+                      Try
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

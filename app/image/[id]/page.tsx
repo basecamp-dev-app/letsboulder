@@ -228,17 +228,20 @@ export default function ImagePage() {
   const [verificationLoading, setVerificationLoading] = useState(false)
   const [flagModalOpen, setFlagModalOpen] = useState(false)
   const [userHasFlagged, setUserHasFlagged] = useState(false)
+  const [user, setUser] = useState<{ id: string } | null>(null)
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const supabase = createClient()
+    const supabase = createClient()
+    const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push(`/auth?redirect_to=/image/${imageId}`)
-      }
+      setUser(user)
     }
-    checkAuth()
-  }, [imageId, router])
+    getUser()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   useEffect(() => {
     const loadImage = async () => {
@@ -516,12 +519,20 @@ export default function ImagePage() {
         />
       </div>
 
-      {cragId && cragName && (
+        {cragId && cragName && (
         <div className="flex justify-center mt-2 pb-4 gap-2">
           <Link href={`/crag/${cragId}`} className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
             View {cragName} →
           </Link>
-          {userHasFlagged ? (
+          {!user ? (
+            <button
+              onClick={() => router.push(`/auth?redirect_to=/image/${imageId}`)}
+              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
+            >
+              <Flag className="w-3 h-3" />
+              Flag
+            </button>
+          ) : userHasFlagged ? (
             <span className="px-3 py-1 bg-yellow-600 text-white text-sm rounded-lg flex items-center gap-1">
               <Flag className="w-3 h-3" />
               Flagged
@@ -540,7 +551,15 @@ export default function ImagePage() {
 
       {!cragId && (
         <div className="flex justify-center mt-2 pb-4">
-          {userHasFlagged ? (
+          {!user ? (
+            <button
+              onClick={() => router.push(`/auth?redirect_to=/image/${imageId}`)}
+              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
+            >
+              <Flag className="w-3 h-3" />
+              Flag
+            </button>
+          ) : userHasFlagged ? (
             <span className="px-3 py-1 bg-yellow-600 text-white text-sm rounded-lg flex items-center gap-1">
               <Flag className="w-3 h-3" />
               Flagged
@@ -588,7 +607,14 @@ export default function ImagePage() {
             </div>
 
             <div className="flex gap-4 mb-3">
-              {(['flash', 'top', 'try'] as const).map(status => (
+              {!user ? (
+                <button
+                  onClick={() => router.push(`/auth?redirect_to=/image/${imageId}`)}
+                  className="w-full py-2 px-4 bg-gray-700 text-white rounded-lg font-medium hover:bg-gray-600 transition-colors"
+                >
+                  Sign in to Log
+                </button>
+              ) : (['flash', 'top', 'try'] as const).map(status => (
                 <label key={status} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
@@ -605,23 +631,32 @@ export default function ImagePage() {
 
             {climbStatus && (
               <div className="mb-4 p-3 bg-gray-800 rounded-lg">
-                <button
-                  onClick={handleVerify}
-                  disabled={verificationLoading}
-                  className={`w-full py-2 rounded-lg font-medium transition-colors ${
-                    climbStatus.user_has_verified
-                      ? 'bg-green-900/50 text-green-400 border border-green-700 hover:bg-green-900/70'
-                      : 'bg-gray-700 text-white hover:bg-gray-600'
-                  }`}
-                >
-                  {verificationLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                  ) : climbStatus.user_has_verified ? (
-                    '✓ Verified (click to unverify)'
-                  ) : (
-                    'Verify this route'
-                  )}
-                </button>
+                {!user ? (
+                  <button
+                    onClick={() => router.push(`/auth?redirect_to=/image/${imageId}`)}
+                    className="w-full py-2 rounded-lg font-medium transition-colors bg-gray-700 text-white hover:bg-gray-600"
+                  >
+                    Sign in to Verify
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleVerify}
+                    disabled={verificationLoading}
+                    className={`w-full py-2 rounded-lg font-medium transition-colors ${
+                      climbStatus.user_has_verified
+                        ? 'bg-green-900/50 text-green-400 border border-green-700 hover:bg-green-900/70'
+                        : 'bg-gray-700 text-white hover:bg-gray-600'
+                    }`}
+                  >
+                    {verificationLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                    ) : climbStatus.user_has_verified ? (
+                      '✓ Verified (click to unverify)'
+                    ) : (
+                      'Verify this route'
+                    )}
+                  </button>
+                )}
               </div>
             )}
 
@@ -632,6 +667,7 @@ export default function ImagePage() {
                 votes={climbStatus.grade_votes}
                 userVote={climbStatus.user_grade_vote}
                 onVote={async () => { if (selectedRoute.climb?.id) fetchClimbStatus(selectedRoute.climb.id) }}
+                user={user}
               />
             )}
 
@@ -641,7 +677,7 @@ export default function ImagePage() {
               </p>
             )}
 
-            {climbStatus && (
+            {user && climbStatus && (
               <CorrectionSection
                 climbId={selectedRoute.climb?.id || ''}
                 corrections={climbStatus.corrections}

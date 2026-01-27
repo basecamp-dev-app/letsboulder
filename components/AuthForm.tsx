@@ -100,13 +100,13 @@ export default function AuthForm(_props: AuthFormProps) {
       <div className="w-full max-w-md">
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8">
           <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
-            Sign in to gsyrocks
+            Welcome to gsyrocks
           </h1>
           
           {(climbId || redirectTo) && (
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4 text-center">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                Sign in to view this climb
+                Sign in to log, verify, or vote
               </p>
             </div>
           )}
@@ -159,7 +159,7 @@ export default function AuthForm(_props: AuthFormProps) {
           ) : (
             <div className="space-y-4">
               <p className="text-gray-600 dark:text-gray-400 text-center mb-4 text-sm">
-                Enter your email to receive a magic link. Click the link in your email to sign in.
+                Enter your email to receive a magic link. Click the link to sign in or create an account.
               </p>
 
               <form onSubmit={handleMagicLink} className="space-y-4">
@@ -208,7 +208,7 @@ export default function AuthForm(_props: AuthFormProps) {
                 onClick={() => setShowEmailSignIn(false)}
                 className="w-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors text-sm mt-4"
               >
-                ← Back to Google sign in
+                ← Back to Google sign in/up
               </button>
             </div>
           )}

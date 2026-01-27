@@ -11,7 +11,7 @@ const GRADE_COLORS: Record<string, string> = {
   '9A': 'bg-yellow-100', '9A+': 'bg-yellow-200', '9B': 'bg-yellow-300', '9B+': 'bg-yellow-400', '9C': 'bg-yellow-500', '9C+': 'bg-yellow-600'
 }
 
-export default function GradeVoting({ climbId, currentGrade, votes, userVote, onVote }: GradeVotingProps) {
+export default function GradeVoting({ climbId, currentGrade, votes, userVote, onVote, user }: GradeVotingProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -108,27 +108,35 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
           )}
 
           <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-              {userVote
-                ? `You voted: ${userVote}`
-                : 'What grade do you think this climb is?'}
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {VALID_GRADES.map((grade) => (
-                <button
-                  key={grade}
-                  onClick={() => handleVote(grade)}
-                  disabled={loading}
-                  className={`px-2 py-1 text-xs rounded transition-colors ${
-                    userVote === grade
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
-                  }`}
-                >
-                  {grade}
-                </button>
-              ))}
-            </div>
+            {user ? (
+              <>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  {userVote
+                    ? `You voted: ${userVote}`
+                    : 'What grade do you think this climb is?'}
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {VALID_GRADES.map((grade) => (
+                    <button
+                      key={grade}
+                      onClick={() => handleVote(grade)}
+                      disabled={loading}
+                      className={`px-2 py-1 text-xs rounded transition-colors ${
+                        userVote === grade
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {grade}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Sign in to vote on the grade
+              </p>
+            )}
           </div>
         </div>
       )}

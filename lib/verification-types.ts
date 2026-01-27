@@ -153,6 +153,8 @@ export interface GradeVotingProps {
   votes: GradeVoteDistribution[]
   userVote: string | null
   onVote: (grade: string) => void
+  user?: { id: string } | null
+  redirectTo?: string
 }
 
 export const VALID_GRADES = [

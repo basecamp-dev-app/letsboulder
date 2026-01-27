@@ -85,7 +85,6 @@ export default function LeaderboardPage() {
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<User | null>(null)
-  const [authChecked, setAuthChecked] = useState(false)
 
   const fetchLeaderboard = useCallback(async () => {
     setLoading(true)
@@ -107,60 +106,35 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     const supabase = createClient()
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+    }
+    getUser()
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user ?? null)
-        setAuthChecked(true)
       }
     )
     return () => subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
-    if (authChecked && user !== null) {
-      fetchLeaderboard()
-    }
-  }, [gender, country, sortBy, page, user, authChecked, fetchLeaderboard])
-
-  if (!authChecked) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-gray-950">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 px-4 py-4 border-b border-gray-200 dark:border-gray-800">
-          Rankings
-        </h1>
-        <div className="flex items-center justify-center h-64">
-          <div className="w-8 h-8 border-4 border-gray-400 border-t-transparent rounded-full animate-spin" />
-        </div>
-      </div>
-    )
-  }
-
-  if (user === null) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-gray-950">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 px-4 py-4 border-b border-gray-200 dark:border-gray-800">
-          Rankings
-        </h1>
-        <Card className="m-4">
-          <CardContent className="py-10 px-4 text-center">
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              Create an account to view the leaderboard.
-            </p>
-            <Link href="/auth" className="block">
-              <button className="w-full py-2 px-4 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg font-medium">
-                Sign In
-              </button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+    fetchLeaderboard()
+  }, [gender, country, sortBy, page, fetchLeaderboard])
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 px-4 py-3 border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-950 z-10">
-        Rankings
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 px-4 py-3 border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-950 z-10 flex items-center justify-between">
+        <span>Rankings</span>
+        {!user && (
+          <button
+            onClick={() => window.location.href = '/auth'}
+            className="px-4 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm rounded-lg font-medium"
+          >
+            Get Started
+          </button>
+        )}
       </h1>
 
       <Card className="m-0 border-x-0 border-t-0 rounded-none">
