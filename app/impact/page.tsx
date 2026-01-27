@@ -41,19 +41,16 @@ export default async function ImpactPage() {
           <ImpactCard
             title="Routes Documented"
             value={totalClimbs}
-            description="Routes in our database"
             icon={<CheckCircle className="w-5 h-5" />}
           />
           <ImpactCard
             title="Climbs Logged"
             value={totalLogs}
-            description="Total entries in logbooks"
             icon={<Mountain className="w-5 h-5" />}
           />
           <ImpactCard
             title="Community Photos"
             value={communityPhotos}
-            description="Photos shared"
             icon={<Camera className="w-5 h-5" />}
           />
         </div>
