@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 interface SettingsContentProps {
   user: User
@@ -61,6 +62,15 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [deleteSent, setDeleteSent] = useState(false)
+
+  useOverlayHistory({
+    open: deleteModalOpen,
+    onClose: () => {
+      setDeleteModalOpen(false)
+      setConfirmText('')
+    },
+    id: 'delete-account-dialog',
+  })
 
   useEffect(() => {
     const fetchData = async () => {

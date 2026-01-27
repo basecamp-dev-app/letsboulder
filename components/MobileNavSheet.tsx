@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { MORE_MENU_ITEMS } from '@/lib/nav-items'
 import type { User } from '@supabase/supabase-js'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 interface MobileNavSheetProps {
   isOpen: boolean
@@ -44,6 +45,8 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
   const pathname = usePathname()
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
+
+  useOverlayHistory({ open: isOpen, onClose, id: 'mobile-nav-sheet' })
 
   useEffect(() => {
     const supabase = createClient()

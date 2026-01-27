@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { dataURLToBlob } from '@/lib/image-utils'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 interface AvatarUploaderProps {
   avatarUrl?: string
@@ -41,7 +42,7 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
 
     const reader = new FileReader()
     reader.onload = (e) => {
-      setPreview(e.target?. result as string)
+      setPreview(e.target?.result as string)
     }
     reader.readAsDataURL(selectedFile)
   }
@@ -169,6 +170,8 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
       setProgress(0)
     }
   }, [uploading])
+
+  useOverlayHistory({ open: isOpen, onClose: closeModal, id: 'avatar-uploader' })
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {

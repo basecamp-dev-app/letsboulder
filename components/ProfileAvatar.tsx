@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { dataURLToBlob } from '@/lib/image-utils'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 interface ProfileAvatarProps {
   avatarUrl?: string
@@ -243,6 +244,9 @@ const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(
     setUsernameError(null)
     setUsernameSuggestions([])
   }
+
+  useOverlayHistory({ open: isModalOpen, onClose: closeModal, id: 'profile-avatar-uploader' })
+  useOverlayHistory({ open: isProfileModalOpen, onClose: closeProfileModal, id: 'profile-edit-modal' })
 
   const validateUsername = (value: string): string | null => {
     const trimmed = value.trim()

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 const FRENCH_GRADES = [
   '5A', '5A+', '5B', '5B+', '5C', '5C+',
@@ -40,6 +41,8 @@ export default function GradePicker({
       inputRef.current.focus()
     }
   }, [isOpen])
+
+  useOverlayHistory({ open: isOpen, onClose, id: 'grade-picker' })
 
   const filteredGrades = FRENCH_GRADES.filter(grade =>
     grade.toLowerCase().includes(search.toLowerCase())

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { Share2, X } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 interface ImageRoute {
   id: string
@@ -33,6 +34,8 @@ interface ImageData {
 }
 
 export default function ImageModal({ image, onClose, userLogs, onLogClimb }: ImageModalProps) {
+  useOverlayHistory({ open: Boolean(image), onClose, id: `image-modal-${image?.id ?? 'unknown'}` })
+
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const [imageLoaded, setImageLoaded] = useState(false)

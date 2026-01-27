@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 interface ReportCragModalProps {
   cragId: string
@@ -19,6 +20,8 @@ const REPORT_REASONS = [
 ]
 
 export default function ReportCragModal({ cragId, cragName, onClose, onSubmitted }: ReportCragModalProps) {
+  useOverlayHistory({ open: true, onClose, id: `report-crag-${cragId}` })
+
   const [reason, setReason] = useState('')
   const [details, setDetails] = useState('')
   const [submitting, setSubmitting] = useState(false)

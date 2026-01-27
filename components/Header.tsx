@@ -25,9 +25,7 @@ interface CragData {
   longitude: number | null
 }
 
-interface HeaderProps {}
-
-export default function Header(_props: HeaderProps) {
+export default function Header() {
   const [user, setUser] = useState<User | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])

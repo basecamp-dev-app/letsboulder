@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useRouteSelection, RoutePoint, findRouteAtPoint } from '@/lib/useRouteSelection'
 import { Loader2, Share2, Twitter, Facebook, MessageCircle, Link2 } from 'lucide-react'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,8 @@ export default function ClimbPage() {
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [shareToast, setShareToast] = useState<string | null>(null)
   const [user, setUser] = useState<{ id: string } | null>(null)
+
+  useOverlayHistory({ open: shareModalOpen, onClose: () => setShareModalOpen(false), id: 'share-climb-dialog' })
 
   const { selectedIds, selectRoute, deselectRoute, isSelected, clearSelection } = useRouteSelection()
 

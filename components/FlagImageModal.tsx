@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 const FLAG_TYPES = [
   { value: 'location', label: 'Location', description: 'Wrong GPS coordinates' },
@@ -22,6 +23,8 @@ interface FlagImageModalProps {
 }
 
 export default function FlagImageModal({ imageId, imageUrl, onClose, onSubmitted }: FlagImageModalProps) {
+  useOverlayHistory({ open: true, onClose, id: `flag-image-${imageId}` })
+
   const [step, setStep] = useState<'select' | 'comment'>('select')
   const [flagType, setFlagType] = useState('')
   const [selectedType, setSelectedType] = useState<typeof FLAG_TYPES[0] | null>(null)

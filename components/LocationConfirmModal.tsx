@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import 'leaflet/dist/leaflet.css'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
@@ -33,6 +34,8 @@ export default function LocationConfirmModal({
   onConfirm,
   onCancel
 }: LocationConfirmModalProps) {
+  useOverlayHistory({ open: true, onClose: onCancel, id: 'location-confirm-modal' })
+
   const [locationInfo, setLocationInfo] = useState<LocationInfo | null>(null)
   const [hasGps, setHasGps] = useState(false)
   const [adjustedLat, setAdjustedLat] = useState<number | null>(null)

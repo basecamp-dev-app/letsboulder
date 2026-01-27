@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Loader2, Search, Edit2, Trash2, Mountain } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
 import RenameCragModal from './components/RenameCragModal'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 interface Crag {
   id: string
@@ -25,6 +26,13 @@ export default function AdminCragsPage() {
   const [removingCrag, setRemovingCrag] = useState<Crag | null>(null)
   const [confirmName, setConfirmName] = useState('')
   const [deleting, setDeleting] = useState(false)
+
+  const closeDeleteConfirm = () => {
+    setRemovingCrag(null)
+    setConfirmName('')
+  }
+
+  useOverlayHistory({ open: Boolean(removingCrag), onClose: closeDeleteConfirm, id: 'admin-delete-crag' })
 
   useEffect(() => {
     loadCrags()
@@ -160,8 +168,7 @@ export default function AdminCragsPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  setRemovingCrag(null)
-                  setConfirmName('')
+                  closeDeleteConfirm()
                 }}
                 className="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
               >

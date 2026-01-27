@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Loader2, X } from 'lucide-react'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 interface Crag {
   id: string
@@ -42,6 +43,8 @@ const CLIMB_TYPES = [
 ]
 
 export default function RenameCragModal({ crag, onClose, onSave }: RenameCragModalProps) {
+  useOverlayHistory({ open: true, onClose, id: `admin-rename-crag-${crag.id}` })
+
   const [name, setName] = useState(crag.name)
   const [rockType, setRockType] = useState(crag.rock_type || '')
   const [climbType, setClimbType] = useState(crag.type || '')

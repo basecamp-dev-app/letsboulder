@@ -10,6 +10,7 @@ import {
   getNameLabelPosition
 } from '@/lib/canvas-utils'
 import GradePicker from '@/components/GradePicker'
+import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { ImageSelection, NewRouteData, RouteLine } from '@/lib/submission-types'
 
 interface ExistingRoute {
@@ -66,6 +67,12 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     userVote: string | null
   }>({ consensusGrade: null, voteCount: 0, userVote: null })
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
+
+  useOverlayHistory({
+    open: showSubmitConfirm,
+    onClose: () => setShowSubmitConfirm(false),
+    id: 'route-submit-confirm',
+  })
 
   const { selectRoute, deselectRoute, clearSelection, selectedIds } = useRouteSelection()
 
@@ -551,7 +558,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
               Submit {completedRoutes.length} route{completedRoutes.length !== 1 ? 's' : ''}?
             </p>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Double-check you didn't miss any.
+              Double-check you did not miss any.
             </p>
             <div className="flex gap-3">
               <button

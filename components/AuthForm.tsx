@@ -1,31 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { trackAuthLoginAttempted } from '@/lib/posthog'
 
-interface AuthFormProps {}
-
-export default function AuthForm(_props: AuthFormProps) {
+export default function AuthForm() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [origin, setOrigin] = useState('')
   const [showEmailSignIn, setShowEmailSignIn] = useState(false)
   const searchParams = useSearchParams()
   const climbId = searchParams?.get('climbId')
   const redirectTo = searchParams?.get('redirect_to')
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
   
   const emailValid = email.includes('@') && email.length > 3
-
-  useEffect(() => {
-     
-    setOrigin(window.location.origin)
-  }, [])
 
   const handleGoogleSignIn = async () => {
     setLoadingProvider('google')
