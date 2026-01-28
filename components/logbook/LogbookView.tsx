@@ -132,8 +132,8 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
         <EmptyLogbook onGoToMap={() => router.push('/map')} />
       ) : stats ? (
         <div className="space-y-0">
-          <Card className="m-0 border-x-0 border-t-0 rounded-none">
-            <CardHeader className="py-3">
+          <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">
+            <CardHeader className="py-2 px-4">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base">2-Month Average</CardTitle>
                 <p className="text-base font-semibold text-gray-900 dark:text-gray-100 text-right whitespace-nowrap">
