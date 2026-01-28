@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -133,6 +133,42 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
       ) : stats ? (
         <div className="space-y-0">
           <Card className="m-0 border-x-0 border-t-0 rounded-none">
+            <CardHeader className="py-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-base">2-Month Average</CardTitle>
+                <p className="text-base font-semibold text-gray-900 dark:text-gray-100 text-right whitespace-nowrap">
+                  {getGradeFromPoints(stats.twoMonthAverage)}
+                  <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
+                    ({stats.totalFlashes} flashes, {stats.totalTops} tops)
+                  </span>
+                </p>
+              </div>
+            </CardHeader>
+          </Card>
+
+          <Card className="m-0 border-x-0 border-t-0 rounded-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Grade History (Last 365 Days)</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {stats.gradeHistory.length > 0 ? (
+                <GradeHistoryChart data={stats.gradeHistory} />
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400 py-4">No data for the past year</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="m-0 border-x-0 border-t-0 rounded-none">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">Grade Pyramid (Past Year)</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <GradePyramid pyramid={stats.gradePyramid} lowestGrade={lowestGrade} />
+            </CardContent>
+          </Card>
+
+          <Card className="m-0 border-x-0 border-t-0 rounded-none">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg">Top 10 Hardest (Last 60 Days)</CardTitle>
             </CardHeader>
@@ -158,42 +194,6 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
               ) : (
                 <p className="text-gray-500 dark:text-gray-400 py-4">No climbs logged in the last 60 days</p>
               )}
-            </CardContent>
-          </Card>
-
-          <Card className="m-0 border-x-0 border-t-0 rounded-none">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">2-Month Average</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                {getGradeFromPoints(stats.twoMonthAverage)}
-                <span className="text-lg font-normal text-gray-500 dark:text-gray-400 ml-2">
-                  ({stats.totalFlashes} flashes, {stats.totalTops} tops)
-                </span>
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="m-0 border-x-0 border-t-0 rounded-none">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Grade History (Last 365 Days)</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {stats.gradeHistory.length > 0 ? (
-                <GradeHistoryChart data={stats.gradeHistory} />
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400 py-4">No data for the past year</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="m-0 border-x-0 border-t-0 rounded-none">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Grade Pyramid (Past Year)</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <GradePyramid pyramid={stats.gradePyramid} lowestGrade={lowestGrade} />
             </CardContent>
           </Card>
 

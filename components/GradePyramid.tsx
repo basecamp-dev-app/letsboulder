@@ -8,10 +8,16 @@ interface GradePyramidProps {
 }
 
 export default function GradePyramid({ pyramid, lowestGrade }: GradePyramidProps) {
-  // Filter grades from lowest to highest, starting from user's lowest grade
-  const displayGrades = GRADES.slice(GRADES.indexOf(lowestGrade))
-  
-  // Find max count for scaling
+  const displayGrades = GRADES
+    .slice(Math.max(GRADES.indexOf(lowestGrade), 0))
+    .filter(g => (pyramid[g] || 0) > 0)
+
+  if (displayGrades.length === 0) {
+    return (
+      <p className="text-gray-500 dark:text-gray-400 py-4">No climbs logged in the past year</p>
+    )
+  }
+
   const maxCount = Math.max(...displayGrades.map(g => pyramid[g] || 0), 1)
 
   return (
@@ -30,11 +36,11 @@ export default function GradePyramid({ pyramid, lowestGrade }: GradePyramidProps
               <div className="flex-1 h-8 md:h-6 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
                 <div
                   className="h-full bg-gray-600 dark:bg-gray-500 rounded transition-all duration-300"
-                  style={{ width: `${width}%`, minWidth: count > 0 ? '8px' : '0' }}
+                  style={{ width: `${width}%`, minWidth: '8px' }}
                 />
               </div>
               <span className="text-sm md:text-xs text-gray-500 dark:text-gray-400 w-6 text-left">
-                {count > 0 ? count : ''}
+                {count}
               </span>
             </div>
           )

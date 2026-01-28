@@ -62,12 +62,7 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
             iconType="circle"
             formatter={(value) => {
               if (value === 'flash') {
-                return (
-                  <span className="flex items-center gap-1">
-                    <span>Flash</span>
-                    <span>⚡</span>
-                  </span>
-                )
+                return 'Flash'
               }
               return value.charAt(0).toUpperCase() + value.slice(1)
             }}
