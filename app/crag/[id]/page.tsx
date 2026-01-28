@@ -1,6 +1,7 @@
+
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
@@ -105,6 +106,33 @@ interface ImageData {
   verification_count: number
 }
 
+function toRad(deg: number) {
+  return (deg * Math.PI) / 180
+}
+
+function bearingDegrees(from: [number, number], to: [number, number]) {
+  const [lat1, lon1] = from.map(toRad)
+  const [lat2, lon2] = to.map(toRad)
+  const dLon = lon2 - lon1
+  const y = Math.sin(dLon) * Math.cos(lat2)
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon)
+  const brng = (Math.atan2(y, x) * 180) / Math.PI
+  return (brng + 360) % 360
+}
+
+function haversineMeters(from: [number, number], to: [number, number]) {
+  const R = 6371000
+  const [lat1, lon1] = from.map(toRad)
+  const [lat2, lon2] = to.map(toRad)
+  const dLat = lat2 - lat1
+  const dLon = lon2 - lon1
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
 export default function CragPage({ params }: { params: Promise<{ id: string }> }) {
   const [crag, setCrag] = useState<Crag | null>(null)
   const [images, setImages] = useState<ImageData[]>([])
@@ -114,7 +142,10 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   const [isAdmin, setIsAdmin] = useState(false)
   const [isFlagging, setIsFlagging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [highlightedImageId, setHighlightedImageId] = useState<string | null>(null)
   const mapRef = useRef<L.Map | null>(null)
+
+  const imageCardRefs = useRef(new Map<string, HTMLDivElement>())
 
   useEffect(() => {
     setupLeafletIcons()
@@ -246,7 +277,7 @@ if (!imagesData || imagesData.length === 0) {
 
     const boundaryCenter = crag?.boundary ? getPolygonCenter(crag.boundary) : null
     const viewCenter: [number, number] = boundaryCenter ? [boundaryCenter[0], boundaryCenter[1]] : cragCenter
-    mapRef.current.setView(viewCenter, 14)
+    mapRef.current.setView(viewCenter, 15)
   }, [crag, cragCenter])
 
   const handleFlagCrag = async (cragId: string) => {
@@ -276,6 +307,62 @@ if (!imagesData || imagesData.length === 0) {
     }
   }
 
+  const boundaryCoords = useMemo(() => {
+    if (!crag?.boundary) return null
+    return geoJsonPolygonToLeaflet(crag.boundary)
+  }, [crag?.boundary])
+
+  const viewCenter = useMemo<[number, number] | null>(() => {
+    if (!cragCenter) return null
+    const boundaryCenter = crag?.boundary ? getPolygonCenter(crag.boundary) : null
+    return boundaryCenter ? [boundaryCenter[0], boundaryCenter[1]] : cragCenter
+  }, [crag?.boundary, cragCenter])
+
+  const orderedImages = useMemo(() => {
+    if (!viewCenter) return images
+    const withGeo = images
+      .map((img) => {
+        if (img.latitude == null || img.longitude == null) return null
+        const pos: [number, number] = [img.latitude, img.longitude]
+        return {
+          img,
+          bearing: bearingDegrees(viewCenter, pos),
+          dist: haversineMeters(viewCenter, pos),
+        }
+      })
+      .filter(Boolean) as Array<{ img: ImageData; bearing: number; dist: number }>
+
+    withGeo.sort((a, b) => {
+      if (a.bearing !== b.bearing) return a.bearing - b.bearing
+      return a.dist - b.dist
+    })
+
+    const sorted = withGeo.map((x) => x.img)
+    const missing = images.filter((img) => img.latitude == null || img.longitude == null)
+    return [...sorted, ...missing]
+  }, [images, viewCenter])
+
+  const imageIndexById = useMemo(() => {
+    const m = new Map<string, number>()
+    orderedImages.forEach((img, idx) => m.set(img.id, idx + 1))
+    return m
+  }, [orderedImages])
+
+  const totalRoutes = useMemo(() => {
+    return images.reduce((sum, img) => sum + img.route_lines.length, 0)
+  }, [images])
+
+  const scrollToImageCard = useMemo(() => {
+    return (imageId: string) => {
+      if (typeof document === 'undefined') return
+      const el = imageCardRefs.current.get(imageId) || document.getElementById(`crag-image-${imageId}`)
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightedImageId(imageId)
+      window.setTimeout(() => setHighlightedImageId((prev) => (prev === imageId ? null : prev)), 1400)
+    }
+  }, [])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -291,8 +378,6 @@ if (!imagesData || imagesData.length === 0) {
       </div>
     )
   }
-
-  const boundaryCoords = crag.boundary ? geoJsonPolygonToLeaflet(crag.boundary) : null
 
   const cragSchema = {
     "@context": "https://schema.org",
@@ -345,11 +430,11 @@ if (!imagesData || imagesData.length === 0) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(cragSchema) }}
       />
-      <div className="relative h-[50vh] bg-gray-200 dark:bg-gray-800">
+      <div className="relative h-[26vh] md:h-[50vh] bg-gray-200 dark:bg-gray-800">
         <MapContainer
           ref={mapRef as React.RefObject<L.Map | null>}
           center={cragCenter || [crag.latitude || 0, crag.longitude || 0]}
-          zoom={14}
+          zoom={15}
           style={{ height: '100%', width: '100%' }}
           zoomControl={false}
           scrollWheelZoom={true}
@@ -380,7 +465,7 @@ if (!imagesData || imagesData.length === 0) {
             </Polygon>
           )}
 
-          {images.map(image => (
+          {orderedImages.map((image) => (
             <Marker
               key={image.id}
               position={[image.latitude || 0, image.longitude || 0]}
@@ -399,13 +484,14 @@ if (!imagesData || imagesData.length === 0) {
                   font-weight: bold;
                   border: 2px solid white;
                   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                ">${image.route_lines.length}</div>`,
+                ">${imageIndexById.get(image.id) ?? ''}</div>`,
                 iconSize: [24, 24],
                 iconAnchor: [12, 12]
               })}
               eventHandlers={{
                 click: (e: L.LeafletMouseEvent) => {
                   e.originalEvent.stopPropagation()
+                  scrollToImageCard(image.id)
                 },
               }}
             >
@@ -435,6 +521,9 @@ if (!imagesData || imagesData.length === 0) {
                       />
                     </div>
                   <p className="font-semibold text-sm text-gray-900">
+                    Image {imageIndexById.get(image.id) ?? ''}
+                  </p>
+                  <p className="text-xs text-gray-600">
                     {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
                   </p>
                   <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
@@ -448,76 +537,38 @@ if (!imagesData || imagesData.length === 0) {
           )}
         </MapContainer>
 
-        <Link
-          href="/map"
-          className="absolute top-4 left-4 z-[1000] bg-white dark:bg-gray-800 rounded-lg px-3 py-2 text-sm font-medium shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-        >
-          ← Back to Map
-        </Link>
+        <div className="absolute top-4 left-4 z-[1000] bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 dark:text-gray-100 shadow-md backdrop-blur">
+          {crag.name}
+        </div>
+
+        {isAdmin && (
+          <button
+            onClick={() => handleFlagCrag(crag.id)}
+            disabled={isFlagging}
+            className="absolute top-4 right-4 z-[1000] px-3 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg shadow-md hover:bg-red-500 disabled:opacity-50 transition-colors"
+          >
+            {isFlagging ? 'Flagging...' : '🚩 Flag'}
+          </button>
+        )}
       </div>
 
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{crag.name}</h1>
-            {crag.regions && (
-              <p className="text-lg text-gray-600 dark:text-gray-400">{crag.regions.name}</p>
-            )}
-          </div>
-          {isAdmin && (
-            <button
-              onClick={() => handleFlagCrag(crag.id)}
-              disabled={isFlagging}
-              className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-500 disabled:opacity-50 transition-colors"
-            >
-              {isFlagging ? 'Flagging...' : '🚩 Flag'}
-            </button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          {crag.rock_type && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Rock Type</p>
-              <p className="font-medium text-gray-900 dark:text-gray-100 capitalize">{crag.rock_type}</p>
-            </div>
-          )}
-          {crag.type && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Type</p>
-              <p className="font-medium text-gray-900 dark:text-gray-100 capitalize">{crag.type}</p>
-            </div>
-          )}
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Routes</p>
-            <p className="font-medium text-gray-900 dark:text-gray-100">{images.reduce((sum, img) => sum + img.route_lines.length, 0)}</p>
-          </div>
-        </div>
-
-        {crag.description && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm mb-6">
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Description</p>
-            <p className="text-gray-900 dark:text-gray-100">{crag.description}</p>
-          </div>
-        )}
-
-        {crag.access_notes && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm mb-6">
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Access Notes</p>
-            <p className="text-gray-900 dark:text-gray-100">{crag.access_notes}</p>
-          </div>
-        )}
-
+      <div className="max-w-4xl mx-auto px-4 py-6">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">Route Images ({images.length})</h2>
-          {images.length === 0 ? (
+          {orderedImages.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400">No route images yet</p>
           ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {images.map((image) => (
+                {orderedImages.map((image) => (
                   <div
                     key={image.id}
-                    className="block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    id={`crag-image-${image.id}`}
+                    ref={(el) => {
+                      if (!el) return
+                      imageCardRefs.current.set(image.id, el)
+                    }}
+                    className={`block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer ring-2 ring-transparent ${
+                      highlightedImageId === image.id ? 'ring-blue-400' : ''
+                    }`}
                     onClick={async () => {
                       const supabase = createClient()
                       const { data: { user } } = await supabase.auth.getUser()
@@ -536,6 +587,9 @@ if (!imagesData || imagesData.length === 0) {
                         className="object-cover"
                         sizes="(max-width: 768px) 33vw, 25vw"
                       />
+                      <div className="absolute top-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded-full font-semibold shadow-sm">
+                        {imageIndexById.get(image.id) ?? ''}
+                      </div>
                       <div className="absolute bottom-2 right-2 bg-gray-900/80 text-white text-xs px-2 py-1 rounded-full">
                         {image.route_lines.length} routes
                       </div>
@@ -552,6 +606,36 @@ if (!imagesData || imagesData.length === 0) {
               </div>
           )}
         </div>
+
+        <div className="flex flex-wrap gap-2 mt-6 mb-6">
+          {crag.type && (
+            <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 capitalize">
+              {crag.type}
+            </span>
+          )}
+          {crag.rock_type && (
+            <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 capitalize">
+              {crag.rock_type}
+            </span>
+          )}
+          <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 tabular-nums">
+            {totalRoutes} routes
+          </span>
+        </div>
+
+        {crag.description && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm mb-6">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Description</p>
+            <p className="text-gray-900 dark:text-gray-100">{crag.description}</p>
+          </div>
+        )}
+
+        {crag.access_notes && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm mb-6">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Access Notes</p>
+            <p className="text-gray-900 dark:text-gray-100">{crag.access_notes}</p>
+          </div>
+        )}
       </div>
     </div>
   )
