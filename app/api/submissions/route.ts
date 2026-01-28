@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
 
       const cragName = cragData?.name || 'Unknown Crag'
 
-      notifyNewSubmission(supabase, climbs, cragName, cragId, user.id).catch(err => {
+      await notifyNewSubmission(supabase, climbs, cragName, cragId, user.id).catch(err => {
         console.error('Discord notification error:', err)
       })
     }

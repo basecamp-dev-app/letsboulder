@@ -93,7 +93,7 @@ export async function POST(
       return createErrorResponse(flagError, 'Error creating flag')
     }
 
-    notifyNewFlag(supabase, {
+    await notifyNewFlag(supabase, {
       type: 'crag',
       flagType: DEFAULT_FLAG_TYPE,
       cragName: crag.name,

@@ -107,7 +107,7 @@ export async function POST(
       .eq('id', image.crag_id)
       .single()
 
-    notifyNewFlag(supabase, {
+    await notifyNewFlag(supabase, {
       type: 'image',
       flagType: flag_type,
       cragName: cragData?.name || 'Unknown Crag',

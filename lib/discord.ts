@@ -27,12 +27,19 @@ async function sendDiscordWebhook(webhookUrl: string, payload: DiscordWebhookPay
 
   console.log('[Discord] Sending webhook to', webhookUrl.slice(-20), '...')
 
+  const controller = new AbortController()
+  const timeoutMs = 8000
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
   try {
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     })
+
+    clearTimeout(timeoutId)
 
     console.log('[Discord] Webhook response status:', response.status)
 
@@ -41,6 +48,7 @@ async function sendDiscordWebhook(webhookUrl: string, payload: DiscordWebhookPay
       console.error(`[Discord] Webhook failed: ${response.status} - ${text}`)
     }
   } catch (error) {
+    clearTimeout(timeoutId)
     console.error('[Discord] Webhook error:', error)
   }
 }

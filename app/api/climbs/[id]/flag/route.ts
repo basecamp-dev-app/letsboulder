@@ -104,7 +104,7 @@ export async function POST(
 
     const cragName = Array.isArray(climb.crag) ? climb.crag[0]?.name : (climb.crag as unknown as { name: string })?.name || 'Unknown Crag'
 
-    notifyNewFlag(supabase, {
+    await notifyNewFlag(supabase, {
       type: 'climb',
       flagType: flag_type,
       targetName: climb.name,
