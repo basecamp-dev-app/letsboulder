@@ -25,6 +25,12 @@ npx eslint app/api/
 npm run lint -- --fix
 ```
 
+## Database Source Of Truth
+
+- Schema changes must be captured as committed migrations in `supabase/migrations`.
+- Avoid manual schema edits in the Supabase dashboard; if unavoidable, immediately backfill into a migration.
+- See `docs/db/migrations.md` for drift-audit and cleanup workflow.
+
 **Note:** This project does not currently have a test suite. When adding tests, use:
 - Vitest for unit/integration tests
 - Playwright for E2E tests

@@ -54,6 +54,12 @@ supabase start
 # - Mailpit: http://localhost:54324 (email testing)
 ```
 
+Note: local Supabase configuration lives in `supabase/config.toml` and should be committed.
+
+## Migrations Are Canonical
+
+See `docs/db/migrations.md`.
+
 ## Sync Database from Production
 
 ### Option A: Full Reset (Recommended for fresh setup)
