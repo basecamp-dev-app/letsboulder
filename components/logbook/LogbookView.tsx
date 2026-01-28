@@ -95,6 +95,31 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
     <div className="min-h-screen bg-white dark:bg-gray-950">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
+      {isOwnProfile && profile && (
+        <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">
+          <CardContent className="px-4 py-4">
+            <div className="flex items-center gap-3">
+              {profile.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt={profile.username}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                    {profile.username?.slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              <div className="leading-tight">
+                <p className="text-sm text-gray-500 dark:text-gray-400">@{profile.username}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {!isOwnProfile && profile && (
         <Card className="m-0 border-x-0 border-t-0 rounded-none">
           <CardContent className="flex flex-col sm:flex-row items-center gap-6 py-6 px-4">

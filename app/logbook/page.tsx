@@ -43,7 +43,7 @@ interface Profile {
 function LoadingFallback() {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
-      <LogbookSkeleton />
+      <LogbookSkeleton variant="own" />
     </div>
   )
 }
@@ -145,7 +145,7 @@ function LogbookContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-950">
-        <LogbookSkeleton />
+        <LogbookSkeleton variant="own" />
       </div>
     )
   }

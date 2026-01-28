@@ -1,10 +1,9 @@
 'use client'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import Link from 'next/link'
-import { Mountain, Plus, ChevronRight } from 'lucide-react'
+import { Mountain, Plus } from 'lucide-react'
 
 interface EmptyLogbookProps {
   onGoToMap?: () => void
@@ -32,42 +31,89 @@ export function EmptyLogbook({ onGoToMap }: EmptyLogbookProps) {
   )
 }
 
-export function LogbookSkeleton({ showProfile = true, showCharts = true, showRecentLogs = true }: LogbookSkeletonProps) {
+export function LogbookSkeleton({ variant = 'own', showProfile = true, showCharts = true, showRecentLogs = true }: LogbookSkeletonProps) {
   return (
     <div className="space-y-0">
       {showProfile && (
-        <Card className="m-0 border-x-0 border-t-0 rounded-none">
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center">
-              <Skeleton className="w-24 h-24 rounded-full mb-4" />
-              <Skeleton className="h-6 w-32 mb-2" />
-              <Skeleton className="h-4 w-48 mb-6" />
-              <div className="grid grid-cols-4 gap-3 w-full">
-                {[1, 2, 3, 4].map((i) => (
-                  <Skeleton key={i} className="h-16 rounded-lg" />
-                ))}
+        variant === 'public' ? (
+          <Card className="m-0 border-x-0 border-t-0 rounded-none">
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center">
+                <Skeleton className="w-24 h-24 rounded-full mb-4" />
+                <Skeleton className="h-6 w-32 mb-2" />
+                <Skeleton className="h-4 w-48 mb-6" />
+                <div className="grid grid-cols-4 gap-3 w-full">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-16 rounded-lg" />
+                  ))}
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">
+            <CardContent className="px-4 py-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="w-10 h-10 rounded-full" />
+                <Skeleton className="h-4 w-28" />
+              </div>
+            </CardContent>
+          </Card>
+        )
       )}
 
       {showCharts && (
         <>
+          <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">
+            <CardHeader className="py-2 px-4">
+              <div className="flex items-center justify-between gap-3">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-44" />
+              </div>
+            </CardHeader>
+          </Card>
+
           <Card className="m-0 border-x-0 border-t-0 rounded-none">
             <CardHeader className="pb-2">
-              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-6 w-56" />
             </CardHeader>
             <CardContent className="pt-0">
-              <Skeleton className="h-48 w-full" />
+              <Skeleton className="h-56 w-full" />
             </CardContent>
           </Card>
+
           <Card className="m-0 border-x-0 border-t-0 rounded-none">
             <CardHeader className="pb-2">
-              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-6 w-44" />
             </CardHeader>
-            <CardContent className="pt-0">
-              <Skeleton className="h-64 w-full" />
+            <CardContent className="pt-0 space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-4 w-10" />
+                  <Skeleton className="h-6 flex-1" />
+                  <Skeleton className="h-4 w-6" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="m-0 border-x-0 border-t-0 rounded-none">
+            <CardHeader className="pb-2">
+              <Skeleton className="h-6 w-56" />
+            </CardHeader>
+            <CardContent className="pt-0 space-y-3">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-4 w-6" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-28" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-6 w-12 rounded" />
+                </div>
+              ))}
             </CardContent>
           </Card>
         </>
@@ -97,6 +143,7 @@ export function LogbookSkeleton({ showProfile = true, showCharts = true, showRec
 }
 
 interface LogbookSkeletonProps {
+  variant?: 'own' | 'public'
   showProfile?: boolean
   showCharts?: boolean
   showRecentLogs?: boolean
