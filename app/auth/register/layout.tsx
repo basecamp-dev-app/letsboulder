@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Create Account',
-  description: 'Create your gsyrocks account to start logging climbing routes and building your personal climbing logbook in Guernsey.',
+  description: 'Create your letsboulder account to start logging climbing routes and building your personal climbing logbook in Guernsey.',
   robots: {
     index: false,
     follow: false,

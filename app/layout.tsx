@@ -5,6 +5,14 @@ import { CsrfProvider } from "@/components/csrf-provider";
 import AppLayout from "@/components/AppLayout";
 import { PostHogProvider } from "@/lib/posthog";
 import PageViewTracker from "@/components/PageViewTracker";
+import {
+  BRAND_NAME,
+  INSTAGRAM_URL,
+  SITE_URL,
+  SUPPORT_EMAIL,
+  X_HANDLE,
+  X_URL,
+} from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,16 +25,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://gsyrocks.com"),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "gsyrocks - Guernsey Climbing Routes",
-    template: "%s | gsyrocks",
+    default: "letsboulder - Guernsey Climbing Routes",
+    template: "%s | letsboulder",
   },
   description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
-  keywords: ["gsyrocks", "climbing", "Guernsey", "rock climbing", "routes", "bouldering", "outdoor climbing", "Channel Islands"],
-  authors: [{ name: "gsyrocks" }],
-  creator: "gsyrocks",
-  publisher: "gsyrocks",
+  keywords: ["letsboulder", "climbing", "Guernsey", "rock climbing", "routes", "bouldering", "outdoor climbing", "Channel Islands"],
+  authors: [{ name: BRAND_NAME }],
+  creator: BRAND_NAME,
+  publisher: BRAND_NAME,
   robots: {
     index: true,
     follow: true,
@@ -38,36 +46,33 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-  alternates: {
-    canonical: "https://gsyrocks.com",
-  },
   openGraph: {
     type: "website",
     locale: "en_GB",
-    url: "https://gsyrocks.com",
-    siteName: "gsyrocks",
-    title: "gsyrocks - Guernsey Climbing Routes",
+    url: SITE_URL,
+    siteName: BRAND_NAME,
+    title: "letsboulder - Guernsey Climbing Routes",
     description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
     images: [
       {
         url: "/logo.png",
         width: 1200,
         height: 630,
-        alt: "gsyrocks - Guernsey Climbing Routes",
+        alt: "letsboulder - Guernsey Climbing Routes",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "gsyrocks - Guernsey Climbing Routes",
+    title: "letsboulder - Guernsey Climbing Routes",
     description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
     images: ["/logo.png"],
-    creator: "@gsyrocks",
+    creator: X_HANDLE,
   },
   other: {
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "default",
-    "apple-mobile-web-app-title": "gsyrocks",
+    "apple-mobile-web-app-title": BRAND_NAME,
     "mobile-web-app-capable": "yes",
   },
 };
@@ -125,14 +130,14 @@ export default function RootLayout({
               {
                 "@context": "https://schema.org",
                 "@type": "WebSite",
-                name: "gsyrocks",
-                url: "https://gsyrocks.com",
+                name: BRAND_NAME,
+                url: SITE_URL,
                 description: "Discover and log climbing routes in Guernsey",
                 potentialAction: {
                   "@type": "SearchAction",
                   target: {
                     "@type": "EntryPoint",
-                    urlTemplate: "https://gsyrocks.com/map?q={search_term_string}",
+                    urlTemplate: `${SITE_URL}/map?q={search_term_string}`,
                   },
                   "query-input": "required name=search_term_string",
                 },
@@ -140,9 +145,9 @@ export default function RootLayout({
               {
                 "@context": "https://schema.org",
                 "@type": "Organization",
-                name: "gsyrocks",
-                url: "https://gsyrocks.com",
-                logo: "https://gsyrocks.com/logo.png",
+                name: BRAND_NAME,
+                url: SITE_URL,
+                logo: `${SITE_URL}/logo.png`,
                 description: "Community-driven bouldering platform for Guernsey, Channel Islands. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
                 address: {
                   "@type": "PostalAddress",
@@ -150,12 +155,12 @@ export default function RootLayout({
                   addressCountry: "GB"
                 },
                 sameAs: [
-                  "https://twitter.com/gsyrocks",
-                  "https://www.instagram.com/gsyrocks"
+                  X_URL,
+                  INSTAGRAM_URL
                 ],
                 contactPoint: {
                   "@type": "ContactPoint",
-                  email: "hello@gsyrocks.com",
+                  email: SUPPORT_EMAIL,
                   contactType: "customer service"
                 }
               }

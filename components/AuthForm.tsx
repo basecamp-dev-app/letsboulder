@@ -93,7 +93,7 @@ export default function AuthForm() {
       <div className="w-full max-w-md">
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8">
           <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
-            Welcome to gsyrocks
+            Welcome to letsboulder
           </h1>
           
           {(climbId || redirectTo) && (

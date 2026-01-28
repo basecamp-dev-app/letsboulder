@@ -8,6 +8,7 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import Link from 'next/link'
 import { geoJsonPolygonToLeaflet, getPolygonCenter } from '@/lib/geo-utils'
 import type { GeoJSONPolygon } from '@/types/database'
+import { SITE_URL } from '@/lib/site'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -298,7 +299,7 @@ if (!imagesData || imagesData.length === 0) {
     "@type": "Place",
     "name": crag.name,
     "description": crag.description || `${crag.type || 'Bouldering'} crag in ${crag.regions?.name || 'Guernsey'}`,
-    "url": `https://gsyrocks.com/crag/${crag.id}`,
+    "url": `${SITE_URL}/crag/${crag.id}`,
     "address": {
       "@type": "PostalAddress",
       "addressLocality": crag.regions?.name || "Guernsey",

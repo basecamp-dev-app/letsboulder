@@ -159,7 +159,7 @@ export default function Header() {
           <div className="relative w-16 h-16">
             <Image
               src="/logo.png"
-              alt="gsyrocks"
+              alt="letsboulder"
               fill
               className="object-contain"
               priority

@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
     const resend = new Resend(process.env.RESEND_API_KEY)
 
     await resend.emails.send({
-      from: 'gsyrocks <noreply@gsyrocks.com>',
+      from: 'letsboulder <noreply@letsboulder.com>',
       to: [user.email],
-      subject: 'Confirm Account Deletion - gsyrocks',
+      subject: 'Confirm Account Deletion - letsboulder',
       html: `<!DOCTYPE html>
 <html>
 <head>
@@ -75,14 +75,14 @@ export async function POST(request: NextRequest) {
         <table role="presentation" width="100%" max-width="480" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
           <tr>
             <td style="background-color:#18181b; padding: 24px 32px; text-align:center;">
-              <span style="color:#ffffff; font-size:20px; font-weight:600; letter-spacing:-0.5px;">gsyrocks</span>
+              <span style="color:#ffffff; font-size:20px; font-weight:600; letter-spacing:-0.5px;">letsboulder</span>
             </td>
           </tr>
           <tr>
             <td style="padding: 32px 32px 24px;">
               <h1 style="margin:0 0 16px; font-size:20px; font-weight:600; color:#18181b; letter-spacing:-0.3px;">Confirm Account Deletion</h1>
               <p style="margin:0 0 24px; color:#52525b; line-height:1.6; font-size:15px;">
-                You requested to delete your gsyrocks account. This action <strong>cannot be undone</strong>.
+                You requested to delete your letsboulder account. This action <strong>cannot be undone</strong>.
               </p>
               <table role="presentation" border="0" cellspacing="0" cellpadding="0">
                 <tr>
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
           </tr>
           <tr>
             <td style="background-color:#f4f4f5; padding:20px 32px; text-align:center; border-top:1px solid:#e4e4e7;">
-              <p style="margin:0; color:#71717a; font-size:12px; letter-spacing:0.5px;">gsyrocks</p>
+              <p style="margin:0; color:#71717a; font-size:12px; letter-spacing:0.5px;">letsboulder</p>
             </td>
           </tr>
         </table>

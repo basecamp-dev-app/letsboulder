@@ -8,7 +8,7 @@ export default function AboutPage() {
       <div className="space-y-8 text-gray-900 dark:text-gray-300">
         <section>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            About gsyrocks
+            About letsboulder
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-400">
             Discover, log, and share bouldering routes worldwide. A community-driven platform built by climbers, for climbers.
@@ -67,7 +67,7 @@ export default function AboutPage() {
           <CardContent className="space-y-4">
             <div>
               <h4 className="font-medium text-gray-900 dark:text-gray-100">Is this free?</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Yes, gsyrocks is completely free to use.</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Yes, letsboulder is completely free to use.</p>
             </div>
             <div>
               <h4 className="font-medium text-gray-900 dark:text-gray-100">How accurate are the grades?</h4>

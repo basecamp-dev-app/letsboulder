@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     const response = await fetch(nominatimUrl, {
       headers: {
-        'User-Agent': 'gsyrocks-climbing-app (contact@gsyrocks.com)'
+        'User-Agent': 'letsboulder-climbing-app (contact@letsboulder.com)'
       }
     })
 

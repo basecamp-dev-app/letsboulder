@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouteSelection, RoutePoint, findRouteAtPoint } from '@/lib/useRouteSelection'
 import { Loader2, Share2, Twitter, Facebook, MessageCircle, Link2 } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { SITE_URL } from '@/lib/site'
 import {
   Dialog,
   DialogContent,
@@ -374,7 +375,7 @@ export default function ClimbPage() {
     "@type": "SportsActivityLocation",
     "name": climb.name,
     "description": `${climb.grade} bouldering route`,
-    "url": `https://gsyrocks.com/climb/${climb.id}`,
+    "url": `${SITE_URL}/climb/${climb.id}`,
     "image": climb.image_url,
     "sport": "Bouldering",
     "additionalProperty": {

@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { BRAND_NAME, SITE_URL } from '@/lib/site'
 
 const DISCORD_SUBMISSIONS_WEBHOOK = process.env.DISCORD_SUBMISSIONS_WEBHOOK_URL
 const DISCORD_FLAGS_WEBHOOK = process.env.DISCORD_FLAGS_WEBHOOK_URL
@@ -85,9 +86,9 @@ export async function notifyNewSubmission(
       { name: 'Submitted by', value: userIdentifier, inline: true },
       { name: 'Routes', value: routeList + moreRoutes },
     ],
-    footer: { text: 'gsyrocks' },
+    footer: { text: BRAND_NAME },
     timestamp: new Date().toISOString(),
-    url: `https://gsyrocks.com/crags/${cragId}`,
+    url: `${SITE_URL}/crag/${cragId}`,
   }
 
   await sendDiscordWebhook(DISCORD_SUBMISSIONS_WEBHOOK, {
@@ -143,9 +144,9 @@ export async function notifyNewFlag(
       { name: 'By', value: userIdentifier, inline: true },
       { name: 'Comment', value: flagInfo.comment.slice(0, 500) + (flagInfo.comment.length > 500 ? '...' : '') },
     ],
-    footer: { text: 'gsyrocks' },
+    footer: { text: BRAND_NAME },
     timestamp: new Date().toISOString(),
-    url: `https://gsyrocks.com/crags/${flagInfo.cragId}`,
+    url: `${SITE_URL}/crag/${flagInfo.cragId}`,
   }
 
   await sendDiscordWebhook(DISCORD_FLAGS_WEBHOOK, {

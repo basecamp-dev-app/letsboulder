@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       `${NOMINATIM_URL}?format=json&limit=10&addressdetails=1&extratags=1&q=${encodedQuery}`,
       {
         headers: {
-          'User-Agent': 'gsyrocks-climbing-app',
+          'User-Agent': 'letsboulder-climbing-app',
         },
       }
     )

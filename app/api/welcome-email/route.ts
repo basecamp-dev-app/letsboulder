@@ -44,14 +44,14 @@ export async function POST(request: NextRequest) {
     const resend = new Resend(process.env.RESEND_API_KEY)
 
     await resend.emails.send({
-      from: 'gsyrocks <noreply@gsyrocks.com>',
+      from: 'letsboulder <noreply@letsboulder.com>',
       to: [email],
-      subject: 'Welcome to gsyrocks! 🧗',
+      subject: 'Welcome to letsboulder! 🧗',
       html: `<!DOCTYPE html>
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to gsyrocks</title>
+  <title>Welcome to letsboulder</title>
 </head>
 <body style="margin:0; padding:0; font-family: system-ui, sans-serif; background-color:#f4f4f5;">
   <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
@@ -60,14 +60,14 @@ export async function POST(request: NextRequest) {
         <table role="presentation" width="100%" max-width="480" border="0" cellspacing="0" cellpadding="0" style="background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
           <tr>
             <td style="background-color:#18181b; padding: 24px 32px; text-align:center;">
-              <span style="color:#ffffff; font-size:20px; font-weight:600; letter-spacing:-0.5px;">gsyrocks</span>
+              <span style="color:#ffffff; font-size:20px; font-weight:600; letter-spacing:-0.5px;">letsboulder</span>
             </td>
           </tr>
           <tr>
             <td style="padding: 32px 32px 24px;">
               <h1 style="margin:0 0 24px; font-size:20px; font-weight:600; color:#18181b; letter-spacing:-0.3px;">${greeting}</h1>
               <p style="margin:0 0 24px; color:#52525b; line-height:1.6; font-size:15px;">
-                Welcome to gsyrocks! We started documenting boulder problems in Guernsey and have grown into a community-driven platform for climbers everywhere.
+                Welcome to letsboulder! We started documenting boulder problems in Guernsey and have grown into a community-driven platform for climbers everywhere.
               </p>
               <p style="margin:0 0 32px; color:#52525b; line-height:1.6; font-size:15px;">
                 Whether you're here to track your progress, discover new routes, or contribute to our growing database, we're excited to have you join us.
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
               </table>
               <p style="margin:0; color:#52525b; line-height:1.6; font-size:14px;">
                 Happy climbing!<br>
-                <span style="color:#71717a;">The gsyrocks team</span>
+                <span style="color:#71717a;">The letsboulder team</span>
               </p>
             </td>
           </tr>
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
                 <a href="${appUrl}/map" style="color:#71717a; text-decoration:underline;">Map</a> &nbsp;|&nbsp; 
                 <a href="https://discord.gg/vzAEMr2qrY" style="color:#71717a; text-decoration:underline;">Discord</a>
               </p>
-              <p style="margin:0; color:#a1a1aa; font-size:11px;">gsyrocks - Built by climbers, for climbers</p>
+              <p style="margin:0; color:#a1a1aa; font-size:11px;">letsboulder - Built by climbers, for climbers</p>
             </td>
           </tr>
         </table>

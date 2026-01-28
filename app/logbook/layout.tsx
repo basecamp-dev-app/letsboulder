@@ -2,17 +2,20 @@ import { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'My Climbing Logbook',
-  description: 'View and manage your personal climbing logbook on gsyrocks. Track your climbing achievements and progress in Guernsey.',
+  description: 'View and manage your personal climbing logbook on letsboulder. Track your climbing achievements and progress in Guernsey.',
+  alternates: {
+    canonical: '/logbook',
+  },
   openGraph: {
-    title: 'My Climbing Logbook - gsyrocks',
-    description: 'View and manage your personal climbing logbook on gsyrocks.',
+    title: 'My Climbing Logbook - letsboulder',
+    description: 'View and manage your personal climbing logbook on letsboulder.',
     url: '/logbook',
     images: [
       {
         url: '/logo.png',
         width: 1200,
         height: 630,
-        alt: 'My Climbing Logbook - gsyrocks',
+        alt: 'My Climbing Logbook - letsboulder',
       },
     ],
   },

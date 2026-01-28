@@ -8,7 +8,7 @@ import {
 import { CheckCircle, Mountain, Camera } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Community Impact | gsyrocks',
+  title: 'Community Impact',
   description: 'See the collective impact of our climbing community. Documented routes, logged climbs, and shared photos.',
   keywords: ['climbing community', 'route documentation', 'impact metrics', 'climbing stats'],
 }

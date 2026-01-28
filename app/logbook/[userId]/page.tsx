@@ -168,20 +168,20 @@ export async function generateMetadata({ params }: PublicLogbookPageProps) {
 
   if (!profile) {
     return {
-      title: 'Profile Not Found - gsyrocks',
+      title: 'Profile Not Found',
     }
   }
 
   return {
-    title: `${profile.username}'s Logbook - gsyrocks`,
-    description: `View ${profile.username}'s climbing logbook and achievements on gsyrocks.`,
+    title: `${profile.username}'s Logbook`,
+    description: `View ${profile.username}'s climbing logbook and achievements on letsboulder.`,
     alternates: {
-      canonical: `https://gsyrocks.com/logbook/${userId}`,
+      canonical: `/logbook/${userId}`,
     },
     openGraph: {
-      title: `${profile.username}'s Logbook - gsyrocks`,
-      description: `View ${profile.username}'s climbing logbook and achievements on gsyrocks.`,
-      url: `https://gsyrocks.com/logbook/${userId}`,
+      title: `${profile.username}'s Logbook - letsboulder`,
+      description: `View ${profile.username}'s climbing logbook and achievements on letsboulder.`,
+      url: `/logbook/${userId}`,
     },
   }
 }

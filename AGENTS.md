@@ -230,18 +230,18 @@ Development
 
 Deploy to Dev
 1. Push code: `git add . && git commit -m "message" && git push origin dev`
-2. Vercel auto-deploys to dev.gsyrocks.com
+2. Vercel auto-deploys to dev.letsboulder.com
 3. Run schema: `supabase link --project-ref licfcldjccnqtounaeld`
 4. Preview changes: `supabase db push --dry-run`
 5. Apply if safe: `supabase db push`
-6. Test: https://dev.gsyrocks.com
+6. Test: https://dev.letsboulder.com
 
 Deploy to Prod
 1. Merge: `git checkout main && git merge dev && git push origin main`
 2. Link: `supabase link --project-ref glxnbxbkedeogtcivpsx`
 3. Preview: `supabase db push --dry-run`
 4. Apply: `supabase db push`
-5. Test: https://gsyrocks.com
+5. Test: https://letsboulder.com
 
 Sync Data (Optional - Manual Process)
 ```bash

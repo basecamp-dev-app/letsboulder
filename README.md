@@ -1,4 +1,4 @@
-# gsyrocks - Guernsey Climbing Routes
+# letsboulder - Guernsey Climbing Routes
 
 A community-driven web app for climbers to discover and share bouldering routes.
 
@@ -39,8 +39,8 @@ Copy `.env.example` to `.env`:
 
 | Environment | URL | Branch |
 |-------------|-----|--------|
-| Development | [dev.gsyrocks.com](https://dev.gsyrocks.com) | `dev` |
-| Production | [gsyrocks.com](https://gsyrocks.com) | `main` |
+| Development | [dev.letsboulder.com](https://dev.letsboulder.com) | `dev` |
+| Production | [letsboulder.com](https://letsboulder.com) | `main` |
 
 **App**: Vercel auto-deploys on push to `dev` and `main` branches
 

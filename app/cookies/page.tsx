@@ -1,8 +1,8 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Cookie Policy | gsyrocks',
-  description: 'Learn how gsyrocks uses cookies and similar technologies to improve your experience.',
+  title: 'Cookie Policy',
+  description: 'Learn how letsboulder uses cookies and similar technologies to improve your experience.',
   keywords: ['cookie policy', 'cookies', 'tracking', 'privacy'],
 }
 
@@ -15,7 +15,7 @@ export default function CookiePage() {
       
       <div className="prose dark:prose-invert max-w-none">
         <p className="text-gray-600 dark:text-gray-400 mb-6">
-          This Cookie Policy explains how gsyrocks uses cookies and similar technologies to recognize you when you visit our app.
+          This Cookie Policy explains how letsboulder uses cookies and similar technologies to recognize you when you visit our app.
         </p>
 
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mt-8 mb-4">

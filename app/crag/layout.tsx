@@ -19,24 +19,24 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   if (!crag) {
     return {
-      title: 'Crag Not Found | gsyrocks',
+      title: 'Crag Not Found',
       description: 'This crag could not be found.',
     }
   }
 
   const regionName = crag.regions && Array.isArray(crag.regions) && crag.regions.length > 0 ? crag.regions[0].name : null
-  const title = regionName ? `${crag.name}, ${regionName} | gsyrocks` : `${crag.name} | gsyrocks`
+  const title = regionName ? `${crag.name}, ${regionName}` : `${crag.name}`
 
   return {
     title,
     description: `View climbing routes at ${crag.name} in Guernsey${regionName ? `, ${regionName}` : ''}. Discover routes, access information, and explore this climbing area.`,
     alternates: {
-      canonical: `https://gsyrocks.com/crag/${id}`,
+      canonical: `/crag/${id}`,
     },
     openGraph: {
-      title,
+      title: `${title} | letsboulder`,
       description: `View climbing routes at ${crag.name} in Guernsey${regionName ? `, ${regionName}` : ''}.`,
-      url: `https://gsyrocks.com/crag/${id}`,
+      url: `/crag/${id}`,
     },
   }
 }

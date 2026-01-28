@@ -138,7 +138,7 @@ export default function SatelliteClimbingMap() {
     }
   }, [toast])
 
-  const CACHE_KEY = 'gsyrocks_images_cache'
+  const CACHE_KEY = 'letsboulder_images_cache'
 
   const loadImages = useCallback(async () => {
     if (!isClient) {

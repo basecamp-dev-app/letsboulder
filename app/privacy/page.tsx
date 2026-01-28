@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy | gsyrocks',
-  description: 'Learn how gsyrocks collects, uses, and protects your personal information. Our privacy policy covers data collection, cookies, analytics, and your privacy rights.',
+  title: 'Privacy Policy',
+  description: 'Learn how letsboulder collects, uses, and protects your personal information. Our privacy policy covers data collection, cookies, analytics, and your privacy rights.',
   keywords: ['privacy policy', 'data protection', 'GDPR', 'cookie policy', 'personal data'],
 }
 
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
             1. Introduction
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            Welcome to gsyrocks. We are a bouldering logbook web application that helps climbers in Guernsey track their ascents, discover new climbs, and compete on leaderboards.
+            Welcome to letsboulder. We are a bouldering logbook web application that helps climbers in Guernsey track their ascents, discover new climbs, and compete on leaderboards.
           </p>
           <p className="text-gray-700 dark:text-gray-300 mt-2">
             This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our website and services.
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
           </ul>
           <p className="text-gray-700 dark:text-gray-300">
             Location data is displayed publicly on our interactive map and is essential
-            to the core functionality of gsyrocks.
+            to the core functionality of letsboulder.
           </p>
         </section>
 
@@ -204,7 +204,7 @@ export default function PrivacyPage() {
             10. Children&apos;s Privacy
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            gsyrocks is not intended for children under 13. We do not knowingly collect information from children under 13.
+            letsboulder is not intended for children under 13. We do not knowingly collect information from children under 13.
           </p>
         </section>
 
@@ -222,16 +222,16 @@ export default function PrivacyPage() {
             12. Contact Us
           </h2>
           <p className="text-gray-700 dark:text-gray-300 mb-2">
-            gsyrocks is operated by:
+            letsboulder is operated by:
           </p>
           <p className="text-gray-700 dark:text-gray-300 font-medium mb-4">
-            GSYROCKS LTD<br />
+            letsboulder<br />
             Guernsey, Channel Islands
           </p>
           <p className="text-gray-700 dark:text-gray-300">
             If you have questions about this Privacy Policy or your data, please contact us at{' '}
-            <a href="mailto:hello@gsyrocks.com" className="underline">
-              hello@gsyrocks.com
+            <a href="mailto:hello@letsboulder.com" className="underline">
+              hello@letsboulder.com
             </a>
           </p>
         </section>
@@ -311,14 +311,14 @@ export default function PrivacyPage() {
             14.3 Do Not Sell
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            gsyrocks does not sell your personal information to third parties.
+            letsboulder does not sell your personal information to third parties.
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
             14.4 Exercise Your Rights
           </h3>
           <p className="text-gray-700 dark:text-gray-300">
-            To submit a request, email hello@gsyrocks.com with &quot;CCPA Request&quot; in
+            To submit a request, email hello@letsboulder.com with &quot;CCPA Request&quot; in
             the subject line. We will verify your identity before processing.
           </p>
         </section>
@@ -343,7 +343,7 @@ export default function PrivacyPage() {
             15.2 Third-Party Content
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            If you have shared images from gsyrocks to social media or other platforms:
+            If you have shared images from letsboulder to social media or other platforms:
           </p>
           <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
             <li>We cannot remove images from those platforms</li>
@@ -355,12 +355,12 @@ export default function PrivacyPage() {
             15.3 Retention Period
           </h3>
           <p className="text-gray-700 dark:text-gray-300">
-            Images retained on gsyrocks after account deletion remain visible until:
+            Images retained on letsboulder after account deletion remain visible until:
           </p>
           <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1">
             <li>You subsequently request their removal</li>
             <li>Content is removed for policy violations</li>
-            <li>gsyrocks ceases operations</li>
+            <li>letsboulder ceases operations</li>
           </ul>
         </section>
       </div>

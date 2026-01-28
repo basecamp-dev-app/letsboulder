@@ -19,24 +19,24 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   if (!image) {
     return {
-      title: 'Image Not Found | gsyrocks',
+      title: 'Image Not Found',
       description: 'This route image could not be found.',
     }
   }
 
   const cragName = image.crags && Array.isArray(image.crags) && image.crags.length > 0 ? image.crags[0].name : null
-  const title = `Route Image${cragName ? ` at ${cragName}` : ''} | gsyrocks`
+  const title = `Route Image${cragName ? ` at ${cragName}` : ''}`
 
   return {
     title,
-    description: `View climbing route image${cragName ? ` at ${cragName}` : ''} on gsyrocks. Explore routes, grades, and climbing details.`,
+    description: `View climbing route image${cragName ? ` at ${cragName}` : ''} on letsboulder. Explore routes, grades, and climbing details.`,
     alternates: {
-      canonical: `https://gsyrocks.com/image/${id}`,
+      canonical: `/image/${id}`,
     },
     openGraph: {
-      title,
-      description: `View climbing route image${cragName ? ` at ${cragName}` : ''} on gsyrocks.`,
-      url: `https://gsyrocks.com/image/${id}`,
+      title: `${title} | letsboulder`,
+      description: `View climbing route image${cragName ? ` at ${cragName}` : ''} on letsboulder.`,
+      url: `/image/${id}`,
       images: image.url ? [{ url: image.url, width: 1200, height: 630, alt: 'Route image' }] : [],
     },
   }

@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     try {
       const locationRes = await fetch('https://nominatim.openstreetmap.org/reverse', {
         method: 'GET',
-        headers: { 'User-Agent': 'gsyrocks-climbing-app' }
+        headers: { 'User-Agent': 'letsboulder-climbing-app' }
       })
       if (locationRes.ok) {
         const data = await locationRes.json()

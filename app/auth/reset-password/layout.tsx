@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Reset Password',
-  description: 'Reset your gsyrocks password to regain access to your climbing logbook and route uploads.',
+  description: 'Reset your letsboulder password to regain access to your climbing logbook and route uploads.',
   robots: {
     index: false,
     follow: false,

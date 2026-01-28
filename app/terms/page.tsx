@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Terms of Service | gsyrocks',
-  description: 'Terms of Service for gsyrocks. Read our terms governing the use of our bouldering logbook platform, including user conduct, content policies, and liability disclaimers.',
+  title: 'Terms of Service',
+  description: 'Terms of Service for letsboulder. Read our terms governing the use of our bouldering logbook platform, including user conduct, content policies, and liability disclaimers.',
   keywords: ['terms of service', 'terms and conditions', 'user agreement', 'climbing safety'],
 }
 
@@ -23,7 +23,7 @@ export default function TermsPage() {
             1. Acceptance of Terms
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            By accessing or using gsyrocks, you agree to be bound by these Terms of Service and all applicable laws and regulations. If you do not agree with any part of these terms, you may not use our service.
+            By accessing or using letsboulder, you agree to be bound by these Terms of Service and all applicable laws and regulations. If you do not agree with any part of these terms, you may not use our service.
           </p>
         </section>
 
@@ -32,7 +32,7 @@ export default function TermsPage() {
             2. Description of Service
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            gsyrocks is a bouldering logbook web application that allows users to track their climbing ascents, discover new climbs on a map, contribute climb information, and view climbing leaderboards.
+            letsboulder is a bouldering logbook web application that allows users to track their climbing ascents, discover new climbs on a map, contribute climb information, and view climbing leaderboards.
           </p>
         </section>
 
@@ -41,7 +41,7 @@ export default function TermsPage() {
             3. User Accounts
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            To use certain features of gsyrocks, you must create an account. You are responsible for:
+            To use certain features of letsboulder, you must create an account. You are responsible for:
           </p>
           <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1">
             <li>Maintaining the confidentiality of your account credentials</li>
@@ -56,7 +56,7 @@ export default function TermsPage() {
             4. User Conduct
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            When using gsyrocks, you agree NOT to:
+            When using letsboulder, you agree NOT to:
           </p>
           <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1">
             <li>Upload false or inaccurate climb information</li>
@@ -78,16 +78,16 @@ export default function TermsPage() {
             5.1 Ownership
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            You retain full ownership of all images and content you upload to gsyrocks.
+            You retain full ownership of all images and content you upload to letsboulder.
             By uploading, you confirm you have the right to share and license these images
             as described below.
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            5.2 gsyrocks Display Rights
+            5.2 letsboulder Display Rights
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            You grant gsyrocks (GSYROCKS LTD) a non-exclusive, worldwide, royalty-free
+            You grant letsboulder a non-exclusive, worldwide, royalty-free
             license to display, host, and showcase your images in connection with the
             service, including on the public map, in other users&apos; logbooks, and across
             the platform.
@@ -97,18 +97,18 @@ export default function TermsPage() {
             5.4 Image Removal
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-2">
-            You may request removal of your images from gsyrocks at any time.
+            You may request removal of your images from letsboulder at any time.
           </p>
           <p className="text-gray-700 dark:text-gray-300">
             You are responsible for contacting third-party platforms directly if you
-            have shared content from gsyrocks to those platforms.
+            have shared content from letsboulder to those platforms.
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
             5.5 Account Deletion and Image Options
           </h3>
           <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
-            <li>You may request removal of your images from gsyrocks at any time</li>
+            <li>You may request removal of your images from letsboulder at any time</li>
             <li>Once images are shared to social media by other users, we cannot remove
               them from those platforms or any third-party sites</li>
             <li>You are responsible for contacting third-party platforms directly to
@@ -147,7 +147,7 @@ export default function TermsPage() {
             7. Intellectual Property
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            All content and materials on gsyrocks, including but not limited to logos, graphics, code, and design, are the property of gsyrocks or its licensors and are protected by copyright and other intellectual property laws.
+            All content and materials on letsboulder, including but not limited to logos, graphics, code, and design, are the property of letsboulder or its licensors and are protected by copyright and other intellectual property laws.
           </p>
         </section>
 
@@ -156,13 +156,13 @@ export default function TermsPage() {
             8. Disclaimer of Warranties
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            gsyrocks is provided &quot;as is&quot; and &quot;as available&quot; without any warranties of any kind, express or implied. We do not warrant that the service will be uninterrupted, timely, secure, or error-free.
+            letsboulder is provided &quot;as is&quot; and &quot;as available&quot; without any warranties of any kind, express or implied. We do not warrant that the service will be uninterrupted, timely, secure, or error-free.
           </p>
           <p className="text-gray-700 dark:text-gray-300 mt-2 mb-2">
             <strong>Climbing is inherently dangerous.</strong>
           </p>
           <p className="text-gray-700 dark:text-gray-300">
-            Route information on gsyrocks may be incomplete, inaccurate, or outdated.
+            Route information on letsboulder may be incomplete, inaccurate, or outdated.
             You are responsible for assessing conditions, verifying anchors and equipment,
             and prioritizing your own safety. We are not responsible for any injuries,
             accidents, or damages that may occur while using climb information from our service.
@@ -174,7 +174,7 @@ export default function TermsPage() {
             10. Limitation of Liability
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            To the maximum extent permitted by law, gsyrocks shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, or any loss of data, use, goodwill, or other intangible losses resulting from your use of the service.
+            To the maximum extent permitted by law, letsboulder shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, or any loss of data, use, goodwill, or other intangible losses resulting from your use of the service.
           </p>
         </section>
 
@@ -201,10 +201,10 @@ export default function TermsPage() {
             14. Contact Information
           </h2>
           <p className="text-gray-700 dark:text-gray-300 mb-2">
-            gsyrocks is operated by:
+            letsboulder is operated by:
           </p>
           <p className="text-gray-700 dark:text-gray-300 font-medium mb-4">
-            GSYROCKS LTD<br />
+            letsboulder<br />
             Guernsey, Channel Islands
           </p>
           <p className="text-gray-700 dark:text-gray-300">
@@ -225,7 +225,7 @@ export default function TermsPage() {
             15.1 Minimum Age
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            gsyrocks is not intended for users under 13 years of age. By using our
+            letsboulder is not intended for users under 13 years of age. By using our
             service, you confirm you are at least 13 years old.
           </p>
 
@@ -251,7 +251,7 @@ export default function TermsPage() {
           </h3>
           <p className="text-gray-700 dark:text-gray-300">
             If you are a parent or guardian of a child under the minimum age, please
-            contact us at hello@gsyrocks.com to request deletion of any account created
+            contact us at hello@letsboulder.com to request deletion of any account created
             in violation of these age restrictions.
           </p>
         </section>
@@ -265,13 +265,13 @@ export default function TermsPage() {
             16.1 Climbing Risks
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            Climbing is an inherently dangerous activity. By using gsyrocks, you
+            Climbing is an inherently dangerous activity. By using letsboulder, you
             acknowledge that:
           </p>
           <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
             <li>Outdoor climbing involves risks including falls, equipment failure,
               weather conditions, and other hazards</li>
-            <li>Route information on gsyrocks may be incomplete, inaccurate, or outdated</li>
+            <li>Route information on letsboulder may be incomplete, inaccurate, or outdated</li>
             <li>You are responsible for assessing conditions and your own safety</li>
           </ul>
 
@@ -292,7 +292,7 @@ export default function TermsPage() {
             16.3 Limitation of Liability
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            To the maximum extent permitted by applicable law, GSYROCKS LTD shall not
+            To the maximum extent permitted by applicable law, letsboulder shall not
             be liable for any injury, death, property damage, or other harm arising
             from your use of climbing information from our service.
           </p>
@@ -301,7 +301,7 @@ export default function TermsPage() {
             16.4 Indemnification
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-2">
-            You agree to indemnify, defend, and hold harmless GSYROCKS LTD, its officers,
+            You agree to indemnify, defend, and hold harmless letsboulder, its operators,
             directors, employees, and agents from any claims, damages, losses, or
             expenses (including reasonable legal fees) arising from:
           </p>
@@ -317,7 +317,7 @@ export default function TermsPage() {
             17. Third-Party Services
           </h2>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            gsyrocks uses the following third-party services to operate our platform:
+            letsboulder uses the following third-party services to operate our platform:
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
@@ -376,7 +376,7 @@ export default function TermsPage() {
             18.2 Jurisdiction
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            Any disputes arising from these Terms or your use of gsyrocks shall be
+            Any disputes arising from these Terms or your use of letsboulder shall be
             subject to the exclusive jurisdiction of the courts of Guernsey.
           </p>
 

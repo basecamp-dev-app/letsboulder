@@ -19,21 +19,21 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   if (!climb) {
     return {
-      title: 'Climb Not Found | gsyrocks',
+      title: 'Climb Not Found',
       description: 'This climb could not be found.',
     }
   }
 
   return {
-    title: `${climb.name} (${climb.grade}) | gsyrocks`,
+    title: `${climb.name} (${climb.grade})`,
     description: `Climb ${climb.name} graded ${climb.grade} in Guernsey. View route details, log your ascent, and track your progress.`,
     alternates: {
-      canonical: `https://gsyrocks.com/climb/${id}`,
+      canonical: `/climb/${id}`,
     },
     openGraph: {
-      title: `${climb.name} (${climb.grade}) | gsyrocks`,
+      title: `${climb.name} (${climb.grade}) | letsboulder`,
       description: `Climb ${climb.name} graded ${climb.grade} in Guernsey.`,
-      url: `https://gsyrocks.com/climb/${id}`,
+      url: `/climb/${id}`,
     },
   }
 }

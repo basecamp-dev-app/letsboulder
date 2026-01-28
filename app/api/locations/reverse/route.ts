@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       `${NOMINATIM_REVERSE_URL}?format=json&lat=${latNum}&lon=${lngNum}&addressdetails=1`,
       {
         headers: {
-          'User-Agent': 'gsyrocks-climbing-app',
+          'User-Agent': 'letsboulder-climbing-app',
         },
       }
     )

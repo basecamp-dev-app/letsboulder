@@ -1,6 +1,6 @@
 {
-  "name": "gsyrocks - Guernsey Climbing Routes",
-  "short_name": "gsyrocks",
+  "name": "letsboulder - Guernsey Climbing Routes",
+  "short_name": "letsboulder",
   "description": "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
   "start_url": "/map",
   "display": "standalone",

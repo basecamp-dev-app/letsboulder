@@ -1,9 +1,10 @@
 import { MetadataRoute } from 'next'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { SITE_URL } from '@/lib/site'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://gsyrocks.com'
+  const baseUrl = SITE_URL
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

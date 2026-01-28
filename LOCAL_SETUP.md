@@ -95,7 +95,7 @@ Run in Supabase Studio SQL Editor (http://localhost:54323):
 INSERT INTO auth.users (id, email, encrypted_password, confirmed_at, raw_app_meta_data, created_at, updated_at)
 VALUES (
   '25dfbf3e-00bd-4a46-9fb1-e9e0aa4e3044',
-  'dev@gsyrocks.com',
+  'dev@letsboulder.com',
   '$2a$06$ha4tARgJzQFxh8i.x4wk1uKTm3gG0H.FS9/XcJBqJOiLSfyT.9RzC', -- 'devpassword123'
   NOW(),
   '{"gsyrocks_admin": true}',
@@ -105,7 +105,7 @@ VALUES (
 
 -- Create profile with admin flag
 INSERT INTO public.profiles (id, email, is_admin, username)
-VALUES ('25dfbf3e-00bd-4a46-9fb1-e9e0aa4e3044', 'dev@gsyrocks.com', true, 'devadmin')
+VALUES ('25dfbf3e-00bd-4a46-9fb1-e9e0aa4e3044', 'dev@letsboulder.com', true, 'devadmin')
 ON CONFLICT (id) DO UPDATE SET is_admin = true;
 
 -- Create default auth instance
@@ -124,7 +124,7 @@ WHERE id = '25dfbf3e-00bd-4a46-9fb1-e9e0aa4e3044';
 ### Step 2: Sign In
 
 1. Go to http://localhost:3000/auth
-2. Enter `dev@gsyrocks.com`
+2. Enter `dev@letsboulder.com`
 3. Check magic link at http://localhost:54324
 4. Click the link to complete sign-in
 
@@ -156,7 +156,7 @@ INSERT INTO auth.instances (id, uuid, raw_base_config, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000', '{}', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
-UPDATE auth.users SET instance_id = '00000000-0000-0000-0000-000000000000' WHERE email = 'dev@gsyrocks.com';
+UPDATE auth.users SET instance_id = '00000000-0000-0000-0000-000000000000' WHERE email = 'dev@letsboulder.com';
 ```
 
 **Restart auth service**:
@@ -183,7 +183,7 @@ npm run dev
 
 2. Verify database:
    ```sql
-   SELECT id, email, is_admin FROM profiles WHERE email = 'dev@gsyrocks.com';
+   SELECT id, email, is_admin FROM profiles WHERE email = 'dev@letsboulder.com';
    -- Should show is_admin = true
    ```
 
@@ -225,7 +225,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...
 SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
 
 NEXT_PUBLIC_DEV_PASSWORD_AUTH=true
-DEV_USER_EMAIL=dev@gsyrocks.com
+DEV_USER_EMAIL=dev@letsboulder.com
 DEV_USER_PASSWORD=devpassword123
 ```
 

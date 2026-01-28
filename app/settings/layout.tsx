@@ -1,10 +1,13 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Settings - gsyrocks',
+  title: 'Settings',
   description: 'Manage your account settings and preferences',
+  alternates: {
+    canonical: '/settings',
+  },
   openGraph: {
-    title: 'Settings - gsyrocks',
+    title: 'Settings - letsboulder',
     description: 'Manage your account settings and preferences',
     url: '/settings',
     images: [
@@ -12,7 +15,7 @@ export const metadata: Metadata = {
         url: '/logo.png',
         width: 1200,
         height: 630,
-        alt: 'Settings - gsyrocks',
+        alt: 'Settings - letsboulder',
       },
     ],
   },
