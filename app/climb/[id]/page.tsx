@@ -348,20 +348,20 @@ export default function ClimbPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-500 dark:text-gray-400" />
       </div>
     )
   }
 
   if (error || !climb) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-400 mb-4">{error || 'Climb not found'}</p>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Climb not found'}</p>
           <button
             onClick={() => router.push('/map')}
-            className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700"
+            className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 dark:bg-gray-800 dark:hover:bg-gray-700"
           >
             Back to Map
           </button>
@@ -386,7 +386,7 @@ export default function ClimbPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-white dark:bg-gray-950 flex flex-col">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(routeSchema) }}
@@ -419,23 +419,23 @@ export default function ClimbPage() {
         </div>
       </div>
 
-      <div className="bg-gray-900 border-t border-gray-800 p-4">
+      <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
         <div className="max-w-md mx-auto">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-xl font-bold text-white">{climb.name}</h1>
-              <p className="text-gray-400">Grade: {climb.grade}</p>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">{climb.name}</h1>
+              <p className="text-gray-600 dark:text-gray-400">Grade: {climb.grade}</p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={typeof navigator.share === 'function' ? handleNativeShare : () => setShareModalOpen(true)}
-                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors"
                 aria-label="Share climb"
               >
                 <Share2 className="w-5 h-5" />
               </button>
               {climb.logged && (
-                <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">
+                <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 rounded-full text-sm font-medium">
                   Logged
                 </span>
               )}

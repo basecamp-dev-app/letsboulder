@@ -232,6 +232,7 @@ export default function ImagePage() {
   const [userHasFlagged, setUserHasFlagged] = useState(false)
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [statusLoading, setStatusLoading] = useState(false)
+  const [showAllRoutes, setShowAllRoutes] = useState(false)
 
   const selectedRoute = useMemo(() => {
     if (!image) return null
@@ -240,6 +241,11 @@ export default function ImagePage() {
   }, [image, selectedRouteId])
 
   const lastStatusClimbIdRef = useRef<string | null>(null)
+
+  const routesPreviewLimit = 10
+  const authRedirectTo = selectedRouteId
+    ? `/image/${imageId}?route=${selectedRouteId}&tab=${selectedTab}`
+    : `/image/${imageId}`
 
   useEffect(() => {
     const supabase = createClient()
@@ -376,6 +382,10 @@ export default function ImagePage() {
     loadImage()
   }, [imageId])
 
+  useEffect(() => {
+    setShowAllRoutes(false)
+  }, [imageId])
+
   const handleRouteClick = (route: ImageRoute, event: React.MouseEvent) => {
     event.stopPropagation()
     const next = new URLSearchParams(searchParams.toString())
@@ -482,20 +492,20 @@ export default function ImagePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-500 dark:text-gray-400" />
       </div>
     )
   }
 
   if (error || !image) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-400 mb-4">{error || 'Image not found'}</p>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Image not found'}</p>
           <button
             onClick={() => window.location.href = '/map'}
-            className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700"
+            className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 dark:bg-gray-800 dark:hover:bg-gray-700"
           >
             Back to Map
           </button>
@@ -505,14 +515,14 @@ export default function ImagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-white dark:bg-gray-950 flex flex-col">
       {toast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg">
           {toast}
         </div>
       )}
 
-      <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-950">
+      <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-950">
         <ImageWrapper
           url={image.url}
           routeLines={image.route_lines}
@@ -553,74 +563,24 @@ export default function ImagePage() {
         />
       )}
 
-        {cragId && cragName && (
-        <div className="flex justify-center mt-2 pb-4 gap-2">
-          <Link href={`/crag/${cragId}`} className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
-            View {cragName} →
-          </Link>
-          {!user ? (
+      <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
+        <div className="flex items-center justify-end mb-3">
+          {image.route_lines.length > routesPreviewLimit && (
             <button
-              onClick={() => router.push(`/auth?redirect_to=/image/${imageId}`)}
-              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
+              onClick={() => setShowAllRoutes((v) => !v)}
+              className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200"
             >
-              <Flag className="w-3 h-3" />
-              Flag
-            </button>
-          ) : userHasFlagged ? (
-            <span className="px-3 py-1 bg-yellow-600 text-white text-sm rounded-lg flex items-center gap-1">
-              <Flag className="w-3 h-3" />
-              Flagged
-            </span>
-          ) : (
-            <button
-              onClick={() => setFlagModalOpen(true)}
-              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
-            >
-              <Flag className="w-3 h-3" />
-              Flag
+              {showAllRoutes ? `Collapse routes` : `Show all routes (${image.route_lines.length})`}
             </button>
           )}
         </div>
-      )}
 
-      {!cragId && (
-        <div className="flex justify-center mt-2 pb-4">
-          {!user ? (
-            <button
-              onClick={() => router.push(`/auth?redirect_to=/image/${imageId}`)}
-              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
-            >
-              <Flag className="w-3 h-3" />
-              Flag
-            </button>
-          ) : userHasFlagged ? (
-            <span className="px-3 py-1 bg-yellow-600 text-white text-sm rounded-lg flex items-center gap-1">
-              <Flag className="w-3 h-3" />
-              Flagged
-            </span>
-          ) : (
-            <button
-              onClick={() => setFlagModalOpen(true)}
-              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
-            >
-              <Flag className="w-3 h-3" />
-              Flag
-            </button>
-          )}
-        </div>
-      )}
-
-      <div className="bg-gray-900 border-t border-gray-800 p-4 max-h-[25vh] overflow-y-auto">
-        <div>
-          <p className="text-white text-lg font-semibold mb-3">
-            {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''} on this image
-          </p>
-
-          {image.route_lines.length === 0 ? (
-            <p className="text-gray-400 text-sm">No routes on this image yet.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {image.route_lines.map((route, index) => {
+        {image.route_lines.length === 0 ? (
+          <p className="text-gray-600 dark:text-gray-400 text-sm">No routes on this image yet.</p>
+        ) : (
+          <div className={showAllRoutes ? 'max-h-[45vh] overflow-y-auto pr-1' : ''}>
+            <div className="grid grid-cols-2 sm:grid-cols-2 gap-2">
+              {(showAllRoutes ? image.route_lines : image.route_lines.slice(0, routesPreviewLimit)).map((route, index) => {
                 const isLogged = route.climb?.id ? !!userLogs[route.climb.id] : false
                 const isSelected = selectedRoute?.id === route.id
                 return (
@@ -629,29 +589,65 @@ export default function ImagePage() {
                     onClick={(e) => handleRouteClick(route, e)}
                     className={`p-3 rounded-lg text-left transition-colors border ${
                       isSelected
-                        ? 'bg-gray-800 border-white'
+                        ? 'bg-gray-50 dark:bg-gray-950 border-gray-900 dark:border-white'
                         : isLogged
-                          ? 'bg-green-900/30 border-green-800'
-                          : 'bg-gray-800 border-gray-700 hover:border-blue-500'
+                          ? 'bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-800'
+                          : 'bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-gray-100">
+                    <div className="flex items-center justify-between gap-2 min-w-0">
+                      <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
                         {(route.climb?.name || '').trim() || `Route ${index + 1}`}
                       </span>
                       <span className={`text-sm px-2 py-0.5 rounded ${
-                        isLogged ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-300'
+                        isLogged
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
+                          : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
                       }`}>
                         {route.climb?.grade}
                       </span>
                     </div>
                     {isLogged && (
-                      <p className="text-xs text-green-400 mt-1">Logged</p>
+                      <p className="text-xs text-green-700 dark:text-green-300 mt-1">Logged</p>
                     )}
                   </button>
                 )
               })}
             </div>
+          </div>
+        )}
+
+        <div className="flex justify-center gap-2 mt-3 pb-1">
+          {cragId && cragName && (
+            <Link
+              href={`/crag/${cragId}`}
+              className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              View {cragName} →
+            </Link>
+          )}
+
+          {!user ? (
+            <button
+              onClick={() => router.push(`/auth?redirect_to=${encodeURIComponent(authRedirectTo)}`)}
+              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
+            >
+              <Flag className="w-3 h-3" />
+              Flag
+            </button>
+          ) : userHasFlagged ? (
+            <span className="px-3 py-1 bg-yellow-600 text-white text-sm rounded-lg flex items-center gap-1">
+              <Flag className="w-3 h-3" />
+              Flagged
+            </span>
+          ) : (
+            <button
+              onClick={() => setFlagModalOpen(true)}
+              className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1"
+            >
+              <Flag className="w-3 h-3" />
+              Flag
+            </button>
           )}
         </div>
       </div>

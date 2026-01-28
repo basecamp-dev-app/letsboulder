@@ -24,7 +24,7 @@ export function Toast({ message, type = 'info', onClose }: ToastProps) {
   }
 
   return (
-    <div className={`fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg border shadow-lg ${styles[type]} animate-in slide-in-from-bottom-2`}>
+    <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border shadow-lg ${styles[type]} animate-in slide-in-from-top-2`}>
       <span className="text-sm font-medium">{message}</span>
       <button
         onClick={onClose}
@@ -47,7 +47,7 @@ interface ToastContainerProps {
 
 export function ToastContainer({ toasts, onRemove }: ToastContainerProps) {
   return (
-    <div className="fixed bottom-4 right-4 z-50 space-y-2">
+    <div className="fixed left-1/2 -translate-x-1/2 top-[calc(var(--app-header-offset)+env(safe-area-inset-top,0px)+1rem)] z-[4500] w-[calc(100%-2rem)] max-w-sm space-y-2">
       {toasts.map((toast) => (
         <Toast
           key={toast.id}

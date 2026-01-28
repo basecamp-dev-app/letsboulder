@@ -93,21 +93,21 @@ function VoteBars({ votes }: { votes: GradeVoteDistribution[] }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-sm text-gray-200">
+        <p className="text-sm text-gray-900 dark:text-gray-200">
           Grade votes
-          <span className="text-gray-400"> • {totalVotes} total</span>
+          <span className="text-gray-600 dark:text-gray-400"> • {totalVotes} total</span>
         </p>
         {totalVotes < 3 && (
-          <span className="text-xs px-2 py-1 rounded bg-yellow-900/30 text-yellow-300 border border-yellow-800">
+          <span className="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-800">
             Pending Consensus
           </span>
         )}
       </div>
 
       {sortedVotes.length === 0 ? (
-        <div className="rounded-lg border border-gray-800 bg-gray-950/40 p-4">
-          <div className="h-2 rounded bg-gray-800" />
-          <p className="text-xs text-gray-400 mt-3">No votes yet</p>
+        <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950/40 p-4">
+          <div className="h-2 rounded bg-gray-200 dark:bg-gray-800" />
+          <p className="text-xs text-gray-600 dark:text-gray-400 mt-3">No votes yet</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -115,14 +115,14 @@ function VoteBars({ votes }: { votes: GradeVoteDistribution[] }) {
             const pct = Math.round((v.vote_count / maxVotes) * 100)
             return (
               <div key={v.grade} className="grid grid-cols-[48px_1fr_32px] items-center gap-3">
-                <span className="text-xs font-medium text-gray-200 tabular-nums">{v.grade}</span>
-                <div className="h-2 rounded bg-gray-800 overflow-hidden">
+                <span className="text-xs font-medium text-gray-900 dark:text-gray-200 tabular-nums">{v.grade}</span>
+                <div className="h-2 rounded bg-gray-200 dark:bg-gray-800 overflow-hidden">
                   <div
                     className="h-full rounded bg-blue-500/80"
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <span className="text-xs text-gray-400 tabular-nums text-right">{v.vote_count}</span>
+                <span className="text-xs text-gray-600 dark:text-gray-400 tabular-nums text-right">{v.vote_count}</span>
               </div>
             )
           })}
@@ -299,26 +299,26 @@ export default function RouteDetailModal({
   const consensusLabel = totalVotes < 3 ? 'Pending Consensus' : 'Consensus'
 
   return (
-    <div className="fixed inset-0 z-[6000] bg-gray-950 text-white flex flex-col">
-      <div className="px-5 pt-5 pb-3 border-b border-gray-800">
+    <div className="fixed inset-0 z-[6000] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col">
+      <div className="px-5 pt-5 pb-3 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-start justify-between gap-3">
           <div>
             <button
               onClick={onClose}
-              className="text-sm text-gray-300 hover:text-white"
+              className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
             >
               Back to routes
             </button>
-            <p className="text-lg font-semibold text-white leading-tight mt-2">{routeName}</p>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white leading-tight mt-2">{routeName}</p>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm text-gray-300">{displayedGrade}</span>
-              <span className="text-xs text-gray-500">•</span>
-              <span className="text-xs text-gray-400">{consensusLabel}</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">{displayedGrade}</span>
+              <span className="text-xs text-gray-400">•</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">{consensusLabel}</span>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-md hover:bg-gray-900 text-gray-300 hover:text-white"
+            className="p-2 rounded-md hover:bg-gray-100 text-gray-600 hover:text-gray-900 dark:hover:bg-gray-900 dark:text-gray-300 dark:hover:text-white"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -330,8 +330,8 @@ export default function RouteDetailModal({
             onClick={() => onTabChange('climb')}
             className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
               tab === 'climb'
-                ? 'bg-white text-gray-950 border-white'
-                : 'bg-gray-950 text-gray-200 border-gray-800 hover:border-gray-700'
+                ? 'bg-gray-900 text-white border-gray-900 dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100'
+                : 'bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700'
             }`}
           >
             Climb
@@ -340,8 +340,8 @@ export default function RouteDetailModal({
             onClick={() => onTabChange('tops')}
             className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
               tab === 'tops'
-                ? 'bg-white text-gray-950 border-white'
-                : 'bg-gray-950 text-gray-200 border-gray-800 hover:border-gray-700'
+                ? 'bg-gray-900 text-white border-gray-900 dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100'
+                : 'bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700'
             }`}
           >
             Tops
@@ -353,8 +353,8 @@ export default function RouteDetailModal({
             {tab === 'climb' ? (
               <div className="space-y-4">
                 {statusLoading ? (
-                  <div className="rounded-lg border border-gray-800 bg-gray-950/40 p-6 flex items-center justify-center">
-                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950/40 p-6 flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-500 dark:text-gray-400" />
                   </div>
                 ) : (
                   <VoteBars votes={votes} />
@@ -362,39 +362,39 @@ export default function RouteDetailModal({
 
                 {user ? (
                   <div className="flex items-center justify-between">
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs text-gray-600 dark:text-gray-400">
                       {userVote ? `Your vote: ${userVote}` : 'No grade vote yet'}
                     </div>
                     <button
                       onClick={openSlider}
-                      className="text-xs text-blue-300 hover:text-blue-200 underline underline-offset-4"
+                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200 underline underline-offset-4"
                     >
                       Adjust grade vote
                     </button>
                   </div>
                 ) : (
-                  <div className="text-xs text-gray-400">
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
                     <Link
                       href={`/auth?redirect_to=${encodeURIComponent(redirectTo)}`}
-                      className="text-blue-300 hover:text-blue-200 underline underline-offset-4"
+                      className="text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200 underline underline-offset-4"
                     >
                       Sign in
                     </Link>
-                    <span className="text-gray-500"> to vote on the grade</span>
+                    <span className="text-gray-500 dark:text-gray-500"> to vote on the grade</span>
                   </div>
                 )}
 
                 {route.climb?.description && (
-                  <div className="rounded-lg border border-gray-800 bg-gray-950/40 p-4">
-                    <p className="text-sm text-gray-300 whitespace-pre-wrap">{route.climb.description}</p>
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950/40 p-4">
+                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{route.climb.description}</p>
                   </div>
                 )}
               </div>
             ) : (
               <div>
                 {topsLoading ? (
-                  <div className="rounded-lg border border-gray-800 bg-gray-950/40 p-6 flex items-center justify-center">
-                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950/40 p-6 flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-500 dark:text-gray-400" />
                   </div>
                 ) : tops && tops.length > 0 ? (
                   <div className="space-y-2">
@@ -402,7 +402,7 @@ export default function RouteDetailModal({
                       <Link
                         key={`${t.user_id}-${t.created_at}`}
                         href={`/logbook/${t.user_id}`}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-800 bg-gray-950/40 px-3 py-2 hover:border-gray-700"
+                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950/40 px-3 py-2 hover:border-gray-300 dark:hover:border-gray-700"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           {t.profile.avatar_url ? (
@@ -412,21 +412,21 @@ export default function RouteDetailModal({
                               className="w-9 h-9 rounded-full object-cover"
                             />
                           ) : (
-                            <div className="w-9 h-9 rounded-full bg-gray-800 flex items-center justify-center text-xs text-gray-200">
+                            <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center text-xs text-gray-700 dark:text-gray-200">
                               {t.profile.display_name.slice(0, 2).toUpperCase()}
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="text-sm text-gray-100 truncate">{t.profile.display_name}</p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-sm text-gray-900 dark:text-gray-100 truncate">{t.profile.display_name}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-500">
                               {t.style === 'flash' ? 'Flash' : 'Top'} • {formatRelativeDate(t.created_at)}
                             </p>
                           </div>
                         </div>
                         <span className={`text-xs px-2 py-1 rounded border ${
                           t.style === 'flash'
-                            ? 'bg-yellow-900/30 text-yellow-200 border-yellow-800'
-                            : 'bg-blue-900/30 text-blue-200 border-blue-800'
+                            ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-800'
+                            : 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-800'
                         }`}>
                           {t.style === 'flash' ? '⚡' : '✓'}
                         </span>
@@ -434,24 +434,24 @@ export default function RouteDetailModal({
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-gray-800 bg-gray-950/40 p-6">
-                    <p className="text-sm text-gray-200">Be the first to log this recently!</p>
-                    <p className="text-xs text-gray-500 mt-1">Only public profiles appear here.</p>
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/40 p-6">
+                    <p className="text-sm text-gray-900 dark:text-gray-200">Be the first to log this recently!</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-500 mt-1">Only public profiles appear here.</p>
                   </div>
                 )}
               </div>
             )}
       </div>
 
-      <div className="border-t border-gray-800 bg-gray-950">
+      <div className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
             {sliderOpen && (
-              <div className="px-5 pt-4 pb-3 border-b border-gray-800">
+              <div className="px-5 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-200">Vote grade</p>
-                    <p className="text-xs text-gray-500">Release to submit</p>
+                    <p className="text-sm text-gray-900 dark:text-gray-200">Vote grade</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500">Release to submit</p>
                   </div>
-                  <div className="text-sm font-semibold text-white tabular-nums">{selectedGrade}</div>
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums">{selectedGrade}</div>
                 </div>
 
                 <input
@@ -475,13 +475,13 @@ export default function RouteDetailModal({
                 <div className="flex items-center justify-between mt-3">
                   <button
                     onClick={() => setSliderOpen(false)}
-                    className="text-xs text-gray-400 hover:text-gray-200"
+                    className="text-xs text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
                     disabled={sliderSubmitting}
                   >
                     Cancel
                   </button>
                   {sliderSubmitting && (
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       Saving
                     </div>
@@ -497,8 +497,8 @@ export default function RouteDetailModal({
                   disabled={logging}
                   className={`flex-1 py-2 rounded-lg font-medium transition-colors border ${
                     userLogStyle === 'flash'
-                      ? 'bg-yellow-500 text-gray-950 border-yellow-500'
-                      : 'bg-gray-900 text-white border-gray-800 hover:border-gray-700'
+                      ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-800'
+                      : 'bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700'
                   } disabled:opacity-60`}
                 >
                   Flash
@@ -508,8 +508,8 @@ export default function RouteDetailModal({
                   disabled={logging}
                   className={`flex-1 py-2 rounded-lg font-medium transition-colors border ${
                     userLogStyle === 'top'
-                      ? 'bg-blue-500 text-gray-950 border-blue-500'
-                      : 'bg-gray-900 text-white border-gray-800 hover:border-gray-700'
+                      ? 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-800'
+                      : 'bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700'
                   } disabled:opacity-60`}
                 >
                   Top
@@ -519,18 +519,18 @@ export default function RouteDetailModal({
                   disabled={logging}
                   className={`flex-1 py-2 rounded-lg font-medium transition-colors border ${
                     userLogStyle === 'try'
-                      ? 'bg-gray-200 text-gray-950 border-gray-200'
-                      : 'bg-gray-900 text-white border-gray-800 hover:border-gray-700'
+                      ? 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-800'
+                      : 'bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700'
                   } disabled:opacity-60`}
                 >
                   Try
                 </button>
                 <button
                   onClick={() => setInfoOpen(true)}
-                  className="shrink-0 p-2 rounded-lg border border-gray-800 hover:border-gray-700 bg-gray-900"
+                  className="shrink-0 p-2 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 bg-white dark:bg-gray-950 hover:bg-gray-50 dark:hover:bg-gray-900"
                   aria-label="Log types info"
                 >
-                  <HelpCircle className="w-4 h-4 text-gray-200" />
+                  <HelpCircle className="w-4 h-4 text-gray-700 dark:text-gray-200" />
                 </button>
               </div>
             </div>
@@ -539,31 +539,31 @@ export default function RouteDetailModal({
       {infoOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-4" onClick={() => setInfoOpen(false)}>
           <div
-            className="w-full max-w-sm rounded-lg border border-gray-800 bg-gray-950 p-5"
+            className="w-full max-w-sm rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
-              <p className="text-base font-semibold text-white">Log types</p>
+              <p className="text-base font-semibold text-gray-900 dark:text-white">Log types</p>
               <button
                 onClick={() => setInfoOpen(false)}
-                className="p-2 -m-2 rounded hover:bg-gray-900 text-gray-300 hover:text-white"
+                className="p-2 -m-2 rounded hover:bg-gray-100 text-gray-600 hover:text-gray-900 dark:hover:bg-gray-900 dark:text-gray-300 dark:hover:text-white"
                 aria-label="Close info"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="mt-3 space-y-3 text-sm text-gray-300">
+            <div className="mt-3 space-y-3 text-sm text-gray-700 dark:text-gray-300">
               <div>
-                <p className="font-medium text-white">Flash</p>
-                <p className="text-gray-400">Sent first try.</p>
+                <p className="font-medium text-gray-900 dark:text-white">Flash</p>
+                <p className="text-gray-600 dark:text-gray-400">Sent first try.</p>
               </div>
               <div>
-                <p className="font-medium text-white">Top</p>
-                <p className="text-gray-400">Sent (not first try).</p>
+                <p className="font-medium text-gray-900 dark:text-white">Top</p>
+                <p className="text-gray-600 dark:text-gray-400">Sent (not first try).</p>
               </div>
               <div>
-                <p className="font-medium text-white">Try</p>
-                <p className="text-gray-400">Attempted but not sent.</p>
+                <p className="font-medium text-gray-900 dark:text-white">Try</p>
+                <p className="text-gray-600 dark:text-gray-400">Attempted but not sent.</p>
               </div>
             </div>
           </div>
