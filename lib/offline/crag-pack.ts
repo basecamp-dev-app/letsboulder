@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase'
 import { getOfflineDb } from '@/lib/offline/db'
 import { createObjectUrlFromCache, putInOfflineCache, removeFromOfflineCache } from '@/lib/offline/cache'
-import { offlineCragMapRequestUrl } from '@/lib/offline/constants'
+import { OFFLINE_PAGES_CACHE, offlineCragMapRequestUrl } from '@/lib/offline/constants'
 import {
   bbox4326ToBbox3857,
   computeBboxFromPoints4326,
@@ -98,10 +98,23 @@ export async function getOfflineCragMapObjectUrl(cragId: string) {
   return await createObjectUrlFromCache(offlineCragMapRequestUrl(cragId))
 }
 
+export async function listOfflineCrags(): Promise<OfflineCragMeta[]> {
+  const db = await getOfflineDb()
+  const metas = await db.getAll('cragMeta')
+  metas.sort((a, b) => b.downloadedAt - a.downloadedAt)
+  return metas
+}
+
 export async function removeCragDownload(cragId: string) {
   const db = await getOfflineDb()
 
   const existingImages = await db.getAllFromIndex('images', 'by-crag', cragId)
+
+  const pagesCache = await caches.open(OFFLINE_PAGES_CACHE)
+  await pagesCache.delete(`/crag/${cragId}`)
+  for (const img of existingImages) {
+    await pagesCache.delete(`/image/${img.imageId}`)
+  }
 
   const tx = db.transaction(['cragMeta', 'crags', 'images'], 'readwrite')
   await tx.objectStore('cragMeta').delete(cragId)
@@ -433,6 +446,23 @@ export async function downloadCragForOffline(
     await tx.objectStore('images').put(rec, rec.imageId)
   }
   await tx.done
+
+  const pagesCache = await caches.open(OFFLINE_PAGES_CACHE)
+  const pageUrls = [`/crag/${cragId}`, ...imageRecords.map((x) => `/image/${x.imageId}`)]
+  let pageCompleted = 0
+  onProgress?.({ phase: 'pages', completed: pageCompleted, total: pageUrls.length, message: 'Saving pages for offline' })
+  await asyncPool(3, pageUrls, async (url) => {
+    try {
+      const res = await fetch(url, { cache: 'no-cache' })
+      if (res.ok) await pagesCache.put(url, res)
+    } catch {
+      // ignore
+    } finally {
+      pageCompleted += 1
+      onProgress?.({ phase: 'pages', completed: pageCompleted, total: pageUrls.length })
+    }
+    return true
+  })
 
   const pins = imageRecords
     .filter((x) => x.latitude != null && x.longitude != null)

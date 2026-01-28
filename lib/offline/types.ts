@@ -75,7 +75,7 @@ export interface OfflineCragRecord {
 }
 
 export interface OfflineDownloadProgress {
-  phase: 'metadata' | 'screenshot' | 'images'
+  phase: 'metadata' | 'pages' | 'screenshot' | 'images'
   completed: number
   total: number
   message?: string

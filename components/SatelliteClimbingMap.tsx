@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
-import { MapPin, Bookmark } from 'lucide-react'
+import { MapPin, Bookmark, Download } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
 import { geoJsonPolygonToLeaflet } from '@/lib/geo-utils'
 import type { GeoJSONPolygon } from '@/types/database'
@@ -13,6 +13,8 @@ import { csrfFetch } from '@/hooks/useCsrf'
 
 import 'leaflet/dist/leaflet.css'
 import { trackEvent, trackRouteClicked } from '@/lib/posthog'
+import { listOfflineCrags, removeCragDownload } from '@/lib/offline/crag-pack'
+import type { OfflineCragMeta } from '@/lib/offline/types'
 
 interface LeafletIconDefault {
   prototype: {
@@ -126,10 +128,47 @@ export default function SatelliteClimbingMap() {
   const [toast, setToast] = useState<string | null>(null)
   const [saveLocationLoading, setSaveLocationLoading] = useState(false)
   const [defaultLocationLoading, setDefaultLocationLoading] = useState(true)
+  const [downloadsOpen, setDownloadsOpen] = useState(false)
+  const [offlineCrags, setOfflineCrags] = useState<OfflineCragMeta[]>([])
+  const [offlineCragsLoading, setOfflineCragsLoading] = useState(false)
+  const [isOffline, setIsOffline] = useState(false)
 
   useEffect(() => {
     setupLeafletIcons()
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const update = () => setIsOffline(!navigator.onLine)
+    update()
+    window.addEventListener('online', update)
+    window.addEventListener('offline', update)
+    return () => {
+      window.removeEventListener('online', update)
+      window.removeEventListener('offline', update)
+    }
+  }, [])
+
+  const refreshOfflineCrags = useCallback(async () => {
+    setOfflineCragsLoading(true)
+    try {
+      const metas = await listOfflineCrags()
+      setOfflineCrags(metas)
+    } catch {
+      setOfflineCrags([])
+    } finally {
+      setOfflineCragsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!downloadsOpen) return
+    refreshOfflineCrags()
+  }, [downloadsOpen, refreshOfflineCrags])
+
+  useEffect(() => {
+    refreshOfflineCrags()
+  }, [refreshOfflineCrags])
 
   useEffect(() => {
     if (toast) {
@@ -639,6 +678,20 @@ export default function SatelliteClimbingMap() {
         {saveLocationLoading ? 'Saving...' : 'Save view'}
       </button>
 
+      <button
+        onClick={() => setDownloadsOpen(true)}
+        className="absolute left-4 top-[124px] z-[1100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-xs shadow-md flex items-center gap-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+      >
+        <Download className="w-3.5 h-3.5" />
+        Downloads
+        {offlineCrags.length > 0 && (
+          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-gray-900 text-white text-[10px] tabular-nums">
+            {offlineCrags.length}
+          </span>
+        )}
+        {isOffline && <span className="ml-1 text-[10px] text-gray-500 dark:text-gray-400">offline</span>}
+      </button>
+
       {locationStatus === 'requesting' && (
         <div className="absolute top-4 right-20 z-[1000] bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm">
           Requesting location...
@@ -663,6 +716,79 @@ export default function SatelliteClimbingMap() {
       {toast && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[1100] px-4 py-2 bg-green-600 text-white rounded-lg shadow-lg text-sm font-medium">
           {toast}
+        </div>
+      )}
+
+      {downloadsOpen && (
+        <div className="fixed inset-0 z-[2000]">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setDownloadsOpen(false)}
+          />
+          <div className="absolute left-0 right-0 bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 rounded-t-2xl shadow-2xl p-4 max-h-[72vh] overflow-auto">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Offline downloads</div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={refreshOfflineCrags}
+                  className="text-xs px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
+                >
+                  Refresh
+                </button>
+                <button
+                  onClick={() => setDownloadsOpen(false)}
+                  className="text-xs px-2 py-1 rounded-md bg-gray-900 text-white hover:bg-gray-800"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              {offlineCragsLoading ? (
+                <div className="text-sm text-gray-600 dark:text-gray-400">Loading…</div>
+              ) : offlineCrags.length === 0 ? (
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  No crags downloaded yet. Open a crag and tap “Download offline”.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {offlineCrags.map((c) => (
+                    <div
+                      key={c.cragId}
+                      className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2"
+                    >
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{c.name}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 tabular-nums">
+                          Downloaded {new Date(c.downloadedAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            window.location.href = `/crag/${c.cragId}`
+                          }}
+                          className="text-xs px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-500"
+                        >
+                          Open
+                        </button>
+                        <button
+                          onClick={async () => {
+                            await removeCragDownload(c.cragId)
+                            await refreshOfflineCrags()
+                          }}
+                          className="text-xs px-3 py-1.5 rounded-md bg-gray-900 text-white hover:bg-gray-800"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

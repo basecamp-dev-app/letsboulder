@@ -39,7 +39,7 @@ const withSerwist = withSerwistInit({
   swDest: 'public/sw.js',
   register: true,
   disable: process.env.NODE_ENV === 'development',
-  additionalPrecacheEntries: [{ url: '/~offline', revision }],
+  additionalPrecacheEntries: [{ url: '/~offline', revision }, { url: '/map', revision }],
 })
 
 export default withSerwist(nextConfig)
