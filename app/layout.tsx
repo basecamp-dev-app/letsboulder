@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
     images: [
       {
-        url: "/logo.png",
+        url: "/og.png",
         width: 1200,
         height: 630,
         alt: "letsboulder - Guernsey Climbing Routes",
@@ -66,7 +66,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "letsboulder - Guernsey Climbing Routes",
     description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
-    images: ["/logo.png"],
+    images: ["/og.png"],
     creator: X_HANDLE,
   },
   other: {
@@ -147,7 +147,7 @@ export default function RootLayout({
                 "@type": "Organization",
                 name: BRAND_NAME,
                 url: SITE_URL,
-                logo: `${SITE_URL}/logo.png`,
+                logo: `${SITE_URL}/icon-512.png`,
                 description: "Community-driven bouldering platform for Guernsey, Channel Islands. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
                 address: {
                   "@type": "PostalAddress",

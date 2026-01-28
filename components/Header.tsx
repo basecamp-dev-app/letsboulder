@@ -158,10 +158,17 @@ export default function Header() {
         <Link href="/" className="flex items-center flex-shrink-0 -my-2">
           <div className="relative w-16 h-16">
             <Image
-              src="/logo.png"
+              src="/logo-light.png"
               alt="letsboulder"
               fill
-              className="object-contain"
+              className="object-contain dark:hidden"
+              priority
+            />
+            <Image
+              src="/logo-dark.png"
+              alt="letsboulder"
+              fill
+              className="object-contain hidden dark:block"
               priority
             />
           </div>

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     url: '/rankings',
     images: [
       {
-        url: '/logo.png',
+        url: '/og.png',
         width: 1200,
         height: 630,
         alt: 'Rankings - letsboulder',
