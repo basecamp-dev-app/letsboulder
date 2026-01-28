@@ -85,44 +85,59 @@ function formatRelativeDate(iso: string): string {
   return `${days}d ago`
 }
 
-function VoteBars({ votes }: { votes: GradeVoteDistribution[] }) {
+function VoteBars({ votes, userVote }: { votes: GradeVoteDistribution[]; userVote: string | null }) {
   const sortedVotes = useMemo(() => sortVotesByGradeOrder(votes), [votes])
   const totalVotes = useMemo(() => sortedVotes.reduce((sum, v) => sum + v.vote_count, 0), [sortedVotes])
   const maxVotes = useMemo(() => Math.max(1, ...sortedVotes.map((v) => v.vote_count)), [sortedVotes])
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-sm text-gray-900 dark:text-gray-200">
-          Grade votes
-          <span className="text-gray-600 dark:text-gray-400"> • {totalVotes} total</span>
-        </p>
-        {totalVotes < 3 && (
-          <span className="text-xs px-2 py-1 rounded bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-800">
-            Pending Consensus
-          </span>
-        )}
+    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950/40 p-4">
+      <div className="flex items-baseline justify-between">
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-200">Grade votes</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400 tabular-nums">{totalVotes} total</p>
       </div>
 
       {sortedVotes.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950/40 p-4">
-          <div className="h-2 rounded bg-gray-200 dark:bg-gray-800" />
+        <div className="mt-4">
+          <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-800" />
           <p className="text-xs text-gray-600 dark:text-gray-400 mt-3">No votes yet</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="mt-4 space-y-2">
           {sortedVotes.map((v) => {
             const pct = Math.round((v.vote_count / maxVotes) * 100)
+            const isUser = !!userVote && userVote === v.grade
             return (
-              <div key={v.grade} className="grid grid-cols-[48px_1fr_32px] items-center gap-3">
-                <span className="text-xs font-medium text-gray-900 dark:text-gray-200 tabular-nums">{v.grade}</span>
-                <div className="h-2 rounded bg-gray-200 dark:bg-gray-800 overflow-hidden">
+              <div
+                key={v.grade}
+                className={`grid grid-cols-[52px_1fr_auto] items-center gap-3 rounded-lg px-2 py-1 ${
+                  isUser ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                }`}
+              >
+                <span className={`text-xs font-medium tabular-nums ${isUser ? 'text-blue-700 dark:text-blue-200' : 'text-gray-900 dark:text-gray-200'}`}>
+                  {v.grade}
+                </span>
+                <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden relative">
                   <div
-                    className="h-full rounded bg-blue-500/80"
+                    className={`h-full rounded-full ${isUser ? 'bg-blue-600' : 'bg-blue-500/80'}`}
                     style={{ width: `${pct}%` }}
                   />
+                  {pct > 0 && (
+                    <div
+                      className={`absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full ${isUser ? 'bg-blue-700' : 'bg-blue-600/80'}`}
+                      style={{ left: `calc(${pct}% - 3px)` }}
+                    />
+                  )}
                 </div>
-                <span className="text-xs text-gray-600 dark:text-gray-400 tabular-nums text-right">{v.vote_count}</span>
+                <span
+                  className={`text-xs tabular-nums rounded-md px-2 py-0.5 border ${
+                    isUser
+                      ? 'border-blue-200 text-blue-800 bg-blue-50 dark:border-blue-800 dark:text-blue-200 dark:bg-blue-900/20'
+                      : 'border-gray-200 text-gray-700 bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:bg-gray-800/40'
+                  }`}
+                >
+                  {v.vote_count}
+                </span>
               </div>
             )
           })}
@@ -152,7 +167,6 @@ export default function RouteDetailModal({
   const baseFallbackGrade = routeGrade !== '—' ? routeGrade : '6A'
   const [infoOpen, setInfoOpen] = useState(false)
 
-  const [sliderOpen, setSliderOpen] = useState(false)
   const [sliderIndex, setSliderIndex] = useState(0)
   const [sliderSubmitting, setSliderSubmitting] = useState(false)
   const [lastSubmittedGrade, setLastSubmittedGrade] = useState<string | null>(null)
@@ -176,7 +190,6 @@ export default function RouteDetailModal({
 
   useEffect(() => {
     setInfoOpen(false)
-    setSliderOpen(false)
     setTops(null)
   }, [climbId])
 
@@ -247,14 +260,6 @@ export default function RouteDetailModal({
 
   const selectedGrade = GRADE_OPTIONS[sliderIndex] || '6A'
 
-  const openSlider = () => {
-    if (!user) {
-      window.location.href = `/auth?redirect_to=${encodeURIComponent(redirectTo)}`
-      return
-    }
-    setSliderOpen(true)
-  }
-
   const submitVote = async () => {
     if (!user) return
     if (!climbId) return
@@ -262,7 +267,6 @@ export default function RouteDetailModal({
     if (sliderSubmitting) return
     if (lastSubmittedGrade === selectedGrade) {
       hasInteractedRef.current = false
-      setSliderOpen(false)
       return
     }
 
@@ -278,7 +282,6 @@ export default function RouteDetailModal({
       setDisplayedGrade(selectedGrade)
       setLastSubmittedGrade(selectedGrade)
       hasInteractedRef.current = false
-      setSliderOpen(false)
       await onRefreshStatus()
     } catch {
       // Keep slider open; user can retry by releasing again.
@@ -290,13 +293,9 @@ export default function RouteDetailModal({
   const handleLogClick = async (style: LogStyle) => {
     const ok = await onLog(style)
     if (!ok) return
-    if (style === 'flash' || style === 'top') {
-      openSlider()
-    }
   }
 
   const totalVotes = votes.reduce((sum, v) => sum + v.vote_count, 0)
-  const consensusLabel = totalVotes < 3 ? 'Pending Consensus' : 'Consensus'
 
   return (
     <div className="fixed inset-0 z-[6000] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col">
@@ -313,7 +312,7 @@ export default function RouteDetailModal({
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm text-gray-700 dark:text-gray-300">{displayedGrade}</span>
               <span className="text-xs text-gray-400">•</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">{consensusLabel}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{totalVotes} votes</span>
             </div>
           </div>
           <button
@@ -357,31 +356,7 @@ export default function RouteDetailModal({
                     <Loader2 className="w-5 h-5 animate-spin text-gray-500 dark:text-gray-400" />
                   </div>
                 ) : (
-                  <VoteBars votes={votes} />
-                )}
-
-                {user ? (
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-gray-600 dark:text-gray-400">
-                      {userVote ? `Your vote: ${userVote}` : 'No grade vote yet'}
-                    </div>
-                    <button
-                      onClick={openSlider}
-                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200 underline underline-offset-4"
-                    >
-                      Adjust grade vote
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-600 dark:text-gray-400">
-                    <Link
-                      href={`/auth?redirect_to=${encodeURIComponent(redirectTo)}`}
-                      className="text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200 underline underline-offset-4"
-                    >
-                      Sign in
-                    </Link>
-                    <span className="text-gray-500 dark:text-gray-500"> to vote on the grade</span>
-                  </div>
+                  <VoteBars votes={votes} userVote={userVote} />
                 )}
 
                 {route.climb?.description && (
@@ -444,53 +419,62 @@ export default function RouteDetailModal({
       </div>
 
       <div className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-            {sliderOpen && (
-              <div className="px-5 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-900 dark:text-gray-200">Vote grade</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500">Release to submit</p>
-                  </div>
-                  <div className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums">{selectedGrade}</div>
-                </div>
-
-                <input
-                  type="range"
-                  min={0}
-                  max={GRADE_OPTIONS.length - 1}
-                  step={1}
-                  value={sliderIndex}
-                  onChange={(e) => {
-                    hasInteractedRef.current = true
-                    setSliderIndex(parseInt(e.target.value))
-                  }}
-                  onPointerUp={submitVote}
-                  onMouseUp={submitVote}
-                  onTouchEnd={submitVote}
-                  onKeyUp={submitVote}
-                  disabled={!user || sliderSubmitting}
-                  className="w-full mt-3"
-                />
-
-                <div className="flex items-center justify-between mt-3">
-                  <button
-                    onClick={() => setSliderOpen(false)}
-                    className="text-xs text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-                    disabled={sliderSubmitting}
-                  >
-                    Cancel
-                  </button>
-                  {sliderSubmitting && (
-                    <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Saving
-                    </div>
-                  )}
-                </div>
+        {tab === 'climb' && (
+          <div className="px-5 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-200">Vote grade</p>
+                <p className="text-xs text-gray-500 dark:text-gray-500">Release to submit</p>
               </div>
-            )}
+              <div className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums">{selectedGrade}</div>
+            </div>
 
-            <div className="px-5 py-4 sticky bottom-0">
+            <input
+              type="range"
+              min={0}
+              max={GRADE_OPTIONS.length - 1}
+              step={1}
+              value={sliderIndex}
+              onChange={(e) => {
+                hasInteractedRef.current = true
+                setSliderIndex(parseInt(e.target.value))
+              }}
+              onPointerUp={submitVote}
+              onMouseUp={submitVote}
+              onTouchEnd={submitVote}
+              onKeyUp={submitVote}
+              disabled={!user || sliderSubmitting}
+              className="w-full mt-3"
+            />
+
+            <div className="flex items-center justify-between mt-3">
+              {!user ? (
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  <Link
+                    href={`/auth?redirect_to=${encodeURIComponent(redirectTo)}`}
+                    className="text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200 underline underline-offset-4"
+                  >
+                    Sign in
+                  </Link>
+                  <span className="text-gray-500 dark:text-gray-500"> to vote on the grade</span>
+                </div>
+              ) : (
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  {userVote ? `Your vote: ${userVote}` : 'No grade vote yet'}
+                </div>
+              )}
+
+              {sliderSubmitting && (
+                <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Saving
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="px-5 py-4 sticky bottom-0">
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleLogClick('flash')}
@@ -533,7 +517,7 @@ export default function RouteDetailModal({
                   <HelpCircle className="w-4 h-4 text-gray-700 dark:text-gray-200" />
                 </button>
               </div>
-            </div>
+        </div>
       </div>
 
       {infoOpen && (
