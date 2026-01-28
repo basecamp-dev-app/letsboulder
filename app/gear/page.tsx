@@ -77,7 +77,9 @@ export default function GearPage() {
 
         {loading ? (
           <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-4">
-            {Array(12).map((_, i) => <GearSkeleton key={i} />)}
+            {Array.from({ length: 12 }).map((_, i) => (
+              <GearSkeleton key={i} />
+            ))}
           </div>
         ) : sortedProducts.length === 0 ? (
           <div className="text-center py-12">
