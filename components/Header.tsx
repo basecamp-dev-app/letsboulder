@@ -155,8 +155,8 @@ export default function Header() {
       pathname === '/map' ? 'block' : 'hidden md:block'
     }`}>
       <div className="container mx-auto px-4 py-2 flex justify-between items-center gap-4">
-        <Link href="/" className="flex items-center flex-shrink-0 -my-2">
-          <div className="relative w-16 h-16">
+        <Link href="/" className="flex items-center flex-shrink-0 -my-4">
+          <div className="relative w-20 h-20">
             <Image
               src="/logo-light.png"
               alt="letsboulder"
