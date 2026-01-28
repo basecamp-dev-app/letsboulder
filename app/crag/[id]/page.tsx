@@ -6,10 +6,18 @@ import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
-import Link from 'next/link'
 import { geoJsonPolygonToLeaflet, getPolygonCenter } from '@/lib/geo-utils'
 import type { GeoJSONPolygon } from '@/types/database'
 import { SITE_URL } from '@/lib/site'
+import {
+  downloadCragForOffline,
+  getOfflineCrag,
+  getOfflineCragMapObjectUrl,
+  getOfflineImagesForCrag,
+  isCragDownloaded,
+  removeCragDownload,
+} from '@/lib/offline/crag-pack'
+import type { OfflineDownloadProgress } from '@/lib/offline/types'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -143,6 +151,11 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   const [isFlagging, setIsFlagging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [highlightedImageId, setHighlightedImageId] = useState<string | null>(null)
+  const [isOffline, setIsOffline] = useState(false)
+  const [offlineAvailable, setOfflineAvailable] = useState(false)
+  const [offlineMapUrl, setOfflineMapUrl] = useState<string | null>(null)
+  const [offlineProgress, setOfflineProgress] = useState<OfflineDownloadProgress | null>(null)
+  const [offlineBusy, setOfflineBusy] = useState(false)
   const mapRef = useRef<L.Map | null>(null)
 
   const imageCardRefs = useRef(new Map<string, HTMLDivElement>())
@@ -152,124 +165,212 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
   }, [])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    const update = () => setIsOffline(!navigator.onLine)
+    update()
+    window.addEventListener('online', update)
+    window.addEventListener('offline', update)
+    return () => {
+      window.removeEventListener('online', update)
+      window.removeEventListener('offline', update)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (offlineMapUrl) URL.revokeObjectURL(offlineMapUrl)
+    }
+  }, [offlineMapUrl])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadFromOffline(cragId: string) {
+      try {
+        const [offlineCrag, offlineImages] = await Promise.all([
+          getOfflineCrag(cragId),
+          getOfflineImagesForCrag(cragId),
+        ])
+
+        if (!offlineCrag) return false
+        if (cancelled) return true
+
+        const cragData = offlineCrag.crag as unknown as Crag
+        const formattedImages: ImageData[] = (offlineImages || []).map((img) => ({
+          id: img.imageId,
+          url: img.url,
+          latitude: img.latitude,
+          longitude: img.longitude,
+          is_verified: img.is_verified,
+          verification_count: img.verification_count,
+          route_lines: img.route_lines as unknown as ImageRoute[],
+        }))
+
+        setCrag(cragData)
+        setImages(formattedImages)
+
+        const withCoords = formattedImages.filter(
+          (x): x is ImageData & { latitude: number; longitude: number } => x.latitude != null && x.longitude != null
+        )
+        setCragCenter(withCoords.length > 0 ? getAverageCoordinates(withCoords) : null)
+        setLoading(false)
+        return true
+      } catch {
+        return false
+      }
+    }
+
     async function loadCrag() {
       const supabase = createClient()
       const { id } = await params
 
-      const { data: { user } } = await supabase.auth.getUser()
+      const available = await isCragDownloaded(id).catch(() => false)
+      if (!cancelled) setOfflineAvailable(available)
+      if (available) {
+        const url = await getOfflineCragMapObjectUrl(id).catch(() => null)
+        if (!cancelled) setOfflineMapUrl(url)
+      }
 
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_admin')
-          .eq('id', user.id)
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const ok = await loadFromOffline(id)
+        if (ok) return
+      }
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_admin')
+            .eq('id', user.id)
+            .single()
+
+          const adminFromProfile = profile?.is_admin === true
+          const hasAuthAdmin = user.app_metadata?.gsyrocks_admin === true
+          if (!cancelled) setIsAdmin(adminFromProfile || hasAuthAdmin)
+        }
+
+        const { data: cragData, error: cragError } = await supabase
+          .from('crags')
+          .select(
+            `
+            *,
+            regions:region_id (id, name)
+          `
+          )
+          .eq('id', id)
           .single()
 
-        const adminFromProfile = profile?.is_admin === true
-        const hasAuthAdmin = user.app_metadata?.gsyrocks_admin === true
-        setIsAdmin(adminFromProfile || hasAuthAdmin)
-      }
-
-      const { data: cragData, error: cragError } = await supabase
-        .from('crags')
-        .select(`
-          *,
-          regions:region_id (id, name)
-        `)
-        .eq('id', id)
-        .single()
-
-      if (cragError || !cragData) {
-        console.error('Error fetching crag:', cragError)
-        setLoading(false)
-        return
-      }
-
-      const { data: imagesData, error: imagesError } = await supabase
-        .from('images')
-        .select('id, url, latitude, longitude, is_verified, verification_count')
-        .eq('crag_id', id)
-        .not('latitude', 'is', null)
-        .order('created_at', { ascending: false })
-
-      if (imagesError) {
-        console.error('Error fetching images:', imagesError)
-      }
-
-if (!imagesData || imagesData.length === 0) {
-        setCrag(cragData)
-        setCragCenter(cragData.latitude && cragData.longitude ? [cragData.latitude, cragData.longitude] : null)
-        setImages([])
-        setLoading(false)
-        return
-      }
-
-      const imageIds = imagesData.map(img => img.id)
-
-      const { data: routeLinesData, error: rlError } = await supabase
-        .from('route_lines')
-        .select(`
-          id,
-          image_id,
-          points,
-          color,
-          climb_id,
-          climbs (
-            id,
-            name,
-            grade,
-            description,
-            status
-          )
-        `)
-        .in('image_id', imageIds)
-
-      if (rlError) {
-        console.error('Route lines error:', rlError)
-      }
-
-      const routeLinesMap = new Map()
-      for (const rl of routeLinesData || []) {
-        const existing = routeLinesMap.get(rl.image_id) || []
-        existing.push(rl)
-        routeLinesMap.set(rl.image_id, existing)
-      }
-
-      const formattedImages: ImageData[] = imagesData.map(img => {
-        const routeLines = routeLinesMap.get(img.id) || []
-        const validRouteLines = routeLines
-          .filter((rl: RawRouteLine): rl is RawRouteLine & { climbs: NonNullable<RawRouteLine['climbs']> } => !!rl.climbs)
-          .map((rl: RawRouteLine & { climbs: NonNullable<RawRouteLine['climbs']> }) => ({
-            id: rl.id,
-            points: rl.points,
-            color: rl.color,
-            climb: {
-              id: rl.climbs.id,
-              name: rl.climbs.name,
-              grade: rl.climbs.grade,
-              description: rl.climbs.description
-            }
-          }))
-
-        return {
-          id: img.id,
-          url: img.url,
-          latitude: img.latitude,
-          longitude: img.longitude,
-          is_verified: img.is_verified || false,
-          verification_count: img.verification_count || 0,
-          route_lines: validRouteLines
+        if (cragError || !cragData) {
+          throw cragError || new Error('Crag not found')
         }
-      })
 
-      setCrag(cragData)
-      setImages(formattedImages)
-      const avgCoords = getAverageCoordinates(formattedImages.filter(img => img.latitude !== null && img.longitude !== null) as { latitude: number; longitude: number }[])
-      setCragCenter(avgCoords)
-      setLoading(false)
+        const { data: imagesData, error: imagesError } = await supabase
+          .from('images')
+          .select('id, url, latitude, longitude, is_verified, verification_count')
+          .eq('crag_id', id)
+          .order('created_at', { ascending: false })
+
+        if (imagesError) {
+          console.error('Error fetching images:', imagesError)
+        }
+
+        if (!imagesData || imagesData.length === 0) {
+          if (cancelled) return
+          setCrag(cragData)
+          setCragCenter(cragData.latitude && cragData.longitude ? [cragData.latitude, cragData.longitude] : null)
+          setImages([])
+          setLoading(false)
+          return
+        }
+
+        const imageIds = imagesData.map((img) => img.id)
+
+        const { data: routeLinesData, error: rlError } = await supabase
+          .from('route_lines')
+          .select(
+            `
+            id,
+            image_id,
+            points,
+            color,
+            climb_id,
+            climbs (
+              id,
+              name,
+              grade,
+              description,
+              status
+            )
+          `
+          )
+          .in('image_id', imageIds)
+
+        if (rlError) {
+          console.error('Route lines error:', rlError)
+        }
+
+        const routeLinesMap = new Map<string, RawRouteLine[]>()
+        for (const rl of (routeLinesData as unknown as RawRouteLine[]) || []) {
+          const existing = routeLinesMap.get((rl as unknown as { image_id: string }).image_id) || []
+          existing.push(rl)
+          routeLinesMap.set((rl as unknown as { image_id: string }).image_id, existing)
+        }
+
+        const formattedImages: ImageData[] = imagesData.map((img) => {
+          const routeLines = routeLinesMap.get(img.id) || []
+          const validRouteLines = routeLines
+            .filter(
+              (rl: RawRouteLine): rl is RawRouteLine & { climbs: NonNullable<RawRouteLine['climbs']> } => !!rl.climbs
+            )
+            .map((rl: RawRouteLine & { climbs: NonNullable<RawRouteLine['climbs']> }) => ({
+              id: rl.id,
+              points: rl.points,
+              color: rl.color,
+              climb: {
+                id: rl.climbs.id,
+                name: rl.climbs.name,
+                grade: rl.climbs.grade,
+                description: rl.climbs.description,
+              },
+            }))
+
+          return {
+            id: img.id,
+            url: img.url,
+            latitude: img.latitude,
+            longitude: img.longitude,
+            is_verified: img.is_verified || false,
+            verification_count: img.verification_count || 0,
+            route_lines: validRouteLines,
+          }
+        })
+
+        if (cancelled) return
+        setCrag(cragData)
+        setImages(formattedImages)
+
+        const withCoords = formattedImages.filter(
+          (x): x is ImageData & { latitude: number; longitude: number } => x.latitude != null && x.longitude != null
+        )
+        const avgCoords = withCoords.length > 0 ? getAverageCoordinates(withCoords) : null
+        setCragCenter(avgCoords)
+        setLoading(false)
+      } catch (error) {
+        console.error('Error loading crag:', error)
+        const ok = await loadFromOffline(id)
+        if (!ok && !cancelled) setLoading(false)
+      }
     }
 
     loadCrag()
+
+    return () => {
+      cancelled = true
+    }
   }, [params])
 
   useEffect(() => {
@@ -299,11 +400,58 @@ if (!imagesData || imagesData.length === 0) {
 
       setToast('Crag flagged for review')
       setTimeout(() => setToast(null), 3000)
-    } catch (error) {
+    } catch {
       setToast('Failed to flag crag')
       setTimeout(() => setToast(null), 3000)
     } finally {
       setIsFlagging(false)
+    }
+  }
+
+  const handleDownloadOffline = async () => {
+    if (!crag) return
+    if (offlineBusy) return
+    setOfflineBusy(true)
+    setOfflineProgress(null)
+    setToast(null)
+
+    try {
+      await downloadCragForOffline(crag.id, {
+        onProgress: (p) => setOfflineProgress(p),
+      })
+      setOfflineAvailable(true)
+      const url = await getOfflineCragMapObjectUrl(crag.id)
+      setOfflineMapUrl(url)
+      setToast('Saved for offline')
+      setTimeout(() => setToast(null), 2500)
+    } catch (error) {
+      console.error('Offline download error:', error)
+      setToast('Failed to save for offline')
+      setTimeout(() => setToast(null), 3000)
+    } finally {
+      setOfflineBusy(false)
+      setTimeout(() => setOfflineProgress(null), 800)
+    }
+  }
+
+  const handleRemoveOffline = async () => {
+    if (!crag) return
+    if (offlineBusy) return
+    setOfflineBusy(true)
+    setToast(null)
+
+    try {
+      await removeCragDownload(crag.id)
+      setOfflineAvailable(false)
+      setOfflineMapUrl(null)
+      setToast('Offline data removed')
+      setTimeout(() => setToast(null), 2500)
+    } catch (error) {
+      console.error('Offline remove error:', error)
+      setToast('Failed to remove offline data')
+      setTimeout(() => setToast(null), 3000)
+    } finally {
+      setOfflineBusy(false)
     }
   }
 
@@ -431,114 +579,148 @@ if (!imagesData || imagesData.length === 0) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(cragSchema) }}
       />
       <div className="relative h-[26vh] md:h-[50vh] bg-gray-200 dark:bg-gray-800">
-        <MapContainer
-          ref={mapRef as React.RefObject<L.Map | null>}
-          center={cragCenter || [crag.latitude || 0, crag.longitude || 0]}
-          zoom={15}
-          style={{ height: '100%', width: '100%' }}
-          zoomControl={false}
-          scrollWheelZoom={true}
-          whenReady={() => setMapReady(true)}
-        >
-          {mapReady && (
-            <>
-              <TileLayer
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                attribution='Tiles © Esri'
-                maxZoom={19}
-              />
+        {isOffline && offlineMapUrl ? (
+          <img
+            src={offlineMapUrl}
+            alt="Crag map"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <MapContainer
+            ref={mapRef as React.RefObject<L.Map | null>}
+            center={cragCenter || [crag.latitude || 0, crag.longitude || 0]}
+            zoom={15}
+            style={{ height: '100%', width: '100%' }}
+            zoomControl={false}
+            scrollWheelZoom={true}
+            whenReady={() => setMapReady(true)}
+          >
+            {mapReady && (
+              <>
+                <TileLayer
+                  url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                  attribution='Tiles © Esri'
+                  maxZoom={19}
+                />
 
-              {boundaryCoords && (
-            <Polygon
-              positions={boundaryCoords}
-              pathOptions={{
-                color: '#3b82f6',
-                fillColor: '#3b82f6',
-                fillOpacity: 0.2,
-                weight: 2,
-                dashArray: '5, 10'
-              }}
-            >
-              <Tooltip direction="center" opacity={1}>
-                <span className="font-semibold">Crag Boundary</span>
-              </Tooltip>
-            </Polygon>
+                {boundaryCoords && (
+                  <Polygon
+                    positions={boundaryCoords}
+                    pathOptions={{
+                      color: '#3b82f6',
+                      fillColor: '#3b82f6',
+                      fillOpacity: 0.2,
+                      weight: 2,
+                      dashArray: '5, 10',
+                    }}
+                  >
+                    <Tooltip direction="center" opacity={1}>
+                      <span className="font-semibold">Crag Boundary</span>
+                    </Tooltip>
+                  </Polygon>
+                )}
+
+                {orderedImages
+                  .filter((image) => image.latitude != null && image.longitude != null)
+                  .map((image) => (
+                    <Marker
+                      key={image.id}
+                      position={[image.latitude!, image.longitude!]}
+                      icon={L?.divIcon({
+                        className: 'image-marker',
+                        html: `<div style="
+                          background: ${image.is_verified ? '#22c55e' : '#eab308'};
+                          width: 24px;
+                          height: 24px;
+                          border-radius: 50%;
+                          display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          color: white;
+                          font-size: 11px;
+                          font-weight: bold;
+                          border: 2px solid white;
+                          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                        ">${imageIndexById.get(image.id) ?? ''}</div>`,
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12],
+                      })}
+                      eventHandlers={{
+                        click: (e: L.LeafletMouseEvent) => {
+                          e.originalEvent.stopPropagation()
+                          scrollToImageCard(image.id)
+                        },
+                      }}
+                    >
+                      <Popup closeButton={false} className="image-popup">
+                        <div
+                          className="w-40 cursor-pointer pt-1"
+                          onClick={() => {
+                            window.location.href = `/image/${image.id}`
+                          }}
+                        >
+                          <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
+                            <Image
+                              src={image.url}
+                              alt="Routes"
+                              fill
+                              unoptimized
+                              className="object-cover"
+                              sizes="160px"
+                            />
+                          </div>
+                          <p className="font-semibold text-sm text-gray-900">Image {imageIndexById.get(image.id) ?? ''}</p>
+                          <p className="text-xs text-gray-600">
+                            {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
+                          </p>
+                          <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
+                            {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
+                          </p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
+              </>
+            )}
+          </MapContainer>
+        )}
+
+        <div className="absolute top-4 left-4 z-[1000] bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 dark:text-gray-100 shadow-md backdrop-blur flex items-center gap-2">
+          <span>{crag.name}</span>
+          {isOffline && (
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-900/80 text-white">Offline</span>
           )}
+        </div>
 
-          {orderedImages.map((image) => (
-            <Marker
-              key={image.id}
-              position={[image.latitude || 0, image.longitude || 0]}
-              icon={L?.divIcon({
-                className: 'image-marker',
-                html: `<div style="
-                  background: ${image.is_verified ? '#22c55e' : '#eab308'};
-                  width: 24px;
-                  height: 24px;
-                  border-radius: 50%;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  color: white;
-                  font-size: 11px;
-                  font-weight: bold;
-                  border: 2px solid white;
-                  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                ">${imageIndexById.get(image.id) ?? ''}</div>`,
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
-              })}
-              eventHandlers={{
-                click: (e: L.LeafletMouseEvent) => {
-                  e.originalEvent.stopPropagation()
-                  scrollToImageCard(image.id)
-                },
-              }}
-            >
-              <Popup
-                closeButton={false}
-                className="image-popup"
+        <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-2 shadow-md backdrop-blur">
+          <div className="flex items-center gap-2">
+            {offlineAvailable ? (
+              <button
+                onClick={handleRemoveOffline}
+                disabled={offlineBusy}
+                className="px-3 py-2 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
               >
-                <div
-                  className="w-40 cursor-pointer pt-1"
-                  onClick={async () => {
-                    const supabase = createClient()
-                    const { data: { user } } = await supabase.auth.getUser()
-                    if (!user) {
-                      window.location.href = `/auth?redirect_to=/image/${image.id}`
-                    } else {
-                      window.location.href = `/image/${image.id}`
-                    }
-                  }}
-                >
-                  <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
-                      <Image
-                        src={image.url}
-                        alt="Routes"
-                        fill
-                        className="object-cover"
-                        sizes="160px"
-                      />
-                    </div>
-                  <p className="font-semibold text-sm text-gray-900">
-                    Image {imageIndexById.get(image.id) ?? ''}
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
-                  </p>
-                  <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
-                    {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-          </>
-          )}
-        </MapContainer>
+                {offlineBusy ? 'Working…' : 'Remove offline'}
+              </button>
+            ) : (
+              <button
+                onClick={handleDownloadOffline}
+                disabled={offlineBusy || isOffline}
+                className="px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-500 disabled:opacity-50 transition-colors"
+              >
+                {offlineBusy ? 'Saving…' : 'Download offline'}
+              </button>
+            )}
 
-        <div className="absolute top-4 left-4 z-[1000] bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 dark:text-gray-100 shadow-md backdrop-blur">
-          {crag.name}
+            {offlineProgress && (
+              <span className="text-xs text-gray-700 dark:text-gray-200">
+                {offlineProgress.message || offlineProgress.phase}{' '}
+                {offlineProgress.total > 0
+                  ? `(${offlineProgress.completed}/${offlineProgress.total})`
+                  : ''}
+              </span>
+            )}
+          </div>
         </div>
 
         {isAdmin && (
@@ -569,14 +751,8 @@ if (!imagesData || imagesData.length === 0) {
                     className={`block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer ring-2 ring-transparent ${
                       highlightedImageId === image.id ? 'ring-blue-400' : ''
                     }`}
-                    onClick={async () => {
-                      const supabase = createClient()
-                      const { data: { user } } = await supabase.auth.getUser()
-                      if (!user) {
-                        window.location.href = `/auth?redirect_to=/image/${image.id}`
-                      } else {
-                        window.location.href = `/image/${image.id}`
-                      }
+                    onClick={() => {
+                      window.location.href = `/image/${image.id}`
                     }}
                   >
                     <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
@@ -584,6 +760,7 @@ if (!imagesData || imagesData.length === 0) {
                         src={image.url}
                         alt="Route image"
                         fill
+                        unoptimized
                         className="object-cover"
                         sizes="(max-width: 768px) 33vw, 25vw"
                       />

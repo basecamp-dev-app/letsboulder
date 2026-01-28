@@ -12,6 +12,7 @@ import type { ClimbStatusResponse } from '@/lib/verification-types'
 import { trackEvent, trackClimbLogged } from '@/lib/posthog'
 import { csrfFetch } from '@/hooks/useCsrf'
 import RouteDetailModal from '@/app/image/components/RouteDetailModal'
+import { getOfflineCragMeta, getOfflineImage } from '@/lib/offline/crag-pack'
 
 interface ImageRoute {
   id: string
@@ -261,8 +262,46 @@ export default function ImagePage() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+
+    const loadFromOffline = async () => {
+      try {
+        const rec = await getOfflineImage(imageId)
+        if (!rec) return false
+
+        const meta = await getOfflineCragMeta(rec.cragId)
+        if (cancelled) return true
+
+        setImage({
+          id: rec.imageId,
+          url: rec.url,
+          latitude: rec.latitude,
+          longitude: rec.longitude,
+          width: rec.width ?? undefined,
+          height: rec.height ?? undefined,
+          natural_width: rec.natural_width,
+          natural_height: rec.natural_height,
+          route_lines: rec.route_lines as unknown as ImageRoute[],
+        })
+        setCragId(rec.cragId)
+        setCragName(meta?.name || null)
+        setError(null)
+        setLoading(false)
+        return true
+      } catch {
+        return false
+      }
+    }
+
     const loadImage = async () => {
       if (!imageId) return
+      setLoading(true)
+      setError(null)
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        const ok = await loadFromOffline()
+        if (ok) return
+      }
 
       try {
         const supabase = createClient()
@@ -277,17 +316,14 @@ export default function ImagePage() {
 
         let cragName = null
         if (imageData.crag_id) {
-          const { data: cragData } = await supabase
-            .from('crags')
-            .select('name')
-            .eq('id', imageData.crag_id)
-            .single()
+          const { data: cragData } = await supabase.from('crags').select('name').eq('id', imageData.crag_id).single()
           cragName = cragData?.name
         }
 
         const { data: routeLines, error: routeError } = await supabase
           .from('route_lines')
-          .select(`
+          .select(
+            `
             id,
             points,
             color,
@@ -300,12 +336,9 @@ export default function ImagePage() {
               grade,
               description
             )
-          `)
+          `
+          )
           .eq('image_id', imageId)
-
-
-
-
 
         if (routeError) throw routeError
 
@@ -324,7 +357,7 @@ export default function ImagePage() {
           } | null
         }
 
-        const formattedRoutes: ImageRoute[] = (routeLines as unknown as RawRouteLine[] || []).map((rl) => ({
+        const formattedRoutes: ImageRoute[] = ((routeLines as unknown as RawRouteLine[]) || []).map((rl) => ({
           id: rl.id,
           points: rl.points,
           color: rl.color || '#ff00ff',
@@ -334,13 +367,15 @@ export default function ImagePage() {
             id: rl.climbs?.id || rl.climb_id || '',
             name: (rl.climbs?.name || '').trim() || null,
             grade: (rl.climbs?.grade || '').trim() || null,
-            description: (rl.climbs?.description || '').trim() || null
-          }
+            description: (rl.climbs?.description || '').trim() || null,
+          },
         }))
+
+        if (cancelled) return
 
         setImage({
           ...imageData,
-          route_lines: formattedRoutes
+          route_lines: formattedRoutes,
         })
         setCragId(imageData.crag_id)
         setCragName(cragName || null)
@@ -352,9 +387,11 @@ export default function ImagePage() {
           crag_name: cragName,
         })
 
-        const { data: { user } } = await supabase.auth.getUser()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
         if (user && formattedRoutes.length > 0) {
-          const climbIds = formattedRoutes.map(r => r.climb?.id).filter((id): id is string => id != null)
+          const climbIds = formattedRoutes.map((r) => r.climb?.id).filter((id): id is string => id != null)
           const { data: logs } = await supabase
             .from('user_climbs')
             .select('climb_id, style')
@@ -363,7 +400,7 @@ export default function ImagePage() {
 
           if (logs) {
             const logsMap: Record<string, string> = {}
-            logs.forEach(log => {
+            logs.forEach((log) => {
               logsMap[log.climb_id] = log.style
             })
             setUserLogs(logsMap)
@@ -373,13 +410,18 @@ export default function ImagePage() {
         await checkFlagStatus(imageId)
       } catch (err) {
         console.error('Error loading image:', err)
-        setError('Failed to load image')
+        const ok = await loadFromOffline()
+        if (!ok && !cancelled) setError('Failed to load image')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     loadImage()
+
+    return () => {
+      cancelled = true
+    }
   }, [imageId])
 
   useEffect(() => {
