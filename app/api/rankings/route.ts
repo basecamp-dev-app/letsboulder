@@ -17,16 +17,6 @@ interface UserClimbQueryResult {
   }
 }
 
-interface LeaderboardEntryResult {
-  rank: number
-  user_id: string
-  username: string
-  avatar_url: string | null
-  avg_grade: string
-  climb_count: number
-  sort_value?: number
-}
-
 interface RegionRouteLine {
   climb_id: string
   images: {
@@ -162,12 +152,10 @@ export async function GET(request: NextRequest) {
     const publicUserIds = userIds.filter(userId => profilesMap.has(userId))
 
     const getUsername = (userId: string, profile: Profile | undefined): string => {
-      if (profile?.first_name && profile?.last_name) {
-        return `${profile.first_name} ${profile.last_name}`
-      }
-      if (profile?.display_name) {
-        return profile.display_name
-      }
+      const fullName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim()
+      if (fullName) return fullName
+      if (profile?.display_name) return profile.display_name
+      if (profile?.username) return profile.username
       return `Climber ${userId.slice(0, 4)}`
     }
 
