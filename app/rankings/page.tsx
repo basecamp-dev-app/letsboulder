@@ -125,7 +125,7 @@ export default function LeaderboardPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 px-4 py-3 border-b border-gray-200 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-950 z-10 flex items-center justify-between">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 px-4 py-3 border-b border-gray-200 dark:border-gray-800 sticky top-[var(--app-header-offset)] bg-white dark:bg-gray-950 z-10 flex items-center justify-between">
         <span>Rankings</span>
         {!user && (
           <button

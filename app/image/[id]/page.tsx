@@ -1,17 +1,17 @@
+
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { RoutePoint } from '@/lib/useRouteSelection'
-import { Loader2, CheckCircle, AlertCircle, Flag } from 'lucide-react'
-import GradeVoting from '@/components/GradeVoting'
-import CorrectionSection from '@/components/CorrectionSection'
+import { Loader2, Flag } from 'lucide-react'
 import FlagImageModal from '@/components/FlagImageModal'
 import type { ClimbStatusResponse } from '@/lib/verification-types'
 import { trackEvent, trackClimbLogged } from '@/lib/posthog'
 import { csrfFetch } from '@/hooks/useCsrf'
+import RouteDetailModal from '@/app/image/components/RouteDetailModal'
 
 interface ImageRoute {
   id: string
@@ -214,21 +214,32 @@ export default function ImagePage() {
   const params = useParams()
   const imageId = params.id as string
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const selectedRouteId = searchParams.get('route')
+  const selectedTab = searchParams.get('tab') === 'tops' ? 'tops' : 'climb'
 
   const [image, setImage] = useState<ImageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedRoute, setSelectedRoute] = useState<ImageRoute | null>(null)
   const [userLogs, setUserLogs] = useState<Record<string, string>>({})
   const [logging, setLogging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [cragId, setCragId] = useState<string | null>(null)
   const [cragName, setCragName] = useState<string | null>(null)
   const [climbStatus, setClimbStatus] = useState<ClimbStatusResponse | null>(null)
-  const [verificationLoading, setVerificationLoading] = useState(false)
   const [flagModalOpen, setFlagModalOpen] = useState(false)
   const [userHasFlagged, setUserHasFlagged] = useState(false)
   const [user, setUser] = useState<{ id: string } | null>(null)
+  const [statusLoading, setStatusLoading] = useState(false)
+
+  const selectedRoute = useMemo(() => {
+    if (!image) return null
+    if (!selectedRouteId) return null
+    return image.route_lines.find((r) => r.id === selectedRouteId) || null
+  }, [image, selectedRouteId])
+
+  const lastStatusClimbIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -367,17 +378,21 @@ export default function ImagePage() {
 
   const handleRouteClick = (route: ImageRoute, event: React.MouseEvent) => {
     event.stopPropagation()
-    setSelectedRoute(selectedRoute?.id === route.id ? null : route)
-    if (selectedRoute?.id !== route.id) {
-      setClimbStatus(null)
-      if (route.climb?.id) {
-        fetchClimbStatus(route.climb.id)
-      }
+    const next = new URLSearchParams(searchParams.toString())
+    next.set('route', route.id)
+    next.set('tab', 'climb')
+    router.push(`/image/${imageId}?${next.toString()}`)
+
+    setClimbStatus(null)
+    if (route.climb?.id) {
+      lastStatusClimbIdRef.current = route.climb.id
+      fetchClimbStatus(route.climb.id)
     }
   }
 
-  const fetchClimbStatus = async (climbId: string) => {
+  async function fetchClimbStatus(climbId: string) {
     try {
+      setStatusLoading(true)
       const response = await csrfFetch(`/api/climbs/${climbId}/status`)
       if (response.ok) {
         const status = await response.json()
@@ -385,8 +400,24 @@ export default function ImagePage() {
       }
     } catch {
       console.error('Failed to fetch climb status')
+    } finally {
+      setStatusLoading(false)
     }
   }
+
+  useEffect(() => {
+    const climbId = selectedRoute?.climb?.id || null
+    if (!climbId) {
+      setClimbStatus(null)
+      lastStatusClimbIdRef.current = null
+      return
+    }
+
+    if (lastStatusClimbIdRef.current === climbId) return
+    lastStatusClimbIdRef.current = climbId
+    setClimbStatus(null)
+    fetchClimbStatus(climbId)
+  }, [selectedRoute?.climb?.id])
 
   const checkFlagStatus = async (imgId: string) => {
     try {
@@ -405,37 +436,7 @@ export default function ImagePage() {
     }
   }
 
-  const handleVerify = async () => {
-    if (!selectedRoute || !climbStatus) return
-    setVerificationLoading(true)
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (!user) {
-        window.location.href = `/auth?imageId=${imageId}`
-        return
-      }
-
-      const method = climbStatus.user_has_verified ? 'DELETE' : 'POST'
-      if (selectedRoute.climb?.id) {
-        const response = await csrfFetch(`/api/climbs/${selectedRoute.climb.id}/verify`, {
-          method
-        })
-
-        if (response.ok) {
-          fetchClimbStatus(selectedRoute.climb.id)
-        }
-      }
-    } catch {
-      setToast('Failed to update verification')
-      setTimeout(() => setToast(null), 2000)
-    } finally {
-      setVerificationLoading(false)
-    }
-  }
-
-  const handleLogClimb = async (climbId: string, style: 'flash' | 'top' | 'try') => {
+  const handleLogClimb = async (climbId: string, style: 'flash' | 'top' | 'try'): Promise<boolean> => {
     setLogging(true)
     try {
       const supabase = createClient()
@@ -443,7 +444,7 @@ export default function ImagePage() {
 
       if (!user) {
         window.location.href = `/auth?imageId=${imageId}`
-        return
+        return false
       }
 
       const response = await csrfFetch('/api/log-routes', {
@@ -468,10 +469,12 @@ export default function ImagePage() {
       setUserLogs(prev => ({ ...prev, [climbId]: style }))
       setToast(`Route logged as ${style}!`)
       setTimeout(() => setToast(null), 2000)
+      return true
     } catch (err) {
       console.error('Log error:', err)
       setToast('Failed to log route')
       setTimeout(() => setToast(null), 2000)
+      return false
     } finally {
       setLogging(false)
     }
@@ -518,6 +521,37 @@ export default function ImagePage() {
           naturalHeight={image.natural_height || image.height || 600}
         />
       </div>
+
+      {selectedRoute && selectedRoute.climb?.id && selectedRouteId && (
+        <RouteDetailModal
+          route={selectedRoute}
+          tab={selectedTab}
+          onTabChange={(nextTab) => {
+            const next = new URLSearchParams(searchParams.toString())
+            next.set('route', selectedRouteId)
+            next.set('tab', nextTab)
+            router.replace(`/image/${imageId}?${next.toString()}`)
+          }}
+          onClose={() => {
+            router.push(`/image/${imageId}`)
+          }}
+          climbStatus={climbStatus}
+          statusLoading={statusLoading}
+          onRefreshStatus={async () => {
+            if (selectedRoute?.climb?.id) {
+              await fetchClimbStatus(selectedRoute.climb.id)
+            }
+          }}
+          user={user}
+          userLogStyle={selectedRoute.climb?.id ? userLogs[selectedRoute.climb.id] : undefined}
+          logging={logging}
+          onLog={async (style) => {
+            if (!selectedRoute?.climb?.id) return false
+            return await handleLogClimb(selectedRoute.climb.id, style)
+          }}
+          redirectTo={`/image/${imageId}?route=${selectedRouteId}&tab=${selectedTab}`}
+        />
+      )}
 
         {cragId && cragName && (
         <div className="flex justify-center mt-2 pb-4 gap-2">
@@ -577,157 +611,49 @@ export default function ImagePage() {
       )}
 
       <div className="bg-gray-900 border-t border-gray-800 p-4 max-h-[25vh] overflow-y-auto">
-        {selectedRoute ? (
-          <div>
-            <div className="flex items-start justify-between gap-2 mb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  {climbStatus?.is_verified ? (
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                  ) : (
-                    <AlertCircle className="w-5 h-5 text-yellow-500" />
-                  )}
-                  <p className="text-white text-lg font-semibold">
-                    {selectedRoute.climb?.name || 'Unnamed'}, {selectedRoute.climb?.grade}
-                  </p>
-                </div>
-                {climbStatus && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    {climbStatus.verification_count}/3 verifications
-                    {climbStatus.is_verified ? ' - Verified' : ' - Needs 3 to verify'}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setSelectedRoute(null)}
-                className="text-gray-400 hover:text-white text-sm"
-              >
-                ← Back to all routes
-              </button>
-            </div>
+        <div>
+          <p className="text-white text-lg font-semibold mb-3">
+            {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''} on this image
+          </p>
 
-            <div className="flex gap-4 mb-3">
-              {!user ? (
-                <button
-                  onClick={() => router.push(`/auth?redirect_to=/image/${imageId}`)}
-                  className="w-full py-2 px-4 bg-gray-700 text-white rounded-lg font-medium hover:bg-gray-600 transition-colors"
-                >
-                  Sign in to Log
-                </button>
-              ) : (['flash', 'top', 'try'] as const).map(status => (
-                <label key={status} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name={`log-${selectedRoute.climb?.id}`}
-                    checked={userLogs[selectedRoute.climb?.id || ''] === status}
-                    onChange={() => selectedRoute.climb?.id && handleLogClimb(selectedRoute.climb.id, status)}
-                    disabled={logging}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm capitalize text-gray-300">{status}</span>
-                </label>
-              ))}
-            </div>
-
-            {climbStatus && (
-              <div className="mb-4 p-3 bg-gray-800 rounded-lg">
-                {!user ? (
+          {image.route_lines.length === 0 ? (
+            <p className="text-gray-400 text-sm">No routes on this image yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {image.route_lines.map((route, index) => {
+                const isLogged = route.climb?.id ? !!userLogs[route.climb.id] : false
+                const isSelected = selectedRoute?.id === route.id
+                return (
                   <button
-                    onClick={() => router.push(`/auth?redirect_to=/image/${imageId}`)}
-                    className="w-full py-2 rounded-lg font-medium transition-colors bg-gray-700 text-white hover:bg-gray-600"
-                  >
-                    Sign in to Verify
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleVerify}
-                    disabled={verificationLoading}
-                    className={`w-full py-2 rounded-lg font-medium transition-colors ${
-                      climbStatus.user_has_verified
-                        ? 'bg-green-900/50 text-green-400 border border-green-700 hover:bg-green-900/70'
-                        : 'bg-gray-700 text-white hover:bg-gray-600'
+                    key={route.id}
+                    onClick={(e) => handleRouteClick(route, e)}
+                    className={`p-3 rounded-lg text-left transition-colors border ${
+                      isSelected
+                        ? 'bg-gray-800 border-white'
+                        : isLogged
+                          ? 'bg-green-900/30 border-green-800'
+                          : 'bg-gray-800 border-gray-700 hover:border-blue-500'
                     }`}
                   >
-                    {verificationLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                    ) : climbStatus.user_has_verified ? (
-                      '✓ Verified (click to unverify)'
-                    ) : (
-                      'Verify this route'
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-100">
+                        {(route.climb?.name || '').trim() || `Route ${index + 1}`}
+                      </span>
+                      <span className={`text-sm px-2 py-0.5 rounded ${
+                        isLogged ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-300'
+                      }`}>
+                        {route.climb?.grade}
+                      </span>
+                    </div>
+                    {isLogged && (
+                      <p className="text-xs text-green-400 mt-1">Logged</p>
                     )}
                   </button>
-                )}
-              </div>
-            )}
-
-            {climbStatus && (
-              <GradeVoting
-                climbId={selectedRoute.climb?.id || ''}
-                currentGrade={selectedRoute.climb?.grade || ''}
-                votes={climbStatus.grade_votes}
-                userVote={climbStatus.user_grade_vote}
-                onVote={async () => { if (selectedRoute.climb?.id) fetchClimbStatus(selectedRoute.climb.id) }}
-                user={user}
-              />
-            )}
-
-            {selectedRoute.climb?.description && (
-              <p className="text-gray-400 text-sm mt-4">
-                {selectedRoute.climb.description}
-              </p>
-            )}
-
-            {user && climbStatus && (
-              <CorrectionSection
-                climbId={selectedRoute.climb?.id || ''}
-                corrections={climbStatus.corrections}
-                onSubmitCorrection={async () => { if (selectedRoute.climb?.id) fetchClimbStatus(selectedRoute.climb.id) }}
-                onVoteCorrection={async () => { if (selectedRoute.climb?.id) fetchClimbStatus(selectedRoute.climb.id) }}
-              />
-            )}
-          </div>
-        ) : (
-          <div>
-            <p className="text-white text-lg font-semibold mb-3">
-              {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''} on this image
-            </p>
-            
-            {image.route_lines.length === 0 ? (
-              <p className="text-gray-400 text-sm">No routes on this image yet.</p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {image.route_lines.map((route, index) => {
-                  const isLogged = route.climb?.id ? !!userLogs[route.climb.id] : false
-                  return (
-                    <button
-                      key={route.id}
-                      onClick={(e) => handleRouteClick(route, e)}
-                      className={`p-3 rounded-lg text-left transition-colors ${
-                        isLogged 
-                          ? 'bg-green-900/30 border border-green-800' 
-                          : 'bg-gray-800 border border-gray-700 hover:border-blue-500'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-gray-100">
-                          {(route.climb?.name || '').trim() || `Route ${index + 1}`}
-                        </span>
-                        <span className={`text-sm px-2 py-0.5 rounded ${
-                          isLogged ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-300'
-                        }`}>
-                          {route.climb?.grade}
-                        </span>
-                      </div>
-                      {isLogged && (
-                        <p className="text-xs text-green-400 mt-1">Logged</p>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {flagModalOpen && (

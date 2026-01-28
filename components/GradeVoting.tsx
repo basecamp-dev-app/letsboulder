@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { VALID_GRADES, GradeVotingProps } from '@/lib/verification-types'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 const GRADE_COLORS: Record<string, string> = {
   '5A': 'bg-gray-100', '5A+': 'bg-gray-200', '5B': 'bg-gray-300', '5B+': 'bg-gray-400', '5C': 'bg-gray-500', '5C+': 'bg-gray-600',
@@ -22,10 +23,8 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
     if (loading) return
     setLoading(true)
     try {
-      await onVote(grade)
-      const method = userVote === grade ? 'DELETE' : 'POST'
-      const response = await fetch(`/api/climbs/${climbId}/grade-vote`, {
-        method,
+      const response = await csrfFetch(`/api/climbs/${climbId}/grade-vote`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ grade })
       })
@@ -33,6 +32,7 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
         const error = await response.json()
         throw new Error(error.message || 'Failed to vote')
       }
+      await onVote(grade)
     } catch (error) {
       console.error('Vote error:', error)
     } finally {

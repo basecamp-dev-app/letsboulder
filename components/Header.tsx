@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
@@ -26,6 +27,7 @@ interface CragData {
 }
 
 export default function Header() {
+  const headerRef = useRef<HTMLElement>(null)
   const [user, setUser] = useState<User | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
@@ -36,6 +38,28 @@ export default function Header() {
   const moreRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const pathname = usePathname()
+
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+
+    const updateOffset = () => {
+      const display = window.getComputedStyle(el).display
+      const height = display === 'none' ? 0 : Math.ceil(el.getBoundingClientRect().height)
+      document.documentElement.style.setProperty('--app-header-offset', `${height}px`)
+    }
+
+    updateOffset()
+
+    const ro = new ResizeObserver(updateOffset)
+    ro.observe(el)
+    window.addEventListener('resize', updateOffset)
+
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', updateOffset)
+    }
+  }, [pathname])
 
   useEffect(() => {
     const supabase = createClient()
@@ -151,7 +175,7 @@ export default function Header() {
   }
 
   return (
-    <header className={`fixed top-0 left-0 right-0 z-[5000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none ${
+    <header ref={headerRef} className={`fixed top-0 left-0 right-0 z-[5000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none ${
       pathname === '/map' ? 'block' : 'hidden md:block'
     }`}>
       <div className="container mx-auto px-4 py-2 flex justify-between items-center gap-4">
