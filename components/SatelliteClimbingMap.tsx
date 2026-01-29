@@ -80,6 +80,28 @@ function roundBboxKey(bbox: [number, number, number, number], zoom: number): str
   return `${r(west)},${r(south)},${r(east)},${r(north)}@${Math.round(zoom)}`
 }
 
+function bucketSizeForZoom(zoom: number): number {
+  if (zoom <= 2) return 10.0
+  if (zoom <= 4) return 5.0
+  if (zoom <= 6) return 1.0
+  if (zoom <= 8) return 0.25
+  return 0.1
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+function parseNumber(value: unknown): number | null {
+  if (value == null) return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const n = parseFloat(value)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
 export default function SatelliteClimbingMap() {
   const mapRef = useRef<L.Map | null>(null)
   const [isClient, setIsClient] = useState(false)
@@ -321,22 +343,25 @@ export default function SatelliteClimbingMap() {
           kind: string
           id: string | null
           name: string | null
-          latitude: number
-          longitude: number
-          count: number
+          latitude: number | string | null
+          longitude: number | string | null
+          count: number | string | null
         }>
 
         if (requestIdRef.current !== currentRequestId) return
 
         const next: MapItem[] = []
         for (const row of data || []) {
-          if (typeof row.latitude !== 'number' || typeof row.longitude !== 'number') continue
+          const lat = parseNumber(row.latitude)
+          const lng = parseNumber(row.longitude)
+          if (lat == null || lng == null) continue
           if (row.kind === 'cluster') {
+            const count = parseNumber(row.count) ?? 0
             next.push({
               kind: 'cluster',
-              latitude: row.latitude,
-              longitude: row.longitude,
-              count: typeof row.count === 'number' ? row.count : 0,
+              latitude: lat,
+              longitude: lng,
+              count,
             })
             continue
           }
@@ -346,8 +371,8 @@ export default function SatelliteClimbingMap() {
               kind: 'crag',
               id: row.id,
               name: row.name,
-              latitude: row.latitude,
-              longitude: row.longitude,
+              latitude: lat,
+              longitude: lng,
               count: 1,
             })
           }
@@ -504,8 +529,19 @@ export default function SatelliteClimbingMap() {
                 eventHandlers={{
                   click: () => {
                     if (!mapRef.current) return
-                    const nextZoom = Math.min(mapRef.current.getZoom() + 2, 19)
-                    mapRef.current.setView([lat, lng], nextZoom)
+                    const map = mapRef.current
+                    const zoom = map.getZoom()
+                    const cell = bucketSizeForZoom(zoom)
+                    const half = cell / 2
+                    const south = clamp(lat - half, -90, 90)
+                    const north = clamp(lat + half, -90, 90)
+                    const west = clamp(lng - half, -180, 180)
+                    const east = clamp(lng + half, -180, 180)
+                    const bounds = L.latLngBounds([south, west], [north, east])
+                    map.fitBounds(bounds, {
+                      maxZoom: 9,
+                      padding: [24, 24],
+                    })
                   },
                 }}
               >
