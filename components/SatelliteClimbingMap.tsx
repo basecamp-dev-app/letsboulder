@@ -1,20 +1,18 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
-import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
-import { MapPin, Bookmark, Download } from 'lucide-react'
-import { RoutePoint } from '@/lib/useRouteSelection'
-import { geoJsonPolygonToLeaflet } from '@/lib/geo-utils'
-import type { GeoJSONPolygon } from '@/types/database'
+import { Bookmark, Download, MapPin } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
-import { csrfFetch } from '@/hooks/useCsrf'
 
-import 'leaflet/dist/leaflet.css'
-import { trackEvent, trackRouteClicked } from '@/lib/posthog'
+import { createClient } from '@/lib/supabase'
+import { csrfFetch } from '@/hooks/useCsrf'
+import { trackEvent } from '@/lib/posthog'
 import { listOfflineCrags, removeCragDownload } from '@/lib/offline/crag-pack'
 import type { OfflineCragMeta } from '@/lib/offline/types'
+
+import 'leaflet/dist/leaflet.css'
 
 interface LeafletIconDefault {
   prototype: {
@@ -38,7 +36,6 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
-const Polygon = dynamic(() => import('react-leaflet').then(mod => mod.Polygon), { ssr: false })
 
 interface DefaultLocation {
   lat: number
@@ -46,7 +43,13 @@ interface DefaultLocation {
   zoom: number
 }
 
-function DefaultLocationWatcher({ defaultLocation, mapRef }: { defaultLocation: DefaultLocation | null; mapRef: React.RefObject<L.Map | null> }) {
+function DefaultLocationWatcher({
+  defaultLocation,
+  mapRef,
+}: {
+  defaultLocation: DefaultLocation | null
+  mapRef: React.RefObject<L.Map | null>
+}) {
   useEffect(() => {
     if (defaultLocation && mapRef.current) {
       mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
@@ -55,86 +58,66 @@ function DefaultLocationWatcher({ defaultLocation, mapRef }: { defaultLocation: 
   return null
 }
 
-interface ImageRoute {
-  id: string
-  points: RoutePoint[]
-  color: string
-  climb: {
-    id: string
-    name: string | null
-    grade: string | null
-    description: string | null
-  } | null
-}
+type MapItem =
+  | {
+      kind: 'cluster'
+      latitude: number
+      longitude: number
+      count: number
+    }
+  | {
+      kind: 'crag'
+      id: string
+      name: string
+      latitude: number
+      longitude: number
+      count: number
+    }
 
-interface ImageData {
-  id: string
-  url: string
-  latitude: number | null
-  longitude: number | null
-  route_lines: ImageRoute[]
-  is_verified: boolean
-  verification_count: number
-}
-
-interface CragData {
-  id: string
-  name: string
-  latitude: number
-  longitude: number
-  boundary: {
-    type: 'Polygon'
-    coordinates: number[][][]
-  } | null
-}
-
-interface CragPin {
-  id: string
-  name: string
-  latitude: number
-  longitude: number
-  imageCount: number
-}
-
-interface RouteLineData {
-  id: string
-  image_id: string
-  points: RoutePoint[]
-  color: string
-  climb_id: string
-  climbs: {
-    id: string
-    name: string | null
-    grade: string | null
-    description: string | null
-    status: string | null
-  }[] | null
+function roundBboxKey(bbox: [number, number, number, number], zoom: number): string {
+  const [west, south, east, north] = bbox
+  const r = (n: number) => n.toFixed(3)
+  return `${r(west)},${r(south)},${r(east)},${r(north)}@${Math.round(zoom)}`
 }
 
 export default function SatelliteClimbingMap() {
   const mapRef = useRef<L.Map | null>(null)
-  const [images, setImages] = useState<ImageData[]>([])
-  const [crags, setCrags] = useState<CragData[]>([])
-  const [loading, setLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
+  const [mapLoaded, setMapLoaded] = useState(false)
+
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
-  const [mapLoaded, setMapLoaded] = useState(false)
-  const [user, setUser] = useState<User | null>(null)
-  const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
-  const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
   const [useUserLocation, setUseUserLocation] = useState(false)
-  const [cragPins, setCragPins] = useState<CragPin[]>([])
-  const [toast, setToast] = useState<string | null>(null)
-  const [saveLocationLoading, setSaveLocationLoading] = useState(false)
+
+  const [user, setUser] = useState<User | null>(null)
+  const [defaultLocation, setDefaultLocation] = useState<{ lat: number; lng: number; zoom: number } | null>(null)
   const [defaultLocationLoading, setDefaultLocationLoading] = useState(true)
+  const [saveLocationLoading, setSaveLocationLoading] = useState(false)
+  const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
+
+  const [items, setItems] = useState<MapItem[]>([])
+  const [itemsLoading, setItemsLoading] = useState(false)
+  const [tooManyItems, setTooManyItems] = useState(false)
+  const [view, setView] = useState<{ bbox: [number, number, number, number]; zoom: number } | null>(null)
+
+  const [toast, setToast] = useState<string | null>(null)
   const [downloadsOpen, setDownloadsOpen] = useState(false)
   const [offlineCrags, setOfflineCrags] = useState<OfflineCragMeta[]>([])
   const [offlineCragsLoading, setOfflineCragsLoading] = useState(false)
   const [isOffline, setIsOffline] = useState(false)
 
+  const debounceTimerRef = useRef<number | null>(null)
+  const lastFetchKeyRef = useRef<string | null>(null)
+  const requestIdRef = useRef(0)
+
+  const MAX_ITEMS = 1500
+
   useEffect(() => {
     setupLeafletIcons()
+  }, [])
+
+  useEffect(() => {
+    setIsClient(true)
   }, [])
 
   useEffect(() => {
@@ -148,6 +131,13 @@ export default function SatelliteClimbingMap() {
       window.removeEventListener('offline', update)
     }
   }, [])
+
+  useEffect(() => {
+    if (toast) {
+      const timer = window.setTimeout(() => setToast(null), 2000)
+      return () => window.clearTimeout(timer)
+    }
+  }, [toast])
 
   const refreshOfflineCrags = useCallback(async () => {
     setOfflineCragsLoading(true)
@@ -171,224 +161,10 @@ export default function SatelliteClimbingMap() {
   }, [refreshOfflineCrags])
 
   useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 2000)
-      return () => clearTimeout(timer)
-    }
-  }, [toast])
-
-  const CACHE_KEY = 'letsboulder_images_cache'
-
-  const loadImages = useCallback(async () => {
-    if (!isClient) {
-      setLoading(false)
-      return
-    }
-
-    const cacheKey = CACHE_KEY + '_v3' // New cache key to force refresh
-    
-    // Always fetch fresh data
-    localStorage.removeItem(cacheKey)
-
-    try {
-      const supabase = createClient()
-      
-      // First get all images with latitude
-      const { data: imagesData, error: imagesError } = await supabase
-        .from('images')
-        .select('id, url, latitude, longitude, is_verified, verification_count, crag_id')
-        .not('latitude', 'is', null)
-        .not('crag_id', 'is', null)
-        .order('created_at', { ascending: false })
-
-      if (imagesError) {
-        setImages([])
-        setLoading(false)
-        return
-      }
-
-      if (!imagesData || imagesData.length === 0) {
-        setImages([])
-        setLoading(false)
-        return
-      }
-
-      // Get route_lines for each image separately
-      const imageIds = imagesData.map(img => img.id)
-      
-      const { data: routeLinesData, error: rlError } = await supabase
-        .from('route_lines')
-        .select(`
-          id,
-          image_id,
-          points,
-          color,
-          climb_id,
-          climbs (
-            id,
-            name,
-            grade,
-            description,
-            status
-          )
-        `)
-        .in('image_id', imageIds)
-
-      if (rlError) {
-        setImages([])
-        setLoading(false)
-        return
-      }
-
-      if (!routeLinesData || routeLinesData.length === 0) {
-        setImages([])
-        setLoading(false)
-        return
-      }
-
-      // Build a map of image_id -> route_lines
-      const routeLinesMap = new Map<string, RouteLineData[]>()
-      for (const rl of routeLinesData) {
-        const existing = routeLinesMap.get(rl.image_id) || []
-        existing.push(rl)
-        routeLinesMap.set(rl.image_id, existing)
-      }
-
-      // Get unique climb IDs for verification lookup
-      const allClimbIds = [...new Set(routeLinesData.map(rl => rl.climb_id).filter(Boolean))]
-
-      // Fetch verification counts for all climbs
-      const { data: verificationCounts } = await supabase
-        .from('climb_verifications')
-        .select('climb_id')
-        .in('climb_id', allClimbIds)
-
-      const climbVerificationCount: Record<string, number> = {}
-      verificationCounts?.forEach(v => {
-        climbVerificationCount[v.climb_id] = (climbVerificationCount[v.climb_id] || 0) + 1
-      })
-
-      // Log what we found
-      for (const [imgId, rls] of routeLinesMap) {
-        const approvedCount = rls.filter((rl) => rl.climbs?.[0]?.status === 'approved').length
-      }
-
-      // Filter and format images with valid route_lines
-      const formattedImages: ImageData[] = []
-      
-      for (const img of imagesData) {
-        const routeLines = routeLinesMap.get(img.id) || []
-        
-        // Include all climbs regardless of status
-        const validRouteLines: ImageRoute[] = routeLines
-          .filter((rl) => rl.climbs && rl.climbs.length > 0)
-          .map((rl) => {
-            const climbData = rl.climbs![0]
-            return {
-              id: rl.id,
-              points: rl.points as RoutePoint[],
-              color: rl.color,
-              climb: {
-                id: climbData.id,
-                name: climbData.name,
-                grade: climbData.grade,
-                description: climbData.description
-              }
-            }
-          })
-
-        if (validRouteLines.length > 0) {
-          // Compute verification status: image is verified if any climb has 3+ verifications
-          let maxVerifications = 0
-          for (const rl of routeLines) {
-            if (rl.climb_id) {
-              const count = climbVerificationCount[rl.climb_id] || 0
-              if (count > maxVerifications) maxVerifications = count
-            }
-          }
-
-          formattedImages.push({
-            id: img.id,
-            url: img.url,
-            latitude: img.latitude,
-            longitude: img.longitude,
-            is_verified: maxVerifications >= 3,
-            verification_count: maxVerifications,
-            route_lines: validRouteLines
-          })
-        }
-      }
-      
-      setImages(formattedImages)
-
-      // Group images by crag_id and calculate average positions
-      const cragsWithImages = new Map<string, typeof imagesData>()
-      for (const img of imagesData) {
-        if (!img.crag_id) continue
-        const existing = cragsWithImages.get(img.crag_id) || []
-        existing.push(img)
-        cragsWithImages.set(img.crag_id, existing)
-      }
-
-      // Fetch crag names for those with images
-      const cragIds = Array.from(cragsWithImages.keys())
-      const { data: cragsInfo, error: cragsInfoError } = await supabase
-        .from('crags')
-        .select('id, name')
-        .in('id', cragIds)
-
-      const cragNames = new Map(cragsInfo?.map(c => [c.id, c.name]) || [])
-
-      // Calculate average position for crags with images
-      const pins: CragPin[] = []
-      
-      for (const [cragId, cragImages] of cragsWithImages) {
-        const avgLat = cragImages.reduce((sum, img) => sum + (img.latitude || 0), 0) / cragImages.length
-        const avgLng = cragImages.reduce((sum, img) => sum + (img.longitude || 0), 0) / cragImages.length
-        pins.push({
-          id: cragId,
-          name: cragNames.get(cragId) || 'Unknown',
-          latitude: avgLat,
-          longitude: avgLng,
-          imageCount: cragImages.length
-        })
-      }
-      setCragPins(pins)
-
-      // Fetch crags with boundaries
-      const { data: cragsData, error: cragsError } = await supabase
-        .from('crags')
-        .select('id, name, latitude, longitude, boundary')
-        .not('boundary', 'is', null)
-
-      if (cragsError) {
-        console.error('Error loading crags:', cragsError)
-      } else if (cragsData) {
-        setCrags(cragsData as CragData[])
-      }
-
-      localStorage.setItem(cacheKey, JSON.stringify({
-        data: formattedImages,
-        timestamp: Date.now()
-      }))
-    } catch (err) {
-      console.error('Error loading images:', err)
-    }
-    setLoading(false)
-  }, [isClient])
-
-  useEffect(() => {
     if (!isClient) return
-    loadImages()
-  }, [isClient])
-
-  useEffect(() => {
-    if (!isClient) return
-
     if (!navigator.geolocation) return
 
     setLocationStatus('requesting')
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords
@@ -404,56 +180,63 @@ export default function SatelliteClimbingMap() {
     if (!isClient) return
 
     let ignore = false
-
     const fetchUser = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      console.log('[Map] fetchUser - user:', user?.id)
       if (ignore) return
       setUser(user)
 
       if (user) {
-        const { data: profile, error } = await supabase
+        const { data: profile } = await supabase
           .from('profiles')
           .select('default_location_lat, default_location_lng, default_location_zoom')
           .eq('id', user.id)
           .single()
 
-        console.log('[Map] Profile fetch result:', { profile, error })
+        if (ignore) return
         setDefaultLocationLoading(false)
 
-        if (ignore) return
-
         if (profile?.default_location_lat) {
-          console.log('[Map] Setting defaultLocation:', {
-            lat: profile.default_location_lat,
-            lng: profile.default_location_lng,
-            zoom: profile.default_location_zoom || 12
-          })
           setDefaultLocation({
             lat: profile.default_location_lat,
             lng: profile.default_location_lng,
-            zoom: profile.default_location_zoom || 12
+            zoom: profile.default_location_zoom || 12,
           })
-        } else {
-          console.log('[Map] No default_location in profile')
         }
       } else {
         setDefaultLocationLoading(false)
       }
     }
 
+    fetchUser()
     const handleFocus = () => {
       fetchUser()
     }
-
-    fetchUser()
     window.addEventListener('focus', handleFocus)
     return () => {
       ignore = true
       window.removeEventListener('focus', handleFocus)
     }
-    }, [isClient])
+  }, [isClient])
+
+  const updateIsAtDefault = useCallback(() => {
+    if (!mapRef.current || !defaultLocation) return
+    const center = mapRef.current.getCenter()
+    const distance = Math.sqrt(
+      Math.pow(center.lat - defaultLocation.lat, 2) + Math.pow(center.lng - defaultLocation.lng, 2)
+    )
+    setIsAtDefaultLocation(distance < 0.01)
+  }, [defaultLocation])
+
+  useEffect(() => {
+    if (!mapRef.current || !defaultLocation) return
+    const map = mapRef.current
+    const handleMoveEnd = () => updateIsAtDefault()
+    map.on('moveend', handleMoveEnd)
+    return () => {
+      map.off('moveend', handleMoveEnd)
+    }
+  }, [defaultLocation, updateIsAtDefault])
 
   const handleSaveAsDefault = async () => {
     if (!mapRef.current || !user) {
@@ -472,8 +255,8 @@ export default function SatelliteClimbingMap() {
         body: JSON.stringify({
           defaultLocationLat: center.lat,
           defaultLocationLng: center.lng,
-          defaultLocationZoom: zoom
-        })
+          defaultLocationZoom: zoom,
+        }),
       })
 
       if (response.ok) {
@@ -490,50 +273,136 @@ export default function SatelliteClimbingMap() {
   }
 
   useEffect(() => {
-    if (!mapRef.current || !defaultLocation) return
-    const map = mapRef.current
-    const handleMoveEnd = () => {
-      const center = map.getCenter()
-      const distance = Math.sqrt(
-        Math.pow(center.lat - defaultLocation.lat, 2) + 
-        Math.pow(center.lng - defaultLocation.lng, 2)
-      )
-      setIsAtDefaultLocation(distance < 0.01)
+    if (!mapRef.current || !mapLoaded) return
+
+    if (useUserLocation && userLocation) {
+      mapRef.current.setView(userLocation, 11)
+      return
     }
-    map.on('moveend', handleMoveEnd)
-    return () => { map.off('moveend', handleMoveEnd) }
-  }, [defaultLocation])
 
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
-
-  useEffect(() => {
-    if (!mapRef.current || !userLocation) return
-    if (useUserLocation) {
-      mapRef.current.setView(userLocation, 5)
+    if (defaultLocation) {
+      mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
+      return
     }
-   }, [useUserLocation, userLocation])
 
-    useEffect(() => {
-      if (!mapRef.current || !mapLoaded) return
+    mapRef.current.setView([20, 0], 2)
+  }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
 
-      console.log('[Map] Centering effect - mapLoaded:', mapLoaded, 'useUserLocation:', useUserLocation, 'userLocation:', userLocation, 'defaultLocation:', defaultLocation)
+  const fetchItemsForView = useCallback(
+    async (bbox: [number, number, number, number], zoom: number) => {
+      if (!isClient) return
 
-      if (useUserLocation && userLocation) {
-        console.log('[Map] Centering on userLocation:', userLocation)
-        mapRef.current.setView(userLocation, 11)
-      } else if (defaultLocation) {
-        console.log('[Map] Centering on defaultLocation:', { lat: defaultLocation.lat, lng: defaultLocation.lng, zoom: defaultLocation.zoom })
-        mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
-      } else {
-        mapRef.current.setView([20, 0], 2)
+      const key = roundBboxKey(bbox, zoom)
+      if (lastFetchKeyRef.current === key) return
+      lastFetchKeyRef.current = key
+
+      const currentRequestId = ++requestIdRef.current
+      setItemsLoading(true)
+      setTooManyItems(false)
+
+      const [west, south, east, north] = bbox
+
+      try {
+        const url = new URL('/api/map/crags', window.location.origin)
+        url.searchParams.set('west', String(west))
+        url.searchParams.set('south', String(south))
+        url.searchParams.set('east', String(east))
+        url.searchParams.set('north', String(north))
+        url.searchParams.set('zoom', String(zoom))
+
+        const res = await fetch(url.toString(), { method: 'GET' })
+        if (!res.ok) throw new Error(`map fetch failed: ${res.status}`)
+
+        const data = (await res.json()) as Array<{
+          kind: string
+          id: string | null
+          name: string | null
+          latitude: number
+          longitude: number
+          count: number
+        }>
+
+        if (requestIdRef.current !== currentRequestId) return
+
+        const next: MapItem[] = []
+        for (const row of data || []) {
+          if (typeof row.latitude !== 'number' || typeof row.longitude !== 'number') continue
+          if (row.kind === 'cluster') {
+            next.push({
+              kind: 'cluster',
+              latitude: row.latitude,
+              longitude: row.longitude,
+              count: typeof row.count === 'number' ? row.count : 0,
+            })
+            continue
+          }
+
+          if (row.kind === 'crag' && row.id && row.name) {
+            next.push({
+              kind: 'crag',
+              id: row.id,
+              name: row.name,
+              latitude: row.latitude,
+              longitude: row.longitude,
+              count: 1,
+            })
+          }
+        }
+
+        setItems(next)
+        setTooManyItems(next.length >= MAX_ITEMS)
+        setView({ bbox, zoom })
+      } catch (err) {
+        if (requestIdRef.current !== currentRequestId) return
+        console.error('Error loading map items:', err)
+        setItems([])
+        setTooManyItems(false)
+        setView({ bbox, zoom })
+      } finally {
+        if (requestIdRef.current === currentRequestId) setItemsLoading(false)
       }
-    }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
+    },
+    [isClient]
+  )
 
+  const scheduleFetchForCurrentMap = useCallback(() => {
+    if (!mapRef.current) return
+    const map = mapRef.current
+    const bounds = map.getBounds()
+    const bbox: [number, number, number, number] = [
+      bounds.getWest(),
+      bounds.getSouth(),
+      bounds.getEast(),
+      bounds.getNorth(),
+    ]
+    const zoom = map.getZoom()
 
+    if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current)
+    debounceTimerRef.current = window.setTimeout(() => {
+      fetchItemsForView(bbox, zoom)
+    }, 300)
+  }, [fetchItemsForView])
 
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return
+    const map = mapRef.current
 
+    scheduleFetchForCurrentMap()
+    const handler = () => scheduleFetchForCurrentMap()
+    map.on('moveend', handler)
+    map.on('zoomend', handler)
+    return () => {
+      map.off('moveend', handler)
+      map.off('zoomend', handler)
+    }
+  }, [mapLoaded, scheduleFetchForCurrentMap])
+
+  const zoomHint = useMemo(() => {
+    if (!view) return null
+    if (itemsLoading) return null
+    if (items.length > 0) return null
+    return 'Pan or zoom to explore'
+  }, [items.length, itemsLoading, view])
 
   if (!isClient) {
     return <div className="h-screen w-full bg-gray-900" />
@@ -569,34 +438,12 @@ export default function SatelliteClimbingMap() {
         }}
       >
         <DefaultLocationWatcher defaultLocation={defaultLocation} mapRef={mapRef} />
+
         <TileLayer
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
           attribution='Tiles © Esri'
           maxZoom={19}
         />
-
-        {/* Crag Polygons */}
-        {crags.map(crag => {
-          const coords = crag.boundary ? geoJsonPolygonToLeaflet(crag.boundary as GeoJSONPolygon) : null
-          if (!coords || coords.length === 0) return null
-          return (
-            <Polygon
-              key={crag.id}
-              positions={coords}
-              pathOptions={{
-                color: '#3b82f6',
-                fillColor: '#3b82f6',
-                fillOpacity: 0.15,
-                weight: 2,
-                dashArray: '5, 10'
-              }}
-            >
-              <Tooltip direction="center" opacity={1}>
-                <span className="font-semibold">{crag.name}</span>
-              </Tooltip>
-            </Polygon>
-          )
-        })}
 
         {userLocation && (
           <Marker
@@ -604,46 +451,94 @@ export default function SatelliteClimbingMap() {
             icon={L.divIcon({
               className: 'user-location-dot',
               iconSize: [12, 12],
-              iconAnchor: [6, 6]
+              iconAnchor: [6, 6],
             })}
           />
         )}
 
-        {cragPins.map(crag => (
-          <Marker
-            key={crag.id}
-            position={[crag.latitude, crag.longitude]}
-            icon={L.divIcon({
-              className: 'crag-pin',
-              html: `<div style="
-                background: #3b82f6;
-                width: 32px;
-                height: 32px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 18px;
-                border: 2px solid white;
-                box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-              ">⛰️</div>`,
-              iconSize: [32, 32],
-              iconAnchor: [16, 16]
-            })}
-            zIndexOffset={1000}
-            eventHandlers={{
-              click: () => {
-                window.location.href = `/crag/${crag.id}`
-              },
-            }}
-          >
-            <Tooltip direction="center" opacity={1}>
-              <span className="font-semibold">{crag.name}</span>
-            </Tooltip>
-          </Marker>
-        ))}
-      </MapContainer>
+        {items.map((item, idx) => {
+          const lat = item.latitude
+          const lng = item.longitude
 
+          if (item.kind === 'cluster') {
+            const count = item.count
+            const size = Math.max(34, Math.min(52, 28 + Math.log2(Math.max(2, count)) * 8))
+
+            return (
+              <Marker
+                key={`cluster-${idx}-${lat}-${lng}`}
+                position={[lat, lng]}
+                icon={L.divIcon({
+                  className: 'cluster-pin',
+                  html: `<div style="
+                    background: #0f172a;
+                    width: ${size}px;
+                    height: ${size}px;
+                    border-radius: 9999px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 13px;
+                    font-weight: 700;
+                    color: white;
+                    border: 2px solid rgba(255,255,255,0.9);
+                    box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+                  ">${count}</div>`,
+                  iconSize: [size, size],
+                  iconAnchor: [size / 2, size / 2],
+                })}
+                zIndexOffset={900}
+                eventHandlers={{
+                  click: () => {
+                    if (!mapRef.current) return
+                    const nextZoom = Math.min(mapRef.current.getZoom() + 2, 19)
+                    mapRef.current.setView([lat, lng], nextZoom)
+                  },
+                }}
+              >
+                <Tooltip direction="center" opacity={1}>
+                  <span className="font-semibold">{count} crags</span>
+                </Tooltip>
+              </Marker>
+            )
+          }
+
+          return (
+            <Marker
+              key={(item as Extract<MapItem, { kind: 'crag' }>).id}
+              position={[lat, lng]}
+              icon={L.divIcon({
+                className: 'crag-pin',
+                html: `<div style="
+                  background: #3b82f6;
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 50%;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  font-size: 18px;
+                  border: 2px solid white;
+                  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+                ">⛰️</div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+              })}
+              zIndexOffset={1000}
+              eventHandlers={{
+                click: () => {
+                  const id = (item as Extract<MapItem, { kind: 'crag' }>).id
+                  window.location.href = `/crag/${id}`
+                },
+              }}
+            >
+              <Tooltip direction="center" opacity={1}>
+                <span className="font-semibold">{(item as Extract<MapItem, { kind: 'crag' }>).name}</span>
+              </Tooltip>
+            </Marker>
+          )
+        })}
+      </MapContainer>
 
       {userLocation && (
         <button
@@ -697,6 +592,24 @@ export default function SatelliteClimbingMap() {
         </div>
       )}
 
+      {zoomHint && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1100] bg-white/90 dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-full px-4 py-2 text-xs text-gray-800 dark:text-gray-100 shadow-md">
+          {zoomHint}
+        </div>
+      )}
+
+      {itemsLoading && (
+        <div className="absolute bottom-4 left-4 z-[1100] bg-white/90 dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-full px-3 py-2 text-xs text-gray-700 dark:text-gray-200 shadow-md">
+          Loading...
+        </div>
+      )}
+
+      {tooManyItems && (
+        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-[1100] bg-yellow-100/95 dark:bg-yellow-900/40 border border-yellow-200 dark:border-yellow-900 rounded-full px-4 py-2 text-xs text-yellow-900 dark:text-yellow-100 shadow-md">
+          Too many results here — zoom in to see all
+        </div>
+      )}
+
       {useUserLocation && userLocation && defaultLocation && (
         <button
           onClick={() => {
@@ -712,6 +625,12 @@ export default function SatelliteClimbingMap() {
         </button>
       )}
 
+      {!isAtDefaultLocation && user && defaultLocation && (
+        <div className="absolute top-4 left-4 z-[1100] bg-white/90 dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2 text-xs text-gray-800 dark:text-gray-100 shadow-md">
+          You&apos;re viewing a different area
+        </div>
+      )}
+
       {toast && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[1100] px-4 py-2 bg-green-600 text-white rounded-lg shadow-lg text-sm font-medium">
           {toast}
@@ -720,10 +639,7 @@ export default function SatelliteClimbingMap() {
 
       {downloadsOpen && (
         <div className="fixed inset-0 z-[2000]">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setDownloadsOpen(false)}
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDownloadsOpen(false)} />
           <div className="absolute left-0 right-0 bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 rounded-t-2xl shadow-2xl p-4 max-h-[72vh] overflow-auto">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Offline downloads</div>
