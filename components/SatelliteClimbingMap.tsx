@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
 import L from 'leaflet'
+import Supercluster from 'supercluster'
 import { Bookmark, Download, MapPin } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 
@@ -64,12 +65,7 @@ type MapItem =
       latitude: number
       longitude: number
       count: number
-      bounds?: {
-        south: number
-        west: number
-        north: number
-        east: number
-      }
+      clusterId: number
     }
   | {
       kind: 'crag'
@@ -80,24 +76,6 @@ type MapItem =
       count: number
     }
 
-function roundBboxKey(bbox: [number, number, number, number], zoom: number): string {
-  const [west, south, east, north] = bbox
-  const r = (n: number) => n.toFixed(3)
-  return `${r(west)},${r(south)},${r(east)},${r(north)}@${Math.round(zoom)}`
-}
-
-function bucketSizeForZoom(zoom: number): number {
-  if (zoom <= 2) return 10.0
-  if (zoom <= 4) return 5.0
-  if (zoom <= 6) return 1.0
-  if (zoom <= 7) return 0.25
-  return 0.1
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value))
-}
-
 function parseNumber(value: unknown): number | null {
   if (value == null) return null
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
@@ -106,6 +84,31 @@ function parseNumber(value: unknown): number | null {
     return Number.isFinite(n) ? n : null
   }
   return null
+}
+
+function roundBboxKey(bbox: [number, number, number, number], zoom: number): string {
+  const [west, south, east, north] = bbox
+  const r = (n: number) => n.toFixed(3)
+  return `${r(west)},${r(south)},${r(east)},${r(north)}@${Math.round(zoom)}`
+}
+
+interface CragPoint {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+}
+
+type CragProps = { cragId: string; name: string }
+type ClusterFeature = Supercluster.ClusterFeature<Record<string, never>>
+type PointFeature = Supercluster.PointFeature<CragProps>
+
+function isClusterFeature(
+  feature: ClusterFeature | PointFeature
+): feature is ClusterFeature {
+  return (
+    (feature.properties as unknown as { cluster?: unknown }).cluster === true
+  )
 }
 
 export default function SatelliteClimbingMap() {
@@ -128,6 +131,8 @@ export default function SatelliteClimbingMap() {
   const [tooManyItems, setTooManyItems] = useState(false)
   const [view, setView] = useState<{ bbox: [number, number, number, number]; zoom: number } | null>(null)
 
+  const clusterIndexRef = useRef<Supercluster<CragProps, Record<string, never>> | null>(null)
+
   const [toast, setToast] = useState<string | null>(null)
   const [downloadsOpen, setDownloadsOpen] = useState(false)
   const [offlineCrags, setOfflineCrags] = useState<OfflineCragMeta[]>([])
@@ -139,8 +144,9 @@ export default function SatelliteClimbingMap() {
   const lastFetchAtRef = useRef<number>(0)
   const requestIdRef = useRef(0)
 
-  const MAX_ITEMS = 1500
-  const FETCH_TTL_MS = 20000
+  const MAX_CRAGS = 2000
+  const FETCH_TTL_MS = 15000
+  const MIN_FETCH_ZOOM = 5
 
   useEffect(() => {
     setupLeafletIcons()
@@ -318,153 +324,190 @@ export default function SatelliteClimbingMap() {
     mapRef.current.setView([20, 0], 2)
   }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
 
-  const fetchItemsForView = useCallback(
+  const setItemsForView = useCallback(
+    (bbox: [number, number, number, number], zoom: number) => {
+      const index = clusterIndexRef.current
+      if (!index) {
+        setItems([])
+        return
+      }
+
+      const z = Math.round(zoom)
+      const clusters = index.getClusters(bbox, z) as Array<ClusterFeature | PointFeature>
+
+      const next: MapItem[] = clusters.map((c) => {
+        const [lng, lat] = c.geometry.coordinates
+
+        if (isClusterFeature(c)) {
+          return {
+            kind: 'cluster',
+            latitude: lat,
+            longitude: lng,
+            count: c.properties.point_count,
+            clusterId: c.properties.cluster_id,
+          }
+        }
+
+        return {
+          kind: 'crag',
+          id: c.properties.cragId,
+          name: c.properties.name,
+          latitude: lat,
+          longitude: lng,
+          count: 1,
+        }
+      })
+
+      setItems(next)
+    },
+    [setItems]
+  )
+
+  const fetchCragsForView = useCallback(
     async (bbox: [number, number, number, number], zoom: number, force = false) => {
       if (!isClient) return
 
       const key = roundBboxKey(bbox, zoom)
       const now = Date.now()
-      if (!force && lastFetchKeyRef.current === key && now - lastFetchAtRef.current < FETCH_TTL_MS) return
+      if (!force && lastFetchKeyRef.current === key && now - lastFetchAtRef.current < FETCH_TTL_MS) {
+        return
+      }
       lastFetchKeyRef.current = key
       lastFetchAtRef.current = now
 
       const currentRequestId = ++requestIdRef.current
       setItemsLoading(true)
       setTooManyItems(false)
+      setView({ bbox, zoom })
+
+      if (zoom < MIN_FETCH_ZOOM) {
+        clusterIndexRef.current = null
+        setItems([])
+        setItemsLoading(false)
+        return
+      }
 
       const [west, south, east, north] = bbox
 
       try {
-        const url = new URL('/api/map/crags', window.location.origin)
-        url.searchParams.set('west', String(west))
-        url.searchParams.set('south', String(south))
-        url.searchParams.set('east', String(east))
-        url.searchParams.set('north', String(north))
-        url.searchParams.set('zoom', String(zoom))
+        const supabase = createClient()
 
-        const res = await fetch(url.toString(), { method: 'GET' })
-        if (!res.ok) throw new Error(`map fetch failed: ${res.status}`)
+        const base = supabase
+          .from('crags')
+          .select('id, name, latitude, longitude')
+          .not('latitude', 'is', null)
+          .not('longitude', 'is', null)
+          .gte('latitude', south)
+          .lte('latitude', north)
+          .limit(MAX_CRAGS)
 
-        const data = (await res.json()) as Array<{
-          kind: string
-          id: string | null
-          name: string | null
-          latitude: number | string | null
-          longitude: number | string | null
-          count: number | string | null
-          bucket_south?: number | string | null
-          bucket_west?: number | string | null
-          bucket_north?: number | string | null
-          bucket_east?: number | string | null
-          single_crag_id?: string | null
-          single_crag_name?: string | null
-        }>
+        const queries =
+          west <= east
+            ? [base.gte('longitude', west).lte('longitude', east)]
+            : [
+                base.gte('longitude', west).lte('longitude', 180),
+                base.gte('longitude', -180).lte('longitude', east),
+              ]
 
+        const results = await Promise.all(queries)
         if (requestIdRef.current !== currentRequestId) return
 
-        const next: MapItem[] = []
-        for (const row of data || []) {
+        const rows = results.flatMap((r) => r.data || []) as Array<{
+          id: string
+          name: string
+          latitude: number | string | null
+          longitude: number | string | null
+        }>
+
+        const uniq = new Map<string, CragPoint>()
+        for (const row of rows) {
           const lat = parseNumber(row.latitude)
           const lng = parseNumber(row.longitude)
           if (lat == null || lng == null) continue
-          if (row.kind === 'cluster') {
-            const count = parseNumber(row.count) ?? 0
-            const singleId = row.single_crag_id ?? null
-            const singleName = row.single_crag_name ?? null
-
-            if (count === 1 && singleId && singleName) {
-              next.push({
-                kind: 'crag',
-                id: singleId,
-                name: singleName,
-                latitude: lat,
-                longitude: lng,
-                count: 1,
-              })
-              continue
-            }
-
-            const south = parseNumber(row.bucket_south)
-            const west = parseNumber(row.bucket_west)
-            const north = parseNumber(row.bucket_north)
-            const east = parseNumber(row.bucket_east)
-
-            next.push({
-              kind: 'cluster',
-              latitude: lat,
-              longitude: lng,
-              count,
-              bounds:
-                south != null && west != null && north != null && east != null
-                  ? { south, west, north, east }
-                  : undefined,
-            })
-            continue
-          }
-
-          if (row.kind === 'crag' && row.id && row.name) {
-            next.push({
-              kind: 'crag',
-              id: row.id,
-              name: row.name,
-              latitude: lat,
-              longitude: lng,
-              count: 1,
-            })
-          }
+          uniq.set(row.id, { id: row.id, name: row.name, latitude: lat, longitude: lng })
         }
 
-        setItems(next)
-        setTooManyItems(next.length >= MAX_ITEMS)
-        setView({ bbox, zoom })
+        const points = Array.from(uniq.values())
+        setTooManyItems(points.length >= MAX_CRAGS)
+
+        const index = new Supercluster<CragProps, Record<string, never>>({
+          radius: 60,
+          maxZoom: 19,
+        })
+
+        const features: Array<Supercluster.PointFeature<CragProps>> = points.map((p) => ({
+          type: 'Feature',
+          properties: { cragId: p.id, name: p.name },
+          geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
+        }))
+
+        index.load(features)
+        clusterIndexRef.current = index
+
+        setItemsForView(bbox, zoom)
       } catch (err) {
         if (requestIdRef.current !== currentRequestId) return
-        console.error('Error loading map items:', err)
+        console.error('Error loading crags for map:', err)
+        clusterIndexRef.current = null
         setItems([])
         setTooManyItems(false)
-        setView({ bbox, zoom })
       } finally {
         if (requestIdRef.current === currentRequestId) setItemsLoading(false)
       }
     },
-    [isClient]
+    [FETCH_TTL_MS, MIN_FETCH_ZOOM, MAX_CRAGS, isClient, setItemsForView]
   )
 
-  const scheduleFetchForCurrentMap = useCallback((force = false) => {
-    if (!mapRef.current) return
-    const map = mapRef.current
-    const bounds = map.getBounds()
-    const bbox: [number, number, number, number] = [
-      bounds.getWest(),
-      bounds.getSouth(),
-      bounds.getEast(),
-      bounds.getNorth(),
-    ]
-    const zoom = map.getZoom()
+  const scheduleFetchForCurrentMap = useCallback(
+    (force = false, debounce = true) => {
+      if (!mapRef.current) return
+      const map = mapRef.current
+      const bounds = map.getBounds()
+      const bbox: [number, number, number, number] = [
+        bounds.getWest(),
+        bounds.getSouth(),
+        bounds.getEast(),
+        bounds.getNorth(),
+      ]
+      const zoom = map.getZoom()
 
-    if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current)
-    debounceTimerRef.current = window.setTimeout(() => {
-      fetchItemsForView(bbox, zoom, force)
-    }, 300)
-  }, [fetchItemsForView])
+      setView({ bbox, zoom })
+      setItemsForView(bbox, zoom)
+
+      if (!debounce) {
+        if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current)
+        fetchCragsForView(bbox, zoom, force)
+        return
+      }
+
+      if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = window.setTimeout(() => {
+        fetchCragsForView(bbox, zoom, force)
+      }, 250)
+    },
+    [fetchCragsForView, setItemsForView]
+  )
 
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return
     const map = mapRef.current
 
-    scheduleFetchForCurrentMap()
-    const handler = () => scheduleFetchForCurrentMap()
-    map.on('moveend', handler)
-    map.on('zoomend', handler)
+    scheduleFetchForCurrentMap(true, false)
+
+    const onMoveEnd = () => scheduleFetchForCurrentMap(false, true)
+    const onZoomEnd = () => scheduleFetchForCurrentMap(true, false)
+
+    map.on('moveend', onMoveEnd)
+    map.on('zoomend', onZoomEnd)
     return () => {
-      map.off('moveend', handler)
-      map.off('zoomend', handler)
+      map.off('moveend', onMoveEnd)
+      map.off('zoomend', onZoomEnd)
     }
   }, [mapLoaded, scheduleFetchForCurrentMap])
 
   useEffect(() => {
     if (!mapLoaded) return
-    const handleFocus = () => scheduleFetchForCurrentMap(true)
+    const handleFocus = () => scheduleFetchForCurrentMap(true, false)
     window.addEventListener('focus', handleFocus)
     return () => {
       window.removeEventListener('focus', handleFocus)
@@ -566,28 +609,10 @@ export default function SatelliteClimbingMap() {
                   click: () => {
                     if (!mapRef.current) return
                     const map = mapRef.current
-                    const bounds = item.bounds
-                      ? L.latLngBounds([item.bounds.south, item.bounds.west], [item.bounds.north, item.bounds.east])
-                      : (() => {
-                          const zoom = map.getZoom()
-                          const cell = bucketSizeForZoom(zoom)
-                          const half = cell / 2
-                          const south = clamp(lat - half, -90, 90)
-                          const north = clamp(lat + half, -90, 90)
-                          const west = clamp(lng - half, -180, 180)
-                          const east = clamp(lng + half, -180, 180)
-                          return L.latLngBounds([south, west], [north, east])
-                        })()
-
-                    map.fitBounds(bounds, {
-                      maxZoom: 8,
-                      padding: [24, 24],
-                    })
-
-                    map.once('moveend', () => {
-                      if (map.getZoom() < 8) map.setZoom(8)
-                      scheduleFetchForCurrentMap(true)
-                    })
+                    const index = clusterIndexRef.current
+                    if (!index) return
+                    const nextZoom = index.getClusterExpansionZoom(item.clusterId)
+                    map.setView([lat, lng], Math.min(nextZoom, 19))
                   },
                 }}
               >
