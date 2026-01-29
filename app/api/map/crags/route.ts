@@ -16,6 +16,12 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n))
 }
 
+function normalizeLng(lng: number): number {
+  // Normalize to [-180, 180]
+  const wrapped = ((lng + 180) % 360 + 360) % 360 - 180
+  return wrapped
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
 
@@ -31,8 +37,16 @@ export async function GET(request: NextRequest) {
 
   const minLat = clamp(Math.min(south, north), -90, 90)
   const maxLat = clamp(Math.max(south, north), -90, 90)
-  const minLng = clamp(west, -180, 180)
-  const maxLng = clamp(east, -180, 180)
+  const rawSpan = Math.abs(east - west)
+
+  let minLng = normalizeLng(west)
+  let maxLng = normalizeLng(east)
+
+  // If the viewport spans the whole world (or more), treat as world coverage.
+  if (rawSpan >= 360) {
+    minLng = -180
+    maxLng = 180
+  }
   const zoom = Math.round(clamp(zoomRaw, 0, 19))
 
   const cookies = request.cookies

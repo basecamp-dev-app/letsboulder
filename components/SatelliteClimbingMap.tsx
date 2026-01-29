@@ -566,11 +566,6 @@ export default function SatelliteClimbingMap() {
                   click: () => {
                     if (!mapRef.current) return
                     const map = mapRef.current
-                    if (count <= 25) {
-                      map.setView([lat, lng], 8)
-                      return
-                    }
-
                     const bounds = item.bounds
                       ? L.latLngBounds([item.bounds.south, item.bounds.west], [item.bounds.north, item.bounds.east])
                       : (() => {
@@ -587,6 +582,11 @@ export default function SatelliteClimbingMap() {
                     map.fitBounds(bounds, {
                       maxZoom: 8,
                       padding: [24, 24],
+                    })
+
+                    map.once('moveend', () => {
+                      if (map.getZoom() < 8) map.setZoom(8)
+                      scheduleFetchForCurrentMap(true)
                     })
                   },
                 }}
