@@ -1,5 +1,13 @@
 -- Map helper: include bucket bounds and single-crag metadata
 
+DROP FUNCTION IF EXISTS public.get_map_crag_points(
+  double precision,
+  double precision,
+  double precision,
+  double precision,
+  integer
+);
+
 CREATE OR REPLACE FUNCTION public.get_map_crag_points(
   min_lat double precision,
   min_lng double precision,
@@ -129,3 +137,11 @@ BEGIN
   LIMIT 1500;
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION public.get_map_crag_points(
+  double precision,
+  double precision,
+  double precision,
+  double precision,
+  integer
+) TO anon, authenticated, service_role;
