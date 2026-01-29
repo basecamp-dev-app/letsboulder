@@ -133,7 +133,9 @@ export default function CragSelector({
         },
         body: JSON.stringify({
           name: newCragName.trim(),
-          rock_type: newCragRockType.trim() || null
+          rock_type: newCragRockType.trim() || null,
+          latitude: latitude ?? null,
+          longitude: longitude ?? null,
         }),
       })
 

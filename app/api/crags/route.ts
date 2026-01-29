@@ -3,15 +3,22 @@ import { createServerClient } from '@supabase/ssr'
 import { rateLimit, RATE_LIMITS, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { makeUniqueSlug } from '@/lib/slug'
 
 interface CreateCragRequest {
   name: string
-  latitude?: number
-  longitude?: number
+  latitude?: number | null
+  longitude?: number | null
   rock_type?: string
   type?: 'sport' | 'boulder' | 'trad' | 'mixed'
   description?: string
   access_notes?: string
+}
+
+interface FindRegionResult {
+  id: string
+  name: string
+  country_code: string | null
 }
 
 interface CragWithCounts {
@@ -154,14 +161,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if ((latitude && !longitude) || (!latitude && longitude)) {
+    if ((latitude == null && longitude != null) || (latitude != null && longitude == null)) {
       return NextResponse.json(
         { error: 'Both latitude and longitude must be provided together, or neither' },
         { status: 400 }
       )
     }
 
-    if (latitude && longitude) {
+    if (latitude != null && longitude != null) {
       const { data: existingCrags } = await supabase
         .from('crags')
         .select('id, name')
@@ -182,16 +189,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let region: FindRegionResult | null = null
+    if (latitude != null && longitude != null) {
+      const { data: regionRows } = await supabase
+        .rpc('find_region_by_location', { search_lat: latitude, search_lng: longitude })
+      if (Array.isArray(regionRows) && regionRows.length > 0) {
+        const r = regionRows[0] as unknown as FindRegionResult
+        if (r?.id) region = r
+      }
+    }
+
+    const countryCode = region?.country_code ? String(region.country_code).toUpperCase().slice(0, 2) : null
+    const regionId = region?.id || null
+    const regionName = region?.name || null
+
+    const usedCragSlugs = new Set<string>()
+    if (countryCode) {
+      const { data: existingSlugs } = await supabase
+        .from('crags')
+        .select('slug')
+        .eq('country_code', countryCode)
+        .not('slug', 'is', null)
+        .limit(10000)
+      for (const row of (existingSlugs || []) as Array<{ slug: string | null }>) {
+        if (row.slug) usedCragSlugs.add(row.slug)
+      }
+    }
+    const slug = countryCode ? makeUniqueSlug(name, usedCragSlugs) : null
+
     const { data: createdCrag, error: createError } = await supabase
       .from('crags')
       .insert({
         name,
-        latitude: latitude || null,
-        longitude: longitude || null,
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
         rock_type: rock_type || undefined,
         type: type || 'sport',
         description: description || undefined,
         access_notes: access_notes || undefined,
+        region_id: regionId,
+        region_name: regionName,
+        country_code: countryCode,
+        slug,
       })
       .select('id, name, latitude, longitude, rock_type, type, created_at')
       .single()

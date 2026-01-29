@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse, sanitizeError } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewSubmission } from '@/lib/discord'
+import { makeUniqueSlug } from '@/lib/slug'
 
 const MAX_ROUTES_PER_DAY = 5
 
@@ -172,17 +173,36 @@ export async function POST(request: NextRequest) {
       existingCragId = existingImage.crag_id
     }
 
+    const cragId = body.mode === 'new' ? body.cragId : existingCragId
+
+    const usedRouteSlugs = new Set<string>()
+    if (cragId) {
+      const { data: existingSlugs } = await supabase
+        .from('climbs')
+        .select('slug')
+        .eq('crag_id', cragId)
+        .not('slug', 'is', null)
+        .limit(10000)
+
+      for (const row of (existingSlugs || []) as Array<{ slug: string | null }>) {
+        if (row.slug) usedRouteSlugs.add(row.slug)
+      }
+    }
+
     const regionData = await getRegionData(supabase, imageId!)
 
     const climbsData = body.routes.map((route, index) => {
       const trimmedName = route.name.trim()
+      const slug = cragId ? makeUniqueSlug(trimmedName || `Route ${index + 1}`, usedRouteSlugs) : null
       return {
         name: trimmedName || `Route ${index + 1}`,
+        slug,
         grade: route.grade,
         description: route.description?.trim() || null,
         route_type: 'sport',
         status: 'approved' as const,
-        user_id: user.id
+        user_id: user.id,
+        crag_id: cragId
       }
     })
 
@@ -216,8 +236,6 @@ export async function POST(request: NextRequest) {
     if (routeLinesError) {
       return createErrorResponse(routeLinesError, 'Error creating route_lines')
     }
-
-    const cragId = body.mode === 'new' ? body.cragId : existingCragId
 
     if (cragId) {
       await updateCragBoundary(supabase, cragId)

@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { trackAuthLoginSuccess } from '@/lib/posthog'
 import { SupabaseClient, User } from '@supabase/supabase-js'
 
@@ -312,12 +313,12 @@ function AuthCallbackContent() {
             >
               Try Again
             </button>
-            <a
+            <Link
               href="/auth"
               className="block w-full bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             >
               Back to Login
-            </a>
+            </Link>
           </div>
         </div>
       </div>

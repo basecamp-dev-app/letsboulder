@@ -83,7 +83,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const [cragsResult, climbsResult, imagesResult] = await Promise.all([
     supabase.from('crags').select('id, updated_at').eq('is_active', true).limit(1000),
-    supabase.from('climbs').select('id, updated_at').eq('status', 'active').limit(1000),
+    supabase
+      .from('climbs')
+      .select('id, updated_at, slug, crag_id, crags:crag_id (slug, country_code)')
+      .eq('status', 'active')
+      .limit(1000),
     supabase.from('images').select('id, updated_at').eq('is_verified', true).limit(1000),
   ])
 
@@ -94,12 +98,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'weekly' as const,
       priority: 0.7,
     })),
-    ...(climbsResult.data || []).map((climb) => ({
-      url: `${baseUrl}/climb/${climb.id}`,
-      lastModified: new Date(climb.updated_at || Date.now()),
-      changeFrequency: 'weekly' as const,
-      priority: 0.6,
-    })),
+    ...(climbsResult.data || []).map((climb) => {
+      const cragJoin = (climb as unknown as { crags?: Array<{ slug: string | null; country_code: string | null }> | null }).crags
+      const crag = Array.isArray(cragJoin) && cragJoin.length > 0 ? cragJoin[0] : null
+      const cragSlug = crag?.slug
+      const countryCode = crag?.country_code
+      const routeSlug = (climb as unknown as { slug?: string | null }).slug
+      const slugUrl = countryCode && cragSlug && routeSlug
+        ? `${baseUrl}/${String(countryCode).toLowerCase()}/${cragSlug}/${routeSlug}`
+        : null
+
+      return {
+        url: slugUrl || `${baseUrl}/climb/${climb.id}`,
+        lastModified: new Date((climb as { updated_at?: string | null }).updated_at || Date.now()),
+        changeFrequency: 'weekly' as const,
+        priority: 0.6,
+      }
+    }),
     ...(imagesResult.data || []).map((image) => ({
       url: `${baseUrl}/image/${image.id}`,
       lastModified: new Date(image.updated_at || Date.now()),
