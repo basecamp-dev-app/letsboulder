@@ -2,13 +2,13 @@ import { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Interactive Climbing Map',
-  description: 'Explore climbing routes across Guernsey on our interactive map. Find crags, view route images, and discover new climbs.',
+  description: 'Explore bouldering and climbing routes worldwide on an interactive map. Find crags, view photo topos, and discover new climbs.',
   alternates: {
     canonical: '/map',
   },
   openGraph: {
     title: 'Interactive Climbing Map - letsboulder',
-    description: 'Explore climbing routes across Guernsey.',
+    description: 'Explore bouldering and climbing routes worldwide.',
     url: '/map',
     images: [
       {

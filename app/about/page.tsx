@@ -21,7 +21,7 @@ export default function AboutPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="leading-relaxed">
-              We started documenting boulder problems in Guernsey and have grown into a platform for climbers everywhere — preserving route history and helping climbers improve.
+              We started by documenting our local boulders and grew into a platform for climbers everywhere — preserving route history and helping climbers improve.
             </p>
             <ul className="list-disc list-inside space-y-2 ml-2">
               <li>Document bouldering locations and their history</li>

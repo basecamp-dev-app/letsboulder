@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
             <td style="padding: 32px 32px 24px;">
               <h1 style="margin:0 0 24px; font-size:20px; font-weight:600; color:#18181b; letter-spacing:-0.3px;">${greeting}</h1>
               <p style="margin:0 0 24px; color:#52525b; line-height:1.6; font-size:15px;">
-                Welcome to letsboulder! We started documenting boulder problems in Guernsey and have grown into a community-driven platform for climbers everywhere.
+                Welcome to letsboulder! We started as a small community project and have grown into a community-driven platform for climbers everywhere.
               </p>
               <p style="margin:0 0 32px; color:#52525b; line-height:1.6; font-size:15px;">
                 Whether you're here to track your progress, discover new routes, or contribute to our growing database, we're excited to have you join us.
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
                   <td style="background-color:#f4f4f5; border-radius:8px; padding:20px;">
                     <p style="margin:0 0 8px; font-size:14px; font-weight:600; color:#18181b;">Join Our Community</p>
                     <p style="margin:0 0 12px; color:#52525b; line-height:1.5; font-size:13px;">
-                      Connect with fellow climbers, share your discoveries, and help grow the Guernsey bouldering community.
+                      Connect with fellow climbers, share your discoveries, and help grow the community.
                     </p>
                     <table role="presentation" border="0" cellspacing="0" cellpadding="0">
                       <tr>

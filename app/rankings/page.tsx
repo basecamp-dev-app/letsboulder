@@ -33,7 +33,6 @@ const GENDER_OPTIONS = [
 
 const COUNTRY_OPTIONS = [
   { value: 'all', label: 'Worldwide' },
-  { value: 'Guernsey', label: 'Guernsey' },
   { value: 'UK', label: 'UK' },
   { value: 'USA', label: 'USA' },
   { value: 'France', label: 'France' },

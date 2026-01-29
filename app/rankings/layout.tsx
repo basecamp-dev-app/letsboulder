@@ -2,13 +2,13 @@ import { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Rankings',
-  description: 'See the most active climbers in Guernsey. Weekly rankings tracking sends, flashes, and attempts.',
+  description: 'See the most active climbers worldwide. Weekly rankings tracking sends, flashes, and attempts.',
   alternates: {
     canonical: '/rankings',
   },
   openGraph: {
     title: 'Rankings - letsboulder',
-    description: 'See the most active climbers in Guernsey.',
+    description: 'See the most active climbers worldwide.',
     url: '/rankings',
     images: [
       {

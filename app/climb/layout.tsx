@@ -26,13 +26,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   return {
     title: `${climb.name} (${climb.grade})`,
-    description: `Climb ${climb.name} graded ${climb.grade} in Guernsey. View route details, log your ascent, and track your progress.`,
+    description: `Climb ${climb.name} graded ${climb.grade}. View topo and beta, log your ascent, and track your progress.`,
     alternates: {
       canonical: `/climb/${id}`,
     },
     openGraph: {
       title: `${climb.name} (${climb.grade}) | letsboulder`,
-      description: `Climb ${climb.name} graded ${climb.grade} in Guernsey.`,
+      description: `Climb ${climb.name} graded ${climb.grade}.`,
       url: `/climb/${id}`,
     },
   }

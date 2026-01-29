@@ -2,13 +2,13 @@ import { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'About',
-  description: 'Learn about letsboulder - Guernsey climbing community platform. Discover routes, log your ascents, and connect with local climbers.',
+  description: 'Learn about letsboulder. Discover routes, log your ascents, and contribute to a community-driven climbing database.',
   alternates: {
     canonical: '/about',
   },
   openGraph: {
     title: 'About letsboulder',
-    description: 'Learn about Guernsey climbing community platform.',
+    description: 'Learn about a community-driven climbing platform.',
     url: '/about',
     images: [
       {

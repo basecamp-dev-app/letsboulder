@@ -205,7 +205,7 @@ export default function TermsPage() {
           </p>
           <p className="text-gray-700 dark:text-gray-300 font-medium mb-4">
             letsboulder<br />
-            Guernsey, Channel Islands
+            United Kingdom
           </p>
           <p className="text-gray-700 dark:text-gray-300">
             If you have any questions about these Terms, please{' '}
@@ -230,15 +230,7 @@ export default function TermsPage() {
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            15.2 Guernsey/UK Users
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            For users in Guernsey and the United Kingdom, you must be at least 13 years
-            old to create an account.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            15.3 EU/EEA Users
+            15.2 EU/EEA Users
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
             For users in the European Union/European Economic Area, you must be at least
@@ -247,7 +239,7 @@ export default function TermsPage() {
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            15.4 Parental Notice
+            15.3 Parental Notice
           </h3>
           <p className="text-gray-700 dark:text-gray-300">
             If you are a parent or guardian of a child under the minimum age, please
@@ -368,8 +360,7 @@ export default function TermsPage() {
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
             These Terms shall be governed by and construed in accordance with the laws
-            of Guernsey and the United Kingdom, without regard to conflict of law
-            principles.
+            of England and Wales, without regard to conflict of law principles.
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
@@ -377,17 +368,18 @@ export default function TermsPage() {
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
             Any disputes arising from these Terms or your use of letsboulder shall be
-            subject to the exclusive jurisdiction of the courts of Guernsey.
+            subject to the exclusive jurisdiction of the courts of England and Wales.
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
             18.3 Arbitration
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            If you are located outside Guernsey, any dispute, controversy, or claim
-            arising out of or relating to these Terms shall be settled by binding
-            arbitration in accordance with the rules of a mutually agreed arbitration
-            institution, or if no agreement is reached, in Guernsey under applicable law.
+            If you are located outside the United Kingdom, any dispute, controversy, or claim
+            arising out of or relating to these Terms shall be settled by binding arbitration
+            in accordance with the rules of a mutually agreed arbitration institution.
+            The seat of arbitration shall be London, England, and the language of the
+            arbitration shall be English.
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">

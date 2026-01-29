@@ -1,4 +1,4 @@
-# letsboulder - Guernsey Climbing Routes
+# letsboulder - Bouldering Topos & Climbing Logbook
 
 A community-driven web app for climbers to discover and share bouldering routes.
 

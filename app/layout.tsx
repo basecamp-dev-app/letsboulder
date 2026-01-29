@@ -27,11 +27,29 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "letsboulder - Guernsey Climbing Routes",
+    default: 'letsboulder - Bouldering Topos & Climbing Logbook',
     template: "%s | letsboulder",
   },
-  description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
-  keywords: ["letsboulder", "climbing", "Guernsey", "rock climbing", "routes", "bouldering", "outdoor climbing", "Channel Islands"],
+  description: 'Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.',
+  keywords: [
+    'letsboulder',
+    'bouldering',
+    'climbing',
+    'bouldering topo',
+    'climbing topo',
+    'route finder',
+    'boulder map',
+    'crag guide',
+    'climbing logbook',
+    'send tracker',
+    'bouldering beta',
+    'grade consensus',
+    'V-scale',
+    'Font scale',
+    'community-driven',
+    'crowdsourced climbing',
+    'verified routes',
+  ],
   authors: [{ name: BRAND_NAME }],
   creator: BRAND_NAME,
   publisher: BRAND_NAME,
@@ -48,24 +66,24 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    locale: "en_GB",
+    locale: 'en_US',
     url: SITE_URL,
     siteName: BRAND_NAME,
-    title: "letsboulder - Guernsey Climbing Routes",
-    description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
+    title: 'letsboulder - Bouldering Topos & Climbing Logbook',
+    description: 'Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.',
     images: [
       {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "letsboulder - Guernsey Climbing Routes",
+        alt: 'letsboulder - Bouldering Topos & Climbing Logbook',
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "letsboulder - Guernsey Climbing Routes",
-    description: "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
+    title: 'letsboulder - Bouldering Topos & Climbing Logbook',
+    description: 'Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.',
     images: ["/og.png"],
     creator: X_HANDLE,
   },
@@ -93,7 +111,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en-GB" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.png" sizes="32x32" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
@@ -132,7 +150,7 @@ export default function RootLayout({
                 "@type": "WebSite",
                 name: BRAND_NAME,
                 url: SITE_URL,
-                description: "Discover and log climbing routes in Guernsey",
+                description: 'Discover bouldering and climbing routes worldwide',
                 potentialAction: {
                   "@type": "SearchAction",
                   target: {
@@ -148,12 +166,7 @@ export default function RootLayout({
                 name: BRAND_NAME,
                 url: SITE_URL,
                 logo: `${SITE_URL}/icon-512.png`,
-                description: "Community-driven bouldering platform for Guernsey, Channel Islands. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
-                address: {
-                  "@type": "PostalAddress",
-                  addressLocality: "Guernsey",
-                  addressCountry: "GB"
-                },
+                description: 'Community-driven bouldering platform. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.',
                 sameAs: [
                   X_URL,
                   INSTAGRAM_URL

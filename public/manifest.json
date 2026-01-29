@@ -1,7 +1,7 @@
 {
-  "name": "letsboulder - Guernsey Climbing Routes",
+  "name": "letsboulder - Bouldering Topos & Climbing Logbook",
   "short_name": "letsboulder",
-  "description": "Discover and log climbing routes in Guernsey. Interactive map, GPS-enabled uploads, and personal logbook for climbers.",
+  "description": "Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.",
   "start_url": "/map",
   "display": "standalone",
   "background_color": "#ffffff",

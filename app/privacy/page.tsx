@@ -23,7 +23,7 @@ export default function PrivacyPage() {
             1. Introduction
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            Welcome to letsboulder. We are a bouldering logbook web application that helps climbers in Guernsey track their ascents, discover new climbs, and compete on leaderboards.
+            Welcome to letsboulder. We are a bouldering logbook web application that helps climbers track their ascents, discover new climbs, and compete on leaderboards.
           </p>
           <p className="text-gray-700 dark:text-gray-300 mt-2">
             This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our website and services.
@@ -226,7 +226,7 @@ export default function PrivacyPage() {
           </p>
           <p className="text-gray-700 dark:text-gray-300 font-medium mb-4">
             letsboulder<br />
-            Guernsey, Channel Islands
+            United Kingdom
           </p>
           <p className="text-gray-700 dark:text-gray-300">
             If you have questions about this Privacy Policy or your data, please contact us at{' '}

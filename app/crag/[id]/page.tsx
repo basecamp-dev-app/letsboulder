@@ -63,6 +63,8 @@ interface Crag {
   latitude: number | null
   longitude: number | null
   region_id: string | null
+  region_name?: string | null
+  country?: string | null
   description: string | null
   access_notes: string | null
   rock_type: string | null
@@ -527,24 +529,32 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
     )
   }
 
+  const addressLocality = crag.region_name || crag.regions?.name || null
+  const addressCountry = crag.country || null
+
   const cragSchema = {
-    "@context": "https://schema.org",
-    "@type": "Place",
-    "name": crag.name,
-    "description": crag.description || `${crag.type || 'Bouldering'} crag in ${crag.regions?.name || 'Guernsey'}`,
-    "url": `${SITE_URL}/crag/${crag.id}`,
-    "address": {
-      "@type": "PostalAddress",
-      "addressLocality": crag.regions?.name || "Guernsey",
-      "addressCountry": "GB"
-    },
-    "geo": {
-      "@type": "GeoCoordinates",
-      "latitude": crag.latitude,
-      "longitude": crag.longitude
-    },
-    " amenityUsage": "Bouldering"
+    '@context': 'https://schema.org',
+    '@type': 'Place',
+    name: crag.name,
+    description: crag.description || `${crag.type || 'Climbing'} crag${addressLocality ? ` in ${addressLocality}` : ''}`,
+    url: `${SITE_URL}/crag/${crag.id}`,
   } as Record<string, unknown>
+
+  if (addressLocality || addressCountry) {
+    cragSchema.address = {
+      '@type': 'PostalAddress',
+      ...(addressLocality ? { addressLocality } : {}),
+      ...(addressCountry ? { addressCountry } : {}),
+    }
+  }
+
+  if (crag.latitude != null && crag.longitude != null) {
+    cragSchema.geo = {
+      '@type': 'GeoCoordinates',
+      latitude: crag.latitude,
+      longitude: crag.longitude,
+    }
+  }
 
   const additionalProperties: Record<string, unknown>[] = []
   if (crag.rock_type) {

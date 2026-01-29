@@ -527,8 +527,7 @@ export default function SatelliteClimbingMap() {
         console.log('[Map] Centering on defaultLocation:', { lat: defaultLocation.lat, lng: defaultLocation.lng, zoom: defaultLocation.zoom })
         mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
       } else {
-        console.log('[Map] No location, falling back to Guernsey')
-        mapRef.current.setView([49.45, -2.6], 11)
+        mapRef.current.setView([20, 0], 2)
       }
     }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
 
@@ -552,8 +551,8 @@ export default function SatelliteClimbingMap() {
     <div className="h-screen w-full p-4 relative">
       <MapContainer
         ref={mapRef as RefObject<L.Map>}
-        center={[49.45, -2.6]}
-        zoom={11}
+        center={[20, 0]}
+        zoom={2}
         minZoom={2}
         maxZoom={19}
         maxBounds={[[-90, -180], [90, 180]]}

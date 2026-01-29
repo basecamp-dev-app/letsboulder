@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'My Climbing Logbook',
-  description: 'View and manage your personal climbing logbook on letsboulder. Track your climbing achievements and progress in Guernsey.',
+  description: 'View and manage your personal climbing logbook on letsboulder. Track your ascents, projects, and progress.',
   alternates: {
     canonical: '/logbook',
   },
