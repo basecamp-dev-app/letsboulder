@@ -31,7 +31,7 @@ $$;
 UPDATE public.climbs c
 SET crag_id = x.crag_id
 FROM (
-  SELECT rl.climb_id, min(i.crag_id) AS crag_id
+  SELECT rl.climb_id, min(i.crag_id::text)::uuid AS crag_id
   FROM public.route_lines rl
   JOIN public.images i ON i.id = rl.image_id
   WHERE i.crag_id IS NOT NULL
