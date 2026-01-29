@@ -31,6 +31,26 @@ npm run lint -- --fix
 - Avoid manual schema edits in the Supabase dashboard; if unavoidable, immediately backfill into a migration.
 - See `docs/db/migrations.md` for drift-audit and cleanup workflow.
 
+### Recommended Commands (Golden Path)
+
+```bash
+# Ensure pinned Supabase CLI is used
+npm install
+npm run supabase:doctor
+
+# Local
+supabase start
+npm run db:local:up
+
+# Dev
+npm run db:push:dev:dry
+npm run db:push:dev
+
+# Prod
+npm run db:push:prod:dry
+npm run db:push:prod
+```
+
 **Note:** This project does not currently have a test suite. When adding tests, use:
 - Vitest for unit/integration tests
 - Playwright for E2E tests
