@@ -108,9 +108,11 @@ export default function SatelliteClimbingMap() {
 
   const debounceTimerRef = useRef<number | null>(null)
   const lastFetchKeyRef = useRef<string | null>(null)
+  const lastFetchAtRef = useRef<number>(0)
   const requestIdRef = useRef(0)
 
   const MAX_ITEMS = 1500
+  const FETCH_TTL_MS = 20000
 
   useEffect(() => {
     setupLeafletIcons()
@@ -289,12 +291,14 @@ export default function SatelliteClimbingMap() {
   }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
 
   const fetchItemsForView = useCallback(
-    async (bbox: [number, number, number, number], zoom: number) => {
+    async (bbox: [number, number, number, number], zoom: number, force = false) => {
       if (!isClient) return
 
       const key = roundBboxKey(bbox, zoom)
-      if (lastFetchKeyRef.current === key) return
+      const now = Date.now()
+      if (!force && lastFetchKeyRef.current === key && now - lastFetchAtRef.current < FETCH_TTL_MS) return
       lastFetchKeyRef.current = key
+      lastFetchAtRef.current = now
 
       const currentRequestId = ++requestIdRef.current
       setItemsLoading(true)
@@ -365,7 +369,7 @@ export default function SatelliteClimbingMap() {
     [isClient]
   )
 
-  const scheduleFetchForCurrentMap = useCallback(() => {
+  const scheduleFetchForCurrentMap = useCallback((force = false) => {
     if (!mapRef.current) return
     const map = mapRef.current
     const bounds = map.getBounds()
@@ -379,7 +383,7 @@ export default function SatelliteClimbingMap() {
 
     if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current)
     debounceTimerRef.current = window.setTimeout(() => {
-      fetchItemsForView(bbox, zoom)
+      fetchItemsForView(bbox, zoom, force)
     }, 300)
   }, [fetchItemsForView])
 
@@ -394,6 +398,15 @@ export default function SatelliteClimbingMap() {
     return () => {
       map.off('moveend', handler)
       map.off('zoomend', handler)
+    }
+  }, [mapLoaded, scheduleFetchForCurrentMap])
+
+  useEffect(() => {
+    if (!mapLoaded) return
+    const handleFocus = () => scheduleFetchForCurrentMap(true)
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
     }
   }, [mapLoaded, scheduleFetchForCurrentMap])
 
