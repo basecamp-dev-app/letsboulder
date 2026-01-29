@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { MORE_MENU_ITEMS } from '@/lib/nav-items'
 import type { User } from '@supabase/supabase-js'
-import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { suppressOverlayCleanup, useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 interface MobileNavSheetProps {
   isOpen: boolean
@@ -64,20 +64,23 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
   }, [])
 
   const handleNavigation = (href: string) => {
+    suppressOverlayCleanup('mobile-nav-sheet')
     onClose()
-    router.push(href)
+    router.replace(href)
   }
 
   const handleSignOut = async () => {
+    suppressOverlayCleanup('mobile-nav-sheet')
     onClose()
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/')
+    router.replace('/')
   }
 
   const handleSignIn = () => {
+    suppressOverlayCleanup('mobile-nav-sheet')
     onClose()
-    router.push('/auth')
+    router.replace('/auth')
   }
 
   if (!isOpen) return null
@@ -94,6 +97,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
           {MORE_MENU_ITEMS.map((item) => (
             <button
               key={item.href}
+              type="button"
               onClick={() => handleNavigation(item.href)}
               className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-colors ${
                 pathname === item.href
@@ -110,6 +114,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
 
           {user ? (
             <button
+              type="button"
               onClick={handleSignOut}
               className="w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >
@@ -120,6 +125,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
             </button>
           ) : (
             <button
+              type="button"
               onClick={handleSignIn}
               className="w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
             >

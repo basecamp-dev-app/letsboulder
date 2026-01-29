@@ -13,6 +13,12 @@ let markerUrl: string | null = null
 let popstateAttached = false
 let closingFromPopstateId: string | null = null
 
+const suppressedCleanupIds = new Set<string>()
+
+export function suppressOverlayCleanup(id: string) {
+  suppressedCleanupIds.add(id)
+}
+
 function getHistoryState(): Record<string, unknown> {
   const s = window.history.state
   if (s && typeof s === 'object') return s as Record<string, unknown>
@@ -93,11 +99,15 @@ function unregisterOverlay(id: string) {
   const closedByPopstate = closingFromPopstateId === id
   if (closedByPopstate) closingFromPopstateId = null
 
+  const suppressCleanup = suppressedCleanupIds.has(id)
+  if (suppressCleanup) suppressedCleanupIds.delete(id)
+
   overlayStack = overlayStack.filter((x) => x !== id)
 
   if (overlayStack.length === 0) {
     const shouldCleanupDummyEntry =
       !closedByPopstate &&
+      !suppressCleanup &&
       markerUrl !== null &&
       window.location.href === markerUrl &&
       hasOverlayMarker()
