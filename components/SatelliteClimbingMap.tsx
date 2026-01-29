@@ -64,6 +64,12 @@ type MapItem =
       latitude: number
       longitude: number
       count: number
+      bounds?: {
+        south: number
+        west: number
+        north: number
+        east: number
+      }
     }
   | {
       kind: 'crag'
@@ -84,7 +90,7 @@ function bucketSizeForZoom(zoom: number): number {
   if (zoom <= 2) return 10.0
   if (zoom <= 4) return 5.0
   if (zoom <= 6) return 1.0
-  if (zoom <= 8) return 0.25
+  if (zoom <= 7) return 0.25
   return 0.1
 }
 
@@ -346,6 +352,12 @@ export default function SatelliteClimbingMap() {
           latitude: number | string | null
           longitude: number | string | null
           count: number | string | null
+          bucket_south?: number | string | null
+          bucket_west?: number | string | null
+          bucket_north?: number | string | null
+          bucket_east?: number | string | null
+          single_crag_id?: string | null
+          single_crag_name?: string | null
         }>
 
         if (requestIdRef.current !== currentRequestId) return
@@ -357,11 +369,35 @@ export default function SatelliteClimbingMap() {
           if (lat == null || lng == null) continue
           if (row.kind === 'cluster') {
             const count = parseNumber(row.count) ?? 0
+            const singleId = row.single_crag_id ?? null
+            const singleName = row.single_crag_name ?? null
+
+            if (count === 1 && singleId && singleName) {
+              next.push({
+                kind: 'crag',
+                id: singleId,
+                name: singleName,
+                latitude: lat,
+                longitude: lng,
+                count: 1,
+              })
+              continue
+            }
+
+            const south = parseNumber(row.bucket_south)
+            const west = parseNumber(row.bucket_west)
+            const north = parseNumber(row.bucket_north)
+            const east = parseNumber(row.bucket_east)
+
             next.push({
               kind: 'cluster',
               latitude: lat,
               longitude: lng,
               count,
+              bounds:
+                south != null && west != null && north != null && east != null
+                  ? { south, west, north, east }
+                  : undefined,
             })
             continue
           }
@@ -530,16 +566,26 @@ export default function SatelliteClimbingMap() {
                   click: () => {
                     if (!mapRef.current) return
                     const map = mapRef.current
-                    const zoom = map.getZoom()
-                    const cell = bucketSizeForZoom(zoom)
-                    const half = cell / 2
-                    const south = clamp(lat - half, -90, 90)
-                    const north = clamp(lat + half, -90, 90)
-                    const west = clamp(lng - half, -180, 180)
-                    const east = clamp(lng + half, -180, 180)
-                    const bounds = L.latLngBounds([south, west], [north, east])
+                    if (count <= 25) {
+                      map.setView([lat, lng], 8)
+                      return
+                    }
+
+                    const bounds = item.bounds
+                      ? L.latLngBounds([item.bounds.south, item.bounds.west], [item.bounds.north, item.bounds.east])
+                      : (() => {
+                          const zoom = map.getZoom()
+                          const cell = bucketSizeForZoom(zoom)
+                          const half = cell / 2
+                          const south = clamp(lat - half, -90, 90)
+                          const north = clamp(lat + half, -90, 90)
+                          const west = clamp(lng - half, -180, 180)
+                          const east = clamp(lng + half, -180, 180)
+                          return L.latLngBounds([south, west], [north, east])
+                        })()
+
                     map.fitBounds(bounds, {
-                      maxZoom: 9,
+                      maxZoom: 8,
                       padding: [24, 24],
                     })
                   },
