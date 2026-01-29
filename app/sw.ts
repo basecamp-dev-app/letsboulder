@@ -35,7 +35,11 @@ const serwist = new Serwist({
 })
 
 serwist.registerCapture(
-  /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\//,
+  ({ url, request }) => {
+    if (!url.hostname.endsWith('.supabase.co')) return false
+    if (!url.pathname.startsWith('/storage/v1/object/public/')) return false
+    return request.destination === 'image' || request.mode === 'no-cors'
+  },
   new CacheFirst({
     cacheName: 'supabase-storage-images',
     plugins: [
@@ -60,7 +64,8 @@ serwist.registerCapture(
 
 serwist.registerCapture(
   ({ url, request }) => {
-    if (request.destination !== 'document') return false
+    const isNavigation = request.mode === 'navigate' || request.destination === 'document'
+    if (!isNavigation) return false
     if (url.origin !== self.location.origin) return false
     return url.pathname === '/map' || url.pathname.startsWith('/crag/') || url.pathname.startsWith('/image/')
   },
