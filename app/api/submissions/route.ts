@@ -227,6 +227,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create climbs' }, { status: 500 })
     }
 
+    for (const [index, climb] of climbs.entries()) {
+      const { error: voteError } = await supabase.rpc('initialize_climb_grade_vote', {
+        p_climb_id: climb.id,
+        p_user_id: user.id,
+        p_grade: body.routes[index].grade
+      })
+
+      if (voteError) {
+        return createErrorResponse(voteError, 'Error creating grade vote')
+      }
+    }
+
     const routeLinesData = climbs.map((climb, index) => ({
       image_id: imageId!,
       climb_id: climb.id,

@@ -24,6 +24,11 @@ interface ImageRoute {
     description: string | null
     route_type: string | null
   } | null
+  climbConsensus?: {
+    consensus_grade: string | null
+    total_votes: number
+    grade_tied: boolean
+  } | null
   imageWidth?: number | null
   imageHeight?: number | null
   imageNaturalWidth?: number
@@ -395,7 +400,10 @@ export default function ImagePage() {
               name,
               grade,
               description,
-              route_type
+              route_type,
+              consensus_grade,
+              total_votes,
+              grade_tied
             )
           `
           )
@@ -420,6 +428,9 @@ export default function ImagePage() {
             grade: string | null
             description: string | null
             route_type: string | null
+            consensus_grade: string | null
+            total_votes: number | null
+            grade_tied: boolean | null
           } | null
         }
 
@@ -436,6 +447,11 @@ export default function ImagePage() {
             description: (rl.climbs?.description || '').trim() || null,
             route_type: rl.climbs?.route_type || null,
           },
+          climbConsensus: rl.climbs ? {
+            consensus_grade: rl.climbs.consensus_grade,
+            total_votes: rl.climbs.total_votes || 0,
+            grade_tied: rl.climbs.grade_tied || false
+          } : undefined,
         }))
 
         if (cancelled) return
@@ -450,12 +466,14 @@ export default function ImagePage() {
         const {
           data: { user },
         } = await supabase.auth.getUser()
-        if (user && formattedRoutes.length > 0) {
+
+        if (formattedRoutes.length > 0) {
           const climbIds = formattedRoutes.map((r) => r.climb?.id).filter((id): id is string => id != null)
+
           const { data: logs } = await supabase
             .from('user_climbs')
             .select('climb_id, style')
-            .eq('user_id', user.id)
+            .eq('user_id', user?.id)
             .in('climb_id', climbIds)
 
           if (logs) {
@@ -464,6 +482,28 @@ export default function ImagePage() {
               logsMap[log.climb_id] = log.style
             })
             setUserLogs(logsMap)
+          }
+
+          const { data: consensusData } = await supabase
+            .rpc('get_climbs_with_consensus', { p_climb_ids: climbIds })
+
+          if (consensusData) {
+            const consensusMap: Record<string, { consensus_grade: string | null; total_votes: number; grade_tied: boolean }> = {}
+            consensusData.forEach((c: { climb_id: string; consensus_grade: string | null; total_votes: number; grade_tied: boolean }) => {
+              consensusMap[c.climb_id] = {
+                consensus_grade: c.consensus_grade,
+                total_votes: c.total_votes,
+                grade_tied: c.grade_tied
+              }
+            })
+
+            setImage(prev => prev ? {
+              ...prev,
+              route_lines: prev.route_lines.map(r => ({
+                ...r,
+                climbConsensus: r.climb?.id ? consensusMap[r.climb.id] : undefined
+              }))
+            } : null)
           }
         }
 
@@ -724,7 +764,9 @@ export default function ImagePage() {
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
                           : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
                       }`}>
-                        {route.climb?.grade}
+                        {route.climbConsensus?.total_votes && route.climbConsensus.total_votes > 0
+                          ? route.climbConsensus.consensus_grade || route.climb?.grade
+                          : route.climb?.grade}
                       </span>
                     </div>
                     {isLogged && (
