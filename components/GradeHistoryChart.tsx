@@ -1,20 +1,24 @@
 'use client'
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { getGradeFromPoints } from '@/lib/grades'
 
 interface GradeHistoryChartProps {
   data: Array<{
     month: string
-    top: number
-    flash: number
+    top: number | null
+    flash: number | null
   }>
 }
 
 export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
-  // Calculate Y-axis domain
-  const maxValue = Math.max(...data.map(d => Math.max(d.top, d.flash)), 800)
-  const domainMin = Math.min(...data.map(d => Math.min(d.top, d.flash)), 600)
-  const roundedMin = Math.floor(domainMin / 50) * 50
+  const gradeStep = 16
+  const values = data.flatMap(d => [d.top, d.flash]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+
+  const maxValue = values.length > 0 ? Math.max(...values) : 800
+  const minValue = values.length > 0 ? Math.min(...values) : 600
+  const roundedMin = Math.floor(minValue / gradeStep) * gradeStep
+  const roundedMax = Math.ceil(maxValue / gradeStep) * gradeStep
 
   return (
     <div className="w-full h-64 min-h-[200px] md:min-h-[256px]">
@@ -41,11 +45,11 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
             tickLine={false}
           />
           <YAxis
-            domain={[roundedMin, Math.ceil(maxValue / 50) * 50]}
+            domain={[roundedMin, roundedMax]}
             tick={{ fontSize: 12, fill: '#666' }}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(value) => value.toString()}
+            tickFormatter={(value) => getGradeFromPoints(value)}
           />
           <Tooltip
             contentStyle={{
@@ -56,6 +60,10 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
             }}
             labelStyle={{ fontWeight: 600, marginBottom: 4 }}
             itemStyle={{ fontSize: 13 }}
+            formatter={(value) => {
+              if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
+              return getGradeFromPoints(value)
+            }}
           />
           <Legend
             wrapperStyle={{ paddingTop: 8 }}
@@ -75,6 +83,7 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
             fill="url(#flashGradient)"
             name="flash"
             animationDuration={300}
+            connectNulls={false}
           />
           <Area
             type="monotone"
@@ -84,6 +93,7 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
             fill="url(#topGradient)"
             name="top"
             animationDuration={300}
+            connectNulls={false}
           />
         </AreaChart>
       </ResponsiveContainer>

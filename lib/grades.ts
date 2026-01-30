@@ -112,8 +112,8 @@ export interface LogEntry {
 
 interface MonthlyGradeData {
   month: string
-  top: number
-  flash: number
+  top: number | null
+  flash: number | null
 }
 
 interface StatsResult {
@@ -164,13 +164,13 @@ export function calculateStats(logs: LogEntry[]): StatsResult {
     ? twoMonthWithPoints.reduce((sum, log) => sum + log.points, 0) / twoMonthWithPoints.length
     : 0
 
-  // Calculate grade history (monthly, stacked area)
-  const monthlyData: Record<string, { top: number; flash: number }> = {}
+  // Calculate grade history (monthly average grade)
+  const monthlyData: Record<string, { topPoints: number; topCount: number; flashPoints: number; flashCount: number }> = {}
   
   for (let i = 0; i < 12; i++) {
     const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-    monthlyData[monthKey] = { top: 0, flash: 0 }
+    monthlyData[monthKey] = { topPoints: 0, topCount: 0, flashPoints: 0, flashCount: 0 }
   }
 
   yearLogs.forEach(log => {
@@ -178,19 +178,31 @@ export function calculateStats(logs: LogEntry[]): StatsResult {
     const monthKey = logDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
     
     if (monthlyData[monthKey]) {
+      if (log.style === 'try') return
+
       const points = getGradePoints(log.climbs?.grade || '6A')
       if (log.style === 'flash') {
-        monthlyData[monthKey].flash += points + FLASH_BONUS
-        monthlyData[monthKey].top += points + FLASH_BONUS
-      } else {
-        monthlyData[monthKey].top += points
+        monthlyData[monthKey].flashPoints += points
+        monthlyData[monthKey].flashCount += 1
+
+        // "Top" series includes all sends (tops + flashes)
+        monthlyData[monthKey].topPoints += points
+        monthlyData[monthKey].topCount += 1
+        return
       }
+
+      monthlyData[monthKey].topPoints += points
+      monthlyData[monthKey].topCount += 1
     }
   })
 
   // Sort months chronologically
   const gradeHistory = Object.entries(monthlyData)
-    .map(([month, data]) => ({ month, ...data }))
+    .map(([month, data]) => ({
+      month,
+      top: data.topCount > 0 ? data.topPoints / data.topCount : null,
+      flash: data.flashCount > 0 ? data.flashPoints / data.flashCount : null,
+    }))
     .sort((a, b) => {
       const [aMonth, aYear] = a.month.split(' ')
       const [bMonth, bYear] = b.month.split(' ')
