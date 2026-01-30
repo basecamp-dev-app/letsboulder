@@ -246,3 +246,11 @@ select-none {
   user-select: none;
   -webkit-user-select: none;
 }
+
+.blur-pending {
+  filter: blur(12px);
+}
+
+.blur-pending:hover {
+  filter: blur(0);
+}

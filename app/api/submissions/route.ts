@@ -149,7 +149,8 @@ export async function POST(request: NextRequest) {
           height: body.height,
           natural_width: body.naturalWidth,
           natural_height: body.naturalHeight,
-          created_by: user.id
+          created_by: user.id,
+          status: 'pending'
         })
         .select('id')
         .single()

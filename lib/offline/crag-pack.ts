@@ -303,7 +303,7 @@ export async function downloadCragForOffline(
   const { data: imagesData, error: imagesError } = await supabase
     .from('images')
     .select(
-      'id, url, latitude, longitude, is_verified, verification_count, crag_id, width, height, natural_width, natural_height, created_at'
+      'id, url, latitude, longitude, is_verified, verification_count, crag_id, width, height, natural_width, natural_height, created_at, status'
     )
     .eq('crag_id', cragId)
     .order('created_at', { ascending: false })
@@ -386,6 +386,7 @@ export async function downloadCragForOffline(
       natural_width: img.natural_width ?? null,
       natural_height: img.natural_height ?? null,
       route_lines: formattedRouteLines,
+      status: img.status || 'approved',
     }
   })
 
