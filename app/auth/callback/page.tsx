@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { trackAuthLoginSuccess } from '@/lib/posthog'
 import { SupabaseClient, User } from '@supabase/supabase-js'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 const syncOAuthProfile = async (supabase: SupabaseClient, user: User): Promise<boolean> => {
   const metadata = user.user_metadata
@@ -161,7 +162,7 @@ function AuthCallbackContent() {
             return
           }
 
-          fetch('/api/welcome-email', {
+          csrfFetch('/api/welcome-email', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -259,7 +260,7 @@ function AuthCallbackContent() {
             return
           }
 
-          fetch('/api/welcome-email', {
+          csrfFetch('/api/welcome-email', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

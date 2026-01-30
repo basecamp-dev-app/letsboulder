@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import type { Region } from '@/lib/submission-types'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface RegionSelectorProps {
   onSelect: (region: Region) => void
@@ -84,7 +85,7 @@ export default function RegionSelector({
     setErrorMessage('')
 
     try {
-      const response = await fetch('/api/regions', {
+      const response = await csrfFetch('/api/regions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

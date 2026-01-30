@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouteSelection, RoutePoint, findRouteAtPoint } from '@/lib/useRouteSelection'
 import { Loader2, Share2, Twitter, Facebook, MessageCircle, Link2 } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { csrfFetch } from '@/hooks/useCsrf'
 import { SITE_URL } from '@/lib/site'
 import {
   Dialog,
@@ -269,7 +270,7 @@ export default function ClimbPage() {
         return
       }
 
-      const response = await fetch('/api/log-routes', {
+      const response = await csrfFetch('/api/log-routes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

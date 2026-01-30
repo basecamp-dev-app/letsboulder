@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 're
 import { createClient } from '@/lib/supabase'
 import { dataURLToBlob } from '@/lib/image-utils'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface ProfileAvatarProps {
   avatarUrl?: string
@@ -281,7 +282,7 @@ const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(
     setUsernameError(null)
 
     try {
-      const response = await fetch('/api/profile', {
+      const response = await csrfFetch('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

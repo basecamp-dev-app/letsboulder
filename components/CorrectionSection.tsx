@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { CorrectionSectionProps, CorrectionType, VALID_GRADES } from '@/lib/verification-types'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 const CORRECTION_TYPE_LABELS: Record<CorrectionType, string> = {
   location: 'Location',
@@ -59,7 +60,7 @@ export default function CorrectionSection({
           break
       }
 
-      const response = await fetch(`/api/climbs/${climbId}/correction`, {
+      const response = await csrfFetch(`/api/climbs/${climbId}/correction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -297,7 +298,7 @@ function CorrectionCard({
     if (loading || !canVote) return
     setLoading(true)
     try {
-      const response = await fetch(`/api/corrections/${correction.id}/vote`, {
+      const response = await csrfFetch(`/api/corrections/${correction.id}/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vote_type: voteType })

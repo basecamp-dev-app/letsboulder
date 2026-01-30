@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface ReportCragModalProps {
   cragId: string
@@ -45,7 +46,7 @@ export default function ReportCragModal({ cragId, cragName, onClose, onSubmitted
     setSubmitting(true)
 
     try {
-      const response = await fetch('/api/crags/report', {
+      const response = await csrfFetch('/api/crags/report', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

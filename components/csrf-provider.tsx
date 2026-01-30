@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 
 export function CsrfProvider() {
   useEffect(() => {
-    fetch('/api/csrf', { method: 'GET' })
+    fetch('/api/csrf', { method: 'GET', credentials: 'include' })
       .then(r => r.json())
       .then(data => {
         if (data.token) {

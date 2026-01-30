@@ -12,6 +12,7 @@ import {
 import GradePicker from '@/components/GradePicker'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { ImageSelection, NewRouteData, RouteLine } from '@/lib/submission-types'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface ExistingRoute {
   id: string
@@ -97,7 +98,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     if (!selectedRoute) return
 
     try {
-      const response = await fetch(`/api/routes/${selectedRoute.id}/grades`, {
+      const response = await csrfFetch(`/api/routes/${selectedRoute.id}/grades`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ grade })

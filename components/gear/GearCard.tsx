@@ -5,6 +5,7 @@ import { GearProduct } from '@/lib/gear-data'
 import { ShieldCheck, HardHat, Link2, Scroll, Mountain, Footprints, CupSoda, Sun, Wrench, Tent } from 'lucide-react'
 import { trackProductClicked } from '@/lib/posthog'
 import { useEffect, useRef } from 'react'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 const categoryIcons: Record<string, typeof ShieldCheck> = {
   'Belay Devices': ShieldCheck,
@@ -34,7 +35,7 @@ export default function GearCard({ product }: GearCardProps) {
     const handleClick = () => {
       trackProductClicked(product.id, product.name, product.category)
 
-      fetch('/api/gear-clicks', {
+      csrfFetch('/api/gear-clicks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ productId: product.id })
