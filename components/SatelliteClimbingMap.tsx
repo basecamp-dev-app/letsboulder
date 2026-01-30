@@ -8,6 +8,7 @@ import type { User } from '@supabase/supabase-js'
 
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
+import MapInstallControl from '@/components/pwa/MapInstallControl'
 import { listOfflineCrags, removeCragDownload } from '@/lib/offline/crag-pack'
 import type { OfflineCragMeta } from '@/lib/offline/types'
 
@@ -570,6 +571,8 @@ export default function SatelliteClimbingMap() {
         )}
         {isOffline && <span className="ml-1 text-[10px] text-gray-500 dark:text-gray-400">offline</span>}
       </button>
+
+      <MapInstallControl />
 
       {locationStatus === 'requesting' && (
         <div className="absolute top-4 right-20 z-[1000] bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm">
