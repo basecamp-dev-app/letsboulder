@@ -85,6 +85,18 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
   const imgRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  const pinScale = useMemo(() => {
+    if (!imageInfo) return 1
+    const safeW = imageInfo.renderedWidth > 0 ? imageInfo.renderedWidth : 0
+    const safeH = imageInfo.renderedHeight > 0 ? imageInfo.renderedHeight : 0
+    if (!safeW || !safeH) return 1
+
+    const scaleX = naturalWidth / safeW
+    const scaleY = naturalHeight / safeH
+    const scale = Math.max(scaleX, scaleY)
+    return Number.isFinite(scale) && scale > 0 ? scale : 1
+  }, [imageInfo, naturalWidth, naturalHeight])
+
   useEffect(() => {
     const img = imgRef.current
     const container = containerRef.current
@@ -162,11 +174,19 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
         >
 
            {routeLines.map((route, index) => {
-             const isSelected = selectedRoute?.id === route.id
-             const color = isSelected ? '#00ff00' : (route.color || '#ff00ff')
-             const strokeWidth = isSelected ? 3 : 2
-             const startPoint = route.points[0]
-             const number = routeNumberById[route.id] ?? index + 1
+              const isSelected = selectedRoute?.id === route.id
+              const color = isSelected ? '#00ff00' : (route.color || '#ff00ff')
+              const strokeWidth = isSelected ? 5 : 3
+              const startPoint = route.points[0]
+              const number = routeNumberById[route.id] ?? index + 1
+
+              const digitCount = String(number).length
+              const basePinRadiusPx = digitCount >= 3 ? 14 : digitCount === 2 ? 13 : 12
+              const baseFontPx = digitCount >= 3 ? 11 : 12
+
+              const pinRadius = basePinRadiusPx * pinScale
+              const pinFontSize = baseFontPx * pinScale
+              const pinHitRadius = Math.max(18, basePinRadiusPx + 7) * pinScale
 
             // Routes are already normalized to natural dimensions
             // No scaling needed since viewBox matches natural dimensions
@@ -189,44 +209,45 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
                    style={{ cursor: 'pointer' }}
                    onClick={() => onSelectRoute(route.id)}
                  />
-                 <path
-                   d={d}
-                   stroke={color}
-                   strokeWidth={strokeWidth + 0.5}
-                   fill="none"
-                   strokeLinecap="round"
-                   strokeLinejoin="round"
-                   pointerEvents="none"
-                 />
-                 {startPoint && (
-                   <>
-                     <circle
-                       cx={startPoint.x * naturalWidth}
-                       cy={startPoint.y * naturalHeight}
-                       r={24}
-                       fill="transparent"
-                       pointerEvents="all"
-                       style={{ cursor: 'pointer' }}
-                       onClick={() => onSelectRoute(route.id)}
-                     />
-                     <circle
-                       cx={startPoint.x * naturalWidth}
-                       cy={startPoint.y * naturalHeight}
-                       r={16}
-                       fill="#dc2626"
-                       pointerEvents="none"
-                     />
-                     <text
-                       x={startPoint.x * naturalWidth}
-                       y={startPoint.y * naturalHeight}
-                       fill="white"
-                       fontSize={12}
-                       fontWeight="bold"
-                       textAnchor="middle"
-                       dominantBaseline="middle"
-                       pointerEvents="none"
-                     >
-                       {number}
+                  <path
+                    d={d}
+                    stroke={color}
+                    strokeWidth={strokeWidth}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                    pointerEvents="none"
+                  />
+                  {startPoint && (
+                    <>
+                      <circle
+                        cx={startPoint.x * naturalWidth}
+                        cy={startPoint.y * naturalHeight}
+                        r={pinHitRadius}
+                        fill="transparent"
+                        pointerEvents="all"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => onSelectRoute(route.id)}
+                      />
+                      <circle
+                        cx={startPoint.x * naturalWidth}
+                        cy={startPoint.y * naturalHeight}
+                        r={pinRadius}
+                        fill="#dc2626"
+                        pointerEvents="none"
+                      />
+                      <text
+                        x={startPoint.x * naturalWidth}
+                        y={startPoint.y * naturalHeight}
+                        fill="white"
+                        fontSize={pinFontSize}
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        pointerEvents="none"
+                      >
+                        {number}
                      </text>
                    </>
                  )}
