@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
 import L from 'leaflet'
-import Supercluster from 'supercluster'
 import { Bookmark, Download, MapPin } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 
@@ -59,22 +58,12 @@ function DefaultLocationWatcher({
   return null
 }
 
-type MapItem =
-  | {
-      kind: 'cluster'
-      latitude: number
-      longitude: number
-      count: number
-      clusterId: number
-    }
-  | {
-      kind: 'crag'
-      id: string
-      name: string
-      latitude: number
-      longitude: number
-      count: number
-    }
+interface CragMapItem {
+  id: string
+  name: string
+  latitude: number
+  longitude: number
+}
 
 function parseNumber(value: unknown): number | null {
   if (value == null) return null
@@ -99,18 +88,6 @@ interface CragPoint {
   longitude: number
 }
 
-type CragProps = { cragId: string; name: string }
-type ClusterFeature = Supercluster.ClusterFeature<Record<string, never>>
-type PointFeature = Supercluster.PointFeature<CragProps>
-
-function isClusterFeature(
-  feature: ClusterFeature | PointFeature
-): feature is ClusterFeature {
-  return (
-    (feature.properties as unknown as { cluster?: unknown }).cluster === true
-  )
-}
-
 export default function SatelliteClimbingMap() {
   const mapRef = useRef<L.Map | null>(null)
   const [isClient, setIsClient] = useState(false)
@@ -126,12 +103,10 @@ export default function SatelliteClimbingMap() {
   const [saveLocationLoading, setSaveLocationLoading] = useState(false)
   const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
 
-  const [items, setItems] = useState<MapItem[]>([])
+  const [items, setItems] = useState<CragMapItem[]>([])
   const [itemsLoading, setItemsLoading] = useState(false)
   const [tooManyItems, setTooManyItems] = useState(false)
   const [view, setView] = useState<{ bbox: [number, number, number, number]; zoom: number } | null>(null)
-
-  const clusterIndexRef = useRef<Supercluster<CragProps, Record<string, never>> | null>(null)
 
   const [toast, setToast] = useState<string | null>(null)
   const [downloadsOpen, setDownloadsOpen] = useState(false)
@@ -324,45 +299,6 @@ export default function SatelliteClimbingMap() {
     mapRef.current.setView([20, 0], 2)
   }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
 
-  const setItemsForView = useCallback(
-    (bbox: [number, number, number, number], zoom: number) => {
-      const index = clusterIndexRef.current
-      if (!index) {
-        setItems([])
-        return
-      }
-
-      const z = Math.round(zoom)
-      const clusters = index.getClusters(bbox, z) as Array<ClusterFeature | PointFeature>
-
-      const next: MapItem[] = clusters.map((c) => {
-        const [lng, lat] = c.geometry.coordinates
-
-        if (isClusterFeature(c)) {
-          return {
-            kind: 'cluster',
-            latitude: lat,
-            longitude: lng,
-            count: c.properties.point_count,
-            clusterId: c.properties.cluster_id,
-          }
-        }
-
-        return {
-          kind: 'crag',
-          id: c.properties.cragId,
-          name: c.properties.name,
-          latitude: lat,
-          longitude: lng,
-          count: 1,
-        }
-      })
-
-      setItems(next)
-    },
-    [setItems]
-  )
-
   const fetchCragsForView = useCallback(
     async (bbox: [number, number, number, number], zoom: number, force = false) => {
       if (!isClient) return
@@ -381,7 +317,6 @@ export default function SatelliteClimbingMap() {
       setView({ bbox, zoom })
 
       if (zoom < MIN_FETCH_ZOOM) {
-        clusterIndexRef.current = null
         setItems([])
         setItemsLoading(false)
         return
@@ -429,34 +364,17 @@ export default function SatelliteClimbingMap() {
 
         const points = Array.from(uniq.values())
         setTooManyItems(points.length >= MAX_CRAGS)
-
-        const index = new Supercluster<CragProps, Record<string, never>>({
-          radius: 60,
-          maxZoom: 19,
-          minPoints: Number.MAX_SAFE_INTEGER,
-        })
-
-        const features: Array<Supercluster.PointFeature<CragProps>> = points.map((p) => ({
-          type: 'Feature',
-          properties: { cragId: p.id, name: p.name },
-          geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
-        }))
-
-        index.load(features)
-        clusterIndexRef.current = index
-
-        setItemsForView(bbox, zoom)
+        setItems(points)
       } catch (err) {
         if (requestIdRef.current !== currentRequestId) return
         console.error('Error loading crags for map:', err)
-        clusterIndexRef.current = null
         setItems([])
         setTooManyItems(false)
       } finally {
         if (requestIdRef.current === currentRequestId) setItemsLoading(false)
       }
     },
-    [FETCH_TTL_MS, MIN_FETCH_ZOOM, MAX_CRAGS, isClient, setItemsForView]
+    [FETCH_TTL_MS, MIN_FETCH_ZOOM, MAX_CRAGS, isClient]
   )
 
   const scheduleFetchForCurrentMap = useCallback(
@@ -473,7 +391,6 @@ export default function SatelliteClimbingMap() {
       const zoom = map.getZoom()
 
       setView({ bbox, zoom })
-      setItemsForView(bbox, zoom)
 
       if (!debounce) {
         if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current)
@@ -486,7 +403,7 @@ export default function SatelliteClimbingMap() {
         fetchCragsForView(bbox, zoom, force)
       }, 250)
     },
-    [fetchCragsForView, setItemsForView]
+    [fetchCragsForView]
   )
 
   useEffect(() => {
@@ -574,59 +491,12 @@ export default function SatelliteClimbingMap() {
           />
         )}
 
-        {items.map((item, idx) => {
+        {items.map((item) => {
           const lat = item.latitude
           const lng = item.longitude
-
-          if (item.kind === 'cluster') {
-            const count = item.count
-            const size = Math.max(34, Math.min(52, 28 + Math.log2(Math.max(2, count)) * 8))
-
-            return (
-              <Marker
-                key={`cluster-${idx}-${lat}-${lng}`}
-                position={[lat, lng]}
-                icon={L.divIcon({
-                  className: 'cluster-pin',
-                  html: `<div style="
-                    background: #0f172a;
-                    width: ${size}px;
-                    height: ${size}px;
-                    border-radius: 9999px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 13px;
-                    font-weight: 700;
-                    color: white;
-                    border: 2px solid rgba(255,255,255,0.9);
-                    box-shadow: 0 6px 16px rgba(0,0,0,0.35);
-                  ">${count}</div>`,
-                  iconSize: [size, size],
-                  iconAnchor: [size / 2, size / 2],
-                })}
-                zIndexOffset={900}
-                eventHandlers={{
-                  click: () => {
-                    if (!mapRef.current) return
-                    const map = mapRef.current
-                    const index = clusterIndexRef.current
-                    if (!index) return
-                    const nextZoom = index.getClusterExpansionZoom(item.clusterId)
-                    map.setView([lat, lng], Math.min(nextZoom, 19))
-                  },
-                }}
-              >
-                <Tooltip direction="center" opacity={1}>
-                  <span className="font-semibold">{count} crags</span>
-                </Tooltip>
-              </Marker>
-            )
-          }
-
           return (
             <Marker
-              key={(item as Extract<MapItem, { kind: 'crag' }>).id}
+              key={item.id}
               position={[lat, lng]}
               icon={L.divIcon({
                 className: 'crag-pin',
@@ -648,13 +518,12 @@ export default function SatelliteClimbingMap() {
               zIndexOffset={1000}
               eventHandlers={{
                 click: () => {
-                  const id = (item as Extract<MapItem, { kind: 'crag' }>).id
-                  window.location.href = `/crag/${id}`
+                  window.location.href = `/crag/${item.id}`
                 },
               }}
             >
               <Tooltip direction="center" opacity={1}>
-                <span className="font-semibold">{(item as Extract<MapItem, { kind: 'crag' }>).name}</span>
+                <span className="font-semibold">{item.name}</span>
               </Tooltip>
             </Marker>
           )
