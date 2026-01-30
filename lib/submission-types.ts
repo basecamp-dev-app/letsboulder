@@ -119,11 +119,14 @@ export interface GpsData {
 
 export type ImageSelection = ExistingImageSelection | NewImageSelection
 
+export type ClimbType = 'sport' | 'bouldering' | 'trad' | 'deep-water-solo'
+
 export interface SubmissionContext {
   crag: Pick<Crag, 'id' | 'name' | 'latitude' | 'longitude'> | null
   image: ImageSelection | null
   imageGps: { latitude: number; longitude: number } | null
   routes: NewRouteData[]
+  routeType: ClimbType | null
 }
 
 export type SubmissionStep =
@@ -131,6 +134,7 @@ export type SubmissionStep =
   | { step: 'location'; imageGps: { latitude: number; longitude: number } | null }
   | { step: 'crag'; imageGps: { latitude: number; longitude: number } | null; cragId?: string; cragName?: string }
   | { step: 'draw'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection }
+  | { step: 'climbType'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection }
   | { step: 'review'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; routes: NewRouteData[] }
   | { step: 'submitting' }
   | { step: 'success'; climbsCreated: number; imageId?: string }
