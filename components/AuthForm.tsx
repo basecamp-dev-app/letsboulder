@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { trackAuthLoginAttempted } from '@/lib/posthog'
 
 export default function AuthForm() {
   const [email, setEmail] = useState('')
@@ -32,7 +31,6 @@ export default function AuthForm() {
           : `${origin}/auth/callback`,
       },
     })
-    trackAuthLoginAttempted('google')
     if (error) {
       setError(error.message)
       setLoadingProvider(null)
@@ -51,7 +49,6 @@ export default function AuthForm() {
           : `${origin}/auth/callback`,
       },
     })
-    trackAuthLoginAttempted('discord')
     if (error) {
       setError(error.message)
       setLoadingProvider(null)
@@ -77,8 +74,6 @@ export default function AuthForm() {
           : `${origin}/auth/callback`,
       },
     })
-
-    trackAuthLoginAttempted('magic_link')
 
     if (error) {
       setError(error.message)

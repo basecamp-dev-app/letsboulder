@@ -8,7 +8,6 @@ import type { User } from '@supabase/supabase-js'
 
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { trackEvent } from '@/lib/posthog'
 import { listOfflineCrags, removeCragDownload } from '@/lib/offline/crag-pack'
 import type { OfflineCragMeta } from '@/lib/offline/types'
 
@@ -466,10 +465,6 @@ export default function SatelliteClimbingMap() {
         worldCopyJump={false}
         whenReady={() => {
           setMapLoaded(true)
-          trackEvent('map_viewed', {
-            has_user_location: !!userLocation,
-            use_default_location: !useUserLocation,
-          })
         }}
       >
         <DefaultLocationWatcher defaultLocation={defaultLocation} mapRef={mapRef} />

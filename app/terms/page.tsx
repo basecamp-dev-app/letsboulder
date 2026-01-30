@@ -321,15 +321,7 @@ export default function TermsPage() {
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            17.2 PostHog (posthog.com)
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            Analytics and usage insights with privacy-first approach.
-            Privacy Policy: https://posthog.com/privacy
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            17.3 Vercel (vercel.com)
+            17.2 Vercel (vercel.com)
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
             Web hosting and infrastructure.
@@ -337,7 +329,7 @@ export default function TermsPage() {
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            17.4 Resend (resend.com)
+            17.3 Resend (resend.com)
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
             Email delivery services.

@@ -7,7 +7,6 @@ import nextDynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData } from '@/lib/submission-types'
-import { trackRouteSubmitted } from '@/lib/posthog'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 
@@ -200,8 +199,6 @@ function SubmitPageContent() {
       }
 
       const data = await response.json()
-
-      trackRouteSubmitted(data.climbsCreated)
 
       setStep({
         step: 'success',

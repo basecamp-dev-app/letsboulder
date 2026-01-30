@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import { Card, CardContent } from '@/components/ui/card'
-import { trackEvent } from '@/lib/posthog'
 
 interface LeaderboardEntry {
   rank: number

@@ -4,7 +4,6 @@ import { useEffect, useState, useRef, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { trackAuthLoginSuccess } from '@/lib/posthog'
 import { SupabaseClient, User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 
@@ -174,7 +173,6 @@ function AuthCallbackContent() {
 
         setStatus('success')
         const provider = user?.user_metadata?.provider || 'oauth'
-        trackAuthLoginSuccess(provider)
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         router.push(redirectTo)
       } else {
@@ -272,7 +270,6 @@ function AuthCallbackContent() {
 
         setStatus('success')
         const provider = user?.user_metadata?.provider || 'oauth'
-        trackAuthLoginSuccess(provider)
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         router.push(redirectTo)
       } else {

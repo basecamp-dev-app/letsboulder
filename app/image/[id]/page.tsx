@@ -9,7 +9,6 @@ import { RoutePoint } from '@/lib/useRouteSelection'
 import { Loader2, Flag } from 'lucide-react'
 import FlagImageModal from '@/components/FlagImageModal'
 import type { ClimbStatusResponse } from '@/lib/verification-types'
-import { trackEvent, trackClimbLogged } from '@/lib/posthog'
 import { csrfFetch } from '@/hooks/useCsrf'
 import RouteDetailModal from '@/app/image/components/RouteDetailModal'
 import { getOfflineCragMeta, getOfflineImage } from '@/lib/offline/crag-pack'
@@ -444,13 +443,6 @@ export default function ImagePage() {
         setCragId(imageData.crag_id)
         setCragName(cragName || null)
 
-        trackEvent('route_image_viewed', {
-          image_id: imageId,
-          route_count: formattedRoutes.length,
-          has_crag: !!imageData.crag_id,
-          crag_name: cragName,
-        })
-
         const {
           data: { user },
         } = await supabase.auth.getUser()
@@ -587,12 +579,6 @@ export default function ImagePage() {
       if (!response.ok) throw new Error('Failed to log')
 
       const route = image?.route_lines.find(r => r.climb?.id === climbId)
-      trackClimbLogged(
-        climbId,
-        route?.climb?.name || 'Unknown',
-        route?.climb?.grade || 'Unknown',
-        style
-      )
 
       setUserLogs(prev => ({ ...prev, [climbId]: style }))
       setToast(`Route logged as ${style}!`)

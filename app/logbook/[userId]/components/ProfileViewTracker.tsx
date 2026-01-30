@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { trackEvent } from '@/lib/posthog'
 
 export default function ProfileViewTracker() {
   const params = useParams()
@@ -10,9 +9,6 @@ export default function ProfileViewTracker() {
 
   useEffect(() => {
     if (userId) {
-      trackEvent('profile_viewed', {
-        viewed_user_id: userId,
-      })
     }
   }, [userId])
 

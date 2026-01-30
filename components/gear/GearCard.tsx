@@ -3,7 +3,6 @@
 import Image from 'next/image'
 import { GearProduct } from '@/lib/gear-data'
 import { ShieldCheck, HardHat, Link2, Scroll, Mountain, Footprints, CupSoda, Sun, Wrench, Tent } from 'lucide-react'
-import { trackProductClicked } from '@/lib/posthog'
 import { useEffect, useRef } from 'react'
 import { csrfFetch } from '@/hooks/useCsrf'
 
@@ -33,7 +32,6 @@ export default function GearCard({ product }: GearCardProps) {
     if (!card) return
 
     const handleClick = () => {
-      trackProductClicked(product.id, product.name, product.category)
 
       csrfFetch('/api/gear-clicks', {
         method: 'POST',

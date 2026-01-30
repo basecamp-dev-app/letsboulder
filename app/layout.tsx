@@ -1,10 +1,8 @@
-import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { CsrfProvider } from "@/components/csrf-provider";
-import AppLayout from "@/components/AppLayout";
-import { PostHogProvider } from "@/lib/posthog";
-import PageViewTracker from "@/components/PageViewTracker";
+import type { Metadata, Viewport } from 'next'
+import { Geist, Geist_Mono } from 'next/font/google'
+import './globals.css'
+import { CsrfProvider } from '@/components/csrf-provider'
+import AppLayout from '@/components/AppLayout'
 import {
   BRAND_NAME,
   INSTAGRAM_URL,
@@ -12,23 +10,23 @@ import {
   SUPPORT_EMAIL,
   X_HANDLE,
   X_URL,
-} from "@/lib/site";
+} from '@/lib/site'
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+})
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+})
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: 'letsboulder - Bouldering Topos & Climbing Logbook',
-    template: "%s | letsboulder",
+    template: '%s | letsboulder',
   },
   description: 'Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.',
   keywords: [
@@ -65,7 +63,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    type: "website",
+    type: 'website',
     locale: 'en_US',
     url: SITE_URL,
     siteName: BRAND_NAME,
@@ -73,7 +71,7 @@ export const metadata: Metadata = {
     description: 'Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.',
     images: [
       {
-        url: "/og.png",
+        url: '/og.png',
         width: 1200,
         height: 630,
         alt: 'letsboulder - Bouldering Topos & Climbing Logbook',
@@ -81,34 +79,34 @@ export const metadata: Metadata = {
     ],
   },
   twitter: {
-    card: "summary_large_image",
+    card: 'summary_large_image',
     title: 'letsboulder - Bouldering Topos & Climbing Logbook',
     description: 'Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.',
-    images: ["/og.png"],
+    images: ['/og.png'],
     creator: X_HANDLE,
   },
   other: {
-    "apple-mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-status-bar-style": "default",
-    "apple-mobile-web-app-title": BRAND_NAME,
-    "mobile-web-app-capable": "yes",
+    'apple-mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-status-bar-style': 'default',
+    'apple-mobile-web-app-title': BRAND_NAME,
+    'mobile-web-app-capable': 'yes',
   },
-};
+}
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
   ],
-  width: "device-width",
+  width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-};
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -181,15 +179,12 @@ export default function RootLayout({
           }}
         />
       </head>
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased pt-[calc(var(--app-header-offset)+env(safe-area-inset-top,0px))] md:pb-16 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
-        >
-        <PostHogProvider>
-          <CsrfProvider />
-          <PageViewTracker />
-          <AppLayout>{children}</AppLayout>
-        </PostHogProvider>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased pt-[calc(var(--app-header-offset)+env(safe-area-inset-top,0px))] md:pb-16 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
+      >
+        <CsrfProvider />
+        <AppLayout>{children}</AppLayout>
       </body>
     </html>
-  );
+  )
 }
