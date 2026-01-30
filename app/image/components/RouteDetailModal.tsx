@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { HelpCircle, Loader2, X } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { VALID_GRADES } from '@/lib/verification-types'
+import { gradePoints } from '@/lib/grades'
 import type { ClimbStatusResponse, GradeVoteDistribution } from '@/lib/verification-types'
 
 type LogStyle = 'flash' | 'top' | 'try'
@@ -62,16 +63,38 @@ function sortVotesByGradeOrder(votes: GradeVoteDistribution[]): GradeVoteDistrib
   return [...votes].sort((a, b) => (VOTE_ORDER_INDEX.get(a.grade) ?? 1e9) - (VOTE_ORDER_INDEX.get(b.grade) ?? 1e9))
 }
 
-function deriveUniqueMode(votes: GradeVoteDistribution[]): { grade: string | null; tied: boolean } {
-  if (!votes || votes.length === 0) return { grade: null, tied: false }
+const GRADE_ORDER = VALID_GRADES as readonly string[]
 
-  let max = 0
-  for (const v of votes) max = Math.max(max, v.vote_count)
-  if (max <= 0) return { grade: null, tied: false }
+function calculateAverageGrade(votes: GradeVoteDistribution[]): string | null {
+  if (!votes || votes.length === 0) return null
 
-  const top = votes.filter((v) => v.vote_count === max)
-  if (top.length === 1) return { grade: top[0]!.grade, tied: false }
-  return { grade: top[0]!.grade, tied: true }
+  let totalPoints = 0
+  let totalVotes = 0
+
+  for (const v of votes) {
+    const points = gradePoints[v.grade]
+    if (points) {
+      totalPoints += points * v.vote_count
+      totalVotes += v.vote_count
+    }
+  }
+
+  if (totalVotes === 0) return null
+
+  const avgPoints = totalPoints / totalVotes
+
+  let closestGrade = '6A'
+  let minDiff = Infinity
+
+  for (const grade of GRADE_ORDER) {
+    const diff = Math.abs((gradePoints[grade] ?? 0) - avgPoints)
+    if (diff < minDiff) {
+      minDiff = diff
+      closestGrade = grade
+    }
+  }
+
+  return closestGrade
 }
 
 function formatRelativeDate(iso: string): string {
@@ -201,18 +224,13 @@ export default function RouteDetailModal({
       return
     }
 
-    const { grade, tied } = deriveUniqueMode(climbStatus.grade_votes)
-    if (!grade) {
+    const avgGrade = calculateAverageGrade(climbStatus.grade_votes)
+    if (!avgGrade) {
       setDisplayedGrade((prev) => prev || fallback)
       return
     }
 
-    if (tied) {
-      setDisplayedGrade((prev) => prev || fallback)
-      return
-    }
-
-    setDisplayedGrade(grade)
+    setDisplayedGrade(avgGrade)
   }, [climbStatus, baseFallbackGrade])
 
   useEffect(() => {

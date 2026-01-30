@@ -1,5 +1,5 @@
--- Create RPC function to calculate consensus grade from grade_votes in real-time
--- This replaces the trigger-based caching with direct calculation
+-- Create RPC function to calculate average grade from grade_votes in real-time
+-- Uses grades table to convert grades to points, calculates mean, then converts back
 
 CREATE OR REPLACE FUNCTION get_climbs_with_consensus(p_climb_ids UUID[])
 RETURNS TABLE (
@@ -11,9 +11,8 @@ RETURNS TABLE (
 DECLARE
   v_id UUID;
   v_total_votes INTEGER;
-  v_max_votes INTEGER;
-  v_tied_grades INTEGER;
-  v_consensus_grade VARCHAR(10);
+  v_avg_points NUMERIC;
+  v_nearest_grade VARCHAR(10);
 BEGIN
   FOR i IN 1..array_length(p_climb_ids, 1) LOOP
     v_id := p_climb_ids[i];
@@ -25,21 +24,19 @@ BEGIN
       total_votes := 0;
       grade_tied := FALSE;
     ELSE
-      SELECT INTO v_max_votes MAX(cnt) FROM (
-        SELECT COUNT(*) as cnt FROM grade_votes WHERE grade_votes.climb_id = v_id GROUP BY grade
-      ) sub;
+      SELECT INTO v_avg_points AVG(g.points)
+      FROM grade_votes gv
+      JOIN grades g ON gv.grade = g.grade
+      WHERE gv.climb_id = v_id;
 
-      SELECT INTO v_tied_grades COUNT(*) FROM (
-        SELECT grade, COUNT(*) as cnt FROM grade_votes WHERE grade_votes.climb_id = v_id GROUP BY grade
-      ) sub WHERE cnt = v_max_votes;
+      SELECT INTO v_nearest_grade grade
+      FROM grades
+      ORDER BY ABS(points - v_avg_points)
+      LIMIT 1;
 
-      SELECT INTO v_consensus_grade MIN(grade) FROM (
-        SELECT grade, COUNT(*) as cnt FROM grade_votes WHERE grade_votes.climb_id = v_id GROUP BY grade
-      ) sub WHERE cnt = v_max_votes;
-
-      consensus_grade := v_consensus_grade;
+      consensus_grade := v_nearest_grade;
       total_votes := v_total_votes;
-      grade_tied := v_tied_grades > 1;
+      grade_tied := FALSE;
     END IF;
 
     climb_id := v_id;
