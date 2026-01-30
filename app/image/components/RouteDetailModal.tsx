@@ -296,6 +296,7 @@ export default function RouteDetailModal({
   }
 
   const totalVotes = votes.reduce((sum, v) => sum + v.vote_count, 0)
+  const canVote = userLogStyle === 'flash' || userLogStyle === 'top'
 
   return (
     <div className="fixed inset-0 z-[6000] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col">
@@ -419,7 +420,7 @@ export default function RouteDetailModal({
       </div>
 
       <div className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
-        {tab === 'climb' && (
+        {tab === 'climb' && canVote && (
           <div className="px-5 pt-4 pb-3 border-b border-gray-200 dark:border-gray-800">
             <div className="flex items-center justify-between">
               <div>
