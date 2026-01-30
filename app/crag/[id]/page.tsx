@@ -85,6 +85,7 @@ interface ImageRoute {
     name: string | null
     grade: string | null
     description: string | null
+    route_type: string | null
   } | null
 }
 
@@ -98,6 +99,7 @@ interface RawRouteLine {
     name: string | null
     grade: string | null
     description: string | null
+    route_type: string | null
   }
 }
 
@@ -300,7 +302,8 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
               name,
               grade,
               description,
-              status
+              status,
+              route_type
             )
           `
           )
@@ -332,6 +335,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
                 name: rl.climbs.name,
                 grade: rl.climbs.grade,
                 description: rl.climbs.description,
+                route_type: rl.climbs.route_type || null,
               },
             }))
 
@@ -764,11 +768,20 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
         </div>
 
         <div className="flex flex-wrap gap-2 mt-6 mb-6">
-          {crag.type && (
-            <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 capitalize">
-              {crag.type}
-            </span>
-          )}
+          {(() => {
+            const uniqueTypes = [...new Set(
+              images.flatMap(img =>
+                img.route_lines
+                  .map(rl => rl.climb?.route_type)
+                  .filter(Boolean)
+              )
+            )].sort()
+            return uniqueTypes.map(type => (
+              <span key={type} className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 capitalize">
+                {type!.replace('-', ' ')}
+              </span>
+            ))
+          })()}
           {crag.rock_type && (
             <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 capitalize">
               {crag.rock_type}

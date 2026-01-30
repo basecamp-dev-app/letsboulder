@@ -17,6 +17,7 @@ interface ImageRoute {
     name: string | null
     grade: string | null
     description: string | null
+    route_type: string | null
   } | null
 }
 
@@ -312,6 +313,14 @@ export default function RouteDetailModal({
             <p className="text-lg font-semibold text-gray-900 dark:text-white leading-tight mt-2">{routeName}</p>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm text-gray-700 dark:text-gray-300">{displayedGrade}</span>
+              {route.climb?.route_type && (
+                <>
+                  <span className="text-xs text-gray-400">•</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                    {route.climb.route_type.replace('-', ' ')}
+                  </span>
+                </>
+              )}
               <span className="text-xs text-gray-400">•</span>
               <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{totalVotes} votes</span>
             </div>

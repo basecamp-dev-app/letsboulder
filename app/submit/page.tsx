@@ -6,7 +6,7 @@ import Link from 'next/link'
 import nextDynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData } from '@/lib/submission-types'
+import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData, ClimbType } from '@/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 
@@ -24,7 +24,8 @@ function SubmitPageContent() {
     crag: null,
     image: null,
     imageGps: null,
-    routes: []
+    routes: [],
+    routeType: null
   })
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -84,6 +85,22 @@ function SubmitPageContent() {
     return () => window.removeEventListener('submit-routes', handleSubmitRoutes)
   }, [routes.length, isSubmitting])
 
+  useEffect(() => {
+    const handleOpenClimbType = () => {
+      if (step.step === 'draw') {
+        setStep({
+          step: 'climbType',
+          imageGps: step.imageGps,
+          cragId: step.cragId,
+          cragName: step.cragName,
+          image: step.image
+        })
+      }
+    }
+    window.addEventListener('open-climb-type', handleOpenClimbType)
+    return () => window.removeEventListener('open-climb-type', handleOpenClimbType)
+  }, [step])
+
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
     const gps = gpsData ? { latitude: gpsData.latitude, longitude: gpsData.longitude } : null
     setContext(prev => ({ ...prev, image: selection, imageGps: gps }))
@@ -116,6 +133,11 @@ function SubmitPageContent() {
     })
   }, [context.imageGps, context.image])
 
+  const handleClimbTypeSelect = useCallback((routeType: ClimbType) => {
+    setContext(prev => ({ ...prev, routeType }))
+    handleSubmit(routeType)
+  }, [context.image, context.crag, context.routes])
+
   const handleRoutesUpdate = useCallback((routes: NewRouteData[]) => {
     setContext(prev => ({ ...prev, routes }))
   }, [])
@@ -140,10 +162,21 @@ function SubmitPageContent() {
           cragName: context.crag?.name
         })
         break
+      case 'climbType':
+        if (context.crag && context.image) {
+          setStep({
+            step: 'draw',
+            imageGps: context.imageGps,
+            cragId: context.crag.id,
+            cragName: context.crag.name,
+            image: context.image
+          })
+        }
+        break
     }
   }, [step, context])
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (routeType?: ClimbType) => {
     if (!context.crag || !context.image || context.routes.length === 0) {
       setError('Incomplete submission data')
       return
@@ -190,7 +223,7 @@ function SubmitPageContent() {
       const response = await csrfFetch('/api/submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, routeType: routeType || 'sport' })
       })
 
       if (!response.ok) {
@@ -212,7 +245,7 @@ function SubmitPageContent() {
   }
 
   const handleStartOver = () => {
-    setContext({ crag: null, image: null, imageGps: null, routes: [] })
+    setContext({ crag: null, image: null, imageGps: null, routes: [], routeType: null })
     setStep({ step: 'image' })
     setError(null)
   }
@@ -293,8 +326,40 @@ function SubmitPageContent() {
                 onRoutesUpdate={handleRoutesUpdate}
               />
             </div>
-          </div>
-        )
+            </div>
+          )
+
+        case 'climbType':
+          return (
+            <div className="max-w-md mx-auto">
+              <button
+                onClick={handleBack}
+                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
+              >
+                ← Back
+              </button>
+              <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Select Climb Type</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                What type of climbing are these routes?
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { type: 'sport' as const, label: 'Sport' },
+                  { type: 'bouldering' as const, label: 'Bouldering' },
+                  { type: 'trad' as const, label: 'Trad' },
+                  { type: 'deep-water-solo' as const, label: 'Deep Water Solo' }
+                ].map(({ type, label }) => (
+                  <button
+                    key={type}
+                    onClick={() => handleClimbTypeSelect(type)}
+                    className="p-4 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-500 dark:hover:border-blue-500 transition-colors capitalize text-gray-900 dark:text-gray-100"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
 
       case 'success':
         return (

@@ -15,6 +15,8 @@ const VALID_GRADES = [
   '9A', '9A+', '9B', '9B+', '9C', '9C+'
 ] as const
 
+const VALID_ROUTE_TYPES = ['sport', 'bouldering', 'trad', 'deep-water-solo'] as const
+
 interface NewImageSubmission {
   mode: 'new'
   imageUrl: string
@@ -27,12 +29,14 @@ interface NewImageSubmission {
   naturalHeight: number
   cragId: string
   routes: NewRouteData[]
+  routeType?: (typeof VALID_ROUTE_TYPES)[number]
 }
 
 interface ExistingImageSubmission {
   mode: 'existing'
   imageId: string
   routes: NewRouteData[]
+  routeType?: (typeof VALID_ROUTE_TYPES)[number]
 }
 
 interface NewRouteData {
@@ -83,6 +87,10 @@ export async function POST(request: NextRequest) {
 
     if (!body.routes || body.routes.length === 0) {
       return NextResponse.json({ error: 'At least one route is required' }, { status: 400 })
+    }
+
+    if (body.routeType && !VALID_ROUTE_TYPES.includes(body.routeType)) {
+      return NextResponse.json({ error: 'Invalid route type' }, { status: 400 })
     }
 
     const today = new Date().toISOString().split('T')[0]
@@ -199,7 +207,7 @@ export async function POST(request: NextRequest) {
         slug,
         grade: route.grade,
         description: route.description?.trim() || null,
-        route_type: 'sport',
+        route_type: body.routeType || 'sport',
         status: 'approved' as const,
         user_id: user.id,
         crag_id: cragId

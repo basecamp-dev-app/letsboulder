@@ -22,6 +22,7 @@ interface ImageRoute {
     name: string | null
     grade: string | null
     description: string | null
+    route_type: string | null
   } | null
   imageWidth?: number | null
   imageHeight?: number | null
@@ -393,7 +394,8 @@ export default function ImagePage() {
               id,
               name,
               grade,
-              description
+              description,
+              route_type
             )
           `
           )
@@ -417,6 +419,7 @@ export default function ImagePage() {
             name: string | null
             grade: string | null
             description: string | null
+            route_type: string | null
           } | null
         }
 
@@ -431,6 +434,7 @@ export default function ImagePage() {
             name: (rl.climbs?.name || '').trim() || null,
             grade: (rl.climbs?.grade || '').trim() || null,
             description: (rl.climbs?.description || '').trim() || null,
+            route_type: rl.climbs?.route_type || null,
           },
         }))
 
@@ -766,6 +770,24 @@ export default function ImagePage() {
             </button>
           )}
         </div>
+
+        {(() => {
+          const uniqueTypes = [...new Set(
+            image.route_lines
+              .map(r => r.climb?.route_type)
+              .filter(Boolean)
+          )].sort()
+          if (uniqueTypes.length === 0) return null
+          return (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {uniqueTypes.map(type => (
+                <span key={type} className="px-3 py-1 rounded-full text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 capitalize">
+                  {type!.replace('-', ' ')}
+                </span>
+              ))}
+            </div>
+          )
+        })()}
       </div>
 
       {flagModalOpen && (
