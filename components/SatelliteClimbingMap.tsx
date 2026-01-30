@@ -146,7 +146,7 @@ export default function SatelliteClimbingMap() {
 
   const MAX_CRAGS = 2000
   const FETCH_TTL_MS = 15000
-  const MIN_FETCH_ZOOM = 5
+  const MIN_FETCH_ZOOM = 2
 
   useEffect(() => {
     setupLeafletIcons()
@@ -433,6 +433,7 @@ export default function SatelliteClimbingMap() {
         const index = new Supercluster<CragProps, Record<string, never>>({
           radius: 60,
           maxZoom: 19,
+          minPoints: Number.MAX_SAFE_INTEGER,
         })
 
         const features: Array<Supercluster.PointFeature<CragProps>> = points.map((p) => ({
