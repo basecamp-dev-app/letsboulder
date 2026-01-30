@@ -68,6 +68,8 @@ interface ImageWrapperProps {
   selectedRoute: ImageRoute | null
   naturalWidth: number
   naturalHeight: number
+  routeNumberById: Record<string, number>
+  onSelectRoute: (routeId: string) => void
 }
 
 interface ImageRenderInfo {
@@ -77,7 +79,7 @@ interface ImageRenderInfo {
   renderedHeight: number
 }
 
-function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHeight }: ImageWrapperProps) {
+function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHeight, routeNumberById, onSelectRoute }: ImageWrapperProps) {
   const [imgSize, setImgSize] = useState<{ width: number; height: number } | null>(null)
   const [imageInfo, setImageInfo] = useState<ImageRenderInfo | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
@@ -149,7 +151,7 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
       />
       {imageInfo && (
         <svg
-          className="absolute pointer-events-none z-10"
+          className="absolute z-10"
           style={{
             left: imageInfo.renderedX,
             top: imageInfo.renderedY,
@@ -159,11 +161,12 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
           viewBox={`0 0 ${naturalWidth} ${naturalHeight}`}
         >
 
-          {routeLines.map((route, index) => {
-            const isSelected = selectedRoute?.id === route.id
-            const color = isSelected ? '#00ff00' : (route.color || '#ff00ff')
-            const strokeWidth = isSelected ? 3 : 2
-            const startPoint = route.points[0]
+           {routeLines.map((route, index) => {
+             const isSelected = selectedRoute?.id === route.id
+             const color = isSelected ? '#00ff00' : (route.color || '#ff00ff')
+             const strokeWidth = isSelected ? 3 : 2
+             const startPoint = route.points[0]
+             const number = routeNumberById[route.id] ?? index + 1
 
             // Routes are already normalized to natural dimensions
             // No scaling needed since viewBox matches natural dimensions
@@ -171,40 +174,65 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
 
 
 
-            return (
-              <g key={route.id}>
-                <path
-                  d={smoothSvgPath(scaledPoints, naturalWidth, naturalHeight)}
-                  stroke={color}
-                  strokeWidth={strokeWidth + 0.5}
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                {startPoint && (
-                  <>
-                    <circle
-                      cx={startPoint.x * naturalWidth}
-                      cy={startPoint.y * naturalHeight}
-                      r={16}
-                      fill="#dc2626"
-                    />
-                    <text
-                      x={startPoint.x * naturalWidth}
-                      y={startPoint.y * naturalHeight}
-                      fill="white"
-                      fontSize={12}
-                      fontWeight="bold"
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                    >
-                      {index + 1}
-                    </text>
-                  </>
-                )}
-              </g>
-            )
-          })}
+             const d = smoothSvgPath(scaledPoints, naturalWidth, naturalHeight)
+
+             return (
+               <g key={route.id}>
+                 <path
+                   d={d}
+                   stroke="transparent"
+                   strokeWidth={22}
+                   fill="none"
+                   strokeLinecap="round"
+                   strokeLinejoin="round"
+                   pointerEvents="stroke"
+                   style={{ cursor: 'pointer' }}
+                   onClick={() => onSelectRoute(route.id)}
+                 />
+                 <path
+                   d={d}
+                   stroke={color}
+                   strokeWidth={strokeWidth + 0.5}
+                   fill="none"
+                   strokeLinecap="round"
+                   strokeLinejoin="round"
+                   pointerEvents="none"
+                 />
+                 {startPoint && (
+                   <>
+                     <circle
+                       cx={startPoint.x * naturalWidth}
+                       cy={startPoint.y * naturalHeight}
+                       r={24}
+                       fill="transparent"
+                       pointerEvents="all"
+                       style={{ cursor: 'pointer' }}
+                       onClick={() => onSelectRoute(route.id)}
+                     />
+                     <circle
+                       cx={startPoint.x * naturalWidth}
+                       cy={startPoint.y * naturalHeight}
+                       r={16}
+                       fill="#dc2626"
+                       pointerEvents="none"
+                     />
+                     <text
+                       x={startPoint.x * naturalWidth}
+                       y={startPoint.y * naturalHeight}
+                       fill="white"
+                       fontSize={12}
+                       fontWeight="bold"
+                       textAnchor="middle"
+                       dominantBaseline="middle"
+                       pointerEvents="none"
+                     >
+                       {number}
+                     </text>
+                   </>
+                 )}
+               </g>
+             )
+           })}
         </svg>
       )}
     </div>
@@ -240,6 +268,15 @@ export default function ImagePage() {
     if (!selectedRouteId) return null
     return image.route_lines.find((r) => r.id === selectedRouteId) || null
   }, [image, selectedRouteId])
+
+  const routeNumberById = useMemo(() => {
+    const m: Record<string, number> = {}
+    if (!image?.route_lines) return m
+    image.route_lines.forEach((r, idx) => {
+      m[r.id] = idx + 1
+    })
+    return m
+  }, [image?.route_lines])
 
   const lastStatusClimbIdRef = useRef<string | null>(null)
 
@@ -330,6 +367,8 @@ export default function ImagePage() {
             climb_id,
             image_width,
             image_height,
+            sequence_order,
+            created_at,
             climbs (
               id,
               name,
@@ -339,6 +378,8 @@ export default function ImagePage() {
           `
           )
           .eq('image_id', imageId)
+          .order('sequence_order', { ascending: true })
+          .order('created_at', { ascending: true })
 
         if (routeError) throw routeError
 
@@ -349,6 +390,8 @@ export default function ImagePage() {
           climb_id: string
           image_width: number | null
           image_height: number | null
+          sequence_order: number | null
+          created_at: string | null
           climbs: {
             id: string
             name: string | null
@@ -428,18 +471,30 @@ export default function ImagePage() {
     setShowAllRoutes(false)
   }, [imageId])
 
-  const handleRouteClick = (route: ImageRoute, event: React.MouseEvent) => {
-    event.stopPropagation()
+  useEffect(() => {
+    if (!image || !selectedRouteId) return
+    const idx = image.route_lines.findIndex((r) => r.id === selectedRouteId)
+    if (idx < 0) return
+    if (idx >= routesPreviewLimit && !showAllRoutes) setShowAllRoutes(true)
+  }, [image, selectedRouteId, routesPreviewLimit, showAllRoutes])
+
+  const selectRouteById = (routeId: string) => {
     const next = new URLSearchParams(searchParams.toString())
-    next.set('route', route.id)
+    next.set('route', routeId)
     next.set('tab', 'climb')
     router.push(`/image/${imageId}?${next.toString()}`)
 
     setClimbStatus(null)
-    if (route.climb?.id) {
+    const route = image?.route_lines.find((r) => r.id === routeId) || null
+    if (route?.climb?.id) {
       lastStatusClimbIdRef.current = route.climb.id
       fetchClimbStatus(route.climb.id)
     }
+  }
+
+  const handleRouteClick = (route: ImageRoute, event: React.MouseEvent) => {
+    event.stopPropagation()
+    selectRouteById(route.id)
   }
 
   async function fetchClimbStatus(climbId: string) {
@@ -571,6 +626,8 @@ export default function ImagePage() {
           selectedRoute={selectedRoute}
           naturalWidth={image.natural_width || image.width || 800}
           naturalHeight={image.natural_height || image.height || 600}
+          routeNumberById={routeNumberById}
+          onSelectRoute={selectRouteById}
         />
       </div>
 
@@ -625,6 +682,7 @@ export default function ImagePage() {
               {(showAllRoutes ? image.route_lines : image.route_lines.slice(0, routesPreviewLimit)).map((route, index) => {
                 const isLogged = route.climb?.id ? !!userLogs[route.climb.id] : false
                 const isSelected = selectedRoute?.id === route.id
+                const routeNumber = routeNumberById[route.id] ?? index + 1
                 return (
                   <button
                     key={route.id}
@@ -638,8 +696,17 @@ export default function ImagePage() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 min-w-0">
-                      <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                        {(route.climb?.name || '').trim() || `Route ${index + 1}`}
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className={`inline-flex items-center justify-center rounded-full px-2 py-1 text-xs font-semibold tabular-nums shadow-sm shrink-0 ${
+                          isSelected
+                            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                            : 'bg-white/90 text-gray-900 dark:bg-gray-800/80 dark:text-gray-100 border border-gray-200 dark:border-gray-700'
+                        }`}>
+                          {routeNumber}
+                        </span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                          {(route.climb?.name || '').trim() || `Route ${routeNumber}`}
+                        </span>
                       </span>
                       <span className={`text-sm px-2 py-0.5 rounded ${
                         isLogged

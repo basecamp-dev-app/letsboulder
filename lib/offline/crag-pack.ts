@@ -325,6 +325,8 @@ export async function downloadCragForOffline(
         climb_id,
         image_width,
         image_height,
+        sequence_order,
+        created_at,
         climbs (
           id,
           name,
@@ -334,6 +336,8 @@ export async function downloadCragForOffline(
       `
       )
       .in('image_id', imageIds)
+      .order('sequence_order', { ascending: true })
+      .order('created_at', { ascending: true })
 
     if (rlError) throw new Error('Failed to load route lines')
     routeLinesData = (data as unknown as unknown[]) || []
