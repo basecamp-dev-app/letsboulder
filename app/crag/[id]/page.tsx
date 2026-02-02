@@ -111,7 +111,6 @@ interface ImageData {
   route_lines: ImageRoute[]
   is_verified: boolean
   verification_count: number
-  status?: 'pending' | 'approved' | 'rejected'
 }
 
 function toRad(deg: number) {
@@ -270,7 +269,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
 
         const { data: imagesData, error: imagesError } = await supabase
           .from('images')
-          .select('id, url, latitude, longitude, is_verified, verification_count, status')
+          .select('id, url, latitude, longitude, is_verified, verification_count')
           .eq('crag_id', id)
           .order('created_at', { ascending: false })
 
@@ -649,7 +648,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
                               alt="Routes"
                               fill
                               unoptimized
-                              className={`object-cover ${image.status === 'pending' ? 'blur-pending' : ''}`}
+                              className="object-cover"
                               sizes="160px"
                             />
                           </div>
@@ -745,7 +744,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
                         alt="Route image"
                         fill
                         unoptimized
-                        className={`object-cover ${image.status === 'pending' ? 'blur-pending' : ''}`}
+                        className="object-cover"
                         sizes="(max-width: 768px) 33vw, 25vw"
                       />
                       <div className="absolute top-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded-full font-semibold shadow-sm">

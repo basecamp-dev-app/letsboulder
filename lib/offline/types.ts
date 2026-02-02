@@ -56,7 +56,6 @@ export interface OfflineImageRecord {
       description: string | null
     } | null
   }>
-  status?: 'pending' | 'approved' | 'rejected'
 }
 
 export interface OfflineCragRecord {

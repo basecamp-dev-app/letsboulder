@@ -45,7 +45,6 @@ interface ImageData {
   height?: number
   natural_width?: number | null
   natural_height?: number | null
-  status?: 'pending' | 'approved' | 'rejected'
 }
 
 function smoothSvgPath(points: RoutePoint[], width: number, height: number): string {
@@ -76,7 +75,6 @@ interface ImageWrapperProps {
   naturalHeight: number
   routeNumberById: Record<string, number>
   onSelectRoute: (routeId: string) => void
-  status?: 'pending' | 'approved' | 'rejected'
 }
 
 interface ImageRenderInfo {
@@ -86,7 +84,7 @@ interface ImageRenderInfo {
   renderedHeight: number
 }
 
-function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHeight, routeNumberById, onSelectRoute, status }: ImageWrapperProps) {
+function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHeight, routeNumberById, onSelectRoute }: ImageWrapperProps) {
   const [imgSize, setImgSize] = useState<{ width: number; height: number } | null>(null)
   const [imageInfo, setImageInfo] = useState<ImageRenderInfo | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
@@ -146,7 +144,7 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
   }
 
   return (
-    <div className={`relative w-fit h-fit ${status === 'pending' ? 'blur-pending' : ''}`} ref={containerRef}>
+    <div className="relative w-fit h-fit" ref={containerRef}>
       <img
         ref={imgRef}
         src={url}
@@ -347,7 +345,6 @@ export default function ImagePage() {
           natural_width: rec.natural_width,
           natural_height: rec.natural_height,
           route_lines: rec.route_lines as unknown as ImageRoute[],
-          status: rec.status,
         })
         setCragId(rec.cragId)
         setCragName(meta?.name || null)
@@ -374,7 +371,7 @@ export default function ImagePage() {
 
         const { data: imageData, error: imageError } = await supabase
           .from('images')
-          .select('id, url, latitude, longitude, crag_id, width, height, natural_width, natural_height, status')
+          .select('id, url, latitude, longitude, crag_id, width, height, natural_width, natural_height')
           .eq('id', imageId)
           .single()
 
@@ -682,7 +679,6 @@ export default function ImagePage() {
           naturalHeight={image.natural_height || image.height || 600}
           routeNumberById={routeNumberById}
           onSelectRoute={selectRouteById}
-          status={image.status}
         />
       </div>
 
