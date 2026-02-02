@@ -282,6 +282,8 @@ export default function ImagePage() {
   const [toast, setToast] = useState<string | null>(null)
   const [cragId, setCragId] = useState<string | null>(null)
   const [cragName, setCragName] = useState<string | null>(null)
+  const [cragSlug, setCragSlug] = useState<string | null>(null)
+  const [countryCode, setCountryCode] = useState<string | null>(null)
   const [climbStatus, setClimbStatus] = useState<ClimbStatusResponse | null>(null)
   const [flagModalOpen, setFlagModalOpen] = useState(false)
   const [userHasFlagged, setUserHasFlagged] = useState(false)
@@ -348,6 +350,8 @@ export default function ImagePage() {
         })
         setCragId(rec.cragId)
         setCragName(meta?.name || null)
+        setCragSlug(null)
+        setCountryCode(null)
         setError(null)
         setLoading(false)
         return true
@@ -378,9 +382,13 @@ export default function ImagePage() {
         if (imageError) throw imageError
 
         let cragName = null
+        let cragSlug = null
+        let countryCode = null
         if (imageData.crag_id) {
-          const { data: cragData } = await supabase.from('crags').select('name').eq('id', imageData.crag_id).single()
+          const { data: cragData } = await supabase.from('crags').select('name, slug, country_code').eq('id', imageData.crag_id).single()
           cragName = cragData?.name
+          cragSlug = cragData?.slug
+          countryCode = cragData?.country_code
         }
 
         const { data: routeLines, error: routeError } = await supabase
@@ -462,6 +470,10 @@ export default function ImagePage() {
         })
         setCragId(imageData.crag_id)
         setCragName(cragName || null)
+        setCragSlug(cragSlug)
+        setCountryCode(countryCode)
+        setCragSlug(cragSlug || null)
+        setCountryCode(countryCode || null)
 
         const {
           data: { user },
@@ -782,7 +794,10 @@ export default function ImagePage() {
         <div className="flex justify-center gap-2 mt-3 pb-1">
           {cragId && cragName && (
             <Link
-              href={`/crag/${cragId}`}
+              href={(() => {
+                const hasSlugUrl = countryCode && cragSlug
+                return hasSlugUrl ? `/${countryCode}/${cragSlug}` : `/crag/${cragId}`
+              })()}
               className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
             >
               View {cragName} →

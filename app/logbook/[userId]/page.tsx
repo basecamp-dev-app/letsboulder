@@ -23,8 +23,11 @@ interface Climb {
     name: string
     grade: string
     image_url?: string
+    slug?: string | null
     crags?: {
       name: string
+      slug?: string | null
+      country_code?: string | null
     }
   }
 }
@@ -86,7 +89,7 @@ async function getPublicLogs(userId: string): Promise<Climb[]> {
 
   const { data: logsData, error: logsError } = await supabase
     .from('user_climbs')
-    .select('*, climbs(id, name, grade, route_lines!inner(images!inner(crags!inner(name))))')
+    .select('*, climbs(id, name, grade, slug, route_lines!inner(images!inner(crags!inner(name, slug, country_code))))')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
@@ -95,13 +98,16 @@ async function getPublicLogs(userId: string): Promise<Climb[]> {
   }
 
   const logsWithCrags = logsData.map((log) => {
-    const routeLines = log.climbs?.route_lines as Array<{ images?: { crags?: { name: string } } }> | undefined
+    const routeLines = log.climbs?.route_lines as Array<{ images?: { crags?: { name: string, slug?: string, country_code?: string } } }> | undefined
     return {
       ...log,
       climbs: {
         ...log.climbs,
+        slug: log.climbs?.slug,
         crags: {
-          name: routeLines?.[0]?.images?.crags?.name || 'Unknown crag'
+          name: routeLines?.[0]?.images?.crags?.name || 'Unknown crag',
+          slug: routeLines?.[0]?.images?.crags?.slug,
+          country_code: routeLines?.[0]?.images?.crags?.country_code
         }
       }
     }

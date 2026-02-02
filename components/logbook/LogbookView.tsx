@@ -29,8 +29,11 @@ interface Climb {
     name: string
     grade: string
     image_url?: string
+    slug?: string | null
     crags?: {
       name: string
+      slug?: string | null
+      country_code?: string | null
     } | null
   }
 }
@@ -238,9 +241,20 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
                       />
                     )}
                     <div className="flex-1">
-                      <Link href={`/climb/${log.climb_id}`} className="hover:underline">
-                        <p className="font-medium text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
-                      </Link>
+                      {(() => {
+                        const countryCode = log.climbs?.crags?.country_code
+                        const cragSlug = log.climbs?.crags?.slug
+                        const climbSlug = log.climbs?.slug
+                        const hasSlugUrl = countryCode && cragSlug && climbSlug
+                        const href = hasSlugUrl
+                          ? `/${countryCode}/${cragSlug}/${climbSlug}`
+                          : `/climb/${log.climb_id}`
+                        return (
+                          <Link href={href} className="hover:underline">
+                            <p className="font-medium text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
+                          </Link>
+                        )
+                      })()}
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {log.climbs?.crags?.name} • {new Date(log.created_at).toLocaleDateString()}
                       </p>

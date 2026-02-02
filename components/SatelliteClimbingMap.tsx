@@ -63,6 +63,8 @@ interface CragMapItem {
   name: string
   latitude: number
   longitude: number
+  slug: string | null
+  country_code: string | null
 }
 
 function parseNumber(value: unknown): number | null {
@@ -86,6 +88,8 @@ interface CragPoint {
   name: string
   latitude: number
   longitude: number
+  slug: string | null
+  country_code: string | null
 }
 
 export default function SatelliteClimbingMap() {
@@ -329,7 +333,7 @@ export default function SatelliteClimbingMap() {
 
         const base = supabase
           .from('crags')
-          .select('id, name, latitude, longitude')
+          .select('id, name, latitude, longitude, slug, country_code')
           .not('latitude', 'is', null)
           .not('longitude', 'is', null)
           .gte('latitude', south)
@@ -352,6 +356,8 @@ export default function SatelliteClimbingMap() {
           name: string
           latitude: number | string | null
           longitude: number | string | null
+          slug: string | null
+          country_code: string | null
         }>
 
         const uniq = new Map<string, CragPoint>()
@@ -359,7 +365,14 @@ export default function SatelliteClimbingMap() {
           const lat = parseNumber(row.latitude)
           const lng = parseNumber(row.longitude)
           if (lat == null || lng == null) continue
-          uniq.set(row.id, { id: row.id, name: row.name, latitude: lat, longitude: lng })
+          uniq.set(row.id, { 
+            id: row.id, 
+            name: row.name, 
+            latitude: lat, 
+            longitude: lng,
+            slug: row.slug || null,
+            country_code: row.country_code || null
+          })
         }
 
         const points = Array.from(uniq.values())
@@ -514,7 +527,10 @@ export default function SatelliteClimbingMap() {
               zIndexOffset={1000}
               eventHandlers={{
                 click: () => {
-                  window.location.href = `/crag/${item.id}`
+                  const url = item.country_code && item.slug
+                    ? `/${item.country_code.toLowerCase()}/${item.slug}`
+                    : `/crag/${item.id}`
+                  window.location.href = url
                 },
               }}
             >
