@@ -69,6 +69,8 @@ interface Crag {
     id: string
     name: string
   }
+  slug: string | null
+  country_code: string | null
 }
 
 interface RoutePoint {
@@ -86,6 +88,7 @@ interface ImageRoute {
     grade: string | null
     description: string | null
     route_type: string | null
+    slug: string | null
   } | null
 }
 
@@ -100,6 +103,7 @@ interface RawRouteLine {
     grade: string | null
     description: string | null
     route_type: string | null
+    slug: string | null
   }
 }
 
@@ -257,6 +261,8 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
           .select(
             `
             *,
+            slug,
+            country_code,
             regions:region_id (id, name)
           `
           )
@@ -303,7 +309,8 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
               grade,
               description,
               status,
-              route_type
+              route_type,
+              slug
             )
           `
           )
@@ -336,6 +343,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
                 grade: rl.climbs.grade,
                 description: rl.climbs.description,
                 route_type: rl.climbs.route_type || null,
+                slug: (rl.climbs as unknown as { slug: string | null }).slug || null,
               },
             }))
 
@@ -503,6 +511,21 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
     }
   }, [])
 
+  const getImageUrl = useMemo(() => {
+    return (image: ImageData): string => {
+      // Single route: link to route slug page
+      if (image.route_lines.length === 1) {
+        const route = image.route_lines[0]
+        const climb = route.climb
+        if (crag?.country_code && crag?.slug && climb?.slug) {
+          return `/${crag.country_code.toLowerCase()}/${crag.slug}/${climb.slug}`
+        }
+      }
+      // Multi-route or missing slug data: link to image page
+      return `/image/${image.id}`
+    }
+  }, [crag])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -639,7 +662,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
                         <div
                           className="w-40 cursor-pointer pt-1"
                           onClick={() => {
-                            window.location.href = `/image/${image.id}`
+                            window.location.href = getImageUrl(image)
                           }}
                         >
                           <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
@@ -735,7 +758,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
                       highlightedImageId === image.id ? 'ring-blue-400' : ''
                     }`}
                     onClick={() => {
-                      window.location.href = `/image/${image.id}`
+                      window.location.href = getImageUrl(image)
                     }}
                   >
                     <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
