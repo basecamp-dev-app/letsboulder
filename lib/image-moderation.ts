@@ -1,6 +1,12 @@
-import { RekognitionClient, DetectModerationLabelsCommand, DetectFacesCommand } from '@aws-sdk/client-rekognition'
+import {
+  RekognitionClient,
+  DetectModerationLabelsCommand,
+  DetectFacesCommand,
+  DetectLabelsCommand,
+} from '@aws-sdk/client-rekognition'
 
 const MIN_MODERATION_CONFIDENCE = 60
+const MIN_PERSON_LABEL_CONFIDENCE = 80
 
 interface ModerationLabel {
   name: string
@@ -10,8 +16,10 @@ interface ModerationLabel {
 interface ModerationResult {
   hasHumans: boolean
   humanFaceCount: number
+  hasPeople: boolean
+  personLabelConfidence: number | null
   moderationLabels: ModerationLabel[]
-  moderationStatus: 'approved' | 'flagged' | 'rejected'
+  moderationStatus: 'approved' | 'rejected'
 }
 
 function getRekognitionClient(): RekognitionClient {
@@ -42,7 +50,7 @@ export async function moderateImageFromUrl(imageUrl: string): Promise<Moderation
   const client = getRekognitionClient()
   const bytes = await fetchImageBytes(imageUrl)
 
-  const [moderationResp, facesResp] = await Promise.all([
+  const [moderationResp, facesResp, labelsResp] = await Promise.all([
     client.send(
       new DetectModerationLabelsCommand({
         Image: { Bytes: bytes },
@@ -53,6 +61,13 @@ export async function moderateImageFromUrl(imageUrl: string): Promise<Moderation
       new DetectFacesCommand({
         Image: { Bytes: bytes },
         Attributes: ['DEFAULT'],
+      })
+    ),
+    client.send(
+      new DetectLabelsCommand({
+        Image: { Bytes: bytes },
+        MinConfidence: MIN_PERSON_LABEL_CONFIDENCE,
+        MaxLabels: 25,
       })
     ),
   ])
@@ -67,17 +82,23 @@ export async function moderateImageFromUrl(imageUrl: string): Promise<Moderation
   const humanFaceCount = facesResp.FaceDetails?.length || 0
   const hasHumans = humanFaceCount > 0
 
+  const personLabel = (labelsResp.Labels || []).find((l) => l.Name === 'Person')
+  const personLabelConfidence = typeof personLabel?.Confidence === 'number' ? personLabel.Confidence : null
+  const hasPeople = !!personLabel
+
   let moderationStatus: ModerationResult['moderationStatus'] = 'approved'
 
   if (moderationLabels.length > 0) {
     moderationStatus = 'rejected'
-  } else if (hasHumans) {
-    moderationStatus = 'flagged'
+  } else if (hasPeople || hasHumans) {
+    moderationStatus = 'rejected'
   }
 
   return {
     hasHumans,
     humanFaceCount,
+    hasPeople,
+    personLabelConfidence,
     moderationLabels,
     moderationStatus,
   }

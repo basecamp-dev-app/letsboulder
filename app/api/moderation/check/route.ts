@@ -41,14 +41,33 @@ export async function POST(request: NextRequest) {
 
     const result = await moderateImageFromUrl(image.url)
 
+    const rejectionReason =
+      result.moderationLabels.length > 0
+        ? 'content'
+        : result.hasPeople
+          ? 'people'
+          : result.hasHumans
+            ? 'people'
+            : null
+
+    const moderationLabels = [
+      ...result.moderationLabels.map((l) => ({ kind: 'moderation', name: l.name, confidence: l.confidence })),
+      ...(result.hasPeople
+        ? [{ kind: 'person_label', name: 'Person', confidence: result.personLabelConfidence || 0 }]
+        : []),
+      ...(typeof result.humanFaceCount === 'number'
+        ? [{ kind: 'faces', count: result.humanFaceCount }]
+        : []),
+    ]
+
     const { error: updateError } = await supabase
       .from('images')
       .update({
         moderation_status: result.moderationStatus,
         has_humans: result.hasHumans,
-        moderation_labels: result.moderationLabels,
+        moderation_labels: moderationLabels,
         moderated_at: new Date().toISOString(),
-        status: result.moderationStatus === 'approved' ? 'approved' : 'pending',
+        status: result.moderationStatus === 'approved' ? 'approved' : 'rejected',
       })
       .eq('id', image.id)
 
@@ -60,15 +79,13 @@ export async function POST(request: NextRequest) {
       const title =
         result.moderationStatus === 'approved'
           ? 'Photo approved'
-          : result.moderationStatus === 'flagged'
-            ? 'Photo needs changes'
-            : 'Photo rejected'
+          : 'Photo rejected'
 
       const message =
         result.moderationStatus === 'approved'
           ? 'Your photo was approved and is now visible.'
-          : result.moderationStatus === 'flagged'
-            ? 'Your photo appears to contain a person. Please upload a version without people.'
+          : rejectionReason === 'people'
+            ? 'Your photo was rejected because it appears to contain a person. Please upload a version with no people.'
             : 'Your photo was rejected due to content policy.'
 
       await supabase.from('notifications').insert({
@@ -84,6 +101,7 @@ export async function POST(request: NextRequest) {
       success: true,
       moderation_status: result.moderationStatus,
       has_humans: result.hasHumans,
+      has_people: result.hasPeople,
       human_face_count: result.humanFaceCount,
     })
   } catch (error) {

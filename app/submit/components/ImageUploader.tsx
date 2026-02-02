@@ -366,6 +366,9 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
             <p className="text-sm text-blue-700 dark:text-blue-300">
               By uploading, you confirm this is your photo of a climbing route and you have permission to share it.
             </p>
+            <p className="text-sm text-blue-700 dark:text-blue-300 mt-2">
+              No people can appear in the image. Uploads containing people will be rejected automatically.
+            </p>
           </div>
 
           <button
