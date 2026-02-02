@@ -113,8 +113,6 @@ export async function POST(request: NextRequest) {
 
     let imageId: string | null = null
     let imageUrl: string = ''
-    let imageLat: number | null = null
-    let imageLng: number | null = null
     let existingCragId: string | null = null
 
     if (body.mode === 'new') {
@@ -125,8 +123,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Crag ID is required' }, { status: 400 })
       }
 
-      imageLat = body.imageLat
-      imageLng = body.imageLng
       imageUrl = body.imageUrl
 
       const { data: image, error: imageError } = await supabase
@@ -151,6 +147,17 @@ export async function POST(request: NextRequest) {
       }
 
       imageId = image.id
+
+      if (process.env.INTERNAL_MODERATION_SECRET) {
+        fetch(new URL('/api/moderation/check', request.url), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-internal-secret': process.env.INTERNAL_MODERATION_SECRET,
+          },
+          body: JSON.stringify({ imageId: image.id }),
+        }).catch((err) => console.error('Failed to queue moderation:', err))
+      }
     } else {
       if (!body.imageId) {
         return NextResponse.json({ error: 'Image ID is required' }, { status: 400 })
@@ -168,8 +175,6 @@ export async function POST(request: NextRequest) {
 
       imageId = existingImage.id
       imageUrl = existingImage.url
-      imageLat = existingImage.latitude
-      imageLng = existingImage.longitude
       existingCragId = existingImage.crag_id
     }
 
@@ -189,7 +194,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const regionData = await getRegionData(supabase, imageId!)
+    await getRegionData(supabase, imageId!)
 
     const climbsData = body.routes.map((route, index) => {
       const trimmedName = route.name.trim()
