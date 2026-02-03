@@ -9,6 +9,20 @@ interface CheckRequestBody {
 }
 
 export async function POST(request: NextRequest) {
+  if (request.nextUrl.searchParams.get('debug') === '1') {
+    return NextResponse.json({
+      env: {
+        hasInternalSecret: !!process.env.INTERNAL_MODERATION_SECRET,
+        hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        hasAwsRegion: !!process.env.AWS_REGION,
+        hasAwsAccessKeyId: !!process.env.AWS_ACCESS_KEY_ID,
+        hasAwsSecretAccessKey: !!process.env.AWS_SECRET_ACCESS_KEY,
+        vercelEnv: process.env.VERCEL_ENV || null,
+        vercelGitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA || null,
+      },
+    })
+  }
+
   const internalSecret = request.headers.get('x-internal-secret')
   if (!internalSecret || internalSecret !== process.env.INTERNAL_MODERATION_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
