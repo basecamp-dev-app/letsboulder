@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { createErrorResponse } from '@/lib/errors'
 import { moderateImageFromUrl } from '@/lib/image-moderation'
 
@@ -13,10 +14,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) {
+    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { cookies: { getAll() { return [] }, setAll() {} } }
+  )
+
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey,
+    { auth: { persistSession: false, autoRefreshToken: false } }
   )
 
   try {
@@ -60,19 +72,24 @@ export async function POST(request: NextRequest) {
         : []),
     ]
 
-    const { error: updateError } = await supabase
+    const { data: updatedRow, error: updateError } = await supabaseAdmin
       .from('images')
       .update({
         moderation_status: result.moderationStatus,
         has_humans: result.hasHumans,
         moderation_labels: moderationLabels,
         moderated_at: new Date().toISOString(),
-        status: result.moderationStatus === 'approved' ? 'approved' : 'rejected',
       })
       .eq('id', image.id)
+      .select('id')
+      .single()
 
     if (updateError) {
       return createErrorResponse(updateError, 'Failed to update image moderation status')
+    }
+
+    if (!updatedRow?.id) {
+      return NextResponse.json({ error: 'Failed to update image moderation status' }, { status: 500 })
     }
 
     if (image.created_by) {
@@ -88,7 +105,7 @@ export async function POST(request: NextRequest) {
             ? 'Your photo was rejected because it appears to contain a person. Please upload a version with no people.'
             : 'Your photo was rejected due to content policy.'
 
-      await supabase.from('notifications').insert({
+      await supabaseAdmin.from('notifications').insert({
         user_id: image.created_by,
         type: 'moderation',
         title,
