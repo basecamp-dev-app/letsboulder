@@ -88,7 +88,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .select('id, updated_at, slug, crag_id, crags:crag_id (slug, country_code)')
       .eq('status', 'active')
       .limit(1000),
-    supabase.from('images').select('id, updated_at').eq('is_verified', true).limit(1000),
+    supabase.from('images').select('id, updated_at').eq('is_verified', true).eq('moderation_status', 'approved').limit(1000),
   ])
 
   const dynamicRoutes: MetadataRoute.Sitemap = [

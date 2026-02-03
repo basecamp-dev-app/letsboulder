@@ -15,6 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     .from('images')
     .select('url, crags(name)')
     .eq('id', id)
+    .eq('moderation_status', 'approved')
     .single()
 
   if (!image) {

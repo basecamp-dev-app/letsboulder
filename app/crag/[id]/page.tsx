@@ -248,8 +248,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
             .single()
 
           const adminFromProfile = profile?.is_admin === true
-          const hasAuthAdmin = user.app_metadata?.gsyrocks_admin === true
-          if (!cancelled) setIsAdmin(adminFromProfile || hasAuthAdmin)
+          if (!cancelled) setIsAdmin(adminFromProfile)
         }
 
         const { data: cragData, error: cragError } = await supabase
@@ -271,6 +270,7 @@ export default function CragPage({ params }: { params: Promise<{ id: string }> }
           .from('images')
           .select('id, url, latitude, longitude, is_verified, verification_count')
           .eq('crag_id', id)
+          .eq('moderation_status', 'approved')
           .order('created_at', { ascending: false })
 
         if (imagesError) {

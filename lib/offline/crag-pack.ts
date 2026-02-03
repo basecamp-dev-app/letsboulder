@@ -306,6 +306,7 @@ export async function downloadCragForOffline(
       'id, url, latitude, longitude, is_verified, verification_count, crag_id, width, height, natural_width, natural_height, created_at'
     )
     .eq('crag_id', cragId)
+    .eq('moderation_status', 'approved')
     .order('created_at', { ascending: false })
 
   if (imagesError) throw new Error('Failed to load images')

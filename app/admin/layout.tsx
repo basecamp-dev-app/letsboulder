@@ -35,11 +35,8 @@ export default function AdminLayout({
         .eq('id', user.id)
         .single()
 
-      // Check auth metadata as fallback
-      const hasAuthAdmin = user.app_metadata?.gsyrocks_admin === true
-
       const adminFromProfile = profile?.is_admin === true
-      const isAdmin = adminFromProfile || hasAuthAdmin
+      const isAdmin = adminFromProfile
 
       if (!isAdmin) {
         router.push('/')

@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
         .select(`
           id,
           url,
+          moderation_status,
           latitude,
           longitude,
           capture_date,
@@ -65,6 +66,7 @@ export async function GET(request: NextRequest) {
           )
         `)
         .eq('id', imageId)
+        .eq('moderation_status', 'approved')
         .single()
 
       if (error) {
@@ -101,6 +103,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id,
         url,
+        moderation_status,
         latitude,
         longitude,
         capture_date,
@@ -110,6 +113,7 @@ export async function GET(request: NextRequest) {
         route_lines(count)
       `)
       .eq('crag_id', cragId)
+      .eq('moderation_status', 'approved')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
