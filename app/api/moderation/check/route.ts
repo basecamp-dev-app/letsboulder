@@ -14,6 +14,8 @@ export async function POST(request: NextRequest) {
       env: {
         hasInternalSecret: !!process.env.INTERNAL_MODERATION_SECRET,
         hasServiceRoleKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        hasNextPublicSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasNextPublicSupabaseAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
         hasAwsRegion: !!process.env.AWS_REGION,
         hasAwsAccessKeyId: !!process.env.AWS_ACCESS_KEY_ID,
         hasAwsSecretAccessKey: !!process.env.AWS_SECRET_ACCESS_KEY,
