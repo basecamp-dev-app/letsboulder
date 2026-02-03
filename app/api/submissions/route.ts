@@ -157,14 +157,26 @@ export async function POST(request: NextRequest) {
       imageId = image.id
 
       if (process.env.INTERNAL_MODERATION_SECRET) {
-        fetch(new URL('/api/moderation/check', request.url), {
+        const moderationUrl = new URL('/api/moderation/check', request.url).toString()
+        console.log('[Moderation] Queueing for image:', image.id, 'URL:', moderationUrl)
+        
+        fetch(moderationUrl, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
             'x-internal-secret': process.env.INTERNAL_MODERATION_SECRET,
           },
           body: JSON.stringify({ imageId: image.id }),
-        }).catch((err) => console.error('Failed to queue moderation:', err))
+        })
+          .then(async (res) => {
+            if (!res.ok) {
+              const text = await res.text().catch(() => 'No response body')
+              console.error('[Moderation] Failed:', res.status, text)
+            } else {
+              console.log('[Moderation] Queued successfully for image:', image.id)
+            }
+          })
+          .catch((err) => console.error('[Moderation] Error:', err))
       }
     } else {
       if (!body.imageId) {
