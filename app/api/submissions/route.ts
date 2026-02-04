@@ -164,7 +164,18 @@ export async function POST(request: NextRequest) {
             'x-internal-secret': process.env.INTERNAL_MODERATION_SECRET,
           },
           body: JSON.stringify({ imageId: image.id }),
-        }).catch((err) => console.error('Failed to queue moderation:', err))
+        })
+          .then(async (res) => {
+            if (res.ok) return
+
+            const text = await res.text().catch(() => '')
+            console.error('Failed to queue moderation:', {
+              imageId: image.id,
+              status: res.status,
+              body: text.slice(0, 500),
+            })
+          })
+          .catch((err) => console.error('Failed to queue moderation:', { imageId: image.id, error: err }))
       }
     } else {
       if (!body.imageId) {

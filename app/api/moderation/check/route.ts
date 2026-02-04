@@ -10,6 +10,10 @@ interface CheckRequestBody {
 export async function POST(request: NextRequest) {
   const internalSecret = request.headers.get('x-internal-secret')
   if (!internalSecret || internalSecret !== process.env.INTERNAL_MODERATION_SECRET) {
+    console.error('Unauthorized moderation check request', {
+      hasHeader: Boolean(internalSecret),
+      headerLength: internalSecret ? internalSecret.length : 0,
+    })
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -57,17 +61,18 @@ export async function POST(request: NextRequest) {
     }
 
     if (image.created_by) {
+      const moderationStatus = result.moderationStatus
       const title =
-        result.moderationStatus === 'approved'
+        moderationStatus === 'approved'
           ? 'Photo approved'
-          : result.moderationStatus === 'flagged'
+          : moderationStatus === 'flagged'
             ? 'Photo needs changes'
             : 'Photo rejected'
 
       const message =
-        result.moderationStatus === 'approved'
+        moderationStatus === 'approved'
           ? 'Your photo was approved and is now visible.'
-          : result.moderationStatus === 'flagged'
+          : moderationStatus === 'flagged'
             ? 'Your photo appears to contain a person. Please upload a version without people.'
             : 'Your photo was rejected due to content policy.'
 
