@@ -3,6 +3,8 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { moderateImageFromUrl } from '@/lib/image-moderation'
 
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
 interface CheckRequestBody {
   imageId: string
 }
@@ -17,9 +19,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    return createErrorResponse(new Error('Missing SUPABASE_SERVICE_ROLE_KEY'), 'Moderation config error')
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    SUPABASE_SERVICE_ROLE_KEY,
     { cookies: { getAll() { return [] }, setAll() {} } }
   )
 
