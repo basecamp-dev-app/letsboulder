@@ -1,8 +1,7 @@
 -- =====================================================
 -- Enforce image moderation visibility via RLS
 -- Public can only read approved images
--- Owners can read their own images (any moderation_status)
--- Admins can read all images
+-- Rejected images are not readable by anyone (including owner/admin)
 -- Created: 2026-02-05
 -- =====================================================
 
@@ -33,40 +32,6 @@ BEGIN
     $$;
   END IF;
 
-  -- Owners can read their own images (even if rejected)
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_policies
-    WHERE schemaname = 'public'
-      AND tablename = 'images'
-      AND policyname = 'Owner read own images'
-  ) THEN
-    EXECUTE $$
-      CREATE POLICY "Owner read own images" ON public.images
-      FOR SELECT
-      USING (auth.uid() = created_by)
-    $$;
-  END IF;
-
-  -- Admins can read all images
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_policies
-    WHERE schemaname = 'public'
-      AND tablename = 'images'
-      AND policyname = 'Admin read images'
-  ) THEN
-    EXECUTE $$
-      CREATE POLICY "Admin read images" ON public.images
-      FOR SELECT
-      USING (
-        EXISTS (
-          SELECT 1
-          FROM public.profiles
-          WHERE profiles.id = auth.uid()
-            AND profiles.is_admin = true
-        )
-      )
-    $$;
-  END IF;
+  -- Do not create owner/admin read policies: rejected images must not be visible
+  -- even to owners or admins.
 END $$;
