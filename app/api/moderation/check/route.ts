@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
           ? 'Your photo was approved and is now visible.'
           : moderationStatus === 'flagged'
             ? 'Your photo appears to contain a person. Please upload a version without people.'
-            : 'Your photo was rejected due to content policy.'
+            : 'Your photo appears to contain a person. Please upload a version without people.'
 
       await supabase.from('notifications').insert({
         user_id: image.created_by,

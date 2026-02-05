@@ -72,7 +72,7 @@ export async function moderateImageFromUrl(imageUrl: string): Promise<Moderation
   if (moderationLabels.length > 0) {
     moderationStatus = 'rejected'
   } else if (hasHumans) {
-    moderationStatus = 'flagged'
+    moderationStatus = 'rejected'
   }
 
   return {
