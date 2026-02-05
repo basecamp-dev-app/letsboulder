@@ -111,7 +111,12 @@ async function extractGpsFromFile(file: File): Promise<GpsData | null> {
     const buffer = await file.arrayBuffer()
     const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true })
 
-    if (exifData?.latitude && exifData?.longitude) {
+    if (
+      typeof exifData?.latitude === 'number' &&
+      Number.isFinite(exifData.latitude) &&
+      typeof exifData?.longitude === 'number' &&
+      Number.isFinite(exifData.longitude)
+    ) {
       return { latitude: exifData.latitude, longitude: exifData.longitude }
     }
 
@@ -122,7 +127,7 @@ async function extractGpsFromFile(file: File): Promise<GpsData | null> {
       const lat = convertDmsToDecimal(exifData.GPSLatitude, latRef)
       const lon = convertDmsToDecimal(exifData.GPSLongitude, lonRef)
 
-      if (lat !== null && lon !== null) {
+      if (lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon)) {
         return { latitude: lat, longitude: lon }
       }
     }

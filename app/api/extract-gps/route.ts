@@ -30,7 +30,13 @@ export async function POST(request: NextRequest) {
 
       const exifData = await exifr.parse(buffer)
 
-      if (!exifData?.latitude || !exifData?.longitude) {
+      const hasGps =
+        typeof exifData?.latitude === 'number' &&
+        Number.isFinite(exifData.latitude) &&
+        typeof exifData?.longitude === 'number' &&
+        Number.isFinite(exifData.longitude)
+
+      if (!hasGps) {
         return NextResponse.json({ latitude: null, longitude: null, altitude: null })
       }
 
@@ -70,7 +76,13 @@ export async function POST(request: NextRequest) {
 
     const exifData = await Promise.race<ExifGpsData | undefined>([exifPromise, timeoutPromise])
 
-    if (!exifData?.latitude || !exifData?.longitude) {
+    const hasGps =
+      typeof exifData?.latitude === 'number' &&
+      Number.isFinite(exifData.latitude) &&
+      typeof exifData?.longitude === 'number' &&
+      Number.isFinite(exifData.longitude)
+
+    if (!hasGps) {
       // If no GPS data is found, return null coordinates instead of an error
       return NextResponse.json({
         latitude: null,
