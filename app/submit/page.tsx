@@ -20,6 +20,7 @@ const LocationPicker = dynamic(() => import('./components/LocationPicker'), { ss
 function SubmitPageContent() {
   const { routes, setRoutes, setIsSubmitting, isSubmitting } = useSubmitContext()
   const [step, setStep] = useState<SubmissionStep>({ step: 'image' })
+  const [selectedRouteType, setSelectedRouteType] = useState<ClimbType | null>(null)
   const [context, setContext] = useState<SubmissionContext>({
     crag: null,
     image: null,
@@ -134,9 +135,11 @@ function SubmitPageContent() {
   }, [context.imageGps, context.image])
 
   const handleClimbTypeSelect = useCallback((routeType: ClimbType) => {
+    if (isSubmitting) return
+    setSelectedRouteType(routeType)
     setContext(prev => ({ ...prev, routeType }))
     handleSubmit(routeType)
-  }, [context.image, context.crag, context.routes])
+  }, [context.image, context.crag, context.routes, isSubmitting])
 
   const handleRoutesUpdate = useCallback((routes: NewRouteData[]) => {
     setContext(prev => ({ ...prev, routes }))
@@ -177,6 +180,7 @@ function SubmitPageContent() {
   }, [step, context])
 
   const handleSubmit = async (routeType?: ClimbType) => {
+    if (isSubmitting) return
     if (!context.crag || !context.image || context.routes.length === 0) {
       setError('Incomplete submission data')
       return
@@ -246,6 +250,7 @@ function SubmitPageContent() {
 
   const handleStartOver = () => {
     setContext({ crag: null, image: null, imageGps: null, routes: [], routeType: null })
+    setSelectedRouteType(null)
     setStep({ step: 'image' })
     setError(null)
   }
@@ -352,9 +357,14 @@ function SubmitPageContent() {
                   <button
                     key={type}
                     onClick={() => handleClimbTypeSelect(type)}
-                    className="p-4 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-500 dark:hover:border-blue-500 transition-colors capitalize text-gray-900 dark:text-gray-100"
+                    disabled={isSubmitting}
+                    className={`p-4 border border-gray-300 dark:border-gray-600 rounded-lg transition-colors capitalize text-gray-900 dark:text-gray-100 ${
+                      isSubmitting
+                        ? 'opacity-60 cursor-not-allowed'
+                        : 'hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-500 dark:hover:border-blue-500'
+                    }`}
                   >
-                    {label}
+                    {isSubmitting && selectedRouteType === type ? 'Submitting...' : label}
                   </button>
                 ))}
               </div>
