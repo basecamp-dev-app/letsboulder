@@ -65,6 +65,9 @@ export async function POST(request: NextRequest) {
 
   const cookies = request.cookies
 
+  const debugAuth = process.env.DEBUG_SUBMISSIONS_AUTH === '1'
+  const requestUrl = new URL(request.url)
+
   const response = NextResponse.next({ request: { headers: request.headers } })
 
   const supabase = createServerClient(
@@ -83,10 +86,43 @@ export async function POST(request: NextRequest) {
   )
 
   try {
+    if (debugAuth) {
+      const cookieNames = cookies
+        .getAll()
+        .map((c) => c.name)
+        .filter((name) => name.startsWith('sb-') || name.toLowerCase().includes('supabase'))
+
+      console.log('[submissions] request', {
+        host: requestUrl.host,
+        path: requestUrl.pathname,
+        hasAuthCookies: cookieNames.length > 0,
+        cookieNames,
+      })
+    }
+
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
+      if (debugAuth) {
+        console.warn('[submissions] auth.getUser failed', {
+          host: requestUrl.host,
+          path: requestUrl.pathname,
+          hasUser: Boolean(user),
+          authError: authError ? { name: authError.name, message: authError.message } : null,
+        })
+      }
       return NextResponse.json({ error: 'Authentication required' }, { status: 401, headers: response.headers })
+    }
+
+    if (debugAuth) {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      console.log('[submissions] session', {
+        userId: user.id,
+        hasSession: Boolean(sessionData?.session),
+        hasAccessToken: Boolean(sessionData?.session?.access_token),
+        sessionUserId: sessionData?.session?.user?.id || null,
+        sessionError: sessionError ? { name: sessionError.name, message: sessionError.message } : null,
+      })
     }
 
     const body: SubmissionRequest = await request.json()
@@ -157,6 +193,19 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (imageError) {
+        if (debugAuth) {
+          const { data: sessionData } = await supabase.auth.getSession()
+          console.error('[submissions] images insert failed', {
+            userId: user.id,
+            hasAccessToken: Boolean(sessionData?.session?.access_token),
+            error: {
+              code: imageError.code,
+              message: imageError.message,
+              details: imageError.details,
+              hint: imageError.hint,
+            },
+          })
+        }
         return createErrorResponse(imageError, 'Error creating image')
       }
 
