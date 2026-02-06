@@ -8,10 +8,12 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '50')
   const offset = parseInt(searchParams.get('offset') || '0')
 
+  const cookies = request.cookies
+
   const supabase = await createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return [] }, setAll() {} } }
+    { cookies: { getAll() { return cookies.getAll() }, setAll() {} } }
   )
 
   try {
@@ -54,10 +56,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const cookies = request.cookies
+
   const supabase = await createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return [] }, setAll() {} } }
+    { cookies: { getAll() { return cookies.getAll() }, setAll() {} } }
   )
 
   try {
