@@ -5,6 +5,8 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewSubmission } from '@/lib/discord'
 import { makeUniqueSlug } from '@/lib/slug'
 
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
 const MAX_ROUTES_PER_DAY = 5
 
 const VALID_GRADES = [
@@ -84,6 +86,14 @@ export async function POST(request: NextRequest) {
       },
     }
   )
+
+  const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY
+    ? createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        SUPABASE_SERVICE_ROLE_KEY,
+        { cookies: { getAll() { return [] }, setAll() {} } }
+      )
+    : null
 
   try {
     if (debugAuth) {
@@ -207,7 +217,13 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      const { data: image, error: imageError } = await supabase
+      const imageClient = supabaseAdmin || supabase
+
+      if (!supabaseAdmin) {
+        console.warn('[submissions] SUPABASE_SERVICE_ROLE_KEY missing; falling back to RLS insert')
+      }
+
+      const { data: image, error: imageError } = await imageClient
         .from('images')
         .insert(insertPayload)
         .select('id')
