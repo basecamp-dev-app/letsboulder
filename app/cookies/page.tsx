@@ -34,7 +34,7 @@ export default function CookiePage() {
         <ul className="list-disc pl-6 mb-6 text-gray-600 dark:text-gray-400 space-y-2">
           <li><strong>Authentication:</strong> Cookies help us verify your identity when you sign in</li>
           <li><strong>Preferences:</strong> Remember your settings and preferences</li>
-          <li><strong>Analytics:</strong> We use PostHog, a privacy-first analytics service, to understand how users interact with our app</li>
+          <li><strong>Analytics:</strong> We may collect anonymous usage metrics to understand how users interact with our app</li>
           <li><strong>Security:</strong> Help protect your account and detect suspicious activity</li>
         </ul>
 
