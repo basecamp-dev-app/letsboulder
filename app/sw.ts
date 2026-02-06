@@ -4,7 +4,6 @@ import {
   CacheFirst,
   ExpirationPlugin,
   CacheableResponsePlugin,
-  NetworkFirst,
   Serwist,
   StaleWhileRevalidate,
 } from 'serwist'
@@ -54,22 +53,6 @@ serwist.registerCapture(
     cacheName: 'crag-static-maps',
     plugins: [
       new CacheableResponsePlugin({ statuses: [200] }),
-      new ExpirationPlugin({ maxEntries: 250, maxAgeSeconds: 60 * 60 * 24 * 30 }),
-    ],
-  })
-)
-
-serwist.registerCapture(
-  ({ url, request }) => {
-    if (request.destination !== 'document') return false
-    if (url.origin !== self.location.origin) return false
-    return url.pathname === '/map' || url.pathname.startsWith('/crag/') || url.pathname.startsWith('/image/')
-  },
-  new NetworkFirst({
-    cacheName: 'letsboulder-offline-pages-v1',
-    networkTimeoutSeconds: 3,
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [0, 200] }),
       new ExpirationPlugin({ maxEntries: 250, maxAgeSeconds: 60 * 60 * 24 * 30 }),
     ],
   })
