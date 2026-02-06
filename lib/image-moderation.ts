@@ -1,5 +1,3 @@
-import { RekognitionClient, DetectModerationLabelsCommand, DetectFacesCommand } from '@aws-sdk/client-rekognition'
-
 const MIN_MODERATION_CONFIDENCE = 60
 
 interface ModerationLabel {
@@ -14,7 +12,8 @@ interface ModerationResult {
   moderationStatus: 'approved' | 'flagged' | 'rejected'
 }
 
-function getRekognitionClient(): RekognitionClient {
+async function getRekognitionClient() {
+  const { RekognitionClient } = await import('@aws-sdk/client-rekognition')
   const region = process.env.AWS_REGION
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
@@ -39,7 +38,9 @@ async function fetchImageBytes(imageUrl: string): Promise<Uint8Array> {
 }
 
 export async function moderateImageFromUrl(imageUrl: string): Promise<ModerationResult> {
-  const client = getRekognitionClient()
+  const { DetectModerationLabelsCommand, DetectFacesCommand } = await import('@aws-sdk/client-rekognition')
+
+  const client = await getRekognitionClient()
   const bytes = await fetchImageBytes(imageUrl)
 
   const [moderationResp, facesResp] = await Promise.all([

@@ -1,7 +1,5 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { Redis } from '@upstash/redis'
-import { Ratelimit } from '@upstash/ratelimit'
+import { createServerClient } from '@supabase/ssr'
 
 const ALLOWED_REDIRECT_PATHS = [
   '/',
@@ -65,6 +63,9 @@ export default async function proxy(request: NextRequest) {
     const url = process.env.UPSTASH_REDIS_REST_URL
     const token = process.env.UPSTASH_REDIS_REST_TOKEN
     if (url && token) {
+      const { Redis } = await import('@upstash/redis')
+      const { Ratelimit } = await import('@upstash/ratelimit')
+
       const redis = new Redis({ url, token })
       const bucket = getApiBucket(pathname)
       const ip = getClientIp(request)
