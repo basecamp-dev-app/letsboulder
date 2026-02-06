@@ -67,7 +67,6 @@ serwist.registerCapture(
   new NetworkFirst({
     cacheName: 'letsboulder-offline-pages-v1',
     networkTimeoutSeconds: 3,
-    matchOptions: { ignoreVary: true },
     plugins: [
       new CacheableResponsePlugin({ statuses: [0, 200] }),
       new ExpirationPlugin({ maxEntries: 250, maxAgeSeconds: 60 * 60 * 24 * 30 }),
