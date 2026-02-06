@@ -184,20 +184,32 @@ export async function POST(request: NextRequest) {
 
       imageUrl = body.imageUrl
 
+      const insertPayload = {
+        url: body.imageUrl,
+        latitude: body.imageLat,
+        longitude: body.imageLng,
+        capture_date: body.captureDate,
+        crag_id: body.cragId,
+        width: body.width,
+        height: body.height,
+        natural_width: body.naturalWidth,
+        natural_height: body.naturalHeight,
+        created_by: user.id,
+      }
+
+      if (debugAuth) {
+        console.log('[submissions] image insert payload', {
+          created_by: insertPayload.created_by,
+          crag_id: insertPayload.crag_id,
+          urlLen: insertPayload.url.length,
+          hasLat: insertPayload.latitude !== null,
+          hasLng: insertPayload.longitude !== null,
+        })
+      }
+
       const { data: image, error: imageError } = await supabase
         .from('images')
-        .insert({
-          url: body.imageUrl,
-          latitude: body.imageLat,
-          longitude: body.imageLng,
-          capture_date: body.captureDate,
-          crag_id: body.cragId,
-          width: body.width,
-          height: body.height,
-          natural_width: body.naturalWidth,
-          natural_height: body.naturalHeight,
-          created_by: user.id
-        })
+        .insert(insertPayload)
         .select('id')
         .single()
 
