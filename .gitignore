@@ -51,7 +51,3 @@ proxy.out.json
 
 # Supabase local development
 supabase/.temp/
-
-# Serwist
-public/sw*
-public/swe-worker*

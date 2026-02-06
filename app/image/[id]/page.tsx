@@ -9,9 +9,9 @@ import { RoutePoint } from '@/lib/useRouteSelection'
 import { Loader2, Flag } from 'lucide-react'
 import FlagImageModal from '@/components/FlagImageModal'
 import type { ClimbStatusResponse } from '@/lib/verification-types'
+import { trackEvent, trackClimbLogged } from '@/lib/posthog'
 import { csrfFetch } from '@/hooks/useCsrf'
 import RouteDetailModal from '@/app/image/components/RouteDetailModal'
-import { getOfflineCragMeta, getOfflineImage } from '@/lib/offline/crag-pack'
 
 interface ImageRoute {
   id: string
@@ -22,7 +22,6 @@ interface ImageRoute {
     name: string | null
     grade: string | null
     description: string | null
-    route_type: string | null
   } | null
   imageWidth?: number | null
   imageHeight?: number | null
@@ -68,8 +67,6 @@ interface ImageWrapperProps {
   selectedRoute: ImageRoute | null
   naturalWidth: number
   naturalHeight: number
-  routeNumberById: Record<string, number>
-  onSelectRoute: (routeId: string) => void
 }
 
 interface ImageRenderInfo {
@@ -79,23 +76,11 @@ interface ImageRenderInfo {
   renderedHeight: number
 }
 
-function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHeight, routeNumberById, onSelectRoute }: ImageWrapperProps) {
+function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHeight }: ImageWrapperProps) {
   const [imgSize, setImgSize] = useState<{ width: number; height: number } | null>(null)
   const [imageInfo, setImageInfo] = useState<ImageRenderInfo | null>(null)
   const imgRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-
-  const pinScale = useMemo(() => {
-    if (!imageInfo) return 1
-    const safeW = imageInfo.renderedWidth > 0 ? imageInfo.renderedWidth : 0
-    const safeH = imageInfo.renderedHeight > 0 ? imageInfo.renderedHeight : 0
-    if (!safeW || !safeH) return 1
-
-    const scaleX = naturalWidth / safeW
-    const scaleY = naturalHeight / safeH
-    const scale = Math.max(scaleX, scaleY)
-    return Number.isFinite(scale) && scale > 0 ? scale : 1
-  }, [imageInfo, naturalWidth, naturalHeight])
 
   useEffect(() => {
     const img = imgRef.current
@@ -163,7 +148,7 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
       />
       {imageInfo && (
         <svg
-          className="absolute z-10"
+          className="absolute pointer-events-none z-10"
           style={{
             left: imageInfo.renderedX,
             top: imageInfo.renderedY,
@@ -173,20 +158,11 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
           viewBox={`0 0 ${naturalWidth} ${naturalHeight}`}
         >
 
-           {routeLines.map((route, index) => {
-              const isSelected = selectedRoute?.id === route.id
-              const color = isSelected ? '#00ff00' : (route.color || '#ff00ff')
-              const strokeWidth = isSelected ? 5 : 3
-              const startPoint = route.points[0]
-              const number = routeNumberById[route.id] ?? index + 1
-
-              const digitCount = String(number).length
-              const basePinRadiusPx = digitCount >= 3 ? 14 : digitCount === 2 ? 13 : 12
-              const baseFontPx = digitCount >= 3 ? 11 : 12
-
-              const pinRadius = basePinRadiusPx * pinScale
-              const pinFontSize = baseFontPx * pinScale
-              const pinHitRadius = Math.max(18, basePinRadiusPx + 7) * pinScale
+          {routeLines.map((route, index) => {
+            const isSelected = selectedRoute?.id === route.id
+            const color = isSelected ? '#00ff00' : (route.color || '#ff00ff')
+            const strokeWidth = isSelected ? 3 : 2
+            const startPoint = route.points[0]
 
             // Routes are already normalized to natural dimensions
             // No scaling needed since viewBox matches natural dimensions
@@ -194,66 +170,40 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
 
 
 
-             const d = smoothSvgPath(scaledPoints, naturalWidth, naturalHeight)
-
-             return (
-               <g key={route.id}>
-                 <path
-                   d={d}
-                   stroke="transparent"
-                   strokeWidth={22}
-                   fill="none"
-                   strokeLinecap="round"
-                   strokeLinejoin="round"
-                   pointerEvents="stroke"
-                   style={{ cursor: 'pointer' }}
-                   onClick={() => onSelectRoute(route.id)}
-                 />
-                  <path
-                    d={d}
-                    stroke={color}
-                    strokeWidth={strokeWidth}
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    vectorEffect="non-scaling-stroke"
-                    pointerEvents="none"
-                  />
-                  {startPoint && (
-                    <>
-                      <circle
-                        cx={startPoint.x * naturalWidth}
-                        cy={startPoint.y * naturalHeight}
-                        r={pinHitRadius}
-                        fill="transparent"
-                        pointerEvents="all"
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => onSelectRoute(route.id)}
-                      />
-                      <circle
-                        cx={startPoint.x * naturalWidth}
-                        cy={startPoint.y * naturalHeight}
-                        r={pinRadius}
-                        fill="#dc2626"
-                        pointerEvents="none"
-                      />
-                      <text
-                        x={startPoint.x * naturalWidth}
-                        y={startPoint.y * naturalHeight}
-                        fill="white"
-                        fontSize={pinFontSize}
-                        fontWeight="bold"
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        pointerEvents="none"
-                      >
-                        {number}
-                     </text>
-                   </>
-                 )}
-               </g>
-             )
-           })}
+            return (
+              <g key={route.id}>
+                <path
+                  d={smoothSvgPath(scaledPoints, naturalWidth, naturalHeight)}
+                  stroke={color}
+                  strokeWidth={strokeWidth + 0.5}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {startPoint && (
+                  <>
+                    <circle
+                      cx={startPoint.x * naturalWidth}
+                      cy={startPoint.y * naturalHeight}
+                      r={16}
+                      fill="#dc2626"
+                    />
+                    <text
+                      x={startPoint.x * naturalWidth}
+                      y={startPoint.y * naturalHeight}
+                      fill="white"
+                      fontSize={12}
+                      fontWeight="bold"
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                    >
+                      {index + 1}
+                    </text>
+                  </>
+                )}
+              </g>
+            )
+          })}
         </svg>
       )}
     </div>
@@ -290,15 +240,6 @@ export default function ImagePage() {
     return image.route_lines.find((r) => r.id === selectedRouteId) || null
   }, [image, selectedRouteId])
 
-  const routeNumberById = useMemo(() => {
-    const m: Record<string, number> = {}
-    if (!image?.route_lines) return m
-    image.route_lines.forEach((r, idx) => {
-      m[r.id] = idx + 1
-    })
-    return m
-  }, [image?.route_lines])
-
   const lastStatusClimbIdRef = useRef<string | null>(null)
 
   const routesPreviewLimit = 10
@@ -320,46 +261,8 @@ export default function ImagePage() {
   }, [])
 
   useEffect(() => {
-    let cancelled = false
-
-    const loadFromOffline = async () => {
-      try {
-        const rec = await getOfflineImage(imageId)
-        if (!rec) return false
-
-        const meta = await getOfflineCragMeta(rec.cragId)
-        if (cancelled) return true
-
-        setImage({
-          id: rec.imageId,
-          url: rec.url,
-          latitude: rec.latitude,
-          longitude: rec.longitude,
-          width: rec.width ?? undefined,
-          height: rec.height ?? undefined,
-          natural_width: rec.natural_width,
-          natural_height: rec.natural_height,
-          route_lines: rec.route_lines as unknown as ImageRoute[],
-        })
-        setCragId(rec.cragId)
-        setCragName(meta?.name || null)
-        setError(null)
-        setLoading(false)
-        return true
-      } catch {
-        return false
-      }
-    }
-
     const loadImage = async () => {
       if (!imageId) return
-      setLoading(true)
-      setError(null)
-
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        const ok = await loadFromOffline()
-        if (ok) return
-      }
 
       try {
         const supabase = createClient()
@@ -374,34 +277,35 @@ export default function ImagePage() {
 
         let cragName = null
         if (imageData.crag_id) {
-          const { data: cragData } = await supabase.from('crags').select('name').eq('id', imageData.crag_id).single()
+          const { data: cragData } = await supabase
+            .from('crags')
+            .select('name')
+            .eq('id', imageData.crag_id)
+            .single()
           cragName = cragData?.name
         }
 
         const { data: routeLines, error: routeError } = await supabase
           .from('route_lines')
-          .select(
-            `
+          .select(`
             id,
             points,
             color,
             climb_id,
             image_width,
             image_height,
-            sequence_order,
-            created_at,
             climbs (
               id,
               name,
               grade,
-              description,
-              route_type
+              description
             )
-          `
-          )
+          `)
           .eq('image_id', imageId)
-          .order('sequence_order', { ascending: true })
-          .order('created_at', { ascending: true })
+
+
+
+
 
         if (routeError) throw routeError
 
@@ -412,18 +316,15 @@ export default function ImagePage() {
           climb_id: string
           image_width: number | null
           image_height: number | null
-          sequence_order: number | null
-          created_at: string | null
           climbs: {
             id: string
             name: string | null
             grade: string | null
             description: string | null
-            route_type: string | null
           } | null
         }
 
-        const formattedRoutes: ImageRoute[] = ((routeLines as unknown as RawRouteLine[]) || []).map((rl) => ({
+        const formattedRoutes: ImageRoute[] = (routeLines as unknown as RawRouteLine[] || []).map((rl) => ({
           id: rl.id,
           points: rl.points,
           color: rl.color || '#ff00ff',
@@ -433,25 +334,27 @@ export default function ImagePage() {
             id: rl.climbs?.id || rl.climb_id || '',
             name: (rl.climbs?.name || '').trim() || null,
             grade: (rl.climbs?.grade || '').trim() || null,
-            description: (rl.climbs?.description || '').trim() || null,
-            route_type: rl.climbs?.route_type || null,
-          },
+            description: (rl.climbs?.description || '').trim() || null
+          }
         }))
-
-        if (cancelled) return
 
         setImage({
           ...imageData,
-          route_lines: formattedRoutes,
+          route_lines: formattedRoutes
         })
         setCragId(imageData.crag_id)
         setCragName(cragName || null)
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+        trackEvent('route_image_viewed', {
+          image_id: imageId,
+          route_count: formattedRoutes.length,
+          has_crag: !!imageData.crag_id,
+          crag_name: cragName,
+        })
+
+        const { data: { user } } = await supabase.auth.getUser()
         if (user && formattedRoutes.length > 0) {
-          const climbIds = formattedRoutes.map((r) => r.climb?.id).filter((id): id is string => id != null)
+          const climbIds = formattedRoutes.map(r => r.climb?.id).filter((id): id is string => id != null)
           const { data: logs } = await supabase
             .from('user_climbs')
             .select('climb_id, style')
@@ -460,7 +363,7 @@ export default function ImagePage() {
 
           if (logs) {
             const logsMap: Record<string, string> = {}
-            logs.forEach((log) => {
+            logs.forEach(log => {
               logsMap[log.climb_id] = log.style
             })
             setUserLogs(logsMap)
@@ -470,48 +373,31 @@ export default function ImagePage() {
         await checkFlagStatus(imageId)
       } catch (err) {
         console.error('Error loading image:', err)
-        const ok = await loadFromOffline()
-        if (!ok && !cancelled) setError('Failed to load image')
+        setError('Failed to load image')
       } finally {
-        if (!cancelled) setLoading(false)
+        setLoading(false)
       }
     }
 
     loadImage()
-
-    return () => {
-      cancelled = true
-    }
   }, [imageId])
 
   useEffect(() => {
     setShowAllRoutes(false)
   }, [imageId])
 
-  useEffect(() => {
-    if (!image || !selectedRouteId) return
-    const idx = image.route_lines.findIndex((r) => r.id === selectedRouteId)
-    if (idx < 0) return
-    if (idx >= routesPreviewLimit && !showAllRoutes) setShowAllRoutes(true)
-  }, [image, selectedRouteId, routesPreviewLimit, showAllRoutes])
-
-  const selectRouteById = (routeId: string) => {
+  const handleRouteClick = (route: ImageRoute, event: React.MouseEvent) => {
+    event.stopPropagation()
     const next = new URLSearchParams(searchParams.toString())
-    next.set('route', routeId)
+    next.set('route', route.id)
     next.set('tab', 'climb')
     router.push(`/image/${imageId}?${next.toString()}`)
 
     setClimbStatus(null)
-    const route = image?.route_lines.find((r) => r.id === routeId) || null
-    if (route?.climb?.id) {
+    if (route.climb?.id) {
       lastStatusClimbIdRef.current = route.climb.id
       fetchClimbStatus(route.climb.id)
     }
-  }
-
-  const handleRouteClick = (route: ImageRoute, event: React.MouseEvent) => {
-    event.stopPropagation()
-    selectRouteById(route.id)
   }
 
   async function fetchClimbStatus(climbId: string) {
@@ -583,6 +469,12 @@ export default function ImagePage() {
       if (!response.ok) throw new Error('Failed to log')
 
       const route = image?.route_lines.find(r => r.climb?.id === climbId)
+      trackClimbLogged(
+        climbId,
+        route?.climb?.name || 'Unknown',
+        route?.climb?.grade || 'Unknown',
+        style
+      )
 
       setUserLogs(prev => ({ ...prev, [climbId]: style }))
       setToast(`Route logged as ${style}!`)
@@ -637,8 +529,6 @@ export default function ImagePage() {
           selectedRoute={selectedRoute}
           naturalWidth={image.natural_width || image.width || 800}
           naturalHeight={image.natural_height || image.height || 600}
-          routeNumberById={routeNumberById}
-          onSelectRoute={selectRouteById}
         />
       </div>
 
@@ -693,7 +583,6 @@ export default function ImagePage() {
               {(showAllRoutes ? image.route_lines : image.route_lines.slice(0, routesPreviewLimit)).map((route, index) => {
                 const isLogged = route.climb?.id ? !!userLogs[route.climb.id] : false
                 const isSelected = selectedRoute?.id === route.id
-                const routeNumber = routeNumberById[route.id] ?? index + 1
                 return (
                   <button
                     key={route.id}
@@ -707,17 +596,8 @@ export default function ImagePage() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 min-w-0">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className={`inline-flex items-center justify-center rounded-full px-2 py-1 text-xs font-semibold tabular-nums shadow-sm shrink-0 ${
-                          isSelected
-                            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-                            : 'bg-white/90 text-gray-900 dark:bg-gray-800/80 dark:text-gray-100 border border-gray-200 dark:border-gray-700'
-                        }`}>
-                          {routeNumber}
-                        </span>
-                        <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                          {(route.climb?.name || '').trim() || `Route ${routeNumber}`}
-                        </span>
+                      <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                        {(route.climb?.name || '').trim() || `Route ${index + 1}`}
                       </span>
                       <span className={`text-sm px-2 py-0.5 rounded ${
                         isLogged
@@ -770,24 +650,6 @@ export default function ImagePage() {
             </button>
           )}
         </div>
-
-        {(() => {
-          const uniqueTypes = [...new Set(
-            image.route_lines
-              .map(r => r.climb?.route_type)
-              .filter(Boolean)
-          )].sort()
-          if (uniqueTypes.length === 0) return null
-          return (
-            <div className="flex flex-wrap gap-2 mt-3">
-              {uniqueTypes.map(type => (
-                <span key={type} className="px-3 py-1 rounded-full text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 capitalize">
-                  {type!.replace('-', ' ')}
-                </span>
-              ))}
-            </div>
-          )
-        })()}
       </div>
 
       {flagModalOpen && (
