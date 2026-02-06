@@ -1,7 +1,4 @@
-import { spawnSync } from 'node:child_process'
-import crypto from 'node:crypto'
-import type { NextConfig } from 'next'
-import withSerwistInit from '@serwist/next'
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['http://127.0.0.1:3000', 'http://localhost:3000'],
@@ -30,17 +27,6 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', 'leaflet'],
   },
-}
+};
 
-const revision =
-  spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf-8' }).stdout?.trim() || crypto.randomUUID()
-
-const withSerwist = withSerwistInit({
-  swSrc: 'app/sw.ts',
-  swDest: 'public/sw.js',
-  register: true,
-  disable: process.env.NODE_ENV === 'development',
-  additionalPrecacheEntries: [{ url: '/~offline', revision }],
-})
-
-export default withSerwist(nextConfig)
+export default nextConfig;
