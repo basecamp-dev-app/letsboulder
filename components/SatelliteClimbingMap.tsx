@@ -12,7 +12,6 @@ import type { User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 
 import 'leaflet/dist/leaflet.css'
-import { trackEvent, trackRouteClicked } from '@/lib/posthog'
 
 interface LeafletIconDefault {
   prototype: {
@@ -524,10 +523,6 @@ export default function SatelliteClimbingMap() {
         worldCopyJump={false}
         whenReady={() => {
           setMapLoaded(true)
-          trackEvent('map_viewed', {
-            has_user_location: !!userLocation,
-            use_default_location: !useUserLocation,
-          })
         }}
       >
         <DefaultLocationWatcher defaultLocation={defaultLocation} mapRef={mapRef} />

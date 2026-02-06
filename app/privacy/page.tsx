@@ -49,7 +49,7 @@ export default function PrivacyPage() {
             2.2 Information Collected Automatically
           </h3>
           <p className="text-gray-700 dark:text-gray-300">
-            Usage data, IP address, browser type, operating system, cookies, and similar tracking technologies. We use PostHog, a privacy-first analytics service, to help us understand how users interact with our app.
+            Usage data, IP address, browser type, operating system, cookies, and similar tracking technologies. We may collect anonymous usage metrics to help us understand how users interact with our app.
           </p>
 
           <h3 className="text-lg font-medium mt-4 mb-2 text-gray-900 dark:text-gray-100">
@@ -102,7 +102,7 @@ export default function PrivacyPage() {
             4.2 Service Providers
           </h3>
           <p className="text-gray-700 dark:text-gray-300">
-            We use Supabase for authentication/database, Vercel for hosting, and PostHog for analytics. These services have access to information necessary to perform their functions.
+            We use Supabase for authentication/database and Vercel for hosting. These services have access to information necessary to perform their functions.
           </p>
 
           <h3 className="text-lg font-medium mt-4 mb-2 text-gray-900 dark:text-gray-100">
@@ -180,7 +180,7 @@ export default function PrivacyPage() {
             8. Cookies
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            We use cookies for authentication, preferences, and analytics through third-party services including PostHog. You can control cookies through your browser settings.
+            We use cookies for authentication and preferences. You can control cookies through your browser settings.
           </p>
         </section>
 
@@ -189,7 +189,7 @@ export default function PrivacyPage() {
             9. Analytics
           </h2>
           <p className="text-gray-700 dark:text-gray-300">
-            We use PostHog, a privacy-respecting analytics tool, to understand how users interact with our application. PostHog helps us improve our services by showing us aggregate usage patterns. PostHog does not sell your data and is configured to minimize personal information collection.
+            We may collect anonymous usage metrics to understand how users interact with our application. This helps us improve our services by showing us aggregate usage patterns.
           </p>
           <p className="text-gray-700 dark:text-gray-300 mt-2">
             You can opt out of analytics tracking by{' '}
@@ -253,8 +253,8 @@ export default function PrivacyPage() {
             13.2 Analytics Transfers
           </h3>
           <p className="text-gray-700 dark:text-gray-300 mb-4">
-            PostHog processes analytics data in the United States under Standard
-            Contractual Clauses (SCCs) approved by the European Commission.
+            If we use third-party analytics vendors, some analytics data may be processed
+            outside the EU/UK under appropriate safeguards.
           </p>
 
           <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
