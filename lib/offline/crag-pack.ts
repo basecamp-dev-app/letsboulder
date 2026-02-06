@@ -496,8 +496,8 @@ export async function downloadCragForOffline(
 
   await asyncPool(4, imageRecords, async (img) => {
     try {
-      const res = await fetch(img.url, { cache: 'no-cache', mode: 'no-cors' })
-      if (res.type === 'opaque' || res.ok) {
+      const res = await fetch(img.url, { cache: 'no-cache' })
+      if (res.ok || res.type === 'opaque') {
         await putInOfflineCache(img.url, res.clone())
       }
     } finally {
