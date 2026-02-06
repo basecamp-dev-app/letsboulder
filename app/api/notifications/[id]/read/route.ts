@@ -37,7 +37,7 @@ export async function POST(
 
     const { error } = await supabase
       .from('notifications')
-      .update({ read_at: new Date().toISOString() })
+      .update({ is_read: true })
       .eq('id', notificationId)
       .eq('user_id', user.id)
 
