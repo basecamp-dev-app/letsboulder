@@ -1,7 +1,6 @@
-
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import nextDynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
@@ -9,6 +8,7 @@ import { createClient } from '@/lib/supabase'
 import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData, ClimbType } from '@/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
+import { ToastContainer, useToast } from '@/components/logbook/toast'
 
 const dynamic = nextDynamic
 
@@ -19,6 +19,7 @@ const LocationPicker = dynamic(() => import('./components/LocationPicker'), { ss
 
 function SubmitPageContent() {
   const { routes, setRoutes, setIsSubmitting, isSubmitting } = useSubmitContext()
+  const { toasts, addToast, removeToast } = useToast()
   const [step, setStep] = useState<SubmissionStep>({ step: 'image' })
   const [selectedRouteType, setSelectedRouteType] = useState<ClimbType | null>(null)
   const [context, setContext] = useState<SubmissionContext>({
@@ -30,6 +31,61 @@ function SubmitPageContent() {
   })
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const moderationPollRef = useRef<{ intervalId: number | null; timeoutId: number | null }>({ intervalId: null, timeoutId: null })
+  const hasShownRejectionToastRef = useRef(false)
+
+  const stopModerationPolling = useCallback(() => {
+    if (moderationPollRef.current.intervalId) {
+      window.clearInterval(moderationPollRef.current.intervalId)
+    }
+    if (moderationPollRef.current.timeoutId) {
+      window.clearTimeout(moderationPollRef.current.timeoutId)
+    }
+    moderationPollRef.current = { intervalId: null, timeoutId: null }
+  }, [])
+
+  const startModerationRejectionPolling = useCallback(() => {
+    if (hasShownRejectionToastRef.current) return
+    stopModerationPolling()
+
+    const pollOnce = async () => {
+      if (hasShownRejectionToastRef.current) return
+
+      try {
+        const res = await fetch('/api/notifications?unread_only=true&limit=20')
+        if (!res.ok) return
+        const data = await res.json().catch(() => null)
+        const notifications = (data?.notifications || []) as Array<{ id: string; type?: string; title?: string }>
+
+        const rejection = notifications.find((n) => n.type === 'moderation' && n.title === 'Photo rejected')
+        if (!rejection) return
+
+        hasShownRejectionToastRef.current = true
+        stopModerationPolling()
+        addToast('Image rejected.', 'error')
+
+        await csrfFetch(`/api/notifications/${rejection.id}/read`, { method: 'POST' }).catch(() => {})
+      } catch {
+        // Ignore polling errors; user can still see notification later.
+      }
+    }
+
+    void pollOnce()
+
+    moderationPollRef.current.intervalId = window.setInterval(() => {
+      void pollOnce()
+    }, 1500)
+
+    moderationPollRef.current.timeoutId = window.setTimeout(() => {
+      stopModerationPolling()
+    }, 30000)
+  }, [addToast, stopModerationPolling])
+
+  useEffect(() => {
+    return () => {
+      stopModerationPolling()
+    }
+  }, [stopModerationPolling])
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -242,8 +298,13 @@ function SubmitPageContent() {
         climbsCreated: data.climbsCreated,
         imageId: data.imageId
       })
+
+      if (context.image.mode === 'new') {
+        startModerationRejectionPolling()
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission failed')
+    } finally {
       setIsSubmitting(false)
     }
   }
@@ -418,6 +479,7 @@ function SubmitPageContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
       <main className="max-w-4xl mx-auto px-4 py-8">
         {renderStep()}
       </main>
