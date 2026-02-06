@@ -148,8 +148,8 @@ export default function LocationPicker({ initialGps, onConfirm, regionName, crag
         >
           <MapClickHandler onClick={handleMapClick} />
           <TileLayer
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            attribution='Tiles © Esri'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
           {position && leaflet && (
             <Marker
