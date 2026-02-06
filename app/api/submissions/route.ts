@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
   const debugAuth = process.env.DEBUG_SUBMISSIONS_AUTH === '1'
   const requestUrl = new URL(request.url)
 
-  const response = NextResponse.next({ request: { headers: request.headers } })
+  let response = NextResponse.next({ request: { headers: request.headers } })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -111,7 +111,8 @@ export async function POST(request: NextRequest) {
           authError: authError ? { name: authError.name, message: authError.message } : null,
         })
       }
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401, headers: response.headers })
+      response = NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      return response
     }
 
     if (debugAuth) {
@@ -128,11 +129,13 @@ export async function POST(request: NextRequest) {
     const body: SubmissionRequest = await request.json()
 
     if (!body.routes || body.routes.length === 0) {
-      return NextResponse.json({ error: 'At least one route is required' }, { status: 400, headers: response.headers })
+      response = NextResponse.json({ error: 'At least one route is required' }, { status: 400 })
+      return response
     }
 
     if (body.routeType && !VALID_ROUTE_TYPES.includes(body.routeType)) {
-      return NextResponse.json({ error: 'Invalid route type' }, { status: 400, headers: response.headers })
+      response = NextResponse.json({ error: 'Invalid route type' }, { status: 400 })
+      return response
     }
 
     const today = new Date().toISOString().split('T')[0]
@@ -144,20 +147,24 @@ export async function POST(request: NextRequest) {
       .gte('created_at', `${today}T00:00:00`)
 
     if ((todayRoutes || 0) + body.routes.length > MAX_ROUTES_PER_DAY) {
-      return NextResponse.json({
+      response = NextResponse.json({
         error: `Daily limit exceeded. You can submit ${MAX_ROUTES_PER_DAY} routes per day. You have ${(todayRoutes || 0)} already and are trying to submit ${body.routes.length}.`
-      }, { status: 429, headers: response.headers })
+      }, { status: 429 })
+      return response
     }
 
     for (const route of body.routes) {
       if (!route.name || !route.name.trim()) {
-        return NextResponse.json({ error: 'Route name is required' }, { status: 400, headers: response.headers })
+        response = NextResponse.json({ error: 'Route name is required' }, { status: 400 })
+        return response
       }
       if (!VALID_GRADES.includes(route.grade as typeof VALID_GRADES[number])) {
-        return NextResponse.json({ error: `Invalid grade: ${route.grade}` }, { status: 400, headers: response.headers })
+        response = NextResponse.json({ error: `Invalid grade: ${route.grade}` }, { status: 400 })
+        return response
       }
       if (!route.points || route.points.length < 2) {
-        return NextResponse.json({ error: 'Route must have at least 2 points' }, { status: 400, headers: response.headers })
+        response = NextResponse.json({ error: 'Route must have at least 2 points' }, { status: 400 })
+        return response
       }
     }
 
@@ -167,10 +174,12 @@ export async function POST(request: NextRequest) {
 
     if (body.mode === 'new') {
       if (!body.imageUrl) {
-        return NextResponse.json({ error: 'Image URL is required' }, { status: 400, headers: response.headers })
+        response = NextResponse.json({ error: 'Image URL is required' }, { status: 400 })
+        return response
       }
       if (!body.cragId) {
-        return NextResponse.json({ error: 'Crag ID is required' }, { status: 400, headers: response.headers })
+        response = NextResponse.json({ error: 'Crag ID is required' }, { status: 400 })
+        return response
       }
 
       imageUrl = body.imageUrl
@@ -234,7 +243,8 @@ export async function POST(request: NextRequest) {
       }
     } else {
       if (!body.imageId) {
-        return NextResponse.json({ error: 'Image ID is required' }, { status: 400, headers: response.headers })
+        response = NextResponse.json({ error: 'Image ID is required' }, { status: 400 })
+        return response
       }
 
       const { data: existingImage, error: imageError } = await supabase
@@ -244,7 +254,8 @@ export async function POST(request: NextRequest) {
         .single()
 
       if (imageError || !existingImage) {
-        return NextResponse.json({ error: 'Image not found' }, { status: 404, headers: response.headers })
+        response = NextResponse.json({ error: 'Image not found' }, { status: 404 })
+        return response
       }
 
       imageId = existingImage.id
@@ -295,7 +306,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (!climbs || climbs.length === 0) {
-      return NextResponse.json({ error: 'Failed to create climbs' }, { status: 500, headers: response.headers })
+      response = NextResponse.json({ error: 'Failed to create climbs' }, { status: 500 })
+      return response
     }
 
     const routeLinesData = climbs.map((climb, index) => ({
@@ -332,12 +344,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    return NextResponse.json({
+    response = NextResponse.json({
       success: true,
       climbsCreated: climbs.length,
       routeLinesCreated: routeLinesData.length,
       imageId: imageId || undefined
-    }, { headers: response.headers })
+    })
+    return response
   } catch (error) {
     return createErrorResponse(error, 'Submission error')
   }
