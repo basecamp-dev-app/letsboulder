@@ -1,5 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { Redis } from '@upstash/redis'
+import { Ratelimit } from '@upstash/ratelimit'
 
 const ALLOWED_REDIRECT_PATHS = [
   '/',
@@ -13,6 +15,35 @@ const ALLOWED_REDIRECT_PATHS = [
   '/climb/',
   '/image/',
 ]
+
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for')
+  if (forwarded) {
+    const first = forwarded.split(',')[0]?.trim()
+    if (first) return first
+  }
+
+  const realIp = request.headers.get('x-real-ip')
+  if (realIp) return realIp
+
+  return 'unknown'
+}
+
+function getApiBucket(pathname: string): string {
+  if (
+    pathname.startsWith('/api/crags/search') ||
+    pathname.startsWith('/api/crags/nearby') ||
+    pathname.startsWith('/api/regions/search') ||
+    pathname.startsWith('/api/locations/search') ||
+    pathname.startsWith('/api/images/search')
+  ) {
+    return 'search'
+  }
+
+  if (pathname.startsWith('/api/rankings')) return 'rankings'
+
+  return 'default'
+}
 
 function isAllowedRedirectPath(path: string): boolean {
   return ALLOWED_REDIRECT_PATHS.some(allowed => {
@@ -29,6 +60,52 @@ export default async function proxy(request: NextRequest) {
   })
 
   const { pathname, searchParams } = request.nextUrl
+
+  if (process.env.VERCEL_ENV === 'production' && pathname.startsWith('/api/')) {
+    const url = process.env.UPSTASH_REDIS_REST_URL
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN
+    if (url && token) {
+      const redis = new Redis({ url, token })
+      const bucket = getApiBucket(pathname)
+      const ip = getClientIp(request)
+
+      const ratelimit =
+        bucket === 'search'
+          ? new Ratelimit({
+              redis,
+              limiter: Ratelimit.slidingWindow(60, '1 m'),
+              prefix: 'rl:api:search',
+            })
+          : bucket === 'rankings'
+            ? new Ratelimit({
+                redis,
+                limiter: Ratelimit.slidingWindow(120, '1 m'),
+                prefix: 'rl:api:rankings',
+              })
+            : new Ratelimit({
+                redis,
+                limiter: Ratelimit.slidingWindow(300, '1 m'),
+                prefix: 'rl:api:default',
+              })
+
+      const { success, limit, remaining, reset } = await ratelimit.limit(ip)
+
+      if (!success) {
+        return NextResponse.json(
+          { error: 'Rate limit exceeded. Please try again later.' },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))),
+              'X-RateLimit-Limit': String(limit),
+              'X-RateLimit-Remaining': String(remaining),
+              'X-RateLimit-Reset': String(Math.ceil(reset / 1000)),
+            },
+          }
+        )
+      }
+    }
+  }
 
   if (pathname === '/') {
     return NextResponse.redirect(new URL('/map', request.url), 301)

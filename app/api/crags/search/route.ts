@@ -23,7 +23,11 @@ export async function GET(request: NextRequest) {
   const lngParam = searchParams.get('lng')
 
   if (!query || query.length < 2) {
-    return NextResponse.json([])
+    return NextResponse.json([], {
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=300',
+      },
+    })
   }
 
   const hasLocation = latParam && lngParam
@@ -70,7 +74,11 @@ export async function GET(request: NextRequest) {
       results = results.slice(0, 30)
     }
 
-    return NextResponse.json(results)
+    return NextResponse.json(results, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=300',
+      },
+    })
   } catch (error) {
     return createErrorResponse(error, 'Error searching crags')
   }

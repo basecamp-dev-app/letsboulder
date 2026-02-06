@@ -20,14 +20,22 @@ export async function GET(request: NextRequest) {
   const lngParam = searchParams.get('lng')
 
   if (!latParam || !lngParam) {
-    return NextResponse.json([])
+    return NextResponse.json([], {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+      },
+    })
   }
 
   const latitude = parseFloat(latParam)
   const longitude = parseFloat(lngParam)
 
   if (isNaN(latitude) || isNaN(longitude)) {
-    return NextResponse.json([])
+    return NextResponse.json([], {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+      },
+    })
   }
 
   const latRange = 0.1
@@ -49,7 +57,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (!crags || crags.length === 0) {
-      return NextResponse.json([])
+      return NextResponse.json([], {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+        },
+      })
     }
 
     const results = crags
@@ -66,7 +78,11 @@ export async function GET(request: NextRequest) {
       })
       .slice(0, 30)
 
-    return NextResponse.json(results)
+    return NextResponse.json(results, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=600',
+      },
+    })
   } catch (error) {
     return createErrorResponse(error, 'Error fetching nearby crags')
   }

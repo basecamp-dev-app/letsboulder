@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Crag } from '@/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 
@@ -41,6 +41,9 @@ export default function CragSelector({
   const [nearbyCrags, setNearbyCrags] = useState<NearbyCragResult[]>([])
   const [nearbyLoading, setNearbyLoading] = useState(false)
 
+  const abortRef = useRef<AbortController | null>(null)
+  const searchCacheRef = useRef(new Map<string, { ts: number; data: CragSearchResult[] }>())
+
   const fetchNearbyCrags = useCallback(async () => {
     if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) {
       return
@@ -69,29 +72,51 @@ export default function CragSelector({
   }, [fetchNearbyCrags])
 
   const searchCrags = useCallback(async (searchQuery: string) => {
-    if (searchQuery.length < 2) {
+    const normalizedQuery = searchQuery.trim().toLowerCase()
+
+    if (normalizedQuery.length < 2) {
       setResults([])
+      return
+    }
+
+    const cacheKey = `${normalizedQuery}|${latitude ?? ''}|${longitude ?? ''}`
+    const cached = searchCacheRef.current.get(cacheKey)
+    const now = Date.now()
+    const cacheTtlMs = 2 * 60 * 1000
+    if (cached && now - cached.ts < cacheTtlMs) {
+      setResults(cached.data)
       return
     }
 
     setLoading(true)
     setErrorMessage('')
     try {
-      const params = new URLSearchParams({ q: searchQuery })
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+
+      const params = new URLSearchParams({ q: normalizedQuery })
       if (latitude !== null && latitude !== undefined && longitude !== null && longitude !== undefined) {
         params.set('lat', latitude.toString())
         params.set('lng', longitude.toString())
       }
-      const response = await fetch(`/api/crags/search?${params}`)
+
+      const response = await fetch(`/api/crags/search?${params}`, {
+        signal: controller.signal,
+      })
       if (response.ok) {
         const data = await response.json()
         setResults(data)
+        searchCacheRef.current.set(cacheKey, { ts: Date.now(), data })
       } else {
         const errorData = await response.json().catch(() => ({}))
         setErrorMessage(errorData.error || 'Failed to search crags')
         setResults([])
       }
-      } catch {
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return
+      }
       setErrorMessage('Failed to search crags')
       setResults([])
     } finally {
@@ -104,10 +129,16 @@ export default function CragSelector({
       if (query.length >= 2) {
         searchCrags(query)
       }
-    }, 300)
+    }, 600)
 
     return () => clearTimeout(timer)
   }, [query, searchCrags])
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+    }
+  }, [])
 
   const handleSelect = (crag: Crag) => {
     setQuery(crag.name)
