@@ -22,6 +22,7 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
+  runtimeCaching: defaultCache,
   fallbacks: {
     entries: [
       {
@@ -73,9 +74,5 @@ serwist.registerCapture(
     ],
   })
 )
-
-for (const entry of defaultCache) {
-  serwist.registerCapture(entry.matcher, entry.handler, entry.method)
-}
 
 serwist.addEventListeners()
