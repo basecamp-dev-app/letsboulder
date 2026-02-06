@@ -1,7 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { Redis } from '@upstash/redis'
-import { Ratelimit } from '@upstash/ratelimit'
 
 const ALLOWED_REDIRECT_PATHS = [
   '/',
@@ -64,45 +62,68 @@ export default async function proxy(request: NextRequest) {
   if (process.env.VERCEL_ENV === 'production' && pathname.startsWith('/api/')) {
     const url = process.env.UPSTASH_REDIS_REST_URL
     const token = process.env.UPSTASH_REDIS_REST_TOKEN
-    if (url && token) {
-      const redis = new Redis({ url, token })
-      const bucket = getApiBucket(pathname)
-      const ip = getClientIp(request)
 
-      const ratelimit =
-        bucket === 'search'
-          ? new Ratelimit({
-              redis,
-              limiter: Ratelimit.slidingWindow(60, '1 m'),
-              prefix: 'rl:api:search',
-            })
-          : bucket === 'rankings'
+    if (url && token) {
+      try {
+        const upstashRedis = await eval("import('@upstash/redis')")
+          .catch(() => null) as unknown
+        const upstashRatelimit = await eval("import('@upstash/ratelimit')")
+          .catch(() => null) as unknown
+        if (!upstashRedis || !upstashRatelimit) {
+          console.warn('Upstash rate limiting deps missing; skipping')
+          return supabaseResponse
+        }
+
+        const { Redis } = upstashRedis as { Redis: new (args: { url: string; token: string }) => unknown }
+        const { Ratelimit } = upstashRatelimit as {
+          Ratelimit: (new (args: { redis: unknown; limiter: unknown; prefix: string }) => {
+            limit: (key: string) => Promise<{ success: boolean; limit: number; remaining: number; reset: number }>
+          }) & {
+            slidingWindow: (tokens: number, window: string) => unknown
+          }
+        }
+
+        const redis = new Redis({ url, token })
+        const bucket = getApiBucket(pathname)
+        const ip = getClientIp(request)
+
+        const ratelimit =
+          bucket === 'search'
             ? new Ratelimit({
                 redis,
-                limiter: Ratelimit.slidingWindow(120, '1 m'),
-                prefix: 'rl:api:rankings',
+                limiter: Ratelimit.slidingWindow(60, '1 m'),
+                prefix: 'rl:api:search',
               })
-            : new Ratelimit({
-                redis,
-                limiter: Ratelimit.slidingWindow(300, '1 m'),
-                prefix: 'rl:api:default',
-              })
+            : bucket === 'rankings'
+              ? new Ratelimit({
+                  redis,
+                  limiter: Ratelimit.slidingWindow(120, '1 m'),
+                  prefix: 'rl:api:rankings',
+                })
+              : new Ratelimit({
+                  redis,
+                  limiter: Ratelimit.slidingWindow(300, '1 m'),
+                  prefix: 'rl:api:default',
+                })
 
-      const { success, limit, remaining, reset } = await ratelimit.limit(ip)
+        const { success, limit, remaining, reset } = await ratelimit.limit(ip)
 
-      if (!success) {
-        return NextResponse.json(
-          { error: 'Rate limit exceeded. Please try again later.' },
-          {
-            status: 429,
-            headers: {
-              'Retry-After': String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))),
-              'X-RateLimit-Limit': String(limit),
-              'X-RateLimit-Remaining': String(remaining),
-              'X-RateLimit-Reset': String(Math.ceil(reset / 1000)),
-            },
-          }
-        )
+        if (!success) {
+          return NextResponse.json(
+            { error: 'Rate limit exceeded. Please try again later.' },
+            {
+              status: 429,
+              headers: {
+                'Retry-After': String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))),
+                'X-RateLimit-Limit': String(limit),
+                'X-RateLimit-Remaining': String(remaining),
+                'X-RateLimit-Reset': String(Math.ceil(reset / 1000)),
+              },
+            }
+          )
+        }
+      } catch (error) {
+        console.warn('Upstash rate limiting unavailable:', error)
       }
     }
   }
