@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import { CsrfProvider } from '@/components/csrf-provider'
 import AppLayout from '@/components/AppLayout'
@@ -184,6 +185,7 @@ export default function RootLayout({
       >
         <CsrfProvider />
         <AppLayout>{children}</AppLayout>
+        <Analytics />
       </body>
     </html>
   )
