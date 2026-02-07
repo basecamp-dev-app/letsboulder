@@ -39,6 +39,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       url: `/image/${id}`,
       images: image.url ? [{ url: image.url, width: 1200, height: 630, alt: 'Route image' }] : [],
     },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${title} | letsboulder`,
+      description: `View climbing route image${cragName ? ` at ${cragName}` : ''} on letsboulder.`,
+      images: image.url ? [image.url] : ['/og.png'],
+    },
   }
 }
 

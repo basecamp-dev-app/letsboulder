@@ -157,11 +157,11 @@ export default function Header() {
     setShowSearchDropdown(false)
     setSearchQuery('')
     if (result.type === 'climb' && result.latitude && result.longitude) {
-      router.push(`/map?lat=${result.latitude}&lng=${result.longitude}&zoom=16&climbId=${result.id}`)
+      router.push(`/?lat=${result.latitude}&lng=${result.longitude}&zoom=16&climbId=${result.id}`)
     } else if (result.latitude && result.longitude) {
-      router.push(`/map?lat=${result.latitude}&lng=${result.longitude}&zoom=15`)
+      router.push(`/?lat=${result.latitude}&lng=${result.longitude}&zoom=15`)
     } else {
-      router.push('/map')
+      router.push('/')
     }
   }
 
@@ -173,7 +173,7 @@ export default function Header() {
 
   return (
     <header ref={headerRef} className={`fixed top-0 left-0 right-0 z-[5000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none ${
-      pathname === '/map' ? 'block' : 'hidden md:block'
+      pathname === '/' || pathname === '/map' ? 'block' : 'hidden md:block'
     }`}>
       <div className="container mx-auto px-4 py-2 flex justify-between items-center gap-4">
         <Link href="/" className="flex items-center flex-shrink-0 -my-4">
@@ -238,7 +238,7 @@ export default function Header() {
           <Link href="/logbook" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Logbook
           </Link>
-          <Link href="/map" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <Link href="/" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Map
           </Link>
           <Link href="/submit" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">

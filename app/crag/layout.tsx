@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params
   const { data: crag } = await supabase
     .from('crags')
-    .select('name, region_name, country, regions(name)')
+    .select('name, region_name, country, slug, country_code, regions(name)')
     .eq('id', id)
     .single()
 
@@ -28,17 +28,26 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const locationParts = [crag.region_name, regionName, crag.country].filter(Boolean) as string[]
   const title = locationParts.length > 0 ? `${crag.name}, ${locationParts[0]}` : `${crag.name}`
   const locationSuffix = locationParts.length > 0 ? ` in ${locationParts.join(', ')}` : ''
+  const canonicalPath = crag.slug && crag.country_code
+    ? `/${crag.country_code.toLowerCase()}/${crag.slug}`
+    : `/crag/${id}`
 
   return {
     title,
     description: `View climbing routes at ${crag.name}${locationSuffix}. Discover photo topos, beta, access info, and nearby climbs.`,
     alternates: {
-      canonical: `/crag/${id}`,
+      canonical: canonicalPath,
     },
     openGraph: {
       title: `${title} | letsboulder`,
       description: `View climbing routes at ${crag.name}${locationSuffix}.`,
-      url: `/crag/${id}`,
+      url: canonicalPath,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${title} | letsboulder`,
+      description: `View climbing routes at ${crag.name}${locationSuffix}.`,
+      images: ['/og.png'],
     },
   }
 }
