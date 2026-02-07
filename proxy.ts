@@ -61,6 +61,10 @@ export default async function proxy(request: NextRequest) {
 
   const { pathname, searchParams } = request.nextUrl
 
+  if (pathname === '/map') {
+    return NextResponse.redirect(new URL('/', request.url), 308)
+  }
+
   if (process.env.VERCEL_ENV === 'production' && pathname.startsWith('/api/')) {
     const url = process.env.UPSTASH_REDIS_REST_URL
     const token = process.env.UPSTASH_REDIS_REST_TOKEN
@@ -105,10 +109,6 @@ export default async function proxy(request: NextRequest) {
         )
       }
     }
-  }
-
-  if (pathname === '/') {
-    return NextResponse.redirect(new URL('/map', request.url), 301)
   }
 
   if (pathname === '/auth') {
