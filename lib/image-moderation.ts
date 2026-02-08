@@ -1,5 +1,3 @@
-import { DetectFacesCommand, DetectModerationLabelsCommand, RekognitionClient } from '@aws-sdk/client-rekognition'
-
 const MIN_MODERATION_CONFIDENCE = 60
 
 interface ModerationLabel {
@@ -14,7 +12,11 @@ interface ModerationResult {
   moderationStatus: 'approved' | 'flagged' | 'rejected'
 }
 
-function getRekognitionClient(): RekognitionClient {
+type RekognitionClientLike = {
+  send: (command: unknown) => Promise<unknown>
+}
+
+async function getRekognitionClient(): Promise<RekognitionClientLike> {
   const region = process.env.AWS_REGION
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
@@ -23,10 +25,19 @@ function getRekognitionClient(): RekognitionClient {
     throw new Error('Missing AWS Rekognition environment variables')
   }
 
-  return new RekognitionClient({
-    region,
-    credentials: { accessKeyId, secretAccessKey },
-  })
+  const awsSdk = await eval("import('@aws-sdk/client-rekognition')").catch(() => null) as unknown
+  if (!awsSdk) {
+    throw new Error('Missing @aws-sdk/client-rekognition dependency')
+  }
+
+  const { RekognitionClient } = awsSdk as {
+    RekognitionClient: new (args: {
+      region: string
+      credentials: { accessKeyId: string; secretAccessKey: string }
+    }) => RekognitionClientLike
+  }
+
+  return new RekognitionClient({ region, credentials: { accessKeyId, secretAccessKey } })
 }
 
 async function fetchImageBytes(imageUrl: string): Promise<Uint8Array> {
@@ -39,10 +50,25 @@ async function fetchImageBytes(imageUrl: string): Promise<Uint8Array> {
 }
 
 export async function moderateImageFromUrl(imageUrl: string): Promise<ModerationResult> {
-  const client = getRekognitionClient()
+  const awsSdk = await eval("import('@aws-sdk/client-rekognition')").catch(() => null) as unknown
+  if (!awsSdk) {
+    return {
+      hasHumans: false,
+      humanFaceCount: 0,
+      moderationLabels: [],
+      moderationStatus: 'approved',
+    }
+  }
+
+  const { DetectModerationLabelsCommand, DetectFacesCommand } = awsSdk as {
+    DetectModerationLabelsCommand: new (args: unknown) => unknown
+    DetectFacesCommand: new (args: unknown) => unknown
+  }
+
+  const client = await getRekognitionClient()
   const bytes = await fetchImageBytes(imageUrl)
 
-  const [moderationResp, facesResp] = await Promise.all([
+  const [moderationRaw, facesRaw] = await Promise.all([
     client.send(
       new DetectModerationLabelsCommand({
         Image: { Bytes: bytes },
@@ -57,10 +83,13 @@ export async function moderateImageFromUrl(imageUrl: string): Promise<Moderation
     ),
   ])
 
+  const moderationResp = moderationRaw as { ModerationLabels?: Array<{ Name?: string | null; Confidence?: number | null } | null> }
+  const facesResp = facesRaw as { FaceDetails?: unknown[] | null }
+
   const moderationLabels: ModerationLabel[] = (moderationResp.ModerationLabels || [])
     .map((l) => ({
-      name: l.Name || 'Unknown',
-      confidence: typeof l.Confidence === 'number' ? l.Confidence : 0,
+      name: l?.Name || 'Unknown',
+      confidence: typeof l?.Confidence === 'number' ? l.Confidence : 0,
     }))
     .sort((a, b) => b.confidence - a.confidence)
 

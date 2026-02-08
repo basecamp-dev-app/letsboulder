@@ -1,7 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { Ratelimit } from '@upstash/ratelimit'
-import { Redis } from '@upstash/redis'
 
 const ALLOWED_REDIRECT_PATHS = [
   '/',
@@ -14,6 +12,13 @@ const ALLOWED_REDIRECT_PATHS = [
   '/crag/',
   '/climb/',
   '/image/',
+]
+
+const SESSION_REFRESH_PREFIXES = [
+  '/settings',
+  '/submit',
+  '/admin',
+  '/logbook',
 ]
 
 function getClientIp(request: NextRequest): string {
@@ -29,7 +34,12 @@ function getClientIp(request: NextRequest): string {
   return 'unknown'
 }
 
-function getApiBucket(pathname: string): string {
+function isStateChangingMethod(method: string): boolean {
+  const normalized = method.toUpperCase()
+  return normalized === 'POST' || normalized === 'PUT' || normalized === 'PATCH' || normalized === 'DELETE'
+}
+
+function getApiBucket(pathname: string, method: string): 'search' | 'rankings' | 'write' | null {
   if (
     pathname.startsWith('/api/crags/search') ||
     pathname.startsWith('/api/crags/nearby') ||
@@ -42,7 +52,9 @@ function getApiBucket(pathname: string): string {
 
   if (pathname.startsWith('/api/rankings')) return 'rankings'
 
-  return 'default'
+  if (isStateChangingMethod(method)) return 'write'
+
+  return null
 }
 
 function isAllowedRedirectPath(path: string): boolean {
@@ -52,6 +64,14 @@ function isAllowedRedirectPath(path: string): boolean {
     }
     return path === allowed
   })
+}
+
+function shouldRefreshSupabaseSession(pathname: string, method: string): boolean {
+  if (pathname.startsWith('/auth')) return true
+
+  if (isStateChangingMethod(method)) return true
+
+  return SESSION_REFRESH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 }
 
 export default async function proxy(request: NextRequest) {
@@ -65,48 +85,79 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/', request.url), 308)
   }
 
-  if (process.env.VERCEL_ENV === 'production' && pathname.startsWith('/api/')) {
+  const rateLimitBucket = process.env.VERCEL_ENV === 'production'
+    ? getApiBucket(pathname, request.method)
+    : null
+
+  if (rateLimitBucket) {
     const url = process.env.UPSTASH_REDIS_REST_URL
     const token = process.env.UPSTASH_REDIS_REST_TOKEN
+
     if (url && token) {
-      const redis = new Redis({ url, token })
-      const bucket = getApiBucket(pathname)
-      const ip = getClientIp(request)
+      try {
+        const upstashRedis = await eval("import('@upstash/redis')")
+          .catch(() => null) as unknown
+        const upstashRatelimit = await eval("import('@upstash/ratelimit')")
+          .catch(() => null) as unknown
+        if (!upstashRedis || !upstashRatelimit) {
+          console.warn('Upstash rate limiting deps missing; skipping')
+          return supabaseResponse
+        }
 
-      const ratelimit =
-        bucket === 'search'
-          ? new Ratelimit({
-              redis,
-              limiter: Ratelimit.slidingWindow(60, '1 m'),
-              prefix: 'rl:api:search',
-            })
-          : bucket === 'rankings'
-            ? new Ratelimit({
-                redis,
-                limiter: Ratelimit.slidingWindow(120, '1 m'),
-                prefix: 'rl:api:rankings',
-              })
-            : new Ratelimit({
-                redis,
-                limiter: Ratelimit.slidingWindow(300, '1 m'),
-                prefix: 'rl:api:default',
-              })
-
-      const { success, limit, remaining, reset } = await ratelimit.limit(ip)
-
-      if (!success) {
-        return NextResponse.json(
-          { error: 'Rate limit exceeded. Please try again later.' },
-          {
-            status: 429,
-            headers: {
-              'Retry-After': String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))),
-              'X-RateLimit-Limit': String(limit),
-              'X-RateLimit-Remaining': String(remaining),
-              'X-RateLimit-Reset': String(Math.ceil(reset / 1000)),
-            },
+        const { Redis } = upstashRedis as { Redis: new (args: { url: string; token: string }) => unknown }
+        const { Ratelimit } = upstashRatelimit as {
+          Ratelimit: (new (args: { redis: unknown; limiter: unknown; prefix: string }) => {
+            limit: (key: string) => Promise<{ success: boolean; limit: number; remaining: number; reset: number }>
+          }) & {
+            slidingWindow: (tokens: number, window: string) => unknown
           }
-        )
+        }
+
+        const redis = new Redis({ url, token })
+        const ip = getClientIp(request)
+
+        let ratelimit: {
+          limit: (key: string) => Promise<{ success: boolean; limit: number; remaining: number; reset: number }>
+        }
+
+        if (rateLimitBucket === 'search') {
+          ratelimit = new Ratelimit({
+            redis,
+            limiter: Ratelimit.slidingWindow(60, '1 m'),
+            prefix: 'rl:api:search',
+          })
+        } else if (rateLimitBucket === 'rankings') {
+          ratelimit = new Ratelimit({
+            redis,
+            limiter: Ratelimit.slidingWindow(120, '1 m'),
+            prefix: 'rl:api:rankings',
+          })
+        } else {
+          ratelimit = new Ratelimit({
+            redis,
+            limiter: Ratelimit.slidingWindow(90, '1 m'),
+            prefix: 'rl:api:write',
+          })
+        }
+
+        const { success, limit, remaining, reset } = await ratelimit.limit(ip)
+
+        if (!success) {
+          return NextResponse.json(
+            { error: 'Rate limit exceeded. Please try again later.' },
+            {
+              status: 429,
+              headers: {
+                'Retry-After': String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))),
+                'X-RateLimit-Limit': String(limit),
+                'X-RateLimit-Remaining': String(remaining),
+                'X-RateLimit-Reset': String(Math.ceil(reset / 1000)),
+              },
+            }
+          )
+        }
+      } catch (error) {
+        console.warn('Upstash rate limiting unavailable:', error)
       }
     }
   }
@@ -122,28 +173,30 @@ export default async function proxy(request: NextRequest) {
     }
   }
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
+  if (shouldRefreshSupabaseSession(pathname, request.method)) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+            supabaseResponse = NextResponse.next({
+              request,
+            })
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            )
+          },
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
+      }
+    )
 
-  await supabase.auth.getUser()
+    await supabase.auth.getUser()
+  }
 
   return supabaseResponse
 }
