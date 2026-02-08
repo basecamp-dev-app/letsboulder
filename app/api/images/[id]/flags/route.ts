@@ -61,11 +61,14 @@ export async function GET(
       return createErrorResponse(countError, 'Error counting flags')
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       user_has_flagged: !!existingFlag,
       flag: existingFlag || null,
       pending_flag_count: pendingCount || 0,
     })
+
+    response.headers.set('Cache-Control', 'private, max-age=60')
+    return response
   } catch (error) {
     return createErrorResponse(error, 'Flag status check error')
   }

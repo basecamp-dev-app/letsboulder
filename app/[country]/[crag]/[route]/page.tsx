@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { SITE_URL } from '@/lib/site'
+
+export const revalidate = 60
 
 interface RouteParams {
   country: string
@@ -43,11 +44,10 @@ interface RouteLineWithImage {
 }
 
 async function getSupabase() {
-  const cookieStore = await cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+    { cookies: { getAll() { return [] }, setAll() {} } }
   )
 }
 

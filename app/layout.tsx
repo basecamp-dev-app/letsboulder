@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
-import { CsrfProvider } from '@/components/csrf-provider'
 import AppLayout from '@/components/AppLayout'
 import {
   BRAND_NAME,
@@ -183,7 +182,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased pt-[calc(var(--app-header-offset)+env(safe-area-inset-top,0px))] md:pb-16 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
       >
-        <CsrfProvider />
         <AppLayout>{children}</AppLayout>
         <Analytics />
       </body>

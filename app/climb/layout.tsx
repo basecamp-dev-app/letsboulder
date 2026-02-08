@@ -1,13 +1,13 @@
 import { Metadata } from 'next'
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+
+export const revalidate = 300
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+    { cookies: { getAll() { return [] }, setAll() {} } }
   )
 
   const { id } = await params

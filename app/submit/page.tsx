@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import Link from 'next/link'
 import nextDynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
@@ -31,61 +32,72 @@ function SubmitPageContent() {
   })
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const moderationPollRef = useRef<{ intervalId: number | null; timeoutId: number | null }>({ intervalId: null, timeoutId: null })
+  const moderationRealtimeRef = useRef<{
+    client: ReturnType<typeof createClient> | null
+    channel: RealtimeChannel | null
+    timeoutId: number | null
+  }>({ client: null, channel: null, timeoutId: null })
   const hasShownRejectionToastRef = useRef(false)
 
-  const stopModerationPolling = useCallback(() => {
-    if (moderationPollRef.current.intervalId) {
-      window.clearInterval(moderationPollRef.current.intervalId)
+  const stopModerationRealtime = useCallback(() => {
+    if (moderationRealtimeRef.current.timeoutId) {
+      window.clearTimeout(moderationRealtimeRef.current.timeoutId)
     }
-    if (moderationPollRef.current.timeoutId) {
-      window.clearTimeout(moderationPollRef.current.timeoutId)
+
+    const { client, channel } = moderationRealtimeRef.current
+    if (client && channel) {
+      void client.removeChannel(channel)
     }
-    moderationPollRef.current = { intervalId: null, timeoutId: null }
+
+    moderationRealtimeRef.current = { client: null, channel: null, timeoutId: null }
   }, [])
 
-  const startModerationRejectionPolling = useCallback(() => {
+  const startModerationRejectionRealtime = useCallback((userId: string) => {
     if (hasShownRejectionToastRef.current) return
-    stopModerationPolling()
+    stopModerationRealtime()
 
-    const pollOnce = async () => {
-      if (hasShownRejectionToastRef.current) return
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`notifications-realtime-${userId}-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        async (payload) => {
+          if (hasShownRejectionToastRef.current) return
 
-      try {
-        const res = await fetch('/api/notifications?unread_only=true&limit=20')
-        if (!res.ok) return
-        const data = await res.json().catch(() => null)
-        const notifications = (data?.notifications || []) as Array<{ id: string; type?: string; title?: string }>
+          const notification = payload.new as { id?: string; type?: string; title?: string }
+          if (notification.type !== 'moderation' || notification.title !== 'Photo rejected') {
+            return
+          }
 
-        const rejection = notifications.find((n) => n.type === 'moderation' && n.title === 'Photo rejected')
-        if (!rejection) return
+          hasShownRejectionToastRef.current = true
+          stopModerationRealtime()
+          addToast('Image rejected.', 'error')
 
-        hasShownRejectionToastRef.current = true
-        stopModerationPolling()
-        addToast('Image rejected.', 'error')
+          if (notification.id) {
+            await csrfFetch(`/api/notifications/${notification.id}/read`, { method: 'POST' }).catch(() => {})
+          }
+        }
+      )
+      .subscribe()
 
-        await csrfFetch(`/api/notifications/${rejection.id}/read`, { method: 'POST' }).catch(() => {})
-      } catch {
-        // Ignore polling errors; user can still see notification later.
-      }
-    }
-
-    void pollOnce()
-
-    moderationPollRef.current.intervalId = window.setInterval(() => {
-      void pollOnce()
-    }, 10000)
-
-    moderationPollRef.current.timeoutId = window.setTimeout(() => {
-      stopModerationPolling()
+    moderationRealtimeRef.current.client = supabase
+    moderationRealtimeRef.current.channel = channel
+    moderationRealtimeRef.current.timeoutId = window.setTimeout(() => {
+      stopModerationRealtime()
     }, 30000)
-  }, [addToast, stopModerationPolling])
+  }, [addToast, stopModerationRealtime])
 
   useEffect(() => {
     return () => {
-      stopModerationPolling()
+      stopModerationRealtime()
     }
-  }, [stopModerationPolling])
+  }, [stopModerationRealtime])
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -300,7 +312,7 @@ function SubmitPageContent() {
       })
 
       if (context.image.mode === 'new') {
-        startModerationRejectionPolling()
+        startModerationRejectionRealtime(user.id)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission failed')

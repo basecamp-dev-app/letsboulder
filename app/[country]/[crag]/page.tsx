@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import CragPageClient from '@/app/crag/components/CragPageClient'
+
+export const revalidate = 60
 
 interface CragSlugParams {
   country: string
@@ -11,11 +12,10 @@ interface CragSlugParams {
 }
 
 async function getSupabase() {
-  const cookieStore = await cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+    { cookies: { getAll() { return [] }, setAll() {} } }
   )
 }
 
