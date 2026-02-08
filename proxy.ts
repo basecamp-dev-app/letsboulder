@@ -81,10 +81,6 @@ export default async function proxy(request: NextRequest) {
 
   const { pathname, searchParams } = request.nextUrl
 
-  if (pathname === '/map') {
-    return NextResponse.redirect(new URL('/', request.url), 308)
-  }
-
   const rateLimitBucket = process.env.VERCEL_ENV === 'production'
     ? getApiBucket(pathname, request.method)
     : null
@@ -203,13 +199,29 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/auth/:path*',
+    '/settings/:path*',
+    '/submit/:path*',
+    '/admin/:path*',
+    '/logbook/:path*',
+    '/api/notifications/:path*',
+    '/api/submissions/:path*',
+    '/api/routes/submit/:path*',
+    '/api/settings/:path*',
+    '/api/profile/:path*',
+    '/api/log-routes/:path*',
+    '/api/flags/:path*',
+    '/api/moderation/:path*',
+    '/api/logs/:path*',
+    '/api/crags/report/:path*',
+    '/api/climbs/(.*)/status',
+    '/api/climbs/(.*)/flag',
+    '/api/climbs/(.*)/grade-vote',
+    '/api/climbs/(.*)/correction',
+    '/api/climbs/(.*)/verify',
+    '/api/images/(.*)/flag',
+    '/api/images/(.*)/flags',
+    '/api/routes/(.*)/grades',
+    '/api/corrections/(.*)/vote',
   ],
 }

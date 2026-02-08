@@ -227,6 +227,7 @@ export default function ImagePage() {
   const [toast, setToast] = useState<string | null>(null)
   const [cragId, setCragId] = useState<string | null>(null)
   const [cragName, setCragName] = useState<string | null>(null)
+  const [cragHref, setCragHref] = useState<string | null>(null)
   const [climbStatus, setClimbStatus] = useState<ClimbStatusResponse | null>(null)
   const [flagModalOpen, setFlagModalOpen] = useState(false)
   const [userHasFlagged, setUserHasFlagged] = useState(false)
@@ -276,13 +277,17 @@ export default function ImagePage() {
         if (imageError) throw imageError
 
         let cragName = null
+        let nextCragHref: string | null = imageData.crag_id ? `/crag/${imageData.crag_id}` : null
         if (imageData.crag_id) {
           const { data: cragData } = await supabase
             .from('crags')
-            .select('name')
+            .select('name, slug, country_code')
             .eq('id', imageData.crag_id)
             .single()
           cragName = cragData?.name
+          if (cragData?.slug && cragData?.country_code) {
+            nextCragHref = `/${cragData.country_code.toLowerCase()}/${cragData.slug}`
+          }
         }
 
         const { data: routeLines, error: routeError } = await supabase
@@ -345,6 +350,7 @@ export default function ImagePage() {
         })
         setCragId(imageData.crag_id)
         setCragName(cragName || null)
+        setCragHref(nextCragHref)
 
 
 
@@ -609,9 +615,9 @@ export default function ImagePage() {
         )}
 
         <div className="flex justify-center gap-2 mt-3 pb-1">
-          {cragId && cragName && (
+          {cragId && cragName && cragHref && (
             <Link
-              href={`/crag/${cragId}`}
+              href={cragHref}
               className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
             >
               View {cragName} →

@@ -65,42 +65,12 @@ interface Crag {
   }
 }
 
-interface RoutePoint {
-  x: number
-  y: number
-}
-
-interface ImageRoute {
-  id: string
-  points: RoutePoint[]
-  color: string
-  climb: {
-    id: string
-    name: string | null
-    grade: string | null
-    description: string | null
-  } | null
-}
-
-interface RawRouteLine {
-  id: string
-  image_id: string
-  points: RoutePoint[]
-  color: string
-  climbs?: {
-    id: string
-    name: string | null
-    grade: string | null
-    description: string | null
-  }
-}
-
 interface ImageData {
   id: string
   url: string
   latitude: number | null
   longitude: number | null
-  route_lines: ImageRoute[]
+  route_lines_count: number
   is_verified: boolean
   verification_count: number
 }
@@ -154,21 +124,7 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
     async function loadCrag() {
       const supabase = createClient()
 
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_admin')
-          .eq('id', user.id)
-          .single()
-
-        const adminFromProfile = profile?.is_admin === true
-        const hasAuthAdmin = user.app_metadata?.gsyrocks_admin === true
-        setIsAdmin(adminFromProfile || hasAuthAdmin)
-      }
-
-      const { data: cragData, error: cragError } = await supabase
+      const cragPromise = supabase
         .from('crags')
         .select(`
           *,
@@ -177,24 +133,47 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
         .eq('id', id)
         .single()
 
+      const imagesPromise = supabase
+        .from('images')
+        .select('id, url, latitude, longitude, is_verified, verification_count, route_lines(count)')
+        .eq('crag_id', id)
+        .not('latitude', 'is', null)
+        .order('created_at', { ascending: false })
+
+      const userPromise = supabase.auth.getUser()
+      const adminPromise = (async () => {
+        const { data: { user } } = await userPromise
+        if (!user) return false
+
+        const hasAuthAdmin = user.app_metadata?.gsyrocks_admin === true
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', user.id)
+          .single()
+
+        return hasAuthAdmin || profile?.is_admin === true
+      })()
+
+      const [
+        { data: cragData, error: cragError },
+        { data: imagesData, error: imagesError },
+        admin,
+      ] = await Promise.all([cragPromise, imagesPromise, adminPromise])
+
+      setIsAdmin(admin)
+
       if (cragError || !cragData) {
         console.error('Error fetching crag:', cragError)
         setLoading(false)
         return
       }
 
-      const { data: imagesData, error: imagesError } = await supabase
-        .from('images')
-        .select('id, url, latitude, longitude, is_verified, verification_count')
-        .eq('crag_id', id)
-        .not('latitude', 'is', null)
-        .order('created_at', { ascending: false })
-
       if (imagesError) {
         console.error('Error fetching images:', imagesError)
       }
 
-if (!imagesData || imagesData.length === 0) {
+      if (!imagesData || imagesData.length === 0) {
         setCrag(cragData)
         setCragCenter(cragData.latitude && cragData.longitude ? [cragData.latitude, cragData.longitude] : null)
         setImages([])
@@ -202,53 +181,18 @@ if (!imagesData || imagesData.length === 0) {
         return
       }
 
-      const imageIds = imagesData.map(img => img.id)
-
-      const { data: routeLinesData, error: rlError } = await supabase
-        .from('route_lines')
-        .select(`
-          id,
-          image_id,
-          points,
-          color,
-          climb_id,
-          climbs (
-            id,
-            name,
-            grade,
-            description,
-            status
-          )
-        `)
-        .in('image_id', imageIds)
-
-      if (rlError) {
-        console.error('Route lines error:', rlError)
-      }
-
-      const routeLinesMap = new Map()
-      for (const rl of routeLinesData || []) {
-        const existing = routeLinesMap.get(rl.image_id) || []
-        existing.push(rl)
-        routeLinesMap.set(rl.image_id, existing)
-      }
-
-      const formattedImages: ImageData[] = imagesData.map(img => {
-        const routeLines = routeLinesMap.get(img.id) || []
-        const validRouteLines = routeLines
-          .filter((rl: RawRouteLine): rl is RawRouteLine & { climbs: NonNullable<RawRouteLine['climbs']> } => !!rl.climbs)
-          .map((rl: RawRouteLine & { climbs: NonNullable<RawRouteLine['climbs']> }) => ({
-            id: rl.id,
-            points: rl.points,
-            color: rl.color,
-            climb: {
-              id: rl.climbs.id,
-              name: rl.climbs.name,
-              grade: rl.climbs.grade,
-              description: rl.climbs.description
-            }
-          }))
-
+      const formattedImages: ImageData[] = imagesData.map((img: {
+        id: string
+        url: string
+        latitude: number | null
+        longitude: number | null
+        is_verified: boolean | null
+        verification_count: number | null
+        route_lines: Array<{ count: number }>
+      }) => {
+        const routeLinesCount = Array.isArray(img.route_lines) && img.route_lines[0]
+          ? img.route_lines[0].count
+          : 0
         return {
           id: img.id,
           url: img.url,
@@ -256,14 +200,20 @@ if (!imagesData || imagesData.length === 0) {
           longitude: img.longitude,
           is_verified: img.is_verified || false,
           verification_count: img.verification_count || 0,
-          route_lines: validRouteLines
+          route_lines_count: routeLinesCount,
         }
       })
 
       setCrag(cragData)
       setImages(formattedImages)
-      const avgCoords = getAverageCoordinates(formattedImages.filter(img => img.latitude !== null && img.longitude !== null) as { latitude: number; longitude: number }[])
-      setCragCenter(avgCoords)
+      const withCoords = formattedImages.filter(
+        (img): img is ImageData & { latitude: number; longitude: number } => img.latitude !== null && img.longitude !== null
+      )
+      if (withCoords.length > 0) {
+        setCragCenter(getAverageCoordinates(withCoords))
+      } else {
+        setCragCenter(cragData.latitude && cragData.longitude ? [cragData.latitude, cragData.longitude] : null)
+      }
       setLoading(false)
     }
 
@@ -297,7 +247,7 @@ if (!imagesData || imagesData.length === 0) {
 
       setToast('Crag flagged for review')
       setTimeout(() => setToast(null), 3000)
-    } catch (error) {
+    } catch {
       setToast('Failed to flag crag')
       setTimeout(() => setToast(null), 3000)
     } finally {
@@ -347,7 +297,7 @@ if (!imagesData || imagesData.length === 0) {
   }, [orderedImages])
 
   const totalRoutes = useMemo(() => {
-    return images.reduce((sum, img) => sum + img.route_lines.length, 0)
+    return images.reduce((sum, img) => sum + img.route_lines_count, 0)
   }, [images])
 
   const scrollToImageCard = useMemo(() => {
@@ -499,14 +449,8 @@ if (!imagesData || imagesData.length === 0) {
               >
                 <div
                   className="w-40 cursor-pointer pt-1"
-                  onClick={async () => {
-                    const supabase = createClient()
-                    const { data: { user } } = await supabase.auth.getUser()
-                    if (!user) {
-                      window.location.href = `/auth?redirect_to=/image/${image.id}`
-                    } else {
-                      window.location.href = `/image/${image.id}`
-                    }
+                  onClick={() => {
+                    window.location.href = `/image/${image.id}`
                   }}
                 >
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
@@ -522,7 +466,7 @@ if (!imagesData || imagesData.length === 0) {
                     Image {imageIndexById.get(image.id) ?? ''}
                   </p>
                   <p className="text-xs text-gray-600">
-                    {image.route_lines.length} route{image.route_lines.length !== 1 ? 's' : ''}
+                    {image.route_lines_count} route{image.route_lines_count !== 1 ? 's' : ''}
                   </p>
                   <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
                     {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
@@ -567,14 +511,8 @@ if (!imagesData || imagesData.length === 0) {
                     className={`block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer ring-2 ring-transparent ${
                       highlightedImageId === image.id ? 'ring-blue-400' : ''
                     }`}
-                    onClick={async () => {
-                      const supabase = createClient()
-                      const { data: { user } } = await supabase.auth.getUser()
-                      if (!user) {
-                        window.location.href = `/auth?redirect_to=/image/${image.id}`
-                      } else {
-                        window.location.href = `/image/${image.id}`
-                      }
+                    onClick={() => {
+                      window.location.href = `/image/${image.id}`
                     }}
                   >
                     <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
@@ -589,7 +527,7 @@ if (!imagesData || imagesData.length === 0) {
                         {imageIndexById.get(image.id) ?? ''}
                       </div>
                       <div className="absolute bottom-2 right-2 bg-gray-900/80 text-white text-xs px-2 py-1 rounded-full">
-                        {image.route_lines.length} routes
+                        {image.route_lines_count} routes
                       </div>
                       <div className={`absolute top-2 right-2 px-1.5 py-0.5 rounded text-xs font-medium ${
                         image.is_verified
