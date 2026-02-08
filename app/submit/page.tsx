@@ -74,7 +74,7 @@ function SubmitPageContent() {
 
     moderationPollRef.current.intervalId = window.setInterval(() => {
       void pollOnce()
-    }, 1500)
+    }, 10000)
 
     moderationPollRef.current.timeoutId = window.setTimeout(() => {
       stopModerationPolling()
