@@ -575,6 +575,11 @@ export default function ImagePage() {
           onClose={() => {
             router.push(`/image/${imageId}`)
           }}
+          imageUrl={image.url}
+          naturalWidth={image.natural_width || image.width || 800}
+          naturalHeight={image.natural_height || image.height || 600}
+          routePoints={selectedRoute.points}
+          routeColor={selectedRoute.color}
           climbStatus={climbStatus}
           statusLoading={statusLoading}
           onRefreshStatus={async () => {

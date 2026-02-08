@@ -6,6 +6,8 @@ import { HelpCircle, Loader2, X } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { VALID_GRADES } from '@/lib/verification-types'
 import type { ClimbStatusResponse, GradeVoteDistribution } from '@/lib/verification-types'
+import RoutePreviewThumb from '@/app/image/components/RoutePreviewThumb'
+import type { RoutePoint } from '@/lib/useRouteSelection'
 
 type LogStyle = 'flash' | 'top' | 'try'
 
@@ -38,6 +40,11 @@ interface RouteDetailModalProps {
   tab: 'climb' | 'tops'
   onTabChange: (tab: 'climb' | 'tops') => void
   onClose: () => void
+  imageUrl: string
+  naturalWidth: number
+  naturalHeight: number
+  routePoints: RoutePoint[]
+  routeColor?: string
   climbStatus: ClimbStatusResponse | null
   statusLoading: boolean
   onRefreshStatus: () => Promise<void>
@@ -153,6 +160,11 @@ export default function RouteDetailModal({
   tab,
   onTabChange,
   onClose,
+  imageUrl,
+  naturalWidth,
+  naturalHeight,
+  routePoints,
+  routeColor,
   climbStatus,
   statusLoading,
   onRefreshStatus,
@@ -303,7 +315,18 @@ export default function RouteDetailModal({
     <div className="fixed inset-0 z-[6000] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col">
       <div className="px-5 pt-5 pb-3 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="flex items-start gap-4 min-w-0">
+            <RoutePreviewThumb
+              imageUrl={imageUrl}
+              naturalWidth={naturalWidth}
+              naturalHeight={naturalHeight}
+              points={routePoints}
+              stroke={routeColor || '#22c55e'}
+              onClick={onClose}
+              className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-900 shrink-0"
+            />
+
+            <div className="min-w-0">
             <button
               onClick={onClose}
               className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
@@ -323,6 +346,7 @@ export default function RouteDetailModal({
               )}
               <span className="text-xs text-gray-400">•</span>
               <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{totalVotes} votes</span>
+            </div>
             </div>
           </div>
           <button
