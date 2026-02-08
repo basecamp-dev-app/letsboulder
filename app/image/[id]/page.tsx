@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -265,53 +265,43 @@ export default function ImagePage() {
     const loadImage = async () => {
       if (!imageId) return
 
+      setLoading(true)
+      setError(null)
+      setClimbStatus(null)
+      lastStatusClimbIdRef.current = null
+
       try {
         const supabase = createClient()
 
-        const { data: imageData, error: imageError } = await supabase
-          .from('images')
-          .select('id, url, latitude, longitude, crag_id, width, height, natural_width, natural_height')
-          .eq('id', imageId)
-          .single()
+        const [
+          { data: imageData, error: imageError },
+          { data: routeLines, error: routeError },
+        ] = await Promise.all([
+          supabase
+            .from('images')
+            .select('id, url, latitude, longitude, crag_id, width, height, natural_width, natural_height')
+            .eq('id', imageId)
+            .single(),
+          supabase
+            .from('route_lines')
+            .select(`
+              id,
+              points,
+              color,
+              climb_id,
+              image_width,
+              image_height,
+              climbs (
+                id,
+                name,
+                grade,
+                description
+              )
+            `)
+            .eq('image_id', imageId),
+        ])
 
         if (imageError) throw imageError
-
-        let cragName = null
-        let nextCragHref: string | null = imageData.crag_id ? `/crag/${imageData.crag_id}` : null
-        if (imageData.crag_id) {
-          const { data: cragData } = await supabase
-            .from('crags')
-            .select('name, slug, country_code')
-            .eq('id', imageData.crag_id)
-            .single()
-          cragName = cragData?.name
-          if (cragData?.slug && cragData?.country_code) {
-            nextCragHref = `/${cragData.country_code.toLowerCase()}/${cragData.slug}`
-          }
-        }
-
-        const { data: routeLines, error: routeError } = await supabase
-          .from('route_lines')
-          .select(`
-            id,
-            points,
-            color,
-            climb_id,
-            image_width,
-            image_height,
-            climbs (
-              id,
-              name,
-              grade,
-              description
-            )
-          `)
-          .eq('image_id', imageId)
-
-
-
-
-
         if (routeError) throw routeError
 
         type RawRouteLine = {
@@ -349,30 +339,25 @@ export default function ImagePage() {
           route_lines: formattedRoutes
         })
         setCragId(imageData.crag_id)
-        setCragName(cragName || null)
-        setCragHref(nextCragHref)
+        setCragName(null)
+        setCragHref(imageData.crag_id ? `/crag/${imageData.crag_id}` : null)
 
-
-
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user && formattedRoutes.length > 0) {
-          const climbIds = formattedRoutes.map(r => r.climb?.id).filter((id): id is string => id != null)
-          const { data: logs } = await supabase
-            .from('user_climbs')
-            .select('climb_id, style')
-            .eq('user_id', user.id)
-            .in('climb_id', climbIds)
-
-          if (logs) {
-            const logsMap: Record<string, string> = {}
-            logs.forEach(log => {
-              logsMap[log.climb_id] = log.style
+        if (imageData.crag_id) {
+          void supabase
+            .from('crags')
+            .select('name, slug, country_code')
+            .eq('id', imageData.crag_id)
+            .single()
+            .then(({ data: cragData }) => {
+              if (!cragData) return
+              setCragName(cragData.name || null)
+              setCragHref(
+                cragData.slug && cragData.country_code
+                  ? `/${cragData.country_code.toLowerCase()}/${cragData.slug}`
+                  : `/crag/${imageData.crag_id}`
+              )
             })
-            setUserLogs(logsMap)
-          }
         }
-
-        await checkFlagStatus(imageId)
       } catch (err) {
         console.error('Error loading image:', err)
         setError('Failed to load image')
@@ -385,8 +370,68 @@ export default function ImagePage() {
   }, [imageId])
 
   useEffect(() => {
+    const loadUserLogs = async () => {
+      if (!user || !image) {
+        setUserLogs({})
+        return
+      }
+
+      const climbIds = Array.from(new Set(
+        image.route_lines
+          .map((route) => route.climb?.id)
+          .filter((climbId): climbId is string => !!climbId)
+      ))
+
+      if (climbIds.length === 0) {
+        setUserLogs({})
+        return
+      }
+
+      const supabase = createClient()
+      const { data: logs } = await supabase
+        .from('user_climbs')
+        .select('climb_id, style')
+        .eq('user_id', user.id)
+        .in('climb_id', climbIds)
+
+      if (!logs) {
+        setUserLogs({})
+        return
+      }
+
+      const logsMap: Record<string, string> = {}
+      logs.forEach((log) => {
+        logsMap[log.climb_id] = log.style
+      })
+      setUserLogs(logsMap)
+    }
+
+    loadUserLogs()
+  }, [image, user])
+
+  useEffect(() => {
     setShowAllRoutes(false)
   }, [imageId])
+
+  const fetchClimbStatus = useCallback(async (climbId: string) => {
+    if (!user) {
+      setClimbStatus(null)
+      return
+    }
+
+    try {
+      setStatusLoading(true)
+      const response = await csrfFetch(`/api/climbs/${climbId}/status`)
+      if (response.ok) {
+        const status = await response.json()
+        setClimbStatus(status)
+      }
+    } catch {
+      console.error('Failed to fetch climb status')
+    } finally {
+      setStatusLoading(false)
+    }
+  }, [user])
 
   const handleRouteClick = (route: ImageRoute, event: React.MouseEvent) => {
     event.stopPropagation()
@@ -402,22 +447,13 @@ export default function ImagePage() {
     }
   }
 
-  async function fetchClimbStatus(climbId: string) {
-    try {
-      setStatusLoading(true)
-      const response = await csrfFetch(`/api/climbs/${climbId}/status`)
-      if (response.ok) {
-        const status = await response.json()
-        setClimbStatus(status)
-      }
-    } catch {
-      console.error('Failed to fetch climb status')
-    } finally {
-      setStatusLoading(false)
-    }
-  }
-
   useEffect(() => {
+    if (!user) {
+      setClimbStatus(null)
+      lastStatusClimbIdRef.current = null
+      return
+    }
+
     const climbId = selectedRoute?.climb?.id || null
     if (!climbId) {
       setClimbStatus(null)
@@ -429,16 +465,16 @@ export default function ImagePage() {
     lastStatusClimbIdRef.current = climbId
     setClimbStatus(null)
     fetchClimbStatus(climbId)
-  }, [selectedRoute?.climb?.id])
+  }, [fetchClimbStatus, selectedRoute?.climb?.id, user])
 
-  const checkFlagStatus = async (imgId: string) => {
+  const checkFlagStatus = useCallback(async (imgId: string) => {
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (!user) return
-
       const response = await csrfFetch(`/api/images/${imgId}/flags`)
+      if (response.status === 401) {
+        setUserHasFlagged(false)
+        return
+      }
+
       if (response.ok) {
         const data = await response.json()
         setUserHasFlagged(data.user_has_flagged)
@@ -446,16 +482,22 @@ export default function ImagePage() {
     } catch {
       console.error('Failed to check flag status')
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setUserHasFlagged(false)
+      return
+    }
+
+    checkFlagStatus(imageId)
+  }, [checkFlagStatus, imageId, user])
 
   const handleLogClimb = async (climbId: string, style: 'flash' | 'top' | 'try'): Promise<boolean> => {
     setLogging(true)
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-
       if (!user) {
-        window.location.href = `/auth?imageId=${imageId}`
+        window.location.href = `/auth?redirect_to=${encodeURIComponent(authRedirectTo)}`
         return false
       }
 
@@ -469,9 +511,6 @@ export default function ImagePage() {
       })
 
       if (!response.ok) throw new Error('Failed to log')
-
-      const route = image?.route_lines.find(r => r.climb?.id === climbId)
-
 
       setUserLogs(prev => ({ ...prev, [climbId]: style }))
       setToast(`Route logged as ${style}!`)
