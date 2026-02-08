@@ -233,7 +233,6 @@ export default function ImagePage() {
   const [userHasFlagged, setUserHasFlagged] = useState(false)
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [statusLoading, setStatusLoading] = useState(false)
-  const [showAllRoutes, setShowAllRoutes] = useState(false)
 
   const selectedRoute = useMemo(() => {
     if (!image) return null
@@ -243,7 +242,6 @@ export default function ImagePage() {
 
   const lastStatusClimbIdRef = useRef<string | null>(null)
 
-  const routesPreviewLimit = 10
   const authRedirectTo = selectedRouteId
     ? `/image/${imageId}?route=${selectedRouteId}&tab=${selectedTab}`
     : `/image/${imageId}`
@@ -409,10 +407,6 @@ export default function ImagePage() {
     loadUserLogs()
   }, [image, user])
 
-  useEffect(() => {
-    setShowAllRoutes(false)
-  }, [imageId])
-
   const fetchClimbStatus = useCallback(async (climbId: string) => {
     if (!user) {
       setClimbStatus(null)
@@ -558,7 +552,7 @@ export default function ImagePage() {
         </div>
       )}
 
-      <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-950">
+      <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-950 px-2 py-2 sm:px-4 sm:py-4">
         <ImageWrapper
           url={image.url}
           routeLines={image.route_lines}
@@ -599,31 +593,20 @@ export default function ImagePage() {
         />
       )}
 
-      <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
-        <div className="flex items-center justify-end mb-3">
-          {image.route_lines.length > routesPreviewLimit && (
-            <button
-              onClick={() => setShowAllRoutes((v) => !v)}
-              className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200"
-            >
-              {showAllRoutes ? `Collapse routes` : `Show all routes (${image.route_lines.length})`}
-            </button>
-          )}
-        </div>
-
+      <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-3 sm:p-4">
         {image.route_lines.length === 0 ? (
           <p className="text-gray-600 dark:text-gray-400 text-sm">No routes on this image yet.</p>
         ) : (
-          <div className={showAllRoutes ? 'max-h-[45vh] overflow-y-auto pr-1' : ''}>
-            <div className="grid grid-cols-2 sm:grid-cols-2 gap-2">
-              {(showAllRoutes ? image.route_lines : image.route_lines.slice(0, routesPreviewLimit)).map((route, index) => {
+          <div className="max-h-[40dvh] overflow-y-auto pr-1 pb-[env(safe-area-inset-bottom,0px)]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {image.route_lines.map((route, index) => {
                 const isLogged = route.climb?.id ? !!userLogs[route.climb.id] : false
                 const isSelected = selectedRoute?.id === route.id
                 return (
                   <button
                     key={route.id}
                     onClick={(e) => handleRouteClick(route, e)}
-                    className={`p-3 rounded-lg text-left transition-colors border ${
+                    className={`p-3.5 min-h-14 rounded-lg text-left transition-colors border active:scale-[0.99] ${
                       isSelected
                         ? 'bg-gray-50 dark:bg-gray-950 border-gray-900 dark:border-white'
                         : isLogged
@@ -631,16 +614,25 @@ export default function ImagePage() {
                           : 'bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2 min-w-0">
-                      <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                        {(route.climb?.name || '').trim() || `Route ${index + 1}`}
-                      </span>
-                      <span className={`text-sm px-2 py-0.5 rounded ${
+                    <div className="flex items-center justify-between gap-3 min-w-0">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className={`w-6 h-6 shrink-0 rounded-full text-xs font-semibold flex items-center justify-center ${
+                          isSelected
+                            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                            : 'bg-gray-200 text-gray-800 dark:bg-gray-800 dark:text-gray-100'
+                        }`}>
+                          {index + 1}
+                        </span>
+                        <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                          {(route.climb?.name || '').trim() || `Route ${index + 1}`}
+                        </span>
+                      </div>
+                      <span className={`text-sm px-2 py-0.5 rounded shrink-0 ${
                         isLogged
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
                           : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
                       }`}>
-                        {route.climb?.grade}
+                        {route.climb?.grade || '—'}
                       </span>
                     </div>
                     {isLogged && (
@@ -653,7 +645,7 @@ export default function ImagePage() {
           </div>
         )}
 
-        <div className="flex justify-center gap-2 mt-3 pb-1">
+        <div className="flex justify-center gap-2 mt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.25rem)]">
           {cragId && cragName && cragHref && (
             <Link
               href={cragHref}
