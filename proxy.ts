@@ -74,6 +74,21 @@ function shouldRefreshSupabaseSession(pathname: string, method: string): boolean
   return SESSION_REFRESH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 }
 
+function isPrefetchRequest(request: NextRequest): boolean {
+  const purpose = request.headers.get('purpose')
+  const routerPrefetch = request.headers.get('next-router-prefetch')
+  const middlewarePrefetch = request.headers.get('x-middleware-prefetch')
+
+  return purpose === 'prefetch' || routerPrefetch === '1' || middlewarePrefetch === '1'
+}
+
+function shouldSkipSessionRefreshForPrefetch(pathname: string, request: NextRequest): boolean {
+  if (!isPrefetchRequest(request)) return false
+  if (request.method.toUpperCase() !== 'GET') return false
+
+  return pathname === '/submit' || pathname.startsWith('/submit/') || pathname === '/logbook' || pathname.startsWith('/logbook/')
+}
+
 export default async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -169,7 +184,7 @@ export default async function proxy(request: NextRequest) {
     }
   }
 
-  if (shouldRefreshSupabaseSession(pathname, request.method)) {
+  if (shouldRefreshSupabaseSession(pathname, request.method) && !shouldSkipSessionRefreshForPrefetch(pathname, request)) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

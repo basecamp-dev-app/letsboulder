@@ -235,13 +235,13 @@ export default function Header() {
         </div>
 
         <nav className="flex items-center gap-1">
-          <Link href="/logbook" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <Link prefetch={false} href="/logbook" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Logbook
           </Link>
           <Link href="/" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Map
           </Link>
-          <Link href="/submit" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <Link prefetch={false} href="/submit" className="hidden md:block px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
             Upload
           </Link>
           <div ref={moreRef} className="relative hidden md:block">
