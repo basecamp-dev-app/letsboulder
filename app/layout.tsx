@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import AppLayout from '@/components/AppLayout'
+import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import {
   BRAND_NAME,
   INSTAGRAM_URL,
@@ -113,7 +114,6 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.png" sizes="32x32" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
-        <link rel="icon" href="/icon-192.png" sizes="192x192" />
         <link rel="manifest" href="/manifest.json" />
         <script
           dangerouslySetInnerHTML={{
@@ -182,6 +182,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased pt-[calc(var(--app-header-offset)+env(safe-area-inset-top,0px))] md:pb-16 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
       >
+        <ServiceWorkerRegistration />
         <AppLayout>{children}</AppLayout>
         <Analytics />
       </body>
