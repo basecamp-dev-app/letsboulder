@@ -18,12 +18,14 @@ const VALID_GRADES = [
 ] as const
 
 const VALID_ROUTE_TYPES = ['sport', 'bouldering', 'trad', 'deep-water-solo'] as const
+const VALID_FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
 
 interface NewImageSubmission {
   mode: 'new'
   imageUrl: string
   imageLat: number | null
   imageLng: number | null
+  faceDirection: (typeof VALID_FACE_DIRECTIONS)[number] | null
   captureDate: string | null
   width: number
   height: number
@@ -143,6 +145,13 @@ export async function POST(request: NextRequest) {
       return response
     }
 
+    if (body.mode === 'new') {
+      if (!body.faceDirection || !VALID_FACE_DIRECTIONS.includes(body.faceDirection)) {
+        response = NextResponse.json({ error: 'Valid face direction is required' }, { status: 400 })
+        return response
+      }
+    }
+
     if (body.routeType && !VALID_ROUTE_TYPES.includes(body.routeType)) {
       response = NextResponse.json({ error: 'Invalid route type' }, { status: 400 })
       return response
@@ -199,6 +208,7 @@ export async function POST(request: NextRequest) {
         latitude: body.imageLat,
         longitude: body.imageLng,
         capture_date: body.captureDate,
+        face_direction: body.faceDirection,
         crag_id: body.cragId,
         width: body.width,
         height: body.height,

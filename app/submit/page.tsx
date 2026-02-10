@@ -6,7 +6,7 @@ import Link from 'next/link'
 import nextDynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData, ClimbType } from '@/lib/submission-types'
+import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData, ClimbType, FaceDirection } from '@/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
@@ -17,6 +17,7 @@ const CragSelector = dynamic(() => import('./components/CragSelector'), { ssr: f
 const ImagePicker = dynamic(() => import('./components/ImagePicker'), { ssr: false })
 const RouteCanvas = dynamic(() => import('./components/RouteCanvas'), { ssr: false })
 const LocationPicker = dynamic(() => import('./components/LocationPicker'), { ssr: false })
+const FaceDirectionPicker = dynamic(() => import('./components/FaceDirectionPicker'), { ssr: false })
 
 function SubmitPageContent() {
   const { routes, setRoutes, setIsSubmitting, isSubmitting } = useSubmitContext()
@@ -27,6 +28,7 @@ function SubmitPageContent() {
     crag: null,
     image: null,
     imageGps: null,
+    faceDirection: null,
     routes: [],
     routeType: null
   })
@@ -127,9 +129,9 @@ function SubmitPageContent() {
           }
 
           const gps = { latitude: data.latitude, longitude: data.longitude }
-          setContext(prev => ({ ...prev, image: newImageSelection, imageGps: gps }))
+          setContext(prev => ({ ...prev, image: newImageSelection, imageGps: gps, faceDirection: null }))
           setStep({
-            step: 'crag',
+            step: 'faceDirection',
             imageGps: gps
           })
         } catch (e) {
@@ -172,7 +174,7 @@ function SubmitPageContent() {
 
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
     const gps = gpsData ? { latitude: gpsData.latitude, longitude: gpsData.longitude } : null
-    setContext(prev => ({ ...prev, image: selection, imageGps: gps }))
+    setContext(prev => ({ ...prev, image: selection, imageGps: gps, faceDirection: null }))
 
     setStep({
       step: 'location',
@@ -183,10 +185,18 @@ function SubmitPageContent() {
   const handleLocationConfirm = useCallback((gps: GpsData) => {
     setContext(prev => ({ ...prev, imageGps: gps }))
     setStep({
-      step: 'crag',
+      step: 'faceDirection',
       imageGps: gps
     })
   }, [])
+
+  const handleFaceDirectionConfirm = useCallback((faceDirection: FaceDirection) => {
+    setContext(prev => ({ ...prev, faceDirection }))
+    setStep({
+      step: 'crag',
+      imageGps: context.imageGps
+    })
+  }, [context.imageGps])
 
   const handleCragSelect = useCallback((crag: Crag) => {
     setContext(prev => ({
@@ -222,8 +232,11 @@ function SubmitPageContent() {
       case 'location':
         setStep({ step: 'image' })
         break
-      case 'crag':
+      case 'faceDirection':
         setStep({ step: 'location', imageGps: context.imageGps })
+        break
+      case 'crag':
+        setStep({ step: 'faceDirection', imageGps: context.imageGps })
         break
       case 'draw':
         setStep({
@@ -273,6 +286,7 @@ function SubmitPageContent() {
         imageUrl: context.image.uploadedUrl,
         imageLat: context.imageGps?.latitude ?? null,
         imageLng: context.imageGps?.longitude ?? null,
+        faceDirection: context.faceDirection,
         captureDate: context.image.captureDate,
         width: context.image.width,
         height: context.image.height,
@@ -288,6 +302,12 @@ function SubmitPageContent() {
 
       if (context.image.mode === 'new' && !payload.cragId) {
         setError('Please select a crag before submitting')
+        setIsSubmitting(false)
+        return
+      }
+
+      if (context.image.mode === 'new' && !payload.faceDirection) {
+        setError('Please select a face direction before submitting')
         setIsSubmitting(false)
         return
       }
@@ -322,7 +342,7 @@ function SubmitPageContent() {
   }
 
   const handleStartOver = () => {
-    setContext({ crag: null, image: null, imageGps: null, routes: [], routeType: null })
+    setContext({ crag: null, image: null, imageGps: null, faceDirection: null, routes: [], routeType: null })
     setSelectedRouteType(null)
     setStep({ step: 'image' })
     setError(null)
@@ -358,6 +378,24 @@ function SubmitPageContent() {
             <LocationPicker
               initialGps={locationStep.imageGps}
               onConfirm={handleLocationConfirm}
+            />
+          </div>
+        )
+
+      case 'faceDirection':
+        return (
+          <div className="max-w-md mx-auto">
+            <button
+              onClick={handleBack}
+              className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
+            >
+              ← Back to location
+            </button>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Set Face Direction</h2>
+            <FaceDirectionPicker
+              gps={context.imageGps}
+              initialFaceDirection={context.faceDirection}
+              onConfirm={handleFaceDirectionConfirm}
             />
           </div>
         )

@@ -34,6 +34,7 @@ interface ImageData {
   url: string
   latitude: number | null
   longitude: number | null
+  face_direction?: 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW' | null
   route_lines: ImageRoute[]
   width?: number
   height?: number
@@ -277,7 +278,7 @@ export default function ImagePage() {
         ] = await Promise.all([
           supabase
             .from('images')
-            .select('id, url, latitude, longitude, crag_id, width, height, natural_width, natural_height')
+            .select('id, url, latitude, longitude, face_direction, crag_id, width, height, natural_width, natural_height')
             .eq('id', imageId)
             .single(),
           supabase
@@ -553,6 +554,11 @@ export default function ImagePage() {
       )}
 
       <div className="flex-1 relative overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-950 px-2 py-2 sm:px-4 sm:py-4">
+        {image.face_direction && (
+          <div className="absolute top-3 left-3 z-20 pointer-events-none rounded-md bg-black/70 text-white text-xs font-medium px-2.5 py-1.5">
+            Faces: {image.face_direction}
+          </div>
+        )}
         <ImageWrapper
           url={image.url}
           routeLines={image.route_lines}
