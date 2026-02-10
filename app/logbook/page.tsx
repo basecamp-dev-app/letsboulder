@@ -40,6 +40,14 @@ interface Profile {
   highest_grade?: string
 }
 
+interface Submission {
+  id: string
+  url: string
+  created_at: string
+  crag_name: string | null
+  route_lines_count: number
+}
+
 function LoadingFallback() {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
@@ -60,6 +68,7 @@ function LogbookContent() {
   const [user, setUser] = useState<User | null>(null)
   const [logs, setLogs] = useState<LoggedClimb[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [submissions, setSubmissions] = useState<Submission[]>([])
   const [loading, setLoading] = useState(true)
   const searchParams = useSearchParams()
   const { addToast } = useToast()
@@ -123,6 +132,45 @@ function LogbookContent() {
           }))
 
           setLogs(logsWithPoints)
+
+          const { data: imageSubmissions, error: submissionsError } = await supabase
+            .from('images')
+            .select('id, url, created_at, crags(name), route_lines(count)')
+            .eq('created_by', user.id)
+            .eq('moderation_status', 'approved')
+            .not('crag_id', 'is', null)
+            .not('latitude', 'is', null)
+            .not('longitude', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(24)
+
+          if (submissionsError) {
+            console.error('Submissions query error:', submissionsError)
+          }
+
+          const formattedSubmissions: Submission[] = (imageSubmissions || [])
+            .map((submission) => {
+              const cragRelation = submission.crags as { name?: string } | Array<{ name?: string }> | null
+              const cragName = Array.isArray(cragRelation)
+                ? (cragRelation[0]?.name || null)
+                : (cragRelation?.name || null)
+
+              const routeLines = submission.route_lines as Array<{ count?: number }> | null
+              const routeLinesCount = Array.isArray(routeLines) && routeLines[0]
+                ? (routeLines[0].count || 0)
+                : 0
+
+              return {
+                id: submission.id,
+                url: submission.url,
+                created_at: submission.created_at,
+                crag_name: cragName,
+                route_lines_count: routeLinesCount,
+              }
+            })
+            .filter((submission) => submission.route_lines_count > 0)
+
+          setSubmissions(formattedSubmissions)
         }
       } catch (err) {
         console.error('Unexpected error checking auth:', err)
@@ -176,6 +224,7 @@ function LogbookContent() {
       isOwnProfile={true}
       initialLogs={logs}
       profile={profile || undefined}
+      initialSubmissions={submissions}
     />
   )
 }
