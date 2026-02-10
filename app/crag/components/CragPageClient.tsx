@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { geoJsonPolygonToLeaflet, getPolygonCenter } from '@/lib/geo-utils'
@@ -300,6 +301,19 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
     return images.reduce((sum, img) => sum + img.route_lines_count, 0)
   }, [images])
 
+  const exploreHref = useMemo(() => {
+    if (crag?.latitude == null || crag?.longitude == null) return null
+    const params = new URLSearchParams({
+      lat: String(crag.latitude),
+      lng: String(crag.longitude),
+      radiusKm: '50',
+      sort: 'distance',
+      page: '1',
+      q: crag.name,
+    })
+    return `/explore?${params.toString()}`
+  }, [crag?.latitude, crag?.longitude, crag?.name])
+
   const scrollToImageCard = useMemo(() => {
     return (imageId: string) => {
       if (typeof document === 'undefined') return
@@ -557,6 +571,18 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
           <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 tabular-nums">
             {totalRoutes} routes
           </span>
+          {exploreHref ? (
+            <Link
+              href={exploreHref}
+              className="px-3 py-1 rounded-full text-sm bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+            >
+              Explore grades nearby
+            </Link>
+          ) : (
+            <span className="px-3 py-1 rounded-full text-sm bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+              Explore grades nearby unavailable
+            </span>
+          )}
         </div>
 
         {crag.description && (
