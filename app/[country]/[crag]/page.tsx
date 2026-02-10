@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { createServerClient } from '@supabase/ssr'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import CragPageClient from '@/app/crag/components/CragPageClient'
 
@@ -74,35 +73,9 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
 
   if (!crag) notFound()
 
-  const { data: climbs } = await supabase
-    .from('climbs')
-    .select('id, name, grade, slug')
-    .eq('crag_id', crag.id)
-    .eq('status', 'active')
-    .not('slug', 'is', null)
-    .order('updated_at', { ascending: false })
-    .limit(24)
-
   return (
     <>
       <CragPageClient id={crag.id} canonicalPath={`/${country.toLowerCase()}/${cragSlug}`} />
-      {!!climbs?.length && (
-        <section className="mx-auto max-w-4xl px-4 pb-12">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Routes at this crag</h2>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {climbs.map((climb) => (
-              <Link
-                key={climb.id}
-                href={`/${country.toLowerCase()}/${cragSlug}/${climb.slug}`}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 transition-colors hover:border-blue-400 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-200 dark:hover:border-blue-500 dark:hover:bg-gray-900"
-              >
-                <span className="font-medium">{climb.name || 'Unnamed route'}</span>
-                <span className="ml-2 text-gray-500 dark:text-gray-400">{climb.grade}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
     </>
   )
 }
