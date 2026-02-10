@@ -14,6 +14,8 @@ interface SearchResult {
   id: string
   name: string
   crag_name?: string
+  slug?: string | null
+  country_code?: string | null
   latitude?: number
   longitude?: number
 }
@@ -23,6 +25,8 @@ interface CragData {
   name: string
   latitude: number | null
   longitude: number | null
+  slug: string | null
+  country_code: string | null
 }
 
 export default function Header() {
@@ -103,7 +107,7 @@ export default function Header() {
 
     const { data: cragsData } = await supabase
       .from('crags')
-      .select('id, name, latitude, longitude')
+      .select('id, name, latitude, longitude, slug, country_code')
       .ilike('name', `%${query}%`)
       .limit(5)
 
@@ -114,6 +118,8 @@ export default function Header() {
             type: 'crag',
             id: crag.id,
             name: crag.name,
+            slug: crag.slug,
+            country_code: crag.country_code,
             latitude: crag.latitude,
             longitude: crag.longitude
           })
@@ -156,7 +162,13 @@ export default function Header() {
   const handleResultClick = (result: SearchResult) => {
     setShowSearchDropdown(false)
     setSearchQuery('')
-    if (result.type === 'climb' && result.latitude && result.longitude) {
+    if (result.type === 'crag') {
+      if (result.slug && result.country_code) {
+        router.push(`/${result.country_code.toLowerCase()}/${result.slug}`)
+      } else {
+        router.push(`/crag/${result.id}`)
+      }
+    } else if (result.type === 'climb' && result.latitude && result.longitude) {
       router.push(`/?lat=${result.latitude}&lng=${result.longitude}&zoom=16&climbId=${result.id}`)
     } else if (result.latitude && result.longitude) {
       router.push(`/?lat=${result.latitude}&lng=${result.longitude}&zoom=15`)
