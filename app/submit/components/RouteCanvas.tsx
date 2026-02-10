@@ -13,6 +13,8 @@ import GradePicker from '@/components/GradePicker'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { ImageSelection, NewRouteData, RouteLine } from '@/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface ExistingRoute {
   id: string
@@ -28,6 +30,7 @@ interface RouteCanvasProps {
 }
 
 export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRouteLines }: RouteCanvasProps) {
+  const gradeSystem = useGradeSystem()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -277,7 +280,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
       if (route.points.length > 1 && isSelected) {
         const bgColor = 'rgba(251, 191, 36, 0.95)'
         const gradePos = getGradeLabelPosition(route.points)
-        drawRoundedLabel(ctx, route.grade, gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
+        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
 
         const truncatedName = getTruncatedText(ctx, route.name, 150)
         const namePos = getNameLabelPosition(route.points)
@@ -300,7 +303,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
       if (route.points.length > 1) {
         const bgColor = 'rgba(220, 38, 38, 0.95)'
         const gradePos = getGradeLabelPosition(route.points)
-        drawRoundedLabel(ctx, route.grade, gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
+        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
 
         const truncatedName = getTruncatedText(ctx, route.name, 150)
         const namePos = getNameLabelPosition(route.points)
@@ -324,7 +327,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         drawSmoothCurve(ctx, currentPoints, '#3b82f6', 3, [8, 4])
 
         const gradePos = getGradeLabelPosition(currentPoints)
-        drawRoundedLabel(ctx, currentGrade, gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', 'bold 14px Arial')
+        drawRoundedLabel(ctx, formatGradeForDisplay(currentGrade, gradeSystem), gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', 'bold 14px Arial')
 
         const truncatedName = getTruncatedText(ctx, currentName, 150)
         const namePos = getNameLabelPosition(currentPoints)
@@ -333,7 +336,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     }
 
     ctx.restore()
-  }, [completedRoutes, currentPoints, currentGrade, currentName, existingRoutes, selectedIds, pan, zoom])
+  }, [completedRoutes, currentPoints, currentGrade, currentName, existingRoutes, selectedIds, pan, zoom, gradeSystem])
 
   useEffect(() => {
     if (imageLoaded) {
@@ -528,7 +531,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
             onClick={() => setGradePickerOpen(true)}
             className="w-full px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
           >
-            {currentGrade}
+            {formatGradeForDisplay(currentGrade, gradeSystem)}
           </button>
           {gradePickerOpen && (
             <GradePicker

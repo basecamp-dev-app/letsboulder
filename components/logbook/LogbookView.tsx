@@ -11,6 +11,8 @@ import { Trash2, Loader2 } from 'lucide-react'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { EmptyLogbook } from '@/components/logbook/logbook-states'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
   ssr: false,
@@ -56,6 +58,7 @@ interface LogbookViewProps {
 }
 
 export default function LogbookView({ isOwnProfile, initialLogs = [], profile }: LogbookViewProps) {
+  const gradeSystem = useGradeSystem()
   const router = useRouter()
   const [logs, setLogs] = useState<Climb[]>(initialLogs)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -162,7 +165,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base">2-Month Average</CardTitle>
                 <p className="text-base font-semibold text-gray-900 dark:text-gray-100 text-right whitespace-nowrap">
-                  {getGradeFromPoints(stats.twoMonthAverage)}
+                  {formatGradeForDisplay(getGradeFromPoints(stats.twoMonthAverage), gradeSystem)}
                   <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
                     ({stats.totalFlashes} flashes, {stats.totalTops} tops)
                   </span>
@@ -211,7 +214,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
                       </div>
                       <span className={`px-2 py-1 rounded text-sm font-medium ${statusStyles[log.style as keyof typeof statusStyles]}`}>
                         {log.style === 'flash' && '⚡ '}
-                        {log.climbs?.grade}
+                        {formatGradeForDisplay(log.climbs?.grade, gradeSystem)}
                       </span>
                     </div>
                   ))}
@@ -247,7 +250,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
                     </div>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusStyles[log.style as keyof typeof statusStyles]}`}>
                       {log.style === 'flash' && '⚡ '}
-                      {log.climbs?.grade}
+                      {formatGradeForDisplay(log.climbs?.grade, gradeSystem)}
                     </span>
                     {isOwnProfile && (
                       deletingId === log.id ? (

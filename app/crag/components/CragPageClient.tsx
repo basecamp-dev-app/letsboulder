@@ -11,6 +11,8 @@ import { geoJsonPolygonToLeaflet, getPolygonCenter } from '@/lib/geo-utils'
 import type { GeoJSONPolygon } from '@/types/database'
 import { SITE_URL } from '@/lib/site'
 import { GRADES, normalizeGrade } from '@/lib/grades'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -105,6 +107,8 @@ interface CragRoute {
 const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
 const faceDirectionIndex = new Map(FACE_DIRECTIONS.map((direction, index) => [direction, index]))
 const gradeOrderIndex = new Map(GRADES.map((grade, index) => [grade, index]))
+const MIN_FILTER_GRADE = '3A'
+const FILTER_GRADES = GRADES.slice(Math.max(0, GRADES.indexOf(MIN_FILTER_GRADE)))
 
 function extractDirections(routeLines: RawRouteLine[] | null | undefined): string[] {
   if (!routeLines || routeLines.length === 0) return []
@@ -174,6 +178,7 @@ function haversineMeters(from: [number, number], to: [number, number]) {
 }
 
 export default function CragPageClient({ id, canonicalPath }: { id: string; canonicalPath?: string }) {
+  const gradeSystem = useGradeSystem()
   const [crag, setCrag] = useState<Crag | null>(null)
   const [images, setImages] = useState<ImageData[]>([])
   const [routes, setRoutes] = useState<CragRoute[]>([])
@@ -776,8 +781,8 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                   >
                     <option value="">Any</option>
-                    {GRADES.map((grade) => (
-                      <option key={`min-${grade}`} value={grade}>{grade}</option>
+                    {FILTER_GRADES.map((grade) => (
+                      <option key={`min-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>
                     ))}
                   </select>
                 </label>
@@ -799,8 +804,8 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                   >
                     <option value="">Any</option>
-                    {GRADES.map((grade) => (
-                      <option key={`max-${grade}`} value={grade}>{grade}</option>
+                    {FILTER_GRADES.map((grade) => (
+                      <option key={`max-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>
                     ))}
                   </select>
                 </label>
@@ -881,7 +886,7 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
                             <span className="font-medium">{route.name}</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm tabular-nums text-gray-700 dark:text-gray-300">{route.grade}</td>
+                        <td className="px-4 py-3 text-sm tabular-nums text-gray-700 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{route.directions.length > 0 ? route.directions.join(', ') : 'Unknown'}</td>
                       </tr>
                     ))}
@@ -899,7 +904,7 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
                         ) : (
                           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{route.name}</p>
                         )}
-                        <span className="text-sm tabular-nums text-gray-600 dark:text-gray-300">{route.grade}</span>
+                        <span className="text-sm tabular-nums text-gray-600 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</span>
                       </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Faces: {route.directions.length > 0 ? route.directions.join(', ') : 'Unknown'}</p>
                     </div>

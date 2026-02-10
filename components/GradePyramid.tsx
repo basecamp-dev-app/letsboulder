@@ -1,6 +1,8 @@
 'use client'
 
 import { GRADES } from '@/lib/grades'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface GradePyramidProps {
   pyramid: Record<string, number>
@@ -8,6 +10,7 @@ interface GradePyramidProps {
 }
 
 export default function GradePyramid({ pyramid, lowestGrade }: GradePyramidProps) {
+  const gradeSystem = useGradeSystem()
   const displayGrades = GRADES
     .slice(Math.max(GRADES.indexOf(lowestGrade), 0))
     .filter(g => (pyramid[g] || 0) > 0)
@@ -31,7 +34,7 @@ export default function GradePyramid({ pyramid, lowestGrade }: GradePyramidProps
           return (
             <div key={grade} className="flex items-center gap-3 w-full">
               <span className="text-sm md:text-xs text-gray-600 dark:text-gray-400 w-12 text-right">
-                {grade}
+                {formatGradeForDisplay(grade, gradeSystem)}
               </span>
               <div className="flex-1 h-8 md:h-6 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden">
                 <div

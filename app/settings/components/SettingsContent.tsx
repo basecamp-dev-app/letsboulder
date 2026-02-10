@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { updateGradeSystemPreference } from '@/hooks/useGradeSystem'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import type { GradeSystem } from '@/lib/grade-display'
 
 interface SettingsContentProps {
   user: User
@@ -38,6 +40,11 @@ const TABS = [
   { id: 'privacy', label: 'Privacy' },
 ]
 
+const GRADE_SYSTEM_OPTIONS: Array<{ value: GradeSystem; label: string; sample: string }> = [
+  { value: 'font', label: 'French', sample: '6C+' },
+  { value: 'v', label: 'V Scale', sample: 'V5' },
+]
+
 export default function SettingsContent({ user }: SettingsContentProps) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('profile')
@@ -45,13 +52,14 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    gender: '',
+    gender: 'prefer_not_to_say',
     bio: ''
   })
   const [isDirty, setIsDirty] = useState(false)
   const [isPublic, setIsPublic] = useState(true)
 
   const [themePreference, setThemePreference] = useState('system')
+  const [gradeSystem, setGradeSystem] = useState<GradeSystem>('font')
 
   const [toast, setToast] = useState<string | null>(null)
   const [saveLoading, setSaveLoading] = useState(false)
@@ -85,9 +93,12 @@ export default function SettingsContent({ user }: SettingsContentProps) {
             gender: data.settings.gender || 'prefer_not_to_say',
             bio: data.settings.bio || ''
           })
-           setIsPublic(data.settings.isPublic !== false)
-           setThemePreference(data.settings.themePreference || 'system')
-         }
+            setIsPublic(data.settings.isPublic !== false)
+            setThemePreference(data.settings.themePreference || 'system')
+            const initialGradeSystem = data.settings.gradeSystem === 'v' ? 'v' : 'font'
+            setGradeSystem(initialGradeSystem)
+            updateGradeSystemPreference(initialGradeSystem)
+          }
          if (data.imageCount !== undefined) {
            setImageCount(data.imageCount)
         }
@@ -118,7 +129,8 @@ export default function SettingsContent({ user }: SettingsContentProps) {
           gender: formData.gender,
           bio: formData.bio,
           isPublic,
-          themePreference
+          themePreference,
+          gradeSystem,
         })
       })
 
@@ -154,6 +166,12 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const handleVisibilityToggle = async () => {
     const newValue = !isPublic
     setIsPublic(newValue)
+    setIsDirty(true)
+  }
+
+  const handleGradeSystemChange = (next: GradeSystem) => {
+    setGradeSystem(next)
+    updateGradeSystemPreference(next)
     setIsDirty(true)
   }
 
@@ -327,6 +345,28 @@ export default function SettingsContent({ user }: SettingsContentProps) {
                       <span className="text-sm font-medium">{option.label}</span>
                     </button>
                   ))}
+                </div>
+
+                <div className="pt-2">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Grade display</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">This only changes how grades are shown. Votes, consensus, and points stay in French internally.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {GRADE_SYSTEM_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleGradeSystemChange(option.value)}
+                        className={`px-4 py-3 border rounded-lg text-left transition-colors ${
+                          gradeSystem === option.value
+                            ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        <p className="text-sm font-medium">{option.label}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Example: {option.sample}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

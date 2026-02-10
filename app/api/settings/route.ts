@@ -4,6 +4,9 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
+const VALID_GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const
+const VALID_GRADE_SYSTEMS = ['font', 'v'] as const
+
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
 
@@ -25,15 +28,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { data: profile, error } = await supabase
+    const { data: profiles, error } = await supabase
       .from('profiles')
       .select('username, first_name, last_name, gender, avatar_url, bio, grade_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference')
       .eq('id', user.id)
-      .single()
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(1)
 
     if (error) {
       return createErrorResponse(error, 'Error fetching profile')
     }
+
+    const profile = profiles?.[0] || null
 
     const { count: imageCount } = await supabase
       .from('images')
@@ -102,7 +108,11 @@ export async function PUT(request: NextRequest) {
     const updateData: Record<string, unknown> = {}
 
     if (bio !== undefined) updateData.bio = bio.slice(0, 500)
-    if (gradeSystem !== undefined) updateData.grade_system = gradeSystem
+    if (gradeSystem !== undefined) {
+      if (typeof gradeSystem === 'string' && VALID_GRADE_SYSTEMS.includes(gradeSystem as (typeof VALID_GRADE_SYSTEMS)[number])) {
+        updateData.grade_system = gradeSystem
+      }
+    }
     if (units !== undefined) updateData.units = units
     if (isPublic !== undefined) updateData.is_public = isPublic
     if (defaultLocation !== undefined) updateData.default_location = defaultLocation
@@ -111,17 +121,26 @@ export async function PUT(request: NextRequest) {
     if (defaultLocationLng !== undefined) updateData.default_location_lng = defaultLocationLng === null ? null : Number(defaultLocationLng)
     if (defaultLocationZoom !== undefined) updateData.default_location_zoom = defaultLocationZoom === null ? null : Number(defaultLocationZoom)
     if (themePreference !== undefined) updateData.theme_preference = themePreference
-    if (gender !== undefined) updateData.gender = gender
+    if (gender !== undefined) {
+      if (gender === '' || gender === null) {
+        updateData.gender = null
+      } else if (typeof gender === 'string' && VALID_GENDERS.includes(gender as (typeof VALID_GENDERS)[number])) {
+        updateData.gender = gender
+      }
+    }
     updateData.updated_at = new Date().toISOString()
 
     let nameChangeBlocked = false
 
     if (firstName !== undefined || lastName !== undefined) {
-      const { data: currentProfile } = await supabase
+      const { data: currentProfiles } = await supabase
         .from('profiles')
         .select('first_name, last_name, name_updated_at')
         .eq('id', user.id)
-        .single()
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .limit(1)
+
+      const currentProfile = currentProfiles?.[0] || null
 
       const currentFirstName = currentProfile?.first_name || ''
       const currentLastName = currentProfile?.last_name || ''
@@ -152,12 +171,24 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const { error: upsertError } = await supabase
+    const { data: updatedRows, error: updateError } = await supabase
       .from('profiles')
-      .upsert({ ...updateData, id: user.id })
+      .update(updateData)
+      .eq('id', user.id)
+      .select('id')
 
-    if (upsertError) {
-      return createErrorResponse(upsertError, 'UPSERT error')
+    if (updateError) {
+      return createErrorResponse(updateError, 'UPDATE error')
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .insert({ ...updateData, id: user.id })
+
+      if (insertError) {
+        return createErrorResponse(insertError, 'INSERT error')
+      }
     }
 
     if (nameChangeBlocked) {
@@ -167,10 +198,6 @@ export async function PUT(request: NextRequest) {
       })
     }
     
-    if (upsertError) {
-      return createErrorResponse(upsertError, 'UPSERT error')
-    }
-
     return NextResponse.json({ success: true })
 
   } catch (error) {

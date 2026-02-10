@@ -2,14 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
+import { GRADES } from '@/lib/grades'
 
-const FRENCH_GRADES = [
-  '5A', '5A+', '5B', '5B+', '5C', '5C+',
-  '6A', '6A+', '6B', '6B+', '6C', '6C+',
-  '7A', '7A+', '7B', '7B+', '7C', '7C+',
-  '8A', '8A+', '8B', '8B+', '8C', '8C+',
-  '9A', '9A+', '9B', '9B+', '9C', '9C+'
-]
+const MIN_GRADE = '3A'
+const FRENCH_GRADES = GRADES.slice(Math.max(0, GRADES.indexOf(MIN_GRADE)))
 
 interface GradePickerProps {
   isOpen: boolean
@@ -32,6 +30,7 @@ export default function GradePicker({
   voteCount = 0,
   mode = 'select'
 }: GradePickerProps) {
+  const gradeSystem = useGradeSystem()
   const [search, setSearch] = useState('')
   const [selectedGrade, setSelectedGrade] = useState(currentGrade || '')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -44,9 +43,12 @@ export default function GradePicker({
 
   useOverlayHistory({ open: isOpen, onClose, id: 'grade-picker' })
 
-  const filteredGrades = FRENCH_GRADES.filter(grade =>
-    grade.toLowerCase().includes(search.toLowerCase())
-  )
+  const filteredGrades = FRENCH_GRADES.filter((grade) => {
+    const query = search.toLowerCase().trim()
+    if (!query) return true
+    const display = formatGradeForDisplay(grade, gradeSystem).toLowerCase()
+    return grade.toLowerCase().includes(query) || display.includes(query)
+  })
 
   const handleSelect = (grade: string) => {
     setSelectedGrade(grade)
@@ -108,7 +110,7 @@ export default function GradePicker({
                 <span className={`font-medium ${
                   isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
                 }`}>
-                  {grade}
+                  {formatGradeForDisplay(grade, gradeSystem)}
                 </span>
                 <div className="flex items-center gap-2">
                   {isConsensus && (
@@ -130,7 +132,7 @@ export default function GradePicker({
         {mode === 'vote' && consensusGrade && (
           <div className="p-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Current consensus: <strong>{consensusGrade}</strong> with {voteCount} votes
+              Current consensus: <strong>{formatGradeForDisplay(consensusGrade, gradeSystem)}</strong> with {voteCount} votes
             </p>
           </div>
         )}

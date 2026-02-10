@@ -11,6 +11,8 @@ import FlagImageModal from '@/components/FlagImageModal'
 import type { ClimbStatusResponse } from '@/lib/verification-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 import RouteDetailModal from '@/app/image/components/RouteDetailModal'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface ImageRoute {
   id: string
@@ -212,6 +214,7 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
 }
 
 export default function ImagePage() {
+  const gradeSystem = useGradeSystem()
   const params = useParams()
   const imageId = params.id as string
   const router = useRouter()
@@ -643,7 +646,7 @@ export default function ImagePage() {
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
                           : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
                       }`}>
-                        {route.climb?.grade || '—'}
+                        {formatGradeForDisplay(route.climb?.grade, gradeSystem)}
                       </span>
                     </div>
                     {isLogged && (
