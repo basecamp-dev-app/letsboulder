@@ -21,6 +21,7 @@ interface ExistingRoute {
   points: RoutePoint[]
   grade: string
   name: string
+  description?: string
 }
 
 interface RouteCanvasProps {
@@ -44,7 +45,9 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
   const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>([])
   const [currentName, setCurrentName] = useState('')
   const [currentGrade, setCurrentGrade] = useState('6A')
+  const [currentDescription, setCurrentDescription] = useState('')
   const [gradePickerOpen, setGradePickerOpen] = useState(false)
+  const [showDescriptionField, setShowDescriptionField] = useState(false)
   const [completedRoutes, setCompletedRoutes] = useState<ExistingRoute[]>([])
   const [existingRoutes] = useState<ExistingRoute[]>(() => {
     if (existingRouteLines && existingRouteLines.length > 0) {
@@ -237,19 +240,23 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     if (currentPoints.length < 2) return
 
     const routeId = generateRouteId()
+    const trimmedDescription = currentDescription.trim()
     const route: ExistingRoute = {
       id: routeId,
       points: currentPoints,
       name: currentName || `Route ${completedRoutes.length + 1}`,
-      grade: currentGrade
+      grade: currentGrade,
+      description: trimmedDescription || undefined
     }
 
     setCompletedRoutes(prev => [...prev, route])
     setCurrentPoints([])
     setCurrentName('')
     setCurrentGrade('6A')
+    setCurrentDescription('')
+    setShowDescriptionField(false)
     selectRoute(routeId)
-  }, [currentPoints, currentName, currentGrade, completedRoutes, selectRoute])
+  }, [currentPoints, currentName, currentGrade, currentDescription, completedRoutes, selectRoute])
 
   const handleDeleteSelected = useCallback(() => {
     setCompletedRoutes(prev => prev.filter(route => !selectedIds.includes(route.id)))
@@ -385,6 +392,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         id: route.id,
         name: route.name,
         grade: route.grade,
+        description: route.description,
         points: normalized,
         sequenceOrder: index,
         imageWidth: imageDimensions.naturalWidth,
@@ -416,6 +424,9 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     window.addEventListener('resize', setupCanvas)
     return () => window.removeEventListener('resize', setupCanvas)
   }, [setupCanvas])
+
+  const selectedNewRoutes = completedRoutes.filter(route => selectedIds.includes(route.id))
+  const selectedNewRoute = selectedNewRoutes.length === 1 ? selectedNewRoutes[0] : null
 
   return (
     <div className="relative w-full h-full bg-gray-100 dark:bg-gray-900 overflow-hidden" ref={containerRef}>
@@ -518,13 +529,13 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         </div>
       </div>
 
-      <div className="absolute top-20 right-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
+      <div className="absolute top-20 right-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg w-56">
         <input
           type="text"
           value={currentName}
           onChange={(e) => setCurrentName(e.target.value)}
           placeholder="Route name"
-          className="w-32 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-1"
+          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-1"
         />
         <div className="relative">
           <button
@@ -545,6 +556,43 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
             />
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowDescriptionField(prev => !prev)}
+          className="mt-1 w-full px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+        >
+          {showDescriptionField ? 'Hide description' : 'Add description (optional)'}
+        </button>
+
+        {showDescriptionField && (
+          <textarea
+            value={currentDescription}
+            onChange={(e) => setCurrentDescription(e.target.value)}
+            placeholder="Optional beta / gear / crux notes"
+            maxLength={500}
+            rows={3}
+            className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
+          />
+        )}
+
+        {selectedNewRoute && (
+          <div className="mt-2 border-t border-gray-200 dark:border-gray-600 pt-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Selected route description</p>
+            <textarea
+              value={selectedNewRoute.description || ''}
+              onChange={(e) => {
+                const value = e.target.value
+                setCompletedRoutes(prev => prev.map(route => route.id === selectedNewRoute.id ? { ...route, description: value || undefined } : route))
+              }}
+              placeholder="Optional beta / gear / crux notes"
+              maxLength={500}
+              rows={3}
+              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
+            />
+          </div>
+        )}
+
         {selectedIds.length > 0 && completedRoutes.some(r => selectedIds.includes(r.id)) && (
           <button
             onClick={() => setGradePickerOpen(true)}
