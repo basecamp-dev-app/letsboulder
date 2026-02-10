@@ -7,13 +7,29 @@ import Link from 'next/link'
 import { SupabaseClient, User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 
+async function syncProfileFields(supabase: SupabaseClient, userId: string, profileData: Record<string, unknown>) {
+  const { data: updatedRows, error: updateError } = await supabase
+    .from('profiles')
+    .update(profileData)
+    .eq('id', userId)
+    .select('id')
+
+  if (updateError) throw updateError
+  if (updatedRows && updatedRows.length > 0) return
+
+  const { error: insertError } = await supabase
+    .from('profiles')
+    .insert({ id: userId, ...profileData })
+
+  if (insertError) throw insertError
+}
+
 const syncOAuthProfile = async (supabase: SupabaseClient, user: User): Promise<boolean> => {
   const metadata = user.user_metadata
   const provider = metadata?.provider
 
   if (provider === 'google' && metadata?.given_name && metadata?.family_name) {
-    await supabase.from('profiles').upsert({
-      id: user.id,
+    await syncProfileFields(supabase, user.id, {
       first_name: metadata.given_name,
       last_name: metadata.family_name,
       avatar_url: metadata.avatar_url,
@@ -38,8 +54,7 @@ const syncOAuthProfile = async (supabase: SupabaseClient, user: User): Promise<b
       lastName = nameParts[1] || ''
     }
 
-    await supabase.from('profiles').upsert({
-      id: user.id,
+    await syncProfileFields(supabase, user.id, {
       first_name: firstName,
       last_name: lastName,
       avatar_url: avatarUrl,
@@ -50,8 +65,7 @@ const syncOAuthProfile = async (supabase: SupabaseClient, user: User): Promise<b
 
   if (metadata?.full_name) {
     const nameParts = (metadata.full_name as string).split(' ')
-    await supabase.from('profiles').upsert({
-      id: user.id,
+    await syncProfileFields(supabase, user.id, {
       first_name: nameParts[0] || '',
       last_name: nameParts.slice(1).join(' ') || '',
       avatar_url: metadata.avatar_url,
@@ -154,9 +168,12 @@ function AuthCallbackContent() {
             .from('profiles')
             .select('first_name')
             .eq('id', user.id)
-            .single()
+            .order('updated_at', { ascending: false, nullsFirst: false })
+            .limit(1)
 
-          if (!profile?.first_name) {
+          const activeProfile = profile?.[0]
+
+          if (!activeProfile?.first_name) {
             router.push('/auth/set-name')
             return
           }
@@ -166,7 +183,7 @@ function AuthCallbackContent() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               email: user.email,
-              firstName: profile?.first_name || null,
+              firstName: activeProfile?.first_name || null,
             }),
           }).catch(console.error)
         }
@@ -251,9 +268,12 @@ function AuthCallbackContent() {
             .from('profiles')
             .select('first_name')
             .eq('id', user.id)
-            .single()
+            .order('updated_at', { ascending: false, nullsFirst: false })
+            .limit(1)
 
-           if (!profile?.first_name) {
+          const activeProfile = profile?.[0]
+
+          if (!activeProfile?.first_name) {
             router.push('/auth/set-name')
             return
           }
@@ -263,7 +283,7 @@ function AuthCallbackContent() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               email: user.email,
-              firstName: profile?.first_name || null,
+              firstName: activeProfile?.first_name || null,
             }),
           }).catch(console.error)
         }

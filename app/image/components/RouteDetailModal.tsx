@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { HelpCircle, Loader2, X } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { VALID_GRADES } from '@/lib/verification-types'
+import { SELECTABLE_GRADES, VALID_GRADES } from '@/lib/verification-types'
 import type { ClimbStatusResponse, GradeVoteDistribution } from '@/lib/verification-types'
 import RoutePreviewThumb from '@/app/image/components/RoutePreviewThumb'
 import type { RoutePoint } from '@/lib/useRouteSelection'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 type LogStyle = 'flash' | 'top' | 'try'
 
@@ -63,7 +65,7 @@ function buildVoteOrderIndex(): Map<string, number> {
 
 const VOTE_ORDER_INDEX = buildVoteOrderIndex()
 
-const GRADE_OPTIONS = VALID_GRADES as readonly string[]
+const GRADE_OPTIONS = SELECTABLE_GRADES as readonly string[]
 
 function sortVotesByGradeOrder(votes: GradeVoteDistribution[]): GradeVoteDistribution[] {
   return [...votes].sort((a, b) => (VOTE_ORDER_INDEX.get(a.grade) ?? 1e9) - (VOTE_ORDER_INDEX.get(b.grade) ?? 1e9))
@@ -93,7 +95,7 @@ function formatRelativeDate(iso: string): string {
   return `${days}d ago`
 }
 
-function VoteBars({ votes, userVote }: { votes: GradeVoteDistribution[]; userVote: string | null }) {
+function VoteBars({ votes, userVote, gradeSystem }: { votes: GradeVoteDistribution[]; userVote: string | null; gradeSystem: 'font' | 'v' }) {
   const sortedVotes = useMemo(() => sortVotesByGradeOrder(votes), [votes])
   const totalVotes = useMemo(() => sortedVotes.reduce((sum, v) => sum + v.vote_count, 0), [sortedVotes])
   const maxVotes = useMemo(() => Math.max(1, ...sortedVotes.map((v) => v.vote_count)), [sortedVotes])
@@ -123,7 +125,7 @@ function VoteBars({ votes, userVote }: { votes: GradeVoteDistribution[]; userVot
                 }`}
               >
                 <span className={`text-xs font-medium tabular-nums ${isUser ? 'text-blue-700 dark:text-blue-200' : 'text-gray-900 dark:text-gray-200'}`}>
-                  {v.grade}
+                  {formatGradeForDisplay(v.grade, gradeSystem)}
                 </span>
                 <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-800 overflow-hidden relative">
                   <div
@@ -174,6 +176,7 @@ export default function RouteDetailModal({
   onLog,
   redirectTo,
 }: RouteDetailModalProps) {
+  const gradeSystem = useGradeSystem()
   const climbId = route.climb?.id || ''
   const routeName = (route.climb?.name || '').trim() || 'Unnamed'
   const routeGrade = (route.climb?.grade || '').trim() || '—'
@@ -335,7 +338,7 @@ export default function RouteDetailModal({
             </button>
             <p className="text-lg font-semibold text-gray-900 dark:text-white leading-tight mt-2">{routeName}</p>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm text-gray-700 dark:text-gray-300">{displayedGrade}</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">{formatGradeForDisplay(displayedGrade, gradeSystem)}</span>
               {route.climb?.route_type && (
                 <>
                   <span className="text-xs text-gray-400">•</span>
@@ -390,7 +393,7 @@ export default function RouteDetailModal({
                     <Loader2 className="w-5 h-5 animate-spin text-gray-500 dark:text-gray-400" />
                   </div>
                 ) : (
-                  <VoteBars votes={votes} userVote={userVote} />
+                  <VoteBars votes={votes} userVote={userVote} gradeSystem={gradeSystem} />
                 )}
 
                 {route.climb?.description && (
@@ -460,7 +463,7 @@ export default function RouteDetailModal({
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-200">Vote grade</p>
                 <p className="text-xs text-gray-500 dark:text-gray-500">Release to submit</p>
               </div>
-              <div className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums">{selectedGrade}</div>
+              <div className="text-sm font-semibold text-gray-900 dark:text-white tabular-nums">{formatGradeForDisplay(selectedGrade, gradeSystem)}</div>
             </div>
 
             <input
@@ -494,7 +497,7 @@ export default function RouteDetailModal({
                 </div>
               ) : (
                 <div className="text-xs text-gray-600 dark:text-gray-400">
-                  {userVote ? `Your vote: ${userVote}` : 'No grade vote yet'}
+                  {userVote ? `Your vote: ${formatGradeForDisplay(userVote, gradeSystem)}` : 'No grade vote yet'}
                 </div>
               )}
 

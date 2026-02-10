@@ -173,6 +173,11 @@ export const VALID_GRADES = [
 
 export type Grade = typeof VALID_GRADES[number]
 
+export const MIN_SELECTABLE_GRADE: Grade = '3A'
+export const SELECTABLE_GRADES = VALID_GRADES.slice(
+  Math.max(0, VALID_GRADES.indexOf(MIN_SELECTABLE_GRADE))
+) as readonly Grade[]
+
 // =====================================================
 // CORRECTION COMPONENT TYPES
 // =====================================================

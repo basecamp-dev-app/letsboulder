@@ -43,6 +43,14 @@ interface Profile {
   last_name?: string
 }
 
+interface Submission {
+  id: string
+  url: string
+  created_at: string
+  crag_name: string | null
+  route_lines_count: number
+}
+
 async function getProfile(userId: string): Promise<Profile | null> {
   const cookieStore = await cookies()
   
@@ -108,6 +116,58 @@ async function getPublicLogs(userId: string): Promise<Climb[]> {
   }) as Climb[]
 
   return logsWithCrags
+}
+
+async function getPublicSubmissions(userId: string): Promise<Submission[]> {
+  const cookieStore = await cookies()
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll() },
+        setAll() {},
+      },
+    }
+  )
+
+  const { data, error } = await supabase
+    .from('images')
+    .select('id, url, created_at, crags(name), route_lines(count)')
+    .eq('created_by', userId)
+    .eq('moderation_status', 'approved')
+    .not('crag_id', 'is', null)
+    .not('latitude', 'is', null)
+    .not('longitude', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(24)
+
+  if (error || !data) {
+    return []
+  }
+
+  return data
+    .map((submission) => {
+      const cragRelation = submission.crags as { name?: string } | Array<{ name?: string }> | null
+      const cragName = Array.isArray(cragRelation)
+        ? (cragRelation[0]?.name || null)
+        : (cragRelation?.name || null)
+
+      const routeLines = submission.route_lines as Array<{ count?: number }> | null
+      const routeLinesCount = Array.isArray(routeLines) && routeLines[0]
+        ? (routeLines[0].count || 0)
+        : 0
+
+      return {
+        id: submission.id,
+        url: submission.url,
+        created_at: submission.created_at,
+        crag_name: cragName,
+        route_lines_count: routeLinesCount,
+      }
+    })
+    .filter((submission) => submission.route_lines_count > 0)
 }
 
 function PrivateProfileCard({ username }: { username: string }) {
@@ -199,6 +259,7 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
   }
 
   const logs = await getPublicLogs(userId)
+  const submissions = await getPublicSubmissions(userId)
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
@@ -208,6 +269,7 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
         isOwnProfile={false}
         initialLogs={logs}
         profile={profile}
+        initialSubmissions={submissions}
       />
     </div>
   )

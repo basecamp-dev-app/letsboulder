@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import { Card, CardContent } from '@/components/ui/card'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface LeaderboardEntry {
   rank: number
@@ -75,6 +77,7 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 export default function LeaderboardPage() {
+  const gradeSystem = useGradeSystem()
   const [gender, setGender] = useState('all')
   const [country, setCountry] = useState('all')
   const [sortBy, setSortBy] = useState<'grade' | 'tops'>('grade')
@@ -251,9 +254,9 @@ export default function LeaderboardPage() {
                   </div>
                   <div className="flex items-center gap-1">
                     {sortBy === 'grade' ? (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                        {entry.avg_grade}
-                      </span>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+                        {formatGradeForDisplay(entry.avg_grade, gradeSystem)}
+                        </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200">
                         {entry.climb_count} tops

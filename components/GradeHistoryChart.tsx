@@ -2,6 +2,8 @@
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { getGradeFromPoints } from '@/lib/grades'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface GradeHistoryChartProps {
   data: Array<{
@@ -12,6 +14,7 @@ interface GradeHistoryChartProps {
 }
 
 export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
+  const gradeSystem = useGradeSystem()
   const gradeStep = 16
   const values = data.flatMap(d => [d.top, d.flash]).filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
 
@@ -49,7 +52,7 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
             tick={{ fontSize: 12, fill: '#666' }}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(value) => getGradeFromPoints(value)}
+            tickFormatter={(value) => formatGradeForDisplay(getGradeFromPoints(value), gradeSystem)}
           />
           <Tooltip
             contentStyle={{
@@ -62,7 +65,7 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
             itemStyle={{ fontSize: 13 }}
             formatter={(value) => {
               if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
-              return getGradeFromPoints(value)
+              return formatGradeForDisplay(getGradeFromPoints(value), gradeSystem)
             }}
           />
           <Legend

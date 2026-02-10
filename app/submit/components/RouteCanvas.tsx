@@ -13,12 +13,15 @@ import GradePicker from '@/components/GradePicker'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { ImageSelection, NewRouteData, RouteLine } from '@/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface ExistingRoute {
   id: string
   points: RoutePoint[]
   grade: string
   name: string
+  description?: string
 }
 
 interface RouteCanvasProps {
@@ -28,6 +31,7 @@ interface RouteCanvasProps {
 }
 
 export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRouteLines }: RouteCanvasProps) {
+  const gradeSystem = useGradeSystem()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -41,7 +45,9 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
   const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>([])
   const [currentName, setCurrentName] = useState('')
   const [currentGrade, setCurrentGrade] = useState('6A')
+  const [currentDescription, setCurrentDescription] = useState('')
   const [gradePickerOpen, setGradePickerOpen] = useState(false)
+  const [showDescriptionField, setShowDescriptionField] = useState(false)
   const [completedRoutes, setCompletedRoutes] = useState<ExistingRoute[]>([])
   const [existingRoutes] = useState<ExistingRoute[]>(() => {
     if (existingRouteLines && existingRouteLines.length > 0) {
@@ -234,19 +240,23 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     if (currentPoints.length < 2) return
 
     const routeId = generateRouteId()
+    const trimmedDescription = currentDescription.trim()
     const route: ExistingRoute = {
       id: routeId,
       points: currentPoints,
       name: currentName || `Route ${completedRoutes.length + 1}`,
-      grade: currentGrade
+      grade: currentGrade,
+      description: trimmedDescription || undefined
     }
 
     setCompletedRoutes(prev => [...prev, route])
     setCurrentPoints([])
     setCurrentName('')
     setCurrentGrade('6A')
+    setCurrentDescription('')
+    setShowDescriptionField(false)
     selectRoute(routeId)
-  }, [currentPoints, currentName, currentGrade, completedRoutes, selectRoute])
+  }, [currentPoints, currentName, currentGrade, currentDescription, completedRoutes, selectRoute])
 
   const handleDeleteSelected = useCallback(() => {
     setCompletedRoutes(prev => prev.filter(route => !selectedIds.includes(route.id)))
@@ -277,7 +287,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
       if (route.points.length > 1 && isSelected) {
         const bgColor = 'rgba(251, 191, 36, 0.95)'
         const gradePos = getGradeLabelPosition(route.points)
-        drawRoundedLabel(ctx, route.grade, gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
+        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
 
         const truncatedName = getTruncatedText(ctx, route.name, 150)
         const namePos = getNameLabelPosition(route.points)
@@ -300,7 +310,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
       if (route.points.length > 1) {
         const bgColor = 'rgba(220, 38, 38, 0.95)'
         const gradePos = getGradeLabelPosition(route.points)
-        drawRoundedLabel(ctx, route.grade, gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
+        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
 
         const truncatedName = getTruncatedText(ctx, route.name, 150)
         const namePos = getNameLabelPosition(route.points)
@@ -324,7 +334,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         drawSmoothCurve(ctx, currentPoints, '#3b82f6', 3, [8, 4])
 
         const gradePos = getGradeLabelPosition(currentPoints)
-        drawRoundedLabel(ctx, currentGrade, gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', 'bold 14px Arial')
+        drawRoundedLabel(ctx, formatGradeForDisplay(currentGrade, gradeSystem), gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', 'bold 14px Arial')
 
         const truncatedName = getTruncatedText(ctx, currentName, 150)
         const namePos = getNameLabelPosition(currentPoints)
@@ -333,7 +343,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     }
 
     ctx.restore()
-  }, [completedRoutes, currentPoints, currentGrade, currentName, existingRoutes, selectedIds, pan, zoom])
+  }, [completedRoutes, currentPoints, currentGrade, currentName, existingRoutes, selectedIds, pan, zoom, gradeSystem])
 
   useEffect(() => {
     if (imageLoaded) {
@@ -382,6 +392,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         id: route.id,
         name: route.name,
         grade: route.grade,
+        description: route.description,
         points: normalized,
         sequenceOrder: index,
         imageWidth: imageDimensions.naturalWidth,
@@ -413,6 +424,9 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     window.addEventListener('resize', setupCanvas)
     return () => window.removeEventListener('resize', setupCanvas)
   }, [setupCanvas])
+
+  const selectedNewRoutes = completedRoutes.filter(route => selectedIds.includes(route.id))
+  const selectedNewRoute = selectedNewRoutes.length === 1 ? selectedNewRoutes[0] : null
 
   return (
     <div className="relative w-full h-full bg-gray-100 dark:bg-gray-900 overflow-hidden" ref={containerRef}>
@@ -515,20 +529,20 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         </div>
       </div>
 
-      <div className="absolute top-20 right-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
+      <div className="absolute top-20 right-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg w-56">
         <input
           type="text"
           value={currentName}
           onChange={(e) => setCurrentName(e.target.value)}
           placeholder="Route name"
-          className="w-32 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-1"
+          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-1"
         />
         <div className="relative">
           <button
             onClick={() => setGradePickerOpen(true)}
             className="w-full px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
           >
-            {currentGrade}
+            {formatGradeForDisplay(currentGrade, gradeSystem)}
           </button>
           {gradePickerOpen && (
             <GradePicker
@@ -542,6 +556,43 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
             />
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowDescriptionField(prev => !prev)}
+          className="mt-1 w-full px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+        >
+          {showDescriptionField ? 'Hide description' : 'Add description (optional)'}
+        </button>
+
+        {showDescriptionField && (
+          <textarea
+            value={currentDescription}
+            onChange={(e) => setCurrentDescription(e.target.value)}
+            placeholder="Optional beta / gear / crux notes"
+            maxLength={500}
+            rows={3}
+            className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
+          />
+        )}
+
+        {selectedNewRoute && (
+          <div className="mt-2 border-t border-gray-200 dark:border-gray-600 pt-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Selected route description</p>
+            <textarea
+              value={selectedNewRoute.description || ''}
+              onChange={(e) => {
+                const value = e.target.value
+                setCompletedRoutes(prev => prev.map(route => route.id === selectedNewRoute.id ? { ...route, description: value || undefined } : route))
+              }}
+              placeholder="Optional beta / gear / crux notes"
+              maxLength={500}
+              rows={3}
+              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
+            />
+          </div>
+        )}
+
         {selectedIds.length > 0 && completedRoutes.some(r => selectedIds.includes(r.id)) && (
           <button
             onClick={() => setGradePickerOpen(true)}

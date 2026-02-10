@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { VALID_GRADES, GradeVotingProps } from '@/lib/verification-types'
+import { SELECTABLE_GRADES, GradeVotingProps } from '@/lib/verification-types'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 const GRADE_COLORS: Record<string, string> = {
   '5A': 'bg-gray-100', '5A+': 'bg-gray-200', '5B': 'bg-gray-300', '5B+': 'bg-gray-400', '5C': 'bg-gray-500', '5C+': 'bg-gray-600',
@@ -13,6 +15,7 @@ const GRADE_COLORS: Record<string, string> = {
 }
 
 export default function GradeVoting({ climbId, currentGrade, votes, userVote, onVote, user }: GradeVotingProps) {
+  const gradeSystem = useGradeSystem()
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -49,7 +52,7 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
         <div>
           <h4 className="font-medium text-gray-900 dark:text-gray-100">Community Grade</h4>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {totalVotes} vote{totalVotes !== 1 ? 's' : ''} • Current: {currentGrade}
+            {totalVotes} vote{totalVotes !== 1 ? 's' : ''} • Current: {formatGradeForDisplay(currentGrade, gradeSystem)}
           </p>
         </div>
         <svg
@@ -83,7 +86,7 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
                           : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100'
                       }`}
                     >
-                      {vote.grade}
+                      {formatGradeForDisplay(vote.grade, gradeSystem)}
                     </button>
                     <div className="flex-1 h-6 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                       <div
@@ -112,11 +115,11 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
               <>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                   {userVote
-                    ? `You voted: ${userVote}`
+                    ? `You voted: ${formatGradeForDisplay(userVote, gradeSystem)}`
                     : 'What grade do you think this climb is?'}
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  {VALID_GRADES.map((grade) => (
+                  {SELECTABLE_GRADES.map((grade) => (
                     <button
                       key={grade}
                       onClick={() => handleVote(grade)}
@@ -127,7 +130,7 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
                           : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
                       }`}
                     >
-                      {grade}
+                      {formatGradeForDisplay(grade, gradeSystem)}
                     </button>
                   ))}
                 </div>

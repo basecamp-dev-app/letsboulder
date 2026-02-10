@@ -177,6 +177,14 @@ export async function POST(request: NextRequest) {
         response = NextResponse.json({ error: 'Route name is required' }, { status: 400 })
         return response
       }
+      if (route.description !== undefined && route.description !== null && typeof route.description !== 'string') {
+        response = NextResponse.json({ error: 'Route description must be a string' }, { status: 400 })
+        return response
+      }
+      if (typeof route.description === 'string' && route.description.trim().length > 500) {
+        response = NextResponse.json({ error: 'Route description must be 500 characters or less' }, { status: 400 })
+        return response
+      }
       if (!VALID_GRADES.includes(route.grade as typeof VALID_GRADES[number])) {
         response = NextResponse.json({ error: `Invalid grade: ${route.grade}` }, { status: 400 })
         return response

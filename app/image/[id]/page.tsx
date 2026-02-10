@@ -11,6 +11,8 @@ import FlagImageModal from '@/components/FlagImageModal'
 import type { ClimbStatusResponse } from '@/lib/verification-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 import RouteDetailModal from '@/app/image/components/RouteDetailModal'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface ImageRoute {
   id: string
@@ -32,6 +34,7 @@ interface ImageRoute {
 interface ImageData {
   id: string
   url: string
+  created_by?: string | null
   latitude: number | null
   longitude: number | null
   face_direction?: 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW' | null
@@ -40,6 +43,11 @@ interface ImageData {
   height?: number
   natural_width?: number | null
   natural_height?: number | null
+}
+
+interface PublicSubmitter {
+  id: string
+  displayName: string
 }
 
 function smoothSvgPath(points: RoutePoint[], width: number, height: number): string {
@@ -212,6 +220,7 @@ function ImageWrapper({ url, routeLines, selectedRoute, naturalWidth, naturalHei
 }
 
 export default function ImagePage() {
+  const gradeSystem = useGradeSystem()
   const params = useParams()
   const imageId = params.id as string
   const router = useRouter()
@@ -234,6 +243,8 @@ export default function ImagePage() {
   const [userHasFlagged, setUserHasFlagged] = useState(false)
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [statusLoading, setStatusLoading] = useState(false)
+  const [publicSubmitter, setPublicSubmitter] = useState<PublicSubmitter | null>(null)
+  const [hasSubmitter, setHasSubmitter] = useState(false)
 
   const selectedRoute = useMemo(() => {
     if (!image) return null
@@ -267,6 +278,8 @@ export default function ImagePage() {
       setLoading(true)
       setError(null)
       setClimbStatus(null)
+      setPublicSubmitter(null)
+      setHasSubmitter(false)
       lastStatusClimbIdRef.current = null
 
       try {
@@ -278,7 +291,7 @@ export default function ImagePage() {
         ] = await Promise.all([
           supabase
             .from('images')
-            .select('id, url, latitude, longitude, face_direction, crag_id, width, height, natural_width, natural_height')
+            .select('id, url, latitude, longitude, face_direction, crag_id, width, height, natural_width, natural_height, created_by')
             .eq('id', imageId)
             .single(),
           supabase
@@ -356,6 +369,24 @@ export default function ImagePage() {
                   : `/crag/${imageData.crag_id}`
               )
             })
+        }
+
+        if (imageData.created_by) {
+          setHasSubmitter(true)
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('id, username, display_name, first_name, last_name, is_public')
+            .eq('id', imageData.created_by)
+            .single()
+
+          if (profileData?.is_public) {
+            const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
+            const displayName = fullName || profileData.display_name || profileData.username || 'Climber'
+            setPublicSubmitter({
+              id: profileData.id,
+              displayName,
+            })
+          }
         }
       } catch (err) {
         console.error('Error loading image:', err)
@@ -643,7 +674,7 @@ export default function ImagePage() {
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
                           : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
                       }`}>
-                        {route.climb?.grade || '—'}
+                        {formatGradeForDisplay(route.climb?.grade, gradeSystem)}
                       </span>
                     </div>
                     {isLogged && (
@@ -653,6 +684,21 @@ export default function ImagePage() {
                 )
               })}
             </div>
+          </div>
+        )}
+
+        {hasSubmitter && (
+          <div className="text-center mb-2">
+            {publicSubmitter ? (
+              <Link
+                href={`/logbook/${publicSubmitter.id}`}
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 underline underline-offset-2"
+              >
+                Submitted by {publicSubmitter.displayName}
+              </Link>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Submitted by a community member</p>
+            )}
           </div>
         )}
 

@@ -11,6 +11,8 @@ import { Trash2, Loader2 } from 'lucide-react'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { EmptyLogbook } from '@/components/logbook/logbook-states'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
   ssr: false,
@@ -48,16 +50,27 @@ interface Profile {
   last_name?: string
 }
 
+interface Submission {
+  id: string
+  url: string
+  created_at: string
+  crag_name: string | null
+  route_lines_count: number
+}
+
 interface LogbookViewProps {
   userId: string
   isOwnProfile: boolean
   initialLogs?: Climb[]
   profile?: Profile
+  initialSubmissions?: Submission[]
 }
 
-export default function LogbookView({ isOwnProfile, initialLogs = [], profile }: LogbookViewProps) {
+export default function LogbookView({ isOwnProfile, initialLogs = [], profile, initialSubmissions = [] }: LogbookViewProps) {
+  const gradeSystem = useGradeSystem()
   const router = useRouter()
   const [logs, setLogs] = useState<Climb[]>(initialLogs)
+  const [submissions] = useState<Submission[]>(initialSubmissions)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const { toasts, addToast, removeToast } = useToast()
 
@@ -154,15 +167,19 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
       )}
 
       {logs.length === 0 ? (
-        <EmptyLogbook onGoToMap={() => router.push('/map')} />
-      ) : stats ? (
+        submissions.length === 0 ? (
+          <EmptyLogbook onGoToMap={() => router.push('/map')} />
+        ) : null
+      ) : null}
+
+      {stats ? (
         <div className="space-y-0">
           <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">
             <CardHeader className="py-2 px-4">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base">2-Month Average</CardTitle>
                 <p className="text-base font-semibold text-gray-900 dark:text-gray-100 text-right whitespace-nowrap">
-                  {getGradeFromPoints(stats.twoMonthAverage)}
+                  {formatGradeForDisplay(getGradeFromPoints(stats.twoMonthAverage), gradeSystem)}
                   <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
                     ({stats.totalFlashes} flashes, {stats.totalTops} tops)
                   </span>
@@ -211,7 +228,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
                       </div>
                       <span className={`px-2 py-1 rounded text-sm font-medium ${statusStyles[log.style as keyof typeof statusStyles]}`}>
                         {log.style === 'flash' && '⚡ '}
-                        {log.climbs?.grade}
+                        {formatGradeForDisplay(log.climbs?.grade, gradeSystem)}
                       </span>
                     </div>
                   ))}
@@ -247,7 +264,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
                     </div>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusStyles[log.style as keyof typeof statusStyles]}`}>
                       {log.style === 'flash' && '⚡ '}
-                      {log.climbs?.grade}
+                      {formatGradeForDisplay(log.climbs?.grade, gradeSystem)}
                     </span>
                     {isOwnProfile && (
                       deletingId === log.id ? (
@@ -267,7 +284,71 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile }:
               </div>
             </CardContent>
           </Card>
+
+          {submissions.length > 0 && (
+            <Card className="m-0 border-x-0 border-t-0 rounded-none">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Contributions</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-0">
+                  {submissions.map((submission) => (
+                    <Link
+                      key={submission.id}
+                      href={`/image/${submission.id}`}
+                      className="flex items-center gap-3 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
+                    >
+                      <img
+                        src={submission.url}
+                        alt="Submitted route image"
+                        className="w-12 h-12 object-cover rounded"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                          {submission.crag_name || 'Unknown crag'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
+      ) : submissions.length > 0 ? (
+        <Card className="m-0 border-x-0 border-t-0 rounded-none">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Contributions</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-0">
+              {submissions.map((submission) => (
+                <Link
+                  key={submission.id}
+                  href={`/image/${submission.id}`}
+                  className="flex items-center gap-3 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
+                >
+                  <img
+                    src={submission.url}
+                    alt="Submitted route image"
+                    className="w-12 h-12 object-cover rounded"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                      {submission.crag_name || 'Unknown crag'}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   )

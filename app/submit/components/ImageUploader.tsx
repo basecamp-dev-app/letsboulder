@@ -369,7 +369,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
 
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              By uploading, you confirm this is your photo of a climbing route and you have permission to share it.
+              By uploading, you confirm this is your photo of a climbing route, it does not contain people, and you have permission to share it.
             </p>
           </div>
 

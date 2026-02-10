@@ -355,7 +355,7 @@ function SubmitPageContent() {
           <div className="max-w-md mx-auto">
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Upload Route Photo</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Upload a photo of the route to begin. GPS location will be extracted to help find nearby crags.
+              Upload a photo of the route to begin. Photos containing people will be rejected. GPS location will be extracted to help find nearby crags.
             </p>
             <ImagePicker
               onSelect={(selection, gpsData) => handleImageSelect(selection, gpsData)}

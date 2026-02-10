@@ -5,6 +5,8 @@ import Image from 'next/image'
 import { Share2, X } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface ImageRoute {
   id: string
@@ -34,6 +36,7 @@ interface ImageData {
 }
 
 export default function ImageModal({ image, onClose, userLogs, onLogClimb }: ImageModalProps) {
+  const gradeSystem = useGradeSystem()
   useOverlayHistory({ open: Boolean(image), onClose, id: `image-modal-${image?.id ?? 'unknown'}` })
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -165,7 +168,7 @@ export default function ImageModal({ image, onClose, userLogs, onLogClimb }: Ima
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-black dark:text-white text-lg font-semibold">
-                    {selectedRoute.climb?.name || 'Unnamed'}, {selectedRoute.climb?.grade || ''}
+                    {selectedRoute.climb?.name || 'Unnamed'}, {formatGradeForDisplay(selectedRoute.climb?.grade, gradeSystem)}
                   </p>
                 </div>
                 <button
@@ -224,7 +227,7 @@ export default function ImageModal({ image, onClose, userLogs, onLogClimb }: Ima
                         <span className={`text-sm px-2 py-0.5 rounded ${
                           isLogged ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'
                         }`}>
-                          {route.climb.grade}
+                          {formatGradeForDisplay(route.climb.grade, gradeSystem)}
                         </span>
                       </div>
                       {isLogged && (
