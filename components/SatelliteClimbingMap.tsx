@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, type RefObject } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
@@ -10,6 +10,7 @@ import { geoJsonPolygonToLeaflet } from '@/lib/geo-utils'
 import type { GeoJSONPolygon } from '@/types/database'
 import type { User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useMapEvents } from 'react-leaflet'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -93,6 +94,86 @@ interface CragPin {
   imageCount: number
 }
 
+interface MapBounds {
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
+interface CragCluster {
+  id: string
+  latitude: number
+  longitude: number
+  crags: CragPin[]
+  cragCount: number
+}
+
+function getClusterGridSize(zoom: number): number {
+  if (zoom <= 4) return 6
+  if (zoom <= 6) return 3
+  if (zoom <= 8) return 1.2
+  if (zoom <= 10) return 0.5
+  if (zoom <= 12) return 0.2
+  if (zoom <= 14) return 0.08
+  return 0.03
+}
+
+function isLngWithinBounds(lng: number, bounds: MapBounds): boolean {
+  if (bounds.west <= bounds.east) {
+    return lng >= bounds.west && lng <= bounds.east
+  }
+  return lng >= bounds.west || lng <= bounds.east
+}
+
+function MapStateWatcher({
+  onStateChange
+}: {
+  onStateChange: (state: { zoom: number; bounds: MapBounds }) => void
+}) {
+  const map = useMapEvents({
+    moveend: () => {
+      const bounds = map.getBounds()
+      onStateChange({
+        zoom: map.getZoom(),
+        bounds: {
+          north: bounds.getNorth(),
+          south: bounds.getSouth(),
+          east: bounds.getEast(),
+          west: bounds.getWest()
+        }
+      })
+    },
+    zoomend: () => {
+      const bounds = map.getBounds()
+      onStateChange({
+        zoom: map.getZoom(),
+        bounds: {
+          north: bounds.getNorth(),
+          south: bounds.getSouth(),
+          east: bounds.getEast(),
+          west: bounds.getWest()
+        }
+      })
+    }
+  })
+
+  useEffect(() => {
+    const bounds = map.getBounds()
+    onStateChange({
+      zoom: map.getZoom(),
+      bounds: {
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest()
+      }
+    })
+  }, [map, onStateChange])
+
+  return null
+}
+
 interface RouteLineData {
   id: string
   image_id: string
@@ -122,9 +203,55 @@ export default function SatelliteClimbingMap() {
   const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
   const [useUserLocation, setUseUserLocation] = useState(false)
   const [cragPins, setCragPins] = useState<CragPin[]>([])
+  const [mapZoom, setMapZoom] = useState(11)
+  const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [saveLocationLoading, setSaveLocationLoading] = useState(false)
   const [defaultLocationLoading, setDefaultLocationLoading] = useState(true)
+
+  const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
+    setMapZoom(state.zoom)
+    setMapBounds(state.bounds)
+  }, [])
+
+  const clusteredCrags = useMemo<CragCluster[]>(() => {
+    if (cragPins.length === 0) return []
+
+    const visiblePins = mapBounds
+      ? cragPins.filter((pin) => {
+          const inLat = pin.latitude >= mapBounds.south && pin.latitude <= mapBounds.north
+          const inLng = isLngWithinBounds(pin.longitude, mapBounds)
+          return inLat && inLng
+        })
+      : cragPins
+
+    if (visiblePins.length === 0) return []
+
+    const gridSize = getClusterGridSize(mapZoom)
+    const buckets = new Map<string, CragPin[]>()
+
+    for (const pin of visiblePins) {
+      const latBucket = Math.floor(pin.latitude / gridSize)
+      const lngBucket = Math.floor(pin.longitude / gridSize)
+      const bucketKey = `${latBucket}:${lngBucket}`
+      const bucket = buckets.get(bucketKey) || []
+      bucket.push(pin)
+      buckets.set(bucketKey, bucket)
+    }
+
+    return Array.from(buckets.entries()).map(([bucketKey, bucket]) => {
+      const latitude = bucket.reduce((sum, pin) => sum + pin.latitude, 0) / bucket.length
+      const longitude = bucket.reduce((sum, pin) => sum + pin.longitude, 0) / bucket.length
+
+      return {
+        id: bucketKey,
+        latitude,
+        longitude,
+        crags: bucket,
+        cragCount: bucket.length
+      }
+    })
+  }, [cragPins, mapBounds, mapZoom])
 
   useEffect(() => {
     setupLeafletIcons()
@@ -526,6 +653,7 @@ export default function SatelliteClimbingMap() {
         }}
       >
         <DefaultLocationWatcher defaultLocation={defaultLocation} mapRef={mapRef} />
+        <MapStateWatcher onStateChange={handleMapStateChange} />
         <TileLayer
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
           attribution='Tiles © Esri'
@@ -566,39 +694,71 @@ export default function SatelliteClimbingMap() {
           />
         )}
 
-        {cragPins.map(crag => (
-          <Marker
-            key={crag.id}
-            position={[crag.latitude, crag.longitude]}
-            icon={L.divIcon({
-              className: 'crag-pin',
-              html: `<div style="
-                background: #3b82f6;
-                width: 32px;
-                height: 32px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 18px;
-                border: 2px solid white;
-                box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-              ">⛰️</div>`,
-              iconSize: [32, 32],
-              iconAnchor: [16, 16]
-            })}
-            zIndexOffset={1000}
-            eventHandlers={{
-              click: () => {
-                window.location.href = `/crag/${crag.id}`
-              },
-            }}
-          >
-            <Tooltip direction="center" opacity={1}>
-              <span className="font-semibold">{crag.name}</span>
-            </Tooltip>
-          </Marker>
-        ))}
+        {clusteredCrags.map((cluster) => {
+          if (cluster.cragCount === 1) {
+            const crag = cluster.crags[0]
+            return (
+              <Marker
+                key={crag.id}
+                position={[crag.latitude, crag.longitude]}
+                icon={L.divIcon({
+                  className: 'crag-pin',
+                  html: `<div style="
+                    background: #3b82f6;
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 18px;
+                    border: 2px solid white;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+                  ">⛰️</div>`,
+                  iconSize: [32, 32],
+                  iconAnchor: [16, 16]
+                })}
+                zIndexOffset={1000}
+                eventHandlers={{
+                  click: () => {
+                    window.location.href = `/crag/${crag.id}`
+                  },
+                }}
+              >
+                <Tooltip direction="center" opacity={1}>
+                  <span className="font-semibold">{crag.name}</span>
+                </Tooltip>
+              </Marker>
+            )
+          }
+
+          const iconSize = cluster.cragCount > 99 ? 44 : cluster.cragCount > 9 ? 38 : 34
+
+          return (
+            <Marker
+              key={cluster.id}
+              position={[cluster.latitude, cluster.longitude]}
+              icon={L.divIcon({
+                className: 'crag-cluster-wrapper',
+                html: `<div class="crag-cluster-pin" style="width:${iconSize}px;height:${iconSize}px;">${cluster.cragCount}</div>`,
+                iconSize: [iconSize, iconSize],
+                iconAnchor: [iconSize / 2, iconSize / 2]
+              })}
+              zIndexOffset={1200}
+              eventHandlers={{
+                click: () => {
+                  if (!mapRef.current) return
+                  const nextZoom = Math.min(mapRef.current.getZoom() + 2, 19)
+                  mapRef.current.setView([cluster.latitude, cluster.longitude], nextZoom)
+                }
+              }}
+            >
+              <Tooltip direction="center" opacity={1}>
+                <span className="font-semibold">{cluster.cragCount} crags</span>
+              </Tooltip>
+            </Marker>
+          )
+        })}
       </MapContainer>
 
 
