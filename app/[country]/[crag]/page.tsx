@@ -38,6 +38,7 @@ export async function generateMetadata({ params }: { params: Promise<CragSlugPar
   const title = locationParts.length > 0 ? `${crag.name}, ${locationParts[0]}` : `${crag.name}`
   const locationSuffix = locationParts.length > 0 ? ` in ${locationParts.join(', ')}` : ''
   const canonicalPath = `/${country.toLowerCase()}/${cragSlug}`
+  const ogImagePath = `${canonicalPath}/opengraph-image`
 
   return {
     title,
@@ -49,12 +50,20 @@ export async function generateMetadata({ params }: { params: Promise<CragSlugPar
       title: `${title} | letsboulder`,
       description: `View climbing routes at ${crag.name}${locationSuffix}.`,
       url: canonicalPath,
+      images: [
+        {
+          url: ogImagePath,
+          width: 1200,
+          height: 630,
+          alt: `Climbing at ${crag.name}`,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
       title: `${title} | letsboulder`,
       description: `View climbing routes at ${crag.name}${locationSuffix}.`,
-      images: ['/og.png'],
+      images: [ogImagePath],
     },
   }
 }
