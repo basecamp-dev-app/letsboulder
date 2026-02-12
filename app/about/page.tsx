@@ -11,7 +11,7 @@ export default function AboutPage() {
             About letsboulder
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-400">
-            Discover, log, and share bouldering routes worldwide. A community-driven platform built by climbers, for climbers.
+            Discover, log, and share Guernsey bouldering routes. A community-driven platform built by climbers, for climbers.
           </p>
         </section>
 
@@ -21,7 +21,7 @@ export default function AboutPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="leading-relaxed">
-              We started by documenting our local boulders and grew into a platform for climbers everywhere — preserving route history and helping climbers improve.
+              We started by documenting local Guernsey boulders and are expanding over time while preserving route history and helping climbers improve.
             </p>
             <ul className="list-disc list-inside space-y-2 ml-2">
               <li>Document bouldering locations and their history</li>

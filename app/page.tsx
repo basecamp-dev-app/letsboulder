@@ -26,28 +26,28 @@ interface SeoClimb {
 }
 
 export const metadata: Metadata = {
-  title: 'Interactive Climbing Map',
-  description: 'Explore bouldering and climbing routes worldwide on an interactive map. Find crags, view photo topos, and discover new climbs.',
+  title: 'Guernsey Bouldering Map',
+  description: 'Explore Guernsey bouldering on an interactive map. Find crags, view photo topos, and discover route beta.',
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: 'Interactive Climbing Map - letsboulder',
-    description: 'Explore bouldering and climbing routes worldwide.',
+    title: 'Guernsey Bouldering Map - letsboulder',
+    description: 'Explore Guernsey bouldering with map-based photo topos and route beta.',
     url: '/',
     images: [
       {
         url: '/og.png',
         width: 1200,
         height: 630,
-        alt: 'Interactive Climbing Map - letsboulder',
+        alt: 'Guernsey Bouldering Map - letsboulder',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Interactive Climbing Map - letsboulder',
-    description: 'Explore bouldering and climbing routes worldwide.',
+    title: 'Guernsey Bouldering Map - letsboulder',
+    description: 'Explore Guernsey bouldering with map-based photo topos and route beta.',
     images: ['/og.png'],
   },
 }
@@ -131,13 +131,17 @@ export default async function Home() {
         <div className="mx-auto max-w-5xl">
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Interactive bouldering map, topos, and route beta</h1>
           <p className="mt-3 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
-            letsboulder helps climbers discover crags, open photo topos, and navigate routes with precise map context. Start on the map above, then dive into route pages and crag guides.
+            letsboulder is focused on Guernsey bouldering. Discover crags, open photo topos, and navigate routes with precise map context. Start on the map above, then dive into route pages and crag guides.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2 text-sm">
             <Link href="/rankings" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Rankings</Link>
             <Link prefetch={false} href="/logbook" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Logbook</Link>
             <Link prefetch={false} href="/submit" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Upload Topos</Link>
+            <Link href="/bouldering-map" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Bouldering Map</Link>
+            <Link href="/climbing-map" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Climbing Map</Link>
+            <Link href="/rock-climbing-map" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Rock Climbing Map</Link>
+            <Link href="/guernsey-bouldering" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Guernsey Bouldering</Link>
             <Link href="/about" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">About</Link>
           </div>
 
