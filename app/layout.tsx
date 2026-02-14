@@ -26,14 +26,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'letsboulder - Bouldering Topos & Climbing Logbook',
+    default: 'letsboulder - Guernsey Bouldering Map & Topos',
     template: '%s | letsboulder',
   },
-  description: 'Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.',
+  description: 'Explore Guernsey bouldering on an interactive map with photo topos, route beta, and a community logbook.',
   keywords: [
     'letsboulder',
     'bouldering',
     'climbing',
+    'guernsey bouldering',
+    'guernsey climbing',
+    'guernsey bouldering map',
+    'guernsey climbing map',
+    'guernsey bouldering topos',
     'bouldering topo',
     'climbing topo',
     'route finder',
@@ -68,8 +73,8 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: SITE_URL,
     siteName: BRAND_NAME,
-    title: 'letsboulder - Bouldering Topos & Climbing Logbook',
-    description: 'Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.',
+    title: 'letsboulder - Guernsey Bouldering Map & Topos',
+    description: 'Explore Guernsey bouldering on an interactive map with photo topos, route beta, and a community logbook.',
     images: [
       {
         url: '/og.png',
@@ -81,8 +86,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'letsboulder - Bouldering Topos & Climbing Logbook',
-    description: 'Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.',
+    title: 'letsboulder - Guernsey Bouldering Map & Topos',
+    description: 'Explore Guernsey bouldering on an interactive map with photo topos, route beta, and a community logbook.',
     images: ['/og.png'],
     creator: X_HANDLE,
   },
@@ -148,12 +153,12 @@ export default function RootLayout({
                 "@type": "WebSite",
                 name: BRAND_NAME,
                 url: SITE_URL,
-                description: 'Discover bouldering and climbing routes worldwide',
+                description: 'Guernsey bouldering map with photo topos and route beta',
                 potentialAction: {
                   "@type": "SearchAction",
                   target: {
                     "@type": "EntryPoint",
-                    urlTemplate: `${SITE_URL}/map?q={search_term_string}`,
+                    urlTemplate: `${SITE_URL}/?q={search_term_string}`,
                   },
                   "query-input": "required name=search_term_string",
                 },
@@ -164,7 +169,7 @@ export default function RootLayout({
                 name: BRAND_NAME,
                 url: SITE_URL,
                 logo: `${SITE_URL}/icon-512.png`,
-                description: 'Community-driven bouldering platform. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.',
+                description: 'Community-driven Guernsey bouldering platform with interactive map, photo topos, and a personal logbook.',
                 sameAs: [
                   X_URL,
                   INSTAGRAM_URL

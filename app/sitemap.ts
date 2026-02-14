@@ -67,6 +67,10 @@ function pageRange(page: number) {
 function staticRoutes(): MetadataRoute.Sitemap {
   return [
     { url: BASE_URL, changeFrequency: 'monthly', priority: 1 },
+    { url: `${BASE_URL}/bouldering-map`, changeFrequency: 'monthly', priority: 0.9 },
+    { url: `${BASE_URL}/climbing-map`, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${BASE_URL}/rock-climbing-map`, changeFrequency: 'monthly', priority: 0.8 },
+    { url: `${BASE_URL}/guernsey-bouldering`, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${BASE_URL}/about`, changeFrequency: 'yearly', priority: 0.6 },
     { url: `${BASE_URL}/rankings`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${BASE_URL}/privacy`, changeFrequency: 'yearly', priority: 0.4 },
