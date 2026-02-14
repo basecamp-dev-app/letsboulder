@@ -113,10 +113,11 @@ function getClusterGridSize(zoom: number): number {
   if (zoom <= 4) return 6
   if (zoom <= 6) return 3
   if (zoom <= 8) return 1.2
-  if (zoom <= 10) return 0.35
-  if (zoom <= 11) return 0.16
-  if (zoom <= 13) return 0.07
-  return 0.03
+  if (zoom <= 10) return 0.3
+  if (zoom <= 11) return 0.12
+  if (zoom <= 12) return 0.05
+  if (zoom <= 13) return 0.025
+  return 0
 }
 
 function isLngWithinBounds(lng: number, bounds: MapBounds): boolean {
