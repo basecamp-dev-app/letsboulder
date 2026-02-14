@@ -117,7 +117,7 @@ function getClusterGridSize(zoom: number): number {
   if (zoom <= 11) return 0.12
   if (zoom <= 12) return 0.05
   if (zoom <= 13) return 0.025
-  return 0
+  return 0.012
 }
 
 function isLngWithinBounds(lng: number, bounds: MapBounds): boolean {
@@ -227,6 +227,16 @@ export default function SatelliteClimbingMap() {
       : cragPins
 
     if (visiblePins.length === 0) return []
+
+    if (mapZoom >= 12) {
+      return visiblePins.map((pin) => ({
+        id: pin.id,
+        latitude: pin.latitude,
+        longitude: pin.longitude,
+        crags: [pin],
+        cragCount: 1,
+      }))
+    }
 
     const gridSize = getClusterGridSize(mapZoom)
     const buckets = new Map<string, CragPin[]>()
