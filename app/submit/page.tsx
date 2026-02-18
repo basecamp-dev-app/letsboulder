@@ -7,7 +7,7 @@ import nextDynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData, ClimbType, FaceDirection } from '@/lib/submission-types'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { csrfFetch, primeCsrfToken } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 
@@ -114,6 +114,11 @@ function SubmitPageContent() {
       if (pendingUpload) {
         try {
           const data = JSON.parse(pendingUpload)
+          const derivedPath = typeof data.imagePath === 'string' && data.imagePath
+            ? data.imagePath
+            : (typeof data.imageUrl === 'string' && data.imageUrl.includes('/route-uploads/')
+              ? data.imageUrl.split('/route-uploads/')[1]?.split('?')[0] || ''
+              : '')
           sessionStorage.removeItem('pendingUpload')
 
           const newImageSelection: ImageSelection = {
@@ -125,6 +130,8 @@ function SubmitPageContent() {
             height: 1200,
             naturalWidth: 1200,
             naturalHeight: 1200,
+            uploadedBucket: data.imageBucket || 'route-uploads',
+            uploadedPath: derivedPath,
             uploadedUrl: data.imageUrl
           }
 
@@ -141,6 +148,10 @@ function SubmitPageContent() {
     }
     checkAuth()
   }, [router])
+
+  useEffect(() => {
+    void primeCsrfToken().catch(() => {})
+  }, [])
 
   useEffect(() => {
     setRoutes(context.routes)
@@ -173,7 +184,9 @@ function SubmitPageContent() {
   }, [step])
 
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
-    const gps = gpsData ? { latitude: gpsData.latitude, longitude: gpsData.longitude } : null
+    const selectionGps = selection.mode === 'new' ? selection.gpsData : null
+    const resolvedGps = gpsData || selectionGps
+    const gps = resolvedGps ? { latitude: resolvedGps.latitude, longitude: resolvedGps.longitude } : null
     setContext(prev => ({ ...prev, image: selection, imageGps: gps, faceDirection: null }))
 
     setStep({
@@ -283,7 +296,8 @@ function SubmitPageContent() {
 
       const payload = context.image.mode === 'new' ? {
         mode: 'new' as const,
-        imageUrl: context.image.uploadedUrl,
+        imageBucket: context.image.uploadedBucket,
+        imagePath: context.image.uploadedPath,
         imageLat: context.imageGps?.latitude ?? null,
         imageLng: context.imageGps?.longitude ?? null,
         faceDirection: context.faceDirection,

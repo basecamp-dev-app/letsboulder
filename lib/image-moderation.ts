@@ -49,7 +49,7 @@ async function fetchImageBytes(imageUrl: string): Promise<Uint8Array> {
   return new Uint8Array(buf)
 }
 
-export async function moderateImageFromUrl(imageUrl: string): Promise<ModerationResult> {
+async function moderateImageBytes(bytes: Uint8Array): Promise<ModerationResult> {
   const awsSdk = await eval("import('@aws-sdk/client-rekognition')").catch(() => null) as unknown
   if (!awsSdk) {
     return {
@@ -66,7 +66,6 @@ export async function moderateImageFromUrl(imageUrl: string): Promise<Moderation
   }
 
   const client = await getRekognitionClient()
-  const bytes = await fetchImageBytes(imageUrl)
 
   const [moderationRaw, facesRaw] = await Promise.all([
     client.send(
@@ -110,6 +109,16 @@ export async function moderateImageFromUrl(imageUrl: string): Promise<Moderation
     moderationLabels,
     moderationStatus,
   }
+}
+
+export async function moderateImageFromUrl(imageUrl: string): Promise<ModerationResult> {
+  const bytes = await fetchImageBytes(imageUrl)
+
+  return moderateImageBytes(bytes)
+}
+
+export async function moderateImageFromBytes(bytes: Uint8Array): Promise<ModerationResult> {
+  return moderateImageBytes(bytes)
 }
 
 export type { ModerationLabel, ModerationResult }

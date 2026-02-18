@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
-import { moderateImageFromUrl } from '@/lib/image-moderation'
+import { moderateImageFromBytes, moderateImageFromUrl } from '@/lib/image-moderation'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     const { data: image, error: imageError } = await supabase
       .from('images')
-      .select('id, url, created_by, moderation_status, moderated_at')
+      .select('id, url, storage_bucket, storage_path, created_by, moderation_status, moderated_at')
       .eq('id', body.imageId)
       .single()
 
@@ -49,11 +49,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, skipped: true })
     }
 
-    const result = await moderateImageFromUrl(image.url)
+    let result: Awaited<ReturnType<typeof moderateImageFromBytes>>
+    if (image.storage_bucket && image.storage_path) {
+      const { data: privateFile, error: downloadError } = await supabase.storage
+        .from(image.storage_bucket)
+        .download(image.storage_path)
+
+      if (downloadError || !privateFile) {
+        return NextResponse.json({ error: 'Failed to load image for moderation' }, { status: 400 })
+      }
+
+      const fileBytes = new Uint8Array(await privateFile.arrayBuffer())
+      result = await moderateImageFromBytes(fileBytes)
+    } else {
+      result = await moderateImageFromUrl(image.url)
+    }
+
+    let approvedUrl = image.url
+    if (result.moderationStatus === 'approved' && image.storage_bucket && image.storage_path) {
+      const { data: publicUrlData } = supabase.storage
+        .from(image.storage_bucket)
+        .getPublicUrl(image.storage_path)
+      approvedUrl = publicUrlData.publicUrl
+    }
 
     const { error: updateError } = await supabase
       .from('images')
       .update({
+        url: approvedUrl,
         moderation_status: result.moderationStatus,
         has_humans: result.hasHumans,
         moderation_labels: result.moderationLabels,

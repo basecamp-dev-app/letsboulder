@@ -2,6 +2,12 @@
 
 DROP TRIGGER IF EXISTS comments_soft_delete_only_trigger ON public.comments;
 
+ALTER TABLE public.comments
+  DROP CONSTRAINT IF EXISTS comments_target_type_check;
+
+ALTER TABLE public.comments
+  DROP CONSTRAINT IF EXISTS comments_category_check;
+
 UPDATE public.comments
 SET category = CASE
   WHEN target_type = 'crag' THEN
@@ -30,12 +36,6 @@ SET category = CASE
     END
   ELSE 'general'
 END;
-
-ALTER TABLE public.comments
-  DROP CONSTRAINT IF EXISTS comments_target_type_check;
-
-ALTER TABLE public.comments
-  DROP CONSTRAINT IF EXISTS comments_category_check;
 
 ALTER TABLE public.comments
   ADD CONSTRAINT comments_target_type_check

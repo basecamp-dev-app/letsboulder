@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 import exifr from 'exifr'
-import { validateImageSignature } from '@/lib/file-validation'
 import { createErrorResponse } from '@/lib/errors'
+import { withCsrfProtection } from '@/lib/csrf-server'
+
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const ALLOWED_BUCKETS = new Set(['route-uploads'])
 
 interface ExifGpsData {
   latitude?: number
@@ -9,67 +13,49 @@ interface ExifGpsData {
   altitude?: number
 }
 
+interface ExtractGpsRequestBody {
+  bucket: string
+  path: string
+}
+
 export async function POST(request: NextRequest) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    return createErrorResponse(new Error('Missing SUPABASE_SERVICE_ROLE_KEY'), 'GPS extraction config error')
+  }
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    SUPABASE_SERVICE_ROLE_KEY,
+    { cookies: { getAll() { return [] }, setAll() {} } }
+  )
+
   try {
-    const contentType = request.headers.get('content-type') || ''
+    const body = (await request.json()) as Partial<ExtractGpsRequestBody>
+    const bucket = body.bucket?.trim()
+    const path = body.path?.trim()
 
-    if (contentType.includes('application/json')) {
-      const { url } = await request.json()
-
-      if (!url) {
-        return NextResponse.json({ error: 'No URL provided' }, { status: 400 })
-      }
-
-      const response = await fetch(url)
-      if (!response.ok) {
-        return NextResponse.json({ error: 'Failed to fetch image from URL' }, { status: 400 })
-      }
-
-      const arrayBuffer = await response.arrayBuffer()
-      const buffer = Buffer.from(arrayBuffer)
-
-      const exifData = await exifr.parse(buffer)
-
-      const hasGps =
-        typeof exifData?.latitude === 'number' &&
-        Number.isFinite(exifData.latitude) &&
-        typeof exifData?.longitude === 'number' &&
-        Number.isFinite(exifData.longitude)
-
-      if (!hasGps) {
-        return NextResponse.json({ latitude: null, longitude: null, altitude: null })
-      }
-
-      return NextResponse.json({
-        latitude: exifData.latitude,
-        longitude: exifData.longitude,
-        altitude: exifData.altitude
-      })
+    if (!bucket || !path) {
+      return NextResponse.json({ error: 'bucket and path are required' }, { status: 400 })
     }
 
-    const formData = await request.formData()
-    const file = formData.get('file') as File
-
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    if (!ALLOWED_BUCKETS.has(bucket)) {
+      return NextResponse.json({ error: 'Unsupported bucket' }, { status: 400 })
     }
 
-    // Check file size server-side (additional safety)
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      return NextResponse.json({
-        error: 'Image file is too large. Please compress or choose a smaller image (max 5MB).'
-      }, { status: 413 })
+    const { data: file, error: downloadError } = await supabase.storage
+      .from(bucket)
+      .download(path)
+
+    if (downloadError || !file) {
+      return NextResponse.json({ error: 'Failed to fetch image from storage' }, { status: 400 })
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    const signatureValidation = validateImageSignature(buffer)
-    if (!signatureValidation.valid) {
-      return NextResponse.json({ error: signatureValidation.error }, { status: 400 })
-    }
-
-    // Add timeout to EXIF parsing to prevent server hangs
-    const exifPromise = exifr.parse(buffer)
+    const exifPromise = exifr.parse(buffer, { tiff: true, exif: true, gps: true })
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('EXIF parsing timeout')), 25000)
     )
