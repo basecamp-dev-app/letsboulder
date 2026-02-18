@@ -7,6 +7,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
+import CommentThread from '@/components/comments/CommentThread'
 import { geoJsonPolygonToLeaflet, getPolygonCenter } from '@/lib/geo-utils'
 import type { GeoJSONPolygon } from '@/types/database'
 import { SITE_URL } from '@/lib/site'
@@ -756,6 +757,8 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
                 <p className="text-gray-900 dark:text-gray-100">{crag.access_notes}</p>
               </div>
             )}
+
+            <CommentThread targetType="crag" targetId={crag.id} className="mb-6" />
           </>
         )}
 

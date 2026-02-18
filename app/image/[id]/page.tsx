@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase'
 import { RoutePoint } from '@/lib/useRouteSelection'
 import { Loader2, Flag } from 'lucide-react'
 import FlagImageModal from '@/components/FlagImageModal'
+import CommentThread from '@/components/comments/CommentThread'
 import type { ClimbStatusResponse } from '@/lib/verification-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 import RouteDetailModal from '@/app/image/components/RouteDetailModal'
@@ -701,6 +702,8 @@ export default function ImagePage() {
             )}
           </div>
         )}
+
+        <CommentThread targetType="image" targetId={image.id} className="mb-3" />
 
         <div className="flex justify-center gap-2 mt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.25rem)]">
           {cragId && cragName && cragHref && (

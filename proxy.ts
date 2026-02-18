@@ -236,6 +236,7 @@ export const config = {
     '/api/climbs/(.*)/verify',
     '/api/images/(.*)/flag',
     '/api/images/(.*)/flags',
+    '/api/comments/:path*',
     '/api/routes/(.*)/grades',
     '/api/corrections/(.*)/vote',
   ],
