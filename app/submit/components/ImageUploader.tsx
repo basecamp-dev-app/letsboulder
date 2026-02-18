@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import NextImage from 'next/image'
 import type { NewImageSelection, GpsData } from '@/lib/submission-types'
 import { dataURLToBlob, blobToDataURL, isHeicFile } from '@/lib/image-utils'
 import { csrfFetch } from '@/hooks/useCsrf'
@@ -13,19 +14,6 @@ interface ImageUploaderProps {
   onUploading: (uploading: boolean, progress: number, step: string) => void
 }
 
-async function extractGpsFromFile(file: File): Promise<GpsData | null> {
-  try {
-    const exifr = (await import('exifr')).default
-    const data = await exifr.parse(file, { gps: true }) as { latitude?: number; longitude?: number } | null
-    if (typeof data?.latitude === 'number' && Number.isFinite(data.latitude) && typeof data.longitude === 'number' && Number.isFinite(data.longitude)) {
-      return { latitude: data.latitude, longitude: data.longitude }
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-
 async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeight: number, previewBlob: Blob | null = null): Promise<File> {
   let sourceData: string | ArrayBuffer | null = null
 
@@ -36,7 +24,7 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
       try {
         const jpegBlob = await heicToJpegBlob(file)
         sourceData = await blobToDataURL(jpegBlob)
-      } catch (err) {
+      } catch {
         throw new Error('Failed to convert HEIC image. Please try a different file.')
       }
     }
@@ -96,7 +84,7 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
         tryCompress()
       }
       
-      img.onerror = (e) => {
+      img.onerror = () => {
         reject(new Error(`Failed to load image for compression. File type: ${file.type}`))
       }
       img.src = imgSrc
@@ -168,13 +156,11 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [detectedGpsData, setDetectedGpsData] = useState<GpsData | null>(null)
 
   const processFile = async (selectedFile: File) => {
     onError('')
     setFile(null)
     setCompressedFile(null)
-    setDetectedGpsData(null)
 
     if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
       onError('Please select an image file (JPEG, PNG, WebP, HEIC, etc.)')
@@ -188,10 +174,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     }
 
     try {
-      onUploading(true, 10, 'Reading GPS metadata...')
-      const gpsFromFile = await extractGpsFromFile(selectedFile)
-      setDetectedGpsData(gpsFromFile)
-
       let previewBlob: Blob | null = null
 
       if (isHeicFile(selectedFile)) {
@@ -200,7 +182,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           previewBlob = await heicToJpegBlob(selectedFile)
           setPreviewUrl(URL.createObjectURL(previewBlob))
           onUploading(true, 20, 'Compressing HEIC...')
-        } catch (err) {
+        } catch {
           onError('Failed to process HEIC image. Please convert to JPEG first.')
           onUploading(false, 0, '')
           return
@@ -229,7 +211,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       setCompressedFile(compressed)
       onUploading(false, 0, '')
 
-    } catch (err) {
+    } catch {
       onError('Failed to compress image. Please try a different image.')
       setFile(null)
       onUploading(false, 0, '')
@@ -317,7 +299,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
 
       onUploading(true, 70, 'Extracting GPS...')
       const extractedGpsData = await extractGpsFromServer(data.path)
-      const finalGpsData = extractedGpsData || detectedGpsData
+      const finalGpsData = extractedGpsData
 
       onUploading(true, 85, 'Getting image info...')
       const dimensions = await getImageDimensions(previewUrl || signedData.signedUrl)
@@ -339,7 +321,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       onUploading(false, 100, '')
       onComplete(result)
 
-    } catch (err) {
+    } catch {
       onError('Failed to upload image. Please try again.')
       onUploading(false, 0, '')
     }
@@ -358,14 +340,13 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
 
       {previewUrl ? (
         <div className="space-y-4">
-          <div className="relative rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-            <img src={previewUrl} alt="Preview" className="w-full h-48 object-contain bg-gray-100 dark:bg-gray-800" />
+          <div className="relative h-48 rounded-lg overflow-hidden border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
+            <NextImage src={previewUrl} alt="Preview" fill unoptimized className="object-contain" sizes="100vw" />
             <button
               onClick={() => {
                 setFile(null)
                 setCompressedFile(null)
                 setPreviewUrl(null)
-                setDetectedGpsData(null)
                 if (fileInputRef.current) fileInputRef.current.value = ''
               }}
               className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
