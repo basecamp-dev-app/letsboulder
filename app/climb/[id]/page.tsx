@@ -160,7 +160,6 @@ export default function ClimbPage() {
   const [routeLines, setRouteLines] = useState<DisplayRouteLine[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [imageLoaded, setImageLoaded] = useState(false)
   const [logging, setLogging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [shareModalOpen, setShareModalOpen] = useState(false)
@@ -230,7 +229,6 @@ export default function ClimbPage() {
 
       setLoading(true)
       setError(null)
-      setImageLoaded(false)
       setHasUserInteractedWithSelection(false)
       setPublicSubmitter(null)
       clearSelection()
@@ -443,7 +441,11 @@ export default function ClimbPage() {
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
-    if (!canvas || !imageLoaded || routeLines.length === 0) return
+    if (!canvas || routeLines.length === 0) return
+    if (canvas.width <= 0 || canvas.height <= 0) return
+
+    const imageElement = imageRef.current
+    if (!imageElement || !imageElement.complete || imageElement.naturalWidth === 0 || imageElement.naturalHeight === 0) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -485,7 +487,7 @@ export default function ClimbPage() {
     ctx.globalAlpha = 1
     ctx.shadowBlur = 0
     ctx.setLineDash([])
-  }, [imageLoaded, routeLines, selectedIds, userLogs])
+  }, [routeLines, selectedIds, userLogs])
 
   useEffect(() => {
     draw()
@@ -519,11 +521,21 @@ export default function ClimbPage() {
         offsetX = (containerRect.width - displayWidth) / 2
       }
 
+      const nextWidth = Math.max(1, Math.round(displayWidth))
+      const nextHeight = Math.max(1, Math.round(displayHeight))
+
       canvas.style.left = `${offsetX}px`
       canvas.style.top = `${offsetY}px`
-      canvas.width = Math.max(1, Math.round(displayWidth))
-      canvas.height = Math.max(1, Math.round(displayHeight))
-      setImageLoaded(true)
+
+      if (canvas.width !== nextWidth) {
+        canvas.width = nextWidth
+      }
+
+      if (canvas.height !== nextHeight) {
+        canvas.height = nextHeight
+      }
+
+      requestAnimationFrame(draw)
     }
 
     const handleLoad = () => {
@@ -536,17 +548,31 @@ export default function ClimbPage() {
       imageElement.addEventListener('load', handleLoad)
     }
 
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        resizeCanvasToImage()
+      }
+    }
+
+    const handlePageShow = () => {
+      resizeCanvasToImage()
+    }
+
     const container = canvas.parentElement
     const observer = container ? new ResizeObserver(resizeCanvasToImage) : null
     if (container && observer) observer.observe(container)
     window.addEventListener('resize', resizeCanvasToImage)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('pageshow', handlePageShow)
 
     return () => {
       imageElement.removeEventListener('load', handleLoad)
       window.removeEventListener('resize', resizeCanvasToImage)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('pageshow', handlePageShow)
       observer?.disconnect()
     }
-  }, [image?.url, routeLines.length])
+  }, [image?.url, routeLines.length, draw])
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
