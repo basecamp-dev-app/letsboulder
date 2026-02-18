@@ -14,6 +14,7 @@ import { SITE_URL } from '@/lib/site'
 import { GRADES, normalizeGrade } from '@/lib/grades'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
+import CragPageSkeleton from '@/app/crag/components/CragPageSkeleton'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -468,11 +469,7 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
   }, [])
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-gray-500 dark:text-gray-400">Loading crag...</div>
-      </div>
-    )
+    return <CragPageSkeleton />
   }
 
   if (!crag) {

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { findRouteAtPoint, RoutePoint, useRouteSelection } from '@/lib/useRouteSelection'
-import { Loader2, Share2, Twitter, Facebook, MessageCircle, Link2 } from 'lucide-react'
+import { Share2, Twitter, Facebook, MessageCircle, Link2 } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { SITE_URL } from '@/lib/site'
@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import CommentThread from '@/components/comments/CommentThread'
+import ClimbPageSkeleton from '@/app/climb/components/ClimbPageSkeleton'
 
 interface ImageInfo {
   id: string
@@ -748,11 +749,7 @@ export default function ClimbPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-500 dark:text-gray-400" />
-      </div>
-    )
+    return <ClimbPageSkeleton />
   }
 
   if (error || !image) {
