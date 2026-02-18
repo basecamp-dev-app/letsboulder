@@ -46,27 +46,19 @@ export async function DELETE(
       return NextResponse.json({ error: 'Comment ID required' }, { status: 400 })
     }
 
-    const { data: deletedComment, error: deleteError } = await supabase
-      .from('comments')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id)
-      .eq('author_id', user.id)
-      .is('deleted_at', null)
-      .select('id')
-      .single()
+    const { data: deleted, error: deleteError } = await supabase.rpc('soft_delete_comment', {
+      p_comment_id: id,
+    })
 
     if (deleteError) {
-      if (deleteError.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Comment not found' }, { status: 404 })
-      }
       return createErrorResponse(deleteError, 'Error deleting comment')
     }
 
-    if (!deletedComment) {
+    if (!deleted) {
       return NextResponse.json({ error: 'Comment not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true, id: deletedComment.id })
+    return NextResponse.json({ success: true, id })
   } catch (error) {
     return createErrorResponse(error, 'Comments DELETE error')
   }
