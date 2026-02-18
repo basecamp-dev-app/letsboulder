@@ -22,7 +22,8 @@ const VALID_FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as co
 
 interface NewImageSubmission {
   mode: 'new'
-  imageUrl: string
+  imageBucket: string
+  imagePath: string
   imageLat: number | null
   imageLng: number | null
   faceDirection: (typeof VALID_FACE_DIRECTIONS)[number] | null
@@ -200,8 +201,12 @@ export async function POST(request: NextRequest) {
     let existingCragId: string | null = null
 
     if (body.mode === 'new') {
-      if (!body.imageUrl) {
-        response = NextResponse.json({ error: 'Image URL is required' }, { status: 400 })
+      if (!body.imageBucket) {
+        response = NextResponse.json({ error: 'Image bucket is required' }, { status: 400 })
+        return response
+      }
+      if (!body.imagePath) {
+        response = NextResponse.json({ error: 'Image path is required' }, { status: 400 })
         return response
       }
       if (!body.cragId) {
@@ -209,10 +214,12 @@ export async function POST(request: NextRequest) {
         return response
       }
 
-      imageUrl = body.imageUrl
+      imageUrl = `private://${body.imageBucket}/${body.imagePath}`
 
       const insertPayload = {
-        url: body.imageUrl,
+        url: imageUrl,
+        storage_bucket: body.imageBucket,
+        storage_path: body.imagePath,
         latitude: body.imageLat,
         longitude: body.imageLng,
         capture_date: body.captureDate,
@@ -229,7 +236,8 @@ export async function POST(request: NextRequest) {
         console.log('[submissions] image insert payload', {
           created_by: insertPayload.created_by,
           crag_id: insertPayload.crag_id,
-          urlLen: insertPayload.url.length,
+          bucket: insertPayload.storage_bucket,
+          pathLen: insertPayload.storage_path.length,
           hasLat: insertPayload.latitude !== null,
           hasLng: insertPayload.longitude !== null,
         })

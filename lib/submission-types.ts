@@ -109,6 +109,8 @@ export interface NewImageSelection {
   height: number
   naturalWidth: number
   naturalHeight: number
+  uploadedBucket: string
+  uploadedPath: string
   uploadedUrl: string
 }
 

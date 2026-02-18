@@ -3,11 +3,27 @@
 import { useState, useRef, useCallback } from 'react'
 import type { NewImageSelection, GpsData } from '@/lib/submission-types'
 import { dataURLToBlob, blobToDataURL, isHeicFile } from '@/lib/image-utils'
+import { csrfFetch } from '@/hooks/useCsrf'
+
+const ROUTE_UPLOADS_BUCKET = 'route-uploads'
 
 interface ImageUploaderProps {
   onComplete: (result: NewImageSelection) => void
   onError: (error: string) => void
   onUploading: (uploading: boolean, progress: number, step: string) => void
+}
+
+async function extractGpsFromFile(file: File): Promise<GpsData | null> {
+  try {
+    const exifr = (await import('exifr')).default
+    const data = await exifr.parse(file, { gps: true }) as { latitude?: number; longitude?: number } | null
+    if (typeof data?.latitude === 'number' && Number.isFinite(data.latitude) && typeof data.longitude === 'number' && Number.isFinite(data.longitude)) {
+      return { latitude: data.latitude, longitude: data.longitude }
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeight: number, previewBlob: Blob | null = null): Promise<File> {
@@ -105,69 +121,60 @@ async function heicToJpegBlob(file: File): Promise<Blob> {
   return Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob
 }
 
-async function extractGpsFromFile(file: File): Promise<GpsData | null> {
+async function extractGpsFromServer(path: string): Promise<GpsData | null> {
   try {
-    const exifr = (await import('exifr')).default
-    const buffer = await file.arrayBuffer()
-    const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true })
+    const response = await csrfFetch('/api/extract-gps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bucket: ROUTE_UPLOADS_BUCKET,
+        path,
+      }),
+    })
 
-    if (
-      typeof exifData?.latitude === 'number' &&
-      Number.isFinite(exifData.latitude) &&
-      typeof exifData?.longitude === 'number' &&
-      Number.isFinite(exifData.longitude)
-    ) {
-      return { latitude: exifData.latitude, longitude: exifData.longitude }
+    if (!response.ok) {
+      return null
     }
 
-    if (exifData?.GPSLatitude && exifData?.GPSLongitude) {
-      const latRef = exifData.GPSLatitudeRef || 'N'
-      const lonRef = exifData.GPSLongitudeRef || 'W'
-
-      const lat = convertDmsToDecimal(exifData.GPSLatitude, latRef)
-      const lon = convertDmsToDecimal(exifData.GPSLongitude, lonRef)
-
-      if (lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon)) {
-        return { latitude: lat, longitude: lon }
-      }
+    const data = await response.json() as { latitude?: number | null; longitude?: number | null }
+    if (typeof data.latitude === 'number' && Number.isFinite(data.latitude) && typeof data.longitude === 'number' && Number.isFinite(data.longitude)) {
+      return { latitude: data.latitude, longitude: data.longitude }
     }
 
     return null
-  } catch (err) {
+  } catch {
     return null
   }
 }
 
-function convertDmsToDecimal(dms: number[], ref: string): number | null {
-  if (!dms || dms.length < 3) return null
+async function getImageDimensions(url: string): Promise<{ width: number; height: number }> {
+  const img = new Image()
+  img.src = url
+  await new Promise<void>((resolve) => {
+    img.onload = () => resolve()
+    img.onerror = () => resolve()
+  })
 
-  const degrees = dms[0]
-  const minutes = dms[1]
-  const seconds = dms[2]
-
-  let decimal = degrees + minutes / 60 + seconds / 3600
-
-  if (ref === 'S' || ref === 'W') {
-    decimal = -decimal
+  return {
+    width: img.naturalWidth || 0,
+    height: img.naturalHeight || 0,
   }
-
-  return decimal
 }
 
 export default function ImageUploader({ onComplete, onError, onUploading }: ImageUploaderProps) {
   const [file, setFile] = useState<File | null>(null)
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
-  const [gpsData, setGpsData] = useState<GpsData | null>(null)
   const [compressing, setCompressing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [detectedGpsData, setDetectedGpsData] = useState<GpsData | null>(null)
 
   const processFile = async (selectedFile: File) => {
     onError('')
     setFile(null)
     setCompressedFile(null)
-    setGpsData(null)
+    setDetectedGpsData(null)
 
     if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
       onError('Please select an image file (JPEG, PNG, WebP, HEIC, etc.)')
@@ -175,12 +182,16 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     }
 
     const maxOriginalSize = 20 * 1024 * 1024
-      if (selectedFile.size > maxOriginalSize) {
-        onError(`File is too large (${(selectedFile.size / 1024 / 1024).toFixed(1)}MB). Maximum allowed: 20MB.`)
-        return
-      }
+    if (selectedFile.size > maxOriginalSize) {
+      onError(`File is too large (${(selectedFile.size / 1024 / 1024).toFixed(1)}MB). Maximum allowed: 20MB.`)
+      return
+    }
 
-      try {
+    try {
+      onUploading(true, 10, 'Reading GPS metadata...')
+      const gpsFromFile = await extractGpsFromFile(selectedFile)
+      setDetectedGpsData(gpsFromFile)
+
       let previewBlob: Blob | null = null
 
       if (isHeicFile(selectedFile)) {
@@ -188,11 +199,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           onUploading(true, 5, 'Loading HEIC preview...')
           previewBlob = await heicToJpegBlob(selectedFile)
           setPreviewUrl(URL.createObjectURL(previewBlob))
-
-          onUploading(true, 15, 'Extracting GPS...')
-          const gps = await extractGpsFromFile(selectedFile)
-          setGpsData(gps)
-
           onUploading(true, 20, 'Compressing HEIC...')
         } catch (err) {
           onError('Failed to process HEIC image. Please convert to JPEG first.')
@@ -201,11 +207,6 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
         }
       } else {
         setPreviewUrl(URL.createObjectURL(selectedFile))
-
-        onUploading(true, 10, 'Extracting GPS...')
-        const gps = await extractGpsFromFile(selectedFile)
-        setGpsData(gps)
-
         onUploading(true, 20, 'Compressing image...')
       }
 
@@ -289,7 +290,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       onUploading(true, 20, 'Uploading image...')
 
       const { data, error: uploadError } = await supabase.storage
-        .from('route-uploads')
+        .from(ROUTE_UPLOADS_BUCKET)
         .upload(fileName, fileToUpload)
 
       if (uploadError) {
@@ -302,29 +303,37 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
         return
       }
 
-      onUploading(true, 60, 'Getting image info...')
+      onUploading(true, 50, 'Creating secure preview...')
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('route-uploads')
-        .getPublicUrl(data.path)
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from(ROUTE_UPLOADS_BUCKET)
+        .createSignedUrl(data.path, 3600)
 
-      const img = new Image()
-      img.src = publicUrl
-      await new Promise<void>((resolve) => {
-        img.onload = () => resolve()
-        img.onerror = () => resolve()
-      })
+      if (signedError || !signedData?.signedUrl) {
+        onError('Upload succeeded but preview failed. Please try again.')
+        onUploading(false, 0, '')
+        return
+      }
+
+      onUploading(true, 70, 'Extracting GPS...')
+      const extractedGpsData = await extractGpsFromServer(data.path)
+      const finalGpsData = extractedGpsData || detectedGpsData
+
+      onUploading(true, 85, 'Getting image info...')
+      const dimensions = await getImageDimensions(previewUrl || signedData.signedUrl)
 
       const result: NewImageSelection = {
         mode: 'new',
         file: fileToUpload,
-        gpsData: gpsData,
+        gpsData: finalGpsData,
         captureDate: null,
-        width: img.naturalWidth || 0,
-        height: img.naturalHeight || 0,
-        naturalWidth: img.naturalWidth || 0,
-        naturalHeight: img.naturalHeight || 0,
-        uploadedUrl: publicUrl
+        width: dimensions.width,
+        height: dimensions.height,
+        naturalWidth: dimensions.width,
+        naturalHeight: dimensions.height,
+        uploadedBucket: ROUTE_UPLOADS_BUCKET,
+        uploadedPath: data.path,
+        uploadedUrl: signedData.signedUrl,
       }
 
       onUploading(false, 100, '')
@@ -355,8 +364,8 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
               onClick={() => {
                 setFile(null)
                 setCompressedFile(null)
-                setGpsData(null)
                 setPreviewUrl(null)
+                setDetectedGpsData(null)
                 if (fileInputRef.current) fileInputRef.current.value = ''
               }}
               className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
