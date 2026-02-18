@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { findRouteAtPoint, RoutePoint, useRouteSelection } from '@/lib/useRouteSelection'
-import { Share2, Twitter, Facebook, MessageCircle, Link2 } from 'lucide-react'
+import { Share2, Twitter, Facebook, MessageCircle, Link2, Flag } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { SITE_URL } from '@/lib/site'
@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button'
 import CommentThread from '@/components/comments/CommentThread'
 import ClimbPageSkeleton from '@/app/climb/components/ClimbPageSkeleton'
+import FlagClimbModal from '@/components/FlagClimbModal'
 
 interface ImageInfo {
   id: string
@@ -169,6 +170,7 @@ export default function ClimbPage() {
   const [toast, setToast] = useState<string | null>(null)
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [shareToast, setShareToast] = useState<string | null>(null)
+  const [flagModalOpen, setFlagModalOpen] = useState(false)
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [userLogs, setUserLogs] = useState<Record<string, string>>({})
   const [hasUserInteractedWithSelection, setHasUserInteractedWithSelection] = useState(false)
@@ -641,6 +643,23 @@ export default function ClimbPage() {
     [routeLines, updateRouteParam]
   )
 
+  const getAuthRedirectPath = useCallback(() => {
+    return selectedRoute
+      ? `/climb/${climbId}?route=${selectedRoute.id}`
+      : `/climb/${climbId}`
+  }, [selectedRoute, climbId])
+
+  const handleOpenFlagModal = () => {
+    if (!selectedClimb) return
+
+    if (!user) {
+      router.push(`/auth?redirect_to=${encodeURIComponent(getAuthRedirectPath())}`)
+      return
+    }
+
+    setFlagModalOpen(true)
+  }
+
   const handleLog = async (style: 'flash' | 'top' | 'try') => {
     if (!selectedClimb || selectedClimbLogged) return
 
@@ -652,10 +671,7 @@ export default function ClimbPage() {
       } = await supabase.auth.getUser()
 
       if (!currentUser) {
-        const redirectTo = selectedRoute
-          ? `/climb/${climbId}?route=${selectedRoute.id}`
-          : `/climb/${climbId}`
-        router.push(`/auth?redirect_to=${encodeURIComponent(redirectTo)}`)
+        router.push(`/auth?redirect_to=${encodeURIComponent(getAuthRedirectPath())}`)
         return
       }
 
@@ -832,6 +848,15 @@ export default function ClimbPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
+                onClick={handleOpenFlagModal}
+                disabled={!selectedClimb}
+                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Report incorrect route info"
+                title={selectedClimb ? 'Report incorrect route info' : 'Select a route to report'}
+              >
+                <Flag className="w-5 h-5" />
+              </button>
+              <button
                 onClick={typeof navigator.share === 'function' ? handleNativeShare : () => setShareModalOpen(true)}
                 className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors"
                 aria-label="Share climb"
@@ -851,10 +876,7 @@ export default function ClimbPage() {
               {!user ? (
                 <button
                   onClick={() => {
-                    const redirectTo = selectedRoute
-                      ? `/climb/${climbId}?route=${selectedRoute.id}`
-                      : `/climb/${climbId}`
-                    router.push(`/auth?redirect_to=${encodeURIComponent(redirectTo)}`)
+                    router.push(`/auth?redirect_to=${encodeURIComponent(getAuthRedirectPath())}`)
                   }}
                   className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
                 >
@@ -958,6 +980,18 @@ export default function ClimbPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {flagModalOpen && selectedClimb && (
+        <FlagClimbModal
+          climbId={selectedClimb.id}
+          climbName={selectedClimb.name}
+          onClose={() => setFlagModalOpen(false)}
+          onSubmitted={() => {
+            setToast('Flag submitted. An admin will review it soon.')
+            setTimeout(() => setToast(null), 3000)
+          }}
+        />
+      )}
     </div>
   )
 }
