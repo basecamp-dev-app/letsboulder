@@ -4,14 +4,18 @@ import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { withCsrfProtection } from '@/lib/csrf-server'
 
-const VALID_TARGET_TYPES = ['crag', 'image'] as const
-const VALID_CATEGORIES = ['history', 'broken_hold', 'approach_beta', 'beta', 'conditions', 'other'] as const
+const VALID_TARGET_TYPES = ['crag', 'image', 'climb'] as const
+const TARGET_CATEGORY_CONFIG = {
+  crag: ['access', 'approach', 'parking', 'closure', 'general'],
+  image: ['topo_error', 'line_request', 'photo_outdated', 'other_topo'],
+  climb: ['beta', 'broken_hold', 'conditions', 'grade', 'history'],
+} as const
 const MAX_COMMENT_LENGTH = 2000
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 50
 
 type TargetType = typeof VALID_TARGET_TYPES[number]
-type CommentCategory = typeof VALID_CATEGORIES[number]
+type CommentCategory = typeof TARGET_CATEGORY_CONFIG[TargetType][number]
 type CategoryFilter = CommentCategory | 'all'
 
 interface CommentRow {
@@ -28,8 +32,13 @@ function isValidTargetType(value: string | null): value is TargetType {
   return !!value && VALID_TARGET_TYPES.includes(value as TargetType)
 }
 
-function isValidCategory(value: string | null): value is CommentCategory {
-  return !!value && VALID_CATEGORIES.includes(value as CommentCategory)
+function isValidCategoryForTarget(targetType: TargetType, value: string | null): value is CommentCategory {
+  if (!value) return false
+  return (TARGET_CATEGORY_CONFIG[targetType] as readonly string[]).includes(value)
+}
+
+function getDefaultCategory(targetType: TargetType): CommentCategory {
+  return TARGET_CATEGORY_CONFIG[targetType][0]
 }
 
 function normalizeLimit(rawLimit: string | null): number {
@@ -74,7 +83,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'targetId is required' }, { status: 400 })
   }
 
-  if (category !== 'all' && !isValidCategory(category)) {
+  if (category !== 'all' && !isValidCategoryForTarget(targetType, category)) {
     return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
   }
 
@@ -148,7 +157,7 @@ export async function POST(request: NextRequest) {
     const rawTargetType = typeof body?.targetType === 'string' ? body.targetType : null
     const rawTargetId = typeof body?.targetId === 'string' ? body.targetId : null
     const rawCommentBody = typeof body?.body === 'string' ? body.body : ''
-    const rawCategory = typeof body?.category === 'string' ? body.category : 'beta'
+    const rawCategory = typeof body?.category === 'string' ? body.category : getDefaultCategory(rawTargetType || 'climb')
 
     if (!isValidTargetType(rawTargetType)) {
       return NextResponse.json({ error: 'Invalid targetType' }, { status: 400 })
@@ -158,7 +167,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'targetId is required' }, { status: 400 })
     }
 
-    if (!isValidCategory(rawCategory)) {
+    if (!isValidCategoryForTarget(rawTargetType, rawCategory)) {
       return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
     }
 
@@ -171,7 +180,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Comment must be ${MAX_COMMENT_LENGTH} characters or less` }, { status: 400 })
     }
 
-    const targetTable = rawTargetType === 'crag' ? 'crags' : 'images'
+    const targetTable = rawTargetType === 'crag' ? 'crags' : rawTargetType === 'image' ? 'images' : 'climbs'
     const { data: target, error: targetError } = await supabase
       .from(targetTable)
       .select('id')

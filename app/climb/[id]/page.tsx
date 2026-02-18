@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { findRouteAtPoint, RoutePoint, useRouteSelection } from '@/lib/useRouteSelection'
@@ -26,6 +27,12 @@ interface ImageInfo {
   height: number | null
   natural_width: number | null
   natural_height: number | null
+  created_by: string | null
+}
+
+interface PublicSubmitter {
+  id: string
+  displayName: string
 }
 
 interface ClimbInfo {
@@ -161,6 +168,7 @@ export default function ClimbPage() {
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [userLogs, setUserLogs] = useState<Record<string, string>>({})
   const [hasUserInteractedWithSelection, setHasUserInteractedWithSelection] = useState(false)
+  const [publicSubmitter, setPublicSubmitter] = useState<PublicSubmitter | null>(null)
 
   useOverlayHistory({ open: shareModalOpen, onClose: () => setShareModalOpen(false), id: 'share-climb-dialog' })
 
@@ -224,6 +232,7 @@ export default function ClimbPage() {
       setError(null)
       setImageLoaded(false)
       setHasUserInteractedWithSelection(false)
+      setPublicSubmitter(null)
       clearSelection()
 
       try {
@@ -236,7 +245,7 @@ export default function ClimbPage() {
             points,
             image_width,
             image_height,
-            image:images!inner(id, url, width, height, natural_width, natural_height),
+            image:images!inner(id, url, width, height, natural_width, natural_height, created_by),
             climb:climbs!inner(id, name, grade, description)
           `)
           .eq('climb_id', climbId)
@@ -273,6 +282,7 @@ export default function ClimbPage() {
             height: null,
             natural_width: null,
             natural_height: null,
+            created_by: null,
           })
           setRouteLines([
             {
@@ -346,6 +356,24 @@ export default function ClimbPage() {
         }
 
         setImage(imageInfo)
+
+        if (imageInfo.created_by) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('id, username, display_name, first_name, last_name, is_public')
+            .eq('id', imageInfo.created_by)
+            .single()
+
+          if (profileData?.is_public) {
+            const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
+            const displayName = fullName || profileData.display_name || profileData.username || 'Climber'
+            setPublicSubmitter({
+              id: profileData.id,
+              displayName,
+            })
+          }
+        }
+
         setRouteLines(mappedLines)
       } catch (err) {
         console.error('Error loading climb:', err)
@@ -743,6 +771,18 @@ export default function ClimbPage() {
               </p>
               {selectedClimb?.description && (
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedClimb.description}</p>
+              )}
+              {publicSubmitter && (
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Submitted by{' '}
+                  <Link
+                    href={`/logbook/${publicSubmitter.id}`}
+                    prefetch={false}
+                    className="underline decoration-gray-400 underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200"
+                  >
+                    {publicSubmitter.displayName}
+                  </Link>
+                </p>
               )}
             </div>
             <div className="flex items-center gap-2">

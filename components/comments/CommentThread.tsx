@@ -6,8 +6,25 @@ import { Loader2, MessageSquare, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 
-type TargetType = 'crag' | 'image'
-type CommentCategory = 'history' | 'broken_hold' | 'approach_beta' | 'beta' | 'conditions' | 'other'
+type TargetType = 'crag' | 'image' | 'climb'
+type CommentCategory =
+  | 'history'
+  | 'broken_hold'
+  | 'approach_beta'
+  | 'beta'
+  | 'conditions'
+  | 'other'
+  | 'access'
+  | 'approach'
+  | 'parking'
+  | 'closure'
+  | 'general'
+  | 'grade'
+  | 'topo_error'
+  | 'line_request'
+  | 'photo_outdated'
+  | 'other_topo'
+
 type CategoryFilter = CommentCategory | 'all'
 
 interface CommentItem {
@@ -21,20 +38,84 @@ interface CommentItem {
   is_owner: boolean
 }
 
+interface CategoryOption {
+  value: CommentCategory
+  label: string
+}
+
+interface TargetThreadConfig {
+  title: string
+  placeholder: string
+  emptyState: string
+  defaultCategory: CommentCategory
+  categories: CategoryOption[]
+}
+
 interface CommentThreadProps {
   targetType: TargetType
   targetId: string
   className?: string
 }
 
-const CATEGORY_OPTIONS: Array<{ value: CommentCategory; label: string }> = [
-  { value: 'beta', label: 'Beta' },
-  { value: 'approach_beta', label: 'Approach beta' },
-  { value: 'broken_hold', label: 'Broken hold' },
-  { value: 'history', label: 'History' },
-  { value: 'conditions', label: 'Conditions' },
-  { value: 'other', label: 'Other' },
-]
+const TARGET_THREAD_CONFIG: Record<TargetType, TargetThreadConfig> = {
+  crag: {
+    title: 'Crag updates',
+    placeholder: 'Share access, approach, parking, closure, and area-wide updates...',
+    emptyState: 'No crag updates yet. Share access and approach info for the community.',
+    defaultCategory: 'access',
+    categories: [
+      { value: 'access', label: 'Access' },
+      { value: 'approach', label: 'Approach' },
+      { value: 'parking', label: 'Parking' },
+      { value: 'closure', label: 'Closure' },
+      { value: 'general', label: 'General' },
+    ],
+  },
+  image: {
+    title: 'Topo notes',
+    placeholder: 'Report topo issues, missing lines, or outdated photos...',
+    emptyState: 'No topo notes yet. Add notes about line drawing or photo quality.',
+    defaultCategory: 'topo_error',
+    categories: [
+      { value: 'topo_error', label: 'Topo error' },
+      { value: 'line_request', label: 'Line request' },
+      { value: 'photo_outdated', label: 'Photo outdated' },
+      { value: 'other_topo', label: 'Other topo' },
+    ],
+  },
+  climb: {
+    title: 'Climb notes',
+    placeholder: 'Share climb beta, hold changes, grade opinions, and conditions...',
+    emptyState: 'No climb notes yet. Be the first to share useful beta.',
+    defaultCategory: 'beta',
+    categories: [
+      { value: 'beta', label: 'Beta' },
+      { value: 'broken_hold', label: 'Broken hold' },
+      { value: 'conditions', label: 'Conditions' },
+      { value: 'grade', label: 'Grade' },
+      { value: 'history', label: 'History' },
+    ],
+  },
+}
+
+const CATEGORY_LABELS: Record<CommentCategory, string> = {
+  history: 'History',
+  broken_hold: 'Broken hold',
+  approach_beta: 'Approach beta',
+  beta: 'Beta',
+  conditions: 'Conditions',
+  other: 'Other',
+  access: 'Access',
+  approach: 'Approach',
+  parking: 'Parking',
+  closure: 'Closure',
+  general: 'General',
+  grade: 'Grade',
+  topo_error: 'Topo error',
+  line_request: 'Line request',
+  photo_outdated: 'Photo outdated',
+  other_topo: 'Other topo',
+}
 
 const LIMIT = 20
 const MAX_COMMENT_LENGTH = 2000
@@ -59,16 +140,18 @@ export default function CommentThread({ targetType, targetId, className }: Comme
   const [error, setError] = useState<string | null>(null)
   const [nextOffset, setNextOffset] = useState<number | null>(null)
   const [commentBody, setCommentBody] = useState('')
-  const [category, setCategory] = useState<CommentCategory>('beta')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
 
+  const threadConfig = TARGET_THREAD_CONFIG[targetType]
+  const [category, setCategory] = useState<CommentCategory>(threadConfig.defaultCategory)
+
   const hasMore = nextOffset !== null
   const isSignedIn = !!userId
   const authRedirect = useMemo(() => {
-    const fallbackPath = targetType === 'image' ? `/image/${targetId}` : `/crag/${targetId}`
+    const fallbackPath = targetType === 'image' ? `/image/${targetId}` : targetType === 'crag' ? `/crag/${targetId}` : `/climb/${targetId}`
     return `/auth?redirect_to=${encodeURIComponent(fallbackPath)}`
   }, [targetId, targetType])
 
@@ -110,12 +193,19 @@ export default function CommentThread({ targetType, targetId, className }: Comme
       setError(null)
     } catch (err) {
       console.error('Comments load error:', err)
-      setError('Could not load community comments')
+      setError('Could not load comments')
     } finally {
       setLoading(false)
       setLoadingMore(false)
     }
   }, [categoryFilter, targetId, targetType])
+
+  useEffect(() => {
+    setCategory(threadConfig.defaultCategory)
+    setCategoryFilter('all')
+    setComments([])
+    setNextOffset(null)
+  }, [targetId, threadConfig.defaultCategory])
 
   useEffect(() => {
     const supabase = createClient()
@@ -167,11 +257,13 @@ export default function CommentThread({ targetType, targetId, className }: Comme
       const payload = data as { comment?: CommentItem }
       const newComment = payload.comment
       if (newComment) {
-        setComments((prev) => [newComment, ...prev])
+        if (categoryFilter === 'all' || newComment.category === categoryFilter) {
+          setComments((prev) => [newComment, ...prev])
+        }
       }
 
       setCommentBody('')
-      setCategory('beta')
+      setCategory(threadConfig.defaultCategory)
       setError(null)
     } catch (err) {
       console.error('Comment submit error:', err)
@@ -179,7 +271,7 @@ export default function CommentThread({ targetType, targetId, className }: Comme
     } finally {
       setSubmitting(false)
     }
-  }, [category, commentBody, isSignedIn, submitting, targetId, targetType])
+  }, [category, categoryFilter, commentBody, isSignedIn, submitting, targetId, targetType, threadConfig.defaultCategory])
 
   const handleDelete = useCallback(async (commentId: string) => {
     if (!commentId || deletingId) return
@@ -211,7 +303,7 @@ export default function CommentThread({ targetType, targetId, className }: Comme
     <section className={`rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 ${className || ''}`}>
       <div className="mb-4 flex items-center gap-2">
         <MessageSquare className="h-4 w-4 text-gray-700 dark:text-gray-300" />
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Community board</h2>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{threadConfig.title}</h2>
       </div>
 
       <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
@@ -227,7 +319,7 @@ export default function CommentThread({ targetType, targetId, className }: Comme
                 onChange={(event) => setCategory(event.target.value as CommentCategory)}
                 className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
               >
-                {CATEGORY_OPTIONS.map((option) => (
+                {threadConfig.categories.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
@@ -235,7 +327,7 @@ export default function CommentThread({ targetType, targetId, className }: Comme
             <textarea
               value={commentBody}
               onChange={(event) => setCommentBody(event.target.value.slice(0, MAX_COMMENT_LENGTH))}
-              placeholder="Share beta, conditions, hold changes, and local history..."
+              placeholder={threadConfig.placeholder}
               rows={4}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             />
@@ -253,7 +345,7 @@ export default function CommentThread({ targetType, targetId, className }: Comme
           </>
         ) : (
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            <Link href={authRedirect} className="font-medium text-gray-900 underline underline-offset-2 dark:text-gray-100">Sign in</Link> to post community updates.
+            <Link href={authRedirect} className="font-medium text-gray-900 underline underline-offset-2 dark:text-gray-100">Sign in</Link> to post updates.
           </p>
         )}
       </div>
@@ -273,7 +365,7 @@ export default function CommentThread({ targetType, targetId, className }: Comme
           className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
         >
           <option value="all">All categories</option>
-          {CATEGORY_OPTIONS.map((option) => (
+          {threadConfig.categories.map((option) => (
             <option key={`filter-${option.value}`} value={option.value}>{option.label}</option>
           ))}
         </select>
@@ -290,40 +382,36 @@ export default function CommentThread({ targetType, targetId, className }: Comme
           <Loader2 className="h-5 w-5 animate-spin text-gray-500 dark:text-gray-400" />
         </div>
       ) : comments.length === 0 ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">No comments yet. Be the first to share beta.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{threadConfig.emptyState}</p>
       ) : (
         <div className="space-y-3">
-          {comments.map((comment) => {
-            const categoryLabel = CATEGORY_OPTIONS.find((option) => option.value === comment.category)?.label || 'Other'
-
-            return (
-              <article key={comment.id} className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">
-                      {categoryLabel}
-                    </span>
-                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                      {comment.is_owner ? 'You' : 'Community member'}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{formatTimestamp(comment.created_at)}</span>
-                  </div>
-                  {comment.is_owner && (
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(comment.id)}
-                      disabled={deletingId === comment.id}
-                      className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      {deletingId === comment.id ? 'Deleting...' : 'Delete'}
-                    </button>
-                  )}
+          {comments.map((comment) => (
+            <article key={comment.id} className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                    {CATEGORY_LABELS[comment.category] || 'Other'}
+                  </span>
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                    {comment.is_owner ? 'You' : 'Community member'}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{formatTimestamp(comment.created_at)}</span>
                 </div>
-                <p className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-100">{comment.body}</p>
-              </article>
-            )
-          })}
+                {comment.is_owner && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete(comment.id)}
+                    disabled={deletingId === comment.id}
+                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {deletingId === comment.id ? 'Deleting...' : 'Delete'}
+                  </button>
+                )}
+              </div>
+              <p className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-100">{comment.body}</p>
+            </article>
+          ))}
         </div>
       )}
 
