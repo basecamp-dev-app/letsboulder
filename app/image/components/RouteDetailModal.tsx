@@ -388,6 +388,15 @@ export default function RouteDetailModal({
       <div className="flex-1 overflow-y-auto px-5 py-4">
             {tab === 'climb' ? (
               <div className="space-y-4">
+                {climbId && (
+                  <Link
+                    href={`/climb/${climbId}`}
+                    className="block rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900 transition-colors hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-900/40"
+                  >
+                    Open climb page
+                  </Link>
+                )}
+
                 {statusLoading ? (
                   <div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950/40 p-6 flex items-center justify-center">
                     <Loader2 className="w-5 h-5 animate-spin text-gray-500 dark:text-gray-400" />
