@@ -155,6 +155,10 @@ export default function ClimbPage() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
+  const routeLinesRef = useRef<DisplayRouteLine[]>([])
+  const selectedIdsRef = useRef<string[]>([])
+  const userLogsRef = useRef<Record<string, string>>({})
+  const drawFrameRef = useRef<number | null>(null)
 
   const [image, setImage] = useState<ImageInfo | null>(null)
   const [routeLines, setRouteLines] = useState<DisplayRouteLine[]>([])
@@ -187,6 +191,10 @@ export default function ClimbPage() {
   const displayClimb = displayRoute?.climb || null
   const selectedClimb = selectedRoute?.climb || null
   const selectedClimbLogged = !!(selectedClimb && userLogs[selectedClimb.id])
+
+  routeLinesRef.current = routeLines
+  selectedIdsRef.current = selectedIds
+  userLogsRef.current = userLogs
 
   const updateRouteParam = useCallback(
     (routeId: string | null) => {
@@ -441,7 +449,11 @@ export default function ClimbPage() {
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
-    if (!canvas || routeLines.length === 0) return
+    const liveRouteLines = routeLinesRef.current
+    const liveSelectedIds = selectedIdsRef.current
+    const liveUserLogs = userLogsRef.current
+
+    if (!canvas || liveRouteLines.length === 0) return
     if (canvas.width <= 0 || canvas.height <= 0) return
 
     const imageElement = imageRef.current
@@ -452,9 +464,9 @@ export default function ClimbPage() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    for (const route of routeLines) {
-      const isLogged = !!userLogs[route.climb.id]
-      const isSelected = selectedIds.includes(route.id)
+    for (const route of liveRouteLines) {
+      const isLogged = !!liveUserLogs[route.climb.id]
+      const isSelected = liveSelectedIds.includes(route.id)
       const strokeWidth = isSelected ? 5 : 3
       const color = isSelected ? '#22c55e' : route.color
 
@@ -487,11 +499,30 @@ export default function ClimbPage() {
     ctx.globalAlpha = 1
     ctx.shadowBlur = 0
     ctx.setLineDash([])
-  }, [routeLines, selectedIds, userLogs])
+  }, [])
+
+  const scheduleDraw = useCallback(() => {
+    if (drawFrameRef.current !== null) {
+      cancelAnimationFrame(drawFrameRef.current)
+    }
+
+    drawFrameRef.current = requestAnimationFrame(() => {
+      drawFrameRef.current = null
+      draw()
+    })
+  }, [draw])
 
   useEffect(() => {
-    draw()
-  }, [draw])
+    scheduleDraw()
+  }, [routeLines, selectedIds, userLogs, scheduleDraw])
+
+  useEffect(() => {
+    return () => {
+      if (drawFrameRef.current !== null) {
+        cancelAnimationFrame(drawFrameRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -535,7 +566,7 @@ export default function ClimbPage() {
         canvas.height = nextHeight
       }
 
-      requestAnimationFrame(draw)
+      scheduleDraw()
     }
 
     const handleLoad = () => {
@@ -570,9 +601,13 @@ export default function ClimbPage() {
       window.removeEventListener('resize', resizeCanvasToImage)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('pageshow', handlePageShow)
+      if (drawFrameRef.current !== null) {
+        cancelAnimationFrame(drawFrameRef.current)
+        drawFrameRef.current = null
+      }
       observer?.disconnect()
     }
-  }, [image?.url, routeLines.length, draw])
+  }, [image?.url, routeLines.length, scheduleDraw])
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
