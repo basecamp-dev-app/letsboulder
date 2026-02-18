@@ -105,45 +105,138 @@ async function heicToJpegBlob(file: File): Promise<Blob> {
   return Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob
 }
 
+interface RationalLike {
+  numerator: number
+  denominator: number
+}
+
+type DmsValue = number | RationalLike
+
+function isGpsDebugEnabled(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.localStorage.getItem('debug_gps') === '1'
+}
+
+function debugGpsLog(message: string, payload?: unknown) {
+  if (!isGpsDebugEnabled()) return
+  if (payload !== undefined) {
+    console.log(`[gps] ${message}`, payload)
+    return
+  }
+  console.log(`[gps] ${message}`)
+}
+
+function toNumber(value: DmsValue): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+
+  if (!value || typeof value.numerator !== 'number' || typeof value.denominator !== 'number') {
+    return null
+  }
+
+  if (!Number.isFinite(value.numerator) || !Number.isFinite(value.denominator) || value.denominator === 0) {
+    return null
+  }
+
+  return value.numerator / value.denominator
+}
+
+function toGpsData(value: unknown): GpsData | null {
+  if (!value || typeof value !== 'object') return null
+
+  const data = value as {
+    latitude?: unknown
+    longitude?: unknown
+    lat?: unknown
+    lon?: unknown
+    lng?: unknown
+    GPSLatitude?: unknown
+    GPSLongitude?: unknown
+    GPSLatitudeRef?: unknown
+    GPSLongitudeRef?: unknown
+  }
+
+  const latitude =
+    (typeof data.latitude === 'number' && Number.isFinite(data.latitude) ? data.latitude : null) ??
+    (typeof data.lat === 'number' && Number.isFinite(data.lat) ? data.lat : null)
+
+  const longitude =
+    (typeof data.longitude === 'number' && Number.isFinite(data.longitude) ? data.longitude : null) ??
+    (typeof data.lon === 'number' && Number.isFinite(data.lon) ? data.lon : null) ??
+    (typeof data.lng === 'number' && Number.isFinite(data.lng) ? data.lng : null)
+
+  if (latitude !== null && longitude !== null) {
+    return { latitude, longitude }
+  }
+
+  const gpsLat = Array.isArray(data.GPSLatitude) ? (data.GPSLatitude as DmsValue[]) : null
+  const gpsLon = Array.isArray(data.GPSLongitude) ? (data.GPSLongitude as DmsValue[]) : null
+
+  if (!gpsLat || !gpsLon) return null
+
+  const latRef = typeof data.GPSLatitudeRef === 'string' ? data.GPSLatitudeRef : 'N'
+  const lonRef = typeof data.GPSLongitudeRef === 'string' ? data.GPSLongitudeRef : 'W'
+
+  const latDecimal = convertDmsToDecimal(gpsLat, latRef)
+  const lonDecimal = convertDmsToDecimal(gpsLon, lonRef)
+
+  if (latDecimal === null || lonDecimal === null) return null
+  if (!Number.isFinite(latDecimal) || !Number.isFinite(lonDecimal)) return null
+
+  return { latitude: latDecimal, longitude: lonDecimal }
+}
+
+async function extractGpsFromBuffer(buffer: ArrayBuffer, sourceLabel: string): Promise<GpsData | null> {
+  const exifr = (await import('exifr')).default
+
+  try {
+    const gpsData = await exifr.gps(buffer)
+    const parsedGps = toGpsData(gpsData)
+    if (parsedGps) {
+      debugGpsLog(`${sourceLabel}: extracted via exifr.gps()`, parsedGps)
+      return parsedGps
+    }
+    debugGpsLog(`${sourceLabel}: exifr.gps() returned no coordinates`)
+  } catch (error) {
+    debugGpsLog(`${sourceLabel}: exifr.gps() failed`, error)
+  }
+
+  try {
+    const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true })
+    const parsedGps = toGpsData(exifData)
+    if (parsedGps) {
+      debugGpsLog(`${sourceLabel}: extracted via exifr.parse()`, parsedGps)
+      return parsedGps
+    }
+
+    const keys = exifData && typeof exifData === 'object' ? Object.keys(exifData).slice(0, 30) : []
+    debugGpsLog(`${sourceLabel}: exifr.parse() returned no coordinates`, { keys })
+  } catch (error) {
+    debugGpsLog(`${sourceLabel}: exifr.parse() failed`, error)
+  }
+
+  return null
+}
+
 async function extractGpsFromFile(file: File): Promise<GpsData | null> {
   try {
-    const exifr = (await import('exifr')).default
     const buffer = await file.arrayBuffer()
-    const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true })
-
-    if (
-      typeof exifData?.latitude === 'number' &&
-      Number.isFinite(exifData.latitude) &&
-      typeof exifData?.longitude === 'number' &&
-      Number.isFinite(exifData.longitude)
-    ) {
-      return { latitude: exifData.latitude, longitude: exifData.longitude }
-    }
-
-    if (exifData?.GPSLatitude && exifData?.GPSLongitude) {
-      const latRef = exifData.GPSLatitudeRef || 'N'
-      const lonRef = exifData.GPSLongitudeRef || 'W'
-
-      const lat = convertDmsToDecimal(exifData.GPSLatitude, latRef)
-      const lon = convertDmsToDecimal(exifData.GPSLongitude, lonRef)
-
-      if (lat !== null && lon !== null && Number.isFinite(lat) && Number.isFinite(lon)) {
-        return { latitude: lat, longitude: lon }
-      }
-    }
-
-    return null
-  } catch (err) {
+    return extractGpsFromBuffer(buffer, `file:${file.name}`)
+  } catch (error) {
+    debugGpsLog(`file:${file.name}: failed to read file buffer`, error)
     return null
   }
 }
 
-function convertDmsToDecimal(dms: number[], ref: string): number | null {
+function convertDmsToDecimal(dms: DmsValue[], ref: string): number | null {
   if (!dms || dms.length < 3) return null
 
-  const degrees = dms[0]
-  const minutes = dms[1]
-  const seconds = dms[2]
+  const degrees = toNumber(dms[0])
+  const minutes = toNumber(dms[1])
+  const seconds = toNumber(dms[2])
+
+  if (degrees === null || minutes === null || seconds === null) return null
 
   let decimal = degrees + minutes / 60 + seconds / 3600
 
@@ -190,7 +283,21 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           setPreviewUrl(URL.createObjectURL(previewBlob))
 
           onUploading(true, 15, 'Extracting GPS...')
-          const gps = await extractGpsFromFile(selectedFile)
+          let gps = await extractGpsFromFile(selectedFile)
+          if (!gps) {
+            debugGpsLog('file:HEIC falling back to preview blob GPS extraction', {
+              fileName: selectedFile.name,
+              type: selectedFile.type,
+              size: selectedFile.size,
+            })
+
+            try {
+              const previewBuffer = await previewBlob.arrayBuffer()
+              gps = await extractGpsFromBuffer(previewBuffer, `preview:${selectedFile.name}`)
+            } catch (error) {
+              debugGpsLog(`preview:${selectedFile.name}: failed to read preview blob buffer`, error)
+            }
+          }
           setGpsData(gps)
 
           onUploading(true, 20, 'Compressing HEIC...')
