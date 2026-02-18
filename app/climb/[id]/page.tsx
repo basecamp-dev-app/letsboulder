@@ -818,7 +818,9 @@ export default function ClimbPage() {
             </button>
           )}
 
-          {selectedClimb && <CommentThread targetType="climb" targetId={selectedClimb.id} className="mt-6" />}
+          {image.id && !image.id.startsWith('legacy-') && (
+            <CommentThread targetType="image" targetId={image.id} className="mt-6" />
+          )}
         </div>
       </div>
 
