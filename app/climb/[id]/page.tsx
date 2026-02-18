@@ -176,7 +176,7 @@ export default function ClimbPage() {
 
   useOverlayHistory({ open: shareModalOpen, onClose: () => setShareModalOpen(false), id: 'share-climb-dialog' })
 
-  const { selectedIds, selectRoute, deselectRoute, clearSelection } = useRouteSelection()
+  const { selectedIds, selectRoute, clearSelection } = useRouteSelection()
 
   const selectedRouteParam = searchParams.get('route')
 
@@ -426,11 +426,6 @@ export default function ClimbPage() {
   useEffect(() => {
     if (routeLines.length === 0) return
 
-    const selectedStillExists = selectedIds.some((selectedId) => routeLines.some((route) => route.id === selectedId))
-    if (selectedIds.length > 0 && !selectedStillExists) {
-      clearSelection()
-    }
-
     if (selectedRouteParam) {
       const exists = routeLines.some((route) => route.id === selectedRouteParam)
       if (exists && selectedIds[0] !== selectedRouteParam) {
@@ -446,7 +441,7 @@ export default function ClimbPage() {
     if (preselected) {
       selectRoute(preselected.id)
     }
-  }, [routeLines, selectedRouteParam, selectedIds, hasUserInteractedWithSelection, selectRoute, clearSelection, climbId])
+  }, [routeLines, selectedRouteParam, selectedIds, hasUserInteractedWithSelection, selectRoute, climbId])
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
@@ -638,20 +633,12 @@ export default function ClimbPage() {
       )
 
       if (!clickedRoute) {
-        clearSelection()
-        updateRouteParam(null)
         return
       }
 
-      if (selectedIds.includes(clickedRoute.id)) {
-        deselectRoute(clickedRoute.id)
-        updateRouteParam(null)
-      } else {
-        selectRoute(clickedRoute.id)
-        updateRouteParam(clickedRoute.id)
-      }
+      updateRouteParam(clickedRoute.id)
     },
-    [routeLines, selectedIds, selectRoute, deselectRoute, clearSelection, updateRouteParam]
+    [routeLines, updateRouteParam]
   )
 
   const handleLog = async (style: 'flash' | 'top' | 'try') => {

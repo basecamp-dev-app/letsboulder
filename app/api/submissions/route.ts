@@ -6,6 +6,7 @@ import { notifyNewSubmission } from '@/lib/discord'
 import { makeUniqueSlug } from '@/lib/slug'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const INTERNAL_MODERATION_SECRET = process.env.INTERNAL_MODERATION_SECRET
 
 const MAX_ROUTES_PER_DAY = 5
 
@@ -274,12 +275,12 @@ export async function POST(request: NextRequest) {
 
       imageId = image.id
 
-      if (process.env.INTERNAL_MODERATION_SECRET) {
+      if (INTERNAL_MODERATION_SECRET) {
         fetch(new URL('/api/moderation/check', request.url), {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
-            'x-internal-secret': process.env.INTERNAL_MODERATION_SECRET,
+            'x-internal-secret': INTERNAL_MODERATION_SECRET,
           },
           body: JSON.stringify({ imageId: image.id }),
         })
@@ -294,6 +295,36 @@ export async function POST(request: NextRequest) {
             })
           })
           .catch((err) => console.error('Failed to queue moderation:', { imageId: image.id, error: err }))
+      } else if (process.env.NODE_ENV !== 'production') {
+        console.warn(
+          '[submissions] INTERNAL_MODERATION_SECRET missing in non-production; applying auto-approve fallback'
+        )
+
+        const { data: publicUrlData } = supabase.storage
+          .from(body.imageBucket)
+          .getPublicUrl(body.imagePath)
+
+        const approvedUrl = publicUrlData.publicUrl
+        const { error: fallbackApprovalError } = await (supabaseAdmin || supabase)
+          .from('images')
+          .update({
+            url: approvedUrl,
+            moderation_status: 'approved',
+            has_humans: false,
+            moderation_labels: [],
+            moderated_at: new Date().toISOString(),
+            status: 'approved',
+          })
+          .eq('id', image.id)
+
+        if (fallbackApprovalError) {
+          return createErrorResponse(fallbackApprovalError, 'Error applying non-production image approval fallback')
+        }
+      } else {
+        console.warn(
+          '[submissions] INTERNAL_MODERATION_SECRET missing in production; image will remain private until moderated manually',
+          { imageId: image.id }
+        )
       }
     } else {
       if (!body.imageId) {

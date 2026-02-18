@@ -229,6 +229,7 @@ Create `.env.local` in project root:
 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...
 SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
+INTERNAL_MODERATION_SECRET=local_moderation_secret
 
 NEXT_PUBLIC_DEV_PASSWORD_AUTH=true
 DEV_USER_EMAIL=dev@letsboulder.com
@@ -236,3 +237,5 @@ DEV_USER_PASSWORD=devpassword123
 ```
 
 Run `supabase start` to get local credentials.
+
+`INTERNAL_MODERATION_SECRET` is optional for local dev. If it is missing, route photo uploads are auto-approved so images are immediately visible during development.
