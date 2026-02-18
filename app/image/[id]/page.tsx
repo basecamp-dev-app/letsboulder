@@ -38,11 +38,30 @@ interface ImageData {
   latitude: number | null
   longitude: number | null
   face_direction?: 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW' | null
+  is_tidal: boolean
+  tidal_max_height_m: number | null
+  tidal_buffer_min: number
+  tidal_notes: string | null
   route_lines: ImageRoute[]
   width?: number
   height?: number
   natural_width?: number | null
   natural_height?: number | null
+}
+
+interface TidalForecastResponse {
+  tidal: boolean
+  imageId: string
+  thresholdM: number
+  bufferMin: number
+  currentHeightM: number | null
+  accessibleNow: boolean
+  nextWindow: { start: string; end: string } | null
+  station: string | null
+  timezone: string | null
+  datum: string | null
+  notes: string | null
+  copyright: string | null
 }
 
 interface PublicSubmitter {
@@ -245,6 +264,16 @@ export default function ImagePage() {
   const [statusLoading, setStatusLoading] = useState(false)
   const [publicSubmitter, setPublicSubmitter] = useState<PublicSubmitter | null>(null)
   const [hasSubmitter, setHasSubmitter] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [tidalForecast, setTidalForecast] = useState<TidalForecastResponse | null>(null)
+  const [tidalLoading, setTidalLoading] = useState(false)
+  const [tidalError, setTidalError] = useState<string | null>(null)
+  const [updatingTidal, setUpdatingTidal] = useState(false)
+
+  const [tidalEnabledInput, setTidalEnabledInput] = useState(false)
+  const [tidalMaxInput, setTidalMaxInput] = useState('')
+  const [tidalBufferInput, setTidalBufferInput] = useState('0')
+  const [tidalNotesInput, setTidalNotesInput] = useState('')
 
   const selectedRoute = useMemo(() => {
     if (!image) return null
@@ -272,6 +301,26 @@ export default function ImagePage() {
   }, [])
 
   useEffect(() => {
+    const checkAdmin = async () => {
+      if (!user) {
+        setIsAdmin(false)
+        return
+      }
+
+      const supabase = createClient()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single()
+
+      setIsAdmin(profile?.is_admin === true)
+    }
+
+    checkAdmin()
+  }, [user])
+
+  useEffect(() => {
     const loadImage = async () => {
       if (!imageId) return
 
@@ -291,7 +340,7 @@ export default function ImagePage() {
         ] = await Promise.all([
           supabase
             .from('images')
-            .select('id, url, latitude, longitude, face_direction, crag_id, width, height, natural_width, natural_height, created_by')
+            .select('id, url, latitude, longitude, face_direction, crag_id, width, height, natural_width, natural_height, created_by, is_tidal, tidal_max_height_m, tidal_buffer_min, tidal_notes')
             .eq('id', imageId)
             .single(),
           supabase
@@ -348,6 +397,10 @@ export default function ImagePage() {
 
         setImage({
           ...imageData,
+          is_tidal: !!imageData.is_tidal,
+          tidal_max_height_m: imageData.tidal_max_height_m,
+          tidal_buffer_min: imageData.tidal_buffer_min ?? 0,
+          tidal_notes: imageData.tidal_notes || null,
           route_lines: formattedRoutes
         })
         setCragId(imageData.crag_id)
@@ -438,6 +491,52 @@ export default function ImagePage() {
 
     loadUserLogs()
   }, [image, user])
+
+  useEffect(() => {
+    if (!image) return
+    setTidalEnabledInput(image.is_tidal)
+    setTidalMaxInput(image.tidal_max_height_m != null ? String(image.tidal_max_height_m) : '')
+    setTidalBufferInput(String(image.tidal_buffer_min || 0))
+    setTidalNotesInput(image.tidal_notes || '')
+  }, [image])
+
+  useEffect(() => {
+    const loadTidalForecast = async () => {
+      if (!image?.is_tidal) {
+        setTidalForecast(null)
+        setTidalError(null)
+        return
+      }
+
+      setTidalLoading(true)
+      setTidalError(null)
+
+      try {
+        const response = await fetch(`/api/tides?image_id=${encodeURIComponent(image.id)}`)
+        const data = await response.json()
+
+        if (!response.ok) {
+          setTidalForecast(null)
+          setTidalError(data.error || 'Tide data unavailable')
+          return
+        }
+
+        if (!data.tidal) {
+          setTidalForecast(null)
+          return
+        }
+
+        setTidalForecast(data as TidalForecastResponse)
+      } catch {
+        setTidalForecast(null)
+        setTidalError('Tide data unavailable')
+      } finally {
+        setTidalLoading(false)
+      }
+    }
+
+    loadTidalForecast()
+  }, [image?.id, image?.is_tidal, image?.tidal_max_height_m, image?.tidal_buffer_min])
 
   const fetchClimbStatus = useCallback(async (climbId: string) => {
     if (!user) {
@@ -552,6 +651,94 @@ export default function ImagePage() {
     }
   }
 
+  const formatLocalDateTime = (iso: string) => {
+    const date = new Date(iso)
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      month: 'short',
+      day: 'numeric',
+    }).format(date)
+  }
+
+  const handleSaveTidalSettings = async () => {
+    if (!image) return
+
+    const nextIsTidal = tidalEnabledInput
+    const parsedThreshold = tidalMaxInput.trim() === '' ? null : Number.parseFloat(tidalMaxInput)
+    const parsedBuffer = Number.parseInt(tidalBufferInput, 10)
+
+    if (nextIsTidal) {
+      if (image.latitude == null || image.longitude == null) {
+        setToast('Tidal settings require GPS coordinates on this image')
+        setTimeout(() => setToast(null), 2500)
+        return
+      }
+
+      if (parsedThreshold == null || Number.isNaN(parsedThreshold)) {
+        setToast('Set a valid max tide height in meters')
+        setTimeout(() => setToast(null), 2500)
+        return
+      }
+    }
+
+    if (Number.isNaN(parsedBuffer) || parsedBuffer < 0) {
+      setToast('Buffer must be a non-negative number of minutes')
+      setTimeout(() => setToast(null), 2500)
+      return
+    }
+
+    setUpdatingTidal(true)
+
+    try {
+      const response = await csrfFetch(`/api/images/${image.id}/tidal`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          is_tidal: nextIsTidal,
+          tidal_max_height_m: parsedThreshold,
+          tidal_buffer_min: parsedBuffer,
+          tidal_notes: tidalNotesInput.trim() || null,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setToast(data.error || 'Failed to save tidal settings')
+        setTimeout(() => setToast(null), 2500)
+        return
+      }
+
+      const updated = data.image as {
+        is_tidal: boolean
+        tidal_max_height_m: number | null
+        tidal_buffer_min: number
+        tidal_notes: string | null
+      }
+
+      setImage((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          is_tidal: updated.is_tidal,
+          tidal_max_height_m: updated.tidal_max_height_m,
+          tidal_buffer_min: updated.tidal_buffer_min,
+          tidal_notes: updated.tidal_notes,
+        }
+      })
+
+      setToast('Tidal settings saved')
+      setTimeout(() => setToast(null), 2000)
+    } catch {
+      setToast('Failed to save tidal settings')
+      setTimeout(() => setToast(null), 2500)
+    } finally {
+      setUpdatingTidal(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
@@ -636,6 +823,120 @@ export default function ImagePage() {
       )}
 
       <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-3 sm:p-4">
+        {(image.is_tidal || isAdmin) && (
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-900/70 dark:bg-blue-950/30">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">Tidal access</p>
+              {image.is_tidal && tidalForecast && (
+                <span
+                  className={`text-xs px-2 py-1 rounded-full font-medium ${
+                    tidalForecast.accessibleNow
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
+                      : 'bg-yellow-100 text-yellow-900 dark:bg-yellow-900/40 dark:text-yellow-200'
+                  }`}
+                >
+                  {tidalForecast.accessibleNow ? 'Likely accessible now' : 'Likely cut off now'}
+                </span>
+              )}
+            </div>
+
+            {!image.is_tidal && !isAdmin && (
+              <p className="text-sm text-blue-900/90 dark:text-blue-200/90">No tidal guidance set for this image.</p>
+            )}
+
+            {image.is_tidal && tidalLoading && (
+              <p className="text-sm text-blue-900/90 dark:text-blue-200/90">Loading tide forecast...</p>
+            )}
+
+            {image.is_tidal && tidalError && (
+              <p className="text-sm text-red-700 dark:text-red-300">{tidalError}</p>
+            )}
+
+            {image.is_tidal && tidalForecast && (
+              <div className="space-y-1.5 text-sm text-blue-900 dark:text-blue-200">
+                <p>
+                  Current tide: {tidalForecast.currentHeightM == null ? 'Unknown' : `${tidalForecast.currentHeightM.toFixed(2)} m`} (limit {tidalForecast.thresholdM.toFixed(2)} m)
+                </p>
+                <p>Safety buffer: {tidalForecast.bufferMin} min</p>
+                {tidalForecast.nextWindow ? (
+                  <p>
+                    Next likely access window: {formatLocalDateTime(tidalForecast.nextWindow.start)} to {formatLocalDateTime(tidalForecast.nextWindow.end)}
+                  </p>
+                ) : (
+                  <p>No likely access window found in the current forecast range.</p>
+                )}
+                {tidalForecast.notes && <p>Notes: {tidalForecast.notes}</p>}
+                <p className="text-xs text-blue-900/70 dark:text-blue-200/70">
+                  Forecast guidance only. Real-world sea conditions can differ.
+                </p>
+                {tidalForecast.copyright && (
+                  <p className="text-xs text-blue-900/60 dark:text-blue-200/60">{tidalForecast.copyright}</p>
+                )}
+              </div>
+            )}
+
+            {isAdmin && (
+              <div className="mt-3 border-t border-blue-200 pt-3 dark:border-blue-900/60">
+                <p className="text-xs uppercase tracking-wide font-semibold text-blue-900/80 dark:text-blue-200/80 mb-2">Admin settings</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <label className="flex items-center gap-2 text-sm text-blue-900 dark:text-blue-200">
+                    <input
+                      type="checkbox"
+                      checked={tidalEnabledInput}
+                      onChange={(event) => setTidalEnabledInput(event.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    Tidal image
+                  </label>
+                  <label className="text-sm text-blue-900 dark:text-blue-200">
+                    Max tide (m)
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={tidalMaxInput}
+                      onChange={(event) => setTidalMaxInput(event.target.value)}
+                      className="mt-1 w-full rounded-md border border-blue-200 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-blue-900 dark:bg-gray-900 dark:text-gray-100"
+                      placeholder="e.g. 1.80"
+                    />
+                  </label>
+                  <label className="text-sm text-blue-900 dark:text-blue-200">
+                    Buffer (min)
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      value={tidalBufferInput}
+                      onChange={(event) => setTidalBufferInput(event.target.value)}
+                      className="mt-1 w-full rounded-md border border-blue-200 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-blue-900 dark:bg-gray-900 dark:text-gray-100"
+                    />
+                  </label>
+                  <label className="sm:col-span-2 text-sm text-blue-900 dark:text-blue-200">
+                    Notes
+                    <input
+                      type="text"
+                      value={tidalNotesInput}
+                      onChange={(event) => setTidalNotesInput(event.target.value)}
+                      className="mt-1 w-full rounded-md border border-blue-200 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-blue-900 dark:bg-gray-900 dark:text-gray-100"
+                      placeholder="Optional access note"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveTidalSettings}
+                    disabled={updatingTidal}
+                    className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {updatingTidal ? 'Saving...' : 'Save tidal settings'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {image.route_lines.length === 0 ? (
           <p className="text-gray-600 dark:text-gray-400 text-sm">No routes on this image yet.</p>
         ) : (
