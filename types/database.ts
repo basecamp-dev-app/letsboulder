@@ -34,6 +34,20 @@ export interface Crag {
   boundary: GeoJSONPolygon | null
 }
 
+export interface Place {
+  id: string
+  type: 'crag' | 'gym'
+  name: string
+  latitude: number | null
+  longitude: number | null
+  region_id: string | null
+  description: string | null
+  access_notes: string | null
+  rock_type: string | null
+  primary_discipline: string | null
+  disciplines: string[]
+}
+
 export interface GeoJSONPolygon {
   type: 'Polygon'
   coordinates: number[][][]

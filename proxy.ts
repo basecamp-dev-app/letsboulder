@@ -5,7 +5,7 @@ const ALLOWED_REDIRECT_PATHS = [
   '/',
   '/map',
   '/logbook',
-  '/rankings',
+  '/community',
   '/settings',
   '/submit',
   '/upload-climb',
@@ -41,6 +41,8 @@ function isStateChangingMethod(method: string): boolean {
 
 function getApiBucket(pathname: string, method: string): 'search' | 'rankings' | 'write' | null {
   if (
+    pathname.startsWith('/api/places/search') ||
+    pathname.startsWith('/api/places/nearby') ||
     pathname.startsWith('/api/crags/search') ||
     pathname.startsWith('/api/crags/nearby') ||
     pathname.startsWith('/api/regions/search') ||
@@ -221,6 +223,7 @@ export const config = {
     '/logbook/:path*',
     '/api/notifications/:path*',
     '/api/submissions/:path*',
+    '/api/places/:path*',
     '/api/routes/submit/:path*',
     '/api/settings/:path*',
     '/api/profile/:path*',

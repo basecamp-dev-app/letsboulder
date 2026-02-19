@@ -19,7 +19,7 @@ export async function GET() {
     { loc: `${BASE_URL}/rock-climbing-map`, changefreq: 'monthly', priority: '0.8' },
     { loc: `${BASE_URL}/guernsey-bouldering`, changefreq: 'weekly', priority: '0.9' },
     { loc: `${BASE_URL}/about`, changefreq: 'yearly', priority: '0.6' },
-    { loc: `${BASE_URL}/rankings`, changefreq: 'weekly', priority: '0.8' },
+    { loc: `${BASE_URL}/community`, changefreq: 'weekly', priority: '0.8' },
     { loc: `${BASE_URL}/privacy`, changefreq: 'yearly', priority: '0.4' },
     { loc: `${BASE_URL}/terms`, changefreq: 'yearly', priority: '0.4' },
     { loc: `${BASE_URL}/logbook`, changefreq: 'weekly', priority: '0.6' },
