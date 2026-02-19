@@ -5,10 +5,13 @@ import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { findRouteAtPoint, RoutePoint, useRouteSelection } from '@/lib/useRouteSelection'
-import { Share2, Twitter, Facebook, MessageCircle, Link2, Flag } from 'lucide-react'
+import { Share2, Twitter, Facebook, MessageCircle, Link2, Flag, Star } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { SITE_URL } from '@/lib/site'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
+import type { GradeOpinion } from '@/lib/grade-feedback'
 import {
   Dialog,
   DialogContent,
@@ -77,6 +80,28 @@ interface LegacyClimb {
   grade: string
   image_url: string
   coordinates: RoutePoint[] | string
+}
+
+interface UserLogEntry {
+  style: string
+  gradeOpinion: GradeOpinion | null
+  starRating: number | null
+}
+
+interface SaveFeedbackResponse {
+  gradeUpdated?: boolean
+  updatedGrade?: string | null
+}
+
+interface StarRatingSummary {
+  rating_avg: number | null
+  rating_count: number
+}
+
+const GRADE_OPINION_LABELS: Record<GradeOpinion, string> = {
+  soft: 'Soft',
+  agree: 'Agree',
+  hard: 'Hard',
 }
 
 function pickOne<T>(value: T | T[] | null | undefined): T | null {
@@ -159,7 +184,7 @@ export default function ClimbPage() {
   const imageRef = useRef<HTMLImageElement>(null)
   const routeLinesRef = useRef<DisplayRouteLine[]>([])
   const selectedIdsRef = useRef<string[]>([])
-  const userLogsRef = useRef<Record<string, string>>({})
+  const userLogsRef = useRef<Record<string, UserLogEntry>>({})
   const drawFrameRef = useRef<number | null>(null)
 
   const [image, setImage] = useState<ImageInfo | null>(null)
@@ -172,9 +197,15 @@ export default function ClimbPage() {
   const [shareToast, setShareToast] = useState<string | null>(null)
   const [flagModalOpen, setFlagModalOpen] = useState(false)
   const [user, setUser] = useState<{ id: string } | null>(null)
-  const [userLogs, setUserLogs] = useState<Record<string, string>>({})
+  const [userLogs, setUserLogs] = useState<Record<string, UserLogEntry>>({})
+  const [pendingGradeOpinion, setPendingGradeOpinion] = useState<GradeOpinion | null>(null)
+  const [pendingStarRating, setPendingStarRating] = useState<number | null>(null)
+  const [savingFeedback, setSavingFeedback] = useState(false)
+  const [feedbackCollapsedByClimbId, setFeedbackCollapsedByClimbId] = useState<Record<string, boolean>>({})
+  const [starRatingSummaryByClimbId, setStarRatingSummaryByClimbId] = useState<Record<string, StarRatingSummary>>({})
   const [hasUserInteractedWithSelection, setHasUserInteractedWithSelection] = useState(false)
   const [publicSubmitter, setPublicSubmitter] = useState<PublicSubmitter | null>(null)
+  const gradeSystem = useGradeSystem()
 
   useOverlayHistory({ open: shareModalOpen, onClose: () => setShareModalOpen(false), id: 'share-climb-dialog' })
 
@@ -193,7 +224,15 @@ export default function ClimbPage() {
   const displayRoute = selectedRoute || defaultPathRoute
   const displayClimb = displayRoute?.climb || null
   const selectedClimb = selectedRoute?.climb || null
-  const selectedClimbLogged = !!(selectedClimb && userLogs[selectedClimb.id])
+  const selectedClimbLog = selectedClimb ? userLogs[selectedClimb.id] : null
+  const selectedClimbLogged = !!selectedClimbLog
+  const selectedClimbHasSavedFeedback = !!(selectedClimbLog?.gradeOpinion || selectedClimbLog?.starRating)
+  const selectedClimbFeedbackCollapsed = !!(selectedClimb && feedbackCollapsedByClimbId[selectedClimb.id])
+  const selectedClimbRatingSummary = selectedClimb ? starRatingSummaryByClimbId[selectedClimb.id] : null
+  const selectedClimbAverageRating = selectedClimbRatingSummary?.rating_avg ?? null
+  const selectedClimbRoundedStars = selectedClimbAverageRating
+    ? Math.max(0, Math.min(5, Math.round(selectedClimbAverageRating)))
+    : 0
 
   routeLinesRef.current = routeLines
   selectedIdsRef.current = selectedIds
@@ -411,13 +450,20 @@ export default function ClimbPage() {
       const supabase = createClient()
       const { data: logs } = await supabase
         .from('user_climbs')
-        .select('climb_id, style')
+        .select('climb_id, style, grade_opinion, star_rating')
         .eq('user_id', user.id)
         .in('climb_id', climbIds)
 
-      const nextLogs: Record<string, string> = {}
+      const nextLogs: Record<string, UserLogEntry> = {}
       for (const log of logs || []) {
-        nextLogs[log.climb_id] = log.style
+        nextLogs[log.climb_id] = {
+          style: log.style,
+          gradeOpinion:
+            log.grade_opinion === 'soft' || log.grade_opinion === 'agree' || log.grade_opinion === 'hard'
+              ? log.grade_opinion
+              : null,
+          starRating: typeof log.star_rating === 'number' ? log.star_rating : null,
+        }
       }
       setUserLogs(nextLogs)
     }
@@ -660,6 +706,113 @@ export default function ClimbPage() {
     setFlagModalOpen(true)
   }
 
+  const loadStarRatingSummary = useCallback(async (targetClimbId: string) => {
+    try {
+      const response = await fetch(`/api/climbs/${targetClimbId}/star-rating`)
+      if (!response.ok) return
+      const data = (await response.json()) as StarRatingSummary
+      setStarRatingSummaryByClimbId((prev) => ({
+        ...prev,
+        [targetClimbId]: {
+          rating_avg: typeof data.rating_avg === 'number' ? data.rating_avg : null,
+          rating_count: typeof data.rating_count === 'number' ? data.rating_count : 0,
+        },
+      }))
+    } catch {
+      // no-op: summary is non-critical UI
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedClimb) {
+      setPendingGradeOpinion(null)
+      setPendingStarRating(null)
+      return
+    }
+
+    const feedback = userLogs[selectedClimb.id]
+    setPendingGradeOpinion(feedback?.gradeOpinion ?? null)
+    setPendingStarRating(feedback?.starRating ?? null)
+
+    setFeedbackCollapsedByClimbId((prev) => {
+      if (prev[selectedClimb.id] !== undefined) {
+        return prev
+      }
+      return {
+        ...prev,
+        [selectedClimb.id]: !!(feedback?.gradeOpinion || feedback?.starRating),
+      }
+    })
+  }, [selectedClimb, userLogs])
+
+  useEffect(() => {
+    if (!selectedClimb) return
+    if (starRatingSummaryByClimbId[selectedClimb.id]) return
+    void loadStarRatingSummary(selectedClimb.id)
+  }, [selectedClimb, starRatingSummaryByClimbId, loadStarRatingSummary])
+
+  const handleSaveFeedback = async () => {
+    if (!selectedClimb || !selectedClimbLogged || savingFeedback) return
+
+    setSavingFeedback(true)
+    try {
+      const response = await csrfFetch('/api/user-climbs/feedback', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          climbId: selectedClimb.id,
+          gradeOpinion: pendingGradeOpinion,
+          starRating: pendingStarRating,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save feedback')
+      }
+
+      const data = (await response.json()) as SaveFeedbackResponse
+
+      setUserLogs((prev) => ({
+        ...prev,
+        [selectedClimb.id]: {
+          style: prev[selectedClimb.id]?.style || 'top',
+          gradeOpinion: pendingGradeOpinion,
+          starRating: pendingStarRating,
+        },
+      }))
+
+      if (data.gradeUpdated && data.updatedGrade) {
+        setRouteLines((prev) =>
+          prev.map((route) =>
+            route.climb.id === selectedClimb.id
+              ? { ...route, climb: { ...route.climb, grade: data.updatedGrade! } }
+              : route
+          )
+        )
+      }
+
+      setFeedbackCollapsedByClimbId((prev) => ({
+        ...prev,
+        [selectedClimb.id]: true,
+      }))
+      void loadStarRatingSummary(selectedClimb.id)
+
+      if (data.gradeUpdated && data.updatedGrade) {
+        const displayGrade = formatGradeForDisplay(data.updatedGrade, gradeSystem)
+        setToast(`Saved. Community consensus updated this climb to ${displayGrade}.`)
+      } else {
+        setToast('Saved feedback')
+      }
+      setTimeout(() => setToast(null), 2500)
+    } catch (err) {
+      console.error('Feedback save error:', err)
+      setToast('Failed to save feedback')
+      setTimeout(() => setToast(null), 2000)
+    } finally {
+      setSavingFeedback(false)
+    }
+  }
+
   const handleLog = async (style: 'flash' | 'top' | 'try') => {
     if (!selectedClimb || selectedClimbLogged) return
 
@@ -686,7 +839,20 @@ export default function ClimbPage() {
 
       if (!response.ok) throw new Error('Failed to log')
 
-      setUserLogs((prev) => ({ ...prev, [selectedClimb.id]: style }))
+      setUserLogs((prev) => ({
+        ...prev,
+        [selectedClimb.id]: {
+          style,
+          gradeOpinion: prev[selectedClimb.id]?.gradeOpinion ?? null,
+          starRating: prev[selectedClimb.id]?.starRating ?? null,
+        },
+      }))
+      setPendingGradeOpinion(null)
+      setPendingStarRating(null)
+      setFeedbackCollapsedByClimbId((prev) => ({
+        ...prev,
+        [selectedClimb.id]: false,
+      }))
       setToast(`Route logged as ${style}!`)
       setTimeout(() => setToast(null), 2000)
     } catch (err) {
@@ -828,8 +994,39 @@ export default function ClimbPage() {
                 {selectedClimb ? selectedClimb.name : 'Select a route'}
               </h1>
               <p className="text-gray-600 dark:text-gray-400">
-                {selectedClimb ? `Grade: ${selectedClimb.grade}` : 'Tap a route on the image to select it'}
+                {selectedClimb
+                  ? `Grade: ${formatGradeForDisplay(selectedClimb.grade, gradeSystem)}`
+                  : 'Tap a route on the image to select it'}
               </p>
+              {selectedClimb && (
+                <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {selectedClimbRatingSummary
+                    ? selectedClimbRatingSummary.rating_count > 0
+                      ? (
+                          <div className="flex items-center gap-2">
+                            <span>{selectedClimbAverageRating?.toFixed(1) || '0.0'}</span>
+                            <div className="flex items-center gap-0.5" aria-label="Community star rating">
+                              {[1, 2, 3, 4, 5].map((value) => {
+                                const active = value <= selectedClimbRoundedStars
+                                return (
+                                  <Star
+                                    key={value}
+                                    className={`w-4 h-4 ${
+                                      active
+                                        ? 'fill-amber-400 text-amber-500'
+                                        : 'text-gray-300 dark:text-gray-600'
+                                    }`}
+                                  />
+                                )
+                              })}
+                            </div>
+                            <span>({selectedClimbRatingSummary.rating_count})</span>
+                          </div>
+                        )
+                      : 'Community rating: No ratings yet'
+                    : 'Community rating: Loading...'}
+                </div>
+              )}
               {selectedClimb?.description && (
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedClimb.description}</p>
               )}
@@ -916,13 +1113,125 @@ export default function ClimbPage() {
             </div>
           )}
 
-          {selectedClimbLogged && (
-            <button
-              onClick={() => router.push('/logbook')}
-              className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
-            >
-              View Logbook
-            </button>
+          {selectedClimbLogged && selectedClimb && (
+            <div className="space-y-3">
+              {selectedClimbFeedbackCollapsed ? (
+                <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-green-700 dark:text-green-400">Saved</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Grade feel:{' '}
+                        {selectedClimbLog?.gradeOpinion
+                          ? GRADE_OPINION_LABELS[selectedClimbLog.gradeOpinion]
+                          : 'Not set'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFeedbackCollapsedByClimbId((prev) => ({ ...prev, [selectedClimb.id]: false }))}
+                      className="text-xs font-medium px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Edit
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1 mt-3">
+                    {[1, 2, 3, 4, 5].map((value) => {
+                      const active = (selectedClimbLog?.starRating ?? 0) >= value
+                      return (
+                        <Star
+                          key={value}
+                          className={`w-4 h-4 ${
+                            active
+                              ? 'fill-amber-400 text-amber-500'
+                              : 'text-gray-300 dark:text-gray-600'
+                          }`}
+                        />
+                      )
+                    })}
+                    {!selectedClimbLog?.starRating && (
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">No star rating yet</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">How did the grade feel?</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Current grade: {formatGradeForDisplay(selectedClimb.grade, gradeSystem)}
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 mt-3">
+                    {([
+                      { value: 'soft', label: 'Soft' },
+                      { value: 'agree', label: 'Agree' },
+                      { value: 'hard', label: 'Hard' },
+                    ] as Array<{ value: GradeOpinion; label: string }>).map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setPendingGradeOpinion(option.value)}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                          pendingGradeOpinion === option.value
+                            ? 'border-gray-900 dark:border-gray-100 bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-4">Rate the climb</p>
+                  <div className="flex items-center gap-1 mt-2">
+                    {[1, 2, 3, 4, 5].map((value) => {
+                      const active = (pendingStarRating ?? 0) >= value
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setPendingStarRating(value)}
+                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          aria-label={`Rate ${value} star${value > 1 ? 's' : ''}`}
+                        >
+                          <Star
+                            className={`w-5 h-5 ${
+                              active
+                                ? 'fill-amber-400 text-amber-500'
+                                : 'text-gray-300 dark:text-gray-600'
+                            }`}
+                          />
+                        </button>
+                      )
+                    })}
+                    {pendingStarRating && (
+                      <button
+                        type="button"
+                        onClick={() => setPendingStarRating(null)}
+                        className="ml-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleSaveFeedback}
+                    disabled={savingFeedback || (!pendingGradeOpinion && !pendingStarRating)}
+                    className="mt-4 w-full px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+                  >
+                    {savingFeedback ? 'Saving...' : selectedClimbHasSavedFeedback ? 'Update Feedback' : 'Save Feedback'}
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={() => router.push('/logbook')}
+                className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
+              >
+                View Logbook
+              </button>
+            </div>
           )}
 
           {image.id && !image.id.startsWith('legacy-') && (
