@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 import AppLayout from '@/components/AppLayout'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
@@ -190,6 +191,7 @@ export default function RootLayout({
         <ServiceWorkerRegistration />
         <AppLayout>{children}</AppLayout>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
