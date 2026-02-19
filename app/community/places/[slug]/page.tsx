@@ -7,6 +7,7 @@ import UpcomingFeed from '@/app/community/components/UpcomingFeed'
 import UpdateComposer from '@/app/community/components/UpdateComposer'
 import UpdatesFeed from '@/app/community/components/UpdatesFeed'
 import TopThisPlacePanel from '@/app/community/components/TopThisPlacePanel'
+import PlaceRankingsPanel from '@/app/community/components/PlaceRankingsPanel'
 import { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
 
 interface PlacePageParams {
@@ -73,7 +74,11 @@ export async function generateMetadata({ params }: { params: Promise<PlacePagePa
 export default async function CommunityPlacePage({ params, searchParams }: { params: Promise<PlacePageParams>; searchParams: Promise<PlacePageSearchParams> }) {
   const { slug } = await params
   const resolvedSearchParams = await searchParams
-  const activeTab = resolvedSearchParams.tab === 'updates' ? 'updates' : 'upcoming'
+  const activeTab = resolvedSearchParams.tab === 'updates'
+    ? 'updates'
+    : resolvedSearchParams.tab === 'rankings'
+      ? 'rankings'
+      : 'upcoming'
   const supabase = await getServerClient()
 
   const { data: place } = await supabase
@@ -183,14 +188,28 @@ export default async function CommunityPlacePage({ params, searchParams }: { par
           >
             Updates
           </Link>
+          <Link
+            href={`/community/places/${slug}?tab=rankings`}
+            className={`px-3 py-2 text-sm ${activeTab === 'rankings'
+              ? 'border-b-2 border-gray-900 font-semibold text-gray-900 dark:border-gray-100 dark:text-gray-100'
+              : 'text-gray-500 dark:text-gray-400'}`}
+          >
+            Rankings
+          </Link>
         </div>
 
-        <div className="mt-4">
-          {activeTab === 'upcoming' ? <SessionComposer placeId={typedPlace.id} /> : <UpdateComposer placeId={typedPlace.id} />}
-        </div>
+        {activeTab === 'upcoming' || activeTab === 'updates' ? (
+          <div className="mt-4">
+            {activeTab === 'upcoming' ? <SessionComposer placeId={typedPlace.id} /> : <UpdateComposer placeId={typedPlace.id} />}
+          </div>
+        ) : null}
 
         <div className="mt-4">
-          {activeTab === 'upcoming' ? <UpcomingFeed posts={sessionPosts} /> : <UpdatesFeed posts={updatePosts} />}
+          {activeTab === 'upcoming'
+            ? <UpcomingFeed posts={sessionPosts} />
+            : activeTab === 'updates'
+              ? <UpdatesFeed posts={updatePosts} />
+              : <PlaceRankingsPanel slug={slug} />}
         </div>
       </div>
     </div>
