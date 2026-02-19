@@ -2,11 +2,12 @@
 
 import Image from 'next/image'
 import { GearProduct } from '@/lib/gear-data'
-import { ShieldCheck, HardHat, Link2, Scroll, Mountain, Footprints, CupSoda, Sun, Wrench, Tent } from 'lucide-react'
+import { ShieldCheck, HardHat, Link2, Scroll, Mountain, Footprints, CupSoda, Sun, Wrench, Tent, BookOpenText } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { csrfFetch } from '@/hooks/useCsrf'
 
 const categoryIcons: Record<string, typeof ShieldCheck> = {
+  Guidebooks: BookOpenText,
   'Belay Devices': ShieldCheck,
   'Harnesses & Helmets': HardHat,
   Hardware: Link2,

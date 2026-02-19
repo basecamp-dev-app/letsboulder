@@ -7,7 +7,18 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 const VALID_TARGET_TYPES = ['crag', 'image', 'climb'] as const
 const TARGET_CATEGORY_CONFIG = {
   crag: ['access', 'approach', 'parking', 'closure', 'general'],
-  image: ['topo_error', 'line_request', 'photo_outdated', 'other_topo'],
+  image: [
+    'beta',
+    'fa_history',
+    'safety',
+    'gear_protection',
+    'conditions',
+    'approach_access',
+    'descent',
+    'rock_quality',
+    'highlights',
+    'variations',
+  ],
   climb: ['beta', 'broken_hold', 'conditions', 'grade', 'history'],
 } as const
 const MAX_COMMENT_LENGTH = 2000

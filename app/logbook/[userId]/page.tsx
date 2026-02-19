@@ -184,10 +184,10 @@ function PrivateProfileCard({ username }: { username: string }) {
           <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6 max-w-sm">
             {username} has chosen to keep their logbook hidden from public view.
           </p>
-          <Link href="/rankings">
+          <Link href="/community">
             <Button variant="outline" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
-              Back to Rankings
+              Back to Community
             </Button>
           </Link>
         </CardContent>
@@ -210,10 +210,10 @@ function ProfileNotFound() {
           <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6 max-w-sm">
             This climber&apos;s profile could not be found.
           </p>
-          <Link href="/rankings">
+          <Link href="/community">
             <Button variant="outline" className="gap-2">
               <ArrowLeft className="w-4 h-4" />
-              Back to Rankings
+              Back to Community
             </Button>
           </Link>
         </CardContent>

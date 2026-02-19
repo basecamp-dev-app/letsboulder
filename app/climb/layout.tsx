@@ -21,6 +21,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     return {
       title: 'Climb Not Found',
       description: 'This climb could not be found.',
+      robots: {
+        index: false,
+        follow: true,
+      },
     }
   }
 
@@ -33,6 +37,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return {
     title: `${climb.name} (${climb.grade})`,
     description: `Climb ${climb.name} graded ${climb.grade}. View topo and beta, log your ascent, and track your progress.`,
+    robots: {
+      index: false,
+      follow: true,
+    },
     alternates: {
       canonical: canonicalPath,
     },

@@ -11,6 +11,7 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { SITE_URL } from '@/lib/site'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
+import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import {
   Dialog,
@@ -325,7 +326,7 @@ export default function ClimbPage() {
 
           setImage({
             id: `legacy-${legacy.id}`,
-            url: legacy.image_url,
+            url: resolveRouteImageUrl(legacy.image_url),
             width: null,
             height: null,
             natural_width: null,
@@ -403,7 +404,10 @@ export default function ClimbPage() {
           throw new Error('No valid route lines found for this image')
         }
 
-        setImage(imageInfo)
+        setImage({
+          ...imageInfo,
+          url: resolveRouteImageUrl(imageInfo.url),
+        })
 
         if (imageInfo.created_by) {
           const { data: profileData } = await supabase

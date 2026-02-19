@@ -9,7 +9,8 @@ A community-driven web app for climbers to discover and share bouldering routes.
 - **Route Verification**: Community voting system (3+ verifications to confirm)
 - **Grade Voting**: Crowd-sourced grade consensus
 - **Logbook**: Track your sends (flash/top/try)
-- **Rankings**: See top climbers by grade or tops in the last 60 days
+- **Community**: Find partners, plan sessions, and share place-based updates
+- **Rankings**: See top climbers by grade or tops in the last 60 days (secondary)
 
 ## Tech Stack
 

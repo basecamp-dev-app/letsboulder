@@ -15,6 +15,7 @@ import { GRADES, normalizeGrade } from '@/lib/grades'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import CragPageSkeleton from '@/app/crag/components/CragPageSkeleton'
+import { resolveRouteImageUrl } from '@/lib/route-image-url'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -220,7 +221,6 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
         .from('images')
         .select('id, url, latitude, longitude, is_verified, verification_count, route_lines(count)')
         .eq('crag_id', id)
-        .not('latitude', 'is', null)
         .order('created_at', { ascending: false })
 
       const climbsPromise = supabase
@@ -291,7 +291,7 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
           : 0
         return {
           id: img.id,
-          url: img.url,
+          url: resolveRouteImageUrl(img.url),
           latitude: img.latitude,
           longitude: img.longitude,
           is_verified: img.is_verified || false,
@@ -393,6 +393,13 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
     const m = new Map<string, number>()
     orderedImages.forEach((img, idx) => m.set(img.id, idx + 1))
     return m
+  }, [orderedImages])
+
+  const mappableImages = useMemo(() => {
+    return orderedImages.filter(
+      (image): image is ImageData & { latitude: number; longitude: number } =>
+        image.latitude !== null && image.longitude !== null
+    )
   }, [orderedImages])
 
   const totalRoutes = useMemo(() => {
@@ -566,10 +573,10 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
             </Polygon>
           )}
 
-          {orderedImages.map((image) => (
+          {mappableImages.map((image) => (
             <Marker
               key={image.id}
-              position={[image.latitude || 0, image.longitude || 0]}
+              position={[image.latitude, image.longitude]}
               icon={L?.divIcon({
                 className: 'image-marker',
                 html: `<div style="
@@ -607,14 +614,8 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
                   }}
                 >
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
-                      <Image
-                        src={image.url}
-                        alt="Routes"
-                        fill
-                        className="object-cover"
-                        sizes="160px"
-                      />
-                    </div>
+                    <Image src={image.url} alt="Routes" fill className="object-cover" sizes="160px" unoptimized />
+                  </div>
                   <p className="font-semibold text-sm text-gray-900">
                     Image {imageIndexById.get(image.id) ?? ''}
                   </p>
@@ -704,6 +705,7 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
                           fill
                           className="object-cover"
                           sizes="(max-width: 768px) 33vw, 25vw"
+                          unoptimized
                         />
                         <div className="absolute top-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded-full font-semibold shadow-sm">
                           {imageIndexById.get(image.id) ?? ''}

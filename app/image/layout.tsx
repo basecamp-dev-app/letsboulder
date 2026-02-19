@@ -21,6 +21,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     return {
       title: 'Image Not Found',
       description: 'This route image could not be found.',
+      robots: {
+        index: false,
+        follow: true,
+      },
     }
   }
 
@@ -31,6 +35,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return {
     title,
     description: `View climbing route image${cragName ? ` at ${cragName}` : ''} on letsboulder. Explore routes, grades, and climbing details.`,
+    robots: {
+      index: false,
+      follow: true,
+    },
     alternates: {
       canonical: `/image/${id}`,
     },

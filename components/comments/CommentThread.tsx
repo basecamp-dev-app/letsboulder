@@ -10,20 +10,22 @@ type TargetType = 'crag' | 'image' | 'climb'
 type CommentCategory =
   | 'history'
   | 'broken_hold'
-  | 'approach_beta'
   | 'beta'
   | 'conditions'
-  | 'other'
   | 'access'
   | 'approach'
   | 'parking'
   | 'closure'
   | 'general'
   | 'grade'
-  | 'topo_error'
-  | 'line_request'
-  | 'photo_outdated'
-  | 'other_topo'
+  | 'fa_history'
+  | 'safety'
+  | 'gear_protection'
+  | 'approach_access'
+  | 'descent'
+  | 'rock_quality'
+  | 'highlights'
+  | 'variations'
 
 type CategoryFilter = CommentCategory | 'all'
 
@@ -73,14 +75,20 @@ const TARGET_THREAD_CONFIG: Record<TargetType, TargetThreadConfig> = {
   },
   image: {
     title: 'Topo notes',
-    placeholder: 'Report topo issues, missing lines, or outdated photos...',
-    emptyState: 'No topo notes yet. Add notes about line drawing or photo quality.',
-    defaultCategory: 'topo_error',
+    placeholder: 'Share beta, FA/history, gear, and conditions. For line or photo issues, use the Flag button.',
+    emptyState: 'No topo notes yet. Share useful route context and positive details for the community.',
+    defaultCategory: 'beta',
     categories: [
-      { value: 'topo_error', label: 'Topo error' },
-      { value: 'line_request', label: 'Line request' },
-      { value: 'photo_outdated', label: 'Photo outdated' },
-      { value: 'other_topo', label: 'Other topo' },
+      { value: 'beta', label: 'Beta' },
+      { value: 'fa_history', label: 'FA / History' },
+      { value: 'safety', label: 'Safety' },
+      { value: 'gear_protection', label: 'Gear / Protection' },
+      { value: 'conditions', label: 'Conditions' },
+      { value: 'approach_access', label: 'Approach / Access' },
+      { value: 'descent', label: 'Descent' },
+      { value: 'rock_quality', label: 'Rock quality' },
+      { value: 'highlights', label: 'Highlights' },
+      { value: 'variations', label: 'Variations' },
     ],
   },
   climb: {
@@ -101,20 +109,22 @@ const TARGET_THREAD_CONFIG: Record<TargetType, TargetThreadConfig> = {
 const CATEGORY_LABELS: Record<CommentCategory, string> = {
   history: 'History',
   broken_hold: 'Broken hold',
-  approach_beta: 'Approach beta',
   beta: 'Beta',
   conditions: 'Conditions',
-  other: 'Other',
   access: 'Access',
   approach: 'Approach',
   parking: 'Parking',
   closure: 'Closure',
   general: 'General',
   grade: 'Grade',
-  topo_error: 'Topo error',
-  line_request: 'Line request',
-  photo_outdated: 'Photo outdated',
-  other_topo: 'Other topo',
+  fa_history: 'FA / History',
+  safety: 'Safety',
+  gear_protection: 'Gear / Protection',
+  approach_access: 'Approach / Access',
+  descent: 'Descent',
+  rock_quality: 'Rock quality',
+  highlights: 'Highlights',
+  variations: 'Variations',
 }
 
 const LIMIT = 20

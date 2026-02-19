@@ -178,6 +178,7 @@ export async function PUT(request: NextRequest) {
 - **HEIC conversion**: Use `heic2any` for HEIC image support
 - **Route grading**: French grade system (5A to 9C+)
 - **Dynamic imports**: Always use `next/dynamic` with `ssr: false` for map/canvas components
+- **Community**: Place-centric by default (`/community/places/[slug]`) with structured post types (`session`, `conditions`, `question`, `update`)
 - **Rankings**: Two sorting modes - `grade` (average grade) and `tops` (climb count), both limited to last 60 days
 - **Full-width mobile**: Use `min-h-screen bg-white dark:bg-gray-950` for page containers and `m-0 border-x-0 border-t-0 rounded-none` for cards
 
@@ -307,10 +308,10 @@ Use the `csrfFetch` helper from `@/hooks/useCsrf` instead of the native `fetch`:
 import { csrfFetch } from '@/hooks/useCsrf'
 
 // Instead of:
-fetch('/api/rankings', { method: 'PUT', body: JSON.stringify(data) })
+fetch('/api/community/posts', { method: 'POST', body: JSON.stringify(data) })
 
 // Use:
-csrfFetch('/api/rankings', { method: 'PUT', body: JSON.stringify(data) })
+csrfFetch('/api/community/posts', { method: 'POST', body: JSON.stringify(data) })
 ```
 
 **For server-side API routes:**
