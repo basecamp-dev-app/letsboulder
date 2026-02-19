@@ -24,9 +24,16 @@ function toIsoDateTime(localValue: string): string | null {
   return date.toISOString()
 }
 
+function toIsoFromDateAndTime(dateValue: string, timeValue: string): string | null {
+  if (!dateValue) return null
+  const localValue = `${dateValue}T${timeValue || '18:00'}`
+  return toIsoDateTime(localValue)
+}
+
 export default function SessionComposer({ placeId }: SessionComposerProps) {
   const router = useRouter()
-  const [startAt, setStartAt] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [startTime, setStartTime] = useState('18:00')
   const [endAt, setEndAt] = useState('')
   const [discipline, setDiscipline] = useState('')
   const [gradeMin, setGradeMin] = useState('')
@@ -36,14 +43,14 @@ export default function SessionComposer({ placeId }: SessionComposerProps) {
   const [error, setError] = useState<string | null>(null)
 
   const canSubmit = useMemo(() => {
-    return startAt.trim().length > 0 && body.trim().length > 0 && !isSubmitting
-  }, [body, isSubmitting, startAt])
+    return startDate.trim().length > 0 && body.trim().length > 0 && !isSubmitting
+  }, [body, isSubmitting, startDate])
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
 
-    const startIso = toIsoDateTime(startAt)
+    const startIso = toIsoFromDateAndTime(startDate, startTime)
     const endIso = endAt ? toIsoDateTime(endAt) : null
 
     if (!startIso) {
@@ -85,6 +92,8 @@ export default function SessionComposer({ placeId }: SessionComposerProps) {
       setGradeMin('')
       setGradeMax('')
       setDiscipline('')
+      setStartDate('')
+      setStartTime('18:00')
       setEndAt('')
       router.refresh()
     } catch {
@@ -99,14 +108,24 @@ export default function SessionComposer({ placeId }: SessionComposerProps) {
       <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Plan a session</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm text-gray-700 dark:text-gray-300">
-          Start
-          <input
-            required
-            type="datetime-local"
-            value={startAt}
-            onChange={event => setStartAt(event.target.value)}
-            className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-          />
+          Start date
+          <div className="mt-1 grid grid-cols-2 gap-2">
+            <input
+              required
+              type="date"
+              value={startDate}
+              onChange={event => setStartDate(event.target.value)}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            />
+            <input
+              required
+              type="time"
+              value={startTime}
+              onChange={event => setStartTime(event.target.value)}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            />
+          </div>
+          <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Time defaults to 18:00. Adjust it if needed.</span>
         </label>
         <label className="text-sm text-gray-700 dark:text-gray-300">
           End (optional)
