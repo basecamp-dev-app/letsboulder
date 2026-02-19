@@ -1,5 +1,5 @@
 export const MORE_MENU_ITEMS = [
-  { label: 'Rankings', href: '/rankings' },
+  { label: 'Community', href: '/community' },
   { label: 'Gear', href: '/gear' },
   { label: 'Impact', href: '/impact' },
   { label: 'About', href: '/about' },
