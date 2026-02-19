@@ -86,6 +86,10 @@ export async function generateMetadata({ params }: { params: Promise<RouteParams
   return {
     title,
     description,
+    robots: {
+      index: false,
+      follow: true,
+    },
     alternates: {
       canonical: `/${country.toLowerCase()}/${cragSlug}/${routeSlug}`,
     },

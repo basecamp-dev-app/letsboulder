@@ -43,6 +43,10 @@ export async function generateMetadata({ params }: { params: Promise<CragSlugPar
   return {
     title,
     description: `View climbing routes at ${crag.name}${locationSuffix}. Discover photo topos, beta, access info, and nearby climbs.`,
+    robots: {
+      index: country.toLowerCase() === 'gg',
+      follow: true,
+    },
     alternates: {
       canonical: canonicalPath,
     },
