@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { VIDEO_PLATFORMS, type VideoPlatform, getVideoEmbedUrl, validateAndNormalizeVideoUrl } from '@/lib/video-beta'
 
@@ -63,6 +63,11 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
   const [maxHeight, setMaxHeight] = useState('')
   const [minReach, setMinReach] = useState('')
   const [maxReach, setMaxReach] = useState('')
+  const [heightOpen, setHeightOpen] = useState(false)
+  const [reachOpen, setReachOpen] = useState(false)
+
+  const heightDropdownRef = useRef<HTMLDivElement>(null)
+  const reachDropdownRef = useRef<HTMLDivElement>(null)
 
   const preview = useMemo(() => validateAndNormalizeVideoUrl(url), [url])
 
@@ -96,6 +101,35 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
 
     void loadVideoBetas()
   }, [climbId])
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node
+
+      if (heightDropdownRef.current && !heightDropdownRef.current.contains(target)) {
+        setHeightOpen(false)
+      }
+
+      if (reachDropdownRef.current && !reachDropdownRef.current.contains(target)) {
+        setReachOpen(false)
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setHeightOpen(false)
+        setReachOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
 
   const filteredItems = useMemo(() => {
     const minH = minHeight ? Number(minHeight) : null
@@ -185,11 +219,11 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
         </button>
       </div>
 
-      <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <select
           value={platformFilter}
           onChange={(e) => setPlatformFilter(e.target.value as PlatformFilter)}
-          className="shrink-0 min-w-40 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+          className="shrink-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
         >
           <option value="all">All Platforms</option>
           <option value="youtube">YouTube</option>
@@ -200,7 +234,7 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
         <select
           value={genderFilter}
           onChange={(e) => setGenderFilter(e.target.value as GenderFilter)}
-          className="shrink-0 min-w-40 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+          className="shrink-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
         >
           <option value="all">All Genders</option>
           <option value="male">Male</option>
@@ -208,11 +242,19 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
           <option value="other">Other</option>
           <option value="prefer_not_to_say">Prefer not to say</option>
         </select>
-        <details className="relative shrink-0">
-          <summary className="list-none cursor-pointer px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 whitespace-nowrap">
+        <div ref={heightDropdownRef} className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setHeightOpen((prev) => !prev)
+              setReachOpen(false)
+            }}
+            className="cursor-pointer px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 whitespace-nowrap"
+          >
             Filter by height{minHeight || maxHeight ? `: ${minHeight || '...'}-${maxHeight || '...'}` : ''}
-          </summary>
-          <div className="absolute left-0 mt-2 w-72 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 shadow-lg z-20">
+          </button>
+          {heightOpen && (
+            <div className="absolute left-0 mt-2 w-72 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 shadow-lg z-20">
             <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by height (cm)</p>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -242,13 +284,22 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
                 />
               </div>
             </div>
-          </div>
-        </details>
-        <details className="relative shrink-0">
-          <summary className="list-none cursor-pointer px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 whitespace-nowrap">
+            </div>
+          )}
+        </div>
+        <div ref={reachDropdownRef} className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setReachOpen((prev) => !prev)
+              setHeightOpen(false)
+            }}
+            className="cursor-pointer px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 whitespace-nowrap"
+          >
             Filter by reach{minReach || maxReach ? `: ${minReach || '...'}-${maxReach || '...'}` : ''}
-          </summary>
-          <div className="absolute left-0 mt-2 w-72 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 shadow-lg z-20">
+          </button>
+          {reachOpen && (
+            <div className="absolute left-0 mt-2 w-72 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 shadow-lg z-20">
             <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by reach (cm)</p>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -278,8 +329,9 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
                 />
               </div>
             </div>
-          </div>
-        </details>
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => {
@@ -289,6 +341,8 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
             setMaxHeight('')
             setMinReach('')
             setMaxReach('')
+            setHeightOpen(false)
+            setReachOpen(false)
           }}
           className="shrink-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
         >
