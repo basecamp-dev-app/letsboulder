@@ -214,6 +214,14 @@ function toDmsArray(value: unknown): DmsValue[] | null {
 }
 
 function toCoordinate(value: unknown, axis: 'lat' | 'lon', ref: string | null): number | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const wrappedValue = value as Record<string, unknown>
+    const unwrapped = getField(wrappedValue, ['computed', 'value', 'description'])
+    if (unwrapped !== undefined && unwrapped !== value) {
+      return toCoordinate(unwrapped, axis, ref)
+    }
+  }
+
   const numeric = toFiniteNumber(value)
   if (numeric !== null) {
     return applyHemisphereSign(numeric, ref, axis)
@@ -540,6 +548,19 @@ async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string, mi
     if (parsedGps) return parsedGps
   } catch {
     gpsDebug('full parse error', { file: debugLabel || 'unknown' })
+    // Ignore and try JPEG EXIF fallback below
+  }
+
+  try {
+    const exifReaderModule = await import('exifreader')
+    const exifReader = exifReaderModule.default
+    const exifReaderData = await Promise.resolve(exifReader.load(buffer, { expanded: true }))
+    gpsDebug('exifreader raw', summarizeMetadata(exifReaderData))
+    const parsedGps = toGpsData(exifReaderData)
+    gpsDebug('exifreader parsed', parsedGps)
+    if (parsedGps) return parsedGps
+  } catch {
+    gpsDebug('exifreader error', { file: debugLabel || 'unknown' })
     // Ignore and try JPEG EXIF fallback below
   }
 
@@ -912,7 +933,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif"
+        accept="image/jpeg,image/jpg,.jpg,.jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif"
         onChange={handleFileChange}
         disabled={compressing}
         className="hidden"
