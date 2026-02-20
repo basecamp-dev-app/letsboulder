@@ -20,17 +20,49 @@ interface RationalLike {
 
 type DmsValue = number | RationalLike | [number, number]
 
+const MAX_GPS_SEARCH_DEPTH = 5
+const MAX_GPS_VISITED_OBJECTS = 500
+
 function toFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : null
   }
 
   if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value)
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(trimmed)) {
+      return null
+    }
+    const parsed = Number.parseFloat(trimmed)
     return Number.isFinite(parsed) ? parsed : null
   }
 
   return null
+}
+
+function parseDmsString(value: string, axis: 'lat' | 'lon', refOverride?: string | null): number | null {
+  const normalized = value.trim().toUpperCase()
+  if (!normalized) return null
+
+  const decimal = toFiniteNumber(normalized)
+  if (decimal !== null) {
+    return applyHemisphereSign(decimal, refOverride || null, axis)
+  }
+
+  const refFromString = normalized.match(/[NSEW]/)?.[0] || null
+  const numbers = normalized.match(/[+-]?\d+(?:\.\d+)?/g)
+  if (!numbers || numbers.length < 2) return null
+
+  const degrees = Number.parseFloat(numbers[0])
+  const minutes = Number.parseFloat(numbers[1])
+  const seconds = numbers.length > 2 ? Number.parseFloat(numbers[2]) : 0
+
+  if (!Number.isFinite(degrees) || !Number.isFinite(minutes) || !Number.isFinite(seconds)) return null
+
+  const base = Math.abs(degrees) + minutes / 60 + seconds / 3600
+  const ref = refOverride || refFromString
+  return applyHemisphereSign(base, ref, axis)
 }
 
 function getField(data: Record<string, unknown>, keys: string[]): unknown {
@@ -118,6 +150,95 @@ function toDmsArray(value: unknown): DmsValue[] | null {
   return [degrees as DmsValue, minutes as DmsValue, seconds as DmsValue]
 }
 
+function toCoordinate(value: unknown, axis: 'lat' | 'lon', ref: string | null): number | null {
+  const numeric = toFiniteNumber(value)
+  if (numeric !== null) {
+    return applyHemisphereSign(numeric, ref, axis)
+  }
+
+  if (typeof value === 'string') {
+    return parseDmsString(value, axis, ref)
+  }
+
+  const dms = toDmsArray(value)
+  if (dms) {
+    const fallbackRef = axis === 'lat' ? 'N' : 'E'
+    return convertDmsToDecimal(dms, ref || fallbackRef)
+  }
+
+  return null
+}
+
+function readCoordinatesFromObject(data: Record<string, unknown>): GpsData | null {
+  const latRef = normalizeRef(getField(data, ['GPSLatitudeRef', 'latitudeRef', 'latRef', 'refLatitude']))
+  const lonRef = normalizeRef(getField(data, ['GPSLongitudeRef', 'longitudeRef', 'lonRef', 'lngRef', 'refLongitude']))
+
+  const latitudeSources = [
+    getField(data, ['latitude', 'lat', 'Latitude', 'GPSLatitudeDecimal', 'gpsLatitude', 'GPSLat', 'xmp:GPSLatitude']),
+    getField(data, ['GPSLatitude', 'gpsLatitude', 'GPSLat'])
+  ]
+  const longitudeSources = [
+    getField(data, ['longitude', 'lon', 'lng', 'Longitude', 'Long', 'GPSLongitudeDecimal', 'gpsLongitude', 'GPSLon', 'GPSLng', 'xmp:GPSLongitude']),
+    getField(data, ['GPSLongitude', 'gpsLongitude', 'GPSLon', 'GPSLng'])
+  ]
+
+  for (const latSource of latitudeSources) {
+    const latitude = toCoordinate(latSource, 'lat', latRef)
+    if (latitude === null) continue
+
+    for (const lonSource of longitudeSources) {
+      const longitude = toCoordinate(lonSource, 'lon', lonRef)
+      if (longitude === null) continue
+      if (isValidCoordinate(latitude, longitude)) {
+        return { latitude, longitude }
+      }
+    }
+  }
+
+  const gpsPosition = getField(data, ['GPSPosition', 'gpsPosition'])
+  if (typeof gpsPosition === 'string') {
+    const parts = gpsPosition.split(/[;,]/).map((part) => part.trim()).filter(Boolean)
+    if (parts.length >= 2) {
+      const latitude = parseDmsString(parts[0], 'lat', latRef)
+      const longitude = parseDmsString(parts[1], 'lon', lonRef)
+      if (latitude !== null && longitude !== null && isValidCoordinate(latitude, longitude)) {
+        return { latitude, longitude }
+      }
+    }
+  }
+
+  return null
+}
+
+function findCoordinatesDeep(value: unknown): GpsData | null {
+  if (!value || typeof value !== 'object') return null
+
+  const queue: Array<{ node: unknown; depth: number }> = [{ node: value, depth: 0 }]
+  const visited = new Set<object>()
+
+  while (queue.length > 0 && visited.size < MAX_GPS_VISITED_OBJECTS) {
+    const current = queue.shift()!
+    const { node, depth } = current
+    if (!node || typeof node !== 'object') continue
+    if (visited.has(node)) continue
+    visited.add(node)
+
+    const asRecord = node as Record<string, unknown>
+    const directGps = readCoordinatesFromObject(asRecord)
+    if (directGps) return directGps
+
+    if (depth >= MAX_GPS_SEARCH_DEPTH) continue
+
+    for (const nestedValue of Object.values(asRecord)) {
+      if (nestedValue && typeof nestedValue === 'object') {
+        queue.push({ node: nestedValue, depth: depth + 1 })
+      }
+    }
+  }
+
+  return null
+}
+
 function convertDmsToDecimal(dms: DmsValue[], ref: string): number | null {
   if (!dms || dms.length < 2) return null
 
@@ -143,47 +264,10 @@ function toGpsData(value: unknown): GpsData | null {
     if (nestedGpsData) return nestedGpsData
   }
 
-  const latRef = normalizeRef(getField(data, ['GPSLatitudeRef', 'latitudeRef', 'latRef']))
-  const lonRef = normalizeRef(getField(data, ['GPSLongitudeRef', 'longitudeRef', 'lonRef', 'lngRef']))
+  const directGps = readCoordinatesFromObject(data)
+  if (directGps) return directGps
 
-  const decimalLatitude = toFiniteNumber(getField(data, ['latitude', 'lat', 'Latitude', 'GPSLatitudeDecimal', 'gpsLatitude']))
-  const decimalLongitude = toFiniteNumber(getField(data, ['longitude', 'lon', 'lng', 'Longitude', 'Long', 'GPSLongitudeDecimal', 'gpsLongitude']))
-
-  if (decimalLatitude !== null && decimalLongitude !== null) {
-    const latitude = applyHemisphereSign(decimalLatitude, latRef, 'lat')
-    const longitude = applyHemisphereSign(decimalLongitude, lonRef, 'lon')
-
-    if (isValidCoordinate(latitude, longitude)) {
-      return { latitude, longitude }
-    }
-  }
-
-  const gpsLatitudeRaw = getField(data, ['GPSLatitude', 'gpsLatitude', 'GPSLat'])
-  const gpsLongitudeRaw = getField(data, ['GPSLongitude', 'gpsLongitude', 'GPSLon', 'GPSLng'])
-  const gpsLatitudeNumber = toFiniteNumber(gpsLatitudeRaw)
-  const gpsLongitudeNumber = toFiniteNumber(gpsLongitudeRaw)
-
-  if (gpsLatitudeNumber !== null && gpsLongitudeNumber !== null) {
-    const latitude = applyHemisphereSign(gpsLatitudeNumber, latRef, 'lat')
-    const longitude = applyHemisphereSign(gpsLongitudeNumber, lonRef, 'lon')
-
-    if (isValidCoordinate(latitude, longitude)) {
-      return { latitude, longitude }
-    }
-  }
-
-  const gpsLat = toDmsArray(gpsLatitudeRaw)
-  const gpsLon = toDmsArray(gpsLongitudeRaw)
-
-  if (!gpsLat || !gpsLon) return null
-
-  const latDecimal = convertDmsToDecimal(gpsLat, latRef || 'N')
-  const lonDecimal = convertDmsToDecimal(gpsLon, lonRef || 'E')
-
-  if (latDecimal === null || lonDecimal === null) return null
-  if (!isValidCoordinate(latDecimal, lonDecimal)) return null
-
-  return { latitude: latDecimal, longitude: lonDecimal }
+  return findCoordinatesDeep(data)
 }
 
 async function extractGpsFromBuffer(buffer: ArrayBuffer): Promise<GpsData | null> {
