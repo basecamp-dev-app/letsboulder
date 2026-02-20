@@ -24,6 +24,7 @@ import {
 import { Button } from '@/components/ui/button'
 import CommentThread from '@/components/comments/CommentThread'
 import ClimbPageSkeleton from '@/app/climb/components/ClimbPageSkeleton'
+import VideoBetaSection from '@/app/climb/components/VideoBetaSection'
 import FlagClimbModal from '@/components/FlagClimbModal'
 
 interface ImageInfo {
@@ -224,6 +225,7 @@ export default function ClimbPage() {
   )
   const displayRoute = selectedRoute || defaultPathRoute
   const displayClimb = displayRoute?.climb || null
+  const activeClimbId = displayClimb?.id || climbId
   const selectedClimb = selectedRoute?.climb || null
   const selectedClimbLog = selectedClimb ? userLogs[selectedClimb.id] : null
   const selectedClimbLogged = !!selectedClimbLog
@@ -1236,6 +1238,10 @@ export default function ClimbPage() {
                 View Logbook
               </button>
             </div>
+          )}
+
+          {image.id && !image.id.startsWith('legacy-') && (
+            <VideoBetaSection climbId={activeClimbId} />
           )}
 
           {image.id && !image.id.startsWith('legacy-') && (
