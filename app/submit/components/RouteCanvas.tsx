@@ -44,7 +44,7 @@ interface RouteCanvasProps {
   onEditRoutesUpdate?: (routes: EditableExistingRoute[]) => void
   onSaveEdits?: () => void
   savingEdits?: boolean
-  onSaveNewRoutes?: () => void
+  onSaveNewRoutes?: (routes: NewRouteData[]) => void
   savingNewRoutes?: boolean
 }
 
@@ -598,6 +598,36 @@ export default function RouteCanvas({
     }
   }, [imageLoaded, redraw])
 
+  const getDisplayedImageBounds = useCallback((dims: { width: number; height: number; naturalWidth: number; naturalHeight: number }) => {
+    const canvasAspectRatio = dims.width / dims.height
+    const imageAspectRatio = dims.naturalWidth / dims.naturalHeight
+
+    let displayedImageWidth = dims.width
+    let displayedImageHeight = dims.height
+    let offsetX = 0
+    let offsetY = 0
+
+    if (canvasAspectRatio > imageAspectRatio) {
+      displayedImageHeight = dims.height
+      displayedImageWidth = displayedImageHeight * imageAspectRatio
+      offsetX = (dims.width - displayedImageWidth) / 2
+    } else {
+      displayedImageWidth = dims.width
+      displayedImageHeight = displayedImageWidth / imageAspectRatio
+      offsetY = (dims.height - displayedImageHeight) / 2
+    }
+
+    return { displayedImageWidth, displayedImageHeight, offsetX, offsetY }
+  }, [])
+
+  const normalizeCanvasPoints = useCallback((points: RoutePoint[], dims: { width: number; height: number; naturalWidth: number; naturalHeight: number }) => {
+    const bounds = getDisplayedImageBounds(dims)
+    return points.map((point) => ({
+      x: Math.min(1, Math.max(0, (point.x - bounds.offsetX) / bounds.displayedImageWidth)),
+      y: Math.min(1, Math.max(0, (point.y - bounds.offsetY) / bounds.displayedImageHeight)),
+    }))
+  }, [getDisplayedImageBounds])
+
   useEffect(() => {
     const image = imageRef.current
     const canvas = canvasRef.current
@@ -608,39 +638,12 @@ export default function RouteCanvas({
     canvas.height = imageDimensions.height
 
     const normalizedRoutes = completedRoutes.map((route, index) => {
-      // The canvas fills the container but the image is letterboxed within it
-      // Calculate the actual displayed image bounds within the canvas
-      const canvasAspectRatio = imageDimensions.width / imageDimensions.height
-      const imageAspectRatio = imageDimensions.naturalWidth / imageDimensions.naturalHeight
-
-      let displayedImageWidth, displayedImageHeight, offsetX = 0, offsetY = 0
-
-      if (canvasAspectRatio > imageAspectRatio) {
-        // Image is letterboxed horizontally (black bars on sides)
-        displayedImageHeight = imageDimensions.height
-        displayedImageWidth = displayedImageHeight * imageAspectRatio
-        offsetX = (imageDimensions.width - displayedImageWidth) / 2
-      } else {
-        // Image is letterboxed vertically (black bars on top/bottom)
-        displayedImageWidth = imageDimensions.width
-        displayedImageHeight = displayedImageWidth / imageAspectRatio
-        offsetY = (imageDimensions.height - displayedImageHeight) / 2
-      }
-
-      const normalized = route.points.map(p => ({
-        // Convert canvas coordinates to displayed image coordinates, then to natural
-        x: ((p.x - offsetX) * imageDimensions.naturalWidth) / displayedImageWidth / imageDimensions.naturalWidth,
-        y: ((p.y - offsetY) * imageDimensions.naturalHeight) / displayedImageHeight / imageDimensions.naturalHeight
-      }))
-
-
-
       return {
         id: route.id,
         name: route.name,
         grade: route.grade,
         description: route.description,
-        points: normalized,
+        points: normalizeCanvasPoints(route.points, imageDimensions),
         sequenceOrder: index,
         imageWidth: imageDimensions.naturalWidth,
         imageHeight: imageDimensions.naturalHeight,
@@ -651,39 +654,44 @@ export default function RouteCanvas({
 
     onRoutesUpdate(normalizedRoutes)
     redraw()
-  }, [completedRoutes, imageDimensions, onRoutesUpdate, redraw])
+  }, [completedRoutes, imageDimensions, normalizeCanvasPoints, onRoutesUpdate, redraw])
 
   useEffect(() => {
     if (!isEditExistingMode || !imageDimensions || !onEditRoutesUpdate) return
-
-    const canvasAspectRatio = imageDimensions.width / imageDimensions.height
-    const imageAspectRatio = imageDimensions.naturalWidth / imageDimensions.naturalHeight
-
-    let displayedImageWidth = imageDimensions.width
-    let displayedImageHeight = imageDimensions.height
-    let offsetX = 0
-    let offsetY = 0
-
-    if (canvasAspectRatio > imageAspectRatio) {
-      displayedImageHeight = imageDimensions.height
-      displayedImageWidth = displayedImageHeight * imageAspectRatio
-      offsetX = (imageDimensions.width - displayedImageWidth) / 2
-    } else {
-      displayedImageWidth = imageDimensions.width
-      displayedImageHeight = displayedImageWidth / imageAspectRatio
-      offsetY = (imageDimensions.height - displayedImageHeight) / 2
-    }
 
     onEditRoutesUpdate(existingRoutes.map((route) => ({
       id: route.id,
       name: route.name,
       description: route.description,
-      points: route.points.map((point) => ({
-        x: Math.min(1, Math.max(0, (point.x - offsetX) / displayedImageWidth)),
-        y: Math.min(1, Math.max(0, (point.y - offsetY) / displayedImageHeight)),
-      })),
+      points: normalizeCanvasPoints(route.points, imageDimensions),
     })))
-  }, [isEditExistingMode, imageDimensions, existingRoutes, onEditRoutesUpdate])
+  }, [isEditExistingMode, imageDimensions, existingRoutes, normalizeCanvasPoints, onEditRoutesUpdate])
+
+  const handleAddNewRouteInEditMode = useCallback(() => {
+    if (!canCreateRoutesInEditMode || !onSaveNewRoutes || !imageDimensions || currentPoints.length < 2) return
+
+    const trimmedDescription = currentDescription.trim()
+    const routeName = currentName.trim() || `Route ${existingRoutes.length + 1}`
+
+    onSaveNewRoutes([{
+      id: generateRouteId(),
+      name: routeName,
+      grade: currentGrade,
+      description: trimmedDescription || undefined,
+      points: normalizeCanvasPoints(currentPoints, imageDimensions),
+      sequenceOrder: 0,
+      imageWidth: imageDimensions.naturalWidth,
+      imageHeight: imageDimensions.naturalHeight,
+      imageNaturalWidth: imageDimensions.naturalWidth,
+      imageNaturalHeight: imageDimensions.naturalHeight,
+    }])
+
+    setCurrentPoints([])
+    setCurrentName('')
+    setCurrentGrade('6A')
+    setCurrentDescription('')
+    clearSelection()
+  }, [canCreateRoutesInEditMode, onSaveNewRoutes, imageDimensions, currentPoints, currentDescription, currentName, existingRoutes.length, currentGrade, normalizeCanvasPoints, clearSelection])
 
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -901,12 +909,22 @@ export default function RouteCanvas({
               >
                 Cancel
               </button>
-              <button
-                onClick={handleCompleteRoute}
-                className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Save Route
-              </button>
+              {!isEditExistingMode ? (
+                <button
+                  onClick={handleCompleteRoute}
+                  className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Save Route
+                </button>
+              ) : (
+                <button
+                  onClick={handleAddNewRouteInEditMode}
+                  disabled={!onSaveNewRoutes || savingNewRoutes}
+                  className="flex-1 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                >
+                  {savingNewRoutes ? 'Adding...' : 'Add New Route'}
+                </button>
+              )}
             </div>
           )}
 
@@ -916,16 +934,6 @@ export default function RouteCanvas({
               className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               Submit Routes
-            </button>
-          )}
-
-          {isEditExistingMode && canCreateRoutesInEditMode && currentPoints.length < 2 && completedRoutes.length > 0 && (
-            <button
-              onClick={onSaveNewRoutes}
-              disabled={!onSaveNewRoutes || savingNewRoutes}
-              className="w-full mb-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-60"
-            >
-              {savingNewRoutes ? 'Adding...' : `Add ${completedRoutes.length} New Route${completedRoutes.length === 1 ? '' : 's'}`}
             </button>
           )}
 

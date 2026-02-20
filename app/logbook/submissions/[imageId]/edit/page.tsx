@@ -78,7 +78,6 @@ export default function EditSubmittedRoutesPage() {
   const [imageSelection, setImageSelection] = useState<ImageSelection | null>(null)
   const [existingRouteLines, setExistingRouteLines] = useState<RouteLine[]>([])
   const [editedRoutes, setEditedRoutes] = useState<EditableRoute[]>([])
-  const [newRoutes, setNewRoutes] = useState<NewRouteData[]>([])
   const [canvasKey, setCanvasKey] = useState(0)
 
   const loadSubmission = useCallback(async () => {
@@ -159,7 +158,6 @@ export default function EditSubmittedRoutesPage() {
       })
       setExistingRouteLines(mappedRouteLines)
       setEditedRoutes([])
-      setNewRoutes([])
     } catch {
       setError('Failed to load this submission')
     } finally {
@@ -202,8 +200,8 @@ export default function EditSubmittedRoutesPage() {
     }
   }, [savingEdits, imageId, editedRoutes])
 
-  const handleCreateRoutes = useCallback(async () => {
-    if (savingNewRoutes || !imageId || newRoutes.length === 0) return
+  const handleCreateRoutes = useCallback(async (routesToCreate: NewRouteData[]) => {
+    if (savingNewRoutes || !imageId || routesToCreate.length === 0) return
 
     setSavingNewRoutes(true)
     setError(null)
@@ -213,7 +211,7 @@ export default function EditSubmittedRoutesPage() {
       const response = await csrfFetch(`/api/submissions/${imageId}/routes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ routes: newRoutes }),
+        body: JSON.stringify({ routes: routesToCreate }),
       })
 
       if (!response.ok) {
@@ -221,7 +219,7 @@ export default function EditSubmittedRoutesPage() {
         throw new Error(data?.error || 'Failed to add new routes')
       }
 
-      setSuccess(`Added ${newRoutes.length} new route${newRoutes.length === 1 ? '' : 's'}.`)
+      setSuccess(`Added ${routesToCreate.length} new route${routesToCreate.length === 1 ? '' : 's'}.`)
       await loadSubmission()
       setCanvasKey((value) => value + 1)
     } catch (err) {
@@ -229,7 +227,7 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setSavingNewRoutes(false)
     }
-  }, [savingNewRoutes, imageId, newRoutes, loadSubmission])
+  }, [savingNewRoutes, imageId, loadSubmission])
 
   if (loading) {
     return (
@@ -269,7 +267,7 @@ export default function EditSubmittedRoutesPage() {
             <RouteCanvas
               key={canvasKey}
               imageSelection={imageSelection}
-              onRoutesUpdate={setNewRoutes}
+              onRoutesUpdate={() => {}}
               existingRouteLines={existingRouteLines}
               mode="edit-existing"
               allowCreateRoutesInEditMode
