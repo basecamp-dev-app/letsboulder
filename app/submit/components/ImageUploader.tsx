@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import NextImage from 'next/image'
 import type { NewImageSelection, GpsData } from '@/lib/submission-types'
-import { blobToDataURL, isHeicFile } from '@/lib/image-utils'
+import { blobToDataURL, isHeicFile, isSupportedImageFile } from '@/lib/image-utils'
 
 const ROUTE_UPLOADS_BUCKET = 'route-uploads'
 
@@ -857,7 +857,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     updateDetectedGps(null)
     setGpsDetectionComplete(false)
 
-    if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
+    if (!isSupportedImageFile(selectedFile)) {
       onError('Please select an image file (JPEG, PNG, WebP, HEIC, etc.)')
       return
     }
@@ -1055,7 +1055,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/jpg,.jpg,.jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif"
+        accept="image/*,.heic,.heif,.HEIC,.HEIF"
         onChange={handleFileChange}
         disabled={compressing}
         className="hidden"
