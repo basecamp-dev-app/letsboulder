@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import RouteCanvas from '@/app/submit/components/RouteCanvas'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import { createClient } from '@/lib/supabase'
 import type { ImageSelection, RouteLine, RoutePoint } from '@/lib/submission-types'
 
@@ -157,7 +158,7 @@ export default function EditSubmittedRoutesPage() {
         setImageSelection({
           mode: 'existing',
           imageId: data.id,
-          imageUrl: data.url,
+          imageUrl: resolveRouteImageUrl(data.url),
         })
         setExistingRouteLines(mappedRouteLines)
       } catch {

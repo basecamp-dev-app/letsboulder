@@ -13,6 +13,7 @@ import { EmptyLogbook } from '@/components/logbook/logbook-states'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
+import { resolveRouteImageUrl } from '@/lib/route-image-url'
 
 const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
   ssr: false,
@@ -302,7 +303,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                         className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
                       >
                         <img
-                          src={submission.url}
+                          src={resolveRouteImageUrl(submission.url)}
                           alt="Submitted route image"
                           className="w-12 h-12 object-cover rounded"
                         />
@@ -347,7 +348,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                     className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
                   >
                     <img
-                      src={submission.url}
+                      src={resolveRouteImageUrl(submission.url)}
                       alt="Submitted route image"
                       className="w-12 h-12 object-cover rounded"
                     />
