@@ -215,7 +215,8 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
             max={250}
             value={minHeight}
             onChange={(e) => setMinHeight(e.target.value)}
-            placeholder="Min height"
+            placeholder="Min height (cm)"
+            aria-label="Minimum climber height in centimeters"
             className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
           />
           <input
@@ -224,7 +225,8 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
             max={250}
             value={maxHeight}
             onChange={(e) => setMaxHeight(e.target.value)}
-            placeholder="Max height"
+            placeholder="Max height (cm)"
+            aria-label="Maximum climber height in centimeters"
             className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
           />
         </div>
@@ -235,7 +237,8 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
             max={260}
             value={minReach}
             onChange={(e) => setMinReach(e.target.value)}
-            placeholder="Min reach"
+            placeholder="Min reach (cm)"
+            aria-label="Minimum climber reach in centimeters"
             className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
           />
           <input
@@ -244,11 +247,16 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
             max={260}
             value={maxReach}
             onChange={(e) => setMaxReach(e.target.value)}
-            placeholder="Max reach"
+            placeholder="Max reach (cm)"
+            aria-label="Maximum climber reach in centimeters"
             className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
           />
         </div>
       </div>
+
+      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        Height and reach filters use centimeters from uploader profile stats. Min means at least this value and max means up to this value.
+      </p>
 
       {loadingItems ? (
         <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">Loading beta videos...</p>
