@@ -86,8 +86,8 @@ interface ImageData {
 
 interface RawRouteLine {
   images:
-    | { face_direction: string | null }
-    | Array<{ face_direction: string | null }>
+    | { face_direction: string | null; face_directions: string[] | null }
+    | Array<{ face_direction: string | null; face_directions: string[] | null }>
     | null
 }
 
@@ -122,12 +122,17 @@ function extractDirections(routeLines: RawRouteLine[] | null | undefined): strin
     const imageData = routeLine.images
     if (!imageData) continue
 
-    const directions = Array.isArray(imageData)
-      ? imageData.map((image) => image.face_direction)
-      : [imageData.face_direction]
+    const images = Array.isArray(imageData) ? imageData : [imageData]
 
-    for (const direction of directions) {
-      if (direction) uniqueDirections.add(direction)
+    for (const image of images) {
+      const multipleDirections = image.face_directions || []
+      for (const direction of multipleDirections) {
+        if (direction) uniqueDirections.add(direction)
+      }
+
+      if (image.face_direction) {
+        uniqueDirections.add(image.face_direction)
+      }
     }
   }
 
@@ -230,11 +235,12 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
           name,
           grade,
           slug,
-          route_lines (
-            images (
-              face_direction
+            route_lines (
+              images (
+                face_direction,
+                face_directions
+              )
             )
-          )
         `)
         .eq('crag_id', id)
         .in('status', ['active', 'approved'])

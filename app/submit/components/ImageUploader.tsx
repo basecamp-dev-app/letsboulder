@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from 'react'
 import NextImage from 'next/image'
 import type { NewImageSelection, GpsData } from '@/lib/submission-types'
-import { dataURLToBlob, blobToDataURL, isHeicFile } from '@/lib/image-utils'
+import { blobToDataURL, isHeicFile } from '@/lib/image-utils'
 
 const ROUTE_UPLOADS_BUCKET = 'route-uploads'
 
@@ -152,7 +152,7 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
       const img = new Image()
       const imgSrc = sourceData || (e.target?.result as string)
 
-      img.onload = () => {
+      img.onload = async () => {
         const canvas = document.createElement('canvas')
         const ctx = canvas.getContext('2d')
         
@@ -174,29 +174,43 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
         canvas.width = width
         canvas.height = height
         ctx?.drawImage(img, 0, 0, width, height)
-        
-        let quality = 0.9
-        const targetSize = maxSizeMB * 1024 * 1024
-        let compressedDataUrl: string | null = null
-        
-        const tryCompress = () => {
-          compressedDataUrl = canvas.toDataURL('image/jpeg', quality)
-          const blob = dataURLToBlob(compressedDataUrl)
-          
-          if (blob.size <= targetSize || quality <= 0.4) {
-            const compressedFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
-              type: 'image/jpeg',
-              lastModified: Date.now()
+
+        try {
+          let quality = 0.9
+          const minQuality = 0.4
+          const targetSize = maxSizeMB * 1024 * 1024
+
+          while (quality >= minQuality) {
+            const blob = await new Promise<Blob>((blobResolve, blobReject) => {
+              canvas.toBlob(
+                (nextBlob) => {
+                  if (!nextBlob) {
+                    blobReject(new Error('Failed to generate compressed image blob'))
+                    return
+                  }
+                  blobResolve(nextBlob)
+                },
+                'image/jpeg',
+                quality
+              )
             })
-            resolve(compressedFile)
-          } else {
-            quality -= 0.1
-            if (quality < 0.4) quality = 0.4
-            tryCompress()
+
+            if (blob.size <= targetSize || quality === minQuality) {
+              const compressedFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              })
+              resolve(compressedFile)
+              return
+            }
+
+            quality = Math.max(minQuality, Number((quality - 0.1).toFixed(2)))
           }
+
+          reject(new Error('Failed to compress image'))
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error('Failed to compress image'))
         }
-        
-        tryCompress()
       }
       
       img.onerror = () => {
@@ -317,8 +331,8 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       onUploading(false, 0, '')
 
     } catch {
-      onError('Failed to compress image. Please try a different image.')
-      setFile(null)
+      setCompressedFile(null)
+      onError('Could not compress image. We will upload the original file instead.')
       onUploading(false, 0, '')
     } finally {
       setCompressing(false)
@@ -328,6 +342,8 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (!selectedFile) return
+
+    e.target.value = ''
 
     await processFile(selectedFile)
   }

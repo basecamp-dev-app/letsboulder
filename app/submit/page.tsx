@@ -10,8 +10,176 @@ import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionCont
 import { csrfFetch, primeCsrfToken } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
+import { draftStorageGetItem, draftStorageRemoveItem, draftStorageSetItem } from '@/lib/submit-draft-storage'
 
 const dynamic = nextDynamic
+const ROUTE_DRAFT_PREFIX = 'submit-route-draft:'
+const ROUTE_DRAFT_INDEX_KEY = 'submit-route-drafts:index'
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+interface DraftImageSelectionSnapshotExisting {
+  mode: 'existing'
+  imageId: string
+  imageUrl: string
+}
+
+interface DraftImageSelectionSnapshotNew {
+  mode: 'new'
+  uploadedBucket: string
+  uploadedPath: string
+  uploadedUrl: string
+  gpsData: GpsData | null
+  captureDate: string | null
+  width: number
+  height: number
+  naturalWidth: number
+  naturalHeight: number
+}
+
+type DraftImageSelectionSnapshot = DraftImageSelectionSnapshotExisting | DraftImageSelectionSnapshotNew
+
+interface RouteDraftIndexEntry {
+  draftKey: string
+  updatedAt: number
+  expiresAt: number
+  routeCount: number
+  image: DraftImageSelectionSnapshot
+  crag: NonNullable<SubmissionContext['crag']>
+  imageGps: SubmissionContext['imageGps']
+  faceDirections: FaceDirection[]
+}
+
+function readDraftIndex(): RouteDraftIndexEntry[] {
+  try {
+    const raw = draftStorageGetItem(ROUTE_DRAFT_INDEX_KEY)
+    if (!raw) return []
+
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+
+    return parsed
+      .filter((entry): entry is RouteDraftIndexEntry => {
+        if (!entry || typeof entry !== 'object') return false
+        const candidate = entry as Partial<RouteDraftIndexEntry>
+        return typeof candidate.draftKey === 'string' && typeof candidate.updatedAt === 'number' && !!candidate.image && !!candidate.crag
+      })
+      .map((entry) => ({
+        ...entry,
+        expiresAt: typeof entry.expiresAt === 'number' ? entry.expiresAt : entry.updatedAt + DRAFT_TTL_MS,
+        routeCount: typeof entry.routeCount === 'number' ? entry.routeCount : 0,
+      }))
+  } catch {
+    return []
+  }
+}
+
+function writeDraftIndex(entries: RouteDraftIndexEntry[]) {
+  draftStorageSetItem(ROUTE_DRAFT_INDEX_KEY, JSON.stringify(entries))
+}
+
+function upsertDraftIndex(entry: RouteDraftIndexEntry) {
+  const normalizedEntry: RouteDraftIndexEntry = {
+    ...entry,
+    expiresAt: entry.expiresAt || entry.updatedAt + DRAFT_TTL_MS,
+  }
+  const existing = readDraftIndex().filter((item) => item.draftKey !== entry.draftKey)
+  existing.unshift(normalizedEntry)
+  writeDraftIndex(existing.slice(0, 20))
+}
+
+function removeDraftIndexEntry(draftKey: string) {
+  const next = readDraftIndex().filter((entry) => entry.draftKey !== draftKey)
+  writeDraftIndex(next)
+}
+
+function pruneDraftIndex(): RouteDraftIndexEntry[] {
+  const now = Date.now()
+  const next: RouteDraftIndexEntry[] = []
+
+  for (const entry of readDraftIndex()) {
+    if (entry.expiresAt <= now) {
+      draftStorageRemoveItem(entry.draftKey)
+      continue
+    }
+
+    if (!draftStorageGetItem(entry.draftKey)) {
+      continue
+    }
+
+    next.push(entry)
+  }
+
+  next.sort((a, b) => b.updatedAt - a.updatedAt)
+  const capped = next.slice(0, 20)
+  writeDraftIndex(capped)
+  return capped
+}
+
+function toImageSnapshot(image: ImageSelection): DraftImageSelectionSnapshot {
+  if (image.mode === 'existing') {
+    return {
+      mode: 'existing',
+      imageId: image.imageId,
+      imageUrl: image.imageUrl,
+    }
+  }
+
+  return {
+    mode: 'new',
+    uploadedBucket: image.uploadedBucket,
+    uploadedPath: image.uploadedPath,
+    uploadedUrl: image.uploadedUrl,
+    gpsData: image.gpsData,
+    captureDate: image.captureDate,
+    width: image.width,
+    height: image.height,
+    naturalWidth: image.naturalWidth,
+    naturalHeight: image.naturalHeight,
+  }
+}
+
+function getDraftRouteCount(draftKey: string): number {
+  try {
+    const raw = draftStorageGetItem(draftKey)
+    if (!raw) return 0
+    const parsed = JSON.parse(raw) as {
+      completedRoutes?: Array<unknown>
+      currentPoints?: Array<unknown>
+      expiresAt?: number
+    }
+    if (typeof parsed.expiresAt === 'number' && parsed.expiresAt < Date.now()) {
+      draftStorageRemoveItem(draftKey)
+      return 0
+    }
+    const completedCount = Array.isArray(parsed.completedRoutes) ? parsed.completedRoutes.length : 0
+    const hasCurrentPoints = Array.isArray(parsed.currentPoints) && parsed.currentPoints.length > 1
+    return completedCount > 0 ? completedCount : hasCurrentPoints ? 1 : 0
+  } catch {
+    return 0
+  }
+}
+
+function getRouteDraftKey(context: SubmissionContext): string | null {
+  if (!context.image || !context.crag?.id) return null
+
+  if (context.image.mode === 'new') {
+    if (!context.image.uploadedBucket || !context.image.uploadedPath) return null
+    return `${ROUTE_DRAFT_PREFIX}new:${context.image.uploadedBucket}:${context.image.uploadedPath}:${context.crag.id}`
+  }
+
+  return `${ROUTE_DRAFT_PREFIX}existing:${context.image.imageId}:${context.crag.id}`
+}
+
+function getRouteDraftKeyFromImageAndCrag(image: ImageSelection | null, cragId: string | null): string | null {
+  if (!image || !cragId) return null
+
+  if (image.mode === 'new') {
+    if (!image.uploadedBucket || !image.uploadedPath) return null
+    return `${ROUTE_DRAFT_PREFIX}new:${image.uploadedBucket}:${image.uploadedPath}:${cragId}`
+  }
+
+  return `${ROUTE_DRAFT_PREFIX}existing:${image.imageId}:${cragId}`
+}
 
 const CragSelector = dynamic(() => import('./components/CragSelector'), { ssr: false })
 const ImagePicker = dynamic(() => import('./components/ImagePicker'), { ssr: false })
@@ -28,11 +196,17 @@ function SubmitPageContent() {
     crag: null,
     image: null,
     imageGps: null,
-    faceDirection: null,
+    faceDirections: [],
     routes: [],
     routeType: null
   })
   const [error, setError] = useState<string | null>(null)
+  const [resumableDraftRouteCount, setResumableDraftRouteCount] = useState(0)
+  const [resumableDraftEntry, setResumableDraftEntry] = useState<RouteDraftIndexEntry | null>(null)
+  const [isResumingDraft, setIsResumingDraft] = useState(false)
+  const routeDraftKey = getRouteDraftKey(context)
+  const stepDraftKey = step.step === 'draw' || step.step === 'climbType' ? step.draftKey : undefined
+  const activeDraftKey = stepDraftKey || routeDraftKey
   const router = useRouter()
   const moderationRealtimeRef = useRef<{
     client: ReturnType<typeof createClient> | null
@@ -136,7 +310,7 @@ function SubmitPageContent() {
           }
 
           const gps = { latitude: data.latitude, longitude: data.longitude }
-          setContext(prev => ({ ...prev, image: newImageSelection, imageGps: gps, faceDirection: null }))
+          setContext(prev => ({ ...prev, image: newImageSelection, imageGps: gps, faceDirections: [] }))
           setStep({
             step: 'faceDirection',
             imageGps: gps
@@ -158,6 +332,52 @@ function SubmitPageContent() {
   }, [context.routes, setRoutes])
 
   useEffect(() => {
+    if (step.step !== 'image') {
+      setResumableDraftRouteCount(0)
+      setResumableDraftEntry(null)
+      return
+    }
+
+    const index = pruneDraftIndex()
+    const next: RouteDraftIndexEntry[] = []
+
+    for (const entry of index) {
+      const routeCount = getDraftRouteCount(entry.draftKey)
+      if (routeCount <= 0) continue
+      next.push({ ...entry, routeCount })
+    }
+
+    next.sort((a, b) => b.updatedAt - a.updatedAt)
+    writeDraftIndex(next)
+
+    if (next.length === 0) {
+      setResumableDraftRouteCount(0)
+      setResumableDraftEntry(null)
+      return
+    }
+
+    setResumableDraftEntry(next[0])
+    setResumableDraftRouteCount(next[0].routeCount)
+  }, [step.step])
+
+  useEffect(() => {
+    if ((step.step !== 'draw' && step.step !== 'climbType') || !activeDraftKey || !context.image || !context.crag) {
+      return
+    }
+
+    upsertDraftIndex({
+      draftKey: activeDraftKey,
+      updatedAt: Date.now(),
+      expiresAt: Date.now() + DRAFT_TTL_MS,
+      routeCount: context.routes.length,
+      image: toImageSnapshot(context.image),
+      crag: context.crag,
+      imageGps: context.imageGps,
+      faceDirections: context.faceDirections,
+    })
+  }, [step.step, activeDraftKey, context.image, context.crag, context.imageGps, context.faceDirections, context.routes.length])
+
+  useEffect(() => {
     const handleSubmitRoutes = () => {
       if (routes.length > 0 && !isSubmitting) {
         handleSubmit()
@@ -175,7 +395,8 @@ function SubmitPageContent() {
           imageGps: step.imageGps,
           cragId: step.cragId,
           cragName: step.cragName,
-          image: step.image
+          image: step.image,
+          draftKey: step.draftKey
         })
       }
     }
@@ -187,7 +408,7 @@ function SubmitPageContent() {
     const selectionGps = selection.mode === 'new' ? selection.gpsData : null
     const resolvedGps = gpsData || selectionGps
     const gps = resolvedGps ? { latitude: resolvedGps.latitude, longitude: resolvedGps.longitude } : null
-    setContext(prev => ({ ...prev, image: selection, imageGps: gps, faceDirection: null }))
+    setContext(prev => ({ ...prev, image: selection, imageGps: gps, faceDirections: [] }))
 
     setStep({
       step: 'location',
@@ -203,8 +424,8 @@ function SubmitPageContent() {
     })
   }, [])
 
-  const handleFaceDirectionConfirm = useCallback((faceDirection: FaceDirection) => {
-    setContext(prev => ({ ...prev, faceDirection }))
+  const handleFaceDirectionConfirm = useCallback((faceDirections: FaceDirection[]) => {
+    setContext(prev => ({ ...prev, faceDirections }))
     setStep({
       step: 'crag',
       imageGps: context.imageGps
@@ -212,6 +433,8 @@ function SubmitPageContent() {
   }, [context.imageGps])
 
   const handleCragSelect = useCallback((crag: Crag) => {
+    const draftKey = getRouteDraftKeyFromImageAndCrag(context.image, crag.id)
+
     setContext(prev => ({
       ...prev,
       crag: { id: crag.id, name: crag.name, latitude: crag.latitude, longitude: crag.longitude }
@@ -221,7 +444,8 @@ function SubmitPageContent() {
       imageGps: context.imageGps,
       cragId: crag.id,
       cragName: crag.name,
-      image: context.image!
+      image: context.image!,
+      draftKey: draftKey || undefined,
     })
   }, [context.imageGps, context.image])
 
@@ -266,7 +490,8 @@ function SubmitPageContent() {
             imageGps: context.imageGps,
             cragId: context.crag.id,
             cragName: context.crag.name,
-            image: context.image
+            image: context.image,
+            draftKey: step.draftKey,
           })
         }
         break
@@ -300,7 +525,7 @@ function SubmitPageContent() {
         imagePath: context.image.uploadedPath,
         imageLat: context.imageGps?.latitude ?? null,
         imageLng: context.imageGps?.longitude ?? null,
-        faceDirection: context.faceDirection,
+        faceDirections: context.faceDirections,
         captureDate: context.image.captureDate,
         width: context.image.width,
         height: context.image.height,
@@ -320,8 +545,8 @@ function SubmitPageContent() {
         return
       }
 
-      if (context.image.mode === 'new' && !payload.faceDirection) {
-        setError('Please select a face direction before submitting')
+      if (context.image.mode === 'new' && context.faceDirections.length === 0) {
+        setError('Please select at least one face direction before submitting')
         setIsSubmitting(false)
         return
       }
@@ -338,6 +563,11 @@ function SubmitPageContent() {
       }
 
       const data = await response.json()
+
+      if (activeDraftKey) {
+        draftStorageRemoveItem(activeDraftKey)
+        removeDraftIndexEntry(activeDraftKey)
+      }
 
       setStep({
         step: 'success',
@@ -356,11 +586,97 @@ function SubmitPageContent() {
   }
 
   const handleStartOver = () => {
-    setContext({ crag: null, image: null, imageGps: null, faceDirection: null, routes: [], routeType: null })
+    if (activeDraftKey) {
+      draftStorageRemoveItem(activeDraftKey)
+      removeDraftIndexEntry(activeDraftKey)
+    }
+    setContext({ crag: null, image: null, imageGps: null, faceDirections: [], routes: [], routeType: null })
     setSelectedRouteType(null)
     setStep({ step: 'image' })
     setError(null)
   }
+
+  const handleResumeDraft = useCallback(async () => {
+    if (!resumableDraftEntry) {
+      setError('No draft available to resume.')
+      return
+    }
+
+    setIsResumingDraft(true)
+
+    let image: ImageSelection
+
+    if (resumableDraftEntry.image.mode === 'new') {
+      try {
+        const searchParams = new URLSearchParams({
+          bucket: resumableDraftEntry.image.uploadedBucket,
+          path: resumableDraftEntry.image.uploadedPath,
+        })
+
+        const signedUrlResponse = await fetch(`/api/uploads/signed-url?${searchParams.toString()}`)
+        if (!signedUrlResponse.ok) {
+          throw new Error('Unable to restore photo preview')
+        }
+
+        const signedData = await signedUrlResponse.json() as { signedUrl?: string }
+        if (!signedData.signedUrl) {
+          throw new Error('Unable to restore photo preview')
+        }
+
+        image = {
+          mode: 'new',
+          file: new File([], 'draft-upload.jpg', { type: 'image/jpeg' }),
+          gpsData: resumableDraftEntry.image.gpsData,
+          captureDate: resumableDraftEntry.image.captureDate,
+          width: resumableDraftEntry.image.width,
+          height: resumableDraftEntry.image.height,
+          naturalWidth: resumableDraftEntry.image.naturalWidth,
+          naturalHeight: resumableDraftEntry.image.naturalHeight,
+          uploadedBucket: resumableDraftEntry.image.uploadedBucket,
+          uploadedPath: resumableDraftEntry.image.uploadedPath,
+          uploadedUrl: signedData.signedUrl,
+        }
+      } catch {
+        setError('We could not restore this draft image. Please re-upload the photo to continue.')
+        setIsResumingDraft(false)
+        return
+      }
+    } else {
+      image = {
+        mode: 'existing',
+        imageId: resumableDraftEntry.image.imageId,
+        imageUrl: resumableDraftEntry.image.imageUrl,
+      }
+    }
+
+    setError(null)
+    setContext(prev => ({
+      ...prev,
+      crag: resumableDraftEntry.crag,
+      image,
+      imageGps: resumableDraftEntry.imageGps,
+      faceDirections: resumableDraftEntry.faceDirections,
+      routes: [],
+    }))
+    setStep({
+      step: 'draw',
+      imageGps: resumableDraftEntry.imageGps,
+      cragId: resumableDraftEntry.crag.id,
+      cragName: resumableDraftEntry.crag.name,
+      image,
+      draftKey: resumableDraftEntry.draftKey,
+    })
+    setIsResumingDraft(false)
+  }, [resumableDraftEntry])
+
+  const handleDiscardDraft = useCallback(() => {
+    if (!resumableDraftEntry) return
+
+    draftStorageRemoveItem(resumableDraftEntry.draftKey)
+    removeDraftIndexEntry(resumableDraftEntry.draftKey)
+    setResumableDraftEntry(null)
+    setResumableDraftRouteCount(0)
+  }, [resumableDraftEntry])
 
   const renderStep = () => {
     switch (step.step) {
@@ -371,6 +687,28 @@ function SubmitPageContent() {
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Upload a photo of the route to begin. Photos containing people will be rejected. GPS location will be extracted to help find nearby crags.
             </p>
+            {resumableDraftRouteCount > 0 && resumableDraftEntry && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-700/60 dark:bg-amber-900/20">
+                <p className="text-sm text-amber-900 dark:text-amber-200">
+                  You have a saved draft with {resumableDraftRouteCount} route{resumableDraftRouteCount !== 1 ? 's' : ''}.
+                </p>
+                <div className="mt-2 flex items-center gap-4">
+                  <button
+                    onClick={handleResumeDraft}
+                    disabled={isResumingDraft}
+                    className="text-sm font-medium text-amber-900 underline decoration-amber-700 underline-offset-2 hover:text-amber-700 dark:text-amber-100 dark:hover:text-amber-300"
+                  >
+                    {isResumingDraft ? 'Resuming...' : 'Resume draft'}
+                  </button>
+                  <button
+                    onClick={handleDiscardDraft}
+                    className="text-sm font-medium text-amber-800/80 hover:text-amber-900 dark:text-amber-200/80 dark:hover:text-amber-100"
+                  >
+                    Discard
+                  </button>
+                </div>
+              </div>
+            )}
             <ImagePicker
               onSelect={(selection, gpsData) => handleImageSelect(selection, gpsData)}
               showBackButton={false}
@@ -408,7 +746,7 @@ function SubmitPageContent() {
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Set Face Direction</h2>
             <FaceDirectionPicker
               gps={context.imageGps}
-              initialFaceDirection={context.faceDirection}
+              initialFaceDirections={context.faceDirections}
               onConfirm={handleFaceDirectionConfirm}
             />
           </div>
@@ -452,8 +790,10 @@ function SubmitPageContent() {
             </div>
             <div className="flex-1 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
               <RouteCanvas
+                key={stepDraftKey || routeDraftKey || 'route-canvas'}
                 imageSelection={step.image}
                 onRoutesUpdate={handleRoutesUpdate}
+                draftKey={stepDraftKey || routeDraftKey || undefined}
               />
             </div>
             </div>

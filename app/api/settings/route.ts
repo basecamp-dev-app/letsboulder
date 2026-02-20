@@ -6,6 +6,31 @@ import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
 const VALID_GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const
 const VALID_GRADE_SYSTEMS = ['font', 'v'] as const
+const MIN_HEIGHT_CM = 100
+const MAX_HEIGHT_CM = 250
+const MIN_REACH_CM = 100
+const MAX_REACH_CM = 260
+
+function parseNullableCentimeters(
+  value: unknown,
+  min: number,
+  max: number
+): { valid: boolean; parsed: number | null } {
+  if (value === undefined) return { valid: true, parsed: null }
+  if (value === null || value === '') return { valid: true, parsed: null }
+
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) {
+    return { valid: false, parsed: null }
+  }
+
+  const rounded = Math.round(numeric)
+  if (rounded < min || rounded > max) {
+    return { valid: false, parsed: null }
+  }
+
+  return { valid: true, parsed: rounded }
+}
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
@@ -30,7 +55,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profiles, error } = await supabase
       .from('profiles')
-      .select('username, first_name, last_name, gender, avatar_url, bio, grade_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference')
+      .select('username, first_name, last_name, gender, height_cm, reach_cm, avatar_url, bio, grade_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference')
       .eq('id', user.id)
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1)
@@ -52,6 +77,8 @@ export async function GET(request: NextRequest) {
         firstName: profile?.first_name || '',
         lastName: profile?.last_name || '',
         gender: profile?.gender || '',
+        heightCm: profile?.height_cm ?? null,
+        reachCm: profile?.reach_cm ?? null,
         avatarUrl: profile?.avatar_url || '',
         bio: profile?.bio || '',
         gradeSystem: profile?.grade_system || 'font',
@@ -103,7 +130,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { bio, gradeSystem, units, isPublic, defaultLocation, defaultLocationName, defaultLocationLat, defaultLocationLng, defaultLocationZoom, themePreference, firstName, lastName, gender } = body
+    const { bio, gradeSystem, units, isPublic, defaultLocation, defaultLocationName, defaultLocationLat, defaultLocationLng, defaultLocationZoom, themePreference, firstName, lastName, gender, heightCm, reachCm } = body
 
     const updateData: Record<string, unknown> = {}
 
@@ -128,6 +155,29 @@ export async function PUT(request: NextRequest) {
         updateData.gender = gender
       }
     }
+
+    if (heightCm !== undefined) {
+      const parsed = parseNullableCentimeters(heightCm, MIN_HEIGHT_CM, MAX_HEIGHT_CM)
+      if (!parsed.valid) {
+        return NextResponse.json(
+          { error: `Height must be between ${MIN_HEIGHT_CM} and ${MAX_HEIGHT_CM} cm` },
+          { status: 400 }
+        )
+      }
+      updateData.height_cm = parsed.parsed
+    }
+
+    if (reachCm !== undefined) {
+      const parsed = parseNullableCentimeters(reachCm, MIN_REACH_CM, MAX_REACH_CM)
+      if (!parsed.valid) {
+        return NextResponse.json(
+          { error: `Reach must be between ${MIN_REACH_CM} and ${MAX_REACH_CM} cm` },
+          { status: 400 }
+        )
+      }
+      updateData.reach_cm = parsed.parsed
+    }
+
     updateData.updated_at = new Date().toISOString()
 
     let nameChangeBlocked = false

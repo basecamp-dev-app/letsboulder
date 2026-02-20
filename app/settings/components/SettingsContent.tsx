@@ -53,6 +53,8 @@ export default function SettingsContent({ user }: SettingsContentProps) {
     firstName: '',
     lastName: '',
     gender: 'prefer_not_to_say',
+    heightCm: '',
+    reachCm: '',
     bio: ''
   })
   const [isDirty, setIsDirty] = useState(false)
@@ -91,6 +93,8 @@ export default function SettingsContent({ user }: SettingsContentProps) {
             firstName: data.settings.firstName || '',
             lastName: data.settings.lastName || '',
             gender: data.settings.gender || 'prefer_not_to_say',
+            heightCm: data.settings.heightCm === null || data.settings.heightCm === undefined ? '' : String(data.settings.heightCm),
+            reachCm: data.settings.reachCm === null || data.settings.reachCm === undefined ? '' : String(data.settings.reachCm),
             bio: data.settings.bio || ''
           })
             setIsPublic(data.settings.isPublic !== false)
@@ -127,6 +131,8 @@ export default function SettingsContent({ user }: SettingsContentProps) {
           firstName: formData.firstName,
           lastName: formData.lastName,
           gender: formData.gender,
+          heightCm: formData.heightCm === '' ? null : Number(formData.heightCm),
+          reachCm: formData.reachCm === '' ? null : Number(formData.reachCm),
           bio: formData.bio,
           isPublic,
           themePreference,
@@ -319,6 +325,37 @@ export default function SettingsContent({ user }: SettingsContentProps) {
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{formData.bio.length}/500 characters</p>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Height (cm)</label>
+                    <input
+                      type="number"
+                      min={100}
+                      max={250}
+                      value={formData.heightCm}
+                      onChange={(e) => handleFormChange('heightCm', e.target.value)}
+                      placeholder="Optional"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reach (cm)</label>
+                    <input
+                      type="number"
+                      min={100}
+                      max={260}
+                      value={formData.reachCm}
+                      onChange={(e) => handleFormChange('reachCm', e.target.value)}
+                      placeholder="Optional"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-500 dark:text-gray-400 -mt-3">
+                  Optional, but adding these helps other climbers find beta videos from people with a similar build.
+                </p>
               </div>
             )}
 

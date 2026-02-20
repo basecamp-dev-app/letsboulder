@@ -15,6 +15,10 @@ import type { ImageSelection, NewRouteData, RouteLine } from '@/lib/submission-t
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
+import { draftStorageGetItem, draftStorageRemoveItem, draftStorageSetItem } from '@/lib/submit-draft-storage'
+
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const DRAFT_WRITE_DEBOUNCE_MS = 750
 
 interface ExistingRoute {
   id: string
@@ -28,9 +32,51 @@ interface RouteCanvasProps {
   imageSelection: ImageSelection
   onRoutesUpdate: (routes: NewRouteData[]) => void
   existingRouteLines?: RouteLine[]
+  draftKey?: string
 }
 
-export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRouteLines }: RouteCanvasProps) {
+interface RouteCanvasDraft {
+  updatedAt: number
+  expiresAt: number
+  completedRoutes: ExistingRoute[]
+  currentPoints: RoutePoint[]
+  currentName: string
+  currentGrade: string
+  currentDescription: string
+  showDescriptionField: boolean
+}
+
+function readDraftState(draftKey?: string): RouteCanvasDraft | null {
+  if (!draftKey) return null
+
+  try {
+    const rawDraft = draftStorageGetItem(draftKey)
+    if (!rawDraft) return null
+
+    const parsed = JSON.parse(rawDraft) as Partial<RouteCanvasDraft>
+    const expiresAt = typeof parsed.expiresAt === 'number' ? parsed.expiresAt : 0
+    if (expiresAt > 0 && expiresAt < Date.now()) {
+      draftStorageRemoveItem(draftKey)
+      return null
+    }
+
+    return {
+      updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
+      expiresAt: typeof parsed.expiresAt === 'number' ? parsed.expiresAt : Date.now() + DRAFT_TTL_MS,
+      completedRoutes: Array.isArray(parsed.completedRoutes) ? parsed.completedRoutes : [],
+      currentPoints: Array.isArray(parsed.currentPoints) ? parsed.currentPoints : [],
+      currentName: typeof parsed.currentName === 'string' ? parsed.currentName : '',
+      currentGrade: typeof parsed.currentGrade === 'string' ? parsed.currentGrade : '6A',
+      currentDescription: typeof parsed.currentDescription === 'string' ? parsed.currentDescription : '',
+      showDescriptionField: typeof parsed.showDescriptionField === 'boolean' ? parsed.showDescriptionField : false,
+    }
+  } catch {
+    return null
+  }
+}
+
+export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRouteLines, draftKey }: RouteCanvasProps) {
+  const initialDraft = readDraftState(draftKey)
   const gradeSystem = useGradeSystem()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
@@ -42,13 +88,13 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
   const [zoom, setZoom] = useState(1)
   const [isPanning, setIsPanning] = useState(false)
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 })
-  const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>([])
-  const [currentName, setCurrentName] = useState('')
-  const [currentGrade, setCurrentGrade] = useState('6A')
-  const [currentDescription, setCurrentDescription] = useState('')
+  const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>(() => initialDraft?.currentPoints ?? [])
+  const [currentName, setCurrentName] = useState(() => initialDraft?.currentName ?? '')
+  const [currentGrade, setCurrentGrade] = useState(() => initialDraft?.currentGrade ?? '6A')
+  const [currentDescription, setCurrentDescription] = useState(() => initialDraft?.currentDescription ?? '')
   const [gradePickerOpen, setGradePickerOpen] = useState(false)
-  const [showDescriptionField, setShowDescriptionField] = useState(false)
-  const [completedRoutes, setCompletedRoutes] = useState<ExistingRoute[]>([])
+  const [showDescriptionField, setShowDescriptionField] = useState(() => initialDraft?.showDescriptionField ?? false)
+  const [completedRoutes, setCompletedRoutes] = useState<ExistingRoute[]>(() => initialDraft?.completedRoutes ?? [])
   const [existingRoutes] = useState<ExistingRoute[]>(() => {
     if (existingRouteLines && existingRouteLines.length > 0) {
       return existingRouteLines.map((rl, index) => ({
@@ -74,6 +120,74 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     userVote: string | null
   }>({ consensusGrade: null, voteCount: 0, userVote: null })
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
+  const draftWriteTimeoutRef = useRef<number | null>(null)
+
+  const persistDraft = useCallback(() => {
+    if (!draftKey) return
+
+    const hasDraftContent =
+      completedRoutes.length > 0 ||
+      currentPoints.length > 0 ||
+      currentName.trim().length > 0 ||
+      currentDescription.trim().length > 0
+
+    if (!hasDraftContent) {
+      draftStorageRemoveItem(draftKey)
+      return
+    }
+
+    const now = Date.now()
+    const draft: RouteCanvasDraft = {
+      updatedAt: now,
+      expiresAt: now + DRAFT_TTL_MS,
+      completedRoutes,
+      currentPoints,
+      currentName,
+      currentGrade,
+      currentDescription,
+      showDescriptionField,
+    }
+
+    draftStorageSetItem(draftKey, JSON.stringify(draft))
+  }, [draftKey, completedRoutes, currentPoints, currentName, currentGrade, currentDescription, showDescriptionField])
+
+  useEffect(() => {
+    if (!draftKey) return
+
+    if (draftWriteTimeoutRef.current) {
+      window.clearTimeout(draftWriteTimeoutRef.current)
+    }
+
+    draftWriteTimeoutRef.current = window.setTimeout(() => {
+      persistDraft()
+      draftWriteTimeoutRef.current = null
+    }, DRAFT_WRITE_DEBOUNCE_MS)
+
+    return () => {
+      if (draftWriteTimeoutRef.current) {
+        window.clearTimeout(draftWriteTimeoutRef.current)
+        draftWriteTimeoutRef.current = null
+      }
+    }
+  }, [draftKey, persistDraft])
+
+  useEffect(() => {
+    if (!draftKey) return
+
+    const flushDraft = () => {
+      if (draftWriteTimeoutRef.current) {
+        window.clearTimeout(draftWriteTimeoutRef.current)
+        draftWriteTimeoutRef.current = null
+      }
+      persistDraft()
+    }
+
+    window.addEventListener('pagehide', flushDraft)
+    return () => {
+      window.removeEventListener('pagehide', flushDraft)
+      flushDraft()
+    }
+  }, [draftKey, persistDraft])
 
   useOverlayHistory({
     open: showSubmitConfirm,
@@ -403,7 +517,8 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     })
 
     onRoutesUpdate(normalizedRoutes)
-  }, [completedRoutes, imageDimensions, onRoutesUpdate])
+    redraw()
+  }, [completedRoutes, imageDimensions, onRoutesUpdate, redraw])
 
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
