@@ -329,7 +329,159 @@ function toGpsData(value: unknown): GpsData | null {
   return findCoordinatesDeep(data)
 }
 
-async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string): Promise<GpsData | null> {
+function isJpegBuffer(buffer: ArrayBuffer): boolean {
+  if (buffer.byteLength < 2) return false
+  const bytes = new Uint8Array(buffer)
+  return bytes[0] === 0xff && bytes[1] === 0xd8
+}
+
+function parseAsciiTag(view: DataView, valueOffset: number, count: number): string | null {
+  if (count <= 0 || valueOffset < 0 || valueOffset + count > view.byteLength) return null
+  const chars: number[] = []
+  for (let i = 0; i < count; i += 1) {
+    const code = view.getUint8(valueOffset + i)
+    if (code === 0) break
+    chars.push(code)
+  }
+  if (chars.length === 0) return null
+  return String.fromCharCode(...chars).trim().toUpperCase()
+}
+
+function parseRationalArray(view: DataView, valueOffset: number, count: number, littleEndian: boolean): number[] | null {
+  if (count <= 0 || valueOffset < 0 || valueOffset + count * 8 > view.byteLength) return null
+
+  const numbers: number[] = []
+  for (let i = 0; i < count; i += 1) {
+    const numerator = view.getUint32(valueOffset + i * 8, littleEndian)
+    const denominator = view.getUint32(valueOffset + i * 8 + 4, littleEndian)
+    if (denominator === 0) return null
+    numbers.push(numerator / denominator)
+  }
+
+  return numbers
+}
+
+function parseGpsFromExifJpeg(buffer: ArrayBuffer): GpsData | null {
+  const view = new DataView(buffer)
+  if (view.byteLength < 4 || view.getUint16(0, false) !== 0xffd8) return null
+
+  let cursor = 2
+
+  while (cursor + 4 <= view.byteLength) {
+    if (view.getUint8(cursor) !== 0xff) break
+
+    const marker = view.getUint8(cursor + 1)
+    cursor += 2
+
+    if (marker === 0xd9 || marker === 0xda) break
+    if (cursor + 2 > view.byteLength) break
+
+    const segmentLength = view.getUint16(cursor, false)
+    if (segmentLength < 2 || cursor + segmentLength > view.byteLength) break
+
+    if (marker === 0xe1) {
+      const segmentStart = cursor + 2
+      const exifHeader = segmentStart + 6
+      if (segmentStart + 6 <= view.byteLength && parseAsciiTag(view, segmentStart, 6) === 'EXIF') {
+        if (exifHeader + 8 > view.byteLength) return null
+
+        const byteOrderMark = String.fromCharCode(view.getUint8(exifHeader), view.getUint8(exifHeader + 1))
+        const littleEndian = byteOrderMark === 'II'
+        if (!littleEndian && byteOrderMark !== 'MM') return null
+
+        const tiffStart = exifHeader
+        if (view.getUint16(tiffStart + 2, littleEndian) !== 42) return null
+
+        const ifd0Offset = view.getUint32(tiffStart + 4, littleEndian)
+        const ifd0Start = tiffStart + ifd0Offset
+        if (ifd0Start + 2 > view.byteLength) return null
+
+        const entryCount = view.getUint16(ifd0Start, littleEndian)
+        let gpsIfdOffset: number | null = null
+
+        for (let i = 0; i < entryCount; i += 1) {
+          const entryOffset = ifd0Start + 2 + i * 12
+          if (entryOffset + 12 > view.byteLength) break
+
+          const tag = view.getUint16(entryOffset, littleEndian)
+          if (tag === 0x8825) {
+            gpsIfdOffset = view.getUint32(entryOffset + 8, littleEndian)
+            break
+          }
+        }
+
+        if (gpsIfdOffset === null) return null
+
+        const gpsIfdStart = tiffStart + gpsIfdOffset
+        if (gpsIfdStart + 2 > view.byteLength) return null
+
+        const gpsEntryCount = view.getUint16(gpsIfdStart, littleEndian)
+        let latRef: string | null = null
+        let lonRef: string | null = null
+        let latValues: number[] | null = null
+        let lonValues: number[] | null = null
+
+        for (let i = 0; i < gpsEntryCount; i += 1) {
+          const entryOffset = gpsIfdStart + 2 + i * 12
+          if (entryOffset + 12 > view.byteLength) break
+
+          const tag = view.getUint16(entryOffset, littleEndian)
+          const fieldType = view.getUint16(entryOffset + 2, littleEndian)
+          const count = view.getUint32(entryOffset + 4, littleEndian)
+          const valueOrOffset = view.getUint32(entryOffset + 8, littleEndian)
+
+          if (tag === 0x0001 && fieldType === 2) {
+            const valueOffset = count <= 4 ? entryOffset + 8 : tiffStart + valueOrOffset
+            latRef = parseAsciiTag(view, valueOffset, count)
+            continue
+          }
+
+          if (tag === 0x0003 && fieldType === 2) {
+            const valueOffset = count <= 4 ? entryOffset + 8 : tiffStart + valueOrOffset
+            lonRef = parseAsciiTag(view, valueOffset, count)
+            continue
+          }
+
+          if (tag === 0x0002 && fieldType === 5) {
+            latValues = parseRationalArray(view, tiffStart + valueOrOffset, count, littleEndian)
+            continue
+          }
+
+          if (tag === 0x0004 && fieldType === 5) {
+            lonValues = parseRationalArray(view, tiffStart + valueOrOffset, count, littleEndian)
+          }
+        }
+
+        if (!latValues || !lonValues || latValues.length < 2 || lonValues.length < 2) {
+          return null
+        }
+
+        const lat = applyHemisphereSign(
+          latValues[0] + latValues[1] / 60 + (latValues[2] || 0) / 3600,
+          latRef,
+          'lat'
+        )
+        const lon = applyHemisphereSign(
+          lonValues[0] + lonValues[1] / 60 + (lonValues[2] || 0) / 3600,
+          lonRef,
+          'lon'
+        )
+
+        if (isValidCoordinate(lat, lon)) {
+          return { latitude: lat, longitude: lon }
+        }
+
+        return null
+      }
+    }
+
+    cursor += segmentLength
+  }
+
+  return null
+}
+
+async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string, mimeType?: string): Promise<GpsData | null> {
   const exifr = (await import('exifr')).default
   gpsDebug('start', { file: debugLabel || 'unknown', bytes: buffer.byteLength })
 
@@ -385,9 +537,21 @@ async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string): P
     gpsDebug('full parse raw', summarizeMetadata(exifData))
     const parsedGps = toGpsData(exifData)
     gpsDebug('full parse parsed', parsedGps)
-    return parsedGps
+    if (parsedGps) return parsedGps
   } catch {
     gpsDebug('full parse error', { file: debugLabel || 'unknown' })
+    // Ignore and try JPEG EXIF fallback below
+  }
+
+  const canUseJpegFallback = mimeType === 'image/jpeg' || mimeType === 'image/jpg' || isJpegBuffer(buffer)
+  if (!canUseJpegFallback) return null
+
+  try {
+    const fallbackGps = parseGpsFromExifJpeg(buffer)
+    gpsDebug('jpeg exif fallback parsed', fallbackGps)
+    return fallbackGps
+  } catch {
+    gpsDebug('jpeg exif fallback error', { file: debugLabel || 'unknown' })
     return null
   }
 }
@@ -395,7 +559,7 @@ async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string): P
 async function extractGpsFromFile(file: File): Promise<GpsData | null> {
   try {
     const buffer = await file.arrayBuffer()
-    return extractGpsFromBuffer(buffer, `${file.name} (${file.type || 'unknown'})`)
+    return extractGpsFromBuffer(buffer, `${file.name} (${file.type || 'unknown'})`, file.type)
   } catch {
     return null
   }
@@ -529,7 +693,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
   const [detectedGpsData, setDetectedGpsData] = useState<GpsData | null>(null)
   const [gpsDetectionComplete, setGpsDetectionComplete] = useState(false)
-  const [isIosSafari, setIsIosSafari] = useState(false)
+  const [isIosDevice, setIsIosDevice] = useState(false)
   const [compressing, setCompressing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -545,9 +709,10 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     if (typeof window === 'undefined') return
 
     const userAgent = window.navigator.userAgent
-    const isIos = /iP(hone|ad|od)/.test(userAgent)
-    const isSafari = /^((?!chrome|android).)*safari/i.test(userAgent)
-    setIsIosSafari(isIos && isSafari)
+    const platform = window.navigator.platform || ''
+    const isTouchMac = platform === 'MacIntel' && window.navigator.maxTouchPoints > 1
+    const isIos = /iP(hone|ad|od)/.test(userAgent) || isTouchMac
+    setIsIosDevice(isIos)
   }, [])
 
   const processFile = async (selectedFile: File) => {
@@ -581,7 +746,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           if (!gpsFromFile) {
             try {
               const previewBuffer = await previewBlob.arrayBuffer()
-              gpsFromFile = await extractGpsFromBuffer(previewBuffer, `${selectedFile.name} (preview-converted)`)
+              gpsFromFile = await extractGpsFromBuffer(previewBuffer, `${selectedFile.name} (preview-converted)`, previewBlob.type)
             } catch {
               // Ignore preview GPS fallback errors
             }
@@ -785,9 +950,9 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
               <p className="text-sm text-amber-700 dark:text-amber-300">
                 No GPS metadata found in this file. Some apps remove location when sharing or exporting photos. You can place the pin manually in the next step.
               </p>
-              {isIosSafari && (
+              {isIosDevice && (
                 <p className="text-sm text-amber-700 dark:text-amber-300 mt-2">
-                  iPhone Safari can remove photo location when picking from Photos. Try Photos → Share → Save to Files, then upload from Browse (Files).
+                  On iPhone, Photos picker can remove location metadata from HEIF/JPEG files. If location is missing, place the pin manually in the next step.
                 </p>
               )}
             </div>
