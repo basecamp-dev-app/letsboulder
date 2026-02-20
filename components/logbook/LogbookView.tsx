@@ -293,25 +293,37 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
               <CardContent className="pt-0">
                 <div className="space-y-0">
                   {submissions.map((submission) => (
-                    <Link
+                    <div
                       key={submission.id}
-                      href={`/image/${submission.id}`}
-                      className="flex items-center gap-3 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
+                      className="flex items-center gap-3 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
                     >
-                      <img
-                        src={submission.url}
-                        alt="Submitted route image"
-                        className="w-12 h-12 object-cover rounded"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                          {submission.crag_name || 'Unknown crag'}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </Link>
+                      <Link
+                        href={`/image/${submission.id}`}
+                        className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
+                      >
+                        <img
+                          src={submission.url}
+                          alt="Submitted route image"
+                          className="w-12 h-12 object-cover rounded"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                            {submission.crag_name || 'Unknown crag'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </Link>
+                      {isOwnProfile && (
+                        <Link
+                          href={`/logbook/submissions/${submission.id}/edit`}
+                          className="shrink-0 text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                        >
+                          Edit routes
+                        </Link>
+                      )}
+                    </div>
                   ))}
                 </div>
               </CardContent>
@@ -326,25 +338,37 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
           <CardContent className="pt-0">
             <div className="space-y-0">
               {submissions.map((submission) => (
-                <Link
+                <div
                   key={submission.id}
-                  href={`/image/${submission.id}`}
-                  className="flex items-center gap-3 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
+                  className="flex items-center gap-3 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
                 >
-                  <img
-                    src={submission.url}
-                    alt="Submitted route image"
-                    className="w-12 h-12 object-cover rounded"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {submission.crag_name || 'Unknown crag'}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </Link>
+                  <Link
+                    href={`/image/${submission.id}`}
+                    className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
+                  >
+                    <img
+                      src={submission.url}
+                      alt="Submitted route image"
+                      className="w-12 h-12 object-cover rounded"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                        {submission.crag_name || 'Unknown crag'}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </Link>
+                  {isOwnProfile && (
+                    <Link
+                      href={`/logbook/submissions/${submission.id}/edit`}
+                      className="shrink-0 text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                    >
+                      Edit routes
+                    </Link>
+                  )}
+                </div>
               ))}
             </div>
           </CardContent>

@@ -70,6 +70,7 @@ export interface RouteLine {
     name: string | null
     grade: string
     status: string
+    description?: string | null
   }
 }
 
