@@ -143,7 +143,7 @@ export type SubmissionStep =
   | { step: 'crag'; imageGps: { latitude: number; longitude: number } | null; cragId?: string; cragName?: string }
   | { step: 'draw'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; draftKey?: string }
   | { step: 'climbType'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; draftKey?: string }
-  | { step: 'review'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; routes: NewRouteData[] }
+  | { step: 'review'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; routes: NewRouteData[]; draftKey?: string }
   | { step: 'submitting' }
   | { step: 'success'; climbsCreated: number; imageId?: string }
   | { step: 'error'; message: string }

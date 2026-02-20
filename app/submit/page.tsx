@@ -10,10 +10,12 @@ import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionCont
 import { csrfFetch, primeCsrfToken } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
+import { draftStorageGetItem, draftStorageRemoveItem, draftStorageSetItem } from '@/lib/submit-draft-storage'
 
 const dynamic = nextDynamic
 const ROUTE_DRAFT_PREFIX = 'submit-route-draft:'
 const ROUTE_DRAFT_INDEX_KEY = 'submit-route-drafts:index'
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 interface DraftImageSelectionSnapshotExisting {
   mode: 'existing'
@@ -39,6 +41,7 @@ type DraftImageSelectionSnapshot = DraftImageSelectionSnapshotExisting | DraftIm
 interface RouteDraftIndexEntry {
   draftKey: string
   updatedAt: number
+  expiresAt: number
   routeCount: number
   image: DraftImageSelectionSnapshot
   crag: NonNullable<SubmissionContext['crag']>
@@ -48,35 +51,68 @@ interface RouteDraftIndexEntry {
 
 function readDraftIndex(): RouteDraftIndexEntry[] {
   try {
-    const raw = sessionStorage.getItem(ROUTE_DRAFT_INDEX_KEY)
+    const raw = draftStorageGetItem(ROUTE_DRAFT_INDEX_KEY)
     if (!raw) return []
 
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
 
-    return parsed.filter((entry): entry is RouteDraftIndexEntry => {
-      if (!entry || typeof entry !== 'object') return false
-      const candidate = entry as Partial<RouteDraftIndexEntry>
-      return typeof candidate.draftKey === 'string' && typeof candidate.updatedAt === 'number' && !!candidate.image && !!candidate.crag
-    })
+    return parsed
+      .filter((entry): entry is RouteDraftIndexEntry => {
+        if (!entry || typeof entry !== 'object') return false
+        const candidate = entry as Partial<RouteDraftIndexEntry>
+        return typeof candidate.draftKey === 'string' && typeof candidate.updatedAt === 'number' && !!candidate.image && !!candidate.crag
+      })
+      .map((entry) => ({
+        ...entry,
+        expiresAt: typeof entry.expiresAt === 'number' ? entry.expiresAt : entry.updatedAt + DRAFT_TTL_MS,
+        routeCount: typeof entry.routeCount === 'number' ? entry.routeCount : 0,
+      }))
   } catch {
     return []
   }
 }
 
 function writeDraftIndex(entries: RouteDraftIndexEntry[]) {
-  sessionStorage.setItem(ROUTE_DRAFT_INDEX_KEY, JSON.stringify(entries))
+  draftStorageSetItem(ROUTE_DRAFT_INDEX_KEY, JSON.stringify(entries))
 }
 
 function upsertDraftIndex(entry: RouteDraftIndexEntry) {
+  const normalizedEntry: RouteDraftIndexEntry = {
+    ...entry,
+    expiresAt: entry.expiresAt || entry.updatedAt + DRAFT_TTL_MS,
+  }
   const existing = readDraftIndex().filter((item) => item.draftKey !== entry.draftKey)
-  existing.unshift(entry)
+  existing.unshift(normalizedEntry)
   writeDraftIndex(existing.slice(0, 20))
 }
 
 function removeDraftIndexEntry(draftKey: string) {
   const next = readDraftIndex().filter((entry) => entry.draftKey !== draftKey)
   writeDraftIndex(next)
+}
+
+function pruneDraftIndex(): RouteDraftIndexEntry[] {
+  const now = Date.now()
+  const next: RouteDraftIndexEntry[] = []
+
+  for (const entry of readDraftIndex()) {
+    if (entry.expiresAt <= now) {
+      draftStorageRemoveItem(entry.draftKey)
+      continue
+    }
+
+    if (!draftStorageGetItem(entry.draftKey)) {
+      continue
+    }
+
+    next.push(entry)
+  }
+
+  next.sort((a, b) => b.updatedAt - a.updatedAt)
+  const capped = next.slice(0, 20)
+  writeDraftIndex(capped)
+  return capped
 }
 
 function toImageSnapshot(image: ImageSelection): DraftImageSelectionSnapshot {
@@ -104,9 +140,17 @@ function toImageSnapshot(image: ImageSelection): DraftImageSelectionSnapshot {
 
 function getDraftRouteCount(draftKey: string): number {
   try {
-    const raw = sessionStorage.getItem(draftKey)
+    const raw = draftStorageGetItem(draftKey)
     if (!raw) return 0
-    const parsed = JSON.parse(raw) as { completedRoutes?: Array<unknown>; currentPoints?: Array<unknown> }
+    const parsed = JSON.parse(raw) as {
+      completedRoutes?: Array<unknown>
+      currentPoints?: Array<unknown>
+      expiresAt?: number
+    }
+    if (typeof parsed.expiresAt === 'number' && parsed.expiresAt < Date.now()) {
+      draftStorageRemoveItem(draftKey)
+      return 0
+    }
     const completedCount = Array.isArray(parsed.completedRoutes) ? parsed.completedRoutes.length : 0
     const hasCurrentPoints = Array.isArray(parsed.currentPoints) && parsed.currentPoints.length > 1
     return completedCount > 0 ? completedCount : hasCurrentPoints ? 1 : 0
@@ -294,7 +338,7 @@ function SubmitPageContent() {
       return
     }
 
-    const index = readDraftIndex()
+    const index = pruneDraftIndex()
     const next: RouteDraftIndexEntry[] = []
 
     for (const entry of index) {
@@ -324,6 +368,7 @@ function SubmitPageContent() {
     upsertDraftIndex({
       draftKey: activeDraftKey,
       updatedAt: Date.now(),
+      expiresAt: Date.now() + DRAFT_TTL_MS,
       routeCount: context.routes.length,
       image: toImageSnapshot(context.image),
       crag: context.crag,
@@ -520,7 +565,7 @@ function SubmitPageContent() {
       const data = await response.json()
 
       if (activeDraftKey) {
-        sessionStorage.removeItem(activeDraftKey)
+        draftStorageRemoveItem(activeDraftKey)
         removeDraftIndexEntry(activeDraftKey)
       }
 
@@ -542,7 +587,7 @@ function SubmitPageContent() {
 
   const handleStartOver = () => {
     if (activeDraftKey) {
-      sessionStorage.removeItem(activeDraftKey)
+      draftStorageRemoveItem(activeDraftKey)
       removeDraftIndexEntry(activeDraftKey)
     }
     setContext({ crag: null, image: null, imageGps: null, faceDirections: [], routes: [], routeType: null })
@@ -627,7 +672,7 @@ function SubmitPageContent() {
   const handleDiscardDraft = useCallback(() => {
     if (!resumableDraftEntry) return
 
-    sessionStorage.removeItem(resumableDraftEntry.draftKey)
+    draftStorageRemoveItem(resumableDraftEntry.draftKey)
     removeDraftIndexEntry(resumableDraftEntry.draftKey)
     setResumableDraftEntry(null)
     setResumableDraftRouteCount(0)
