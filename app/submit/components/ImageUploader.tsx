@@ -65,6 +65,52 @@ function parseDmsString(value: string, axis: 'lat' | 'lon', refOverride?: string
   return applyHemisphereSign(base, ref, axis)
 }
 
+function parseCoordinatePairString(value: string, latRef: string | null, lonRef: string | null): GpsData | null {
+  const normalized = value.trim().toUpperCase()
+  if (!normalized) return null
+
+  const iso6709Match = normalized.match(/^([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)(?:[+-]\d+(?:\.\d+)?)?\/?$/)
+  if (iso6709Match) {
+    const latitude = toFiniteNumber(iso6709Match[1])
+    const longitude = toFiniteNumber(iso6709Match[2])
+    if (latitude !== null && longitude !== null && isValidCoordinate(latitude, longitude)) {
+      return { latitude, longitude }
+    }
+  }
+
+  const splitByPunctuation = normalized.split(/[;,]/).map((part) => part.trim()).filter(Boolean)
+  if (splitByPunctuation.length >= 2) {
+    const latitude = parseDmsString(splitByPunctuation[0], 'lat', latRef)
+    const longitude = parseDmsString(splitByPunctuation[1], 'lon', lonRef)
+    if (latitude !== null && longitude !== null && isValidCoordinate(latitude, longitude)) {
+      return { latitude, longitude }
+    }
+  }
+
+  const latRefIndex = normalized.search(/[NS]/)
+  const lonRefIndex = normalized.search(/[EW]/)
+  if (latRefIndex >= 0 && lonRefIndex > latRefIndex) {
+    const latitudeText = normalized.slice(0, latRefIndex + 1).trim()
+    const longitudeText = normalized.slice(latRefIndex + 1).trim()
+    const latitude = parseDmsString(latitudeText, 'lat', latRef)
+    const longitude = parseDmsString(longitudeText, 'lon', lonRef)
+    if (latitude !== null && longitude !== null && isValidCoordinate(latitude, longitude)) {
+      return { latitude, longitude }
+    }
+  }
+
+  const decimalPairMatch = normalized.match(/([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)/)
+  if (decimalPairMatch) {
+    const latitude = applyHemisphereSign(Number.parseFloat(decimalPairMatch[1]), latRef, 'lat')
+    const longitude = applyHemisphereSign(Number.parseFloat(decimalPairMatch[2]), lonRef, 'lon')
+    if (isValidCoordinate(latitude, longitude)) {
+      return { latitude, longitude }
+    }
+  }
+
+  return null
+}
+
 function getField(data: Record<string, unknown>, keys: string[]): unknown {
   for (const key of keys) {
     if (key in data) {
@@ -197,13 +243,9 @@ function readCoordinatesFromObject(data: Record<string, unknown>): GpsData | nul
 
   const gpsPosition = getField(data, ['GPSPosition', 'gpsPosition'])
   if (typeof gpsPosition === 'string') {
-    const parts = gpsPosition.split(/[;,]/).map((part) => part.trim()).filter(Boolean)
-    if (parts.length >= 2) {
-      const latitude = parseDmsString(parts[0], 'lat', latRef)
-      const longitude = parseDmsString(parts[1], 'lon', lonRef)
-      if (latitude !== null && longitude !== null && isValidCoordinate(latitude, longitude)) {
-        return { latitude, longitude }
-      }
+    const parsedPair = parseCoordinatePairString(gpsPosition, latRef, lonRef)
+    if (parsedPair) {
+      return parsedPair
     }
   }
 
@@ -279,6 +321,26 @@ async function extractGpsFromBuffer(buffer: ArrayBuffer): Promise<GpsData | null
     if (parsedGps) {
       return parsedGps
     }
+  } catch {
+    // Ignore and try parse fallback below
+  }
+
+  try {
+    const explicitTagData = await exifr.parse(buffer, [
+      'GPSLatitude',
+      'GPSLongitude',
+      'GPSLatitudeRef',
+      'GPSLongitudeRef',
+      'GPSPosition',
+      'latitude',
+      'longitude',
+      'Latitude',
+      'Longitude',
+      'xmp:GPSLatitude',
+      'xmp:GPSLongitude',
+    ])
+    const parsedGps = toGpsData(explicitTagData)
+    if (parsedGps) return parsedGps
   } catch {
     // Ignore and try parse fallback below
   }
@@ -435,6 +497,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
   const [file, setFile] = useState<File | null>(null)
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
   const [detectedGpsData, setDetectedGpsData] = useState<GpsData | null>(null)
+  const [gpsDetectionComplete, setGpsDetectionComplete] = useState(false)
   const [compressing, setCompressing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -445,6 +508,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     setFile(null)
     setCompressedFile(null)
     setDetectedGpsData(null)
+    setGpsDetectionComplete(false)
 
     if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
       onError('Please select an image file (JPEG, PNG, WebP, HEIC, etc.)')
@@ -477,6 +541,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           }
 
           setDetectedGpsData(gpsFromFile)
+          setGpsDetectionComplete(true)
           setPreviewUrl(URL.createObjectURL(previewBlob))
           onUploading(true, 20, 'Compressing HEIC...')
         } catch {
@@ -486,6 +551,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
         }
       } else {
         setDetectedGpsData(gpsFromFile)
+        setGpsDetectionComplete(true)
         setPreviewUrl(URL.createObjectURL(selectedFile))
         onUploading(true, 20, 'Compressing image...')
       }
@@ -643,6 +709,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
                 setFile(null)
                 setCompressedFile(null)
                 setDetectedGpsData(null)
+                setGpsDetectionComplete(false)
                 setPreviewUrl(null)
                 if (fileInputRef.current) fileInputRef.current.value = ''
               }}
@@ -660,7 +727,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
             </p>
           </div>
 
-          {!detectedGpsData && (
+          {gpsDetectionComplete && !detectedGpsData && (
             <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded">
               <p className="text-sm text-amber-700 dark:text-amber-300">
                 No GPS metadata found in this file. Some apps remove location when sharing or exporting photos. You can place the pin manually in the next step.
