@@ -222,10 +222,19 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                     <div key={log.id} className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-gray-500 dark:text-gray-400 w-6">{index + 1}.</span>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{log.climbs?.crags?.name}</p>
-                        </div>
+                        <Link href={`/climb/${log.climb_id}`} className="flex items-center gap-3 min-w-0 hover:opacity-90 transition-opacity">
+                          {log.climbs?.image_url && (
+                            <img
+                              src={resolveRouteImageUrl(log.climbs.image_url)}
+                              alt={log.climbs.name || 'Climb image'}
+                              className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded shrink-0"
+                            />
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 dark:text-gray-100 hover:underline truncate">{log.climbs?.name}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{log.climbs?.crags?.name}</p>
+                          </div>
+                        </Link>
                       </div>
                       <span className={`px-2 py-1 rounded text-sm font-medium ${statusStyles[log.style as keyof typeof statusStyles]}`}>
                         {log.style === 'flash' && '⚡ '}
@@ -249,11 +258,13 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                 {recentLogs.map((log) => (
                   <div key={log.id} className="flex items-center gap-2 sm:gap-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
                     {log.climbs?.image_url && (
-                      <img
-                        src={log.climbs.image_url}
-                        alt={log.climbs.name}
-                        className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded"
-                      />
+                      <Link href={`/climb/${log.climb_id}`} className="shrink-0">
+                        <img
+                          src={resolveRouteImageUrl(log.climbs.image_url)}
+                          alt={log.climbs.name}
+                          className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded"
+                        />
+                      </Link>
                     )}
                     <div className="flex-1">
                       <Link href={`/climb/${log.climb_id}`} className="hover:underline">

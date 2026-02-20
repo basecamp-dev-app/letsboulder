@@ -99,11 +99,13 @@ export function getInitials(username: string): string {
 
 export interface LogEntry {
   id: string
+  climb_id: string
   style: string
   created_at: string
   climbs?: {
     grade: string
     name: string | null
+    image_url?: string | null
     crags?: {
       name: string | null
     } | null

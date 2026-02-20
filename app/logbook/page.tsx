@@ -102,7 +102,7 @@ function LogbookContent() {
 
           const { data: logsData, error: logsError } = await supabase
             .from('user_climbs')
-            .select('*, climbs(id, name, grade, route_lines!inner(images!inner(crags!inner(name))))')
+            .select('*, climbs(id, name, grade, route_lines!inner(images!inner(url, crags!inner(name))))')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
 
@@ -112,13 +112,15 @@ function LogbookContent() {
 
           const cragsByClimbId: Record<string, string> = {}
           const logsWithCrags = (logsData || []).map((log) => {
-            const routeLines = log.climbs?.route_lines as Array<{ images?: { crags?: { name: string } } }> | undefined
+            const routeLines = log.climbs?.route_lines as Array<{ images?: { url?: string; crags?: { name: string } } }> | undefined
             const cragName = routeLines?.[0]?.images?.crags?.name || 'Unknown crag'
+            const imageUrl = routeLines?.[0]?.images?.url
             cragsByClimbId[log.climb_id] = cragName
             return {
               ...log,
               climbs: {
                 ...log.climbs,
+                image_url: imageUrl,
                 crags: { name: cragName }
               }
             }
