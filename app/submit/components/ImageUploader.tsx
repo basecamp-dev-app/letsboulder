@@ -22,6 +22,25 @@ type DmsValue = number | RationalLike | [number, number]
 
 const MAX_GPS_SEARCH_DEPTH = 5
 const MAX_GPS_VISITED_OBJECTS = 500
+const ENABLE_GPS_DEBUG = process.env.NODE_ENV === 'development'
+
+function gpsDebug(step: string, payload: unknown) {
+  if (!ENABLE_GPS_DEBUG) return
+  console.log('[gps-extract]', step, payload)
+}
+
+function summarizeMetadata(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return value
+
+  const record = value as Record<string, unknown>
+  const keys = Object.keys(record)
+  const interestingKeys = keys.filter((key) => /gps|lat|lon|lng|location/i.test(key)).slice(0, 20)
+  return {
+    keyCount: keys.length,
+    keys: keys.slice(0, 20),
+    gpsLikeKeys: interestingKeys,
+  }
+}
 
 function toFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number') {
@@ -31,9 +50,7 @@ function toFiniteNumber(value: unknown): number | null {
   if (typeof value === 'string') {
     const trimmed = value.trim()
     if (!trimmed) return null
-    if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(trimmed)) {
-      return null
-    }
+    if (!/[0-9]/.test(trimmed)) return null
     const parsed = Number.parseFloat(trimmed)
     return Number.isFinite(parsed) ? parsed : null
   }
@@ -312,16 +329,20 @@ function toGpsData(value: unknown): GpsData | null {
   return findCoordinatesDeep(data)
 }
 
-async function extractGpsFromBuffer(buffer: ArrayBuffer): Promise<GpsData | null> {
+async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string): Promise<GpsData | null> {
   const exifr = (await import('exifr')).default
+  gpsDebug('start', { file: debugLabel || 'unknown', bytes: buffer.byteLength })
 
   try {
     const gpsData = await exifr.gps(buffer)
+    gpsDebug('exifr.gps raw', summarizeMetadata(gpsData))
     const parsedGps = toGpsData(gpsData)
+    gpsDebug('exifr.gps parsed', parsedGps)
     if (parsedGps) {
       return parsedGps
     }
   } catch {
+    gpsDebug('exifr.gps error', { file: debugLabel || 'unknown' })
     // Ignore and try parse fallback below
   }
 
@@ -339,24 +360,34 @@ async function extractGpsFromBuffer(buffer: ArrayBuffer): Promise<GpsData | null
       'xmp:GPSLatitude',
       'xmp:GPSLongitude',
     ])
+    gpsDebug('explicit tags raw', summarizeMetadata(explicitTagData))
     const parsedGps = toGpsData(explicitTagData)
+    gpsDebug('explicit tags parsed', parsedGps)
     if (parsedGps) return parsedGps
   } catch {
+    gpsDebug('explicit tags error', { file: debugLabel || 'unknown' })
     // Ignore and try parse fallback below
   }
 
   try {
     const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true, xmp: true })
+    gpsDebug('structured parse raw', summarizeMetadata(exifData))
     const parsedGps = toGpsData(exifData)
+    gpsDebug('structured parse parsed', parsedGps)
     if (parsedGps) return parsedGps
   } catch {
+    gpsDebug('structured parse error', { file: debugLabel || 'unknown' })
     // Ignore and try full parse fallback below
   }
 
   try {
     const exifData = await exifr.parse(buffer)
-    return toGpsData(exifData)
+    gpsDebug('full parse raw', summarizeMetadata(exifData))
+    const parsedGps = toGpsData(exifData)
+    gpsDebug('full parse parsed', parsedGps)
+    return parsedGps
   } catch {
+    gpsDebug('full parse error', { file: debugLabel || 'unknown' })
     return null
   }
 }
@@ -364,7 +395,7 @@ async function extractGpsFromBuffer(buffer: ArrayBuffer): Promise<GpsData | null
 async function extractGpsFromFile(file: File): Promise<GpsData | null> {
   try {
     const buffer = await file.arrayBuffer()
-    return extractGpsFromBuffer(buffer)
+    return extractGpsFromBuffer(buffer, `${file.name} (${file.type || 'unknown'})`)
   } catch {
     return null
   }
@@ -534,7 +565,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           if (!gpsFromFile) {
             try {
               const previewBuffer = await previewBlob.arrayBuffer()
-              gpsFromFile = await extractGpsFromBuffer(previewBuffer)
+              gpsFromFile = await extractGpsFromBuffer(previewBuffer, `${selectedFile.name} (preview-converted)`)
             } catch {
               // Ignore preview GPS fallback errors
             }
