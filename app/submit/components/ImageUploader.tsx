@@ -829,6 +829,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
   const [detectedGpsData, setDetectedGpsData] = useState<GpsData | null>(null)
   const [gpsDetectionComplete, setGpsDetectionComplete] = useState(false)
   const [isIosDevice, setIsIosDevice] = useState(false)
+  const [isAndroidDevice, setIsAndroidDevice] = useState(false)
   const [compressing, setCompressing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -847,7 +848,9 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     const platform = window.navigator.platform || ''
     const isTouchMac = platform === 'MacIntel' && window.navigator.maxTouchPoints > 1
     const isIos = /iP(hone|ad|od)/.test(userAgent) || isTouchMac
+    const isAndroid = /Android/i.test(userAgent)
     setIsIosDevice(isIos)
+    setIsAndroidDevice(isAndroid)
   }, [])
 
   const processFile = async (selectedFile: File) => {
@@ -1091,11 +1094,16 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           {gpsDetectionComplete && !detectedGpsData && (
             <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded">
               <p className="text-sm text-amber-700 dark:text-amber-300">
-                No GPS metadata found in this file. Some apps remove location when sharing or exporting photos. You can place the pin manually in the next step.
+                No GPS metadata found in this file. Gallery/Photos pickers can strip location metadata. You can place the pin manually in the next step.
               </p>
+              {isAndroidDevice && (
+                <p className="text-sm text-amber-700 dark:text-amber-300 mt-2">
+                  Android tip: re-select using Files/My Files and choose the original image file.
+                </p>
+              )}
               {isIosDevice && (
                 <p className="text-sm text-amber-700 dark:text-amber-300 mt-2">
-                  On iPhone, Photos picker can remove location metadata from HEIF/JPEG files. If location is missing, place the pin manually in the next step.
+                  iPhone tip: re-select from the Files app (Browse) and choose the original image file.
                 </p>
               )}
             </div>
@@ -1128,11 +1136,16 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
           <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mt-2">
-            {isDragging ? 'Drop image here' : 'Click or drag image to upload'}
+            {isDragging ? 'Drop original image file here' : 'Choose original image file'}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             JPEG, PNG, HEIC, WebP, max 20MB
           </p>
+          {(isAndroidDevice || isIosDevice) && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Use Files/My Files (not Gallery/Photos picker) to preserve GPS metadata
+            </p>
+          )}
         </div>
       )}
     </div>
