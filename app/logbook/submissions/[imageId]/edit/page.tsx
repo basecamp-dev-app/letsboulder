@@ -8,7 +8,7 @@ import RouteCanvas from '@/app/submit/components/RouteCanvas'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import { createClient } from '@/lib/supabase'
-import type { ImageSelection, RouteLine, RoutePoint } from '@/lib/submission-types'
+import type { ImageSelection, NewRouteData, RouteLine, RoutePoint } from '@/lib/submission-types'
 
 interface EditableRoute {
   id: string
@@ -71,33 +71,35 @@ export default function EditSubmittedRoutesPage() {
   const imageId = params.imageId as string
 
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [savingEdits, setSavingEdits] = useState(false)
+  const [savingNewRoutes, setSavingNewRoutes] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [imageSelection, setImageSelection] = useState<ImageSelection | null>(null)
   const [existingRouteLines, setExistingRouteLines] = useState<RouteLine[]>([])
   const [editedRoutes, setEditedRoutes] = useState<EditableRoute[]>([])
+  const [newRoutes, setNewRoutes] = useState<NewRouteData[]>([])
+  const [canvasKey, setCanvasKey] = useState(0)
 
-  useEffect(() => {
-    const load = async () => {
-      if (!imageId) return
+  const loadSubmission = useCallback(async () => {
+    if (!imageId) return
 
-      setLoading(true)
-      setError(null)
+    setLoading(true)
+    setError(null)
 
-      try {
-        const supabase = createClient()
-        const { data: authData } = await supabase.auth.getUser()
-        const user = authData.user
+    try {
+      const supabase = createClient()
+      const { data: authData } = await supabase.auth.getUser()
+      const user = authData.user
 
-        if (!user) {
-          router.push(`/auth?redirect_to=${encodeURIComponent(`/logbook/submissions/${imageId}/edit`)}`)
-          return
-        }
+      if (!user) {
+        router.push(`/auth?redirect_to=${encodeURIComponent(`/logbook/submissions/${imageId}/edit`)}`)
+        return
+      }
 
-        const { data, error: imageError } = await supabase
-          .from('images')
-          .select(`
+      const { data, error: imageError } = await supabase
+        .from('images')
+        .select(`
             id,
             url,
             created_by,
@@ -109,76 +111,74 @@ export default function EditSubmittedRoutesPage() {
               image_height,
               climbs (id, name, grade, status, description, user_id)
             )
-          `)
-          .eq('id', imageId)
-          .single()
+        `)
+        .eq('id', imageId)
+        .single()
 
-        if (imageError || !data) {
-          setError('Failed to load this submission')
-          return
-        }
-
-        if (data.created_by !== user.id) {
-          setError('You can only edit your own submitted routes')
-          return
-        }
-
-        const mappedRouteLines = ((data.route_lines as ImageRouteLineQuery[] | null) || [])
-          .map((line) => {
-            const climb = pickOne(line.climbs)
-            if (!climb || climb.user_id !== user.id) return null
-
-            const points = parsePoints(line.points)
-            if (points.length < 2) return null
-
-            return {
-              id: line.id,
-              image_id: data.id,
-              climb_id: climb.id,
-              points,
-              color: 'red',
-              sequence_order: line.sequence_order,
-              created_at: new Date().toISOString(),
-              climb: {
-                id: climb.id,
-                name: climb.name,
-                grade: climb.grade,
-                status: climb.status,
-                description: climb.description,
-              },
-            } as RouteLine
-          })
-          .filter((line): line is RouteLine => line !== null)
-
-        if (mappedRouteLines.length === 0) {
-          setError('No editable routes found for this submission')
-          return
-        }
-
-        setImageSelection({
-          mode: 'existing',
-          imageId: data.id,
-          imageUrl: resolveRouteImageUrl(data.url),
-        })
-        setExistingRouteLines(mappedRouteLines)
-      } catch {
+      if (imageError || !data) {
         setError('Failed to load this submission')
-      } finally {
-        setLoading(false)
+        return
       }
-    }
 
-    load()
+      if (data.created_by !== user.id) {
+        setError('You can only edit your own submitted routes')
+        return
+      }
+
+      const mappedRouteLines = ((data.route_lines as ImageRouteLineQuery[] | null) || [])
+        .map((line) => {
+          const climb = pickOne(line.climbs)
+          if (!climb || climb.user_id !== user.id) return null
+
+          const points = parsePoints(line.points)
+          if (points.length < 2) return null
+
+          return {
+            id: line.id,
+            image_id: data.id,
+            climb_id: climb.id,
+            points,
+            color: 'red',
+            sequence_order: line.sequence_order,
+            created_at: new Date().toISOString(),
+            climb: {
+              id: climb.id,
+              name: climb.name,
+              grade: climb.grade,
+              status: climb.status,
+              description: climb.description,
+            },
+          } as RouteLine
+        })
+        .filter((line): line is RouteLine => line !== null)
+
+      setImageSelection({
+        mode: 'existing',
+        imageId: data.id,
+        imageUrl: resolveRouteImageUrl(data.url),
+      })
+      setExistingRouteLines(mappedRouteLines)
+      setEditedRoutes([])
+      setNewRoutes([])
+    } catch {
+      setError('Failed to load this submission')
+    } finally {
+      setLoading(false)
+    }
   }, [imageId, router])
 
+  useEffect(() => {
+    loadSubmission()
+  }, [loadSubmission])
+
   const hasReadyData = useMemo(() => {
-    return !!imageSelection && existingRouteLines.length > 0
-  }, [imageSelection, existingRouteLines.length])
+    return !!imageSelection
+  }, [imageSelection])
 
-  const handleSave = useCallback(async () => {
-    if (saving || !imageId || editedRoutes.length === 0) return
+  const handleSaveEdits = useCallback(async () => {
+    if (savingEdits || !imageId || editedRoutes.length === 0) return
 
-    setSaving(true)
+    setSavingEdits(true)
     setError(null)
     setSuccess(null)
 
@@ -194,13 +194,42 @@ export default function EditSubmittedRoutesPage() {
         throw new Error(data?.error || 'Failed to save route edits')
       }
 
-      setSuccess('Saved. Route slug URLs stay unchanged.')
+      setSuccess('Saved route edits. Route slug URLs stay unchanged.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save route edits')
     } finally {
-      setSaving(false)
+      setSavingEdits(false)
     }
-  }, [saving, imageId, editedRoutes])
+  }, [savingEdits, imageId, editedRoutes])
+
+  const handleCreateRoutes = useCallback(async () => {
+    if (savingNewRoutes || !imageId || newRoutes.length === 0) return
+
+    setSavingNewRoutes(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await csrfFetch(`/api/submissions/${imageId}/routes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ routes: newRoutes }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data?.error || 'Failed to add new routes')
+      }
+
+      setSuccess(`Added ${newRoutes.length} new route${newRoutes.length === 1 ? '' : 's'}.`)
+      await loadSubmission()
+      setCanvasKey((value) => value + 1)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add new routes')
+    } finally {
+      setSavingNewRoutes(false)
+    }
+  }, [savingNewRoutes, imageId, newRoutes, loadSubmission])
 
   if (loading) {
     return (
@@ -238,13 +267,17 @@ export default function EditSubmittedRoutesPage() {
         {hasReadyData && imageSelection ? (
           <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
             <RouteCanvas
+              key={canvasKey}
               imageSelection={imageSelection}
-              onRoutesUpdate={() => {}}
+              onRoutesUpdate={setNewRoutes}
               existingRouteLines={existingRouteLines}
               mode="edit-existing"
+              allowCreateRoutesInEditMode
               onEditRoutesUpdate={setEditedRoutes}
-              onSaveEdits={handleSave}
-              savingEdits={saving}
+              onSaveEdits={handleSaveEdits}
+              savingEdits={savingEdits}
+              onSaveNewRoutes={handleCreateRoutes}
+              savingNewRoutes={savingNewRoutes}
             />
           </div>
         ) : null}

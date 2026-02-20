@@ -40,9 +40,12 @@ interface RouteCanvasProps {
   existingRouteLines?: RouteLine[]
   draftKey?: string
   mode?: 'submit' | 'edit-existing'
+  allowCreateRoutesInEditMode?: boolean
   onEditRoutesUpdate?: (routes: EditableExistingRoute[]) => void
   onSaveEdits?: () => void
   savingEdits?: boolean
+  onSaveNewRoutes?: () => void
+  savingNewRoutes?: boolean
 }
 
 interface RouteCanvasDraft {
@@ -124,11 +127,15 @@ export default function RouteCanvas({
   existingRouteLines,
   draftKey,
   mode = 'submit',
+  allowCreateRoutesInEditMode = false,
   onEditRoutesUpdate,
   onSaveEdits,
   savingEdits = false,
+  onSaveNewRoutes,
+  savingNewRoutes = false,
 }: RouteCanvasProps) {
   const isEditExistingMode = mode === 'edit-existing'
+  const canCreateRoutesInEditMode = isEditExistingMode && allowCreateRoutesInEditMode
   const initialDraft = readDraftState(draftKey)
   const gradeSystem = useGradeSystem()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -251,7 +258,7 @@ export default function RouteCanvas({
   const selectedExistingRoute = selectedIds.length === 1
     ? existingRoutes.find(route => route.id === selectedIds[0]) ?? null
     : null
-  const editableRoute = isEditExistingMode ? selectedExistingRoute : selectedNewRoute
+  const editableRoute = isEditExistingMode ? (selectedExistingRoute || selectedNewRoute) : selectedNewRoute
 
   const updateSelectedNewRoute = useCallback((updates: Partial<ExistingRoute>) => {
     if (!selectedNewRoute) return
@@ -336,7 +343,7 @@ export default function RouteCanvas({
 
       clearSelection()
 
-      if (isEditExistingMode) {
+      if (isEditExistingMode && !canCreateRoutesInEditMode) {
         return
       }
 
@@ -346,7 +353,7 @@ export default function RouteCanvas({
         setCurrentPoints(prev => [...prev, pos])
       }
     }
-  }, [getMousePos, getDragHandleIndex, isEditExistingMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
+  }, [getMousePos, getDragHandleIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     const pos = getTouchPos(e)
@@ -382,7 +389,7 @@ export default function RouteCanvas({
 
     clearSelection()
 
-    if (isEditExistingMode) {
+    if (isEditExistingMode && !canCreateRoutesInEditMode) {
       return
     }
 
@@ -391,7 +398,7 @@ export default function RouteCanvas({
     } else {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
     }
-  }, [zoom, draggingPointIndex, isEditExistingMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
+  }, [zoom, draggingPointIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (draggingPointIndex === null || !editableRoute) return
@@ -402,14 +409,14 @@ export default function RouteCanvas({
         return pos
       })
 
-    if (isEditExistingMode) {
+    if (isEditExistingMode && selectedExistingRoute) {
       updateSelectedExistingRoute({ points: nextPoints })
     } else {
       updateSelectedNewRoute({ points: nextPoints })
     }
 
     e.preventDefault()
-  }, [draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, updateSelectedExistingRoute, updateSelectedNewRoute])
+  }, [draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggingPointIndex !== null && editableRoute) {
@@ -419,7 +426,7 @@ export default function RouteCanvas({
           return pos
         })
 
-      if (isEditExistingMode) {
+      if (isEditExistingMode && selectedExistingRoute) {
         updateSelectedExistingRoute({ points: nextPoints })
       } else {
         updateSelectedNewRoute({ points: nextPoints })
@@ -435,7 +442,7 @@ export default function RouteCanvas({
       return
     }
 
-    if (!isEditExistingMode && e.buttons === 1 && !e.altKey && currentPoints.length > 0) {
+    if ((!isEditExistingMode || canCreateRoutesInEditMode) && e.buttons === 1 && !e.altKey && currentPoints.length > 0) {
       const pos = getMousePos(e)
       const lastPoint = currentPoints[currentPoints.length - 1]
       const distance = Math.sqrt(
@@ -446,7 +453,7 @@ export default function RouteCanvas({
         setCurrentPoints(prev => [...prev, pos])
       }
     }
-  }, [draggingPointIndex, editableRoute, isEditExistingMode, updateSelectedExistingRoute, updateSelectedNewRoute, isPanning, lastPanPoint, getMousePos, currentPoints])
+  }, [draggingPointIndex, editableRoute, isEditExistingMode, canCreateRoutesInEditMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, isPanning, lastPanPoint, getMousePos, currentPoints])
 
   const handleMouseUp = useCallback(() => {
     setDraggingPointIndex(null)
@@ -702,7 +709,8 @@ export default function RouteCanvas({
   const activeGrade = editableRoute ? editableRoute.grade : currentGrade
   const activeDescription = editableRoute ? (editableRoute.description || '') : currentDescription
   const isEditingExistingRoute = !isEditExistingMode && Boolean(selectedExistingRoute)
-  const disableEditInputs = isEditExistingMode ? !selectedExistingRoute : isEditingExistingRoute
+  const disableEditInputs = isEditExistingMode ? (!canCreateRoutesInEditMode && !selectedExistingRoute) : isEditingExistingRoute
+  const disableGradePicker = disableEditInputs || (isEditExistingMode && Boolean(selectedExistingRoute))
   const routeCount = completedRoutes.length
   const nextRouteNumber = routeCount + 1
 
@@ -711,7 +719,9 @@ export default function RouteCanvas({
       <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
         <p className="text-xs font-medium text-gray-800 dark:text-gray-100">
           {isEditExistingMode
-            ? 'Select a route, then adjust its line, name, and description.'
+            ? (canCreateRoutesInEditMode
+              ? 'Select an existing route to edit, or draw and save a new route as a new climb.'
+              : 'Select a route, then adjust its line, name, and description.')
             : `Draw route ${nextRouteNumber}, press Save Route, then tap the image to draw route ${nextRouteNumber + 1}.`}
         </p>
         <p className="text-xs text-gray-600 dark:text-gray-300">
@@ -808,7 +818,7 @@ export default function RouteCanvas({
 
           {isEditExistingMode && (
             <p className="mb-2 text-xs text-blue-700 dark:text-blue-300">
-              Grade stays community-controlled after submission and cannot be edited here.
+              Existing route grades stay community-controlled after submission.
             </p>
           )}
 
@@ -832,13 +842,13 @@ export default function RouteCanvas({
 
           <div className="relative mb-2">
             <button
-              onClick={() => !disableEditInputs && !isEditExistingMode && setGradePickerOpen(true)}
-              disabled={disableEditInputs || isEditExistingMode}
+              onClick={() => !disableGradePicker && setGradePickerOpen(true)}
+              disabled={disableGradePicker}
               className="w-full px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-60"
             >
               {formatGradeForDisplay(activeGrade, gradeSystem)}
             </button>
-            {gradePickerOpen && !isEditingExistingRoute && (
+            {gradePickerOpen && !isEditingExistingRoute && !selectedExistingRoute && (
               <GradePicker
                 isOpen={gradePickerOpen}
                 currentGrade={activeGrade}
@@ -874,7 +884,7 @@ export default function RouteCanvas({
             className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none mb-2 disabled:opacity-60"
           />
 
-          {!isEditExistingMode && selectedIds.length > 0 && (
+          {selectedNewRoute && (
             <button
               onClick={handleDeleteSelected}
               className="w-full mb-2 px-3 py-2 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
@@ -883,7 +893,7 @@ export default function RouteCanvas({
             </button>
           )}
 
-          {!isEditExistingMode && currentPoints.length >= 2 && (
+          {(currentPoints.length >= 2 && (!isEditExistingMode || canCreateRoutesInEditMode)) && (
             <div className="flex gap-2 mb-2">
               <button
                 onClick={() => setCurrentPoints([])}
@@ -906,6 +916,16 @@ export default function RouteCanvas({
               className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               Submit Routes
+            </button>
+          )}
+
+          {isEditExistingMode && canCreateRoutesInEditMode && currentPoints.length < 2 && completedRoutes.length > 0 && (
+            <button
+              onClick={onSaveNewRoutes}
+              disabled={!onSaveNewRoutes || savingNewRoutes}
+              className="w-full mb-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-60"
+            >
+              {savingNewRoutes ? 'Adding...' : `Add ${completedRoutes.length} New Route${completedRoutes.length === 1 ? '' : 's'}`}
             </button>
           )}
 
