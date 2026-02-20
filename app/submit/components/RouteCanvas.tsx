@@ -12,7 +12,6 @@ import {
 import GradePicker from '@/components/GradePicker'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { ImageSelection, NewRouteData, RouteLine } from '@/lib/submission-types'
-import { csrfFetch } from '@/hooks/useCsrf'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { draftStorageGetItem, draftStorageRemoveItem, draftStorageSetItem } from '@/lib/submit-draft-storage'
@@ -43,7 +42,6 @@ interface RouteCanvasDraft {
   currentName: string
   currentGrade: string
   currentDescription: string
-  showDescriptionField: boolean
 }
 
 function readDraftState(draftKey?: string): RouteCanvasDraft | null {
@@ -68,7 +66,6 @@ function readDraftState(draftKey?: string): RouteCanvasDraft | null {
       currentName: typeof parsed.currentName === 'string' ? parsed.currentName : '',
       currentGrade: typeof parsed.currentGrade === 'string' ? parsed.currentGrade : '6A',
       currentDescription: typeof parsed.currentDescription === 'string' ? parsed.currentDescription : '',
-      showDescriptionField: typeof parsed.showDescriptionField === 'boolean' ? parsed.showDescriptionField : false,
     }
   } catch {
     return null
@@ -85,7 +82,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
   const imageUrl = imageSelection.mode === 'existing' ? imageSelection.imageUrl : imageSelection.uploadedUrl
 
   const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [zoom, setZoom] = useState(1)
+  const [zoom] = useState(1)
   const [isPanning, setIsPanning] = useState(false)
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 })
   const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>(() => initialDraft?.currentPoints ?? [])
@@ -93,7 +90,6 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
   const [currentGrade, setCurrentGrade] = useState(() => initialDraft?.currentGrade ?? '6A')
   const [currentDescription, setCurrentDescription] = useState(() => initialDraft?.currentDescription ?? '')
   const [gradePickerOpen, setGradePickerOpen] = useState(false)
-  const [showDescriptionField, setShowDescriptionField] = useState(() => initialDraft?.showDescriptionField ?? false)
   const [completedRoutes, setCompletedRoutes] = useState<ExistingRoute[]>(() => initialDraft?.completedRoutes ?? [])
   const [existingRoutes] = useState<ExistingRoute[]>(() => {
     if (existingRouteLines && existingRouteLines.length > 0) {
@@ -114,12 +110,8 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     naturalWidth: number
     naturalHeight: number
   } | null>(null)
-  const [routeGradeInfo, setRouteGradeInfo] = useState<{
-    consensusGrade: string | null
-    voteCount: number
-    userVote: string | null
-  }>({ consensusGrade: null, voteCount: 0, userVote: null })
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
+  const [draggingPointIndex, setDraggingPointIndex] = useState<number | null>(null)
   const draftWriteTimeoutRef = useRef<number | null>(null)
 
   const persistDraft = useCallback(() => {
@@ -145,11 +137,10 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
       currentName,
       currentGrade,
       currentDescription,
-      showDescriptionField,
     }
 
     draftStorageSetItem(draftKey, JSON.stringify(draft))
-  }, [draftKey, completedRoutes, currentPoints, currentName, currentGrade, currentDescription, showDescriptionField])
+  }, [draftKey, completedRoutes, currentPoints, currentName, currentGrade, currentDescription])
 
   useEffect(() => {
     if (!draftKey) return
@@ -195,45 +186,50 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     id: 'route-submit-confirm',
   })
 
-  const { selectRoute, deselectRoute, clearSelection, selectedIds } = useRouteSelection()
+  const { selectRoute, clearSelection, selectedIds } = useRouteSelection()
 
-  const fetchRouteGradeInfo = useCallback(async (routeId: string) => {
-    try {
-      const response = await fetch(`/api/routes/${routeId}/grades`)
-      if (response.ok) {
-        const data = await response.json()
-        setRouteGradeInfo({
-          consensusGrade: data.consensusGrade,
-          voteCount: data.voteCount,
-          userVote: data.userVote
-        })
-      }
-    } catch (err) {
-      console.error('Error fetching route grade info:', err)
+  const selectedNewRoute = selectedIds.length === 1
+    ? completedRoutes.find(route => route.id === selectedIds[0]) ?? null
+    : null
+  const selectedExistingRoute = selectedIds.length === 1
+    ? existingRoutes.find(route => route.id === selectedIds[0]) ?? null
+    : null
+
+  const updateSelectedNewRoute = useCallback((updates: Partial<ExistingRoute>) => {
+    if (!selectedNewRoute) return
+
+    setCompletedRoutes(prev => prev.map(route => {
+      if (route.id !== selectedNewRoute.id) return route
+      return { ...route, ...updates }
+    }))
+  }, [selectedNewRoute])
+
+  const getTouchPos = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas || e.touches.length === 0) return { x: 0, y: 0 }
+
+    const touch = e.touches[0]
+    const rect = canvas.getBoundingClientRect()
+
+    return {
+      x: (touch.clientX - rect.left) * zoom,
+      y: (touch.clientY - rect.top) * zoom,
     }
-  }, [])
+  }, [zoom])
 
-  const handleGradeVote = useCallback(async (grade: string) => {
-    const selectedRoute = completedRoutes.find(r => selectedIds.includes(r.id))
-    if (!selectedRoute) return
+  const getDragHandleIndex = useCallback((point: RoutePoint, threshold: number = 14) => {
+    if (!selectedNewRoute) return null
 
-    try {
-      const response = await csrfFetch(`/api/routes/${selectedRoute.id}/grades`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grade })
-      })
-
-      if (response.ok) {
-        fetchRouteGradeInfo(selectedRoute.id)
-      } else {
-        const error = await response.json()
-        alert(error.error || 'Failed to submit grade')
+    for (let i = 0; i < selectedNewRoute.points.length; i++) {
+      const handle = selectedNewRoute.points[i]
+      const distance = Math.hypot(point.x - handle.x, point.y - handle.y)
+      if (distance <= threshold) {
+        return i
       }
-    } catch (err) {
-      alert('Failed to submit grade')
     }
-  }, [completedRoutes, selectedIds, fetchRouteGradeInfo])
+
+    return null
+  }, [selectedNewRoute])
 
   const getMousePos = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -256,27 +252,22 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     if (e.button === 0 && !e.altKey) {
       const pos = getMousePos(e)
 
+      const dragHandleIndex = getDragHandleIndex(pos)
+      if (dragHandleIndex !== null) {
+        setDraggingPointIndex(dragHandleIndex)
+        return
+      }
+
       const allRoutes = [...existingRoutes, ...completedRoutes]
       const clickedRoute = findRouteAtPoint(allRoutes, pos, 20)
 
       if (clickedRoute) {
         const routeId = clickedRoute.id
-        if (selectedIds.includes(routeId)) {
-          deselectRoute(routeId)
-        } else {
-          selectRoute(routeId)
-        }
-        if (routeId.startsWith('existing-')) {
-          const actualRouteId = routeId.replace('existing-', '')
-          fetchRouteGradeInfo(actualRouteId)
-        } else {
-          fetchRouteGradeInfo(routeId)
-        }
+        selectRoute(routeId)
         return
       }
 
       clearSelection()
-      setRouteGradeInfo({ consensusGrade: null, voteCount: 0, userVote: null })
 
       if (currentPoints.length === 0) {
         setCurrentPoints([pos])
@@ -284,9 +275,23 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         setCurrentPoints(prev => [...prev, pos])
       }
     }
-  }, [getMousePos, currentPoints, existingRoutes, completedRoutes, selectedIds, selectRoute, deselectRoute, clearSelection, fetchRouteGradeInfo])
+  }, [getMousePos, getDragHandleIndex, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
+
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    const pos = getTouchPos(e)
+    const dragHandleIndex = getDragHandleIndex(pos)
+    if (dragHandleIndex !== null) {
+      setDraggingPointIndex(dragHandleIndex)
+      e.preventDefault()
+    }
+  }, [getDragHandleIndex, getTouchPos])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (draggingPointIndex !== null) {
+      setDraggingPointIndex(null)
+      return
+    }
+
     const touch = e.changedTouches[0]
     const canvas = canvasRef.current
     if (!canvas) return
@@ -300,31 +305,45 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
 
     if (clickedRoute) {
       const routeId = clickedRoute.id
-      if (selectedIds.includes(routeId)) {
-        deselectRoute(routeId)
-      } else {
-        selectRoute(routeId)
-      }
-      if (routeId.startsWith('existing-')) {
-        const actualRouteId = routeId.replace('existing-', '')
-        fetchRouteGradeInfo(actualRouteId)
-      } else {
-        fetchRouteGradeInfo(routeId)
-      }
+      selectRoute(routeId)
       return
     }
 
     clearSelection()
-    setRouteGradeInfo({ consensusGrade: null, voteCount: 0, userVote: null })
 
     if (currentPoints.length === 0) {
       setCurrentPoints([{ x: canvasX, y: canvasY }])
     } else {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
     }
-  }, [zoom, currentPoints, existingRoutes, completedRoutes, selectedIds, selectRoute, deselectRoute, clearSelection, fetchRouteGradeInfo])
+  }, [zoom, draggingPointIndex, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (draggingPointIndex === null || !selectedNewRoute) return
+
+    const pos = getTouchPos(e)
+    updateSelectedNewRoute({
+      points: selectedNewRoute.points.map((point, index) => {
+        if (index !== draggingPointIndex) return point
+        return pos
+      })
+    })
+
+    e.preventDefault()
+  }, [draggingPointIndex, selectedNewRoute, getTouchPos, updateSelectedNewRoute])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (draggingPointIndex !== null && selectedNewRoute) {
+      const pos = getMousePos(e)
+      updateSelectedNewRoute({
+        points: selectedNewRoute.points.map((point, index) => {
+          if (index !== draggingPointIndex) return point
+          return pos
+        })
+      })
+      return
+    }
+
     if (isPanning) {
       const dx = e.clientX - lastPanPoint.x
       const dy = e.clientY - lastPanPoint.y
@@ -344,9 +363,10 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
         setCurrentPoints(prev => [...prev, pos])
       }
     }
-  }, [isPanning, lastPanPoint, getMousePos, currentPoints])
+  }, [draggingPointIndex, selectedNewRoute, updateSelectedNewRoute, isPanning, lastPanPoint, getMousePos, currentPoints])
 
   const handleMouseUp = useCallback(() => {
+    setDraggingPointIndex(null)
     setIsPanning(false)
   }, [])
 
@@ -368,7 +388,6 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     setCurrentName('')
     setCurrentGrade('6A')
     setCurrentDescription('')
-    setShowDescriptionField(false)
     selectRoute(routeId)
   }, [currentPoints, currentName, currentGrade, currentDescription, completedRoutes, selectRoute])
 
@@ -420,6 +439,18 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
       }
 
       drawSmoothCurve(ctx, route.points, '#dc2626', isSelected ? 4 : 3, [8, 4])
+
+      if (isSelected) {
+        route.points.forEach((point, index) => {
+          ctx.beginPath()
+          ctx.arc(point.x, point.y, index === 0 ? 6 : 5, 0, 2 * Math.PI)
+          ctx.fillStyle = '#ffffff'
+          ctx.fill()
+          ctx.lineWidth = 2
+          ctx.strokeStyle = '#dc2626'
+          ctx.stroke()
+        })
+      }
 
       if (route.points.length > 1) {
         const bgColor = 'rgba(220, 38, 38, 0.95)'
@@ -529,7 +560,7 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     canvas.width = rect.width
     canvas.height = rect.height
     redraw()
-  }, [zoom, redraw])
+  }, [redraw])
 
   useEffect(() => {
     setupCanvas()
@@ -540,182 +571,191 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     return () => window.removeEventListener('resize', setupCanvas)
   }, [setupCanvas])
 
-  const selectedNewRoutes = completedRoutes.filter(route => selectedIds.includes(route.id))
-  const selectedNewRoute = selectedNewRoutes.length === 1 ? selectedNewRoutes[0] : null
+  const activeName = selectedNewRoute ? selectedNewRoute.name : currentName
+  const activeGrade = selectedNewRoute ? selectedNewRoute.grade : currentGrade
+  const activeDescription = selectedNewRoute ? (selectedNewRoute.description || '') : currentDescription
+  const isEditingExistingRoute = Boolean(selectedExistingRoute)
+  const routeCount = completedRoutes.length
+  const nextRouteNumber = routeCount + 1
 
   return (
-    <div className="relative w-full h-full bg-gray-100 dark:bg-gray-900 overflow-hidden" ref={containerRef}>
-      <img
-        ref={imageRef}
-        src={imageUrl}
-        alt="Route"
-        className={`absolute inset-0 w-full h-full object-contain ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-        onLoad={() => {
-          const img = imageRef.current
-          if (img) {
-            const rect = img.getBoundingClientRect()
-            setImageDimensions({
-              width: rect.width,
-              height: rect.height,
-              naturalWidth: img.naturalWidth,
-              naturalHeight: img.naturalHeight
-            })
-          }
-          setImageLoaded(true)
-        }}
-        onError={() => setImageError(true)}
-        draggable={false}
-      />
-
-      {imageError && (
-        <div className="absolute inset-0 flex items-center justify-center text-red-500">
-          Failed to load image
-        </div>
-      )}
-
-      {!imageLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
-        </div>
-      )}
-
-      <canvas
-        ref={canvasRef}
-        className="absolute cursor-crosshair select-none"
-        style={{
-          left: 0,
-          top: 0,
-          width: '100%',
-          height: '100%',
-          touchAction: currentPoints.length > 0 ? 'none' : 'pan-y',
-          WebkitTapHighlightColor: 'transparent'
-        }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchEnd={handleTouchEnd}
-      />
-
-      {currentPoints.length >= 2 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-          <button
-            onClick={() => setCurrentPoints([])}
-            className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleCompleteRoute}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Complete Route
-          </button>
-        </div>
-      )}
-
-      {currentPoints.length < 2 && completedRoutes.length > 0 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-          <button
-            onClick={() => setShowSubmitConfirm(true)}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Submit Routes
-          </button>
-        </div>
-      )}
-
-      <div className="absolute top-4 right-4 flex flex-col gap-2">
-        <div className="bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg">
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-            Routes: {completedRoutes.length}
-            {existingRoutes.length > 0 && ` (${existingRoutes.length} existing)`}
+    <div className="h-full w-full flex flex-col gap-2">
+      <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
+        <p className="text-xs font-medium text-gray-800 dark:text-gray-100">
+          Draw route {nextRouteNumber}, press Save Route, then tap the image to draw route {nextRouteNumber + 1}.
+        </p>
+        <p className="text-xs text-gray-600 dark:text-gray-300">
+          Routes added: {routeCount}
+          {existingRoutes.length > 0 && ` • Existing on image: ${existingRoutes.length}`}
+        </p>
+        {completedRoutes.length > 0 && currentPoints.length < 2 && (
+          <p className="text-xs text-blue-700 dark:text-blue-300">
+            Route saved. Tap the image to add another route, or select one to edit its line and details.
           </p>
+        )}
+      </div>
+
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-2">
+        <div className="relative flex-1 bg-gray-100 dark:bg-gray-900 overflow-hidden rounded-lg" ref={containerRef}>
+          <img
+            ref={imageRef}
+            src={imageUrl}
+            alt="Route"
+            className={`absolute inset-0 w-full h-full object-contain ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => {
+              const img = imageRef.current
+              if (img) {
+                const rect = img.getBoundingClientRect()
+                setImageDimensions({
+                  width: rect.width,
+                  height: rect.height,
+                  naturalWidth: img.naturalWidth,
+                  naturalHeight: img.naturalHeight
+                })
+              }
+              setImageLoaded(true)
+            }}
+            onError={() => setImageError(true)}
+            draggable={false}
+          />
+
+          {imageError && (
+            <div className="absolute inset-0 flex items-center justify-center text-red-500">
+              Failed to load image
+            </div>
+          )}
+
+          {!imageLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+            </div>
+          )}
+
+          <canvas
+            ref={canvasRef}
+            className="absolute cursor-crosshair select-none"
+            style={{
+              left: 0,
+              top: 0,
+              width: '100%',
+              height: '100%',
+              touchAction: currentPoints.length > 0 || draggingPointIndex !== null ? 'none' : 'pan-y',
+              WebkitTapHighlightColor: 'transparent'
+            }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          />
+        </div>
+
+        <div className="w-full md:w-72 shrink-0 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800 overflow-y-auto">
+          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+            {selectedNewRoute ? 'Edit Selected Route' : 'Route Details'}
+          </p>
+
+          {isEditingExistingRoute && (
+            <p className="mb-2 text-xs text-amber-700 dark:text-amber-300">
+              Existing routes are read-only. Select a new route you drew to edit name, grade, description, and points.
+            </p>
+          )}
+
+          <input
+            type="text"
+            value={activeName}
+            onChange={(e) => {
+              const value = e.target.value
+              if (selectedNewRoute) {
+                updateSelectedNewRoute({ name: value })
+              } else {
+                setCurrentName(value)
+              }
+            }}
+            placeholder="Route name"
+            disabled={isEditingExistingRoute}
+            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-2 disabled:opacity-60"
+          />
+
+          <div className="relative mb-2">
+            <button
+              onClick={() => !isEditingExistingRoute && setGradePickerOpen(true)}
+              disabled={isEditingExistingRoute}
+              className="w-full px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-60"
+            >
+              {formatGradeForDisplay(activeGrade, gradeSystem)}
+            </button>
+            {gradePickerOpen && !isEditingExistingRoute && (
+              <GradePicker
+                isOpen={gradePickerOpen}
+                currentGrade={activeGrade}
+                onSelect={(grade) => {
+                  if (selectedNewRoute) {
+                    updateSelectedNewRoute({ grade })
+                  } else {
+                    setCurrentGrade(grade)
+                  }
+                  setGradePickerOpen(false)
+                }}
+                onClose={() => setGradePickerOpen(false)}
+              />
+            )}
+          </div>
+
+          <textarea
+            value={activeDescription}
+            onChange={(e) => {
+              const value = e.target.value
+              if (selectedNewRoute) {
+                updateSelectedNewRoute({ description: value.length > 0 ? value : undefined })
+              } else {
+                setCurrentDescription(value)
+              }
+            }}
+            placeholder="Optional beta / gear / crux notes"
+            maxLength={500}
+            rows={4}
+            disabled={isEditingExistingRoute}
+            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none mb-2 disabled:opacity-60"
+          />
+
           {selectedIds.length > 0 && (
             <button
               onClick={handleDeleteSelected}
-              className="p-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900/50"
+              className="w-full mb-2 px-3 py-2 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+              Delete Selected Route
+            </button>
+          )}
+
+          {currentPoints.length >= 2 && (
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={() => setCurrentPoints([])}
+                className="flex-1 px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCompleteRoute}
+                className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Save Route
+              </button>
+            </div>
+          )}
+
+          {currentPoints.length < 2 && completedRoutes.length > 0 && (
+            <button
+              onClick={() => setShowSubmitConfirm(true)}
+              className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Submit Routes
             </button>
           )}
         </div>
-      </div>
-
-      <div className="absolute top-20 right-4 bg-white/90 dark:bg-gray-800/90 rounded-lg p-2 shadow-lg w-56">
-        <input
-          type="text"
-          value={currentName}
-          onChange={(e) => setCurrentName(e.target.value)}
-          placeholder="Route name"
-          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-1"
-        />
-        <div className="relative">
-          <button
-            onClick={() => setGradePickerOpen(true)}
-            className="w-full px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-          >
-            {formatGradeForDisplay(currentGrade, gradeSystem)}
-          </button>
-          {gradePickerOpen && (
-            <GradePicker
-              isOpen={gradePickerOpen}
-              currentGrade={currentGrade}
-              onSelect={(grade) => {
-                setCurrentGrade(grade)
-                setGradePickerOpen(false)
-              }}
-              onClose={() => setGradePickerOpen(false)}
-            />
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowDescriptionField(prev => !prev)}
-          className="mt-1 w-full px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700/80 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-        >
-          {showDescriptionField ? 'Hide description' : 'Add description (optional)'}
-        </button>
-
-        {showDescriptionField && (
-          <textarea
-            value={currentDescription}
-            onChange={(e) => setCurrentDescription(e.target.value)}
-            placeholder="Optional beta / gear / crux notes"
-            maxLength={500}
-            rows={3}
-            className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
-          />
-        )}
-
-        {selectedNewRoute && (
-          <div className="mt-2 border-t border-gray-200 dark:border-gray-600 pt-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Selected route description</p>
-            <textarea
-              value={selectedNewRoute.description || ''}
-              onChange={(e) => {
-                const value = e.target.value
-                setCompletedRoutes(prev => prev.map(route => route.id === selectedNewRoute.id ? { ...route, description: value || undefined } : route))
-              }}
-              placeholder="Optional beta / gear / crux notes"
-              maxLength={500}
-              rows={3}
-              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none"
-            />
-          </div>
-        )}
-
-        {selectedIds.length > 0 && completedRoutes.some(r => selectedIds.includes(r.id)) && (
-          <button
-            onClick={() => setGradePickerOpen(true)}
-            className="w-full mt-1 px-2 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-          >
-            Log Grade
-          </button>
-        )}
       </div>
 
       {showSubmitConfirm && (
