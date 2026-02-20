@@ -28,9 +28,41 @@ interface RouteCanvasProps {
   imageSelection: ImageSelection
   onRoutesUpdate: (routes: NewRouteData[]) => void
   existingRouteLines?: RouteLine[]
+  draftKey?: string
 }
 
-export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRouteLines }: RouteCanvasProps) {
+interface RouteCanvasDraft {
+  completedRoutes: ExistingRoute[]
+  currentPoints: RoutePoint[]
+  currentName: string
+  currentGrade: string
+  currentDescription: string
+  showDescriptionField: boolean
+}
+
+function readDraftState(draftKey?: string): RouteCanvasDraft | null {
+  if (!draftKey) return null
+
+  try {
+    const rawDraft = sessionStorage.getItem(draftKey)
+    if (!rawDraft) return null
+
+    const parsed = JSON.parse(rawDraft) as Partial<RouteCanvasDraft>
+    return {
+      completedRoutes: Array.isArray(parsed.completedRoutes) ? parsed.completedRoutes : [],
+      currentPoints: Array.isArray(parsed.currentPoints) ? parsed.currentPoints : [],
+      currentName: typeof parsed.currentName === 'string' ? parsed.currentName : '',
+      currentGrade: typeof parsed.currentGrade === 'string' ? parsed.currentGrade : '6A',
+      currentDescription: typeof parsed.currentDescription === 'string' ? parsed.currentDescription : '',
+      showDescriptionField: typeof parsed.showDescriptionField === 'boolean' ? parsed.showDescriptionField : false,
+    }
+  } catch {
+    return null
+  }
+}
+
+export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRouteLines, draftKey }: RouteCanvasProps) {
+  const initialDraft = readDraftState(draftKey)
   const gradeSystem = useGradeSystem()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
@@ -42,13 +74,13 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
   const [zoom, setZoom] = useState(1)
   const [isPanning, setIsPanning] = useState(false)
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 })
-  const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>([])
-  const [currentName, setCurrentName] = useState('')
-  const [currentGrade, setCurrentGrade] = useState('6A')
-  const [currentDescription, setCurrentDescription] = useState('')
+  const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>(() => initialDraft?.currentPoints ?? [])
+  const [currentName, setCurrentName] = useState(() => initialDraft?.currentName ?? '')
+  const [currentGrade, setCurrentGrade] = useState(() => initialDraft?.currentGrade ?? '6A')
+  const [currentDescription, setCurrentDescription] = useState(() => initialDraft?.currentDescription ?? '')
   const [gradePickerOpen, setGradePickerOpen] = useState(false)
-  const [showDescriptionField, setShowDescriptionField] = useState(false)
-  const [completedRoutes, setCompletedRoutes] = useState<ExistingRoute[]>([])
+  const [showDescriptionField, setShowDescriptionField] = useState(() => initialDraft?.showDescriptionField ?? false)
+  const [completedRoutes, setCompletedRoutes] = useState<ExistingRoute[]>(() => initialDraft?.completedRoutes ?? [])
   const [existingRoutes] = useState<ExistingRoute[]>(() => {
     if (existingRouteLines && existingRouteLines.length > 0) {
       return existingRouteLines.map((rl, index) => ({
@@ -74,6 +106,27 @@ export default function RouteCanvas({ imageSelection, onRoutesUpdate, existingRo
     userVote: string | null
   }>({ consensusGrade: null, voteCount: 0, userVote: null })
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
+
+  useEffect(() => {
+    if (!draftKey) return
+
+    const hasDraftContent = completedRoutes.length > 0 || currentPoints.length > 0 || currentName.trim().length > 0 || currentDescription.trim().length > 0
+    if (!hasDraftContent) {
+      sessionStorage.removeItem(draftKey)
+      return
+    }
+
+    const draft: RouteCanvasDraft = {
+      completedRoutes,
+      currentPoints,
+      currentName,
+      currentGrade,
+      currentDescription,
+      showDescriptionField,
+    }
+
+    sessionStorage.setItem(draftKey, JSON.stringify(draft))
+  }, [draftKey, completedRoutes, currentPoints, currentName, currentGrade, currentDescription, showDescriptionField])
 
   useOverlayHistory({
     open: showSubmitConfirm,

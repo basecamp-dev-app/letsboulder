@@ -12,6 +12,18 @@ import { useSubmitContext } from '@/lib/submit-context'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 
 const dynamic = nextDynamic
+const ROUTE_DRAFT_PREFIX = 'submit-route-draft:'
+
+function getRouteDraftKey(context: SubmissionContext): string | null {
+  if (!context.image || !context.crag?.id) return null
+
+  if (context.image.mode === 'new') {
+    if (!context.image.uploadedBucket || !context.image.uploadedPath) return null
+    return `${ROUTE_DRAFT_PREFIX}new:${context.image.uploadedBucket}:${context.image.uploadedPath}:${context.crag.id}`
+  }
+
+  return `${ROUTE_DRAFT_PREFIX}existing:${context.image.imageId}:${context.crag.id}`
+}
 
 const CragSelector = dynamic(() => import('./components/CragSelector'), { ssr: false })
 const ImagePicker = dynamic(() => import('./components/ImagePicker'), { ssr: false })
@@ -33,6 +45,7 @@ function SubmitPageContent() {
     routeType: null
   })
   const [error, setError] = useState<string | null>(null)
+  const routeDraftKey = getRouteDraftKey(context)
   const router = useRouter()
   const moderationRealtimeRef = useRef<{
     client: ReturnType<typeof createClient> | null
@@ -339,6 +352,10 @@ function SubmitPageContent() {
 
       const data = await response.json()
 
+      if (routeDraftKey) {
+        sessionStorage.removeItem(routeDraftKey)
+      }
+
       setStep({
         step: 'success',
         climbsCreated: data.climbsCreated,
@@ -356,6 +373,9 @@ function SubmitPageContent() {
   }
 
   const handleStartOver = () => {
+    if (routeDraftKey) {
+      sessionStorage.removeItem(routeDraftKey)
+    }
     setContext({ crag: null, image: null, imageGps: null, faceDirections: [], routes: [], routeType: null })
     setSelectedRouteType(null)
     setStep({ step: 'image' })
@@ -452,8 +472,10 @@ function SubmitPageContent() {
             </div>
             <div className="flex-1 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
               <RouteCanvas
+                key={routeDraftKey || 'route-canvas'}
                 imageSelection={step.image}
                 onRoutesUpdate={handleRoutesUpdate}
+                draftKey={routeDraftKey || undefined}
               />
             </div>
             </div>
