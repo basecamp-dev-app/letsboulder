@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import NextImage from 'next/image'
 import type { NewImageSelection, GpsData } from '@/lib/submission-types'
 import { blobToDataURL, isHeicFile } from '@/lib/image-utils'
@@ -24,7 +24,10 @@ const MAX_GPS_SEARCH_DEPTH = 5
 const MAX_GPS_VISITED_OBJECTS = 500
 const ENABLE_GPS_DEBUG = process.env.NODE_ENV === 'development'
 
-function gpsDebug(step: string, payload: unknown) {
+type GpsDebugCallback = (step: string, payload: unknown) => void
+
+function gpsDebug(step: string, payload: unknown, onDebug?: GpsDebugCallback) {
+  onDebug?.(step, payload)
   if (!ENABLE_GPS_DEBUG) return
   console.log('[gps-extract]', step, payload)
 }
@@ -329,20 +332,20 @@ function toGpsData(value: unknown): GpsData | null {
   return findCoordinatesDeep(data)
 }
 
-async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string): Promise<GpsData | null> {
+async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string, onDebug?: GpsDebugCallback): Promise<GpsData | null> {
   const exifr = (await import('exifr')).default
-  gpsDebug('start', { file: debugLabel || 'unknown', bytes: buffer.byteLength })
+  gpsDebug('start', { file: debugLabel || 'unknown', bytes: buffer.byteLength }, onDebug)
 
   try {
     const gpsData = await exifr.gps(buffer)
-    gpsDebug('exifr.gps raw', summarizeMetadata(gpsData))
+    gpsDebug('exifr.gps raw', summarizeMetadata(gpsData), onDebug)
     const parsedGps = toGpsData(gpsData)
-    gpsDebug('exifr.gps parsed', parsedGps)
+    gpsDebug('exifr.gps parsed', parsedGps, onDebug)
     if (parsedGps) {
       return parsedGps
     }
   } catch {
-    gpsDebug('exifr.gps error', { file: debugLabel || 'unknown' })
+    gpsDebug('exifr.gps error', { file: debugLabel || 'unknown' }, onDebug)
     // Ignore and try parse fallback below
   }
 
@@ -360,42 +363,42 @@ async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string): P
       'xmp:GPSLatitude',
       'xmp:GPSLongitude',
     ])
-    gpsDebug('explicit tags raw', summarizeMetadata(explicitTagData))
+    gpsDebug('explicit tags raw', summarizeMetadata(explicitTagData), onDebug)
     const parsedGps = toGpsData(explicitTagData)
-    gpsDebug('explicit tags parsed', parsedGps)
+    gpsDebug('explicit tags parsed', parsedGps, onDebug)
     if (parsedGps) return parsedGps
   } catch {
-    gpsDebug('explicit tags error', { file: debugLabel || 'unknown' })
+    gpsDebug('explicit tags error', { file: debugLabel || 'unknown' }, onDebug)
     // Ignore and try parse fallback below
   }
 
   try {
     const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true, xmp: true })
-    gpsDebug('structured parse raw', summarizeMetadata(exifData))
+    gpsDebug('structured parse raw', summarizeMetadata(exifData), onDebug)
     const parsedGps = toGpsData(exifData)
-    gpsDebug('structured parse parsed', parsedGps)
+    gpsDebug('structured parse parsed', parsedGps, onDebug)
     if (parsedGps) return parsedGps
   } catch {
-    gpsDebug('structured parse error', { file: debugLabel || 'unknown' })
+    gpsDebug('structured parse error', { file: debugLabel || 'unknown' }, onDebug)
     // Ignore and try full parse fallback below
   }
 
   try {
     const exifData = await exifr.parse(buffer)
-    gpsDebug('full parse raw', summarizeMetadata(exifData))
+    gpsDebug('full parse raw', summarizeMetadata(exifData), onDebug)
     const parsedGps = toGpsData(exifData)
-    gpsDebug('full parse parsed', parsedGps)
+    gpsDebug('full parse parsed', parsedGps, onDebug)
     return parsedGps
   } catch {
-    gpsDebug('full parse error', { file: debugLabel || 'unknown' })
+    gpsDebug('full parse error', { file: debugLabel || 'unknown' }, onDebug)
     return null
   }
 }
 
-async function extractGpsFromFile(file: File): Promise<GpsData | null> {
+async function extractGpsFromFile(file: File, onDebug?: GpsDebugCallback): Promise<GpsData | null> {
   try {
     const buffer = await file.arrayBuffer()
-    return extractGpsFromBuffer(buffer, `${file.name} (${file.type || 'unknown'})`)
+    return extractGpsFromBuffer(buffer, `${file.name} (${file.type || 'unknown'})`, onDebug)
   } catch {
     return null
   }
@@ -529,10 +532,38 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
   const [detectedGpsData, setDetectedGpsData] = useState<GpsData | null>(null)
   const [gpsDetectionComplete, setGpsDetectionComplete] = useState(false)
+  const [gpsDebugEnabled, setGpsDebugEnabled] = useState(false)
+  const [gpsDebugEntries, setGpsDebugEntries] = useState<Array<{ step: string; payload: string }>>([])
   const [compressing, setCompressing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const params = new URLSearchParams(window.location.search)
+    const enabledByQuery = params.get('gpsDebug') === '1'
+    const enabledByStorage = window.localStorage.getItem('gps_debug') === '1'
+    setGpsDebugEnabled(enabledByQuery || enabledByStorage)
+  }, [])
+
+  const appendGpsDebug = useCallback((step: string, payload: unknown) => {
+    if (!gpsDebugEnabled) return
+
+    let payloadText = ''
+    if (typeof payload === 'string') {
+      payloadText = payload
+    } else {
+      try {
+        payloadText = JSON.stringify(payload)
+      } catch {
+        payloadText = String(payload)
+      }
+    }
+
+    setGpsDebugEntries((prev) => [...prev.slice(-39), { step, payload: payloadText }])
+  }, [gpsDebugEnabled])
 
   const processFile = async (selectedFile: File) => {
     onError('')
@@ -540,6 +571,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     setCompressedFile(null)
     setDetectedGpsData(null)
     setGpsDetectionComplete(false)
+    if (gpsDebugEnabled) setGpsDebugEntries([])
 
     if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
       onError('Please select an image file (JPEG, PNG, WebP, HEIC, etc.)')
@@ -554,7 +586,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
 
     try {
       onUploading(true, 10, 'Reading GPS metadata...')
-      let gpsFromFile = await extractGpsFromFile(selectedFile)
+      let gpsFromFile = await extractGpsFromFile(selectedFile, appendGpsDebug)
       let previewBlob: Blob | null = null
 
       if (isHeicFile(selectedFile)) {
@@ -565,7 +597,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           if (!gpsFromFile) {
             try {
               const previewBuffer = await previewBlob.arrayBuffer()
-              gpsFromFile = await extractGpsFromBuffer(previewBuffer, `${selectedFile.name} (preview-converted)`)
+              gpsFromFile = await extractGpsFromBuffer(previewBuffer, `${selectedFile.name} (preview-converted)`, appendGpsDebug)
             } catch {
               // Ignore preview GPS fallback errors
             }
@@ -763,6 +795,23 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
               <p className="text-sm text-amber-700 dark:text-amber-300">
                 No GPS metadata found in this file. Some apps remove location when sharing or exporting photos. You can place the pin manually in the next step.
               </p>
+            </div>
+          )}
+
+          {gpsDebugEnabled && (
+            <div className="p-3 bg-gray-950 text-gray-100 border border-gray-700 rounded">
+              <p className="text-xs font-medium mb-2">GPS debug (client-side)</p>
+              {gpsDebugEntries.length === 0 ? (
+                <p className="text-[11px] text-gray-300">No debug entries yet. Upload a photo to inspect extraction steps.</p>
+              ) : (
+                <div className="max-h-52 overflow-y-auto space-y-1">
+                  {gpsDebugEntries.map((entry, index) => (
+                    <p key={`${entry.step}-${index}`} className="text-[11px] leading-4 break-all">
+                      <span className="text-blue-300">{entry.step}</span>: {entry.payload}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
