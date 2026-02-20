@@ -27,7 +27,7 @@ interface NewImageSubmission {
   imagePath: string
   imageLat: number | null
   imageLng: number | null
-  faceDirection: (typeof VALID_FACE_DIRECTIONS)[number] | null
+  faceDirections: Array<(typeof VALID_FACE_DIRECTIONS)[number]>
   captureDate: string | null
   width: number
   height: number
@@ -148,8 +148,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.mode === 'new') {
-      if (!body.faceDirection || !VALID_FACE_DIRECTIONS.includes(body.faceDirection)) {
-        response = NextResponse.json({ error: 'Valid face direction is required' }, { status: 400 })
+      if (!Array.isArray(body.faceDirections) || body.faceDirections.length === 0) {
+        response = NextResponse.json({ error: 'At least one face direction is required' }, { status: 400 })
+        return response
+      }
+
+      const hasInvalidFaceDirection = body.faceDirections.some(
+        (faceDirection) => !VALID_FACE_DIRECTIONS.includes(faceDirection)
+      )
+
+      if (hasInvalidFaceDirection) {
+        response = NextResponse.json({ error: 'Invalid face direction value provided' }, { status: 400 })
         return response
       }
     }
@@ -224,7 +233,8 @@ export async function POST(request: NextRequest) {
         latitude: body.imageLat,
         longitude: body.imageLng,
         capture_date: body.captureDate,
-        face_direction: body.faceDirection,
+        face_direction: body.faceDirections[0] || null,
+        face_directions: body.faceDirections,
         crag_id: body.cragId,
         width: body.width,
         height: body.height,

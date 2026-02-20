@@ -13,8 +13,8 @@ const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { 
 
 interface FaceDirectionPickerProps {
   gps: GpsData | null
-  initialFaceDirection?: FaceDirection | null
-  onConfirm: (faceDirection: FaceDirection) => void
+  initialFaceDirections?: FaceDirection[]
+  onConfirm: (faceDirections: FaceDirection[]) => void
 }
 
 const FACE_DIRECTION_DEGREES: Record<FaceDirection, number> = {
@@ -28,8 +28,8 @@ const FACE_DIRECTION_DEGREES: Record<FaceDirection, number> = {
   NW: 315,
 }
 
-export default function FaceDirectionPicker({ gps, initialFaceDirection = null, onConfirm }: FaceDirectionPickerProps) {
-  const [faceDirection, setFaceDirection] = useState<FaceDirection | null>(initialFaceDirection)
+export default function FaceDirectionPicker({ gps, initialFaceDirections = [], onConfirm }: FaceDirectionPickerProps) {
+  const [faceDirections, setFaceDirections] = useState<FaceDirection[]>(initialFaceDirections)
   const [isClient, setIsClient] = useState(false)
   const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
 
@@ -44,12 +44,12 @@ export default function FaceDirectionPicker({ gps, initialFaceDirection = null, 
   }, [])
 
   useEffect(() => {
-    setFaceDirection(initialFaceDirection)
-  }, [initialFaceDirection])
+    setFaceDirections(initialFaceDirections)
+  }, [initialFaceDirections])
 
   const handleConfirm = () => {
-    if (!faceDirection) return
-    onConfirm(faceDirection)
+    if (faceDirections.length === 0) return
+    onConfirm(faceDirections)
   }
 
   if (!isClient) {
@@ -73,10 +73,10 @@ export default function FaceDirectionPicker({ gps, initialFaceDirection = null, 
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           Pick the direction the wall faces from your pin.
         </p>
-        {faceDirection ? (
-          <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">Selected: {faceDirection}</p>
+        {faceDirections.length > 0 ? (
+          <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">Selected: {faceDirections.join(', ')}</p>
         ) : (
-          <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">Choose one direction to continue.</p>
+          <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">Choose one or more directions to continue.</p>
         )}
       </div>
 
@@ -121,26 +121,43 @@ export default function FaceDirectionPicker({ gps, initialFaceDirection = null, 
           N ↑
         </div>
 
-        {gps && faceDirection && (
-          <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
-            <div
-              className="w-10 h-10 rounded-full bg-black/50 border border-white/70 flex items-center justify-center text-white text-lg"
-              style={{ transform: `rotate(${FACE_DIRECTION_DEGREES[faceDirection]}deg)` }}
-            >
-              ↑
+        {gps && faceDirections.length > 0 && (
+          <div className="absolute inset-0 z-20 pointer-events-none">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-black/50 border border-white/70 flex items-center justify-center text-white text-lg">
+                +
+              </div>
             </div>
+            {faceDirections.map((direction) => (
+              <div key={direction} className="absolute inset-0 flex items-center justify-center">
+                <div
+                  className="text-white text-lg"
+                  style={{ transform: `rotate(${FACE_DIRECTION_DEGREES[direction]}deg) translateY(-34px)` }}
+                >
+                  ↑
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-4 gap-2">
         {FACE_DIRECTIONS.map((direction) => {
-          const isSelected = faceDirection === direction
+          const isSelected = faceDirections.includes(direction)
           return (
             <button
               key={direction}
               type="button"
-              onClick={() => setFaceDirection(direction)}
+              onClick={() => {
+                setFaceDirections((prev) => {
+                  if (prev.includes(direction)) {
+                    return prev.filter((selectedDirection) => selectedDirection !== direction)
+                  }
+
+                  return [...prev, direction]
+                })
+              }}
               aria-pressed={isSelected}
               className={`py-2 rounded-lg border text-sm font-medium transition-colors ${
                 isSelected
@@ -156,10 +173,10 @@ export default function FaceDirectionPicker({ gps, initialFaceDirection = null, 
 
       <button
         onClick={handleConfirm}
-        disabled={!faceDirection || !gps}
+        disabled={faceDirections.length === 0 || !gps}
         className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
       >
-        Confirm Face Direction
+        Confirm Face Directions
       </button>
     </div>
   )

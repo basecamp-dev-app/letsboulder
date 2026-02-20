@@ -131,7 +131,7 @@ export interface SubmissionContext {
   crag: Pick<Crag, 'id' | 'name' | 'latitude' | 'longitude'> | null
   image: ImageSelection | null
   imageGps: { latitude: number; longitude: number } | null
-  faceDirection: FaceDirection | null
+  faceDirections: FaceDirection[]
   routes: NewRouteData[]
   routeType: ClimbType | null
 }
