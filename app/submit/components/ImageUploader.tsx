@@ -533,7 +533,13 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
   const [compressing, setCompressing] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const detectedGpsRef = useRef<GpsData | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  const updateDetectedGps = useCallback((gps: GpsData | null) => {
+    detectedGpsRef.current = gps
+    setDetectedGpsData(gps)
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -548,7 +554,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     onError('')
     setFile(null)
     setCompressedFile(null)
-    setDetectedGpsData(null)
+    updateDetectedGps(null)
     setGpsDetectionComplete(false)
 
     if (!selectedFile.type.startsWith('image/') && !isHeicFile(selectedFile)) {
@@ -581,7 +587,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
             }
           }
 
-          setDetectedGpsData(gpsFromFile)
+          updateDetectedGps(gpsFromFile)
           setGpsDetectionComplete(true)
           setPreviewUrl(URL.createObjectURL(previewBlob))
           onUploading(true, 20, 'Compressing HEIC...')
@@ -591,7 +597,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           return
         }
       } else {
-        setDetectedGpsData(gpsFromFile)
+        updateDetectedGps(gpsFromFile)
         setGpsDetectionComplete(true)
         setPreviewUrl(URL.createObjectURL(selectedFile))
         onUploading(true, 20, 'Compressing image...')
@@ -662,6 +668,12 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       return
     }
 
+    let finalGps = detectedGpsRef.current
+    if (!finalGps && file) {
+      finalGps = await extractGpsFromFile(file)
+      updateDetectedGps(finalGps)
+    }
+
     onUploading(true, 0, 'Uploading...')
 
     try {
@@ -710,7 +722,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       const result: NewImageSelection = {
         mode: 'new',
         file: fileToUpload,
-        gpsData: detectedGpsData,
+        gpsData: finalGps,
         captureDate: null,
         width: dimensions.width,
         height: dimensions.height,
@@ -749,7 +761,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
               onClick={() => {
                 setFile(null)
                 setCompressedFile(null)
-                setDetectedGpsData(null)
+                updateDetectedGps(null)
                 setGpsDetectionComplete(false)
                 setPreviewUrl(null)
                 if (fileInputRef.current) fileInputRef.current.value = ''
