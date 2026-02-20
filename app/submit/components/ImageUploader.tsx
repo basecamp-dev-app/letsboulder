@@ -489,6 +489,96 @@ function parseGpsFromExifJpeg(buffer: ArrayBuffer): GpsData | null {
   return null
 }
 
+function arrayBufferToBinaryString(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let result = ''
+  const chunkSize = 0x8000
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    result += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+  }
+
+  return result
+}
+
+async function parseGpsWithPiexif(buffer: ArrayBuffer, debugLabel?: string): Promise<GpsData | null> {
+  try {
+    const piexifModule = await import('piexifjs')
+    const piexif = piexifModule.default || piexifModule
+    const exif = piexif.load(arrayBufferToBinaryString(buffer)) as {
+      GPS?: Record<string | number, unknown>
+    }
+
+    const gps = exif?.GPS
+    if (!gps) return null
+
+    const latRef = normalizeRef(gps[piexif.GPSIFD.GPSLatitudeRef])
+    const lonRef = normalizeRef(gps[piexif.GPSIFD.GPSLongitudeRef])
+    const latDms = toDmsArray(gps[piexif.GPSIFD.GPSLatitude])
+    const lonDms = toDmsArray(gps[piexif.GPSIFD.GPSLongitude])
+
+    if (!latDms || !lonDms) return null
+
+    const latitude = convertDmsToDecimal(latDms, latRef || 'N')
+    const longitude = convertDmsToDecimal(lonDms, lonRef || 'E')
+    if (latitude === null || longitude === null) return null
+    if (!isValidCoordinate(latitude, longitude)) return null
+
+    return { latitude, longitude }
+  } catch {
+    gpsDebug('piexif error', { file: debugLabel || 'unknown' })
+    return null
+  }
+}
+
+async function extractGpsFromBlob(blob: Blob, debugLabel?: string): Promise<GpsData | null> {
+  const exifr = (await import('exifr')).default
+
+  try {
+    const gpsData = await exifr.gps(blob)
+    gpsDebug('exifr.gps(blob) raw', summarizeMetadata(gpsData))
+    const parsedGps = toGpsData(gpsData)
+    gpsDebug('exifr.gps(blob) parsed', parsedGps)
+    if (parsedGps) return parsedGps
+  } catch {
+    gpsDebug('exifr.gps(blob) error', { file: debugLabel || 'unknown' })
+  }
+
+  try {
+    const explicitTagData = await exifr.parse(blob, [
+      'GPSLatitude',
+      'GPSLongitude',
+      'GPSLatitudeRef',
+      'GPSLongitudeRef',
+      'GPSPosition',
+      'latitude',
+      'longitude',
+      'Latitude',
+      'Longitude',
+      'xmp:GPSLatitude',
+      'xmp:GPSLongitude',
+    ])
+    gpsDebug('explicit tags(blob) raw', summarizeMetadata(explicitTagData))
+    const parsedGps = toGpsData(explicitTagData)
+    gpsDebug('explicit tags(blob) parsed', parsedGps)
+    if (parsedGps) return parsedGps
+  } catch {
+    gpsDebug('explicit tags(blob) error', { file: debugLabel || 'unknown' })
+  }
+
+  try {
+    const exifData = await exifr.parse(blob, { tiff: true, exif: true, gps: true, xmp: true })
+    gpsDebug('structured parse(blob) raw', summarizeMetadata(exifData))
+    const parsedGps = toGpsData(exifData)
+    gpsDebug('structured parse(blob) parsed', parsedGps)
+    if (parsedGps) return parsedGps
+  } catch {
+    gpsDebug('structured parse(blob) error', { file: debugLabel || 'unknown' })
+  }
+
+  return null
+}
+
 async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string, mimeType?: string): Promise<GpsData | null> {
   const exifr = (await import('exifr')).default
   gpsDebug('start', { file: debugLabel || 'unknown', bytes: buffer.byteLength })
@@ -568,6 +658,14 @@ async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string, mi
   if (!canUseJpegFallback) return null
 
   try {
+    const piexifGps = await parseGpsWithPiexif(buffer, debugLabel)
+    gpsDebug('piexif parsed', piexifGps)
+    if (piexifGps) return piexifGps
+  } catch {
+    gpsDebug('piexif fallback error', { file: debugLabel || 'unknown' })
+  }
+
+  try {
     const fallbackGps = parseGpsFromExifJpeg(buffer)
     gpsDebug('jpeg exif fallback parsed', fallbackGps)
     return fallbackGps
@@ -578,9 +676,25 @@ async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string, mi
 }
 
 async function extractGpsFromFile(file: File): Promise<GpsData | null> {
+  const debugLabel = `${file.name} (${file.type || 'unknown'})`
+
+  try {
+    const gpsFromBlob = await extractGpsFromBlob(file, debugLabel)
+    if (gpsFromBlob) {
+      gpsDebug('gps source selected', { source: 'original-blob', gps: gpsFromBlob })
+      return gpsFromBlob
+    }
+  } catch {
+    gpsDebug('extractGpsFromBlob error', { file: debugLabel })
+  }
+
   try {
     const buffer = await file.arrayBuffer()
-    return extractGpsFromBuffer(buffer, `${file.name} (${file.type || 'unknown'})`, file.type)
+    const gpsFromBuffer = await extractGpsFromBuffer(buffer, debugLabel, file.type)
+    if (gpsFromBuffer) {
+      gpsDebug('gps source selected', { source: 'original-buffer', gps: gpsFromBuffer })
+    }
+    return gpsFromBuffer
   } catch {
     return null
   }
@@ -757,6 +871,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     try {
       onUploading(true, 10, 'Reading GPS metadata...')
       let gpsFromFile = await extractGpsFromFile(selectedFile)
+      let gpsSource: 'original-file' | 'heic-preview' | 'none' = gpsFromFile ? 'original-file' : 'none'
       let previewBlob: Blob | null = null
 
       if (isHeicFile(selectedFile)) {
@@ -767,11 +882,17 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           if (!gpsFromFile) {
             try {
               const previewBuffer = await previewBlob.arrayBuffer()
-              gpsFromFile = await extractGpsFromBuffer(previewBuffer, `${selectedFile.name} (preview-converted)`, previewBlob.type)
+              const gpsFromPreview = await extractGpsFromBuffer(previewBuffer, `${selectedFile.name} (preview-converted)`, previewBlob.type)
+              if (gpsFromPreview) {
+                gpsFromFile = gpsFromPreview
+                gpsSource = 'heic-preview'
+              }
             } catch {
               // Ignore preview GPS fallback errors
             }
           }
+
+          gpsDebug('gps detection result', { file: selectedFile.name, source: gpsSource, gps: gpsFromFile })
 
           updateDetectedGps(gpsFromFile)
           setGpsDetectionComplete(true)
@@ -783,6 +904,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           return
         }
       } else {
+        gpsDebug('gps detection result', { file: selectedFile.name, source: gpsSource, gps: gpsFromFile })
         updateDetectedGps(gpsFromFile)
         setGpsDetectionComplete(true)
         setPreviewUrl(URL.createObjectURL(selectedFile))
