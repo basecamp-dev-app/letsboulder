@@ -92,15 +92,30 @@ function toNumber(value: DmsValue): number | null {
     return Number.isFinite(value) ? value : null
   }
 
-  if (!value || typeof value.numerator !== 'number' || typeof value.denominator !== 'number') {
-    return null
+  if (!value || typeof value !== 'object') return null
+
+  const objectValue = value as unknown as Record<string, unknown>
+  const numerator = toFiniteNumber(getField(objectValue, ['numerator', 'num', 'n']))
+  const denominator = toFiniteNumber(getField(objectValue, ['denominator', 'den', 'd']))
+  if (numerator === null || denominator === null || denominator === 0) return null
+  return numerator / denominator
+}
+
+function toDmsArray(value: unknown): DmsValue[] | null {
+  if (Array.isArray(value)) {
+    return value as DmsValue[]
   }
 
-  if (!Number.isFinite(value.numerator) || !Number.isFinite(value.denominator) || value.denominator === 0) {
-    return null
-  }
+  if (!value || typeof value !== 'object') return null
 
-  return value.numerator / value.denominator
+  const objectValue = value as Record<string, unknown>
+  const degrees = getField(objectValue, ['degrees', 'degree', 'deg', 'd'])
+  const minutes = getField(objectValue, ['minutes', 'minute', 'min', 'm'])
+  const seconds = getField(objectValue, ['seconds', 'second', 'sec', 's'])
+
+  if (degrees === undefined || minutes === undefined) return null
+  if (seconds === undefined) return [degrees as DmsValue, minutes as DmsValue]
+  return [degrees as DmsValue, minutes as DmsValue, seconds as DmsValue]
 }
 
 function convertDmsToDecimal(dms: DmsValue[], ref: string): number | null {
@@ -122,11 +137,17 @@ function toGpsData(value: unknown): GpsData | null {
 
   const data = value as Record<string, unknown>
 
+  const nestedGps = getField(data, ['gps', 'GPS', 'location', 'Location'])
+  if (nestedGps && nestedGps !== value) {
+    const nestedGpsData = toGpsData(nestedGps)
+    if (nestedGpsData) return nestedGpsData
+  }
+
   const latRef = normalizeRef(getField(data, ['GPSLatitudeRef', 'latitudeRef', 'latRef']))
   const lonRef = normalizeRef(getField(data, ['GPSLongitudeRef', 'longitudeRef', 'lonRef', 'lngRef']))
 
-  const decimalLatitude = toFiniteNumber(getField(data, ['latitude', 'lat', 'Latitude']))
-  const decimalLongitude = toFiniteNumber(getField(data, ['longitude', 'lon', 'lng', 'Longitude', 'Long']))
+  const decimalLatitude = toFiniteNumber(getField(data, ['latitude', 'lat', 'Latitude', 'GPSLatitudeDecimal', 'gpsLatitude']))
+  const decimalLongitude = toFiniteNumber(getField(data, ['longitude', 'lon', 'lng', 'Longitude', 'Long', 'GPSLongitudeDecimal', 'gpsLongitude']))
 
   if (decimalLatitude !== null && decimalLongitude !== null) {
     const latitude = applyHemisphereSign(decimalLatitude, latRef, 'lat')
@@ -137,8 +158,8 @@ function toGpsData(value: unknown): GpsData | null {
     }
   }
 
-  const gpsLatitudeRaw = getField(data, ['GPSLatitude'])
-  const gpsLongitudeRaw = getField(data, ['GPSLongitude'])
+  const gpsLatitudeRaw = getField(data, ['GPSLatitude', 'gpsLatitude', 'GPSLat'])
+  const gpsLongitudeRaw = getField(data, ['GPSLongitude', 'gpsLongitude', 'GPSLon', 'GPSLng'])
   const gpsLatitudeNumber = toFiniteNumber(gpsLatitudeRaw)
   const gpsLongitudeNumber = toFiniteNumber(gpsLongitudeRaw)
 
@@ -151,8 +172,8 @@ function toGpsData(value: unknown): GpsData | null {
     }
   }
 
-  const gpsLat = Array.isArray(gpsLatitudeRaw) ? (gpsLatitudeRaw as DmsValue[]) : null
-  const gpsLon = Array.isArray(gpsLongitudeRaw) ? (gpsLongitudeRaw as DmsValue[]) : null
+  const gpsLat = toDmsArray(gpsLatitudeRaw)
+  const gpsLon = toDmsArray(gpsLongitudeRaw)
 
   if (!gpsLat || !gpsLon) return null
 
@@ -180,6 +201,14 @@ async function extractGpsFromBuffer(buffer: ArrayBuffer): Promise<GpsData | null
 
   try {
     const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true, xmp: true })
+    const parsedGps = toGpsData(exifData)
+    if (parsedGps) return parsedGps
+  } catch {
+    // Ignore and try full parse fallback below
+  }
+
+  try {
+    const exifData = await exifr.parse(buffer)
     return toGpsData(exifData)
   } catch {
     return null
