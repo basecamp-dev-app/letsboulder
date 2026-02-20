@@ -185,11 +185,11 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
         </button>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1">
         <select
           value={platformFilter}
           onChange={(e) => setPlatformFilter(e.target.value as PlatformFilter)}
-          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+          className="shrink-0 min-w-40 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
         >
           <option value="all">All Platforms</option>
           <option value="youtube">YouTube</option>
@@ -200,7 +200,7 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
         <select
           value={genderFilter}
           onChange={(e) => setGenderFilter(e.target.value as GenderFilter)}
-          className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+          className="shrink-0 min-w-40 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
         >
           <option value="all">All Genders</option>
           <option value="male">Male</option>
@@ -208,50 +208,92 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
           <option value="other">Other</option>
           <option value="prefer_not_to_say">Prefer not to say</option>
         </select>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="number"
-            min={100}
-            max={250}
-            value={minHeight}
-            onChange={(e) => setMinHeight(e.target.value)}
-            placeholder="Min height (cm)"
-            aria-label="Minimum climber height in centimeters"
-            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
-          />
-          <input
-            type="number"
-            min={100}
-            max={250}
-            value={maxHeight}
-            onChange={(e) => setMaxHeight(e.target.value)}
-            placeholder="Max height (cm)"
-            aria-label="Maximum climber height in centimeters"
-            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:col-span-2 lg:col-span-1">
-          <input
-            type="number"
-            min={100}
-            max={260}
-            value={minReach}
-            onChange={(e) => setMinReach(e.target.value)}
-            placeholder="Min reach (cm)"
-            aria-label="Minimum climber reach in centimeters"
-            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
-          />
-          <input
-            type="number"
-            min={100}
-            max={260}
-            value={maxReach}
-            onChange={(e) => setMaxReach(e.target.value)}
-            placeholder="Max reach (cm)"
-            aria-label="Maximum climber reach in centimeters"
-            className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
-          />
-        </div>
+        <details className="relative shrink-0">
+          <summary className="list-none cursor-pointer px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 whitespace-nowrap">
+            Filter by height{minHeight || maxHeight ? `: ${minHeight || '...'}-${maxHeight || '...'}` : ''}
+          </summary>
+          <div className="absolute left-0 mt-2 w-72 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 shadow-lg z-20">
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by height (cm)</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] text-gray-500 dark:text-gray-400 mb-1" htmlFor="height-from">From</label>
+                <input
+                  id="height-from"
+                  type="number"
+                  min={100}
+                  max={250}
+                  value={minHeight}
+                  onChange={(e) => setMinHeight(e.target.value)}
+                  aria-label="Height from in centimeters"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-gray-500 dark:text-gray-400 mb-1" htmlFor="height-to">To</label>
+                <input
+                  id="height-to"
+                  type="number"
+                  min={100}
+                  max={250}
+                  value={maxHeight}
+                  onChange={(e) => setMaxHeight(e.target.value)}
+                  aria-label="Height to in centimeters"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                />
+              </div>
+            </div>
+          </div>
+        </details>
+        <details className="relative shrink-0">
+          <summary className="list-none cursor-pointer px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 whitespace-nowrap">
+            Filter by reach{minReach || maxReach ? `: ${minReach || '...'}-${maxReach || '...'}` : ''}
+          </summary>
+          <div className="absolute left-0 mt-2 w-72 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 shadow-lg z-20">
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by reach (cm)</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] text-gray-500 dark:text-gray-400 mb-1" htmlFor="reach-from">From</label>
+                <input
+                  id="reach-from"
+                  type="number"
+                  min={100}
+                  max={260}
+                  value={minReach}
+                  onChange={(e) => setMinReach(e.target.value)}
+                  aria-label="Reach from in centimeters"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-gray-500 dark:text-gray-400 mb-1" htmlFor="reach-to">To</label>
+                <input
+                  id="reach-to"
+                  type="number"
+                  min={100}
+                  max={260}
+                  value={maxReach}
+                  onChange={(e) => setMaxReach(e.target.value)}
+                  aria-label="Reach to in centimeters"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                />
+              </div>
+            </div>
+          </div>
+        </details>
+        <button
+          type="button"
+          onClick={() => {
+            setPlatformFilter('all')
+            setGenderFilter('all')
+            setMinHeight('')
+            setMaxHeight('')
+            setMinReach('')
+            setMaxReach('')
+          }}
+          className="shrink-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+        >
+          Clear filters
+        </button>
       </div>
 
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
