@@ -18,9 +18,76 @@ interface RationalLike {
   denominator: number
 }
 
-type DmsValue = number | RationalLike
+type DmsValue = number | RationalLike | [number, number]
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
+}
+
+function getField(data: Record<string, unknown>, keys: string[]): unknown {
+  for (const key of keys) {
+    if (key in data) {
+      return data[key]
+    }
+  }
+
+  const lowerCaseKeyLookup = new Map<string, string>()
+  for (const key of Object.keys(data)) {
+    lowerCaseKeyLookup.set(key.toLowerCase(), key)
+  }
+
+  for (const key of keys) {
+    const actualKey = lowerCaseKeyLookup.get(key.toLowerCase())
+    if (actualKey) {
+      return data[actualKey]
+    }
+  }
+
+  return undefined
+}
+
+function normalizeRef(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim().toUpperCase()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function applyHemisphereSign(value: number, ref: string | null, axis: 'lat' | 'lon'): number {
+  if (!ref) return value
+
+  const negativeRef = axis === 'lat' ? ref === 'S' : ref === 'W'
+  if (negativeRef) return -Math.abs(value)
+
+  if (ref === 'N' || ref === 'E') return Math.abs(value)
+  return value
+}
+
+function isValidCoordinate(latitude: number, longitude: number): boolean {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false
+  if (latitude < -90 || latitude > 90) return false
+  if (longitude < -180 || longitude > 180) return false
+  if (Math.abs(latitude) < 1e-9 && Math.abs(longitude) < 1e-9) return false
+  return true
+}
 
 function toNumber(value: DmsValue): number | null {
+  if (Array.isArray(value)) {
+    if (value.length !== 2) return null
+    const numerator = toFiniteNumber(value[0])
+    const denominator = toFiniteNumber(value[1])
+    if (numerator === null || denominator === null || denominator === 0) return null
+    return numerator / denominator
+  }
+
   if (typeof value === 'number') {
     return Number.isFinite(value) ? value : null
   }
@@ -37,64 +104,63 @@ function toNumber(value: DmsValue): number | null {
 }
 
 function convertDmsToDecimal(dms: DmsValue[], ref: string): number | null {
-  if (!dms || dms.length < 3) return null
+  if (!dms || dms.length < 2) return null
 
   const degrees = toNumber(dms[0])
   const minutes = toNumber(dms[1])
-  const seconds = toNumber(dms[2])
+  const seconds = dms.length > 2 ? toNumber(dms[2]) : 0
 
   if (degrees === null || minutes === null || seconds === null) return null
 
-  let decimal = degrees + minutes / 60 + seconds / 3600
-
-  if (ref === 'S' || ref === 'W') {
-    decimal = -decimal
-  }
-
-  return decimal
+  const decimal = Math.abs(degrees) + minutes / 60 + seconds / 3600
+  const axis: 'lat' | 'lon' = ref === 'E' || ref === 'W' ? 'lon' : 'lat'
+  return applyHemisphereSign(decimal, ref, axis)
 }
 
 function toGpsData(value: unknown): GpsData | null {
   if (!value || typeof value !== 'object') return null
 
-  const data = value as {
-    latitude?: unknown
-    longitude?: unknown
-    lat?: unknown
-    lon?: unknown
-    lng?: unknown
-    GPSLatitude?: unknown
-    GPSLongitude?: unknown
-    GPSLatitudeRef?: unknown
-    GPSLongitudeRef?: unknown
+  const data = value as Record<string, unknown>
+
+  const latRef = normalizeRef(getField(data, ['GPSLatitudeRef', 'latitudeRef', 'latRef']))
+  const lonRef = normalizeRef(getField(data, ['GPSLongitudeRef', 'longitudeRef', 'lonRef', 'lngRef']))
+
+  const decimalLatitude = toFiniteNumber(getField(data, ['latitude', 'lat', 'Latitude']))
+  const decimalLongitude = toFiniteNumber(getField(data, ['longitude', 'lon', 'lng', 'Longitude', 'Long']))
+
+  if (decimalLatitude !== null && decimalLongitude !== null) {
+    const latitude = applyHemisphereSign(decimalLatitude, latRef, 'lat')
+    const longitude = applyHemisphereSign(decimalLongitude, lonRef, 'lon')
+
+    if (isValidCoordinate(latitude, longitude)) {
+      return { latitude, longitude }
+    }
   }
 
-  const latitude =
-    (typeof data.latitude === 'number' && Number.isFinite(data.latitude) ? data.latitude : null) ??
-    (typeof data.lat === 'number' && Number.isFinite(data.lat) ? data.lat : null)
+  const gpsLatitudeRaw = getField(data, ['GPSLatitude'])
+  const gpsLongitudeRaw = getField(data, ['GPSLongitude'])
+  const gpsLatitudeNumber = toFiniteNumber(gpsLatitudeRaw)
+  const gpsLongitudeNumber = toFiniteNumber(gpsLongitudeRaw)
 
-  const longitude =
-    (typeof data.longitude === 'number' && Number.isFinite(data.longitude) ? data.longitude : null) ??
-    (typeof data.lon === 'number' && Number.isFinite(data.lon) ? data.lon : null) ??
-    (typeof data.lng === 'number' && Number.isFinite(data.lng) ? data.lng : null)
+  if (gpsLatitudeNumber !== null && gpsLongitudeNumber !== null) {
+    const latitude = applyHemisphereSign(gpsLatitudeNumber, latRef, 'lat')
+    const longitude = applyHemisphereSign(gpsLongitudeNumber, lonRef, 'lon')
 
-  if (latitude !== null && longitude !== null) {
-    return { latitude, longitude }
+    if (isValidCoordinate(latitude, longitude)) {
+      return { latitude, longitude }
+    }
   }
 
-  const gpsLat = Array.isArray(data.GPSLatitude) ? (data.GPSLatitude as DmsValue[]) : null
-  const gpsLon = Array.isArray(data.GPSLongitude) ? (data.GPSLongitude as DmsValue[]) : null
+  const gpsLat = Array.isArray(gpsLatitudeRaw) ? (gpsLatitudeRaw as DmsValue[]) : null
+  const gpsLon = Array.isArray(gpsLongitudeRaw) ? (gpsLongitudeRaw as DmsValue[]) : null
 
   if (!gpsLat || !gpsLon) return null
 
-  const latRef = typeof data.GPSLatitudeRef === 'string' ? data.GPSLatitudeRef : 'N'
-  const lonRef = typeof data.GPSLongitudeRef === 'string' ? data.GPSLongitudeRef : 'W'
-
-  const latDecimal = convertDmsToDecimal(gpsLat, latRef)
-  const lonDecimal = convertDmsToDecimal(gpsLon, lonRef)
+  const latDecimal = convertDmsToDecimal(gpsLat, latRef || 'N')
+  const lonDecimal = convertDmsToDecimal(gpsLon, lonRef || 'E')
 
   if (latDecimal === null || lonDecimal === null) return null
-  if (!Number.isFinite(latDecimal) || !Number.isFinite(lonDecimal)) return null
+  if (!isValidCoordinate(latDecimal, lonDecimal)) return null
 
   return { latitude: latDecimal, longitude: lonDecimal }
 }
@@ -113,7 +179,7 @@ async function extractGpsFromBuffer(buffer: ArrayBuffer): Promise<GpsData | null
   }
 
   try {
-    const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true })
+    const exifData = await exifr.parse(buffer, { tiff: true, exif: true, gps: true, xmp: true })
     return toGpsData(exifData)
   } catch {
     return null
@@ -480,6 +546,14 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
               By uploading, you confirm this is your photo of a climbing route, it does not contain people, and you have permission to share it.
             </p>
           </div>
+
+          {!detectedGpsData && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded">
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                No GPS metadata found in this file. Some apps remove location when sharing or exporting photos. You can place the pin manually in the next step.
+              </p>
+            </div>
+          )}
 
           <button
             onClick={handleConfirm}
