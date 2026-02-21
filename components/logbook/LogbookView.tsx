@@ -14,6 +14,12 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import {
+  formatSubmissionCreditHandle,
+  normalizeSubmissionCreditHandle,
+  normalizeSubmissionCreditPlatform,
+  type SubmissionCreditPlatform,
+} from '@/lib/submission-credit'
 
 const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
   ssr: false,
@@ -57,7 +63,17 @@ interface Submission {
   created_at: string
   crag_name: string | null
   route_lines_count: number
+  contribution_credit_platform: string | null
+  contribution_credit_handle: string | null
 }
+
+const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'youtube', label: 'YouTube' },
+  { value: 'x', label: 'X' },
+  { value: 'other', label: 'Other' },
+]
 
 interface LogbookViewProps {
   userId: string
@@ -71,8 +87,12 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
   const gradeSystem = useGradeSystem()
   const router = useRouter()
   const [logs, setLogs] = useState<Climb[]>(initialLogs)
-  const [submissions] = useState<Submission[]>(initialSubmissions)
+  const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingCreditForId, setEditingCreditForId] = useState<string | null>(null)
+  const [creditPlatform, setCreditPlatform] = useState<SubmissionCreditPlatform>('instagram')
+  const [creditHandle, setCreditHandle] = useState('')
+  const [savingCreditForId, setSavingCreditForId] = useState<string | null>(null)
   const { toasts, addToast, removeToast } = useToast()
 
   const stats = useMemo(() => {
@@ -82,6 +102,65 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
   const lowestGrade = stats ? getLowestGrade(stats.gradePyramid) : '6A'
 
   const recentLogs = useMemo(() => logs.slice(0, 20), [logs])
+
+  const beginEditingCredit = (submission: Submission) => {
+    const normalizedPlatform = normalizeSubmissionCreditPlatform(submission.contribution_credit_platform)
+    setEditingCreditForId(submission.id)
+    setCreditPlatform(normalizedPlatform || 'instagram')
+    setCreditHandle(submission.contribution_credit_handle || '')
+  }
+
+  const cancelEditingCredit = () => {
+    setEditingCreditForId(null)
+    setCreditPlatform('instagram')
+    setCreditHandle('')
+  }
+
+  const saveSubmissionCredit = async (submissionId: string) => {
+    if (savingCreditForId) return
+
+    const normalizedHandle = normalizeSubmissionCreditHandle(creditHandle)
+    if (creditHandle.trim().length > 0 && !normalizedHandle) {
+      addToast('Invalid handle. Use letters, numbers, dots, underscores, or hyphens.', 'error')
+      return
+    }
+
+    setSavingCreditForId(submissionId)
+    try {
+      const response = await csrfFetch(`/api/submissions/${submissionId}/credit`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: normalizedHandle ? creditPlatform : null,
+          handle: normalizedHandle,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to save contribution credit')
+      }
+
+      const updatedPlatform = typeof payload?.credit?.platform === 'string' ? payload.credit.platform : null
+      const updatedHandle = typeof payload?.credit?.handle === 'string' ? payload.credit.handle : null
+
+      setSubmissions((previous) => previous.map((submission) => {
+        if (submission.id !== submissionId) return submission
+        return {
+          ...submission,
+          contribution_credit_platform: updatedPlatform,
+          contribution_credit_handle: updatedHandle,
+        }
+      }))
+
+      addToast(updatedHandle ? 'Contribution credit saved' : 'Contribution credit removed', 'success')
+      cancelEditingCredit()
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Failed to save contribution credit', 'error')
+    } finally {
+      setSavingCreditForId(null)
+    }
+  }
 
   const handleDeleteLog = async (logId: string) => {
     setDeletingId(logId)
@@ -304,11 +383,120 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="space-y-0">
-                  {submissions.map((submission) => (
-                    <div
-                      key={submission.id}
-                      className="flex items-center gap-3 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
-                    >
+                  {submissions.map((submission) => {
+                    const formattedHandle = formatSubmissionCreditHandle(submission.contribution_credit_handle)
+                    const isEditingCredit = editingCreditForId === submission.id
+
+                    return (
+                      <div
+                        key={submission.id}
+                        className="py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Link
+                            href={`/image/${submission.id}`}
+                            className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
+                          >
+                            <img
+                              src={resolveRouteImageUrl(submission.url)}
+                              alt="Submitted route image"
+                              className="w-12 h-12 object-cover rounded"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                {submission.crag_name || 'Unknown crag'}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.created_at).toLocaleDateString()}
+                                {formattedHandle ? ` • ${formattedHandle}` : ''}
+                              </p>
+                            </div>
+                          </Link>
+                          {isOwnProfile && (
+                            <div className="shrink-0 flex flex-col items-end gap-1">
+                              <Link
+                                href={`/logbook/submissions/${submission.id}/edit`}
+                                className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                              >
+                                Edit routes
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => beginEditingCredit(submission)}
+                                className="text-xs font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                              >
+                                {formattedHandle ? 'Edit credit' : 'Add credit'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {isOwnProfile && isEditingCredit && (
+                          <div className="mt-3 flex flex-col gap-2 rounded-md border border-gray-200 dark:border-gray-700 p-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              <select
+                                value={creditPlatform}
+                                onChange={(event) => setCreditPlatform(event.target.value as SubmissionCreditPlatform)}
+                                className="sm:col-span-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                              >
+                                {CREDIT_PLATFORM_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                              <input
+                                type="text"
+                                value={creditHandle}
+                                onChange={(event) => setCreditHandle(event.target.value)}
+                                placeholder="handle"
+                                className="sm:col-span-2 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Shown publicly as @{normalizeSubmissionCreditHandle(creditHandle) || 'handle'}</p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => saveSubmissionCredit(submission.id)}
+                                disabled={savingCreditForId === submission.id}
+                                className="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:opacity-60"
+                              >
+                                {savingCreditForId === submission.id ? 'Saving...' : 'Save credit'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelEditingCredit}
+                                disabled={savingCreditForId === submission.id}
+                                className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      ) : submissions.length > 0 ? (
+        <Card className="m-0 border-x-0 border-t-0 rounded-none">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Contributions</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-0">
+              {submissions.map((submission) => {
+                const formattedHandle = formatSubmissionCreditHandle(submission.contribution_credit_handle)
+                const isEditingCredit = editingCreditForId === submission.id
+
+                return (
+                  <div
+                    key={submission.id}
+                    className="py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
+                  >
+                    <div className="flex items-center gap-3">
                       <Link
                         href={`/image/${submission.id}`}
                         className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
@@ -324,64 +512,73 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.created_at).toLocaleDateString()}
+                            {formattedHandle ? ` • ${formattedHandle}` : ''}
                           </p>
                         </div>
                       </Link>
                       {isOwnProfile && (
-                        <Link
-                          href={`/logbook/submissions/${submission.id}/edit`}
-                          className="shrink-0 text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                        >
-                          Edit routes
-                        </Link>
+                        <div className="shrink-0 flex flex-col items-end gap-1">
+                          <Link
+                            href={`/logbook/submissions/${submission.id}/edit`}
+                            className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                          >
+                            Edit routes
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => beginEditingCredit(submission)}
+                            className="text-xs font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                          >
+                            {formattedHandle ? 'Edit credit' : 'Add credit'}
+                          </button>
+                        </div>
                       )}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      ) : submissions.length > 0 ? (
-        <Card className="m-0 border-x-0 border-t-0 rounded-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Contributions</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="space-y-0">
-              {submissions.map((submission) => (
-                <div
-                  key={submission.id}
-                  className="flex items-center gap-3 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
-                >
-                  <Link
-                    href={`/image/${submission.id}`}
-                    className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
-                  >
-                    <img
-                      src={resolveRouteImageUrl(submission.url)}
-                      alt="Submitted route image"
-                      className="w-12 h-12 object-cover rounded"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                        {submission.crag_name || 'Unknown crag'}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </Link>
-                  {isOwnProfile && (
-                    <Link
-                      href={`/logbook/submissions/${submission.id}/edit`}
-                      className="shrink-0 text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                    >
-                      Edit routes
-                    </Link>
-                  )}
-                </div>
-              ))}
+
+                    {isOwnProfile && isEditingCredit && (
+                      <div className="mt-3 flex flex-col gap-2 rounded-md border border-gray-200 dark:border-gray-700 p-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <select
+                            value={creditPlatform}
+                            onChange={(event) => setCreditPlatform(event.target.value as SubmissionCreditPlatform)}
+                            className="sm:col-span-1 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                          >
+                            {CREDIT_PLATFORM_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={creditHandle}
+                            onChange={(event) => setCreditHandle(event.target.value)}
+                            placeholder="handle"
+                            className="sm:col-span-2 w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Shown publicly as @{normalizeSubmissionCreditHandle(creditHandle) || 'handle'}</p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => saveSubmissionCredit(submission.id)}
+                            disabled={savingCreditForId === submission.id}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:opacity-60"
+                          >
+                            {savingCreditForId === submission.id ? 'Saving...' : 'Save credit'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditingCredit}
+                            disabled={savingCreditForId === submission.id}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>

@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/lib/submission-credit'
 
 const VALID_GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const
 const VALID_GRADE_SYSTEMS = ['font', 'v'] as const
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profiles, error } = await supabase
       .from('profiles')
-      .select('username, first_name, last_name, gender, height_cm, reach_cm, avatar_url, bio, grade_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference')
+      .select('username, first_name, last_name, gender, height_cm, reach_cm, avatar_url, bio, grade_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference, contribution_credit_platform, contribution_credit_handle')
       .eq('id', user.id)
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1)
@@ -89,7 +90,9 @@ export async function GET(request: NextRequest) {
         defaultLocationLat: profile?.default_location_lat || null,
         defaultLocationLng: profile?.default_location_lng || null,
         defaultLocationZoom: profile?.default_location_zoom || null,
-        themePreference: profile?.theme_preference || 'system'
+        themePreference: profile?.theme_preference || 'system',
+        contributionCreditPlatform: profile?.contribution_credit_platform || '',
+        contributionCreditHandle: profile?.contribution_credit_handle || ''
       },
       imageCount: imageCount || 0
     })
@@ -130,7 +133,25 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { bio, gradeSystem, units, isPublic, defaultLocation, defaultLocationName, defaultLocationLat, defaultLocationLng, defaultLocationZoom, themePreference, firstName, lastName, gender, heightCm, reachCm } = body
+    const {
+      bio,
+      gradeSystem,
+      units,
+      isPublic,
+      defaultLocation,
+      defaultLocationName,
+      defaultLocationLat,
+      defaultLocationLng,
+      defaultLocationZoom,
+      themePreference,
+      firstName,
+      lastName,
+      gender,
+      heightCm,
+      reachCm,
+      contributionCreditPlatform,
+      contributionCreditHandle,
+    } = body
 
     const updateData: Record<string, unknown> = {}
 
@@ -176,6 +197,28 @@ export async function PUT(request: NextRequest) {
         )
       }
       updateData.reach_cm = parsed.parsed
+    }
+
+    if (contributionCreditPlatform !== undefined || contributionCreditHandle !== undefined) {
+      const normalizedHandle = normalizeSubmissionCreditHandle(contributionCreditHandle)
+      if (typeof contributionCreditHandle === 'string' && contributionCreditHandle.trim() && !normalizedHandle) {
+        return NextResponse.json(
+          { error: 'Handle can only include letters, numbers, periods, underscores, and hyphens (max 50)' },
+          { status: 400 }
+        )
+      }
+
+      if (!normalizedHandle) {
+        updateData.contribution_credit_platform = null
+        updateData.contribution_credit_handle = null
+      } else {
+        const normalizedPlatform = normalizeSubmissionCreditPlatform(contributionCreditPlatform)
+        if (!normalizedPlatform) {
+          return NextResponse.json({ error: 'Valid platform is required when a handle is provided' }, { status: 400 })
+        }
+        updateData.contribution_credit_platform = normalizedPlatform
+        updateData.contribution_credit_handle = normalizedHandle
+      }
     }
 
     updateData.updated_at = new Date().toISOString()

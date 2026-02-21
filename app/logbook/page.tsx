@@ -46,6 +46,8 @@ interface Submission {
   created_at: string
   crag_name: string | null
   route_lines_count: number
+  contribution_credit_platform: string | null
+  contribution_credit_handle: string | null
 }
 
 function LoadingFallback() {
@@ -137,7 +139,7 @@ function LogbookContent() {
 
           const { data: imageSubmissions, error: submissionsError } = await supabase
             .from('images')
-            .select('id, url, created_at, crags(name), route_lines(count)')
+            .select('id, url, created_at, contribution_credit_platform, contribution_credit_handle, crags(name), route_lines(count)')
             .eq('created_by', user.id)
             .eq('moderation_status', 'approved')
             .not('crag_id', 'is', null)
@@ -168,6 +170,8 @@ function LogbookContent() {
                 created_at: submission.created_at,
                 crag_name: cragName,
                 route_lines_count: routeLinesCount,
+                contribution_credit_platform: submission.contribution_credit_platform || null,
+                contribution_credit_handle: submission.contribution_credit_handle || null,
               }
             })
             .filter((submission) => submission.route_lines_count > 0)

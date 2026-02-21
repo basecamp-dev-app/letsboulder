@@ -10,6 +10,7 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { updateGradeSystemPreference } from '@/hooks/useGradeSystem'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { GradeSystem } from '@/lib/grade-display'
+import { normalizeSubmissionCreditHandle, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 
 interface SettingsContentProps {
   user: User
@@ -45,6 +46,14 @@ const GRADE_SYSTEM_OPTIONS: Array<{ value: GradeSystem; label: string; sample: s
   { value: 'v', label: 'V Scale', sample: 'V5' },
 ]
 
+const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'youtube', label: 'YouTube' },
+  { value: 'x', label: 'X' },
+  { value: 'other', label: 'Other' },
+]
+
 export default function SettingsContent({ user }: SettingsContentProps) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('profile')
@@ -55,7 +64,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
     gender: 'prefer_not_to_say',
     heightCm: '',
     reachCm: '',
-    bio: ''
+    bio: '',
+    contributionCreditPlatform: 'instagram' as SubmissionCreditPlatform,
+    contributionCreditHandle: '',
   })
   const [isDirty, setIsDirty] = useState(false)
   const [isPublic, setIsPublic] = useState(true)
@@ -95,7 +106,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
             gender: data.settings.gender || 'prefer_not_to_say',
             heightCm: data.settings.heightCm === null || data.settings.heightCm === undefined ? '' : String(data.settings.heightCm),
             reachCm: data.settings.reachCm === null || data.settings.reachCm === undefined ? '' : String(data.settings.reachCm),
-            bio: data.settings.bio || ''
+            bio: data.settings.bio || '',
+            contributionCreditPlatform: data.settings.contributionCreditPlatform || 'instagram',
+            contributionCreditHandle: data.settings.contributionCreditHandle || '',
           })
             setIsPublic(data.settings.isPublic !== false)
             setThemePreference(data.settings.themePreference || 'system')
@@ -134,6 +147,10 @@ export default function SettingsContent({ user }: SettingsContentProps) {
           heightCm: formData.heightCm === '' ? null : Number(formData.heightCm),
           reachCm: formData.reachCm === '' ? null : Number(formData.reachCm),
           bio: formData.bio,
+          contributionCreditPlatform: formData.contributionCreditHandle.trim()
+            ? formData.contributionCreditPlatform
+            : null,
+          contributionCreditHandle: formData.contributionCreditHandle,
           isPublic,
           themePreference,
           gradeSystem,
@@ -356,6 +373,34 @@ export default function SettingsContent({ user }: SettingsContentProps) {
                 <p className="text-xs text-gray-500 dark:text-gray-400 -mt-3">
                   Optional, but adding these helps other climbers find beta videos from people with a similar build.
                 </p>
+
+                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">Default contribution credit</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Used when a submission has no per-submission credit. Submission credit always takes priority.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <select
+                      value={formData.contributionCreditPlatform}
+                      onChange={(e) => handleFormChange('contributionCreditPlatform', e.target.value)}
+                      className="sm:col-span-1 w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                    >
+                      {CREDIT_PLATFORM_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={formData.contributionCreditHandle}
+                      onChange={(e) => handleFormChange('contributionCreditHandle', e.target.value)}
+                      placeholder="handle"
+                      className="sm:col-span-2 w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Shows as @{normalizeSubmissionCreditHandle(formData.contributionCreditHandle) || 'handle'}
+                  </p>
+                </div>
               </div>
             )}
 
