@@ -1126,18 +1126,10 @@ export default function ClimbPage() {
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedClimb.description}</p>
               )}
               {publicSubmitter && (
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Submitted by{' '}
-                  <Link
-                    href={`/logbook/${publicSubmitter.id}`}
-                    prefetch={false}
-                    className="underline decoration-gray-400 underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200"
-                  >
-                    {publicSubmitter.displayName}
-                  </Link>
+                <>
                   {formattedContributionHandle && (
-                    <>
-                      {' '}·{' '}
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Credit to{' '}
                       {contributionCreditUrl ? (
                         <a
                           href={contributionCreditUrl}
@@ -1150,9 +1142,19 @@ export default function ClimbPage() {
                       ) : (
                         <span>{formattedContributionHandle}</span>
                       )}
-                    </>
+                    </p>
                   )}
-                </p>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Submitted by{' '}
+                    <Link
+                      href={`/logbook/${publicSubmitter.id}`}
+                      prefetch={false}
+                      className="underline decoration-gray-400 underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200"
+                    >
+                      {publicSubmitter.displayName}
+                    </Link>
+                  </p>
+                </>
               )}
             </div>
             <div className="flex items-center gap-2">
