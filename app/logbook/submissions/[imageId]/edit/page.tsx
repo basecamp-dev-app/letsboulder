@@ -28,6 +28,7 @@ interface ImageRouteLineQuery {
     name: string | null
     grade: string
     status: string
+    route_type: string | null
     description: string | null
     user_id: string | null
   } | Array<{
@@ -35,9 +36,21 @@ interface ImageRouteLineQuery {
     name: string | null
     grade: string
     status: string
+    route_type: string | null
     description: string | null
     user_id: string | null
   }> | null
+}
+
+const VALID_ROUTE_TYPES = ['sport', 'bouldering', 'trad', 'deep-water-solo'] as const
+
+function normalizeRouteType(value: string | null | undefined): (typeof VALID_ROUTE_TYPES)[number] | null {
+  if (!value) return null
+  const normalized = value.trim().toLowerCase().replace(/_/g, '-')
+  if (!VALID_ROUTE_TYPES.includes(normalized as (typeof VALID_ROUTE_TYPES)[number])) {
+    return null
+  }
+  return normalized as (typeof VALID_ROUTE_TYPES)[number]
 }
 
 function parsePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[] {
@@ -99,17 +112,17 @@ export default function EditSubmittedRoutesPage() {
       const { data, error: imageError } = await supabase
         .from('images')
         .select(`
+          id,
+          url,
+          created_by,
+          route_lines (
             id,
-            url,
-            created_by,
-            route_lines (
-              id,
-              points,
-              sequence_order,
-              image_width,
-              image_height,
-              climbs (id, name, grade, status, description, user_id)
-            )
+            points,
+            sequence_order,
+            image_width,
+            image_height,
+            climbs (id, name, grade, status, route_type, description, user_id)
+          )
         `)
         .eq('id', imageId)
         .single()
@@ -145,6 +158,7 @@ export default function EditSubmittedRoutesPage() {
               name: climb.name,
               grade: climb.grade,
               status: climb.status,
+              route_type: climb.route_type,
               description: climb.description,
             },
           } as RouteLine
@@ -172,6 +186,17 @@ export default function EditSubmittedRoutesPage() {
   const hasReadyData = useMemo(() => {
     return !!imageSelection
   }, [imageSelection])
+
+  const preferredRouteType = useMemo(() => {
+    const uniqueTypes = new Set<(typeof VALID_ROUTE_TYPES)[number]>()
+    for (const routeLine of existingRouteLines) {
+      const normalized = normalizeRouteType(routeLine.climb?.route_type)
+      if (normalized) uniqueTypes.add(normalized)
+    }
+
+    if (uniqueTypes.size !== 1) return null
+    return [...uniqueTypes][0]
+  }, [existingRouteLines])
 
   const handleSaveEdits = useCallback(async () => {
     if (savingEdits || !imageId || editedRoutes.length === 0) return
@@ -211,7 +236,7 @@ export default function EditSubmittedRoutesPage() {
       const response = await csrfFetch(`/api/submissions/${imageId}/routes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ routes: routesToCreate }),
+        body: JSON.stringify({ routes: routesToCreate, routeType: preferredRouteType }),
       })
 
       if (!response.ok) {
@@ -227,7 +252,7 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setSavingNewRoutes(false)
     }
-  }, [savingNewRoutes, imageId, loadSubmission])
+  }, [savingNewRoutes, imageId, loadSubmission, preferredRouteType])
 
   if (loading) {
     return (

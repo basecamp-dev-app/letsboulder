@@ -181,6 +181,18 @@ function getRouteDraftKeyFromImageAndCrag(image: ImageSelection | null, cragId: 
   return `${ROUTE_DRAFT_PREFIX}existing:${image.imageId}:${cragId}`
 }
 
+function resolveImageGps(context: SubmissionContext): GpsData | null {
+  if (context.imageGps) {
+    return { latitude: context.imageGps.latitude, longitude: context.imageGps.longitude }
+  }
+
+  if (context.image?.mode === 'new' && context.image.gpsData) {
+    return { latitude: context.image.gpsData.latitude, longitude: context.image.gpsData.longitude }
+  }
+
+  return null
+}
+
 const CragSelector = dynamic(() => import('./components/CragSelector'), { ssr: false })
 const ImagePicker = dynamic(() => import('./components/ImagePicker'), { ssr: false })
 const RouteCanvas = dynamic(() => import('./components/RouteCanvas'), { ssr: false })
@@ -365,6 +377,8 @@ function SubmitPageContent() {
       return
     }
 
+    const resolvedImageGps = resolveImageGps(context)
+
     upsertDraftIndex({
       draftKey: activeDraftKey,
       updatedAt: Date.now(),
@@ -372,7 +386,7 @@ function SubmitPageContent() {
       routeCount: context.routes.length,
       image: toImageSnapshot(context.image),
       crag: context.crag,
-      imageGps: context.imageGps,
+      imageGps: resolvedImageGps,
       faceDirections: context.faceDirections,
     })
   }, [step.step, activeDraftKey, context.image, context.crag, context.imageGps, context.faceDirections, context.routes.length])
@@ -519,12 +533,14 @@ function SubmitPageContent() {
         return
       }
 
+      const resolvedImageGps = resolveImageGps(context)
+
       const payload = context.image.mode === 'new' ? {
         mode: 'new' as const,
         imageBucket: context.image.uploadedBucket,
         imagePath: context.image.uploadedPath,
-        imageLat: context.imageGps?.latitude ?? null,
-        imageLng: context.imageGps?.longitude ?? null,
+        imageLat: resolvedImageGps?.latitude ?? null,
+        imageLng: resolvedImageGps?.longitude ?? null,
         faceDirections: context.faceDirections,
         captureDate: context.image.captureDate,
         width: context.image.width,

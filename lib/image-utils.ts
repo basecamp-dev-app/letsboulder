@@ -20,6 +20,26 @@ export function blobToDataURL(blob: Blob): Promise<string> {
 }
 
 export function isHeicFile(file: File): boolean {
+  const mime = (file.type || '').toLowerCase()
+  if (mime === 'image/heic' || mime === 'image/heif' || mime === 'image/heic-sequence' || mime === 'image/heif-sequence') {
+    return true
+  }
+
   const lowerName = file.name.toLowerCase()
   return lowerName.endsWith('.heic') || lowerName.endsWith('.heif')
+}
+
+export function isSupportedImageFile(file: File): boolean {
+  if ((file.type || '').toLowerCase().startsWith('image/')) return true
+
+  const lowerName = file.name.toLowerCase()
+  return [
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.webp',
+    '.gif',
+    '.heic',
+    '.heif',
+  ].some((ext) => lowerName.endsWith(ext))
 }
