@@ -26,6 +26,8 @@ interface PlaceRankingPagination {
 interface PlaceRankingsResponse {
   leaderboard: PlaceRankingEntry[]
   pagination: PlaceRankingPagination
+  window?: '60d' | 'all-time'
+  fallback_used?: boolean
 }
 
 interface PlaceRankingsPanelProps {
@@ -40,6 +42,8 @@ export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
   const [pagination, setPagination] = useState<PlaceRankingPagination | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [windowMode, setWindowMode] = useState<'60d' | 'all-time'>('60d')
+  const [fallbackUsed, setFallbackUsed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -58,6 +62,8 @@ export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
             setError(true)
             setEntries([])
             setPagination(null)
+            setWindowMode('60d')
+            setFallbackUsed(false)
           }
           return
         }
@@ -68,6 +74,8 @@ export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
             setError(true)
             setEntries([])
             setPagination(null)
+            setWindowMode('60d')
+            setFallbackUsed(false)
           }
           return
         }
@@ -75,12 +83,16 @@ export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
         if (!cancelled) {
           setEntries(payload.leaderboard)
           setPagination(payload.pagination)
+          setWindowMode(payload.window === 'all-time' ? 'all-time' : '60d')
+          setFallbackUsed(Boolean(payload.fallback_used))
         }
       } catch {
         if (!cancelled) {
           setError(true)
           setEntries([])
           setPagination(null)
+          setWindowMode('60d')
+          setFallbackUsed(false)
         }
       } finally {
         if (!cancelled) {
@@ -99,7 +111,7 @@ export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Place rankings (60 days)</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Place rankings ({windowMode === 'all-time' ? 'all time' : '60 days'})</h2>
         <div className="flex rounded-lg bg-gray-100 p-0.5 dark:bg-gray-800">
           <button
             type="button"
@@ -141,7 +153,11 @@ export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
       ) : null}
 
       {!loading && !error && entries.length === 0 ? (
-        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No public rankings for this place in the last 60 days.</p>
+        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No public rankings for this place yet.</p>
+      ) : null}
+
+      {!loading && !error && fallbackUsed ? (
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">No public rankings in the last 60 days, showing all-time results.</p>
       ) : null}
 
       {!loading && !error && entries.length > 0 ? (
