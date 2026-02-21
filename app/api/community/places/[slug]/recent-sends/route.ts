@@ -8,7 +8,7 @@ interface RouteParams {
 
 interface RecentSendRow {
   user_id: string
-  style: 'top' | 'flash'
+  style: 'top' | 'flash' | 'onsight'
   created_at: string
   climb_id: string
   star_rating: number | null
@@ -17,11 +17,13 @@ interface RecentSendRow {
     name: string
     grade: string
     place_id: string | null
+    crag_id: string | null
   } | Array<{
     id: string
     name: string
     grade: string
     place_id: string | null
+    crag_id: string | null
   }>
 }
 
@@ -45,7 +47,7 @@ function getDisplayName(profile: ProfileRow): string {
 
 function getClimbRecord(
   climbs: RecentSendRow['climbs']
-): { id: string; name: string; grade: string; place_id: string | null } | null {
+): { id: string; name: string; grade: string; place_id: string | null; crag_id: string | null } | null {
   if (Array.isArray(climbs)) return climbs[0] || null
   return climbs || null
 }
@@ -83,22 +85,47 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       return NextResponse.json({ error: 'Place not found' }, { status: 404 })
     }
 
+    const placeId = place.id
+
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
-    const { data: sendRows, error: sendRowsError } = await supabase
-      .from('user_climbs')
-      .select('user_id, style, created_at, climb_id, star_rating, climbs!inner(id, name, grade, place_id)')
-      .in('style', ['top', 'flash'])
-      .gte('created_at', sixtyDaysAgo)
-      .eq('climbs.place_id', place.id)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+    const [byPlaceResult, byLegacyCragResult] = await Promise.all([
+      supabase
+        .from('user_climbs')
+        .select('user_id, style, created_at, climb_id, star_rating, climbs!inner(id, name, grade, place_id, crag_id)')
+        .in('style', ['top', 'flash', 'onsight'])
+        .gte('created_at', sixtyDaysAgo)
+        .eq('climbs.place_id', placeId)
+        .order('created_at', { ascending: false })
+        .limit(limit),
+      supabase
+        .from('user_climbs')
+        .select('user_id, style, created_at, climb_id, star_rating, climbs!inner(id, name, grade, place_id, crag_id)')
+        .in('style', ['top', 'flash', 'onsight'])
+        .gte('created_at', sixtyDaysAgo)
+        .eq('climbs.crag_id', placeId)
+        .is('climbs.place_id', null)
+        .order('created_at', { ascending: false })
+        .limit(limit),
+    ])
 
-    if (sendRowsError) {
-      return createErrorResponse(sendRowsError, 'Place recent sends query error')
+    if (byPlaceResult.error) {
+      return createErrorResponse(byPlaceResult.error, 'Place recent sends query error')
+    }
+    if (byLegacyCragResult.error) {
+      return createErrorResponse(byLegacyCragResult.error, 'Place recent sends query error')
     }
 
-    const recentSends = (sendRows as unknown as RecentSendRow[] | null) || []
+    const deduped = new Map<string, RecentSendRow>()
+    for (const row of [
+      ...((byPlaceResult.data as unknown as RecentSendRow[] | null) || []),
+      ...((byLegacyCragResult.data as unknown as RecentSendRow[] | null) || []),
+    ]) {
+      deduped.set(`${row.user_id}:${row.climb_id}:${row.created_at}:${row.style}`, row)
+    }
+
+    const recentSends = Array.from(deduped.values())
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     const userIds = Array.from(new Set(recentSends.map((row) => row.user_id)))
 
     if (userIds.length === 0) {
@@ -153,6 +180,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
         }
       })
       .filter((row): row is NonNullable<typeof row> => row !== null)
+      .slice(0, limit)
 
     return NextResponse.json(
       {
