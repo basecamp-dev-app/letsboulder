@@ -30,6 +30,7 @@ import FlagClimbModal from '@/components/FlagClimbModal'
 interface ImageInfo {
   id: string
   url: string
+  crag_id: string | null
   width: number | null
   height: number | null
   natural_width: number | null
@@ -46,6 +47,7 @@ interface ClimbInfo {
   id: string
   name: string
   grade: string
+  route_type: string | null
   description: string | null
 }
 
@@ -80,6 +82,7 @@ interface LegacyClimb {
   id: string
   name: string
   grade: string
+  route_type?: string | null
   image_url: string
   coordinates: RoutePoint[] | string
 }
@@ -129,6 +132,18 @@ function parsePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[
   } catch {
     return []
   }
+}
+
+function normalizeRouteType(value: string): string {
+  return value.trim().toLowerCase().replace(/_/g, '-')
+}
+
+function formatRouteTypeLabel(value: string): string {
+  return normalizeRouteType(value)
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
 function normalizePoints(
@@ -207,6 +222,7 @@ export default function ClimbPage() {
   const [starRatingSummaryByClimbId, setStarRatingSummaryByClimbId] = useState<Record<string, StarRatingSummary>>({})
   const [hasUserInteractedWithSelection, setHasUserInteractedWithSelection] = useState(false)
   const [publicSubmitter, setPublicSubmitter] = useState<PublicSubmitter | null>(null)
+  const [cragPath, setCragPath] = useState<string | null>(null)
   const gradeSystem = useGradeSystem()
 
   useOverlayHistory({ open: shareModalOpen, onClose: () => setShareModalOpen(false), id: 'share-climb-dialog' })
@@ -284,6 +300,7 @@ export default function ClimbPage() {
       setError(null)
       setHasUserInteractedWithSelection(false)
       setPublicSubmitter(null)
+      setCragPath(null)
       clearSelection()
 
       try {
@@ -296,8 +313,8 @@ export default function ClimbPage() {
             points,
             image_width,
             image_height,
-            image:images!inner(id, url, width, height, natural_width, natural_height, created_by),
-            climb:climbs!inner(id, name, grade, description)
+            image:images!inner(id, url, crag_id, width, height, natural_width, natural_height, created_by),
+            climb:climbs!inner(id, name, grade, route_type, description)
           `)
           .eq('climb_id', climbId)
           .maybeSingle()
@@ -329,6 +346,7 @@ export default function ClimbPage() {
           setImage({
             id: `legacy-${legacy.id}`,
             url: resolveRouteImageUrl(legacy.image_url),
+            crag_id: null,
             width: null,
             height: null,
             natural_width: null,
@@ -344,6 +362,7 @@ export default function ClimbPage() {
                 id: legacy.id,
                 name: legacy.name,
                 grade: legacy.grade,
+                route_type: legacy.route_type || null,
                 description: null,
               },
             },
@@ -359,6 +378,20 @@ export default function ClimbPage() {
           throw new Error('Climb image context not found')
         }
 
+        if (imageInfo.crag_id) {
+          const { data: cragData } = await supabase
+            .from('crags')
+            .select('id, country_code, slug')
+            .eq('id', imageInfo.crag_id)
+            .maybeSingle()
+
+          if (cragData?.country_code && cragData?.slug) {
+            setCragPath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
+          } else {
+            setCragPath(`/crag/${imageInfo.crag_id}`)
+          }
+        }
+
         const { data: allLines, error: allLinesError } = await supabase
           .from('route_lines')
           .select(`
@@ -368,7 +401,7 @@ export default function ClimbPage() {
             image_width,
             image_height,
             climb_id,
-            climbs (id, name, grade, description)
+            climbs (id, name, grade, route_type, description)
           `)
           .eq('image_id', typedSeed.image_id)
 
@@ -396,6 +429,7 @@ export default function ClimbPage() {
                 id: climb.id,
                 name: climb.name,
                 grade: climb.grade,
+                route_type: climb.route_type,
                 description: climb.description,
               },
             } as DisplayRouteLine
@@ -943,14 +977,18 @@ export default function ClimbPage() {
     )
   }
 
+  const displayClimbTypeLabel = displayClimb?.route_type ? formatRouteTypeLabel(displayClimb.route_type) : null
+
   const routeSchema = {
     '@context': 'https://schema.org',
     '@type': 'SportsActivityLocation',
     name: displayClimb?.name || 'Climbing route',
-    description: displayClimb?.grade ? `${displayClimb.grade} bouldering route` : 'Bouldering route',
+    description: displayClimb?.grade
+      ? `${displayClimb.grade}${displayClimbTypeLabel ? ` ${displayClimbTypeLabel.toLowerCase()}` : ''} route`
+      : 'Climbing route',
     url: `${SITE_URL}/climb/${climbId}`,
     image: image.url,
-    sport: 'Bouldering',
+    sport: displayClimbTypeLabel || 'Climbing',
     additionalProperty: displayClimb
       ? {
           '@type': 'PropertyValue',
@@ -1004,6 +1042,11 @@ export default function ClimbPage() {
                   ? `Grade: ${formatGradeForDisplay(selectedClimb.grade, gradeSystem)}`
                   : 'Tap a route on the image to select it'}
               </p>
+              {selectedClimb?.route_type && (
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Type: {formatRouteTypeLabel(selectedClimb.route_type)}
+                </p>
+              )}
               {selectedClimb && (
                 <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {selectedClimbRatingSummary
@@ -1050,6 +1093,14 @@ export default function ClimbPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              {cragPath && (
+                <Link
+                  href={cragPath}
+                  className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors"
+                >
+                  View crag
+                </Link>
+              )}
               <button
                 onClick={handleOpenFlagModal}
                 disabled={!selectedClimb}

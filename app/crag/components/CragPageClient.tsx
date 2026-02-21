@@ -96,6 +96,7 @@ interface RawClimb {
   name: string | null
   grade: string
   slug: string | null
+  route_type: string | null
   route_lines: RawRouteLine[] | null
 }
 
@@ -104,6 +105,7 @@ interface CragRoute {
   name: string
   grade: string
   slug: string | null
+  routeType: string | null
   directions: string[]
 }
 
@@ -154,8 +156,21 @@ function formatCragRoutes(climbs: RawClimb[] | null | undefined): CragRoute[] {
     name: (climb.name || '').trim() || 'Unnamed route',
     grade: normalizeGrade(climb.grade) || 'Unknown',
     slug: climb.slug,
+    routeType: climb.route_type,
     directions: extractDirections(climb.route_lines),
   }))
+}
+
+function normalizeRouteType(value: string): string {
+  return value.trim().toLowerCase().replace(/_/g, '-')
+}
+
+function formatRouteTypeLabel(value: string): string {
+  return normalizeRouteType(value)
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
 function toRad(deg: number) {
@@ -235,12 +250,13 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
           name,
           grade,
           slug,
-            route_lines (
-              images (
-                face_direction,
-                face_directions
-              )
+          route_type,
+          route_lines (
+            images (
+              face_direction,
+              face_directions
             )
+          )
         `)
         .eq('crag_id', id)
         .in('status', ['active', 'approved'])
@@ -411,6 +427,15 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
   const totalRoutes = useMemo(() => {
     return images.reduce((sum, img) => sum + img.route_lines_count, 0)
   }, [images])
+
+  const routeTypeChips = useMemo(() => {
+    const uniqueTypes = new Set<string>()
+    for (const route of routes) {
+      if (!route.routeType) continue
+      uniqueTypes.add(normalizeRouteType(route.routeType))
+    }
+    return [...uniqueTypes].sort((a, b) => a.localeCompare(b))
+  }, [routes])
 
   const routeHrefBase = useMemo(() => {
     if (!crag?.country_code || !crag.slug) return null
@@ -734,11 +759,17 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
             </div>
 
             <div className="flex flex-wrap gap-2 mt-6 mb-6">
-              {crag.type && (
-                <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 capitalize">
-                  {crag.type}
-                </span>
-              )}
+              {routeTypeChips.length > 0
+                ? routeTypeChips.map((routeType) => (
+                    <span key={routeType} className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
+                      {formatRouteTypeLabel(routeType)}
+                    </span>
+                  ))
+                : crag.type && (
+                    <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
+                      {formatRouteTypeLabel(crag.type)}
+                    </span>
+                  )}
               {crag.rock_type && (
                 <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 capitalize">
                   {crag.rock_type}

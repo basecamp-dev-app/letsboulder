@@ -34,6 +34,7 @@ const VALID_GRADES = [
   '8A', '8A+', '8B', '8B+', '8C', '8C+',
   '9A', '9A+', '9B', '9B+', '9C', '9C+'
 ] as const
+const VALID_ROUTE_TYPES = ['sport', 'bouldering', 'trad', 'deep-water-solo'] as const
 
 const MAX_ROUTES_PER_REQUEST = 40
 
@@ -140,6 +141,14 @@ export async function POST(
 
     const body = await request.json()
     const routes = normalizeNewRoutes(body?.routes)
+    const submittedRouteType = typeof body?.routeType === 'string'
+      ? body.routeType.trim().toLowerCase().replace(/_/g, '-')
+      : null
+
+    if (submittedRouteType && !VALID_ROUTE_TYPES.includes(submittedRouteType as (typeof VALID_ROUTE_TYPES)[number])) {
+      return NextResponse.json({ error: 'Invalid route type' }, { status: 400 })
+    }
+
     if (!routes || routes.length === 0) {
       return NextResponse.json({ error: 'A valid routes array is required' }, { status: 400 })
     }
@@ -190,6 +199,30 @@ export async function POST(
       return Math.max(maxOrder, typeof line.sequence_order === 'number' ? line.sequence_order : 0)
     }, -1) + 1
 
+    let resolvedRouteType: (typeof VALID_ROUTE_TYPES)[number] = 'sport'
+    if (submittedRouteType) {
+      resolvedRouteType = submittedRouteType as (typeof VALID_ROUTE_TYPES)[number]
+    } else {
+      const { data: existingImageRouteLines } = await supabase
+        .from('route_lines')
+        .select('climbs (route_type)')
+        .eq('image_id', imageId)
+        .limit(50)
+
+      const existingTypes = new Set<(typeof VALID_ROUTE_TYPES)[number]>()
+      for (const row of (existingImageRouteLines || []) as Array<{ climbs: { route_type: string | null } | { route_type: string | null }[] | null }>) {
+        const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
+        const normalized = climb?.route_type?.trim().toLowerCase().replace(/_/g, '-')
+        if (normalized && VALID_ROUTE_TYPES.includes(normalized as (typeof VALID_ROUTE_TYPES)[number])) {
+          existingTypes.add(normalized as (typeof VALID_ROUTE_TYPES)[number])
+        }
+      }
+
+      if (existingTypes.size === 1) {
+        resolvedRouteType = [...existingTypes][0]
+      }
+    }
+
     const usedRouteSlugs = new Set<string>()
     if (image.crag_id) {
       const { data: existingSlugs } = await supabase
@@ -212,7 +245,7 @@ export async function POST(
         slug: image.crag_id ? makeUniqueSlug(trimmedName || `Route ${routeNumber}`, usedRouteSlugs) : null,
         grade: route.grade,
         description: route.description?.trim() || null,
-        route_type: 'sport' as const,
+        route_type: resolvedRouteType,
         status: 'approved' as const,
         user_id: user.id,
         crag_id: image.crag_id,
