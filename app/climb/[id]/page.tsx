@@ -12,6 +12,7 @@ import { SITE_URL } from '@/lib/site'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import { formatSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/lib/submission-credit'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import {
   Dialog,
@@ -36,11 +37,17 @@ interface ImageInfo {
   natural_width: number | null
   natural_height: number | null
   created_by: string | null
+  contribution_credit_platform: string | null
+  contribution_credit_handle: string | null
 }
 
 interface PublicSubmitter {
   id: string
   displayName: string
+  contributionCreditPlatform: string | null
+  contributionCreditHandle: string | null
+  profileContributionCreditPlatform: string | null
+  profileContributionCreditHandle: string | null
 }
 
 interface ClimbInfo {
@@ -144,6 +151,28 @@ function formatRouteTypeLabel(value: string): string {
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
+}
+
+function getSubmissionCreditUrl(platform: string | null, handle: string | null): string | null {
+  if (!handle) return null
+
+  const normalizedPlatform = normalizeSubmissionCreditPlatform(platform)
+  if (!normalizedPlatform) return null
+
+  switch (normalizedPlatform) {
+    case 'instagram':
+      return `https://www.instagram.com/${handle}`
+    case 'tiktok':
+      return `https://www.tiktok.com/@${handle}`
+    case 'youtube':
+      return `https://www.youtube.com/@${handle}`
+    case 'x':
+      return `https://x.com/${handle}`
+    case 'other':
+      return null
+    default:
+      return null
+  }
 }
 
 function normalizePoints(
@@ -252,6 +281,17 @@ export default function ClimbPage() {
   const selectedClimbRoundedStars = selectedClimbAverageRating
     ? Math.max(0, Math.min(5, Math.round(selectedClimbAverageRating)))
     : 0
+  const formattedContributionHandle = publicSubmitter
+    ? formatSubmissionCreditHandle(
+        publicSubmitter.contributionCreditHandle || publicSubmitter.profileContributionCreditHandle
+      )
+    : null
+  const contributionCreditUrl = publicSubmitter
+    ? getSubmissionCreditUrl(
+        publicSubmitter.contributionCreditPlatform || publicSubmitter.profileContributionCreditPlatform,
+        publicSubmitter.contributionCreditHandle || publicSubmitter.profileContributionCreditHandle
+      )
+    : null
 
   routeLinesRef.current = routeLines
   selectedIdsRef.current = selectedIds
@@ -313,7 +353,7 @@ export default function ClimbPage() {
             points,
             image_width,
             image_height,
-            image:images!inner(id, url, crag_id, width, height, natural_width, natural_height, created_by),
+            image:images!inner(id, url, crag_id, width, height, natural_width, natural_height, created_by, contribution_credit_platform, contribution_credit_handle),
             climb:climbs!inner(id, name, grade, route_type, description)
           `)
           .eq('climb_id', climbId)
@@ -352,6 +392,8 @@ export default function ClimbPage() {
             natural_width: null,
             natural_height: null,
             created_by: null,
+            contribution_credit_platform: null,
+            contribution_credit_handle: null,
           })
           setRouteLines([
             {
@@ -448,7 +490,7 @@ export default function ClimbPage() {
         if (imageInfo.created_by) {
           const { data: profileData } = await supabase
             .from('profiles')
-            .select('id, username, display_name, first_name, last_name, is_public')
+            .select('id, username, display_name, first_name, last_name, is_public, contribution_credit_platform, contribution_credit_handle')
             .eq('id', imageInfo.created_by)
             .single()
 
@@ -458,6 +500,10 @@ export default function ClimbPage() {
             setPublicSubmitter({
               id: profileData.id,
               displayName,
+              contributionCreditPlatform: imageInfo.contribution_credit_platform,
+              contributionCreditHandle: imageInfo.contribution_credit_handle,
+              profileContributionCreditPlatform: profileData.contribution_credit_platform,
+              profileContributionCreditHandle: profileData.contribution_credit_handle,
             })
           }
         }
@@ -1089,6 +1135,23 @@ export default function ClimbPage() {
                   >
                     {publicSubmitter.displayName}
                   </Link>
+                  {formattedContributionHandle && (
+                    <>
+                      {' '}·{' '}
+                      {contributionCreditUrl ? (
+                        <a
+                          href={contributionCreditUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline decoration-gray-400 underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200"
+                        >
+                          {formattedContributionHandle}
+                        </a>
+                      ) : (
+                        <span>{formattedContributionHandle}</span>
+                      )}
+                    </>
+                  )}
                 </p>
               )}
             </div>
