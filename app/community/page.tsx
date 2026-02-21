@@ -35,10 +35,6 @@ export default async function CommunityPage() {
         <p className="mt-3 text-gray-600 dark:text-gray-400">Pick a place to see upcoming sessions and find partners.</p>
 
         <section className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Rankings</h2>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Track active climbers globally or open a place to view local rankings from the last 60 days.
-          </p>
           <div className="mt-2 flex items-center gap-3">
             <Link
               href="/rankings"
