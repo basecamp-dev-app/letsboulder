@@ -93,6 +93,11 @@ export default async function CommunityPlacePage({ params, searchParams }: { par
   }
 
   const typedPlace = place as PlaceSummary
+  const cragPageHref = typedPlace.type === 'crag'
+    ? (typedPlace.country_code && typedPlace.slug
+      ? `/${typedPlace.country_code.toLowerCase()}/${typedPlace.slug}`
+      : `/crag/${typedPlace.id}`)
+    : null
 
   let sessionPosts: CommunitySessionPost[] = []
   let updatePosts: CommunityUpdatePost[] = []
@@ -168,6 +173,17 @@ export default async function CommunityPlacePage({ params, searchParams }: { par
             Upcoming sessions and partner requests for this place.
           </p>
         </header>
+
+        {cragPageHref ? (
+          <section className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+            <Link
+              href={cragPageHref}
+              className="inline-flex text-sm font-semibold text-gray-900 underline-offset-2 hover:underline dark:text-gray-100"
+            >
+              View crag page
+            </Link>
+          </section>
+        ) : null}
 
         <TopThisPlacePanel slug={slug} />
 
