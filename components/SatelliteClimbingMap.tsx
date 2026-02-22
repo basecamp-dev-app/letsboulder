@@ -44,6 +44,9 @@ interface DefaultLocation {
   zoom: number
 }
 
+const WORLD_DEFAULT_VIEW: [number, number] = [20, 0]
+const WORLD_DEFAULT_ZOOM = 2
+
 function DefaultLocationWatcher({ defaultLocation, mapRef }: { defaultLocation: DefaultLocation | null; mapRef: React.RefObject<L.Map | null> }) {
   useEffect(() => {
     if (defaultLocation && mapRef.current) {
@@ -204,7 +207,7 @@ export default function SatelliteClimbingMap() {
   const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
   const [useUserLocation, setUseUserLocation] = useState(false)
   const [cragPins, setCragPins] = useState<CragPin[]>([])
-  const [mapZoom, setMapZoom] = useState(11)
+  const [mapZoom, setMapZoom] = useState(WORLD_DEFAULT_ZOOM)
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [saveLocationLoading, setSaveLocationLoading] = useState(false)
@@ -522,7 +525,12 @@ export default function SatelliteClimbingMap() {
 
         if (ignore) return
 
-        if (profile?.default_location_lat) {
+        if (
+          profile?.default_location_lat !== null
+          && profile?.default_location_lat !== undefined
+          && profile?.default_location_lng !== null
+          && profile?.default_location_lng !== undefined
+        ) {
           console.log('[Map] Setting defaultLocation:', {
             lat: profile.default_location_lat,
             lng: profile.default_location_lng,
@@ -625,8 +633,8 @@ export default function SatelliteClimbingMap() {
         console.log('[Map] Centering on defaultLocation:', { lat: defaultLocation.lat, lng: defaultLocation.lng, zoom: defaultLocation.zoom })
         mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
       } else {
-        console.log('[Map] No location, falling back to Guernsey')
-        mapRef.current.setView([49.45, -2.6], 11)
+        console.log('[Map] No saved location, falling back to world view')
+        mapRef.current.setView(WORLD_DEFAULT_VIEW, WORLD_DEFAULT_ZOOM)
       }
     }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
 
@@ -650,8 +658,8 @@ export default function SatelliteClimbingMap() {
     <div className="h-screen w-full p-4 relative">
       <MapContainer
         ref={mapRef as RefObject<L.Map>}
-        center={[49.45, -2.6]}
-        zoom={11}
+        center={WORLD_DEFAULT_VIEW}
+        zoom={WORLD_DEFAULT_ZOOM}
         minZoom={2}
         maxZoom={19}
         maxBounds={[[-90, -180], [90, 180]]}

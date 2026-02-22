@@ -40,9 +40,10 @@ async function getCounts(): Promise<Counts> {
   const cragsCountResult = await supabase
     .from('crags')
     .select('id', { count: 'exact', head: true })
-    .eq('country_code', 'GG')
     .not('slug', 'is', null)
     .neq('slug', '')
+    .not('country_code', 'is', null)
+    .neq('country_code', '')
 
   return {
     crags: cragsCountResult.count || 0,
@@ -91,15 +92,16 @@ export async function GET(request: Request) {
 
   const { data } = await supabase
     .from('crags')
-    .select('updated_at, slug')
-    .eq('country_code', 'GG')
+    .select('updated_at, slug, country_code')
     .not('slug', 'is', null)
     .neq('slug', '')
+    .not('country_code', 'is', null)
+    .neq('country_code', '')
     .order('id', { ascending: true })
     .range(from, to)
 
   const entries = (data || []).map((crag) => ({
-    loc: `${BASE_URL}/gg/${crag.slug}`,
+    loc: `${BASE_URL}/${String(crag.country_code).toLowerCase()}/${crag.slug}`,
     lastmod: new Date(crag.updated_at || Date.now()).toISOString(),
     changefreq: 'weekly',
     priority: 0.7,

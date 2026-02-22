@@ -27,7 +27,7 @@ export default function Footer({ submitContext }: FooterProps) {
           </p>
           <nav className="flex gap-6 text-sm">
             <Link href="/guernsey-bouldering" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
-              Guernsey Map
+              Climbing Map
             </Link>
             <Link href="/privacy" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               Privacy

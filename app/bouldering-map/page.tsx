@@ -4,20 +4,20 @@ import MapPage from '@/app/map/page'
 
 export const metadata: Metadata = {
   title: 'Bouldering Map',
-  description: 'Use this bouldering map to find Guernsey crags, open photo topos, and check route beta before heading out.',
+  description: 'Use this bouldering map to find crags from Guernsey to Skye, open photo topos, and check route beta before heading out.',
   alternates: {
     canonical: '/bouldering-map',
   },
   openGraph: {
     title: 'Bouldering Map - letsboulder',
-    description: 'Find Guernsey bouldering crags, photo topos, and route beta on an interactive map.',
+    description: 'Find bouldering crags, photo topos, and route beta on an interactive map, including Scotland and the Channel Islands.',
     url: '/bouldering-map',
     images: ['/og.png'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Bouldering Map - letsboulder',
-    description: 'Find Guernsey bouldering crags, photo topos, and route beta on an interactive map.',
+    description: 'Find bouldering crags, photo topos, and route beta on an interactive map, including Scotland and the Channel Islands.',
     images: ['/og.png'],
   },
 }
@@ -28,7 +28,7 @@ export default function BoulderingMapPage() {
     '@type': 'WebPage',
     name: 'Bouldering Map',
     url: 'https://letsboulder.com/bouldering-map',
-    description: 'Interactive bouldering map for Guernsey with photo topos, route beta, and local crag links.',
+    description: 'Interactive bouldering map with photo topos, route beta, and local crag links, including Skye and Guernsey.',
   }
 
   return (
@@ -41,9 +41,9 @@ export default function BoulderingMapPage() {
 
       <section className="relative z-10 mt-[100vh] border-t border-gray-200 bg-white/95 px-4 py-8 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/95">
         <div className="mx-auto max-w-5xl">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Bouldering map for Guernsey</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Bouldering map for Skye, Guernsey, and beyond</h1>
           <p className="mt-3 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
-            Browse Guernsey bouldering on a map-first interface, open photo topos, and move from crag discovery to route detail pages in a few taps.
+            Browse bouldering on a map-first interface, open photo topos, and move from crag discovery to route detail pages in a few taps.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2 text-sm">

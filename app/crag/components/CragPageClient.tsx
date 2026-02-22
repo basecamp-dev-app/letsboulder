@@ -522,12 +522,12 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
     "@context": "https://schema.org",
     "@type": "Place",
     "name": crag.name,
-    "description": crag.description || `${crag.type || 'Bouldering'} crag in ${crag.regions?.name || 'Guernsey'}`,
+    "description": crag.description || `${crag.type || 'Bouldering'} crag`,
     "url": `${SITE_URL}${canonicalPath || `/crag/${crag.id}`}`,
     "address": {
       "@type": "PostalAddress",
-      "addressLocality": crag.regions?.name || "Guernsey",
-      "addressCountry": "GB"
+      "addressLocality": crag.regions?.name,
+      "addressCountry": crag.country_code || "GB"
     },
     "geo": {
       "@type": "GeoCoordinates",

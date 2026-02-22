@@ -26,28 +26,28 @@ interface SeoClimb {
 }
 
 export const metadata: Metadata = {
-  title: 'Guernsey Bouldering Map',
-  description: 'Explore Guernsey bouldering on an interactive map. Find crags, view photo topos, and discover route beta.',
+  title: 'Climbing Map & Topos',
+  description: 'Explore climbing on an interactive map, from Guernsey to Skye, with photo topos and route beta.',
   alternates: {
     canonical: '/',
   },
   openGraph: {
-    title: 'Guernsey Bouldering Map - letsboulder',
-    description: 'Explore Guernsey bouldering with map-based photo topos and route beta.',
+    title: 'Climbing Map & Topos - letsboulder',
+    description: 'Explore climbing maps and photo topos from Guernsey to Skye, with route beta.',
     url: '/',
     images: [
       {
         url: '/og.png',
         width: 1200,
         height: 630,
-        alt: 'Guernsey Bouldering Map - letsboulder',
+        alt: 'Climbing Map & Topos - letsboulder',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Guernsey Bouldering Map - letsboulder',
-    description: 'Explore Guernsey bouldering with map-based photo topos and route beta.',
+    title: 'Climbing Map & Topos - letsboulder',
+    description: 'Explore climbing maps and photo topos from Guernsey to Skye, with route beta.',
     images: ['/og.png'],
   },
 }
@@ -129,9 +129,9 @@ export default async function Home() {
 
       <section className="relative z-10 mt-[100vh] border-t border-gray-200 bg-white/95 px-4 py-8 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/95">
         <div className="mx-auto max-w-5xl">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Interactive bouldering map, topos, and route beta</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Interactive climbing map, topos, and route beta</h1>
           <p className="mt-3 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
-            letsboulder is focused on Guernsey bouldering. Discover crags, open photo topos, and navigate routes with precise map context. Start on the map above, then dive into route pages and crag guides.
+            letsboulder helps you discover crags, open photo topos, and navigate routes with precise map context, from Guernsey to Skye and beyond. Start on the map above, then dive into route pages and crag guides.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2 text-sm">

@@ -26,10 +26,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'letsboulder - Guernsey Bouldering Map & Topos',
+    default: 'letsboulder - Climbing Maps, Topos & Logbook',
     template: '%s | letsboulder',
   },
-  description: 'Explore Guernsey bouldering on an interactive map with photo topos, route beta, and a community logbook.',
+  description: 'Explore climbing on an interactive map with photo topos, route beta, and a community logbook, from Guernsey to Skye and beyond.',
   keywords: [
     'letsboulder',
     'bouldering',
@@ -39,6 +39,10 @@ export const metadata: Metadata = {
     'guernsey bouldering map',
     'guernsey climbing map',
     'guernsey bouldering topos',
+    'skye bouldering',
+    'isle of skye climbing',
+    'scotland climbing map',
+    'uk climbing map',
     'bouldering topo',
     'climbing topo',
     'route finder',
@@ -73,8 +77,8 @@ export const metadata: Metadata = {
     locale: 'en_US',
     url: SITE_URL,
     siteName: BRAND_NAME,
-    title: 'letsboulder - Guernsey Bouldering Map & Topos',
-    description: 'Explore Guernsey bouldering on an interactive map with photo topos, route beta, and a community logbook.',
+    title: 'letsboulder - Climbing Maps, Topos & Logbook',
+    description: 'Explore climbing maps and photo topos from Guernsey to Skye, with route beta and a community logbook.',
     images: [
       {
         url: '/og.png',
@@ -86,8 +90,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'letsboulder - Guernsey Bouldering Map & Topos',
-    description: 'Explore Guernsey bouldering on an interactive map with photo topos, route beta, and a community logbook.',
+    title: 'letsboulder - Climbing Maps, Topos & Logbook',
+    description: 'Explore climbing maps and photo topos from Guernsey to Skye, with route beta and a community logbook.',
     images: ['/og.png'],
     creator: X_HANDLE,
   },
@@ -153,7 +157,7 @@ export default function RootLayout({
                 "@type": "WebSite",
                 name: BRAND_NAME,
                 url: SITE_URL,
-                description: 'Guernsey bouldering map with photo topos and route beta',
+                description: 'Climbing map with photo topos and route beta from Guernsey to Skye',
                 potentialAction: {
                   "@type": "SearchAction",
                   target: {
@@ -169,7 +173,7 @@ export default function RootLayout({
                 name: BRAND_NAME,
                 url: SITE_URL,
                 logo: `${SITE_URL}/icon-512.png`,
-                description: 'Community-driven Guernsey bouldering platform with interactive map, photo topos, and a personal logbook.',
+                description: 'Community-driven climbing platform with an interactive map, photo topos, and a personal logbook.',
                 sameAs: [
                   X_URL,
                   INSTAGRAM_URL

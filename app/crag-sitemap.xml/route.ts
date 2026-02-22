@@ -33,14 +33,15 @@ export async function GET() {
 
   const { data } = await supabase
     .from('crags')
-    .select('slug, updated_at')
-    .eq('country_code', 'GG')
+    .select('slug, updated_at, country_code')
     .not('slug', 'is', null)
     .neq('slug', '')
+    .not('country_code', 'is', null)
+    .neq('country_code', '')
     .order('id', { ascending: true })
 
   const entries = (data || []).map((crag) => ({
-    loc: `${SITE_URL}/gg/${crag.slug}`,
+    loc: `${SITE_URL}/${String(crag.country_code).toLowerCase()}/${crag.slug}`,
     lastmod: new Date(crag.updated_at || Date.now()).toISOString(),
     changefreq: 'weekly',
     priority: 0.7,
