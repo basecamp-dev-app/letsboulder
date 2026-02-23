@@ -739,24 +739,27 @@ export default function RouteCanvas({
     if (!canvas || !image || !image.complete) return
 
     const rect = image.getBoundingClientRect()
-    const containerAspect = rect.width / rect.height
+    const untransformedWidth = rect.width / zoom
+    const untransformedHeight = rect.height / zoom
+
+    const containerAspect = untransformedWidth / untransformedHeight
     const naturalAspect = image.naturalWidth / image.naturalHeight
 
     let displayedWidth: number
     let displayedHeight: number
 
     if (naturalAspect > containerAspect) {
-      displayedWidth = rect.width
-      displayedHeight = rect.width / naturalAspect
+      displayedWidth = untransformedWidth
+      displayedHeight = untransformedWidth / naturalAspect
     } else {
-      displayedHeight = rect.height
-      displayedWidth = rect.height * naturalAspect
+      displayedHeight = untransformedHeight
+      displayedWidth = untransformedHeight * naturalAspect
     }
 
     canvas.width = displayedWidth
     canvas.height = displayedHeight
     redraw()
-  }, [redraw])
+  }, [redraw, zoom])
 
   useEffect(() => {
     setupCanvas()
@@ -798,9 +801,11 @@ export default function RouteCanvas({
               const img = imageRef.current
               if (img) {
                 const rect = img.getBoundingClientRect()
+                const untransformedWidth = rect.width / zoom
+                const untransformedHeight = rect.height / zoom
                 const nextDims = {
-                  width: rect.width,
-                  height: rect.height,
+                  width: untransformedWidth,
+                  height: untransformedHeight,
                   naturalWidth: img.naturalWidth,
                   naturalHeight: img.naturalHeight,
                 }
@@ -842,8 +847,6 @@ export default function RouteCanvas({
               style={{
                 left: 0,
                 top: 0,
-                width: '100%',
-                height: '100%',
                 touchAction: 'none',
                 WebkitTapHighlightColor: 'transparent'
               }}
