@@ -181,6 +181,7 @@ export default function RouteCanvas({
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
   const [draggingPointIndex, setDraggingPointIndex] = useState<number | null>(null)
   const [descriptionFocused, setDescriptionFocused] = useState(false)
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(true)
   const draftWriteTimeoutRef = useRef<number | null>(null)
 
   const persistDraft = useCallback(() => {
@@ -845,136 +846,138 @@ export default function RouteCanvas({
         </div>
 
         <div className="w-full md:w-64 shrink-0 bg-white dark:bg-gray-800 overflow-y-auto md:border-l md:border-gray-200 md:dark:border-gray-700">
-          {isEditing && (
-          <div className="p-2">
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              {selectedNewRoute ? 'Edit Selected Route' : 'Route Details'}
-            </p>
-
-            {isEditingExistingRoute && (
-              <p className="mb-2 text-xs text-amber-700 dark:text-amber-300">
-                Existing routes are read-only. Select a new route you drew to edit name, grade, description, and points.
-              </p>
-            )}
-
-            {isEditExistingMode && (
-              <p className="mb-2 text-xs text-blue-700 dark:text-blue-300">
-                Existing route grades stay community-controlled after submission.
-              </p>
-            )}
-
-          <input
-            type="text"
-            value={activeName}
-            onChange={(e) => {
-              const value = e.target.value
-              if (selectedNewRoute) {
-                updateSelectedNewRoute({ name: value })
-              } else if (isEditExistingMode && selectedExistingRoute) {
-                updateSelectedExistingRoute({ name: value })
-              } else {
-                setCurrentName(value)
-              }
-            }}
-            placeholder="Route name"
-            disabled={disableEditInputs}
-            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 mb-2 disabled:opacity-60"
-          />
-
-          <div className="relative mb-2">
+          {(isEditing || completedRoutes.length > 0) && (
+          <>
             <button
-              onClick={() => !disableGradePicker && setGradePickerOpen(true)}
-              disabled={disableGradePicker}
-              className="w-full px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-60"
+              onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
+              className="w-full flex items-center justify-between px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
             >
-              {formatGradeForDisplay(activeGrade, gradeSystem)}
+              <span>{isDetailsExpanded ? '▼' : '▶'} {selectedNewRoute ? 'Edit Selected' : 'Route Details'}</span>
             </button>
-            {gradePickerOpen && !isEditingExistingRoute && !selectedExistingRoute && (
-              <GradePicker
-                isOpen={gradePickerOpen}
-                currentGrade={activeGrade}
-                onSelect={(grade) => {
+            
+            {isDetailsExpanded && (
+            <div>
+              {isEditingExistingRoute && (
+                <p className="px-2 text-xs text-amber-700 dark:text-amber-300">
+                  Existing routes are read-only. Select a new route you drew.
+                </p>
+              )}
+
+              {isEditExistingMode && (
+                <p className="px-2 text-xs text-blue-700 dark:text-blue-300">
+                  Existing route grades stay community-controlled.
+                </p>
+              )}
+
+              <input
+                type="text"
+                value={activeName}
+                onChange={(e) => {
+                  const value = e.target.value
                   if (selectedNewRoute) {
-                    updateSelectedNewRoute({ grade })
+                    updateSelectedNewRoute({ name: value })
+                  } else if (isEditExistingMode && selectedExistingRoute) {
+                    updateSelectedExistingRoute({ name: value })
                   } else {
-                    setCurrentGrade(grade)
+                    setCurrentName(value)
                   }
-                  setGradePickerOpen(false)
                 }}
-                onClose={() => setGradePickerOpen(false)}
+                placeholder="Route name"
+                disabled={disableEditInputs}
+                className="w-full px-2 py-1 text-sm border-b border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-60"
               />
+
+              <button
+                onClick={() => !disableGradePicker && setGradePickerOpen(true)}
+                disabled={disableGradePicker}
+                className="w-full px-2 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {formatGradeForDisplay(activeGrade, gradeSystem)}
+              </button>
+              {gradePickerOpen && !isEditingExistingRoute && !selectedExistingRoute && (
+                <GradePicker
+                  isOpen={gradePickerOpen}
+                  currentGrade={activeGrade}
+                  onSelect={(grade) => {
+                    if (selectedNewRoute) {
+                      updateSelectedNewRoute({ grade })
+                    } else {
+                      setCurrentGrade(grade)
+                    }
+                    setGradePickerOpen(false)
+                  }}
+                  onClose={() => setGradePickerOpen(false)}
+                />
+              )}
+
+              <textarea
+                value={activeDescription}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (selectedNewRoute) {
+                    updateSelectedNewRoute({ description: value.length > 0 ? value : undefined })
+                  } else if (isEditExistingMode && selectedExistingRoute) {
+                    updateSelectedExistingRoute({ description: value.length > 0 ? value : undefined })
+                  } else {
+                    setCurrentDescription(value)
+                  }
+                }}
+                onFocus={() => setDescriptionFocused(true)}
+                onBlur={() => setDescriptionFocused(false)}
+                placeholder="Optional beta / gear / crux notes"
+                maxLength={500}
+                rows={descriptionFocused || activeDescription ? 3 : 1}
+                disabled={disableEditInputs}
+                className="w-full px-2 py-1 text-sm border-b border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none disabled:opacity-60"
+              />
+
+              {selectedNewRoute && (
+                <button
+                  onClick={handleDeleteSelected}
+                  className="w-full px-2 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
             )}
-          </div>
-
-          <textarea
-            value={activeDescription}
-            onChange={(e) => {
-              const value = e.target.value
-              if (selectedNewRoute) {
-                updateSelectedNewRoute({ description: value.length > 0 ? value : undefined })
-              } else if (isEditExistingMode && selectedExistingRoute) {
-                updateSelectedExistingRoute({ description: value.length > 0 ? value : undefined })
-              } else {
-                setCurrentDescription(value)
-              }
-            }}
-            onFocus={() => setDescriptionFocused(true)}
-            onBlur={() => setDescriptionFocused(false)}
-            placeholder="Optional beta / gear / crux notes"
-            maxLength={500}
-            rows={descriptionFocused || activeDescription ? 4 : 1}
-            disabled={disableEditInputs}
-            className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none mb-2 disabled:opacity-60"
-          />
-
-          {selectedNewRoute && (
-            <button
-              onClick={handleDeleteSelected}
-              className="w-full mb-2 px-3 py-2 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
-            >
-              Delete Selected Route
-            </button>
+          </>
           )}
 
-          {(currentPoints.length >= 2 && (!isEditExistingMode || canCreateRoutesInEditMode)) && (
-            <div className="flex gap-2 mb-2">
+          {currentPoints.length >= 2 && (!isEditExistingMode || canCreateRoutesInEditMode) && (
+            <div className="flex">
               <button
                 onClick={() => setCurrentPoints([])}
-                className="flex-1 px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                className="flex-1 px-2 py-2 bg-gray-800 text-white text-sm"
               >
                 Cancel
               </button>
               {!isEditExistingMode ? (
                 <button
                   onClick={handleCompleteRoute}
-                  className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex-1 px-2 py-2 bg-blue-600 text-white text-sm"
                 >
-                  Save Route
+                  Save
                 </button>
               ) : (
                 <button
                   onClick={handleAddNewRouteInEditMode}
                   disabled={!onSaveNewRoutes || savingNewRoutes}
-                  className="flex-1 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                  className="flex-1 px-2 py-2 bg-emerald-600 text-white text-sm disabled:opacity-60"
                 >
-                  {savingNewRoutes ? 'Adding...' : 'Add New Route'}
+                  {savingNewRoutes ? 'Adding...' : 'Add'}
                 </button>
               )}
             </div>
           )}
 
-          {!isEditExistingMode && currentPoints.length < 2 && completedRoutes.length > 0 && !allRoutesValid && (
-            <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
-              Please name all routes before submitting
-            </p>
-          )}
-
-          {!isEditExistingMode && currentPoints.length < 2 && completedRoutes.length > 0 && allRoutesValid && (
+          {!isEditExistingMode && currentPoints.length < 2 && completedRoutes.length > 0 && (
             <button
               onClick={() => setShowSubmitConfirm(true)}
-              className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              disabled={!allRoutesValid}
+              className="w-full px-2 py-2 bg-blue-600 text-white text-sm disabled:opacity-60"
             >
-              Submit Routes
+              Submit {completedRoutes.length} Route{completedRoutes.length !== 1 ? 's' : ''}
             </button>
           )}
 
@@ -982,12 +985,10 @@ export default function RouteCanvas({
             <button
               onClick={onSaveEdits}
               disabled={!onSaveEdits || savingEdits}
-              className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
+              className="w-full px-2 py-2 bg-blue-600 text-white text-sm disabled:opacity-60"
             >
               {savingEdits ? 'Saving...' : 'Save Changes'}
             </button>
-          )}
-          </div>
           )}
         </div>
       </div>
