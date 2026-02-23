@@ -65,7 +65,7 @@ export default function GymOwnersPage() {
             letsboulder gives climbing gyms a practical workflow to manage routes and keep local climbers up to date.
           </p>
           <p className="mt-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-            Pricing: Free below 40 users, £60/month over 40 users.
+            Pricing: Free below 40 users, £30/month over 40 users.
           </p>
         </header>
 
