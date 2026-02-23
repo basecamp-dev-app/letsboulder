@@ -6,6 +6,7 @@ const ALLOWED_REDIRECT_PATHS = [
   '/map',
   '/logbook',
   '/community',
+  '/gym-admin',
   '/settings',
   '/submit',
   '/upload-climb',
@@ -18,6 +19,7 @@ const SESSION_REFRESH_PREFIXES = [
   '/settings',
   '/submit',
   '/admin',
+  '/gym-admin',
   '/logbook',
 ]
 
@@ -220,10 +222,12 @@ export const config = {
     '/settings/:path*',
     '/submit/:path*',
     '/admin/:path*',
+    '/gym-admin/:path*',
     '/logbook/:path*',
     '/api/notifications/:path*',
     '/api/submissions/:path*',
     '/api/places/:path*',
+    '/api/gym-admin/:path*',
     '/api/routes/submit/:path*',
     '/api/settings/:path*',
     '/api/profile/:path*',
