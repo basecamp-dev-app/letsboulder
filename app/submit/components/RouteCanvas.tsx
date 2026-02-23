@@ -766,7 +766,7 @@ export default function RouteCanvas({
 
   return (
     <div className="h-full w-full flex flex-col md:flex-row">
-      <div className="flex-1 min-h-0 relative bg-gray-100 dark:bg-gray-900 pb-14 md:pb-0" ref={containerRef}>
+      <div className="flex-1 min-h-0 relative bg-gray-100 dark:bg-gray-900" ref={containerRef}>
         <div
           ref={imageContainerRef}
           className="absolute inset-0"
