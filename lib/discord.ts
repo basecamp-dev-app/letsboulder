@@ -3,6 +3,7 @@ import { BRAND_NAME, SITE_URL } from '@/lib/site'
 
 const DISCORD_SUBMISSIONS_WEBHOOK = process.env.DISCORD_SUBMISSIONS_WEBHOOK_URL
 const DISCORD_FLAGS_WEBHOOK = process.env.DISCORD_FLAGS_WEBHOOK_URL
+const DISCORD_GYM_OWNERS_WEBHOOK = process.env.DISCORD_GYM_OWNERS_WEBHOOK_URL
 
 interface DiscordEmbed {
   title: string
@@ -115,6 +116,18 @@ interface FlagType {
   flaggerId: string
 }
 
+interface GymOwnerApplicationNotificationInput {
+  id: string
+  gymName: string
+  address: string
+  facilities: string[]
+  contactPhone: string
+  contactEmail: string
+  role: string
+  additionalComments: string | null
+  createdAt: string
+}
+
 export async function notifyNewFlag(
   supabase: SupabaseClient,
   flagInfo: FlagType
@@ -159,6 +172,43 @@ export async function notifyNewFlag(
 
   await sendDiscordWebhook(DISCORD_FLAGS_WEBHOOK, {
     content: '@moderators',
+    embeds: [embed],
+  })
+}
+
+export async function notifyGymOwnerApplication(
+  input: GymOwnerApplicationNotificationInput
+): Promise<void> {
+  if (!DISCORD_GYM_OWNERS_WEBHOOK) return
+
+  const facilities = input.facilities.length > 0
+    ? input.facilities.map(value => value.replace('_', ' ')).join(', ')
+    : 'None specified'
+
+  const embed: DiscordEmbed = {
+    title: '🏢 New Gym Owner Application',
+    color: 0x2563eb,
+    fields: [
+      { name: 'Application ID', value: input.id, inline: false },
+      { name: 'Gym', value: input.gymName, inline: true },
+      { name: 'Role', value: input.role.replace('_', ' '), inline: true },
+      { name: 'Facilities', value: facilities, inline: false },
+      { name: 'Address', value: input.address, inline: false },
+      { name: 'Phone', value: input.contactPhone, inline: true },
+      { name: 'Email', value: input.contactEmail, inline: true },
+      {
+        name: 'Additional comments',
+        value: input.additionalComments && input.additionalComments.length > 0
+          ? input.additionalComments.slice(0, 1000)
+          : 'None',
+        inline: false,
+      },
+    ],
+    footer: { text: BRAND_NAME },
+    timestamp: input.createdAt,
+  }
+
+  await sendDiscordWebhook(DISCORD_GYM_OWNERS_WEBHOOK, {
     embeds: [embed],
   })
 }

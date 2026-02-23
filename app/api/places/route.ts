@@ -70,7 +70,9 @@ export async function POST(request: NextRequest) {
       disciplines,
     } = body
 
-    if (!name) {
+    const trimmedName = name?.trim() || ''
+
+    if (!trimmedName) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
@@ -83,6 +85,25 @@ export async function POST(request: NextRequest) {
         { error: 'Both latitude and longitude must be provided together, or neither' },
         { status: 400 }
       )
+    }
+
+    if (type === 'gym' && (latitude == null || longitude == null)) {
+      return NextResponse.json({ error: 'Gyms require a precise location' }, { status: 400 })
+    }
+
+    if (type === 'gym') {
+      const appMetadata = (user.app_metadata || {}) as Record<string, unknown>
+      const hasGymOwnerClaim = appMetadata.gym_owner === true || appMetadata.gymOwner === true
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const isAdmin = profile?.is_admin === true
+      if (!hasGymOwnerClaim && !isAdmin) {
+        return NextResponse.json({ error: 'Only verified gym-owner accounts can create gyms' }, { status: 403 })
+      }
     }
 
     const normalizedDisciplines = Array.from(new Set((disciplines || []).map(value => value.trim().toLowerCase()).filter(Boolean)))
@@ -127,6 +148,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (type === 'gym') {
+      const { data: existingNamedGym } = await supabase
+        .from('places')
+        .select('id, name')
+        .eq('type', 'gym')
+        .ilike('name', trimmedName)
+        .limit(1)
+
+      if (existingNamedGym && existingNamedGym.length > 0) {
+        return NextResponse.json(
+          {
+            error: `A gym with this name already exists: "${existingNamedGym[0].name}"`,
+            existingPlaceId: existingNamedGym[0].id,
+            existingPlaceName: existingNamedGym[0].name,
+            code: 'DUPLICATE_NAME'
+          },
+          { status: 409 }
+        )
+      }
+    }
+
     let region: FindRegionResult | null = null
     if (latitude != null && longitude != null) {
       const { data: regionRows } = await supabase
@@ -140,6 +182,10 @@ export async function POST(request: NextRequest) {
     const countryCode = region?.country_code ? String(region.country_code).toUpperCase().slice(0, 2) : null
     const regionId = region?.id || null
     const regionName = region?.name || null
+
+    if (type === 'gym' && !countryCode) {
+      return NextResponse.json({ error: 'Could not resolve country from this gym location. Please choose a more precise pin.' }, { status: 400 })
+    }
 
     const usedPlaceSlugs = new Set<string>()
     if (countryCode) {
@@ -155,12 +201,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const slug = countryCode ? makeUniqueSlug(name, usedPlaceSlugs) : null
+    const slug = countryCode ? makeUniqueSlug(trimmedName, usedPlaceSlugs) : null
 
     const { data: createdPlace, error: createError } = await supabase
       .from('places')
       .insert({
-        name,
+        name: trimmedName,
         type,
         latitude: latitude ?? null,
         longitude: longitude ?? null,
@@ -174,7 +220,7 @@ export async function POST(request: NextRequest) {
         disciplines: normalizedDisciplines,
         slug,
       })
-      .select('id, name, type, latitude, longitude, rock_type, primary_discipline, disciplines, created_at')
+      .select('id, name, type, latitude, longitude, rock_type, primary_discipline, disciplines, slug, country_code, created_at')
       .single()
 
     if (createError) {
