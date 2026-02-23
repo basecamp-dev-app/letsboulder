@@ -86,15 +86,12 @@ export default function GymOwnersPage() {
 
           <article className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900 md:p-8">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Try for free</h2>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Apply to try for free. After approval, we&apos;ll be in touch.
-            </p>
             <div className="mt-4">
               <Link
                 href="/gym-owners/apply"
                 className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
               >
-                Apply to try for free
+                Apply
               </Link>
             </div>
           </article>
