@@ -845,6 +845,7 @@ export default function RouteCanvas({
         </div>
 
         <div className="w-full md:w-64 shrink-0 bg-white dark:bg-gray-800 overflow-y-auto md:border-l md:border-gray-200 md:dark:border-gray-700">
+          {isEditing && (
           <div className="p-2">
             <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
               {selectedNewRoute ? 'Edit Selected Route' : 'Route Details'}
@@ -946,8 +947,7 @@ export default function RouteCanvas({
               {!isEditExistingMode ? (
                 <button
                   onClick={handleCompleteRoute}
-                  disabled={!currentName.trim()}
-                  className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
+                  className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   Save Route
                 </button>
@@ -988,6 +988,7 @@ export default function RouteCanvas({
             </button>
           )}
           </div>
+          )}
         </div>
       </div>
 
