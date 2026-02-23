@@ -660,13 +660,15 @@ export default function RouteCanvas({
     return { displayedImageWidth, displayedImageHeight, offsetX, offsetY }
   }, [])
 
-  const normalizeCanvasPoints = useCallback((points: RoutePoint[], dims: { width: number; height: number; naturalWidth: number; naturalHeight: number }) => {
-    const bounds = getDisplayedImageBounds(dims)
+  const normalizeCanvasPoints = useCallback((points: RoutePoint[]) => {
+    const canvas = canvasRef.current
+    if (!canvas || canvas.width === 0 || canvas.height === 0) return points
+
     return points.map((point) => ({
-      x: Math.min(1, Math.max(0, (point.x - bounds.offsetX) / bounds.displayedImageWidth)),
-      y: Math.min(1, Math.max(0, (point.y - bounds.offsetY) / bounds.displayedImageHeight)),
+      x: Math.min(1, Math.max(0, point.x / canvas.width)),
+      y: Math.min(1, Math.max(0, point.y / canvas.height)),
     }))
-  }, [getDisplayedImageBounds])
+  }, [])
 
   useEffect(() => {
     const image = imageRef.current
@@ -674,16 +676,13 @@ export default function RouteCanvas({
     const container = containerRef.current
     if (!image || !canvas || !container || !image.complete || !imageDimensions) return
 
-    canvas.width = imageDimensions.width
-    canvas.height = imageDimensions.height
-
     const normalizedRoutes = completedRoutes.map((route, index) => {
       return {
         id: route.id,
         name: route.name,
         grade: route.grade,
         description: route.description,
-        points: normalizeCanvasPoints(route.points, imageDimensions),
+        points: normalizeCanvasPoints(route.points),
         sequenceOrder: index,
         imageWidth: imageDimensions.naturalWidth,
         imageHeight: imageDimensions.naturalHeight,
@@ -703,7 +702,7 @@ export default function RouteCanvas({
       id: route.id,
       name: route.name,
       description: route.description,
-      points: normalizeCanvasPoints(route.points, imageDimensions),
+      points: normalizeCanvasPoints(route.points),
     })))
   }, [isEditExistingMode, imageDimensions, existingRoutes, normalizeCanvasPoints, onEditRoutesUpdate])
 
@@ -718,7 +717,7 @@ export default function RouteCanvas({
       name: routeName,
       grade: currentGrade,
       description: trimmedDescription || undefined,
-      points: normalizeCanvasPoints(currentPoints, imageDimensions),
+      points: normalizeCanvasPoints(currentPoints),
       sequenceOrder: 0,
       imageWidth: imageDimensions.naturalWidth,
       imageHeight: imageDimensions.naturalHeight,
