@@ -655,7 +655,7 @@ export default function SatelliteClimbingMap() {
   }
 
   return (
-    <div className="h-screen w-full p-4 relative">
+    <div className="h-screen w-full relative">
       <MapContainer
         ref={mapRef as RefObject<L.Map>}
         center={WORLD_DEFAULT_VIEW}
