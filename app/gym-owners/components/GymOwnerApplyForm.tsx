@@ -267,6 +267,15 @@ export default function GymOwnerApplyForm() {
             maxLength={2000}
             className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           />
+
+        <input
+          type="text"
+          name="website_url"
+          autoComplete="off"
+          tabIndex={-1}
+          className="absolute -left-[9999px]"
+          aria-hidden="true"
+        />
         </label>
 
         {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : null}

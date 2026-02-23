@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyGymOwnerApplication } from '@/lib/discord'
+import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
 type ApplicationRole = 'owner' | 'manager' | 'head_setter'
 type ApplicationFacility = 'sport' | 'boulder'
@@ -18,6 +19,7 @@ interface GymOwnerApplicationBody {
   contact_email?: string
   role?: string
   additional_comments?: string | null
+  website_url?: string
 }
 
 const ALLOWED_ROLES = new Set<ApplicationRole>(['owner', 'manager', 'head_setter'])
@@ -30,6 +32,11 @@ function isValidEmail(value: string): boolean {
 export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
+
+  const rateLimitResult = rateLimit(request, 'sensitive')
+  if (!rateLimitResult.success) {
+    return createRateLimitResponse(rateLimitResult)
+  }
 
   const cookies = request.cookies
   const supabase = createServerClient(
@@ -45,6 +52,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const payload = await request.json() as GymOwnerApplicationBody
+
+    const honeypot = (payload.website_url as string)?.trim() || ''
+    if (honeypot) {
+      return NextResponse.json({ error: 'Invalid submission' }, { status: 400 })
+    }
 
     const gymName = payload.gym_name?.trim() || ''
     const address = payload.address?.trim() || ''
