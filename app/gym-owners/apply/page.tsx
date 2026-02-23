@@ -4,6 +4,13 @@ import GymOwnerApplyForm from '@/app/gym-owners/components/GymOwnerApplyForm'
 export const metadata: Metadata = {
   title: 'Gym Owners Apply',
   description: 'Apply for letsboulder gym-owner access.',
+  alternates: {
+    canonical: '/gym-owners/apply',
+  },
+  robots: {
+    index: false,
+    follow: true,
+  },
 }
 
 export default function GymOwnersApplyPage() {
