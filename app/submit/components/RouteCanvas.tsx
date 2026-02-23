@@ -178,6 +178,7 @@ export default function RouteCanvas({
   } | null>(null)
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
   const [draggingPointIndex, setDraggingPointIndex] = useState<number | null>(null)
+  const [descriptionFocused, setDescriptionFocused] = useState(false)
   const draftWriteTimeoutRef = useRef<number | null>(null)
 
   const persistDraft = useCallback(() => {
@@ -521,6 +522,7 @@ export default function RouteCanvas({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+    const inverseZoom = 1 / zoom
     ctx.save()
     ctx.translate(pan.x, pan.y)
     ctx.scale(zoom, zoom)
@@ -528,7 +530,7 @@ export default function RouteCanvas({
     existingRoutes.forEach(route => {
       const isSelected = selectedIds.includes(route.id)
       const lineColor = isEditExistingMode ? (isSelected ? '#fbbf24' : '#ef4444') : (isSelected ? '#fbbf24' : '#9ca3af')
-      const lineWidth = isEditExistingMode ? (isSelected ? 4 : 3) : (isSelected ? 3 : 2)
+      const lineWidth = (isEditExistingMode ? (isSelected ? 4 : 3) : (isSelected ? 3 : 2)) * inverseZoom
 
       ctx.shadowColor = isSelected ? '#fbbf24' : '#6b7280'
       ctx.shadowBlur = isSelected ? 8 : 2
@@ -538,19 +540,19 @@ export default function RouteCanvas({
       if (route.points.length > 1 && isSelected) {
         const bgColor = 'rgba(251, 191, 36, 0.95)'
         const gradePos = getGradeLabelPosition(route.points)
-        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
+        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, `bold ${14 * inverseZoom}px Arial`)
 
-        const truncatedName = getTruncatedText(ctx, route.name, 150)
+        const truncatedName = getTruncatedText(ctx, route.name, 150 / zoom)
         const namePos = getNameLabelPosition(route.points)
-        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, '12px Arial')
+        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, `${12 * inverseZoom}px Arial`)
 
         if (isEditExistingMode) {
           route.points.forEach((point, index) => {
             ctx.beginPath()
-            ctx.arc(point.x, point.y, index === 0 ? 6 : 5, 0, 2 * Math.PI)
+            ctx.arc(point.x, point.y, (index === 0 ? 6 : 5) * inverseZoom, 0, 2 * Math.PI)
             ctx.fillStyle = '#ffffff'
             ctx.fill()
-            ctx.lineWidth = 2
+            ctx.lineWidth = 2 * inverseZoom
             ctx.strokeStyle = '#dc2626'
             ctx.stroke()
           })
@@ -560,23 +562,25 @@ export default function RouteCanvas({
 
     completedRoutes.forEach(route => {
       const isSelected = selectedIds.includes(route.id)
+      const selLineWidth = 4 * inverseZoom
+      const lineWidth = 3 * inverseZoom
 
       if (isSelected) {
         ctx.shadowColor = '#fbbf24'
         ctx.shadowBlur = 10
-        drawSmoothCurve(ctx, route.points, '#fbbf24', 4)
+        drawSmoothCurve(ctx, route.points, '#fbbf24', selLineWidth)
         ctx.shadowBlur = 0
       }
 
-      drawSmoothCurve(ctx, route.points, '#dc2626', isSelected ? 4 : 3, [8, 4])
+      drawSmoothCurve(ctx, route.points, '#dc2626', isSelected ? selLineWidth : lineWidth, [8, 4])
 
       if (isSelected) {
         route.points.forEach((point, index) => {
           ctx.beginPath()
-          ctx.arc(point.x, point.y, index === 0 ? 6 : 5, 0, 2 * Math.PI)
+          ctx.arc(point.x, point.y, (index === 0 ? 6 : 5) * inverseZoom, 0, 2 * Math.PI)
           ctx.fillStyle = '#ffffff'
           ctx.fill()
-          ctx.lineWidth = 2
+          ctx.lineWidth = 2 * inverseZoom
           ctx.strokeStyle = '#dc2626'
           ctx.stroke()
         })
@@ -585,11 +589,11 @@ export default function RouteCanvas({
       if (route.points.length > 1) {
         const bgColor = 'rgba(220, 38, 38, 0.95)'
         const gradePos = getGradeLabelPosition(route.points)
-        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
+        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, `bold ${14 * inverseZoom}px Arial`)
 
-        const truncatedName = getTruncatedText(ctx, route.name, 150)
+        const truncatedName = getTruncatedText(ctx, route.name, 150 / zoom)
         const namePos = getNameLabelPosition(route.points)
-        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, '12px Arial')
+        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, `${12 * inverseZoom}px Arial`)
       }
     })
 
@@ -597,23 +601,23 @@ export default function RouteCanvas({
       ctx.fillStyle = '#3b82f6'
       currentPoints.forEach(point => {
         ctx.beginPath()
-        ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI)
+        ctx.arc(point.x, point.y, 4 * inverseZoom, 0, 2 * Math.PI)
         ctx.fill()
       })
 
       if (currentPoints.length > 1) {
-        drawSmoothCurve(ctx, currentPoints, '#3b82f6', 2, [5, 5])
+        drawSmoothCurve(ctx, currentPoints, '#3b82f6', 2 * inverseZoom, [5, 5])
       }
 
       if (currentPoints.length > 1 && currentGrade && currentName) {
-        drawSmoothCurve(ctx, currentPoints, '#3b82f6', 3, [8, 4])
+        drawSmoothCurve(ctx, currentPoints, '#3b82f6', 3 * inverseZoom, [8, 4])
 
         const gradePos = getGradeLabelPosition(currentPoints)
-        drawRoundedLabel(ctx, formatGradeForDisplay(currentGrade, gradeSystem), gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', 'bold 14px Arial')
+        drawRoundedLabel(ctx, formatGradeForDisplay(currentGrade, gradeSystem), gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', `bold ${14 * inverseZoom}px Arial`)
 
-        const truncatedName = getTruncatedText(ctx, currentName, 150)
+        const truncatedName = getTruncatedText(ctx, currentName, 150 / zoom)
         const namePos = getNameLabelPosition(currentPoints)
-        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, 'rgba(59, 130, 246, 0.95)', '12px Arial')
+        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, 'rgba(59, 130, 246, 0.95)', `${12 * inverseZoom}px Arial`)
       }
     }
 
@@ -751,28 +755,9 @@ export default function RouteCanvas({
   const nextRouteNumber = routeCount + 1
 
   return (
-    <div className="h-full w-full flex flex-col gap-2">
-      <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800">
-        <p className="text-xs font-medium text-gray-800 dark:text-gray-100">
-          {isEditExistingMode
-            ? (canCreateRoutesInEditMode
-              ? 'Select an existing route to edit, or draw and save a new route as a new climb.'
-              : 'Select a route, then adjust its line, name, and description.')
-            : `Draw route ${nextRouteNumber}, press Save Route, then tap the image to draw route ${nextRouteNumber + 1}.`}
-        </p>
-        <p className="text-xs text-gray-600 dark:text-gray-300">
-          {isEditExistingMode ? 'Routes loaded' : `Routes added: ${routeCount}`}
-          {existingRoutes.length > 0 && ` • Existing on image: ${existingRoutes.length}`}
-        </p>
-        {!isEditExistingMode && completedRoutes.length > 0 && currentPoints.length < 2 && (
-          <p className="text-xs text-blue-700 dark:text-blue-300">
-            Route saved. Tap the image to add another route, or select one to edit its line and details.
-          </p>
-        )}
-      </div>
-
-      <div className="flex-1 min-h-0 flex flex-col md:flex-row gap-2">
-        <div className="relative flex-1 bg-gray-100 dark:bg-gray-900 overflow-hidden rounded-lg" ref={containerRef}>
+    <div className="h-full w-full flex flex-col">
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+        <div className="relative flex-1 bg-gray-100 dark:bg-gray-900 overflow-hidden" ref={containerRef}>
           <img
             ref={imageRef}
             src={imageUrl}
@@ -841,10 +826,11 @@ export default function RouteCanvas({
           />
         </div>
 
-        <div className="w-full md:w-72 shrink-0 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800 overflow-y-auto">
-          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
-            {selectedNewRoute ? 'Edit Selected Route' : 'Route Details'}
-          </p>
+        <div className="w-full md:w-64 shrink-0 bg-white dark:bg-gray-800 overflow-y-auto md:border-l md:border-gray-200 md:dark:border-gray-700">
+          <div className="p-2">
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              {selectedNewRoute ? 'Edit Selected Route' : 'Route Details'}
+            </p>
 
           {isEditingExistingRoute && (
             <p className="mb-2 text-xs text-amber-700 dark:text-amber-300">
@@ -913,9 +899,11 @@ export default function RouteCanvas({
                 setCurrentDescription(value)
               }
             }}
+            onFocus={() => setDescriptionFocused(true)}
+            onBlur={() => setDescriptionFocused(false)}
             placeholder="Optional beta / gear / crux notes"
             maxLength={500}
-            rows={4}
+            rows={descriptionFocused || activeDescription ? 4 : 1}
             disabled={disableEditInputs}
             className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none mb-2 disabled:opacity-60"
           />
@@ -974,6 +962,7 @@ export default function RouteCanvas({
               {savingEdits ? 'Saving...' : 'Save Changes'}
             </button>
           )}
+        </div>
         </div>
       </div>
 
