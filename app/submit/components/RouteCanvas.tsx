@@ -739,8 +739,22 @@ export default function RouteCanvas({
     if (!canvas || !image || !image.complete) return
 
     const rect = image.getBoundingClientRect()
-    canvas.width = rect.width
-    canvas.height = rect.height
+    const containerAspect = rect.width / rect.height
+    const naturalAspect = image.naturalWidth / image.naturalHeight
+
+    let displayedWidth: number
+    let displayedHeight: number
+
+    if (naturalAspect > containerAspect) {
+      displayedWidth = rect.width
+      displayedHeight = rect.width / naturalAspect
+    } else {
+      displayedHeight = rect.height
+      displayedWidth = rect.height * naturalAspect
+    }
+
+    canvas.width = displayedWidth
+    canvas.height = displayedHeight
     redraw()
   }, [redraw])
 
