@@ -6,9 +6,20 @@ import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 
-const DELETE_TOKEN_SECRET = new TextEncoder().encode(
-  process.env.DELETE_ACCOUNT_SECRET || 'default-dev-secret-change-in-production'
-)
+function getDeleteTokenSecret(): Uint8Array {
+  const secret = process.env.DELETE_ACCOUNT_SECRET
+
+  if (secret) {
+    return new TextEncoder().encode(secret)
+  }
+
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+    return new TextEncoder().encode('dev-only-delete-secret')
+  }
+
+  throw new Error('DELETE_ACCOUNT_SECRET is required in non-development environments')
+}
+
 const DELETE_TOKEN_EXPIRY = 10 * 60 * 1000
 
 export async function POST(request: NextRequest) {
@@ -43,6 +54,8 @@ export async function POST(request: NextRequest) {
       return rateLimitResponse
     }
 
+    const deleteTokenSecret = getDeleteTokenSecret()
+
     const token = await new SignJWT({
       userId: user.id,
       email: user.email,
@@ -52,7 +65,7 @@ export async function POST(request: NextRequest) {
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime(Math.floor((Date.now() + DELETE_TOKEN_EXPIRY) / 1000))
-      .sign(DELETE_TOKEN_SECRET)
+      .sign(deleteTokenSecret)
 
     const deleteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/settings/delete-confirm?token=${token}`
 

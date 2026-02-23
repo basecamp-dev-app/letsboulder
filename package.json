@@ -5,7 +5,7 @@
   "overrides": {},
   "scripts": {
     "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --turbo",
-    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build --webpack",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",
     "lint": "eslint"
   },
