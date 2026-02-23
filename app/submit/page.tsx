@@ -794,17 +794,7 @@ function SubmitPageContent() {
       case 'draw':
         return (
           <div className="h-[calc(100dvh-5rem)] md:h-[calc(100vh-64px)] flex flex-col">
-            <div className="flex items-center justify-between mb-2">
-              <button
-                onClick={handleBack}
-                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 flex items-center gap-1"
-              >
-                ← Back
-              </button>
-              <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Draw Routes</h2>
-              <div className="w-16" />
-            </div>
-            <div className="flex-1 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+            <div className="flex-1">
               <RouteCanvas
                 key={stepDraftKey || routeDraftKey || 'route-canvas'}
                 imageSelection={step.image}
@@ -812,8 +802,8 @@ function SubmitPageContent() {
                 draftKey={stepDraftKey || routeDraftKey || undefined}
               />
             </div>
-            </div>
-          )
+          </div>
+        )
 
         case 'climbType':
           return (

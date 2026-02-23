@@ -141,6 +141,7 @@ export default function RouteCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const imageContainerRef = useRef<HTMLDivElement>(null)
 
   const imageUrl = imageSelection.mode === 'existing' ? imageSelection.imageUrl : imageSelection.uploadedUrl
 
@@ -289,10 +290,10 @@ export default function RouteCanvas({
     const rect = canvas.getBoundingClientRect()
 
     return {
-      x: (touch.clientX - rect.left) * zoom,
-      y: (touch.clientY - rect.top) * zoom,
+      x: (touch.clientX - rect.left - pan.x) / zoom,
+      y: (touch.clientY - rect.top - pan.y) / zoom,
     }
-  }, [zoom])
+  }, [zoom, pan])
 
   const getDragHandleIndex = useCallback((point: RoutePoint, threshold: number = 14) => {
     if (!editableRoute) return null
@@ -314,10 +315,10 @@ export default function RouteCanvas({
 
     const rect = canvas.getBoundingClientRect()
     return {
-      x: (e.clientX - rect.left) * zoom,
-      y: (e.clientY - rect.top) * zoom
+      x: (e.clientX - rect.left - pan.x) / zoom,
+      y: (e.clientY - rect.top - pan.y) / zoom
     }
-  }, [zoom])
+  }, [zoom, pan])
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
@@ -393,8 +394,8 @@ export default function RouteCanvas({
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    const canvasX = (touch.clientX - rect.left) * zoom
-    const canvasY = (touch.clientY - rect.top) * zoom
+    const canvasX = (touch.clientX - rect.left - pan.x) / zoom
+    const canvasY = (touch.clientY - rect.top - pan.y) / zoom
 
     const allRoutes = [...existingRoutes, ...completedRoutes]
     const clickedRoute = findRouteAtPoint(allRoutes, { x: canvasX, y: canvasY }, 20)
@@ -416,7 +417,7 @@ export default function RouteCanvas({
     } else {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
     }
-  }, [zoom, pinchStartZoom, pinchStartDistance, draggingPointIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
+  }, [zoom, pan, pinchStartZoom, pinchStartDistance, draggingPointIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (e.touches.length === 2 && pinchStartZoom !== null && pinchStartDistance !== null) {
@@ -522,15 +523,10 @@ export default function RouteCanvas({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    const inverseZoom = 1 / zoom
-    ctx.save()
-    ctx.translate(pan.x, pan.y)
-    ctx.scale(zoom, zoom)
-
     existingRoutes.forEach(route => {
       const isSelected = selectedIds.includes(route.id)
       const lineColor = isEditExistingMode ? (isSelected ? '#fbbf24' : '#ef4444') : (isSelected ? '#fbbf24' : '#9ca3af')
-      const lineWidth = (isEditExistingMode ? (isSelected ? 4 : 3) : (isSelected ? 3 : 2)) * inverseZoom
+      const lineWidth = isEditExistingMode ? (isSelected ? 4 : 3) : (isSelected ? 3 : 2)
 
       ctx.shadowColor = isSelected ? '#fbbf24' : '#6b7280'
       ctx.shadowBlur = isSelected ? 8 : 2
@@ -540,19 +536,19 @@ export default function RouteCanvas({
       if (route.points.length > 1 && isSelected) {
         const bgColor = 'rgba(251, 191, 36, 0.95)'
         const gradePos = getGradeLabelPosition(route.points)
-        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, `bold ${14 * inverseZoom}px Arial`)
+        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
 
-        const truncatedName = getTruncatedText(ctx, route.name, 150 / zoom)
+        const truncatedName = getTruncatedText(ctx, route.name, 150)
         const namePos = getNameLabelPosition(route.points)
-        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, `${12 * inverseZoom}px Arial`)
+        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, '12px Arial')
 
         if (isEditExistingMode) {
           route.points.forEach((point, index) => {
             ctx.beginPath()
-            ctx.arc(point.x, point.y, (index === 0 ? 6 : 5) * inverseZoom, 0, 2 * Math.PI)
+            ctx.arc(point.x, point.y, index === 0 ? 6 : 5, 0, 2 * Math.PI)
             ctx.fillStyle = '#ffffff'
             ctx.fill()
-            ctx.lineWidth = 2 * inverseZoom
+            ctx.lineWidth = 2
             ctx.strokeStyle = '#dc2626'
             ctx.stroke()
           })
@@ -562,25 +558,23 @@ export default function RouteCanvas({
 
     completedRoutes.forEach(route => {
       const isSelected = selectedIds.includes(route.id)
-      const selLineWidth = 4 * inverseZoom
-      const lineWidth = 3 * inverseZoom
 
       if (isSelected) {
         ctx.shadowColor = '#fbbf24'
         ctx.shadowBlur = 10
-        drawSmoothCurve(ctx, route.points, '#fbbf24', selLineWidth)
+        drawSmoothCurve(ctx, route.points, '#fbbf24', 4)
         ctx.shadowBlur = 0
       }
 
-      drawSmoothCurve(ctx, route.points, '#dc2626', isSelected ? selLineWidth : lineWidth, [8, 4])
+      drawSmoothCurve(ctx, route.points, '#dc2626', isSelected ? 4 : 3, [8, 4])
 
       if (isSelected) {
         route.points.forEach((point, index) => {
           ctx.beginPath()
-          ctx.arc(point.x, point.y, (index === 0 ? 6 : 5) * inverseZoom, 0, 2 * Math.PI)
+          ctx.arc(point.x, point.y, index === 0 ? 6 : 5, 0, 2 * Math.PI)
           ctx.fillStyle = '#ffffff'
           ctx.fill()
-          ctx.lineWidth = 2 * inverseZoom
+          ctx.lineWidth = 2
           ctx.strokeStyle = '#dc2626'
           ctx.stroke()
         })
@@ -589,11 +583,11 @@ export default function RouteCanvas({
       if (route.points.length > 1) {
         const bgColor = 'rgba(220, 38, 38, 0.95)'
         const gradePos = getGradeLabelPosition(route.points)
-        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, `bold ${14 * inverseZoom}px Arial`)
+        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
 
-        const truncatedName = getTruncatedText(ctx, route.name, 150 / zoom)
+        const truncatedName = getTruncatedText(ctx, route.name, 150)
         const namePos = getNameLabelPosition(route.points)
-        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, `${12 * inverseZoom}px Arial`)
+        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, bgColor, '12px Arial')
       }
     })
 
@@ -601,28 +595,26 @@ export default function RouteCanvas({
       ctx.fillStyle = '#3b82f6'
       currentPoints.forEach(point => {
         ctx.beginPath()
-        ctx.arc(point.x, point.y, 4 * inverseZoom, 0, 2 * Math.PI)
+        ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI)
         ctx.fill()
       })
 
       if (currentPoints.length > 1) {
-        drawSmoothCurve(ctx, currentPoints, '#3b82f6', 2 * inverseZoom, [5, 5])
+        drawSmoothCurve(ctx, currentPoints, '#3b82f6', 2, [5, 5])
       }
 
       if (currentPoints.length > 1 && currentGrade && currentName) {
-        drawSmoothCurve(ctx, currentPoints, '#3b82f6', 3 * inverseZoom, [8, 4])
+        drawSmoothCurve(ctx, currentPoints, '#3b82f6', 3, [8, 4])
 
         const gradePos = getGradeLabelPosition(currentPoints)
-        drawRoundedLabel(ctx, formatGradeForDisplay(currentGrade, gradeSystem), gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', `bold ${14 * inverseZoom}px Arial`)
+        drawRoundedLabel(ctx, formatGradeForDisplay(currentGrade, gradeSystem), gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', 'bold 14px Arial')
 
-        const truncatedName = getTruncatedText(ctx, currentName, 150 / zoom)
+        const truncatedName = getTruncatedText(ctx, currentName, 150)
         const namePos = getNameLabelPosition(currentPoints)
-        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, 'rgba(59, 130, 246, 0.95)', `${12 * inverseZoom}px Arial`)
+        drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, 'rgba(59, 130, 246, 0.95)', '12px Arial')
       }
     }
-
-    ctx.restore()
-  }, [completedRoutes, currentPoints, currentGrade, currentName, existingRoutes, selectedIds, pan, zoom, gradeSystem, isEditExistingMode])
+  }, [completedRoutes, currentPoints, currentGrade, currentName, existingRoutes, selectedIds, gradeSystem, isEditExistingMode])
 
   useEffect(() => {
     if (imageLoaded) {
@@ -758,7 +750,15 @@ export default function RouteCanvas({
     <div className="h-full w-full flex flex-col">
       <div className="flex-1 min-h-0 flex flex-col md:flex-row">
         <div className="relative flex-1 bg-gray-100 dark:bg-gray-900 overflow-hidden" ref={containerRef}>
-          <img
+          <div
+            ref={imageContainerRef}
+            className="absolute inset-0"
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+              transformOrigin: '0 0'
+            }}
+          >
+            <img
             ref={imageRef}
             src={imageUrl}
             alt="Route"
@@ -824,6 +824,7 @@ export default function RouteCanvas({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           />
+          </div>
         </div>
 
         <div className="w-full md:w-64 shrink-0 bg-white dark:bg-gray-800 overflow-y-auto md:border-l md:border-gray-200 md:dark:border-gray-700">
