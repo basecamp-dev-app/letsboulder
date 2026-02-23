@@ -20,6 +20,9 @@ const ROLE_OPTIONS: Array<{ value: Role; label: string }> = [
 export default function GymOwnerApplyForm() {
   const [gymName, setGymName] = useState('')
   const [address, setAddress] = useState('')
+  const [city, setCity] = useState('')
+  const [country, setCountry] = useState('')
+  const [postcodeOrZip, setPostcodeOrZip] = useState('')
   const [facilities, setFacilities] = useState<Facility[]>([])
   const [contactPhone, setContactPhone] = useState('')
   const [contactEmail, setContactEmail] = useState('')
@@ -34,12 +37,15 @@ export default function GymOwnerApplyForm() {
       !isSubmitting
       && gymName.trim().length > 0
       && address.trim().length > 0
+      && city.trim().length > 0
+      && country.trim().length > 0
+      && postcodeOrZip.trim().length > 0
       && facilities.length > 0
       && contactPhone.trim().length > 0
       && contactEmail.trim().length > 0
       && role.length > 0
     )
-  }, [address, contactEmail, contactPhone, facilities.length, gymName, isSubmitting, role])
+  }, [address, city, contactEmail, contactPhone, country, facilities.length, gymName, isSubmitting, postcodeOrZip, role])
 
   function toggleFacility(value: Facility) {
     setFacilities(current => {
@@ -75,6 +81,9 @@ export default function GymOwnerApplyForm() {
         body: JSON.stringify({
           gym_name: gymName.trim(),
           address: address.trim(),
+          city: city.trim(),
+          country: country.trim(),
+          postcode_or_zip: postcodeOrZip.trim(),
           facilities,
           contact_phone: contactPhone.trim(),
           contact_email: trimmedEmail,
@@ -92,6 +101,9 @@ export default function GymOwnerApplyForm() {
       setIsSubmitted(true)
       setGymName('')
       setAddress('')
+      setCity('')
+      setCountry('')
+      setPostcodeOrZip('')
       setFacilities([])
       setContactPhone('')
       setContactEmail('')
@@ -147,6 +159,44 @@ export default function GymOwnerApplyForm() {
             className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           />
         </label>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <label className="block text-sm text-gray-700 dark:text-gray-300">
+            City
+            <input
+              type="text"
+              value={city}
+              onChange={event => setCity(event.target.value)}
+              required
+              maxLength={120}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            />
+          </label>
+
+          <label className="block text-sm text-gray-700 dark:text-gray-300">
+            Country
+            <input
+              type="text"
+              value={country}
+              onChange={event => setCountry(event.target.value)}
+              required
+              maxLength={120}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            />
+          </label>
+
+          <label className="block text-sm text-gray-700 dark:text-gray-300">
+            Postcode / ZIP
+            <input
+              type="text"
+              value={postcodeOrZip}
+              onChange={event => setPostcodeOrZip(event.target.value)}
+              required
+              maxLength={32}
+              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            />
+          </label>
+        </div>
 
         <fieldset>
           <legend className="text-sm text-gray-700 dark:text-gray-300">Gym facilities</legend>

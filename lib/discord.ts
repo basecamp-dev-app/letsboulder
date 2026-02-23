@@ -120,6 +120,9 @@ interface GymOwnerApplicationNotificationInput {
   id: string
   gymName: string
   address: string
+  city: string
+  country: string
+  postcodeOrZip: string
   facilities: string[]
   contactPhone: string
   contactEmail: string
@@ -194,6 +197,9 @@ export async function notifyGymOwnerApplication(
       { name: 'Role', value: input.role.replace('_', ' '), inline: true },
       { name: 'Facilities', value: facilities, inline: false },
       { name: 'Address', value: input.address, inline: false },
+      { name: 'City', value: input.city, inline: true },
+      { name: 'Country', value: input.country, inline: true },
+      { name: 'Postcode / ZIP', value: input.postcodeOrZip, inline: true },
       { name: 'Phone', value: input.contactPhone, inline: true },
       { name: 'Email', value: input.contactEmail, inline: true },
       {

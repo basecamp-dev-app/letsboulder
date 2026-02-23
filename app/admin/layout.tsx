@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { Loader2, Flag, Settings, Mountain, LayoutDashboard } from 'lucide-react'
+import { Loader2, Flag, Settings, Mountain, LayoutDashboard, Building2 } from 'lucide-react'
 
 export default function AdminLayout({
   children,
@@ -69,6 +69,7 @@ export default function AdminLayout({
     { href: '/admin', label: 'Overview', icon: LayoutDashboard },
     { href: '/admin/flags', label: 'Flags', icon: Flag },
     { href: '/admin/crags', label: 'Crags', icon: Mountain },
+    { href: '/admin/gyms', label: 'Gyms', icon: Building2 },
   ]
 
   return (

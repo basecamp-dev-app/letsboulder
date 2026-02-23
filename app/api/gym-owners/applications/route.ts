@@ -10,6 +10,9 @@ type ApplicationFacility = 'sport' | 'boulder'
 interface GymOwnerApplicationBody {
   gym_name?: string
   address?: string
+  city?: string
+  country?: string
+  postcode_or_zip?: string
   facilities?: string[]
   contact_phone?: string
   contact_email?: string
@@ -45,6 +48,9 @@ export async function POST(request: NextRequest) {
 
     const gymName = payload.gym_name?.trim() || ''
     const address = payload.address?.trim() || ''
+    const city = payload.city?.trim() || ''
+    const country = payload.country?.trim() || ''
+    const postcodeOrZip = payload.postcode_or_zip?.trim() || ''
     const contactPhone = payload.contact_phone?.trim() || ''
     const contactEmail = payload.contact_email?.trim().toLowerCase() || ''
     const role = payload.role?.trim() || ''
@@ -57,6 +63,18 @@ export async function POST(request: NextRequest) {
 
     if (!address) {
       return NextResponse.json({ error: 'address is required' }, { status: 400 })
+    }
+
+    if (!city) {
+      return NextResponse.json({ error: 'city is required' }, { status: 400 })
+    }
+
+    if (!country) {
+      return NextResponse.json({ error: 'country is required' }, { status: 400 })
+    }
+
+    if (!postcodeOrZip) {
+      return NextResponse.json({ error: 'postcode_or_zip is required' }, { status: 400 })
     }
 
     if (!contactPhone) {
@@ -90,6 +108,9 @@ export async function POST(request: NextRequest) {
       .insert({
         gym_name: gymName,
         address,
+        city,
+        country,
+        postcode_or_zip: postcodeOrZip,
         facilities,
         contact_phone: contactPhone,
         contact_email: contactEmail,
@@ -107,6 +128,9 @@ export async function POST(request: NextRequest) {
       id: data.id,
       gymName,
       address,
+      city,
+      country,
+      postcodeOrZip,
       facilities,
       contactPhone,
       contactEmail,

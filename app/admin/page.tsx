@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Flag, Mountain } from 'lucide-react'
+import { Building2, Flag, Mountain } from 'lucide-react'
 
 const adminSections = [
   {
@@ -13,6 +13,12 @@ const adminSections = [
     title: 'Crags',
     description: 'Manage crag records, naming, and moderation actions.',
     icon: Mountain,
+  },
+  {
+    href: '/admin/gyms',
+    title: 'Gyms',
+    description: 'Create gym places, upload floor plans, and seed starter routes.',
+    icon: Building2,
   },
 ]
 

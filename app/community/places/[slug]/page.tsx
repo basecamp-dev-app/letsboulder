@@ -62,6 +62,28 @@ interface ProfileRow {
   avatar_url: string | null
 }
 
+interface GymFloorPlanRow {
+  id: string
+  gym_place_id: string
+  name: string
+  image_url: string
+  image_width: number
+  image_height: number
+}
+
+interface GymRouteRow {
+  id: string
+  floor_plan_id: string
+  grade: string
+  status: 'active' | 'retired'
+}
+
+interface GymMarkerRow {
+  route_id: string
+  x_norm: number
+  y_norm: number
+}
+
 export async function generateMetadata({ params }: { params: Promise<PlacePageParams> }): Promise<Metadata> {
   const { slug } = await params
 
@@ -101,6 +123,57 @@ export default async function CommunityPlacePage({ params, searchParams }: { par
 
   let sessionPosts: CommunitySessionPost[] = []
   let updatePosts: CommunityUpdatePost[] = []
+  let gymFloorPlan: GymFloorPlanRow | null = null
+  let gymMarkers: Array<{ id: string; grade: string; x: number; y: number }> = []
+
+  if (typedPlace.type === 'gym') {
+    const { data: floorPlan } = await supabase
+      .from('gym_floor_plans')
+      .select('id, gym_place_id, name, image_url, image_width, image_height')
+      .eq('gym_place_id', typedPlace.id)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (floorPlan) {
+      gymFloorPlan = floorPlan as GymFloorPlanRow
+
+      const { data: routeRows } = await supabase
+        .from('gym_routes')
+        .select('id, floor_plan_id, grade, status')
+        .eq('gym_place_id', typedPlace.id)
+        .eq('floor_plan_id', gymFloorPlan.id)
+        .eq('status', 'active')
+
+      const typedRoutes = (routeRows || []) as GymRouteRow[]
+      const routeIds = typedRoutes.map(route => route.id)
+
+      if (routeIds.length > 0) {
+        const { data: markerRows } = await supabase
+          .from('gym_route_markers')
+          .select('route_id, x_norm, y_norm')
+          .in('route_id', routeIds)
+
+        const markerMap = new Map<string, GymMarkerRow>()
+        for (const marker of (markerRows || []) as GymMarkerRow[]) {
+          markerMap.set(marker.route_id, marker)
+        }
+
+        gymMarkers = typedRoutes
+          .map(route => {
+            const marker = markerMap.get(route.id)
+            if (!marker) return null
+
+            return {
+              id: route.id,
+              grade: route.grade,
+              x: Number(marker.x_norm),
+              y: Number(marker.y_norm),
+            }
+          })
+          .filter((value): value is { id: string; grade: string; x: number; y: number } => Boolean(value))
+      }
+    }
+  }
 
   if (activeTab === 'upcoming') {
     const { data: postRows } = await supabase
@@ -182,6 +255,28 @@ export default async function CommunityPlacePage({ params, searchParams }: { par
             >
               View crag page
             </Link>
+          </section>
+        ) : null}
+
+        {typedPlace.type === 'gym' && gymFloorPlan ? (
+          <section className="mt-4 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Floor plan</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{gymMarkers.length} active routes</p>
+            </div>
+            <div className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+              <img src={gymFloorPlan.image_url} alt={gymFloorPlan.name} className="block w-full" />
+              {gymMarkers.map(marker => (
+                <div
+                  key={marker.id}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-blue-600 px-2 py-1 text-[10px] font-semibold text-white shadow"
+                  style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
+                  title={marker.grade}
+                >
+                  {marker.grade}
+                </div>
+              ))}
+            </div>
           </section>
         ) : null}
 
