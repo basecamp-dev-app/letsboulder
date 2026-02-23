@@ -793,15 +793,13 @@ function SubmitPageContent() {
 
       case 'draw':
         return (
-          <div className="h-[calc(100dvh-5rem)] md:h-[calc(100vh-64px)] flex flex-col">
-            <div className="flex-1">
-              <RouteCanvas
-                key={stepDraftKey || routeDraftKey || 'route-canvas'}
-                imageSelection={step.image}
-                onRoutesUpdate={handleRoutesUpdate}
-                draftKey={stepDraftKey || routeDraftKey || undefined}
-              />
-            </div>
+          <div className="h-[calc(100dvh-4rem)] md:h-[calc(100vh-64px)]">
+            <RouteCanvas
+              key={stepDraftKey || routeDraftKey || 'route-canvas'}
+              imageSelection={step.image}
+              onRoutesUpdate={handleRoutesUpdate}
+              draftKey={stepDraftKey || routeDraftKey || undefined}
+            />
           </div>
         )
 

@@ -765,18 +765,17 @@ export default function RouteCanvas({
   const nextRouteNumber = routeCount + 1
 
   return (
-    <div className="h-full w-full flex flex-col">
-      <div className="flex-1 min-h-0 flex flex-col md:flex-row">
-        <div className="relative flex-1 bg-gray-100 dark:bg-gray-900 overflow-hidden" ref={containerRef}>
-          <div
-            ref={imageContainerRef}
-            className="absolute inset-0"
-            style={{
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-              transformOrigin: '0 0'
-            }}
-          >
-            <img
+    <div className="h-full w-full flex flex-col md:flex-row">
+      <div className="flex-1 min-h-0 relative bg-gray-100 dark:bg-gray-900 pb-14 md:pb-0" ref={containerRef}>
+        <div
+          ref={imageContainerRef}
+          className="absolute inset-0"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: '0 0'
+          }}
+        >
+          <img
             ref={imageRef}
             src={imageUrl}
             alt="Route"
@@ -845,12 +844,12 @@ export default function RouteCanvas({
           </div>
         </div>
 
-        <div className="w-full md:w-64 shrink-0 bg-white dark:bg-gray-800 overflow-y-auto md:border-l md:border-gray-200 md:dark:border-gray-700">
+        <div className="fixed bottom-0 left-0 right-0 md:relative md:w-64 md:shrink-0 bg-white dark:bg-gray-800 md:border-l md:border-gray-200 md:dark:border-gray-700 overflow-y-auto max-h-[40vh] md:max-h-none">
           {(isEditing || completedRoutes.length > 0) && (
           <>
             <button
               onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
-              className="w-full flex items-center justify-between px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              className="w-full flex items-center justify-between px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400"
             >
               <span>{isDetailsExpanded ? '▼' : '▶'} {selectedNewRoute ? 'Edit Selected' : 'Route Details'}</span>
             </button>
@@ -989,9 +988,8 @@ export default function RouteCanvas({
             >
               {savingEdits ? 'Saving...' : 'Save Changes'}
             </button>
-          )}
+            )}
         </div>
-      </div>
 
       {!isEditExistingMode && showSubmitConfirm && (
         <div className="fixed inset-0 z-[2000] bg-black/50 flex items-center justify-center">
