@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClient } from '@/lib/supabase-server'
 import MapViewport from '@/components/MapViewport'
 import { SITE_URL } from '@/lib/site'
 
@@ -53,11 +52,7 @@ export const metadata: Metadata = {
 }
 
 async function getSeoLinks() {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
+  const supabase = await getServerClient()
 
   const [cragsResult, climbsResult] = await Promise.all([
     supabase
@@ -119,72 +114,45 @@ export default async function Home() {
     }),
   }
 
+  const siteNavigation = {
+    '@context': 'https://schema.org',
+    '@type': 'SiteNavigationElement',
+    name: 'Main Navigation',
+    item: [
+      { name: 'Community', url: `${SITE_URL}/community` },
+      { name: 'Logbook', url: `${SITE_URL}/logbook` },
+      { name: 'Upload Topos', url: `${SITE_URL}/submit` },
+      { name: 'Bouldering Map', url: `${SITE_URL}/bouldering-map` },
+      { name: 'Climbing Map', url: `${SITE_URL}/climbing-map` },
+      { name: 'Rock Climbing Map', url: `${SITE_URL}/rock-climbing-map` },
+      { name: 'Guernsey Bouldering', url: `${SITE_URL}/guernsey-bouldering` },
+      { name: 'About', url: `${SITE_URL}/about` },
+    ],
+  }
+
+  const webSite = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'letsboulder',
+    url: SITE_URL,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
+      },
+      'query-input': 'required name=search_term_string',
+    },
+    description: 'Interactive climbing map with photo topos and route beta for crags from Guernsey to Skye and beyond.',
+  }
+
   return (
     <>
       <MapViewport />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify([featuredCragsItemList, featuredRoutesItemList]) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify([featuredCragsItemList, featuredRoutesItemList, siteNavigation, webSite]) }}
       />
-
-      <section className="relative z-10 mt-[100vh] border-t border-gray-200 bg-white/95 px-4 py-8 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/95">
-        <div className="mx-auto max-w-5xl">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Interactive climbing map, topos, and route beta</h1>
-          <p className="mt-3 max-w-3xl text-sm text-gray-600 dark:text-gray-300">
-            letsboulder helps you discover crags, open photo topos, and navigate routes with precise map context, from Guernsey to Skye and beyond. Start on the map above, then dive into route pages and crag guides.
-          </p>
-
-          <div className="mt-5 flex flex-wrap gap-2 text-sm">
-            <Link href="/community" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Community</Link>
-            <Link prefetch={false} href="/logbook" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Logbook</Link>
-            <Link prefetch={false} href="/submit" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Upload Topos</Link>
-            <Link href="/bouldering-map" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Bouldering Map</Link>
-            <Link href="/climbing-map" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Climbing Map</Link>
-            <Link href="/rock-climbing-map" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Rock Climbing Map</Link>
-            <Link href="/guernsey-bouldering" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">Guernsey Bouldering</Link>
-            <Link href="/about" className="rounded-md border border-gray-300 px-3 py-1.5 text-gray-900 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900">About</Link>
-          </div>
-
-          {!!crags.length && (
-            <div className="mt-6">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Featured crags</h2>
-              <div className="mt-2 flex flex-wrap gap-2 text-sm">
-                {crags.map((crag) => {
-                  const href = crag.slug && crag.country_code
-                    ? `/${crag.country_code.toLowerCase()}/${crag.slug}`
-                    : `/crag/${crag.id}`
-
-                  return (
-                    <Link key={crag.id} href={href} className="text-blue-700 hover:underline dark:text-blue-300">
-                      {crag.name}
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {!!climbs.length && (
-            <div className="mt-6">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Featured routes</h2>
-              <div className="mt-2 grid gap-1 sm:grid-cols-2 md:grid-cols-3 text-sm">
-                {climbs.map((climb) => {
-                  const crag = Array.isArray(climb.crags) && climb.crags.length > 0 ? climb.crags[0] : null
-                  const href = climb.slug && crag?.slug && crag?.country_code
-                    ? `/${crag.country_code.toLowerCase()}/${crag.slug}/${climb.slug}`
-                    : `/climb/${climb.id}`
-
-                  return (
-                    <Link key={climb.id} href={href} className="text-blue-700 hover:underline dark:text-blue-300">
-                      {(climb.name || 'Unnamed route')} ({climb.grade})
-                    </Link>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
     </>
   )
 }
