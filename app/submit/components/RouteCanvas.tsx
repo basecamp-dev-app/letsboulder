@@ -831,7 +831,7 @@ export default function RouteCanvas({
                 top: 0,
                 width: '100%',
                 height: '100%',
-                touchAction: currentPoints.length > 0 || draggingPointIndex !== null ? 'none' : 'manipulation',
+                touchAction: 'none',
                 WebkitTapHighlightColor: 'transparent'
               }}
               onMouseDown={handleMouseDown}
