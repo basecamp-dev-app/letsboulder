@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, MessageSquare, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
@@ -158,6 +158,8 @@ export default function CommentThread({ targetType, targetId, className }: Comme
   const threadConfig = TARGET_THREAD_CONFIG[targetType]
   const [category, setCategory] = useState<CommentCategory>(threadConfig.defaultCategory)
 
+  const cachedCommentsRef = useRef<Record<string, { comments: CommentItem[]; nextOffset: number | null }>>({})
+
   const hasMore = nextOffset !== null
   const isSignedIn = !!userId
   const authRedirect = useMemo(() => {
@@ -166,6 +168,17 @@ export default function CommentThread({ targetType, targetId, className }: Comme
   }, [targetId, targetType])
 
   const fetchComments = useCallback(async (offset = 0, append = false) => {
+    const cacheKey = `${targetType}:${targetId}:${categoryFilter}`
+
+    if (!append && offset === 0 && cachedCommentsRef.current[cacheKey]) {
+      const cached = cachedCommentsRef.current[cacheKey]
+      setComments(cached.comments)
+      setNextOffset(cached.nextOffset)
+      setLoading(false)
+      setLoadingMore(false)
+      return
+    }
+
     if (!append) {
       setLoading(true)
     } else {
@@ -198,8 +211,14 @@ export default function CommentThread({ targetType, targetId, className }: Comme
       const payload = data as { comments?: CommentItem[]; nextOffset?: number | null }
       const incoming = Array.isArray(payload.comments) ? payload.comments : []
 
+      const finalNextOffset = typeof payload.nextOffset === 'number' ? payload.nextOffset : null
+
+      if (!append && offset === 0) {
+        cachedCommentsRef.current[cacheKey] = { comments: incoming, nextOffset: finalNextOffset }
+      }
+
       setComments((prev) => (append ? [...prev, ...incoming] : incoming))
-      setNextOffset(typeof payload.nextOffset === 'number' ? payload.nextOffset : null)
+      setNextOffset(finalNextOffset)
       setError(null)
     } catch (err) {
       console.error('Comments load error:', err)
@@ -215,6 +234,12 @@ export default function CommentThread({ targetType, targetId, className }: Comme
     setCategoryFilter('all')
     setComments([])
     setNextOffset(null)
+
+    Object.keys(cachedCommentsRef.current).forEach((key) => {
+      if (key.includes(targetId)) {
+        delete cachedCommentsRef.current[key]
+      }
+    })
   }, [targetId, threadConfig.defaultCategory])
 
   useEffect(() => {

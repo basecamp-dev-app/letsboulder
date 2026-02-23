@@ -69,9 +69,17 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
   const heightDropdownRef = useRef<HTMLDivElement>(null)
   const reachDropdownRef = useRef<HTMLDivElement>(null)
 
+  const cachedBetasRef = useRef<Record<string, VideoBetaItem[]>>({})
+
   const preview = useMemo(() => validateAndNormalizeVideoUrl(url), [url])
 
   useEffect(() => {
+    if (cachedBetasRef.current[climbId]) {
+      setItems(cachedBetasRef.current[climbId])
+      setLoadingItems(false)
+      return
+    }
+
     const loadVideoBetas = async () => {
       setLoadingItems(true)
       setError(null)
@@ -90,7 +98,9 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
           return
         }
 
-        setItems(Array.isArray(payload.video_betas) ? payload.video_betas : [])
+        const data = Array.isArray(payload.video_betas) ? payload.video_betas : []
+        cachedBetasRef.current[climbId] = data
+        setItems(data)
       } catch {
         setError('Failed to load beta links')
         setItems([])
