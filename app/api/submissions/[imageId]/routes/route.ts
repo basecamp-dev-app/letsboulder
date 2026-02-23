@@ -29,6 +29,8 @@ interface NewRoutePayload {
 }
 
 const VALID_GRADES = [
+  '3A', '3A+', '3B', '3B+', '3C', '3C+',
+  '4A', '4A+', '4B', '4B+', '4C', '4C+',
   '5A', '5A+', '5B', '5B+', '5C', '5C+',
   '6A', '6A+', '6B', '6B+', '6C', '6C+',
   '7A', '7A+', '7B', '7B+', '7C', '7C+',
