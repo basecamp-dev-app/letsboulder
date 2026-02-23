@@ -4,6 +4,7 @@ import { createErrorResponse, sanitizeError } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewSubmission } from '@/lib/discord'
 import { makeUniqueSlug } from '@/lib/slug'
+import { revalidatePath } from 'next/cache'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const INTERNAL_MODERATION_SECRET = process.env.INTERNAL_MODERATION_SECRET
@@ -443,7 +444,7 @@ export async function POST(request: NextRequest) {
 
       const { data: cragData } = await supabase
         .from('crags')
-        .select('name')
+        .select('name, slug, country_code')
         .eq('id', cragId)
         .single()
 
@@ -452,6 +453,11 @@ export async function POST(request: NextRequest) {
       await notifyNewSubmission(supabase, climbs, cragName, cragId, user.id).catch(err => {
         console.error('Discord notification error:', err)
       })
+
+      revalidatePath('/')
+      if (cragData?.slug && cragData?.country_code) {
+        revalidatePath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
+      }
     }
 
     response = NextResponse.json({

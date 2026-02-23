@@ -4,6 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { makeUniqueSlug } from '@/lib/slug'
+import { revalidatePath } from 'next/cache'
 
 interface RoutePoint {
   x: number
@@ -296,6 +297,18 @@ export async function POST(
       return createErrorResponse(routeLinesError, 'Create routes error')
     }
 
+    revalidatePath('/')
+    if (image.crag_id) {
+      const { data: cragData } = await supabase
+        .from('crags')
+        .select('slug, country_code')
+        .eq('id', image.crag_id)
+        .single()
+      if (cragData?.slug && cragData?.country_code) {
+        revalidatePath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       createdCount: climbs.length,
@@ -383,6 +396,23 @@ export async function PUT(
     const resultObject = updateResult && typeof updateResult === 'object' && !Array.isArray(updateResult)
       ? updateResult as Record<string, unknown>
       : {}
+
+    revalidatePath('/')
+    const { data: image } = await supabase
+      .from('images')
+      .select('crag_id')
+      .eq('id', imageId)
+      .single()
+    if (image?.crag_id) {
+      const { data: cragData } = await supabase
+        .from('crags')
+        .select('slug, country_code')
+        .eq('id', image.crag_id)
+        .single()
+      if (cragData?.slug && cragData?.country_code) {
+        revalidatePath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
+      }
+    }
 
     return NextResponse.json({
       success: true,

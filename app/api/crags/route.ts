@@ -4,6 +4,7 @@ import { rateLimit, RATE_LIMITS, createRateLimitResponse } from '@/lib/rate-limi
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { makeUniqueSlug } from '@/lib/slug'
+import { revalidatePath } from 'next/cache'
 
 interface CreateCragRequest {
   name: string
@@ -264,11 +265,16 @@ export async function POST(request: NextRequest) {
         country_code: countryCode,
         slug,
       })
-      .select('id, name, latitude, longitude, rock_type, type, created_at')
+      .select('id, name, slug, country_code, latitude, longitude, rock_type, type, created_at')
       .single()
 
     if (createError) {
       return createErrorResponse(createError, 'Error creating crag')
+    }
+
+    revalidatePath('/')
+    if (createdCrag?.slug && createdCrag?.country_code) {
+      revalidatePath(`/${createdCrag.country_code.toLowerCase()}/${createdCrag.slug}`)
     }
 
     return NextResponse.json(createdCrag, { status: 201 })

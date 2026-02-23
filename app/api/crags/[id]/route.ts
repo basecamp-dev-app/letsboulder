@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { revalidatePath } from 'next/cache'
 
 interface UpdateCragRequest {
   name?: string
@@ -54,7 +55,7 @@ export async function PUT(
 
     const { data: existingCrag, error: fetchError } = await supabase
       .from('crags')
-      .select('id, name')
+      .select('id, name, slug, country_code')
       .eq('id', cragId)
       .single()
 
@@ -87,6 +88,11 @@ export async function PUT(
         rock_type: body.rock_type
       }
     })
+
+    revalidatePath('/')
+    if (existingCrag?.slug && existingCrag?.country_code) {
+      revalidatePath(`/${existingCrag.country_code.toLowerCase()}/${existingCrag.slug}`)
+    }
 
     return NextResponse.json({
       success: true,
@@ -142,7 +148,7 @@ export async function DELETE(
 
     const { data: crag, error: fetchError } = await supabase
       .from('crags')
-      .select('id, name')
+      .select('id, name, slug, country_code')
       .eq('id', cragId)
       .single()
 
@@ -182,6 +188,11 @@ export async function DELETE(
         images_deleted: imageCount
       }
     })
+
+    revalidatePath('/')
+    if (crag?.slug && crag?.country_code) {
+      revalidatePath(`/${crag.country_code.toLowerCase()}/${crag.slug}`)
+    }
 
     return NextResponse.json({
       success: true,
