@@ -99,15 +99,15 @@ function AuthCallbackContent() {
   const validateRedirect = (path: string | null): string => {
     const allowedPaths = ['/', '/map', '/logbook', '/community', '/settings', '/submit', '/image/', '/climb/', '/crag/']
 
-    if (!path) return '/map'
+    if (!path) return '/'
 
     if (/^(https?:)?\/\//i.test(path) || path.includes('..') || path.includes('//')) {
-      return '/map'
+      return '/'
     }
 
     const isAllowed = allowedPaths.some(allowed => path === allowed || path.startsWith(allowed + '/'))
 
-    return isAllowed ? path : '/map'
+    return isAllowed ? path : '/'
   }
 
   useEffect(() => {

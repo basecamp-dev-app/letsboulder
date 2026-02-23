@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { Loader2, Flag, FileText, Settings, Mountain } from 'lucide-react'
+import { Loader2, Flag, Settings, Mountain, LayoutDashboard } from 'lucide-react'
 
 export default function AdminLayout({
   children,
@@ -66,8 +66,8 @@ export default function AdminLayout({
   }
 
   const navItems = [
+    { href: '/admin', label: 'Overview', icon: LayoutDashboard },
     { href: '/admin/flags', label: 'Flags', icon: Flag },
-    { href: '/admin/pending', label: 'Pending', icon: FileText },
     { href: '/admin/crags', label: 'Crags', icon: Mountain },
   ]
 
@@ -81,7 +81,9 @@ export default function AdminLayout({
           <nav className="space-y-1">
             {navItems.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.href
+              const isActive = item.href === '/admin'
+                ? pathname === '/admin'
+                : pathname === item.href || pathname.startsWith(`${item.href}/`)
               return (
                 <Link
                   key={item.href}

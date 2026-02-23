@@ -58,7 +58,7 @@ export default function SetNamePage() {
       setError('Failed to save your name. Please try again.')
       setLoading(false)
     } else {
-      router.push('/map')
+      router.push('/')
     }
   }
 

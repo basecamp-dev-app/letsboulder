@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { createServerClient } from '@supabase/ssr'
-import MapPage from '@/app/map/page'
+import MapViewport from '@/components/MapViewport'
 import { SITE_URL } from '@/lib/site'
 
 export const revalidate = 60
@@ -121,7 +121,7 @@ export default async function Home() {
 
   return (
     <>
-      <MapPage />
+      <MapViewport />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify([featuredCragsItemList, featuredRoutesItemList]) }}

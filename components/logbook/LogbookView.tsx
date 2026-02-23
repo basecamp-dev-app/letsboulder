@@ -248,7 +248,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
 
       {logs.length === 0 ? (
         submissions.length === 0 ? (
-          <EmptyLogbook onGoToMap={() => router.push('/map')} />
+          <EmptyLogbook onGoToMap={() => router.push('/')} />
         ) : null
       ) : null}
 

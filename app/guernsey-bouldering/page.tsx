@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import MapPage from '@/app/map/page'
+import MapViewport from '@/components/MapViewport'
 
 export const metadata: Metadata = {
   title: 'Guernsey Bouldering Map',
@@ -34,7 +34,7 @@ export default function GuernseyBoulderingPage() {
 
   return (
     <>
-      <MapPage />
+      <MapViewport />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
