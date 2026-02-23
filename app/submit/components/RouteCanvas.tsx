@@ -507,14 +507,14 @@ export default function RouteCanvas({
 
   const handleCompleteRoute = useCallback(() => {
     if (currentPoints.length < 2) return
-    if (!currentName.trim()) return
 
     const routeId = generateRouteId()
     const trimmedDescription = currentDescription.trim()
+    const routeName = currentName.trim() || `Route ${completedRoutes.length + 1}`
     const route: ExistingRoute = {
       id: routeId,
       points: currentPoints,
-      name: currentName.trim(),
+      name: routeName,
       grade: currentGrade,
       description: trimmedDescription || undefined
     }
