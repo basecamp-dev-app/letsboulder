@@ -844,7 +844,7 @@ export default function RouteCanvas({
           </div>
         </div>
 
-        <div className="fixed bottom-0 left-0 right-0 md:relative md:w-64 md:shrink-0 bg-white dark:bg-gray-800 md:border-l md:border-gray-200 md:dark:border-gray-700 overflow-y-auto max-h-[40vh] md:max-h-none">
+        <div className="fixed bottom-0 left-0 right-0 md:relative md:w-64 md:shrink-0 bg-white dark:bg-gray-800 md:border-l md:border-gray-200 md:dark:border-gray-700 overflow-y-auto md:max-h-none">
           {(isEditing || completedRoutes.length > 0) && (
           <>
             <button
