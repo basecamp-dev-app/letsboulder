@@ -2,6 +2,8 @@
 
 This document provides guidelines for agents working on this codebase.
 
+**Working directory: `/home/hadow` (not `/home/shadow`)**
+
 ## Build, Lint, and Test Commands
 
 ```bash
