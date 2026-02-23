@@ -756,8 +756,15 @@ export default function RouteCanvas({
       displayedWidth = untransformedHeight * naturalAspect
     }
 
+    const offsetX = (untransformedWidth - displayedWidth) / 2
+    const offsetY = (untransformedHeight - displayedHeight) / 2
+
+    canvas.style.left = offsetX + 'px'
+    canvas.style.top = offsetY + 'px'
     canvas.width = displayedWidth
     canvas.height = displayedHeight
+    canvas.style.width = displayedWidth + 'px'
+    canvas.style.height = displayedHeight + 'px'
     redraw()
   }, [redraw, zoom])
 
