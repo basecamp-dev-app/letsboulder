@@ -7,6 +7,7 @@ export const DESKTOP_MORE_MENU_ITEMS = [
 ]
 
 export const MOBILE_MORE_MENU_ITEMS = [
+  { label: 'Gym Owners', href: '/gym-owners' },
   { label: 'Logbook', href: '/logbook' },
   { label: 'Gear', href: '/gear' },
   { label: 'Impact', href: '/impact' },
