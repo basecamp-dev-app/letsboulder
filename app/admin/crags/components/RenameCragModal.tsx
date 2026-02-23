@@ -8,13 +8,12 @@ interface Crag {
   id: string
   name: string
   rock_type: string | null
-  type: string | null
 }
 
 interface RenameCragModalProps {
   crag: Crag
   onClose: () => void
-  onSave: (cragId: string, data: { name: string; rock_type: string | null; type: string | null }) => void
+  onSave: (cragId: string, data: { name: string; rock_type: string | null }) => void
 }
 
 const ROCK_TYPES = [
@@ -34,20 +33,11 @@ const ROCK_TYPES = [
   { value: 'other', label: 'Other' },
 ]
 
-const CLIMB_TYPES = [
-  { value: null, label: 'Unknown' },
-  { value: 'sport', label: 'Sport' },
-  { value: 'trad', label: 'Trad' },
-  { value: 'boulder', label: 'Boulder' },
-  { value: 'mixed', label: 'Mixed' },
-]
-
 export default function RenameCragModal({ crag, onClose, onSave }: RenameCragModalProps) {
   useOverlayHistory({ open: true, onClose, id: `admin-rename-crag-${crag.id}` })
 
   const [name, setName] = useState(crag.name)
   const [rockType, setRockType] = useState(crag.rock_type || '')
-  const [climbType, setClimbType] = useState(crag.type || '')
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
@@ -58,7 +48,6 @@ export default function RenameCragModal({ crag, onClose, onSave }: RenameCragMod
       await onSave(crag.id, {
         name: name.trim(),
         rock_type: rockType || null,
-        type: climbType as 'sport' | 'boulder' | 'trad' | 'mixed' | null,
       })
       onClose()
     } finally {
@@ -89,21 +78,6 @@ export default function RenameCragModal({ crag, onClose, onSave }: RenameCragMod
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
               placeholder="Enter crag name..."
             />
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Climb Type</label>
-            <select
-              value={climbType}
-              onChange={(e) => setClimbType(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
-            >
-              {CLIMB_TYPES.map((type) => (
-                <option key={type.value || 'unknown'} value={type.value || ''}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div>

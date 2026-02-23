@@ -127,7 +127,7 @@ export type FaceDirection = typeof FACE_DIRECTIONS[number]
 
 export type ImageSelection = ExistingImageSelection | NewImageSelection
 
-export type ClimbType = 'sport' | 'bouldering' | 'trad' | 'deep-water-solo'
+export type ClimbType = 'sport' | 'boulder' | 'trad' | 'deep-water-solo'
 
 export interface SubmissionContext {
   crag: Pick<Crag, 'id' | 'name' | 'latitude' | 'longitude'> | null

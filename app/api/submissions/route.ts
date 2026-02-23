@@ -18,7 +18,7 @@ const VALID_GRADES = [
   '9A', '9A+', '9B', '9B+', '9C', '9C+'
 ] as const
 
-const VALID_ROUTE_TYPES = ['sport', 'bouldering', 'trad', 'deep-water-solo'] as const
+const VALID_ROUTE_TYPES = ['sport', 'boulder', 'trad', 'deep-water-solo'] as const
 const VALID_FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
 
 interface NewImageSubmission {
@@ -64,6 +64,19 @@ interface RoutePoint {
 }
 
 type SubmissionRequest = NewImageSubmission | ExistingImageSubmission
+
+function normalizeRouteType(value: string | null | undefined): (typeof VALID_ROUTE_TYPES)[number] | null {
+  if (!value) return null
+
+  const normalized = value.trim().toLowerCase().replace(/_/g, '-')
+  if (normalized === 'bouldering') return 'boulder'
+
+  if (!VALID_ROUTE_TYPES.includes(normalized as (typeof VALID_ROUTE_TYPES)[number])) {
+    return null
+  }
+
+  return normalized as (typeof VALID_ROUTE_TYPES)[number]
+}
 
 export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
@@ -163,7 +176,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (body.routeType && !VALID_ROUTE_TYPES.includes(body.routeType)) {
+    const normalizedRouteType = normalizeRouteType(body.routeType)
+
+    if (body.routeType && !normalizedRouteType) {
       response = NextResponse.json({ error: 'Invalid route type' }, { status: 400 })
       return response
     }
@@ -384,7 +399,7 @@ export async function POST(request: NextRequest) {
         slug,
         grade: route.grade,
         description: route.description?.trim() || null,
-        route_type: body.routeType || 'sport',
+        route_type: normalizedRouteType || 'sport',
         status: 'approved' as const,
         user_id: user.id,
         crag_id: cragId

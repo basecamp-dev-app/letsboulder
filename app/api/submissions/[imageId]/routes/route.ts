@@ -34,9 +34,22 @@ const VALID_GRADES = [
   '8A', '8A+', '8B', '8B+', '8C', '8C+',
   '9A', '9A+', '9B', '9B+', '9C', '9C+'
 ] as const
-const VALID_ROUTE_TYPES = ['sport', 'bouldering', 'trad', 'deep-water-solo'] as const
+const VALID_ROUTE_TYPES = ['sport', 'boulder', 'trad', 'deep-water-solo'] as const
 
 const MAX_ROUTES_PER_REQUEST = 40
+
+function normalizeRouteType(value: string | null | undefined): (typeof VALID_ROUTE_TYPES)[number] | null {
+  if (!value) return null
+
+  const normalized = value.trim().toLowerCase().replace(/_/g, '-')
+  if (normalized === 'bouldering') return 'boulder'
+
+  if (!VALID_ROUTE_TYPES.includes(normalized as (typeof VALID_ROUTE_TYPES)[number])) {
+    return null
+  }
+
+  return normalized as (typeof VALID_ROUTE_TYPES)[number]
+}
 
 function isValidPoint(value: unknown): value is RoutePoint {
   if (!value || typeof value !== 'object') return false
@@ -142,10 +155,10 @@ export async function POST(
     const body = await request.json()
     const routes = normalizeNewRoutes(body?.routes)
     const submittedRouteType = typeof body?.routeType === 'string'
-      ? body.routeType.trim().toLowerCase().replace(/_/g, '-')
+      ? normalizeRouteType(body.routeType)
       : null
 
-    if (submittedRouteType && !VALID_ROUTE_TYPES.includes(submittedRouteType as (typeof VALID_ROUTE_TYPES)[number])) {
+    if (typeof body?.routeType === 'string' && !submittedRouteType) {
       return NextResponse.json({ error: 'Invalid route type' }, { status: 400 })
     }
 
@@ -201,7 +214,7 @@ export async function POST(
 
     let resolvedRouteType: (typeof VALID_ROUTE_TYPES)[number] = 'sport'
     if (submittedRouteType) {
-      resolvedRouteType = submittedRouteType as (typeof VALID_ROUTE_TYPES)[number]
+      resolvedRouteType = submittedRouteType
     } else {
       const { data: existingImageRouteLines } = await supabase
         .from('route_lines')
@@ -212,9 +225,9 @@ export async function POST(
       const existingTypes = new Set<(typeof VALID_ROUTE_TYPES)[number]>()
       for (const row of (existingImageRouteLines || []) as Array<{ climbs: { route_type: string | null } | { route_type: string | null }[] | null }>) {
         const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
-        const normalized = climb?.route_type?.trim().toLowerCase().replace(/_/g, '-')
-        if (normalized && VALID_ROUTE_TYPES.includes(normalized as (typeof VALID_ROUTE_TYPES)[number])) {
-          existingTypes.add(normalized as (typeof VALID_ROUTE_TYPES)[number])
+        const normalized = normalizeRouteType(climb?.route_type)
+        if (normalized) {
+          existingTypes.add(normalized)
         }
       }
 

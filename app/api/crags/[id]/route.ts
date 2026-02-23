@@ -6,7 +6,6 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 interface UpdateCragRequest {
   name?: string
   rock_type?: string | null
-  type?: 'sport' | 'boulder' | 'trad' | 'mixed' | null
 }
 
 export async function PUT(
@@ -66,7 +65,6 @@ export async function PUT(
     const updateData: Record<string, unknown> = {}
     if (body.name !== undefined) updateData.name = body.name
     if (body.rock_type !== undefined) updateData.rock_type = body.rock_type
-    if (body.type !== undefined) updateData.type = body.type
 
     const { data: updatedCrag, error: updateError } = await supabase
       .from('crags')
@@ -86,8 +84,7 @@ export async function PUT(
       details: {
         previous_name: existingCrag.name,
         new_name: body.name,
-        rock_type: body.rock_type,
-        type: body.type
+        rock_type: body.rock_type
       }
     })
 

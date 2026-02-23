@@ -10,7 +10,7 @@ interface CreateCragRequest {
   latitude?: number | null
   longitude?: number | null
   rock_type?: string
-  type?: 'sport' | 'boulder' | 'trad' | 'mixed'
+  type?: 'sport' | 'boulder' | 'bouldering' | 'trad' | 'mixed' | 'top_rope' | 'deep_water_solo' | 'deep-water-solo'
   description?: string
   access_notes?: string
 }
@@ -30,7 +30,18 @@ interface CragWithCounts {
   type: string | null
   climb_count: number
   image_count: number
+  route_type_counts: Array<{ type: string; count: number }>
   created_at: string
+}
+
+function normalizeRouteType(value: string | null | undefined): string | null {
+  if (!value) return null
+  const normalized = value.trim().toLowerCase().replace(/_/g, '-')
+  if (normalized === 'bouldering') return 'boulder'
+  if (normalized === 'deep-water-solo') return 'deep_water_solo'
+  if (normalized === 'top-rope') return 'top_rope'
+  if (normalized === 'boulder' || normalized === 'sport' || normalized === 'trad' || normalized === 'mixed') return normalized
+  return null
 }
 
 export async function GET(request: NextRequest) {
@@ -78,7 +89,7 @@ export async function GET(request: NextRequest) {
 
     const { data: climbCounts, error: climbError } = await supabase
       .from('climbs')
-      .select('crag_id, id')
+      .select('crag_id, id, route_type, status, deleted_at')
       .in('crag_id', cragIds)
 
     if (climbError) {
@@ -95,10 +106,24 @@ export async function GET(request: NextRequest) {
     }
 
     const climbCountMap = new Map<string, number>()
+    const routeTypeCountMap = new Map<string, Map<string, number>>()
     for (const c of climbCounts || []) {
-      if (c.crag_id) {
-        climbCountMap.set(c.crag_id, (climbCountMap.get(c.crag_id) || 0) + 1)
+      if (!c.crag_id) continue
+      if (c.deleted_at) continue
+      if (c.status && c.status !== 'approved') continue
+
+      climbCountMap.set(c.crag_id, (climbCountMap.get(c.crag_id) || 0) + 1)
+
+      const normalizedType = normalizeRouteType(c.route_type)
+      if (!normalizedType) continue
+
+      let perCrag = routeTypeCountMap.get(c.crag_id)
+      if (!perCrag) {
+        perCrag = new Map<string, number>()
+        routeTypeCountMap.set(c.crag_id, perCrag)
       }
+
+      perCrag.set(normalizedType, (perCrag.get(normalizedType) || 0) + 1)
     }
 
     const imageCountMap = new Map<string, number>()
@@ -117,6 +142,12 @@ export async function GET(request: NextRequest) {
       type: crag.type,
       climb_count: climbCountMap.get(crag.id) || 0,
       image_count: imageCountMap.get(crag.id) || 0,
+      route_type_counts: Array.from(routeTypeCountMap.get(crag.id)?.entries() || [])
+        .map(([type, count]) => ({ type, count }))
+        .sort((a, b) => {
+          if (b.count !== a.count) return b.count - a.count
+          return a.type.localeCompare(b.type)
+        }),
       created_at: crag.created_at
     }))
 
@@ -147,6 +178,7 @@ export async function POST(request: NextRequest) {
 
     const body: CreateCragRequest = await request.json()
     const { name, latitude, longitude, rock_type, type, description, access_notes } = body
+    const normalizedCragType = normalizeRouteType(type)
 
     const rateLimitResult = rateLimit(request, 'authenticatedWrite', user?.id)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
@@ -224,7 +256,7 @@ export async function POST(request: NextRequest) {
         latitude: latitude ?? null,
         longitude: longitude ?? null,
         rock_type: rock_type || undefined,
-        type: type || 'sport',
+        type: normalizedCragType,
         description: description || undefined,
         access_notes: access_notes || undefined,
         region_id: regionId,

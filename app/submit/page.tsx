@@ -831,7 +831,7 @@ function SubmitPageContent() {
               <div className="grid grid-cols-2 gap-4">
                 {[
                   { type: 'sport' as const, label: 'Sport' },
-                  { type: 'bouldering' as const, label: 'Bouldering' },
+                  { type: 'boulder' as const, label: 'Boulder' },
                   { type: 'trad' as const, label: 'Trad' },
                   { type: 'deep-water-solo' as const, label: 'Deep Water Solo' }
                 ].map(({ type, label }) => (

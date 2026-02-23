@@ -42,15 +42,16 @@ interface ImageRouteLineQuery {
   }> | null
 }
 
-const VALID_ROUTE_TYPES = ['sport', 'bouldering', 'trad', 'deep-water-solo'] as const
+const VALID_ROUTE_TYPES = ['sport', 'boulder', 'trad', 'deep-water-solo'] as const
 
 function normalizeRouteType(value: string | null | undefined): (typeof VALID_ROUTE_TYPES)[number] | null {
   if (!value) return null
   const normalized = value.trim().toLowerCase().replace(/_/g, '-')
-  if (!VALID_ROUTE_TYPES.includes(normalized as (typeof VALID_ROUTE_TYPES)[number])) {
+  const canonical = normalized === 'bouldering' ? 'boulder' : normalized
+  if (!VALID_ROUTE_TYPES.includes(canonical as (typeof VALID_ROUTE_TYPES)[number])) {
     return null
   }
-  return normalized as (typeof VALID_ROUTE_TYPES)[number]
+  return canonical as (typeof VALID_ROUTE_TYPES)[number]
 }
 
 function parsePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[] {

@@ -15,6 +15,16 @@ interface Crag {
   type: string | null
   climb_count: number
   image_count: number
+  route_type_counts?: Array<{ type: string; count: number }>
+}
+
+function formatRouteTypeLabel(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/_/g, '-').replace('bouldering', 'boulder')
+  return normalized
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
 export default function AdminCragsPage() {
@@ -55,7 +65,7 @@ export default function AdminCragsPage() {
     }
   }
 
-  const handleRename = async (cragId: string, data: { name: string; rock_type: string | null; type: string | null }) => {
+  const handleRename = async (cragId: string, data: { name: string; rock_type: string | null }) => {
     try {
       const response = await csrfFetch(`/api/crags/${cragId}`, {
         method: 'PUT',
@@ -113,9 +123,12 @@ export default function AdminCragsPage() {
     }
   }
 
-  const filteredCrags = crags.filter(crag =>
-    crag.name.toLowerCase().includes(search.toLowerCase())
-  )
+  const filteredCrags = crags
+    .filter(crag => crag.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (b.climb_count !== a.climb_count) return b.climb_count - a.climb_count
+      return a.name.localeCompare(b.name)
+    })
 
   return (
     <div>
@@ -241,7 +254,11 @@ export default function AdminCragsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="px-2 py-1 bg-blue-900/50 text-blue-400 text-xs rounded capitalize">
-                      {crag.type || 'N/A'}
+                      {crag.route_type_counts && crag.route_type_counts.length > 0
+                        ? crag.route_type_counts
+                            .map((entry) => `${formatRouteTypeLabel(entry.type)} (${entry.count})`)
+                            .join(' · ')
+                        : (crag.type ? formatRouteTypeLabel(crag.type) : 'N/A')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
