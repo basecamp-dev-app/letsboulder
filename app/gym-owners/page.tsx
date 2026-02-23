@@ -47,7 +47,7 @@ export default function GymOwnersPage() {
         name: 'How do gym teams get started?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'Apply from the gym owners page. After approval, the team is onboarded and contacted via WhatsApp.',
+          text: 'Apply from the gym owners page. After approval, the team is onboarded and contacted.',
         },
       },
     ],
@@ -71,7 +71,7 @@ export default function GymOwnersPage() {
           <ol className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
             <li>1. Click apply and submit your gym details.</li>
             <li>2. We review your application and set up access.</li>
-            <li>3. After approval, we contact you via WhatsApp.</li>
+            <li>3. After approval, we&apos;ll be in touch.</li>
           </ol>
         </section>
 
@@ -87,7 +87,7 @@ export default function GymOwnersPage() {
           <article className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900 md:p-8">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Try for free</h2>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Apply to try for free. After your application is approved, we will contact you via WhatsApp.
+              Apply to try for free. After approval, we&apos;ll be in touch.
             </p>
             <div className="mt-4">
               <Link
