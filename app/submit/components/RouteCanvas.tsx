@@ -145,9 +145,11 @@ export default function RouteCanvas({
   const imageUrl = imageSelection.mode === 'existing' ? imageSelection.imageUrl : imageSelection.uploadedUrl
 
   const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [zoom] = useState(1)
+  const [zoom, setZoom] = useState(1)
   const [isPanning, setIsPanning] = useState(false)
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 })
+  const [pinchStartZoom, setPinchStartZoom] = useState<number | null>(null)
+  const [pinchStartDistance, setPinchStartDistance] = useState<number | null>(null)
   const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>(() => initialDraft?.currentPoints ?? [])
   const [currentName, setCurrentName] = useState(() => initialDraft?.currentName ?? '')
   const [currentGrade, setCurrentGrade] = useState(() => initialDraft?.currentGrade ?? '6A')
@@ -356,15 +358,30 @@ export default function RouteCanvas({
   }, [getMousePos, getDragHandleIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const distance = Math.hypot(dx, dy)
+      setPinchStartZoom(zoom)
+      setPinchStartDistance(distance)
+      return
+    }
+
     const pos = getTouchPos(e)
     const dragHandleIndex = getDragHandleIndex(pos)
     if (dragHandleIndex !== null) {
       setDraggingPointIndex(dragHandleIndex)
       e.preventDefault()
     }
-  }, [getDragHandleIndex, getTouchPos])
+  }, [getTouchPos, getDragHandleIndex, zoom])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (pinchStartZoom !== null) {
+      setPinchStartZoom(null)
+      setPinchStartDistance(null)
+      return
+    }
+
     if (draggingPointIndex !== null) {
       setDraggingPointIndex(null)
       return
@@ -398,9 +415,20 @@ export default function RouteCanvas({
     } else {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
     }
-  }, [zoom, draggingPointIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
+  }, [zoom, pinchStartZoom, pinchStartDistance, draggingPointIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length === 2 && pinchStartZoom !== null && pinchStartDistance !== null) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const distance = Math.hypot(dx, dy)
+      const scale = distance / pinchStartDistance
+      const newZoom = Math.min(3, Math.max(1, pinchStartZoom * scale))
+      setZoom(newZoom)
+      e.preventDefault()
+      return
+    }
+
     if (draggingPointIndex === null || !editableRoute) return
 
     const pos = getTouchPos(e)
@@ -416,7 +444,7 @@ export default function RouteCanvas({
     }
 
     e.preventDefault()
-  }, [draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute])
+  }, [draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, pinchStartZoom, pinchStartDistance])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggingPointIndex !== null && editableRoute) {
@@ -800,7 +828,7 @@ export default function RouteCanvas({
               top: 0,
               width: '100%',
               height: '100%',
-              touchAction: currentPoints.length > 0 || draggingPointIndex !== null ? 'none' : 'pan-y',
+              touchAction: currentPoints.length > 0 || draggingPointIndex !== null ? 'none' : 'manipulation',
               WebkitTapHighlightColor: 'transparent'
             }}
             onMouseDown={handleMouseDown}

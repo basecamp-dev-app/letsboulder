@@ -4,19 +4,12 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import MobileNavSheet from './MobileNavSheet'
-import type { SubmitContextType } from '@/lib/submit-context'
 
-interface FooterProps {
-  submitContext?: SubmitContextType
-}
-
-export default function Footer({ submitContext }: FooterProps) {
+export default function Footer() {
   const pathname = usePathname()
   const [isNavSheetOpen, setIsNavSheetOpen] = useState(false)
 
   const isActive = (path: string) => pathname === path
-  const isSubmitPage = pathname === '/submit'
-  const canSubmit = (submitContext?.routes.length ?? 0) > 0 && !submitContext?.isSubmitting
 
   return (
     <>
@@ -56,26 +49,13 @@ export default function Footer({ submitContext }: FooterProps) {
             </svg>
             <span className="text-[10px] mt-0.5">Map</span>
           </Link>
-          {isSubmitPage && (
-            <button
-              onClick={() => canSubmit && window.dispatchEvent(new CustomEvent('submit-routes'))}
-              disabled={!canSubmit}
-              className={`flex flex-col items-center p-2 ${!canSubmit ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <div className={`px-4 py-1 rounded-lg ${canSubmit ? 'bg-blue-600 text-white' : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
-                <span className="text-[10px] font-medium">Submit</span>
-              </div>
-            </button>
-          )}
-          {!isSubmitPage && (
-            <Link href="/submit" className={`flex flex-col items-center p-2 ${isActive('/submit') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span className="text-[10px] mt-0.5">Upload</span>
-            </Link>
-          )}
+          <Link href="/submit" className={`flex flex-col items-center p-2 ${isActive('/submit') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="text-[10px] mt-0.5">Upload</span>
+          </Link>
           <button
             onClick={() => setIsNavSheetOpen(true)}
             className={`flex flex-col items-center p-2 ${isActive('/logbook') || isActive('/gear') || isActive('/impact') || isActive('/about') || isActive('/settings') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
