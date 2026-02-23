@@ -2,12 +2,46 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { Resend } from 'resend'
 import { createErrorResponse } from '@/lib/errors'
+import { withCsrfProtection } from '@/lib/csrf-server'
+import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
+  const cookies = request.cookies
+
+  const authClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookies.getAll() },
+        setAll() {},
+      },
+    }
+  )
+
+  const { data: { user } } = await authClient.auth.getUser()
+
+  if (!user?.email) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
+  const rateLimitResult = rateLimit(request, 'strict', user.id)
+  const rateLimitResponse = createRateLimitResponse(rateLimitResult)
+  if (!rateLimitResult.success) {
+    return rateLimitResponse
+  }
+
   const { email, firstName } = await request.json()
 
   if (!email) {
     return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+  }
+
+  if (email !== user.email) {
+    return NextResponse.json({ error: 'Email does not match authenticated user' }, { status: 403 })
   }
 
   const supabase = createServerClient(

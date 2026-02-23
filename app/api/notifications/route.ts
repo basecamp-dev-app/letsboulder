@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
+import { withCsrfProtection } from '@/lib/csrf-server'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -56,6 +57,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
   const cookies = request.cookies
 
   const supabase = await createServerClient(
@@ -65,17 +69,23 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const body = await request.json()
-    const { user_id, type, title, message, link } = body
+    const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user_id || !type || !title || !message) {
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { type, title, message, link } = body
+
+    if (!type || !title || !message) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     const { error } = await supabase
       .from('notifications')
       .insert({
-        user_id,
+        user_id: user.id,
         type,
         title,
         message,
