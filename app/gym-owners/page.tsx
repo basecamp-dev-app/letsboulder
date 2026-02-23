@@ -62,7 +62,7 @@ export default function GymOwnersPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Gym Owners</p>
           <h1 className="mt-2 text-3xl font-bold text-gray-900 dark:text-gray-100 md:text-4xl">Manage climbs</h1>
           <p className="mt-3 max-w-3xl text-sm text-gray-700 dark:text-gray-300">
-            letsboulder gives climbing gyms a practical workflow to manage routes and keep local climbers up to date.
+            letsboulder gives climbing gyms a practical workflow to manage routes and keep local climbers up to date. Pricing: <span className="font-semibold">Free</span> below 40 users, <span className="font-semibold">£60/month</span> over 40 users.
           </p>
         </header>
 
@@ -75,24 +75,14 @@ export default function GymOwnersPage() {
           </ol>
         </section>
 
-        <section className="mt-6 grid gap-4 md:grid-cols-2">
-          <article className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900 md:p-8">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Pricing</h2>
-            <div className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
-              <p><span className="font-semibold text-gray-900 dark:text-gray-100">Free</span> below 40 users</p>
-              <p><span className="font-semibold text-gray-900 dark:text-gray-100">£60 / month</span> over 40 users</p>
-            </div>
-          </article>
-
-          <article className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900 md:p-8 flex flex-col justify-center">
-              <Link
-                href="/gym-owners/apply"
-                className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
-              >
-                Apply
-              </Link>
-          </article>
-        </section>
+        <div className="mt-6">
+          <Link
+            href="/gym-owners/apply"
+            className="block w-full rounded-md bg-gray-900 px-4 py-3 text-center text-base font-medium text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 md:py-4 md:text-lg"
+          >
+            Apply
+          </Link>
+        </div>
 
       </div>
     </div>
