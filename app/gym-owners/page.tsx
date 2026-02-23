@@ -69,10 +69,14 @@ export default function GymOwnersPage() {
         <section className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-800 dark:bg-gray-900 md:p-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">How it works</h2>
           <ol className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
-            <li>1. Click apply and submit your gym details.</li>
-            <li>2. We review your application and set up access.</li>
-            <li>3. After approval, we&apos;ll be in touch.</li>
+            <li>1. Click &apos;Apply&apos; to send us the necessary documents, and we&apos;ll create your interactive floor plan.</li>
+            <li>2. Add your routes or boulders, and start using letsboulder internally right away.</li>
+            <li>3. You decide when to make letsboulder available for your clients.</li>
           </ol>
+          <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">
+            You&apos;re in complete control—letsboulder remains accessible only to you and the setters you invite until you&apos;re ready to make it available to your clients.
+            Once you surpass 40 active users, we&apos;ll reach out to discuss your next steps and confirm if you&apos;d like to proceed.
+          </p>
         </section>
 
         <div className="mt-6">
