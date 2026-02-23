@@ -73,10 +73,8 @@ export default function GymOwnersPage() {
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">How it works</h2>
           <ol className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
             <li>1. Click apply and submit your gym details.</li>
-            <li>2. We review your application and set up access.</li>
-            <li>3. After approval send us the necessary documents, and we&apos;ll create your interactive floor plan.</li>
-            <li>4. Add your routes or boulders, and start using letsboulder right away.</li>
-            <li>5. You decide when to make letsboulder available for your clients.</li>
+            <li>2. After approval, we&apos;ll create your interactive floor plan.</li>
+            <li>3. Add your routes or boulders—you&apos;re in complete control of who sees them.</li>
           </ol>
           <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">
             Your gym in letsboulder remains accessible only to you and the setters you invite until you&apos;re ready to make it available to your clients. Once you surpass 40 active users, we&apos;ll reach out to discuss your next steps and confirm if you&apos;d like to proceed.
