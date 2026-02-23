@@ -107,11 +107,22 @@ export default function GymOwnerApplyForm() {
   return (
     <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900 md:p-8">
       {isSubmitted ? (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300">
-          Application received. We&apos;ll contact you via WhatsApp.
+        <div className="space-y-4">
+          <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300">
+            Application received. We&apos;ll contact you via WhatsApp.
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsSubmitted(false)
+              setError(null)
+            }}
+            className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            Submit another application
+          </button>
         </div>
-      ) : null}
-
+      ) : (
       <form onSubmit={onSubmit} className="space-y-4">
         <label className="block text-sm text-gray-700 dark:text-gray-300">
           Gym name
@@ -218,6 +229,7 @@ export default function GymOwnerApplyForm() {
           {isSubmitting ? 'Submitting...' : 'Submit application'}
         </button>
       </form>
+      )}
     </section>
   )
 }
