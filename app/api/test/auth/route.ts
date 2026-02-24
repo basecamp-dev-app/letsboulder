@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export async function GET(request: NextRequest) {
-  const env = process.env.VERCEL_ENV || process.env.NODE_ENV
-  if (env === 'production') {
+  const hostname = request.headers.get('x-forwarded-host') || request.headers.get('host')
+  const isDev = hostname?.includes('dev.')
+  
+  if (!isDev) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
@@ -54,7 +56,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (sessionData.session) {
-      const isProd = env === 'production'
+      const isProd = process.env.NODE_ENV === 'production'
       response.cookies.set('sb-access-token', sessionData.session.access_token, {
         httpOnly: true,
         secure: isProd,
