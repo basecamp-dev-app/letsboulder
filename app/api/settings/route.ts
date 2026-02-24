@@ -6,7 +6,7 @@ import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/lib/submission-credit'
 
 const VALID_GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const
-const VALID_GRADE_SYSTEMS = ['font_scale', 'v_scale', 'yds_equivalent', 'french_equivalent'] as const
+const VALID_GRADE_SYSTEMS = ['font_scale', 'v_scale', 'yds_equivalent', 'french_equivalent', 'british_equivalent'] as const
 const MIN_HEIGHT_CM = 100
 const MAX_HEIGHT_CM = 250
 const MIN_REACH_CM = 100

@@ -49,11 +49,13 @@ const BOULDER_GRADE_OPTIONS: Array<{ value: GradeSystem; label: string; sample: 
 const ROUTE_GRADE_OPTIONS: Array<{ value: GradeSystem; label: string; sample: string }> = [
   { value: 'yds_equivalent', label: 'YDS (USA)', sample: '5.12a' },
   { value: 'french_equivalent', label: 'French (Europe)', sample: '7a' },
+  { value: 'british_equivalent', label: 'British (E-grades)', sample: 'E5' },
 ]
 
 const TRAD_GRADE_OPTIONS: Array<{ value: GradeSystem; label: string; sample: string }> = [
   { value: 'yds_equivalent', label: 'YDS (USA)', sample: '5.10c' },
   { value: 'french_equivalent', label: 'French (Europe)', sample: '6b+' },
+  { value: 'british_equivalent', label: 'British (E-grades)', sample: 'E3' },
 ]
 
 const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
