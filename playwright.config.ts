@@ -16,6 +16,12 @@ export default defineConfig({
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
     headless: true,
+    ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
+      extraHTTPHeaders: {
+        'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID!,
+        'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET!,
+      },
+    } : {}),
   },
   projects: [
     {
