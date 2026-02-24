@@ -191,6 +191,11 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
       {isOwnProfile && profile && (
         <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">
           <CardContent className="px-4 py-4">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-3">
+              {profile.first_name || profile.last_name 
+                ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
+                : profile.display_name || profile.username}
+            </h1>
             <div className="flex items-center gap-3">
               {profile.avatar_url ? (
                 <img

@@ -12,7 +12,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SubmitProvider>
       <Header />
-      {children}
+      <main id="main-content">
+        {children}
+      </main>
       {!isSubmitPage && <Footer />}
     </SubmitProvider>
   )

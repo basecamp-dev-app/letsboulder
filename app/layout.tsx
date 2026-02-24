@@ -191,6 +191,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased pt-[calc(var(--app-header-offset)+env(safe-area-inset-top,0px))] md:pb-16 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
       >
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-gray-900 focus:text-white focus:rounded-md focus:outline-none"
+        >
+          Skip to main content
+        </a>
         <ServiceWorkerRegistration />
         <AppLayout>{children}</AppLayout>
         <Analytics />
