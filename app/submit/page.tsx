@@ -11,6 +11,7 @@ import { csrfFetch, primeCsrfToken } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { draftStorageGetItem, draftStorageRemoveItem, draftStorageSetItem } from '@/lib/submit-draft-storage'
+import SubmissionCredit from '@/components/SubmissionCredit'
 
 const dynamic = nextDynamic
 const ROUTE_DRAFT_PREFIX = 'submit-route-draft:'
@@ -846,6 +847,12 @@ function SubmitPageContent() {
                 You can edit all your submissions in your <Link href="/logbook" className="text-blue-600 dark:text-blue-400 hover:underline">logbook</Link>.
               </p>
             </div>
+
+            {step.imageId && (
+              <div className="mb-6">
+                <SubmissionCredit imageId={step.imageId} />
+              </div>
+            )}
 
             <button
               onClick={handleStartOver}
