@@ -6,7 +6,7 @@ import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/lib/submission-credit'
 
 const VALID_GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const
-const VALID_GRADE_SYSTEMS = ['font', 'v'] as const
+const VALID_GRADE_SYSTEMS = ['font_scale', 'v_scale', 'yds_equivalent', 'french_equivalent'] as const
 const MIN_HEIGHT_CM = 100
 const MAX_HEIGHT_CM = 250
 const MIN_REACH_CM = 100
@@ -82,7 +82,9 @@ export async function GET(request: NextRequest) {
         reachCm: profile?.reach_cm ?? null,
         avatarUrl: profile?.avatar_url || '',
         bio: profile?.bio || '',
-        gradeSystem: profile?.grade_system || 'font',
+        gradeSystem: profile?.grade_system === 'v' ? 'v_scale' : 
+                   profile?.grade_system === 'font' ? 'font_scale' : 
+                   profile?.grade_system || 'font_scale',
         units: profile?.units || 'metric',
         isPublic: profile?.is_public !== false,
         defaultLocation: profile?.default_location || '',
