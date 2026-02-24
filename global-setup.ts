@@ -22,13 +22,14 @@ async function globalSetup() {
   
   try {
     const authUrl = new URL('/api/test/auth', baseURL)
-    authUrl.searchParams.set('api_key', testApiKey)
     authUrl.searchParams.set('email', testEmail)
 
     console.log(`Authenticating via ${authUrl.toString()}`)
 
     const requestOptions: any = {
-      headers: {},
+      headers: {
+        'X-Test-Api-Key': testApiKey,
+      },
     }
 
     if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {

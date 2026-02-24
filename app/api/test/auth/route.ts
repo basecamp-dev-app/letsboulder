@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const apiKey = request.nextUrl.searchParams.get('api_key')
+  const apiKey = request.headers.get('x-test-api-key')
   const email = request.nextUrl.searchParams.get('email')
 
   if (!apiKey || !email) {
