@@ -10,6 +10,7 @@ import RoutePreviewThumb from '@/app/image/components/RoutePreviewThumb'
 import type { RoutePoint } from '@/lib/useRouteSelection'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
+import type { GradeSystem } from '@/lib/grades'
 
 type LogStyle = 'flash' | 'top' | 'try'
 
@@ -95,7 +96,7 @@ function formatRelativeDate(iso: string): string {
   return `${days}d ago`
 }
 
-function VoteBars({ votes, userVote, gradeSystem }: { votes: GradeVoteDistribution[]; userVote: string | null; gradeSystem: 'font' | 'v' }) {
+function VoteBars({ votes, userVote, gradeSystem }: { votes: GradeVoteDistribution[]; userVote: string | null; gradeSystem: GradeSystem }) {
   const sortedVotes = useMemo(() => sortVotesByGradeOrder(votes), [votes])
   const totalVotes = useMemo(() => sortedVotes.reduce((sum, v) => sum + v.vote_count, 0), [sortedVotes])
   const maxVotes = useMemo(() => Math.max(1, ...sortedVotes.map((v) => v.vote_count)), [sortedVotes])

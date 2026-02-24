@@ -80,3 +80,4 @@ export function formatGradeForDisplayWithIndex(
 
 export { gradeMappings }
 export type { GradeMapping }
+export type { GradeSystem }

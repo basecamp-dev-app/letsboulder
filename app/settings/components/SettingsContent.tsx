@@ -42,8 +42,10 @@ const TABS = [
 ]
 
 const GRADE_SYSTEM_OPTIONS: Array<{ value: GradeSystem; label: string; sample: string }> = [
-  { value: 'font', label: 'French', sample: '6C+' },
-  { value: 'v', label: 'V Scale', sample: 'V5' },
+  { value: 'font_scale', label: 'Font (Europe)', sample: '6C+' },
+  { value: 'v_scale', label: 'V Scale (USA)', sample: 'V5' },
+  { value: 'yds_equivalent', label: 'YDS (USA Sport)', sample: '5.12a' },
+  { value: 'french_equivalent', label: 'French (Sport)', sample: '7a' },
 ]
 
 const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
@@ -72,7 +74,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [isPublic, setIsPublic] = useState(true)
 
   const [themePreference, setThemePreference] = useState('system')
-  const [gradeSystem, setGradeSystem] = useState<GradeSystem>('font')
+  const [gradeSystem, setGradeSystem] = useState<GradeSystem>('font_scale')
 
   const [toast, setToast] = useState<string | null>(null)
   const [saveLoading, setSaveLoading] = useState(false)
@@ -112,7 +114,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
           })
             setIsPublic(data.settings.isPublic !== false)
             setThemePreference(data.settings.themePreference || 'system')
-            const initialGradeSystem = data.settings.gradeSystem === 'v' ? 'v' : 'font'
+            const initialGradeSystem = data.settings.gradeSystem === 'v' ? 'v_scale' : 'font_scale'
             setGradeSystem(initialGradeSystem)
             updateGradeSystemPreference(initialGradeSystem)
           }
