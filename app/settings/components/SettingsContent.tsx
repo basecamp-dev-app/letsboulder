@@ -41,11 +41,19 @@ const TABS = [
   { id: 'privacy', label: 'Privacy' },
 ]
 
-const GRADE_SYSTEM_OPTIONS: Array<{ value: GradeSystem; label: string; sample: string }> = [
-  { value: 'font_scale', label: 'Font (Europe)', sample: '6C+' },
+const BOULDER_GRADE_OPTIONS: Array<{ value: GradeSystem; label: string; sample: string }> = [
   { value: 'v_scale', label: 'V Scale (USA)', sample: 'V5' },
-  { value: 'yds_equivalent', label: 'YDS (USA Sport)', sample: '5.12a' },
-  { value: 'french_equivalent', label: 'French (Sport)', sample: '7a' },
+  { value: 'font_scale', label: 'Font (Europe)', sample: '6C+' },
+]
+
+const ROUTE_GRADE_OPTIONS: Array<{ value: GradeSystem; label: string; sample: string }> = [
+  { value: 'yds_equivalent', label: 'YDS (USA)', sample: '5.12a' },
+  { value: 'french_equivalent', label: 'French (Europe)', sample: '7a' },
+]
+
+const TRAD_GRADE_OPTIONS: Array<{ value: GradeSystem; label: string; sample: string }> = [
+  { value: 'yds_equivalent', label: 'YDS (USA)', sample: '5.10c' },
+  { value: 'french_equivalent', label: 'French (Europe)', sample: '6b+' },
 ]
 
 const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
@@ -74,7 +82,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [isPublic, setIsPublic] = useState(true)
 
   const [themePreference, setThemePreference] = useState('system')
-  const [gradeSystem, setGradeSystem] = useState<GradeSystem>('font_scale')
+  const [boulderSystem, setBoulderSystem] = useState<GradeSystem>('v_scale')
+  const [routeSystem, setRouteSystem] = useState<GradeSystem>('yds_equivalent')
+  const [tradSystem, setTradSystem] = useState<GradeSystem>('yds_equivalent')
 
   const [toast, setToast] = useState<string | null>(null)
   const [saveLoading, setSaveLoading] = useState(false)
@@ -114,9 +124,10 @@ export default function SettingsContent({ user }: SettingsContentProps) {
           })
             setIsPublic(data.settings.isPublic !== false)
             setThemePreference(data.settings.themePreference || 'system')
-            const initialGradeSystem = data.settings.gradeSystem === 'v' ? 'v_scale' : 'font_scale'
-            setGradeSystem(initialGradeSystem)
-            updateGradeSystemPreference(initialGradeSystem)
+            setBoulderSystem(data.settings.boulderSystem || 'v_scale')
+            setRouteSystem(data.settings.routeSystem || 'yds_equivalent')
+            setTradSystem(data.settings.tradSystem || 'yds_equivalent')
+            updateGradeSystemPreference(data.settings.boulderSystem || 'v_scale')
           }
          if (data.imageCount !== undefined) {
            setImageCount(data.imageCount)
@@ -155,7 +166,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
           contributionCreditHandle: formData.contributionCreditHandle,
           isPublic,
           themePreference,
-          gradeSystem,
+          boulderSystem,
+          routeSystem,
+          tradSystem,
         })
       })
 
@@ -194,9 +207,19 @@ export default function SettingsContent({ user }: SettingsContentProps) {
     setIsDirty(true)
   }
 
-  const handleGradeSystemChange = (next: GradeSystem) => {
-    setGradeSystem(next)
+  const handleBoulderSystemChange = (next: GradeSystem) => {
+    setBoulderSystem(next)
     updateGradeSystemPreference(next)
+    setIsDirty(true)
+  }
+
+  const handleRouteSystemChange = (next: GradeSystem) => {
+    setRouteSystem(next)
+    setIsDirty(true)
+  }
+
+  const handleTradSystemChange = (next: GradeSystem) => {
+    setTradSystem(next)
     setIsDirty(true)
   }
 
@@ -432,24 +455,73 @@ export default function SettingsContent({ user }: SettingsContentProps) {
                 </div>
 
                 <div className="pt-2">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Grade display</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">This only changes how grades are shown. Votes, consensus, and points stay in French internally.</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {GRADE_SYSTEM_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => handleGradeSystemChange(option.value)}
-                        className={`px-4 py-3 border rounded-lg text-left transition-colors ${
-                          gradeSystem === option.value
-                            ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                        }`}
-                      >
-                        <p className="text-sm font-medium">{option.label}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Example: {option.sample}</p>
-                      </button>
-                    ))}
+                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Grade Display by Climb Type</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Choose how grades are shown for each discipline.</p>
+                  
+                  {/* Bouldering */}
+                  <div className="mb-4">
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Bouldering</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {BOULDER_GRADE_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleBoulderSystemChange(option.value)}
+                          className={`px-3 py-2 border rounded-lg text-left transition-colors text-xs ${
+                            boulderSystem === option.value
+                              ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                              : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <p className="font-medium">{option.label}</p>
+                          <p className="text-gray-500 mt-0.5">Ex: {option.sample}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Sport / DWS */}
+                  <div className="mb-4">
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Sport & Deep Water Solo</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {ROUTE_GRADE_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleRouteSystemChange(option.value)}
+                          className={`px-3 py-2 border rounded-lg text-left transition-colors text-xs ${
+                            routeSystem === option.value
+                              ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                              : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <p className="font-medium">{option.label}</p>
+                          <p className="text-gray-500 mt-0.5">Ex: {option.sample}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Trad */}
+                  <div>
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Trad</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {TRAD_GRADE_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleTradSystemChange(option.value)}
+                          className={`px-3 py-2 border rounded-lg text-left transition-colors text-xs ${
+                            tradSystem === option.value
+                              ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                              : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <p className="font-medium">{option.label}</p>
+                          <p className="text-gray-500 mt-0.5">Ex: {option.sample}</p>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

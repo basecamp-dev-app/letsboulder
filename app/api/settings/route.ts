@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     const { data: profiles, error } = await supabase
       .from('profiles')
-      .select('username, first_name, last_name, gender, height_cm, reach_cm, avatar_url, bio, grade_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference, contribution_credit_platform, contribution_credit_handle')
+      .select('username, first_name, last_name, gender, height_cm, reach_cm, avatar_url, bio, boulder_system, route_system, trad_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference, contribution_credit_platform, contribution_credit_handle')
       .eq('id', user.id)
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1)
@@ -82,9 +82,9 @@ export async function GET(request: NextRequest) {
         reachCm: profile?.reach_cm ?? null,
         avatarUrl: profile?.avatar_url || '',
         bio: profile?.bio || '',
-        gradeSystem: profile?.grade_system === 'v' ? 'v_scale' : 
-                   profile?.grade_system === 'font' ? 'font_scale' : 
-                   profile?.grade_system || 'font_scale',
+        boulderSystem: profile?.boulder_system || 'v_scale',
+        routeSystem: profile?.route_system || 'yds_equivalent',
+        tradSystem: profile?.trad_system || 'yds_equivalent',
         units: profile?.units || 'metric',
         isPublic: profile?.is_public !== false,
         defaultLocation: profile?.default_location || '',
@@ -137,7 +137,9 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const {
       bio,
-      gradeSystem,
+      boulderSystem,
+      routeSystem,
+      tradSystem,
       units,
       isPublic,
       defaultLocation,
@@ -158,9 +160,19 @@ export async function PUT(request: NextRequest) {
     const updateData: Record<string, unknown> = {}
 
     if (bio !== undefined) updateData.bio = bio.slice(0, 500)
-    if (gradeSystem !== undefined) {
-      if (typeof gradeSystem === 'string' && VALID_GRADE_SYSTEMS.includes(gradeSystem as (typeof VALID_GRADE_SYSTEMS)[number])) {
-        updateData.grade_system = gradeSystem
+    if (boulderSystem !== undefined) {
+      if (typeof boulderSystem === 'string' && VALID_GRADE_SYSTEMS.includes(boulderSystem as (typeof VALID_GRADE_SYSTEMS)[number])) {
+        updateData.boulder_system = boulderSystem
+      }
+    }
+    if (routeSystem !== undefined) {
+      if (typeof routeSystem === 'string' && VALID_GRADE_SYSTEMS.includes(routeSystem as (typeof VALID_GRADE_SYSTEMS)[number])) {
+        updateData.route_system = routeSystem
+      }
+    }
+    if (tradSystem !== undefined) {
+      if (typeof tradSystem === 'string' && VALID_GRADE_SYSTEMS.includes(tradSystem as (typeof VALID_GRADE_SYSTEMS)[number])) {
+        updateData.trad_system = tradSystem
       }
     }
     if (units !== undefined) updateData.units = units
