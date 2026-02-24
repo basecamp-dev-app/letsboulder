@@ -7,8 +7,8 @@ async function globalSetup() {
     ? 'https://dev.letsboulder.com' 
     : 'http://localhost:3000'
   
-  const testApiKey = process.env.TEST_API_KEY
-  const testEmail = process.env.TEST_GOOGLE_EMAIL || process.env.TEST_USER_EMAIL
+  const testApiKey = process.env.TEST_API_KEY?.trim()
+  const testEmail = (process.env.TEST_GOOGLE_EMAIL || process.env.TEST_USER_EMAIL)?.trim()
 
   if (!testApiKey || !testEmail) {
     console.log('TEST_API_KEY or TEST_GOOGLE_EMAIL not set, skipping authentication')
@@ -27,7 +27,16 @@ async function globalSetup() {
 
     console.log(`Authenticating via ${authUrl.toString()}`)
 
-    const response = await context.request.get(authUrl.toString())
+    const requestOptions: any = {
+      headers: {},
+    }
+
+    if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
+      requestOptions.headers['CF-Access-Client-Id'] = process.env.CF_ACCESS_CLIENT_ID
+      requestOptions.headers['CF-Access-Client-Secret'] = process.env.CF_ACCESS_CLIENT_SECRET
+    }
+
+    const response = await context.request.get(authUrl.toString(), requestOptions)
     
     if (!response.ok()) {
       const errorText = await response.text()
