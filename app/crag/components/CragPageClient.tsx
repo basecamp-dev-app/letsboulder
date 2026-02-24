@@ -8,8 +8,6 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import CommentThread from '@/components/comments/CommentThread'
-import { geoJsonPolygonToLeaflet, getPolygonCenter } from '@/lib/geo-utils'
-import type { GeoJSONPolygon } from '@/types/database'
 import { SITE_URL } from '@/lib/site'
 import { GRADES, normalizeGrade } from '@/lib/grades'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
@@ -28,8 +26,6 @@ function getAverageCoordinates(images: { latitude: number; longitude: number }[]
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
-const Polygon = dynamic(() => import('react-leaflet').then(mod => mod.Polygon), { ssr: false })
-const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
 
 interface LeafletIconDefault {
@@ -67,7 +63,6 @@ interface Crag {
   access_notes: string | null
   rock_type: string | null
   type: string | null
-  boundary: GeoJSONPolygon | null
   regions?: {
     id: string
     name: string
@@ -344,10 +339,8 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
   useEffect(() => {
     if (!mapRef.current || !cragCenter) return
 
-    const boundaryCenter = crag?.boundary ? getPolygonCenter(crag.boundary) : null
-    const viewCenter: [number, number] = boundaryCenter ? [boundaryCenter[0], boundaryCenter[1]] : cragCenter
-    mapRef.current.setView(viewCenter, 15)
-  }, [crag, cragCenter])
+    mapRef.current.setView(cragCenter, 15)
+  }, [cragCenter])
 
   const handleFlagCrag = async (cragId: string) => {
     if (isFlagging) return
@@ -376,16 +369,7 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
     }
   }
 
-  const boundaryCoords = useMemo(() => {
-    if (!crag?.boundary) return null
-    return geoJsonPolygonToLeaflet(crag.boundary)
-  }, [crag?.boundary])
-
-  const viewCenter = useMemo<[number, number] | null>(() => {
-    if (!cragCenter) return null
-    const boundaryCenter = crag?.boundary ? getPolygonCenter(crag.boundary) : null
-    return boundaryCenter ? [boundaryCenter[0], boundaryCenter[1]] : cragCenter
-  }, [crag?.boundary, cragCenter])
+  const viewCenter = cragCenter
 
   const orderedImages = useMemo(() => {
     if (!viewCenter) return images
@@ -586,23 +570,6 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
                 attribution='Tiles © Esri'
                 maxZoom={19}
               />
-
-              {boundaryCoords && (
-            <Polygon
-              positions={boundaryCoords}
-              pathOptions={{
-                color: '#3b82f6',
-                fillColor: '#3b82f6',
-                fillOpacity: 0.2,
-                weight: 2,
-                dashArray: '5, 10'
-              }}
-            >
-              <Tooltip direction="center" opacity={1}>
-                <span className="font-semibold">Crag Boundary</span>
-              </Tooltip>
-            </Polygon>
-          )}
 
           {mappableImages.map((image) => (
             <Marker

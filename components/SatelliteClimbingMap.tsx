@@ -6,8 +6,6 @@ import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
 import { MapPin, Bookmark } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
-import { geoJsonPolygonToLeaflet } from '@/lib/geo-utils'
-import type { GeoJSONPolygon } from '@/types/database'
 import type { User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useMapEvents } from 'react-leaflet'
@@ -36,7 +34,6 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Tooltip = dynamic(() => import('react-leaflet').then(mod => mod.Tooltip), { ssr: false })
-const Polygon = dynamic(() => import('react-leaflet').then(mod => mod.Polygon), { ssr: false })
 
 interface DefaultLocation {
   lat: number
@@ -83,10 +80,6 @@ interface CragData {
   name: string
   latitude: number
   longitude: number
-  boundary: {
-    type: 'Polygon'
-    coordinates: number[][][]
-  } | null
 }
 
 interface CragPin {
@@ -456,11 +449,11 @@ export default function SatelliteClimbingMap() {
       }
       setCragPins(pins)
 
-      // Fetch crags with boundaries
+      // Fetch crags with coordinates (for pins)
       const { data: cragsData, error: cragsError } = await supabase
         .from('crags')
-        .select('id, name, latitude, longitude, boundary')
-        .not('boundary', 'is', null)
+        .select('id, name, latitude, longitude')
+        .not('latitude', 'is', null)
 
       if (cragsError) {
         console.error('Error loading crags:', cragsError)
@@ -683,29 +676,6 @@ export default function SatelliteClimbingMap() {
           attribution='Labels © Esri'
           maxZoom={19}
         />
-
-        {/* Crag Polygons */}
-        {crags.map(crag => {
-          const coords = crag.boundary ? geoJsonPolygonToLeaflet(crag.boundary as GeoJSONPolygon) : null
-          if (!coords || coords.length === 0) return null
-          return (
-            <Polygon
-              key={crag.id}
-              positions={coords}
-              pathOptions={{
-                color: '#3b82f6',
-                fillColor: '#3b82f6',
-                fillOpacity: 0.15,
-                weight: 2,
-                dashArray: '5, 10'
-              }}
-            >
-              <Tooltip direction="center" opacity={1}>
-                <span className="font-semibold">{crag.name}</span>
-              </Tooltip>
-            </Polygon>
-          )
-        })}
 
         {userLocation && (
           <Marker
