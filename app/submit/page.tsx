@@ -453,8 +453,9 @@ function SubmitPageContent() {
       ...prev,
       crag: { id: crag.id, name: crag.name, latitude: crag.latitude, longitude: crag.longitude }
     }))
+    // Go to climbType selection first, then to draw
     setStep({
-      step: 'draw',
+      step: 'climbType',
       imageGps: context.imageGps,
       cragId: crag.id,
       cragName: crag.name,
@@ -467,8 +468,17 @@ function SubmitPageContent() {
     if (isSubmitting) return
     setSelectedRouteType(routeType)
     setContext(prev => ({ ...prev, routeType }))
-    handleSubmit(routeType)
-  }, [context.image, context.crag, context.routes, isSubmitting])
+    // Go to draw step with the selected climb type as default
+    setStep({
+      step: 'draw',
+      imageGps: context.imageGps,
+      cragId: context.crag!.id,
+      cragName: context.crag!.name,
+      image: context.image!,
+      draftKey: ('draftKey' in step && step.draftKey) || undefined,
+      defaultClimbType: routeType,
+    })
+  }, [context.image, context.crag, isSubmitting, step, context.imageGps])
 
   const handleRoutesUpdate = useCallback((routes: NewRouteData[]) => {
     setContext(prev => ({ ...prev, routes }))
@@ -498,17 +508,12 @@ function SubmitPageContent() {
         })
         break
       case 'climbType':
-        if (context.crag && context.image) {
-          setStep({
-            step: 'draw',
-            imageGps: context.imageGps,
-            cragId: context.crag.id,
-            cragName: context.crag.name,
-            image: context.image,
-            draftKey: step.draftKey,
-          })
-        }
+        setStep({
+          step: 'crag',
+          imageGps: context.imageGps,
+        })
         break
+      case 'draw':
     }
   }, [step, context])
 
@@ -799,6 +804,7 @@ function SubmitPageContent() {
               imageSelection={step.image}
               onRoutesUpdate={handleRoutesUpdate}
               draftKey={stepDraftKey || routeDraftKey || undefined}
+              defaultClimbType={step.defaultClimbType}
             />
           </div>
         )

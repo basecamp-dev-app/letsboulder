@@ -6,10 +6,10 @@ import type { GradeSystem } from '@/lib/grades'
 const STORAGE_KEY = 'grade_system'
 const EVENT_NAME = 'grade-system-changed'
 
-const VALID_SYSTEMS: GradeSystem[] = ['v_scale', 'font_scale', 'yds_equivalent', 'french_equivalent']
+const VALID_SYSTEMS: GradeSystem[] = ['v_scale', 'font_scale', 'yds_equivalent', 'french_equivalent', 'british_equivalent']
 
-let gradeSystemCache: GradeSystem | null = null
-let gradeSystemRequest: Promise<GradeSystem> | null = null
+let gradePreferencesCache: { boulder: GradeSystem; route: GradeSystem; trad: GradeSystem } | null = null
+let gradePreferencesRequest: Promise<{ boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }> | null = null
 
 function normalizeGradeSystem(value: unknown): GradeSystem {
   if (value === 'v') return 'v_scale'
@@ -18,76 +18,106 @@ function normalizeGradeSystem(value: unknown): GradeSystem {
   return 'font_scale'
 }
 
-function readStoredGradeSystem(): GradeSystem | null {
+function readStoredGradePreferences(): { boulder: GradeSystem; route: GradeSystem; trad: GradeSystem } | null {
   if (typeof window === 'undefined') return null
-  const stored = window.localStorage.getItem(STORAGE_KEY)
-  return stored ? normalizeGradeSystem(stored) : null
+  const stored = localStorage.getItem(STORAGE_KEY)
+  if (!stored) return null
+  try {
+    const parsed = JSON.parse(stored)
+    return {
+      boulder: normalizeGradeSystem(parsed.boulder),
+      route: normalizeGradeSystem(parsed.route),
+      trad: normalizeGradeSystem(parsed.trad),
+    }
+  } catch {
+    const normalized = normalizeGradeSystem(stored)
+    return { boulder: normalized, route: 'yds_equivalent', trad: 'yds_equivalent' }
+  }
 }
 
-async function fetchGradeSystem(): Promise<GradeSystem> {
-  if (gradeSystemCache) return gradeSystemCache
+function getDefaultPreferences(): { boulder: GradeSystem; route: GradeSystem; trad: GradeSystem } {
+  return { boulder: 'v_scale', route: 'yds_equivalent', trad: 'yds_equivalent' }
+}
 
-  const stored = readStoredGradeSystem()
+async function fetchGradePreferences(): Promise<{ boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }> {
+  if (gradePreferencesCache) return gradePreferencesCache
+
+  const stored = readStoredGradePreferences()
   if (stored) {
-    gradeSystemCache = stored
+    gradePreferencesCache = stored
     return stored
   }
 
-  if (!gradeSystemRequest) {
-    gradeSystemRequest = fetch('/api/settings')
+  if (!gradePreferencesRequest) {
+    gradePreferencesRequest = fetch('/api/settings')
       .then(async (response) => {
         if (!response.ok) {
-          gradeSystemCache = 'font_scale'
-          return 'font_scale' as const
+          gradePreferencesCache = getDefaultPreferences()
+          return gradePreferencesCache
         }
         const data = await response.json()
-        const next = normalizeGradeSystem(data?.settings?.gradeSystem)
-        gradeSystemCache = next
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(STORAGE_KEY, next)
+        const prefs = {
+          boulder: normalizeGradeSystem(data?.settings?.boulderSystem),
+          route: normalizeGradeSystem(data?.settings?.routeSystem),
+          trad: normalizeGradeSystem(data?.settings?.tradSystem),
         }
-        return next
+        gradePreferencesCache = prefs
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
+        }
+        return prefs
       })
       .catch(() => {
-        gradeSystemCache = 'font_scale'
-        return 'font_scale' as const
+        gradePreferencesCache = getDefaultPreferences()
+        return gradePreferencesCache
       })
       .finally(() => {
-        gradeSystemRequest = null
+        gradePreferencesRequest = null
       })
   }
 
-  return gradeSystemRequest
+  return gradePreferencesRequest
 }
 
-export function updateGradeSystemPreference(next: GradeSystem) {
-  gradeSystemCache = next
+export function updateGradePreference(type: 'boulder' | 'route' | 'trad', value: GradeSystem) {
+  if (!gradePreferencesCache) {
+    gradePreferencesCache = getDefaultPreferences()
+  }
+  gradePreferencesCache[type] = value
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(STORAGE_KEY, next)
-  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: next }))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(gradePreferencesCache))
+  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: gradePreferencesCache }))
+}
+
+export function updateGradeSystemPreference(value: GradeSystem) {
+  updateGradePreference('boulder', value)
 }
 
 export function useGradeSystem() {
-  const [gradeSystem, setGradeSystem] = useState<GradeSystem>(() => gradeSystemCache || readStoredGradeSystem() || 'font_scale')
+  const [prefs, setPrefs] = useState<{ boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }>(() => 
+    gradePreferencesCache || readStoredGradePreferences() || getDefaultPreferences()
+  )
 
   useEffect(() => {
     let mounted = true
-    fetchGradeSystem().then((next) => {
+    fetchGradePreferences().then((next) => {
       if (!mounted) return
-      setGradeSystem(next)
+      setPrefs(next)
     })
 
     const onStorage = (event: StorageEvent) => {
       if (event.key !== STORAGE_KEY || !event.newValue) return
-      const next = normalizeGradeSystem(event.newValue)
-      gradeSystemCache = next
-      setGradeSystem(next)
+      try {
+        const next = JSON.parse(event.newValue)
+        gradePreferencesCache = next
+        setPrefs(next)
+      } catch {}
     }
 
     const onPreferenceChange = (event: Event) => {
-      const next = normalizeGradeSystem((event as CustomEvent<GradeSystem>).detail)
-      gradeSystemCache = next
-      setGradeSystem(next)
+      const next = (event as CustomEvent<{ boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }>).detail
+      gradePreferencesCache = next
+      setPrefs(next)
     }
 
     window.addEventListener('storage', onStorage)
@@ -100,5 +130,62 @@ export function useGradeSystem() {
     }
   }, [])
 
-  return gradeSystem
+  return prefs.boulder
+}
+
+export function useGradePreferences() {
+  const [prefs, setPrefs] = useState<{ boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }>(() => 
+    gradePreferencesCache || readStoredGradePreferences() || getDefaultPreferences()
+  )
+
+  useEffect(() => {
+    let mounted = true
+    fetchGradePreferences().then((next) => {
+      if (!mounted) return
+      setPrefs(next)
+    })
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY || !event.newValue) return
+      try {
+        const next = JSON.parse(event.newValue)
+        gradePreferencesCache = next
+        setPrefs(next)
+      } catch {}
+    }
+
+    const onPreferenceChange = (event: Event) => {
+      const next = (event as CustomEvent<{ boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }>).detail
+      gradePreferencesCache = next
+      setPrefs(next)
+    }
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener(EVENT_NAME, onPreferenceChange)
+
+    return () => {
+      mounted = false
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener(EVENT_NAME, onPreferenceChange)
+    }
+  }, [])
+
+  return prefs
+}
+
+export function getGradeSystemForClimbType(
+  climbType: string | undefined,
+  preferences: { boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }
+): GradeSystem {
+  switch (climbType) {
+    case 'boulder':
+      return preferences.boulder
+    case 'sport':
+    case 'deep_water_solo':
+      return preferences.route
+    case 'trad':
+      return preferences.trad
+    default:
+      return preferences.boulder
+  }
 }

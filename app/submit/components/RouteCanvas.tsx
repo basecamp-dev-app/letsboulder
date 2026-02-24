@@ -11,8 +11,8 @@ import {
 } from '@/lib/canvas-utils'
 import GradePicker from '@/components/GradePicker'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
-import type { ImageSelection, NewRouteData, RouteLine } from '@/lib/submission-types'
-import { useGradeSystem } from '@/hooks/useGradeSystem'
+import type { ImageSelection, NewRouteData, RouteLine, ClimbType } from '@/lib/submission-types'
+import { useGradeSystem, useGradePreferences, getGradeSystemForClimbType } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { draftStorageGetItem, draftStorageRemoveItem, draftStorageSetItem } from '@/lib/submit-draft-storage'
 
@@ -25,6 +25,7 @@ interface ExistingRoute {
   grade: string
   name: string
   description?: string
+  climbType?: string
 }
 
 interface EditableExistingRoute {
@@ -46,6 +47,7 @@ interface RouteCanvasProps {
   savingEdits?: boolean
   onSaveNewRoutes?: (routes: NewRouteData[]) => void
   savingNewRoutes?: boolean
+  defaultClimbType?: ClimbType
 }
 
 interface RouteCanvasDraft {
@@ -55,6 +57,7 @@ interface RouteCanvasDraft {
   currentPoints: RoutePoint[]
   currentName: string
   currentGrade: string
+  currentClimbType?: string
   currentDescription: string
 }
 
@@ -114,6 +117,7 @@ function readDraftState(draftKey?: string): RouteCanvasDraft | null {
       currentPoints: Array.isArray(parsed.currentPoints) ? parsed.currentPoints : [],
       currentName: typeof parsed.currentName === 'string' ? parsed.currentName : '',
       currentGrade: typeof parsed.currentGrade === 'string' ? parsed.currentGrade : '6A',
+      currentClimbType: typeof parsed.currentClimbType === 'string' ? parsed.currentClimbType : undefined,
       currentDescription: typeof parsed.currentDescription === 'string' ? parsed.currentDescription : '',
     }
   } catch {
@@ -133,15 +137,27 @@ export default function RouteCanvas({
   savingEdits = false,
   onSaveNewRoutes,
   savingNewRoutes = false,
+  defaultClimbType,
 }: RouteCanvasProps) {
   const isEditExistingMode = mode === 'edit-existing'
   const canCreateRoutesInEditMode = isEditExistingMode && allowCreateRoutesInEditMode
   const initialDraft = readDraftState(draftKey)
   const gradeSystem = useGradeSystem()
+  const gradePreferences = useGradePreferences()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const imageContainerRef = useRef<HTMLDivElement>(null)
+
+  // Get grade system for a specific climb type
+  const getGradeSystemForRoute = (climbType?: string) => 
+    getGradeSystemForClimbType(climbType || defaultClimbType, gradePreferences)
+
+  // Get formatted grade for a specific climb type
+  const getGradeDisplay = (grade: string, climbType?: string) => {
+    const system = getGradeSystemForRoute(climbType)
+    return formatGradeForDisplay(grade, system)
+  }
 
   const imageUrl = imageSelection.mode === 'existing' ? imageSelection.imageUrl : imageSelection.uploadedUrl
 
@@ -155,6 +171,7 @@ export default function RouteCanvas({
   const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>(() => initialDraft?.currentPoints ?? [])
   const [currentName, setCurrentName] = useState(() => initialDraft?.currentName ?? '')
   const [currentGrade, setCurrentGrade] = useState(() => initialDraft?.currentGrade ?? '6A')
+  const [currentClimbType, setCurrentClimbType] = useState<string | undefined>(() => initialDraft?.currentClimbType ?? defaultClimbType)
   const [currentDescription, setCurrentDescription] = useState(() => initialDraft?.currentDescription ?? '')
   const [gradePickerOpen, setGradePickerOpen] = useState(false)
   const [completedRoutes, setCompletedRoutes] = useState<ExistingRoute[]>(() => initialDraft?.completedRoutes ?? [])
@@ -206,11 +223,12 @@ export default function RouteCanvas({
       currentPoints,
       currentName,
       currentGrade,
+      currentClimbType,
       currentDescription,
     }
 
     draftStorageSetItem(draftKey, JSON.stringify(draft))
-  }, [draftKey, completedRoutes, currentPoints, currentName, currentGrade, currentDescription])
+  }, [draftKey, completedRoutes, currentPoints, currentName, currentGrade, currentClimbType, currentDescription])
 
   useEffect(() => {
     if (!draftKey) return
@@ -552,7 +570,7 @@ export default function RouteCanvas({
       if (route.points.length > 1 && isSelected) {
         const bgColor = 'rgba(251, 191, 36, 0.95)'
         const gradePos = getGradeLabelPosition(route.points)
-        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
+        drawRoundedLabel(ctx, getGradeDisplay(route.grade, route.climbType), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
 
         const truncatedName = getTruncatedText(ctx, route.name, 150)
         const namePos = getNameLabelPosition(route.points)
@@ -599,7 +617,7 @@ export default function RouteCanvas({
       if (route.points.length > 1) {
         const bgColor = 'rgba(220, 38, 38, 0.95)'
         const gradePos = getGradeLabelPosition(route.points)
-        drawRoundedLabel(ctx, formatGradeForDisplay(route.grade, gradeSystem), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
+        drawRoundedLabel(ctx, getGradeDisplay(route.grade, route.climbType), gradePos.x, gradePos.y, bgColor, 'bold 14px Arial')
 
         const truncatedName = getTruncatedText(ctx, route.name, 150)
         const namePos = getNameLabelPosition(route.points)
@@ -623,7 +641,7 @@ export default function RouteCanvas({
         drawSmoothCurve(ctx, currentPoints, '#3b82f6', 3, [8, 4])
 
         const gradePos = getGradeLabelPosition(currentPoints)
-        drawRoundedLabel(ctx, formatGradeForDisplay(currentGrade, gradeSystem), gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', 'bold 14px Arial')
+        drawRoundedLabel(ctx, getGradeDisplay(currentGrade, currentClimbType), gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', 'bold 14px Arial')
 
         const truncatedName = getTruncatedText(ctx, currentName, 150)
         const namePos = getNameLabelPosition(currentPoints)
@@ -682,6 +700,7 @@ export default function RouteCanvas({
         name: route.name,
         grade: route.grade,
         description: route.description,
+        climbType: route.climbType as NewRouteData['climbType'],
         points: normalizeCanvasPoints(route.points),
         sequenceOrder: index,
         imageWidth: imageDimensions.naturalWidth,
@@ -778,6 +797,7 @@ export default function RouteCanvas({
 
   const activeName = editableRoute ? editableRoute.name : currentName
   const activeGrade = editableRoute ? editableRoute.grade : currentGrade
+  const activeClimbType = editableRoute ? editableRoute.climbType : currentClimbType
   const activeDescription = editableRoute ? (editableRoute.description || '') : currentDescription
   const isEditingExistingRoute = !isEditExistingMode && Boolean(selectedExistingRoute)
   const disableEditInputs = isEditExistingMode ? (!canCreateRoutesInEditMode && !selectedExistingRoute) : isEditingExistingRoute
@@ -914,7 +934,7 @@ export default function RouteCanvas({
                 disabled={disableGradePicker}
                 className="w-full px-2 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
               >
-                {formatGradeForDisplay(activeGrade, gradeSystem)}
+                {getGradeDisplay(activeGrade, activeClimbType)}
               </button>
               {gradePickerOpen && !isEditingExistingRoute && !selectedExistingRoute && (
                 <GradePicker
@@ -931,6 +951,30 @@ export default function RouteCanvas({
                   onClose={() => setGradePickerOpen(false)}
                 />
               )}
+
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Type:</span>
+                <select
+                  value={activeClimbType || defaultClimbType || 'boulder'}
+                  onChange={(e) => {
+                    const value = e.target.value as string
+                    if (selectedNewRoute) {
+                      updateSelectedNewRoute({ climbType: value })
+                    } else if (isEditExistingMode && selectedExistingRoute) {
+                      updateSelectedExistingRoute({ climbType: value })
+                    } else {
+                      setCurrentClimbType(value)
+                    }
+                  }}
+                  disabled={disableEditInputs}
+                  className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-60"
+                >
+                  <option value="boulder">Boulder</option>
+                  <option value="sport">Sport</option>
+                  <option value="deep_water_solo">DWS</option>
+                  <option value="trad">Trad</option>
+                </select>
+              </div>
 
               <textarea
                 value={activeDescription}

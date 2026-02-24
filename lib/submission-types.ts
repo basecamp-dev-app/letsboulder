@@ -91,6 +91,7 @@ export interface NewRouteData {
   imageHeight: number
   imageNaturalWidth: number
   imageNaturalHeight: number
+  climbType?: ClimbType
 }
 
 export type ImageSelectionMode = 'existing' | 'new'
@@ -143,7 +144,7 @@ export type SubmissionStep =
   | { step: 'location'; imageGps: { latitude: number; longitude: number } | null }
   | { step: 'faceDirection'; imageGps: { latitude: number; longitude: number } | null }
   | { step: 'crag'; imageGps: { latitude: number; longitude: number } | null; cragId?: string; cragName?: string }
-  | { step: 'draw'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; draftKey?: string }
+  | { step: 'draw'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; draftKey?: string; defaultClimbType?: ClimbType }
   | { step: 'climbType'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; draftKey?: string }
   | { step: 'review'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; routes: NewRouteData[]; draftKey?: string }
   | { step: 'submitting' }
