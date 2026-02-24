@@ -1,6 +1,4 @@
-import { normalizeGrade } from '@/lib/grades'
-
-export type GradeSystem = 'font' | 'v'
+import { gradeMappings, getGradeMapping, type GradeSystem, type GradeMapping } from '@/lib/grades'
 
 const FRENCH_TO_V_DISPLAY: Record<string, string> = {
   '3A': 'V-easy',
@@ -52,8 +50,33 @@ function toVGrade(grade: string): string {
 }
 
 export function formatGradeForDisplay(grade: string | null | undefined, gradeSystem: GradeSystem): string {
-  const normalized = normalizeGrade(grade)
+  const normalized = grade?.trim().toUpperCase()
   if (!normalized) return '—'
-  if (gradeSystem !== 'v') return normalized
-  return toVGrade(normalized)
+  if (gradeSystem === 'v_scale') {
+    return toVGrade(normalized)
+  }
+  return normalized
 }
+
+export function formatGradeForDisplayWithIndex(
+  gradeIndex: number | null | undefined, 
+  gradeSystem: GradeSystem,
+  fallbackGrade?: string
+): string {
+  if (gradeIndex === null || gradeIndex === undefined) {
+    if (!fallbackGrade) return '—'
+    return formatGradeForDisplay(fallbackGrade, gradeSystem)
+  }
+  
+  const mapping = getGradeMapping(gradeIndex)
+  if (!mapping) {
+    if (!fallbackGrade) return '—'
+    return formatGradeForDisplay(fallbackGrade, gradeSystem)
+  }
+  
+  const display = mapping[gradeSystem]
+  return display || mapping.font_scale || '—'
+}
+
+export { gradeMappings }
+export type { GradeMapping }

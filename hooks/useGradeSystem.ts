@@ -1,16 +1,21 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { GradeSystem } from '@/lib/grade-display'
+import type { GradeSystem } from '@/lib/grades'
 
 const STORAGE_KEY = 'grade_system'
 const EVENT_NAME = 'grade-system-changed'
+
+const VALID_SYSTEMS: GradeSystem[] = ['v_scale', 'font_scale', 'yds_equivalent', 'french_equivalent']
 
 let gradeSystemCache: GradeSystem | null = null
 let gradeSystemRequest: Promise<GradeSystem> | null = null
 
 function normalizeGradeSystem(value: unknown): GradeSystem {
-  return value === 'v' ? 'v' : 'font'
+  if (value === 'v') return 'v_scale'
+  if (value === 'font') return 'font_scale'
+  if (VALID_SYSTEMS.includes(value as GradeSystem)) return value as GradeSystem
+  return 'font_scale'
 }
 
 function readStoredGradeSystem(): GradeSystem | null {
@@ -32,8 +37,8 @@ async function fetchGradeSystem(): Promise<GradeSystem> {
     gradeSystemRequest = fetch('/api/settings')
       .then(async (response) => {
         if (!response.ok) {
-          gradeSystemCache = 'font'
-          return 'font' as const
+          gradeSystemCache = 'font_scale'
+          return 'font_scale' as const
         }
         const data = await response.json()
         const next = normalizeGradeSystem(data?.settings?.gradeSystem)
@@ -44,8 +49,8 @@ async function fetchGradeSystem(): Promise<GradeSystem> {
         return next
       })
       .catch(() => {
-        gradeSystemCache = 'font'
-        return 'font' as const
+        gradeSystemCache = 'font_scale'
+        return 'font_scale' as const
       })
       .finally(() => {
         gradeSystemRequest = null
@@ -63,7 +68,7 @@ export function updateGradeSystemPreference(next: GradeSystem) {
 }
 
 export function useGradeSystem() {
-  const [gradeSystem, setGradeSystem] = useState<GradeSystem>(() => gradeSystemCache || readStoredGradeSystem() || 'font')
+  const [gradeSystem, setGradeSystem] = useState<GradeSystem>(() => gradeSystemCache || readStoredGradeSystem() || 'font_scale')
 
   useEffect(() => {
     let mounted = true
