@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Missing api_key or email' }, { status: 400 })
   }
 
-  if (apiKey !== process.env.TEST_API_KEY) {
+  if (apiKey?.trim() !== process.env.TEST_API_KEY?.trim()) {
     return NextResponse.json({ error: 'Invalid API key' }, { status: 401 })
   }
 
