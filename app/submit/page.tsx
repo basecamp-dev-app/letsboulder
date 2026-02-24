@@ -401,23 +401,6 @@ function SubmitPageContent() {
     return () => window.removeEventListener('submit-routes', handleSubmitRoutes)
   }, [routes.length, isSubmitting])
 
-  useEffect(() => {
-    const handleOpenClimbType = () => {
-      if (step.step === 'draw') {
-        setStep({
-          step: 'climbType',
-          imageGps: step.imageGps,
-          cragId: step.cragId,
-          cragName: step.cragName,
-          image: step.image,
-          draftKey: step.draftKey
-        })
-      }
-    }
-    window.addEventListener('open-climb-type', handleOpenClimbType)
-    return () => window.removeEventListener('open-climb-type', handleOpenClimbType)
-  }, [step])
-
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
     const selectionGps = selection.mode === 'new' ? selection.gpsData : null
     const resolvedGps = gpsData || selectionGps
@@ -856,8 +839,11 @@ function SubmitPageContent() {
                 </svg>
               </div>
               <h2 className="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">Routes Submitted!</h2>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
                 {step.climbsCreated} route{step.climbsCreated !== 1 ? 's' : ''} visible on map. After 3 community verifications, they&apos;ll be marked as verified.
+              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg p-3">
+                You can edit all your submissions in your <Link href="/logbook" className="text-blue-600 dark:text-blue-400 hover:underline">logbook</Link>.
               </p>
             </div>
 
@@ -876,6 +862,13 @@ function SubmitPageContent() {
                 View Routes on Image →
               </Link>
             )}
+
+            <Link
+              href="/logbook"
+              className="block w-full bg-gray-800 text-white py-3 rounded-lg font-medium hover:bg-gray-700 transition-colors mb-4"
+            >
+              Go to Logbook →
+            </Link>
 
             <Link
               href="/"
