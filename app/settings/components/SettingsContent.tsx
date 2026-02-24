@@ -37,6 +37,7 @@ function Toast({ message, onClose }: { message: string | null; onClose: () => vo
 
 const TABS = [
   { id: 'profile', label: 'Profile' },
+  { id: 'units', label: 'Units' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'privacy', label: 'Privacy' },
 ]
@@ -84,6 +85,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [isPublic, setIsPublic] = useState(true)
 
   const [themePreference, setThemePreference] = useState('system')
+  const [units, setUnits] = useState<'metric' | 'imperial'>('metric')
   const [boulderSystem, setBoulderSystem] = useState<GradeSystem>('v_scale')
   const [routeSystem, setRouteSystem] = useState<GradeSystem>('yds_equivalent')
   const [tradSystem, setTradSystem] = useState<GradeSystem>('yds_equivalent')
@@ -126,6 +128,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
           })
             setIsPublic(data.settings.isPublic !== false)
             setThemePreference(data.settings.themePreference || 'system')
+            setUnits(data.settings.units || 'metric')
             setBoulderSystem(data.settings.boulderSystem || 'v_scale')
             setRouteSystem(data.settings.routeSystem || 'yds_equivalent')
             setTradSystem(data.settings.tradSystem || 'yds_equivalent')
@@ -168,6 +171,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
           contributionCreditHandle: formData.contributionCreditHandle,
           isPublic,
           themePreference,
+          units,
           boulderSystem,
           routeSystem,
           tradSystem,
@@ -431,32 +435,40 @@ export default function SettingsContent({ user }: SettingsContentProps) {
               </div>
             )}
 
-            {activeTab === 'appearance' && (
-              <div className="space-y-6 max-w-xl">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Choose your preferred appearance.</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: 'light', label: 'Light', icon: '☀️' },
-                    { value: 'dark', label: 'Dark', icon: '🌙' },
-                    { value: 'system', label: 'System', icon: '💻' }
-                  ].map((option) => (
+            {activeTab === 'units' && (
+              <div className="space-y-8 max-w-xl">
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Measurement Units</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Choose your preferred measurement system.</p>
+                  <div className="grid grid-cols-2 gap-2">
                     <button
-                      key={option.value}
                       type="button"
-                      onClick={() => handleThemeChange(option.value)}
-                      className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-lg transition-colors ${
-                        themePreference === option.value
+                      onClick={() => setUnits('metric')}
+                      className={`px-4 py-3 border rounded-lg text-left transition-colors ${
+                        units === 'metric'
                           ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
                           : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                       }`}
                     >
-                      <span>{option.icon}</span>
-                      <span className="text-sm font-medium">{option.label}</span>
+                      <p className="text-sm font-medium">Metric</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">kg, cm</p>
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => setUnits('imperial')}
+                      className={`px-4 py-3 border rounded-lg text-left transition-colors ${
+                        units === 'imperial'
+                          ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <p className="text-sm font-medium">Imperial</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">lbs, in</p>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="pt-2">
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                   <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Grade Display by Climb Type</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Choose how grades are shown for each discipline.</p>
                   
@@ -525,6 +537,33 @@ export default function SettingsContent({ user }: SettingsContentProps) {
                       ))}
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'appearance' && (
+              <div className="space-y-6 max-w-xl">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Choose your preferred appearance.</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'light', label: 'Light', icon: '☀️' },
+                    { value: 'dark', label: 'Dark', icon: '🌙' },
+                    { value: 'system', label: 'System', icon: '💻' }
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleThemeChange(option.value)}
+                      className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-lg transition-colors ${
+                        themePreference === option.value
+                          ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <span>{option.icon}</span>
+                      <span className="text-sm font-medium">{option.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
