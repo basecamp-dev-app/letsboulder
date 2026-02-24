@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export async function GET(request: NextRequest) {
-  const env = process.env.NODE_ENV as string
+  const env = process.env.VERCEL_ENV || process.env.NODE_ENV
   if (env === 'production') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
