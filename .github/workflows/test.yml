@@ -35,4 +35,6 @@ jobs:
           TEST_DB_CONNECTION: ${{ secrets.TEST_DB_CONNECTION }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          TEST_GOOGLE_EMAIL: ${{ secrets.TEST_GOOGLE_EMAIL }}
           CI: true

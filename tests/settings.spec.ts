@@ -1,7 +1,5 @@
 import { test, expect } from '@playwright/test'
 
-const shouldRunAuthTests = !!process.env.CI
-
 test.describe('Settings', () => {
   test('unauthenticated user is redirected to login', async ({ page }) => {
     await page.goto('/settings')
@@ -10,16 +8,12 @@ test.describe('Settings', () => {
   })
 
   test('authenticated user can access settings page', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
   })
 
   test('profile tab displays all form fields', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -33,8 +27,6 @@ test.describe('Settings', () => {
   })
 
   test('can switch between all tabs', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -52,8 +44,6 @@ test.describe('Settings', () => {
   })
 
   test('units tab displays all grade system options', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -74,8 +64,6 @@ test.describe('Settings', () => {
   })
 
   test('appearance tab displays theme options', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -87,8 +75,6 @@ test.describe('Settings', () => {
   })
 
   test('privacy tab displays visibility and delete options', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -100,8 +86,6 @@ test.describe('Settings', () => {
   })
 
   test('can toggle metric/imperial units', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -113,8 +97,6 @@ test.describe('Settings', () => {
   })
 
   test('can toggle bouldering grade system', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -126,8 +108,6 @@ test.describe('Settings', () => {
   })
 
   test('can toggle sport grade system', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -140,8 +120,6 @@ test.describe('Settings', () => {
   })
 
   test('can toggle theme preference', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -153,8 +131,6 @@ test.describe('Settings', () => {
   })
 
   test('can toggle profile visibility', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -167,8 +143,6 @@ test.describe('Settings', () => {
   })
 
   test('delete account button opens dialog', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -181,8 +155,6 @@ test.describe('Settings', () => {
   })
 
   test('profile form shows character count for bio', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -190,8 +162,6 @@ test.describe('Settings', () => {
   })
 
   test('gender dropdown has all options', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -204,8 +174,6 @@ test.describe('Settings', () => {
   })
 
   test('height and reach inputs accept numeric input', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -220,8 +188,6 @@ test.describe('Settings', () => {
   })
 
   test('contribution credit platform dropdown works', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     
@@ -235,8 +201,6 @@ test.describe('Settings', () => {
   })
 
   test('save button is present on profile tab', async ({ page }) => {
-    if (!shouldRunAuthTests) test.skip()
-    
     await page.goto('/settings')
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
     

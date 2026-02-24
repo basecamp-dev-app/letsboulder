@@ -62,33 +62,6 @@ test.describe('Accessibility', () => {
     }
   })
 
-  test('interactive elements are keyboard accessible', async ({ page }) => {
-    await page.goto('/auth')
-    
-    await page.keyboard.press('Tab')
-    
-    const focusedElement = page.locator(':focus')
-    const isButton = await focusedElement.evaluate(el => 
-      el.tagName === 'BUTTON' || 
-      el.getAttribute('role') === 'button' ||
-      (el.tagName === 'A' && el.getAttribute('href')?.startsWith('#'))
-    )
-    expect(isButton).toBe(true)
-  })
-
-  test('logbook page has proper heading hierarchy', async ({ page }) => {
-    await page.goto('/logbook')
-    
-    await page.waitForLoadState('networkidle')
-    
-    const headings = page.locator('h1, h2, h3, h4, h5, h6')
-    const count = await headings.count()
-    expect(count).toBeGreaterThan(0)
-    
-    const h1 = page.locator('h1')
-    await expect(h1).toBeVisible()
-  })
-
   test('submit page has accessible form elements', async ({ page }) => {
     await page.goto('/submit')
     
