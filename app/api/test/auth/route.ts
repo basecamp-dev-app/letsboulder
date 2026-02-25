@@ -10,10 +10,10 @@ export async function GET(request: NextRequest) {
   }
 
   const apiKey = request.nextUrl.searchParams.get('api_key')
-  const email = request.nextUrl.searchParams.get('email')
+  const userId = request.nextUrl.searchParams.get('user_id')
 
-  if (!apiKey || !email) {
-    return NextResponse.json({ error: 'Missing api_key or email' }, { status: 400 })
+  if (!apiKey || !userId) {
+    return NextResponse.json({ error: 'Missing api_key or user_id' }, { status: 400 })
   }
 
   if (apiKey?.trim() !== process.env.TEST_API_KEY?.trim()) {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  const serviceRoleKey = process.env.DEV_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!
 
   if (!serviceRoleKey) {
     return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
@@ -35,19 +35,7 @@ export async function GET(request: NextRequest) {
   })
 
   try {
-    const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-
-    if (listError) {
-      return NextResponse.json({ error: 'Failed to list users', details: listError.message }, { status: 500 })
-    }
-
-    const user = usersData.users.find(u => u.email === email)
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    const { data: sessionData, error: createSessionError } = await (supabaseAdmin.auth.admin as any).createSession(user.id)
+    const { data: sessionData, error: createSessionError } = await (supabaseAdmin.auth.admin as any).createSession(userId)
 
     if (createSessionError || !sessionData) {
       return NextResponse.json({ error: 'Failed to create session', details: createSessionError?.message }, { status: 500 })

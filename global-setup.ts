@@ -8,14 +8,14 @@ async function globalSetup() {
     : 'http://localhost:3000'
   
   const testApiKey = process.env.TEST_API_KEY?.trim()
-  const testEmail = (process.env.TEST_GOOGLE_EMAIL || process.env.TEST_USER_EMAIL)?.trim()
+  const testUserId = (process.env.TEST_USER_ID || process.env.TEST_USER_EMAIL)?.trim()
 
-  if (!testApiKey || !testEmail) {
-    console.log('TEST_API_KEY or TEST_GOOGLE_EMAIL not set, skipping authentication')
+  if (!testApiKey || !testUserId) {
+    console.log('TEST_API_KEY or TEST_USER_ID not set, skipping authentication')
     return
   }
 
-  console.log(`Setting up authenticated session for ${testEmail} against ${baseURL}`)
+  console.log(`Setting up authenticated session for ${testUserId} against ${baseURL}`)
 
   const browser = await chromium.launch()
   const context = await browser.newContext()
@@ -23,7 +23,7 @@ async function globalSetup() {
   try {
     const authUrl = new URL('/api/test/auth', baseURL)
     authUrl.searchParams.set('api_key', testApiKey)
-    authUrl.searchParams.set('email', testEmail)
+    authUrl.searchParams.set('user_id', testUserId)
 
     console.log(`Authenticating via ${authUrl.toString()}`)
 

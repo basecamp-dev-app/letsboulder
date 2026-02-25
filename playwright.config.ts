@@ -7,7 +7,8 @@ dotenv.config({ path: path.resolve(__dirname, 'tests/.env.test') })
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
-  testIgnore: process.env.CI ? ['**/settings.spec.ts', '**/route-submission.spec.ts', '**/canvas.spec.ts'] : undefined,
+  testIgnore: process.env.CI ? ['**/canvas.spec.ts'] : undefined,
+  globalSetup: process.env.CI && process.env.TEST_API_KEY ? path.resolve(__dirname, 'global-setup.ts') : undefined,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
