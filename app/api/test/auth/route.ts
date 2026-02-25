@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { randomUUID } from 'crypto'
+import { createClient } from '@supabase/supabase-js'
 
 export async function GET(request: NextRequest) {
   const hostname = request.headers.get('x-forwarded-host') || request.headers.get('host')
@@ -28,23 +29,33 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
   }
 
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
+
   try {
-    const userResponse = await fetch(
-      `${supabaseUrl}/auth/v1/admin/users/${userId}`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${serviceRoleKey}`,
-          'apikey': serviceRoleKey,
-        },
-      }
-    )
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('auth.users')
+      .select('email, id')
+      .eq('id', userId)
+      .single()
 
-    const userData = await userResponse.json()
-
-    if (!userResponse.ok || !userData.email) {
+    if (userError || !userData) {
       return NextResponse.json(
-        { error: 'User not found', details: userData },
+        { error: 'User not found', details: userError?.message },
+        { status: 500 }
+      )
+    }
+
+    const { data: sessions, error: sessionsError } = await supabaseAdmin
+      .from('auth.sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (sessionsError || !sessions) {
+      return NextResponse.json(
+        { error: 'No active session found', details: sessionsError?.message },
         { status: 500 }
       )
     }
@@ -56,12 +67,18 @@ export async function GET(request: NextRequest) {
         aud: 'authenticated',
         role: 'authenticated',
         iss: `${supabaseUrl}/auth/v1`,
+        session_id: sessions.id,
+        aal: sessions.aal,
+        is_anonymous: false,
+        app_metadata: {},
+        user_metadata: {},
+        amr: [],
       },
       serviceRoleKey,
       { expiresIn: '1h' }
     )
 
-    const refreshToken = randomUUID()
+    const refreshToken = sessions.refresh_token || randomUUID()
 
     const response = NextResponse.json({
       success: true,
