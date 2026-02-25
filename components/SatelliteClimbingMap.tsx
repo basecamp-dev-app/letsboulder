@@ -287,10 +287,11 @@ export default function SatelliteClimbingMap() {
     try {
       const supabase = createClient()
       
-      // First get all images with latitude
+      // First get all approved images with latitude
       const { data: imagesData, error: imagesError } = await supabase
         .from('images')
         .select('id, url, latitude, longitude, is_verified, verification_count, crag_id')
+        .eq('status', 'approved')
         .not('latitude', 'is', null)
         .not('crag_id', 'is', null)
         .order('created_at', { ascending: false })
@@ -415,39 +416,18 @@ export default function SatelliteClimbingMap() {
       
       setImages(formattedImages)
 
-      // Group images by crag_id and calculate average positions
-      const cragsWithImages = new Map<string, typeof imagesData>()
-      for (const img of imagesData) {
-        if (!img.crag_id) continue
-        const existing = cragsWithImages.get(img.crag_id) || []
-        existing.push(img)
-        cragsWithImages.set(img.crag_id, existing)
+      // Fetch crag pins from API (pre-computed on server)
+      try {
+        const pinsResponse = await fetch('/api/crags/pins')
+        if (pinsResponse.ok) {
+          const { pins: apiPins } = await pinsResponse.json()
+          if (apiPins) {
+            setCragPins(apiPins as CragPin[])
+          }
+        }
+      } catch (pinsErr) {
+        console.error('Error fetching crag pins:', pinsErr)
       }
-
-      // Fetch crag names for those with images
-      const cragIds = Array.from(cragsWithImages.keys())
-      const { data: cragsInfo, error: cragsInfoError } = await supabase
-        .from('crags')
-        .select('id, name')
-        .in('id', cragIds)
-
-      const cragNames = new Map(cragsInfo?.map(c => [c.id, c.name]) || [])
-
-      // Calculate average position for crags with images
-      const pins: CragPin[] = []
-      
-      for (const [cragId, cragImages] of cragsWithImages) {
-        const avgLat = cragImages.reduce((sum, img) => sum + (img.latitude || 0), 0) / cragImages.length
-        const avgLng = cragImages.reduce((sum, img) => sum + (img.longitude || 0), 0) / cragImages.length
-        pins.push({
-          id: cragId,
-          name: cragNames.get(cragId) || 'Unknown',
-          latitude: avgLat,
-          longitude: avgLng,
-          imageCount: cragImages.length
-        })
-      }
-      setCragPins(pins)
 
       // Fetch crags with coordinates (for pins)
       const { data: cragsData, error: cragsError } = await supabase
