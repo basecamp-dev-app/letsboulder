@@ -12,11 +12,6 @@ export async function GET(request: NextRequest) {
   const apiKey = request.nextUrl.searchParams.get('api_key')
   const email = request.nextUrl.searchParams.get('email')
 
-  // DEBUG: Log what's received
-  console.log('DEBUG: Received api_key:', apiKey)
-  console.log('DEBUG: Expected api_key:', process.env.TEST_API_KEY)
-  console.log('DEBUG: Trim match:', apiKey?.trim() === process.env.TEST_API_KEY?.trim())
-
   if (!apiKey || !email) {
     return NextResponse.json({ error: 'Missing api_key or email' }, { status: 400 })
   }
