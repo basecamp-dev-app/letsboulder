@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${serviceRoleKey}`,
+          'apikey': serviceRoleKey,
           'Content-Type': 'application/json',
         },
       }
