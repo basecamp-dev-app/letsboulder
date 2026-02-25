@@ -18,17 +18,17 @@ export default function Footer() {
           <p className="text-sm text-gray-500">
             © {new Date().getFullYear()} letsboulder
           </p>
-          <nav className="flex gap-6 text-sm">
-            <Link href="/privacy" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
+          <nav className="flex gap-6 text-sm items-center">
+            <Link href="/privacy" className="mt-1 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               Privacy
             </Link>
-            <Link href="/gym-owners" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
+            <Link href="/gym-owners" className="mt-1 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               Gym Owners
             </Link>
-            <Link href="/terms" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
+            <Link href="/terms" className="mt-1 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               Terms
             </Link>
-            <a href="https://discord.gg/vzAEMr2qrY" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
+            <a href="https://discord.gg/vzAEMr2qrY" target="_blank" rel="noopener noreferrer" className="mt-1 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               Discord
             </a>
             <a 
