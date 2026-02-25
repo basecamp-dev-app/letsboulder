@@ -51,6 +51,9 @@ async function globalSetup() {
 
     console.log(`Authenticated as: ${data.user.email} (${data.user.id})`)
 
+    const cookies = context.cookies()
+    console.log(`Cookies set: ${(await cookies).map(c => c.name).join(', ')}`)
+
     const storageStatePath = path.join(process.cwd(), 'playwright', '.auth', 'user.json')
     
     const storageDir = path.dirname(storageStatePath)

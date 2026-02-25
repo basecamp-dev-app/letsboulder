@@ -1,6 +1,17 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Settings', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        console.log(`[Browser Console Error] ${msg.text()}`)
+      }
+    })
+    page.on('requestfailed', request => {
+      console.log(`[Network Failed] ${request.url()} - ${request.failure()?.errorText}`)
+    })
+  })
+
   test('unauthenticated user is redirected to login', async ({ page }) => {
     await page.goto('/settings')
     
