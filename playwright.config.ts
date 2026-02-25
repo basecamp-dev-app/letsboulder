@@ -12,12 +12,10 @@ export default defineConfig({
   retries: 0,
   workers: process.env.CI ? 3 : undefined,
   reporter: 'html',
-  globalSetup: require.resolve('./global-setup'),
   use: {
     baseURL: process.env.CI ? 'https://dev.letsboulder.com' : 'http://localhost:3000',
     trace: 'on-first-retry',
     headless: true,
-    storageState: process.env.CI ? path.join(process.cwd(), 'playwright', '.auth', 'user.json') : undefined,
     ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
       extraHTTPHeaders: {
         'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID!,
