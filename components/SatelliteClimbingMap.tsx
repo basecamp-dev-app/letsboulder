@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
 import { MapPin, Bookmark } from 'lucide-react'
-import { RoutePoint } from '@/lib/useRouteSelection'
 import type { User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useMapEvents } from 'react-leaflet'
@@ -51,35 +50,6 @@ function DefaultLocationWatcher({ defaultLocation, mapRef }: { defaultLocation: 
     }
   }, [defaultLocation, mapRef])
   return null
-}
-
-interface ImageRoute {
-  id: string
-  points: RoutePoint[]
-  color: string
-  climb: {
-    id: string
-    name: string | null
-    grade: string | null
-    description: string | null
-  } | null
-}
-
-interface ImageData {
-  id: string
-  url: string
-  latitude: number | null
-  longitude: number | null
-  route_lines: ImageRoute[]
-  is_verified: boolean
-  verification_count: number
-}
-
-interface CragData {
-  id: string
-  name: string
-  latitude: number
-  longitude: number
 }
 
 interface CragPin {
@@ -171,33 +141,15 @@ function MapStateWatcher({
   return null
 }
 
-interface RouteLineData {
-  id: string
-  image_id: string
-  points: RoutePoint[]
-  color: string
-  climb_id: string
-  climbs: {
-    id: string
-    name: string | null
-    grade: string | null
-    description: string | null
-    status: string | null
-  }[] | null
-}
-
 export default function SatelliteClimbingMap() {
   const mapRef = useRef<L.Map | null>(null)
-  const [images, setImages] = useState<ImageData[]>([])
-  const [crags, setCrags] = useState<CragData[]>([])
-  const [loading, setLoading] = useState(true)
   const [isClient, setIsClient] = useState(false)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
   const [mapLoaded, setMapLoaded] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
-  const [isAtDefaultLocation, setIsAtDefaultLocation] = useState(true)
+  const [, setIsAtDefaultLocation] = useState(true)
   const [useUserLocation, setUseUserLocation] = useState(false)
   const [cragPins, setCragPins] = useState<CragPin[]>([])
   const [mapZoom, setMapZoom] = useState(WORLD_DEFAULT_ZOOM)
@@ -271,190 +223,31 @@ export default function SatelliteClimbingMap() {
     }
   }, [toast])
 
-  const CACHE_KEY = 'letsboulder_images_cache'
-
-  const loadImages = useCallback(async () => {
+  const loadCragPins = useCallback(async () => {
     if (!isClient) {
-      setLoading(false)
       return
     }
 
-    const cacheKey = CACHE_KEY + '_v3' // New cache key to force refresh
-    
-    // Always fetch fresh data
-    localStorage.removeItem(cacheKey)
-
     try {
-      const supabase = createClient()
-      
-      // First get all approved images with latitude
-      const { data: imagesData, error: imagesError } = await supabase
-        .from('images')
-        .select('id, url, latitude, longitude, is_verified, verification_count, crag_id')
-        .eq('status', 'approved')
-        .not('latitude', 'is', null)
-        .not('crag_id', 'is', null)
-        .order('created_at', { ascending: false })
-
-      if (imagesError) {
-        setImages([])
-        setLoading(false)
+      const pinsResponse = await fetch('/api/crags/pins')
+      if (!pinsResponse.ok) {
+        console.error('Error fetching crag pins:', pinsResponse.status)
+        setCragPins([])
         return
       }
 
-      if (!imagesData || imagesData.length === 0) {
-        setImages([])
-        setLoading(false)
-        return
-      }
-
-      // Get route_lines for each image separately
-      const imageIds = imagesData.map(img => img.id)
-      
-      const { data: routeLinesData, error: rlError } = await supabase
-        .from('route_lines')
-        .select(`
-          id,
-          image_id,
-          points,
-          color,
-          climb_id,
-          climbs (
-            id,
-            name,
-            grade,
-            description,
-            status
-          )
-        `)
-        .in('image_id', imageIds)
-
-      if (rlError) {
-        setImages([])
-        setLoading(false)
-        return
-      }
-
-      if (!routeLinesData || routeLinesData.length === 0) {
-        setImages([])
-        setLoading(false)
-        return
-      }
-
-      // Build a map of image_id -> route_lines
-      const routeLinesMap = new Map<string, RouteLineData[]>()
-      for (const rl of routeLinesData) {
-        const existing = routeLinesMap.get(rl.image_id) || []
-        existing.push(rl)
-        routeLinesMap.set(rl.image_id, existing)
-      }
-
-      // Get unique climb IDs for verification lookup
-      const allClimbIds = [...new Set(routeLinesData.map(rl => rl.climb_id).filter(Boolean))]
-
-      // Fetch verification counts for all climbs
-      const { data: verificationCounts } = await supabase
-        .from('climb_verifications')
-        .select('climb_id')
-        .in('climb_id', allClimbIds)
-
-      const climbVerificationCount: Record<string, number> = {}
-      verificationCounts?.forEach(v => {
-        climbVerificationCount[v.climb_id] = (climbVerificationCount[v.climb_id] || 0) + 1
-      })
-
-      // Log what we found
-      for (const [imgId, rls] of routeLinesMap) {
-        const approvedCount = rls.filter((rl) => rl.climbs?.[0]?.status === 'approved').length
-      }
-
-      // Filter and format images with valid route_lines
-      const formattedImages: ImageData[] = []
-      
-      for (const img of imagesData) {
-        const routeLines = routeLinesMap.get(img.id) || []
-        
-        // Include all climbs regardless of status
-        const validRouteLines: ImageRoute[] = routeLines
-          .filter((rl) => rl.climbs && rl.climbs.length > 0)
-          .map((rl) => {
-            const climbData = rl.climbs![0]
-            return {
-              id: rl.id,
-              points: rl.points as RoutePoint[],
-              color: rl.color,
-              climb: {
-                id: climbData.id,
-                name: climbData.name,
-                grade: climbData.grade,
-                description: climbData.description
-              }
-            }
-          })
-
-        if (validRouteLines.length > 0) {
-          // Compute verification status: image is verified if any climb has 3+ verifications
-          let maxVerifications = 0
-          for (const rl of routeLines) {
-            if (rl.climb_id) {
-              const count = climbVerificationCount[rl.climb_id] || 0
-              if (count > maxVerifications) maxVerifications = count
-            }
-          }
-
-          formattedImages.push({
-            id: img.id,
-            url: img.url,
-            latitude: img.latitude,
-            longitude: img.longitude,
-            is_verified: maxVerifications >= 3,
-            verification_count: maxVerifications,
-            route_lines: validRouteLines
-          })
-        }
-      }
-      
-      setImages(formattedImages)
-
-      // Fetch crag pins from API (pre-computed on server)
-      try {
-        const pinsResponse = await fetch('/api/crags/pins')
-        if (pinsResponse.ok) {
-          const { pins: apiPins } = await pinsResponse.json()
-          if (apiPins) {
-            setCragPins(apiPins as CragPin[])
-          }
-        }
-      } catch (pinsErr) {
-        console.error('Error fetching crag pins:', pinsErr)
-      }
-
-      // Fetch crags with coordinates (for pins)
-      const { data: cragsData, error: cragsError } = await supabase
-        .from('crags')
-        .select('id, name, latitude, longitude')
-        .not('latitude', 'is', null)
-
-      if (cragsError) {
-        console.error('Error loading crags:', cragsError)
-      } else if (cragsData) {
-        setCrags(cragsData as CragData[])
-      }
-
-      localStorage.setItem(cacheKey, JSON.stringify({
-        data: formattedImages,
-        timestamp: Date.now()
-      }))
+      const { pins: apiPins } = await pinsResponse.json()
+      setCragPins((apiPins || []) as CragPin[])
     } catch (err) {
-      console.error('Error loading images:', err)
+      console.error('Error loading crag pins:', err)
+      setCragPins([])
     }
-    setLoading(false)
   }, [isClient])
 
   useEffect(() => {
     if (!isClient) return
-    loadImages()
-  }, [isClient])
+    loadCragPins()
+  }, [isClient, loadCragPins])
 
   useEffect(() => {
     if (!isClient) return

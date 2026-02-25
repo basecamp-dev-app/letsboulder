@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
 export async function GET() {
+  const includePending = process.env.NEXT_PUBLIC_ALLOW_PENDING_IMAGES === 'true'
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -14,7 +16,9 @@ export async function GET() {
   )
 
   try {
-    const { data, error } = await supabase.rpc('get_crag_pins')
+    const { data, error } = await supabase.rpc('get_crag_pins', {
+      include_pending: includePending,
+    })
 
     if (error) {
       console.error('Error fetching crag pins:', error)
