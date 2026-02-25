@@ -22,6 +22,9 @@ export default function Footer() {
             <Link href="/privacy" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               Privacy
             </Link>
+            <Link href="/gym-owners" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
+              Gym Owners
+            </Link>
             <Link href="/terms" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               Terms
             </Link>
