@@ -21,6 +21,12 @@ test.describe('Settings', () => {
   test('authenticated user can access settings page', async ({ page }) => {
     await page.goto('/settings')
     
+    console.log(`[Settings Test] Current URL: ${page.url()}`)
+    
+    if (page.url().includes('/auth')) {
+      console.log('[Settings Test] Redirected to /auth - auth may have failed!')
+    }
+    
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 })
   })
 

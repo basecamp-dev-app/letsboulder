@@ -10,6 +10,12 @@ test.describe('Route Submission', () => {
   test('authenticated user can access /submit page', async ({ page }) => {
     await page.goto('/submit')
     
+    console.log(`[Submit Test] Current URL: ${page.url()}`)
+    
+    if (page.url().includes('/auth')) {
+      console.log('[Submit Test] Redirected to /auth - auth may have failed!')
+    }
+    
     await expect(page.getByText('Upload Route Photo')).toBeVisible({ timeout: 10000 })
   })
 
