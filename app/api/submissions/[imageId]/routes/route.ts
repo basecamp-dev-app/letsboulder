@@ -379,25 +379,19 @@ export async function PUT(
       }
     }
 
-    const { data: updateResult, error: updateError } = await supabase.rpc('update_own_submission', {
+    const { data: updateResult, error: updateError } = await supabase.rpc('update_own_submitted_routes', {
       p_image_id: imageId,
-      p_image_patch: {},
       p_routes: routes.map((route) => ({
         id: route.id,
         name: route.name.trim(),
         description: route.description?.trim() || null,
         points: route.points,
       })),
-      p_route_type: null,
     })
 
     if (updateError) {
       return createErrorResponse(updateError, 'Update submitted routes error')
     }
-
-    const resultObject = updateResult && typeof updateResult === 'object' && !Array.isArray(updateResult)
-      ? updateResult as Record<string, unknown>
-      : {}
 
     revalidatePath('/')
     const { data: image } = await supabase
@@ -418,7 +412,7 @@ export async function PUT(
 
     return NextResponse.json({
       success: true,
-      updatedCount: typeof resultObject.updatedRoutes === 'number' ? resultObject.updatedRoutes : routes.length,
+      updatedCount: typeof updateResult === 'number' ? updateResult : routes.length,
       message: 'Routes updated successfully',
     })
   } catch (error) {
