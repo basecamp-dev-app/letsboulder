@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import jwt from 'jsonwebtoken'
+import { randomUUID } from 'crypto'
 
 export async function GET(request: NextRequest) {
   const hostname = request.headers.get('x-forwarded-host') || request.headers.get('host')
@@ -27,55 +29,68 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const response = await fetch(
-      `${supabaseUrl}/auth/v1/admin/users/${userId}/sessions`,
+    const userResponse = await fetch(
+      `${supabaseUrl}/auth/v1/admin/users/${userId}`,
       {
-        method: 'POST',
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${serviceRoleKey}`,
           'apikey': serviceRoleKey,
-          'Content-Type': 'application/json',
         },
       }
     )
 
-    const sessionData = await response.json()
+    const userData = await userResponse.json()
 
-    if (!response.ok || !sessionData) {
+    if (!userResponse.ok || !userData.email) {
       return NextResponse.json(
-        { error: 'Failed to create session', details: sessionData },
+        { error: 'User not found', details: userData },
         { status: 500 }
       )
     }
 
-    const res = NextResponse.json({
+    const accessToken = jwt.sign(
+      {
+        sub: userId,
+        email: userData.email,
+        aud: 'authenticated',
+        role: 'authenticated',
+        iss: `${supabaseUrl}/auth/v1`,
+      },
+      serviceRoleKey,
+      { expiresIn: '1h' }
+    )
+
+    const refreshToken = randomUUID()
+
+    const response = NextResponse.json({
       success: true,
       user: {
-        id: sessionData.user.id,
-        email: sessionData.user.email,
+        id: userId,
+        email: userData.email,
       },
     })
 
-    if (sessionData.session) {
-      const isProd = process.env.NODE_ENV === 'production'
-      res.cookies.set('sb-access-token', sessionData.session.access_token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        maxAge: sessionData.session.expires_in,
-        path: '/',
-      })
+    const isProd = process.env.NODE_ENV === 'production'
+    const expiresIn = 3600
 
-      res.cookies.set('sb-refresh-token', sessionData.session.refresh_token, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7,
-        path: '/',
-      })
-    }
+    response.cookies.set('sb-access-token', accessToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: expiresIn,
+      path: '/',
+    })
 
-    return res
+    response.cookies.set('sb-refresh-token', refreshToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+    })
+
+    return response
   } catch (error) {
     console.error('Test auth error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
