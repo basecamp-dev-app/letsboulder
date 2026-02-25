@@ -18,6 +18,7 @@ function formatDateTime(value: string): string {
 }
 
 function typeLabel(type: CommunityUpdatePost['type']): string {
+  if (type === 'update') return 'General update'
   if (type === 'conditions') return 'Conditions'
   if (type === 'question') return 'Question'
   return 'Update'

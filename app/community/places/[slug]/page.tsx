@@ -243,7 +243,7 @@ export default async function CommunityPlacePage({ params, searchParams }: { par
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{typedPlace.type}</p>
           <h1 className="mt-1 text-3xl font-bold text-gray-900 dark:text-gray-100">{typedPlace.name}</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Upcoming sessions and partner requests for this place.
+            Session planning and partner requests for this place.
           </p>
         </header>
 
@@ -289,7 +289,7 @@ export default async function CommunityPlacePage({ params, searchParams }: { par
               ? 'border-b-2 border-gray-900 font-semibold text-gray-900 dark:border-gray-100 dark:text-gray-100'
               : 'text-gray-500 dark:text-gray-400'}`}
           >
-            Upcoming
+            Session planner
           </Link>
           <Link
             href={`/community/places/${slug}?tab=updates`}

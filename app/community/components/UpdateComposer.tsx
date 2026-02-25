@@ -8,11 +8,11 @@ interface UpdateComposerProps {
   placeId: string
 }
 
-type UpdatePostType = 'conditions' | 'question'
+type UpdatePostType = 'update' | 'conditions' | 'question'
 
 export default function UpdateComposer({ placeId }: UpdateComposerProps) {
   const router = useRouter()
-  const [type, setType] = useState<UpdatePostType>('conditions')
+  const [type, setType] = useState<UpdatePostType>('update')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -57,7 +57,7 @@ export default function UpdateComposer({ placeId }: UpdateComposerProps) {
 
       setBody('')
       setTitle('')
-      setType('conditions')
+      setType('update')
       router.refresh()
     } catch {
       setError('Could not publish update right now.')
@@ -77,6 +77,7 @@ export default function UpdateComposer({ placeId }: UpdateComposerProps) {
             onChange={event => setType(event.target.value as UpdatePostType)}
             className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           >
+            <option value="update">General update</option>
             <option value="conditions">Conditions update</option>
             <option value="question">Question</option>
           </select>
@@ -88,7 +89,13 @@ export default function UpdateComposer({ placeId }: UpdateComposerProps) {
             value={title}
             onChange={event => setTitle(event.target.value)}
             maxLength={120}
-            placeholder={type === 'conditions' ? 'e.g. North wall dry after 2pm' : 'e.g. Best warmups here?'}
+            placeholder={
+              type === 'conditions'
+                ? 'e.g. North wall dry after 2pm'
+                : type === 'question'
+                  ? 'e.g. Best warmups here?'
+                  : 'e.g. New circuits opened this week'
+            }
             className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           />
         </label>
@@ -102,7 +109,13 @@ export default function UpdateComposer({ placeId }: UpdateComposerProps) {
           onChange={event => setBody(event.target.value)}
           rows={4}
           maxLength={2000}
-          placeholder={type === 'conditions' ? 'Share conditions, crowd level, access issues, or weather notes.' : 'Ask your question with enough context for useful answers.'}
+          placeholder={
+            type === 'conditions'
+              ? 'Share conditions, crowd level, access issues, or weather notes.'
+              : type === 'question'
+                ? 'Ask your question with enough context for useful answers.'
+                : 'Share a general update about this place.'
+          }
           className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
         />
       </label>
