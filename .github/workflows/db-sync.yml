@@ -40,10 +40,10 @@ jobs:
       - name: Create pull request
         uses: peter-evans/create-pull-request@v7
         with:
-          title: "chore: Database schema snapshot $(date +%Y-%m-%d)"
+          title: "chore: Database schema snapshot ${{ github.run_id }}"
           body: "Automated schema snapshot from production Supabase"
-          commit-message: "chore: Update database schema $(date +%Y-%m-%d)"
-          branch: "db-snapshot-$(date +%Y-%m-%d)"
+          commit-message: "chore: Update database schema ${{ github.run_id }}"
+          branch: "db-snapshot-${{ github.run_id }}"
           delete-branch: true
 
   full-sync:
@@ -107,10 +107,10 @@ jobs:
       - name: Create pull request
         uses: peter-evans/create-pull-request@v7
         with:
-          title: "chore: Production database dump $(date +%Y-%m-%d)"
+          title: "chore: Production database dump ${{ github.run_id }}"
           body: "Full database dump for local development"
-          commit-message: "chore: Add production dump $(date +%Y-%m-%d)"
-          branch: "db-dump-$(date +%Y-%m-%d)"
+          commit-message: "chore: Add production dump ${{ github.run_id }}"
+          branch: "db-dump-${{ github.run_id }}"
           delete-branch: true
 
   schema-only:
