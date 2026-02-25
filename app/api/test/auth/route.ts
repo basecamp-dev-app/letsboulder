@@ -35,13 +35,19 @@ export async function GET(request: NextRequest) {
   })
 
   try {
-    const { data: userData, error: getUserError } = await (supabaseAdmin.auth.admin as any).getUserByEmail(email)
+    const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers()
 
-    if (getUserError || !userData?.user) {
-      return NextResponse.json({ error: 'User not found', details: getUserError?.message }, { status: 404 })
+    if (listError) {
+      return NextResponse.json({ error: 'Failed to list users', details: listError.message }, { status: 500 })
     }
 
-    const { data: sessionData, error: createSessionError } = await (supabaseAdmin.auth.admin as any).createSession(userData.user.id)
+    const user = usersData.users.find(u => u.email === email)
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    const { data: sessionData, error: createSessionError } = await (supabaseAdmin.auth.admin as any).createSession(user.id)
 
     if (createSessionError || !sessionData) {
       return NextResponse.json({ error: 'Failed to create session', details: createSessionError?.message }, { status: 500 })
