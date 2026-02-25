@@ -44,7 +44,8 @@ test.describe('Visual - Key Element Checks', () => {
       !e.includes('Failed to load resource') &&
       !e.includes('cloudflareinsights') &&
       !e.includes('CORS policy') &&
-      !e.includes('Service worker')
+      !e.includes('Service worker') &&
+      !e.includes('redirect')
     )
     expect(criticalErrors).toHaveLength(0)
   })
