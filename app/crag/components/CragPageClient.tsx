@@ -7,13 +7,19 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
-import CommentThread from '@/components/comments/CommentThread'
+import SessionComposer from '@/app/community/components/SessionComposer'
+import UpcomingFeed from '@/app/community/components/UpcomingFeed'
+import UpdateComposer from '@/app/community/components/UpdateComposer'
+import UpdatesFeed from '@/app/community/components/UpdatesFeed'
+import TopThisPlacePanel from '@/app/community/components/TopThisPlacePanel'
+import PlaceRankingsPanel from '@/app/community/components/PlaceRankingsPanel'
 import { SITE_URL } from '@/lib/site'
 import { GRADES, normalizeGrade } from '@/lib/grades'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import CragPageSkeleton from '@/app/crag/components/CragPageSkeleton'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -195,12 +201,28 @@ function haversineMeters(from: [number, number], to: [number, number]) {
   return R * c
 }
 
-export default function CragPageClient({ id, canonicalPath }: { id: string; canonicalPath?: string }) {
+interface CragPageClientProps {
+  id: string
+  canonicalPath?: string
+  communityPlaceId?: string | null
+  communityPlaceSlug?: string | null
+  initialSessionPosts?: CommunitySessionPost[]
+  initialUpdatePosts?: CommunityUpdatePost[]
+}
+
+export default function CragPageClient({
+  id,
+  canonicalPath,
+  communityPlaceId,
+  communityPlaceSlug,
+  initialSessionPosts = [],
+  initialUpdatePosts = [],
+}: CragPageClientProps) {
   const gradeSystem = useGradeSystem()
   const [crag, setCrag] = useState<Crag | null>(null)
   const [images, setImages] = useState<ImageData[]>([])
   const [routes, setRoutes] = useState<CragRoute[]>([])
-  const [routeView, setRouteView] = useState<'images' | 'filters'>('images')
+  const [routeView, setRouteView] = useState<'images' | 'filters' | 'upcoming' | 'updates' | 'rankings'>('images')
   const [minGrade, setMinGrade] = useState<string>('')
   const [maxGrade, setMaxGrade] = useState<string>('')
   const [selectedDirections, setSelectedDirections] = useState<string[]>([])
@@ -542,6 +564,8 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
     cragSchema.additionalProperty = additionalProperties
   }
 
+  const resolvedCommunityPlaceId = communityPlaceId || crag.id
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {toast && (
@@ -648,11 +672,11 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="sticky top-[calc(var(--app-header-offset)+0.25rem)] z-[1200] mb-5 border-b border-gray-200 bg-gray-50/95 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
-          <nav className="flex -mb-px overflow-x-auto">
+          <nav className="flex flex-wrap gap-x-1 -mb-px">
             <button
               type="button"
               onClick={() => setRouteView('images')}
-              className={`px-5 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+              className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
                 routeView === 'images'
                   ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
                   : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
@@ -663,13 +687,46 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
             <button
               type="button"
               onClick={() => setRouteView('filters')}
-              className={`px-5 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+              className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
                 routeView === 'filters'
                   ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
                   : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
               }`}
             >
               Filter routes
+            </button>
+            <button
+              type="button"
+              onClick={() => setRouteView('upcoming')}
+              className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                routeView === 'upcoming'
+                  ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+              }`}
+            >
+              Session planner
+            </button>
+            <button
+              type="button"
+              onClick={() => setRouteView('updates')}
+              className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                routeView === 'updates'
+                  ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+              }`}
+            >
+              Updates
+            </button>
+            <button
+              type="button"
+              onClick={() => setRouteView('rankings')}
+              className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                routeView === 'rankings'
+                  ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+              }`}
+            >
+              Rankings
             </button>
           </nav>
         </div>
@@ -761,7 +818,6 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
               </div>
             )}
 
-            <CommentThread targetType="crag" targetId={crag.id} className="mb-6" />
           </>
         )}
 
@@ -917,6 +973,35 @@ export default function CragPageClient({ id, canonicalPath }: { id: string; cano
                   ))}
                 </div>
               </>
+            )}
+          </div>
+        )}
+
+        {routeView === 'upcoming' && (
+          <div className="mb-6 space-y-4">
+            <SessionComposer placeId={resolvedCommunityPlaceId} />
+            <UpcomingFeed posts={initialSessionPosts} />
+          </div>
+        )}
+
+        {routeView === 'updates' && (
+          <div className="mb-6 space-y-4">
+            <UpdateComposer placeId={resolvedCommunityPlaceId} />
+            <UpdatesFeed posts={initialUpdatePosts} />
+          </div>
+        )}
+
+        {routeView === 'rankings' && (
+          <div className="mb-6 space-y-4">
+            {communityPlaceSlug ? (
+              <>
+                <TopThisPlacePanel slug={communityPlaceSlug} />
+                <PlaceRankingsPanel slug={communityPlaceSlug} />
+              </>
+            ) : (
+              <div className="rounded-xl border border-dashed border-gray-300 p-5 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400">
+                Rankings are not available for this crag yet.
+              </div>
             )}
           </div>
         )}

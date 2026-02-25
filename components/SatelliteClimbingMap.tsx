@@ -52,12 +52,16 @@ function DefaultLocationWatcher({ defaultLocation, mapRef }: { defaultLocation: 
   return null
 }
 
-interface CragPin {
+interface PlacePin {
   id: string
   name: string
+  type: 'crag' | 'gym'
   latitude: number
   longitude: number
-  imageCount: number
+  slug: string | null
+  country_code: string | null
+  image_count: number | null
+  route_count: number | null
 }
 
 interface MapBounds {
@@ -67,12 +71,12 @@ interface MapBounds {
   west: number
 }
 
-interface CragCluster {
+interface PlaceCluster {
   id: string
   latitude: number
   longitude: number
-  crags: CragPin[]
-  cragCount: number
+  places: PlacePin[]
+  placeCount: number
 }
 
 function getClusterGridSize(zoom: number): number {
@@ -151,7 +155,7 @@ export default function SatelliteClimbingMap() {
   const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
   const [, setIsAtDefaultLocation] = useState(true)
   const [useUserLocation, setUseUserLocation] = useState(false)
-  const [cragPins, setCragPins] = useState<CragPin[]>([])
+  const [placePins, setPlacePins] = useState<PlacePin[]>([])
   const [mapZoom, setMapZoom] = useState(WORLD_DEFAULT_ZOOM)
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -163,16 +167,16 @@ export default function SatelliteClimbingMap() {
     setMapBounds(state.bounds)
   }, [])
 
-  const clusteredCrags = useMemo<CragCluster[]>(() => {
-    if (cragPins.length === 0) return []
+  const clusteredPlaces = useMemo<PlaceCluster[]>(() => {
+    if (placePins.length === 0) return []
 
     const visiblePins = mapBounds
-      ? cragPins.filter((pin) => {
+      ? placePins.filter((pin) => {
           const inLat = pin.latitude >= mapBounds.south && pin.latitude <= mapBounds.north
           const inLng = isLngWithinBounds(pin.longitude, mapBounds)
           return inLat && inLng
         })
-      : cragPins
+      : placePins
 
     if (visiblePins.length === 0) return []
 
@@ -181,13 +185,13 @@ export default function SatelliteClimbingMap() {
         id: pin.id,
         latitude: pin.latitude,
         longitude: pin.longitude,
-        crags: [pin],
-        cragCount: 1,
+        places: [pin],
+        placeCount: 1,
       }))
     }
 
     const gridSize = getClusterGridSize(mapZoom)
-    const buckets = new Map<string, CragPin[]>()
+    const buckets = new Map<string, PlacePin[]>()
 
     for (const pin of visiblePins) {
       const latBucket = Math.floor(pin.latitude / gridSize)
@@ -206,11 +210,11 @@ export default function SatelliteClimbingMap() {
         id: bucketKey,
         latitude,
         longitude,
-        crags: bucket,
-        cragCount: bucket.length
+        places: bucket,
+        placeCount: bucket.length
       }
     })
-  }, [cragPins, mapBounds, mapZoom])
+  }, [placePins, mapBounds, mapZoom])
 
   useEffect(() => {
     setupLeafletIcons()
@@ -223,7 +227,7 @@ export default function SatelliteClimbingMap() {
     }
   }, [toast])
 
-  const loadCragPins = useCallback(async () => {
+  const loadPlacePins = useCallback(async () => {
     if (!isClient) {
       return
     }
@@ -231,23 +235,23 @@ export default function SatelliteClimbingMap() {
     try {
       const pinsResponse = await fetch('/api/crags/pins')
       if (!pinsResponse.ok) {
-        console.error('Error fetching crag pins:', pinsResponse.status)
-        setCragPins([])
+        console.error('Error fetching place pins:', pinsResponse.status)
+        setPlacePins([])
         return
       }
 
       const { pins: apiPins } = await pinsResponse.json()
-      setCragPins((apiPins || []) as CragPin[])
+      setPlacePins((apiPins || []) as PlacePin[])
     } catch (err) {
-      console.error('Error loading crag pins:', err)
-      setCragPins([])
+      console.error('Error loading place pins:', err)
+      setPlacePins([])
     }
   }, [isClient])
 
   useEffect(() => {
     if (!isClient) return
-    loadCragPins()
-  }, [isClient, loadCragPins])
+    loadPlacePins()
+  }, [isClient, loadPlacePins])
 
   useEffect(() => {
     if (!isClient) return
@@ -461,17 +465,18 @@ export default function SatelliteClimbingMap() {
           />
         )}
 
-        {clusteredCrags.map((cluster) => {
-          if (cluster.cragCount === 1) {
-            const crag = cluster.crags[0]
+        {clusteredPlaces.map((cluster) => {
+          if (cluster.placeCount === 1) {
+            const place = cluster.places[0]
+            const isGym = place.type === 'gym'
             return (
               <Marker
-                key={crag.id}
-                position={[crag.latitude, crag.longitude]}
+                key={place.id}
+                position={[place.latitude, place.longitude]}
                 icon={L.divIcon({
-                  className: 'crag-pin',
+                  className: isGym ? 'gym-pin' : 'crag-pin',
                   html: `<div style="
-                    background: #3b82f6;
+                    background: ${isGym ? '#ec4899' : '#3b82f6'};
                     width: 32px;
                     height: 32px;
                     border-radius: 50%;
@@ -481,25 +486,42 @@ export default function SatelliteClimbingMap() {
                     font-size: 18px;
                     border: 2px solid white;
                     box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-                  ">⛰️</div>`,
+                  ">${isGym ? '🏋️' : '⛰️'}</div>`,
                   iconSize: [32, 32],
                   iconAnchor: [16, 16]
                 })}
                 zIndexOffset={1000}
                 eventHandlers={{
                   click: () => {
-                    window.location.href = `/crag/${crag.id}`
+                    if (isGym && place.slug) {
+                      window.location.href = `/community/places/${place.slug}`
+                      return
+                    }
+
+                    if (place.slug && place.country_code) {
+                      window.location.href = `/${place.country_code.toLowerCase()}/${place.slug}`
+                      return
+                    }
+
+                    window.location.href = `/crag/${place.id}`
                   },
                 }}
               >
                 <Tooltip direction="center" opacity={1}>
-                  <span className="font-semibold">{crag.name}</span>
+                  <span className="font-semibold">{place.name}</span>
                 </Tooltip>
               </Marker>
             )
           }
 
-          const iconSize = cluster.cragCount > 99 ? 44 : cluster.cragCount > 9 ? 38 : 34
+          const iconSize = cluster.placeCount > 99 ? 44 : cluster.placeCount > 9 ? 38 : 34
+          const cragCount = cluster.places.filter((place) => place.type === 'crag').length
+          const gymCount = cluster.placeCount - cragCount
+          const clusterLabel = gymCount > 0 && cragCount > 0
+            ? `${cragCount} crags + ${gymCount} gyms`
+            : gymCount > 0
+              ? `${gymCount} gyms`
+              : `${cragCount} crags`
 
           return (
             <Marker
@@ -507,7 +529,7 @@ export default function SatelliteClimbingMap() {
               position={[cluster.latitude, cluster.longitude]}
               icon={L.divIcon({
                 className: 'crag-cluster-wrapper',
-                html: `<div class="crag-cluster-pin" style="width:${iconSize}px;height:${iconSize}px;">${cluster.cragCount}</div>`,
+                html: `<div class="crag-cluster-pin" style="width:${iconSize}px;height:${iconSize}px;">${cluster.placeCount}</div>`,
                 iconSize: [iconSize, iconSize],
                 iconAnchor: [iconSize / 2, iconSize / 2]
               })}
@@ -521,7 +543,7 @@ export default function SatelliteClimbingMap() {
               }}
             >
               <Tooltip direction="center" opacity={1}>
-                <span className="font-semibold">{cluster.cragCount} crags</span>
+                <span className="font-semibold">{clusterLabel}</span>
               </Tooltip>
             </Marker>
           )
