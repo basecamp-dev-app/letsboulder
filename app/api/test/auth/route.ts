@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { randomUUID } from 'crypto'
-import { createClient } from '@supabase/supabase-js'
 
 export async function GET(request: NextRequest) {
   const hostname = request.headers.get('x-forwarded-host') || request.headers.get('host')
@@ -29,36 +28,48 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
   }
 
-  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
-
   try {
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from('auth.users')
-      .select('email, id')
-      .eq('id', userId)
-      .single()
+    const userResponse = await fetch(
+      `${supabaseUrl}/auth/v1/admin/users/${userId}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'apikey': serviceRoleKey,
+        },
+      }
+    )
 
-    if (userError || !userData) {
+    const userData = await userResponse.json()
+
+    if (!userResponse.ok || !userData.email) {
       return NextResponse.json(
-        { error: 'User not found', details: userError?.message },
+        { error: 'User not found', details: userData },
         { status: 500 }
       )
     }
 
-    const { data: sessions, error: sessionsError } = await supabaseAdmin
-      .from('auth.sessions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    const sessionsResponse = await fetch(
+      `${supabaseUrl}/auth/v1/admin/users/${userId}/sessions`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'apikey': serviceRoleKey,
+        },
+      }
+    )
 
-    if (sessionsError || !sessions) {
+    const sessionsData = await sessionsResponse.json()
+
+    if (!sessionsResponse.ok || !sessionsData.sessions || sessionsData.sessions.length === 0) {
       return NextResponse.json(
-        { error: 'No active session found', details: sessionsError?.message },
+        { error: 'No active session found', details: sessionsData },
         { status: 500 }
       )
     }
+
+    const session = sessionsData.sessions[0]
 
     const accessToken = jwt.sign(
       {
@@ -67,8 +78,8 @@ export async function GET(request: NextRequest) {
         aud: 'authenticated',
         role: 'authenticated',
         iss: `${supabaseUrl}/auth/v1`,
-        session_id: sessions.id,
-        aal: sessions.aal,
+        session_id: session.id,
+        aal: session.aal,
         is_anonymous: false,
         app_metadata: {},
         user_metadata: {},
@@ -78,7 +89,7 @@ export async function GET(request: NextRequest) {
       { expiresIn: '1h' }
     )
 
-    const refreshToken = sessions.refresh_token || randomUUID()
+    const refreshToken = session.refresh_token || randomUUID()
 
     const response = NextResponse.json({
       success: true,
