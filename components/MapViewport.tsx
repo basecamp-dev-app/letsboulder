@@ -1,10 +1,15 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const SatelliteClimbingMap = dynamic(() => import('@/components/SatelliteClimbingMap'), {
   ssr: false,
-  loading: () => null,
+  loading: () => (
+    <div className="h-screen w-full">
+      <Skeleton className="h-full w-full bg-gray-100 dark:bg-gray-900" />
+    </div>
+  ),
 })
 
 export default function MapViewport() {

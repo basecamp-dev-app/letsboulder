@@ -12,7 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SubmitProvider>
       <Header />
-      <main id="main-content">
+      <main id="main-content" className="min-h-screen">
         {children}
       </main>
       {!isSubmitPage && <Footer />}
