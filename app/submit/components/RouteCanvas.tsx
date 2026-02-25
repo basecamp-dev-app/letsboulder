@@ -189,6 +189,7 @@ export default function RouteCanvas({
   })
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
+  const [canvasReady, setCanvasReady] = useState(false)
   const [imageDimensions, setImageDimensions] = useState<{
     width: number
     height: number
@@ -380,6 +381,8 @@ export default function RouteCanvas({
   }, [getMousePos, getDragHandleIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!canvasReady) return
+
     if (e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX
       const dy = e.touches[0].clientY - e.touches[1].clientY
@@ -398,9 +401,11 @@ export default function RouteCanvas({
       setDraggingPointIndex(dragHandleIndex)
       e.preventDefault()
     }
-  }, [getTouchPos, getDragHandleIndex, zoom])
+  }, [canvasReady, getTouchPos, getDragHandleIndex, zoom])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!canvasReady) return
+
     if (pinchStartZoom !== null) {
       setPinchStartZoom(null)
       setPinchStartDistance(null)
@@ -415,7 +420,7 @@ export default function RouteCanvas({
 
     const touch = e.changedTouches[0]
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas || canvas.width === 0 || canvas.height === 0 || !touch) return
 
     const rect = canvas.getBoundingClientRect()
     const canvasX = (touch.clientX - rect.left - pan.x) / zoom
@@ -441,9 +446,11 @@ export default function RouteCanvas({
     } else {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
     }
-  }, [zoom, pan, pinchStartZoom, pinchStartDistance, draggingPointIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
+  }, [canvasReady, zoom, pan, pinchStartZoom, pinchStartDistance, draggingPointIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!canvasReady) return
+
     if (e.touches.length === 2 && pinchStartZoom !== null && pinchStartDistance !== null && pinchCenter) {
       const dx = e.touches[0].clientX - e.touches[1].clientX
       const dy = e.touches[0].clientY - e.touches[1].clientY
@@ -479,7 +486,7 @@ export default function RouteCanvas({
     }
 
     e.preventDefault()
-  }, [draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, pinchStartZoom, pinchStartDistance, pinchCenter, zoom, pan])
+  }, [canvasReady, draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, pinchStartZoom, pinchStartDistance, pinchCenter, zoom, pan])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggingPointIndex !== null && editableRoute) {
@@ -754,7 +761,10 @@ export default function RouteCanvas({
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
     const image = imageRef.current
-    if (!canvas || !image || !image.complete) return
+    if (!canvas || !image || !image.complete) {
+      setCanvasReady(false)
+      return
+    }
 
     const rect = image.getBoundingClientRect()
     const untransformedWidth = rect.width / zoom
@@ -777,23 +787,57 @@ export default function RouteCanvas({
     const offsetX = (untransformedWidth - displayedWidth) / 2
     const offsetY = (untransformedHeight - displayedHeight) / 2
 
+    if (displayedWidth <= 0 || displayedHeight <= 0) {
+      setCanvasReady(false)
+      return
+    }
+
     canvas.style.left = offsetX + 'px'
     canvas.style.top = offsetY + 'px'
     canvas.width = displayedWidth
     canvas.height = displayedHeight
     canvas.style.width = displayedWidth + 'px'
     canvas.style.height = displayedHeight + 'px'
+    setCanvasReady(true)
     redraw()
   }, [redraw, zoom])
 
   useEffect(() => {
-    setupCanvas()
-  }, [setupCanvas])
+    if (!imageLoaded) return
+
+    let rafId = 0
+    rafId = window.requestAnimationFrame(() => {
+      setupCanvas()
+    })
+
+    return () => {
+      if (rafId) {
+        window.cancelAnimationFrame(rafId)
+      }
+    }
+  }, [imageLoaded, setupCanvas])
 
   useEffect(() => {
     window.addEventListener('resize', setupCanvas)
     return () => window.removeEventListener('resize', setupCanvas)
   }, [setupCanvas])
+
+  useEffect(() => {
+    if (!imageLoaded || typeof ResizeObserver === 'undefined') return
+
+    const imageContainer = imageContainerRef.current
+    if (!imageContainer) return
+
+    const observer = new ResizeObserver(() => {
+      setupCanvas()
+    })
+
+    observer.observe(imageContainer)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [imageLoaded, setupCanvas])
 
   const activeName = editableRoute ? editableRoute.name : currentName
   const activeGrade = editableRoute ? editableRoute.grade : currentGrade
