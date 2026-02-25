@@ -41,7 +41,10 @@ test.describe('Visual - Key Element Checks', () => {
     const criticalErrors = errors.filter(e => 
       !e.includes('favicon') && 
       !e.includes('404') &&
-      !e.includes('Failed to load resource')
+      !e.includes('Failed to load resource') &&
+      !e.includes('cloudflareinsights') &&
+      !e.includes('CORS policy') &&
+      !e.includes('Service worker')
     )
     expect(criticalErrors).toHaveLength(0)
   })

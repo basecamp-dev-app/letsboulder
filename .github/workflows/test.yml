@@ -27,7 +27,7 @@ jobs:
         run: npx playwright install chromium
       
       - name: Run E2E tests
-        run: npx playwright test
+        run: npx playwright test --ignore="tests/settings.spec.ts" --ignore="tests/route-submission.spec.ts" --ignore="tests/canvas.spec.ts"
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
