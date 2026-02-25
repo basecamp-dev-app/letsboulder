@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 
 export async function GET(request: NextRequest) {
   const hostname = request.headers.get('x-forwarded-host') || request.headers.get('host')
@@ -27,21 +26,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
   }
 
-  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
-
   try {
-    const { data: sessionData, error: createSessionError } = await (supabaseAdmin.auth.admin as any).createSession(userId)
+    const response = await fetch(
+      `${supabaseUrl}/auth/v1/admin/users/${userId}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
 
-    if (createSessionError || !sessionData) {
-      return NextResponse.json({ error: 'Failed to create session', details: createSessionError?.message }, { status: 500 })
+    const sessionData = await response.json()
+
+    if (!response.ok || !sessionData) {
+      return NextResponse.json(
+        { error: 'Failed to create session', details: sessionData },
+        { status: 500 }
+      )
     }
 
-    const response = NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       user: {
         id: sessionData.user.id,
@@ -51,7 +57,7 @@ export async function GET(request: NextRequest) {
 
     if (sessionData.session) {
       const isProd = process.env.NODE_ENV === 'production'
-      response.cookies.set('sb-access-token', sessionData.session.access_token, {
+      res.cookies.set('sb-access-token', sessionData.session.access_token, {
         httpOnly: true,
         secure: isProd,
         sameSite: 'lax',
@@ -59,7 +65,7 @@ export async function GET(request: NextRequest) {
         path: '/',
       })
 
-      response.cookies.set('sb-refresh-token', sessionData.session.refresh_token, {
+      res.cookies.set('sb-refresh-token', sessionData.session.refresh_token, {
         httpOnly: true,
         secure: isProd,
         sameSite: 'lax',
@@ -68,7 +74,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    return response
+    return res
   } catch (error) {
     console.error('Test auth error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
