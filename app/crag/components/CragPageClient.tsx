@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import SessionComposer from '@/app/community/components/SessionComposer'
@@ -220,6 +221,7 @@ export default function CragPageClient({
   initialSessionPosts = [],
   initialUpdatePosts = [],
 }: CragPageClientProps) {
+  const router = useRouter()
   const gradeSystem = useGradeSystem()
   const [crag, setCrag] = useState<Crag | null>(initialCrag)
   const [images, setImages] = useState<ImageData[]>([])
@@ -671,7 +673,7 @@ export default function CragPageClient({
                 <div
                   className="w-40 cursor-pointer pt-1"
                   onClick={() => {
-                    window.location.href = `/image/${image.id}`
+                    router.push(`/image/${image.id}`)
                   }}
                 >
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
@@ -789,7 +791,7 @@ export default function CragPageClient({
                         highlightedImageId === image.id ? 'ring-blue-400' : ''
                       }`}
                       onClick={() => {
-                        window.location.href = `/image/${image.id}`
+                        router.push(`/image/${image.id}`)
                       }}
                     >
                       <div className="relative h-32 bg-gray-200 dark:bg-gray-700">

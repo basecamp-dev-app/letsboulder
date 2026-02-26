@@ -1,40 +1,14 @@
 import { Metadata } from 'next'
-import { createServerClient } from '@supabase/ssr'
 
 export const revalidate = 300
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
-
   const { id } = await params
-  const { data: image } = await supabase
-    .from('images')
-    .select('url, crags(name)')
-    .eq('id', id)
-    .single()
-
-  if (!image) {
-    return {
-      title: 'Image Not Found',
-      description: 'This route image could not be found.',
-      robots: {
-        index: false,
-        follow: true,
-      },
-    }
-  }
-
-  const cragName = image.crags && Array.isArray(image.crags) && image.crags.length > 0 ? image.crags[0].name : null
-  const title = `Route Image${cragName ? ` at ${cragName}` : ''}`
-  const ogImagePath = `/image/${id}/opengraph-image`
+  const title = 'Route Image'
 
   return {
     title,
-    description: `View climbing route image${cragName ? ` at ${cragName}` : ''} on letsboulder. Explore routes, grades, and climbing details.`,
+    description: 'View climbing route image on letsboulder. Explore routes, grades, and climbing details.',
     robots: {
       index: false,
       follow: true,
@@ -44,15 +18,15 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     },
     openGraph: {
       title: `${title} | letsboulder`,
-      description: `View climbing route image${cragName ? ` at ${cragName}` : ''} on letsboulder.`,
+      description: 'View climbing route image on letsboulder.',
       url: `/image/${id}`,
-      images: [{ url: ogImagePath, width: 1200, height: 630, alt: 'Route image preview' }],
+      images: [{ url: '/og.png', width: 1200, height: 630, alt: 'letsboulder' }],
     },
     twitter: {
       card: 'summary_large_image',
       title: `${title} | letsboulder`,
-      description: `View climbing route image${cragName ? ` at ${cragName}` : ''} on letsboulder.`,
-      images: [ogImagePath],
+      description: 'View climbing route image on letsboulder.',
+      images: ['/og.png'],
     },
   }
 }

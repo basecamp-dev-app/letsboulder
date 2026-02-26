@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -24,10 +25,15 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import CommentThread from '@/components/comments/CommentThread'
 import ClimbPageSkeleton from '@/app/climb/components/ClimbPageSkeleton'
-import VideoBetaSection from '@/app/climb/components/VideoBetaSection'
 import FlagClimbModal from '@/components/FlagClimbModal'
+
+const VideoBetaSection = dynamic(() => import('@/app/climb/components/VideoBetaSection'), {
+  ssr: false,
+})
+const CommentThread = dynamic(() => import('@/components/comments/CommentThread'), {
+  ssr: false,
+})
 
 interface ImageInfo {
   id: string
@@ -253,6 +259,7 @@ export default function ClimbPage() {
   const [hasUserInteractedWithSelection, setHasUserInteractedWithSelection] = useState(false)
   const [publicSubmitter, setPublicSubmitter] = useState<PublicSubmitter | null>(null)
   const [cragPath, setCragPath] = useState<string | null>(null)
+  const [showDeferredSections, setShowDeferredSections] = useState(false)
   const gradeSystem = useGradeSystem()
 
   useOverlayHistory({ open: shareModalOpen, onClose: () => setShareModalOpen(false), id: 'share-climb-dialog' })
@@ -811,6 +818,28 @@ export default function ClimbPage() {
   }, [])
 
   useEffect(() => {
+    setShowDeferredSections(false)
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let idleId: number | null = null
+    const scheduleShow = () => setShowDeferredSections(true)
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(scheduleShow, { timeout: 1200 })
+    } else {
+      timeoutId = setTimeout(scheduleShow, 350)
+    }
+
+    return () => {
+      if (idleId !== null && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId)
+      }
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [climbId])
+
+  useEffect(() => {
     if (!selectedClimb) {
       setPendingGradeOpinion(null)
       setPendingStarRating(null)
@@ -835,7 +864,30 @@ export default function ClimbPage() {
   useEffect(() => {
     if (!selectedClimb) return
     if (starRatingSummaryByClimbId[selectedClimb.id]) return
-    void loadStarRatingSummary(selectedClimb.id)
+
+    let cancelled = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let idleId: number | null = null
+    const run = () => {
+      if (cancelled) return
+      void loadStarRatingSummary(selectedClimb.id)
+    }
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(run, { timeout: 900 })
+    } else {
+      timeoutId = setTimeout(run, 250)
+    }
+
+    return () => {
+      cancelled = true
+      if (idleId !== null && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId)
+      }
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId)
+      }
+    }
   }, [selectedClimb, starRatingSummaryByClimbId, loadStarRatingSummary])
 
   const handleSaveFeedback = async () => {
@@ -1068,6 +1120,8 @@ export default function ClimbPage() {
             alt={displayClimb?.name || 'Climbing routes'}
             width={1600}
             height={1200}
+            sizes="(max-width: 768px) 100vw, 1200px"
+            fetchPriority="high"
             unoptimized
             className="max-w-full max-h-[60vh] object-contain"
           />
@@ -1360,12 +1414,12 @@ export default function ClimbPage() {
             </div>
           )}
 
-          {image.id && !image.id.startsWith('legacy-') && (
+          {showDeferredSections && image.id && !image.id.startsWith('legacy-') && (
             <VideoBetaSection climbId={activeClimbId} />
           )}
 
-          {image.id && !image.id.startsWith('legacy-') && (
-            <CommentThread targetType="image" targetId={image.id} className="mt-6" />
+          {showDeferredSections && image.id && !image.id.startsWith('legacy-') && (
+            <CommentThread targetType="image" targetId={image.id} userId={user?.id || null} className="mt-6" />
           )}
         </div>
       </div>
