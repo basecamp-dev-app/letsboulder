@@ -24,7 +24,11 @@ export default function RoutePreview({ imageSelection, routes }: RoutePreviewPro
   const [imageInfo, setImageInfo] = useState<ImageRenderInfo | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const imageUrl = imageSelection.mode === 'existing' ? imageSelection.imageUrl : imageSelection.uploadedUrl
+  const imageUrl = imageSelection.mode === 'existing'
+    ? imageSelection.imageUrl
+    : imageSelection.mode === 'new'
+      ? imageSelection.images[imageSelection.primaryIndex]?.uploadedUrl || ''
+      : imageSelection.imageUrl
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     setImageLoaded(true)

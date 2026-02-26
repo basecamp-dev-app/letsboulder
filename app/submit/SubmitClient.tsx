@@ -6,7 +6,7 @@ import Link from 'next/link'
 import nextDynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData, ClimbType, FaceDirection } from '@/lib/submission-types'
+import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData, ClimbType, FaceDirection, NewUploadedImage } from '@/lib/submission-types'
 import { csrfFetch, primeCsrfToken } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
@@ -26,15 +26,8 @@ interface DraftImageSelectionSnapshotExisting {
 
 interface DraftImageSelectionSnapshotNew {
   mode: 'new'
-  uploadedBucket: string
-  uploadedPath: string
-  uploadedUrl: string
-  gpsData: GpsData | null
-  captureDate: string | null
-  width: number
-  height: number
-  naturalWidth: number
-  naturalHeight: number
+  images: NewUploadedImage[]
+  primaryIndex: number
 }
 
 interface DraftImageSelectionSnapshotCragImage {
@@ -150,15 +143,8 @@ function toImageSnapshot(image: ImageSelection): DraftImageSelectionSnapshot {
 
   return {
     mode: 'new',
-    uploadedBucket: image.uploadedBucket,
-    uploadedPath: image.uploadedPath,
-    uploadedUrl: image.uploadedUrl,
-    gpsData: image.gpsData,
-    captureDate: image.captureDate,
-    width: image.width,
-    height: image.height,
-    naturalWidth: image.naturalWidth,
-    naturalHeight: image.naturalHeight,
+    images: image.images,
+    primaryIndex: image.primaryIndex,
   }
 }
 
@@ -187,8 +173,9 @@ function getRouteDraftKey(context: SubmissionContext): string | null {
   if (!context.image || !context.crag?.id) return null
 
   if (context.image.mode === 'new') {
-    if (!context.image.uploadedBucket || !context.image.uploadedPath) return null
-    return `${ROUTE_DRAFT_PREFIX}new:${context.image.uploadedBucket}:${context.image.uploadedPath}:${context.crag.id}`
+    const primaryImage = context.image.images[context.image.primaryIndex]
+    if (!primaryImage?.uploadedBucket || !primaryImage?.uploadedPath) return null
+    return `${ROUTE_DRAFT_PREFIX}new:${primaryImage.uploadedBucket}:${primaryImage.uploadedPath}:${context.crag.id}`
   }
 
   if (context.image.mode === 'crag-image') {
@@ -202,8 +189,9 @@ function getRouteDraftKeyFromImageAndCrag(image: ImageSelection | null, cragId: 
   if (!image || !cragId) return null
 
   if (image.mode === 'new') {
-    if (!image.uploadedBucket || !image.uploadedPath) return null
-    return `${ROUTE_DRAFT_PREFIX}new:${image.uploadedBucket}:${image.uploadedPath}:${cragId}`
+    const primaryImage = image.images[image.primaryIndex]
+    if (!primaryImage?.uploadedBucket || !primaryImage?.uploadedPath) return null
+    return `${ROUTE_DRAFT_PREFIX}new:${primaryImage.uploadedBucket}:${primaryImage.uploadedPath}:${cragId}`
   }
 
   if (image.mode === 'crag-image') {
@@ -218,8 +206,11 @@ function resolveImageGps(context: SubmissionContext): GpsData | null {
     return { latitude: context.imageGps.latitude, longitude: context.imageGps.longitude }
   }
 
-  if (context.image?.mode === 'new' && context.image.gpsData) {
-    return { latitude: context.image.gpsData.latitude, longitude: context.image.gpsData.longitude }
+  if (context.image?.mode === 'new') {
+    const primaryImage = context.image.images[context.image.primaryIndex]
+    if (primaryImage?.gpsData) {
+      return { latitude: primaryImage.gpsData.latitude, longitude: primaryImage.gpsData.longitude }
+    }
   }
 
   return null
@@ -350,16 +341,20 @@ function SubmitPageContent() {
 
           const newImageSelection: ImageSelection = {
             mode: 'new',
-            file: new File([], 'uploaded.jpg'),
-            gpsData: { latitude: data.latitude, longitude: data.longitude },
-            captureDate: data.captureDate || null,
-            width: 1200,
-            height: 1200,
-            naturalWidth: 1200,
-            naturalHeight: 1200,
-            uploadedBucket: data.imageBucket || 'route-uploads',
-            uploadedPath: derivedPath,
-            uploadedUrl: data.imageUrl
+            images: [
+              {
+                uploadedBucket: data.imageBucket || 'route-uploads',
+                uploadedPath: derivedPath,
+                uploadedUrl: data.imageUrl,
+                gpsData: { latitude: data.latitude, longitude: data.longitude },
+                captureDate: data.captureDate || null,
+                width: 1200,
+                height: 1200,
+                naturalWidth: 1200,
+                naturalHeight: 1200,
+              }
+            ],
+            primaryIndex: 0,
           }
 
           const gps = { latitude: data.latitude, longitude: data.longitude }
@@ -443,7 +438,7 @@ function SubmitPageContent() {
   }, [])
 
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
-    const selectionGps = selection.mode === 'new' ? selection.gpsData : null
+    const selectionGps = selection.mode === 'new' ? (selection.images[selection.primaryIndex]?.gpsData || null) : null
     const resolvedGps = gpsData || selectionGps
     const gps = resolvedGps ? { latitude: resolvedGps.latitude, longitude: resolvedGps.longitude } : null
     latestFaceDirectionsRef.current = []
@@ -605,16 +600,12 @@ function SubmitPageContent() {
       const payload = imageToSubmit.mode === 'new'
         ? {
             mode: 'new' as const,
-            imageBucket: imageToSubmit.uploadedBucket,
-            imagePath: imageToSubmit.uploadedPath,
-            imageLat: resolvedImageGps?.latitude ?? null,
-            imageLng: resolvedImageGps?.longitude ?? null,
+            images: imageToSubmit.images.map((image, index) => ({
+              ...image,
+              gpsData: index === imageToSubmit.primaryIndex ? (resolvedImageGps || image.gpsData) : image.gpsData,
+            })),
+            primaryIndex: imageToSubmit.primaryIndex,
             faceDirections: faceDirectionsToSubmit,
-            captureDate: imageToSubmit.captureDate,
-            width: imageToSubmit.width,
-            height: imageToSubmit.height,
-            naturalWidth: imageToSubmit.naturalWidth,
-            naturalHeight: imageToSubmit.naturalHeight,
             cragId: cragIdToSubmit,
             routes: routesToSubmit,
           }
@@ -705,33 +696,32 @@ function SubmitPageContent() {
 
     if (resumableDraftEntry.image.mode === 'new') {
       try {
-        const searchParams = new URLSearchParams({
-          bucket: resumableDraftEntry.image.uploadedBucket,
-          path: resumableDraftEntry.image.uploadedPath,
+        const restoredImages = [...resumableDraftEntry.image.images]
+        const signedUrlJobs = restoredImages.map(async (draftImage) => {
+          const searchParams = new URLSearchParams({
+            bucket: draftImage.uploadedBucket,
+            path: draftImage.uploadedPath,
+          })
+
+          const signedUrlResponse = await fetch(`/api/uploads/signed-url?${searchParams.toString()}`)
+          if (!signedUrlResponse.ok) {
+            throw new Error('Unable to restore photo preview')
+          }
+
+          const signedData = await signedUrlResponse.json() as { signedUrl?: string }
+          if (!signedData.signedUrl) {
+            throw new Error('Unable to restore photo preview')
+          }
+
+          return { ...draftImage, uploadedUrl: signedData.signedUrl }
         })
 
-        const signedUrlResponse = await fetch(`/api/uploads/signed-url?${searchParams.toString()}`)
-        if (!signedUrlResponse.ok) {
-          throw new Error('Unable to restore photo preview')
-        }
-
-        const signedData = await signedUrlResponse.json() as { signedUrl?: string }
-        if (!signedData.signedUrl) {
-          throw new Error('Unable to restore photo preview')
-        }
+        const signedImages = await Promise.all(signedUrlJobs)
 
         image = {
           mode: 'new',
-          file: new File([], 'draft-upload.jpg', { type: 'image/jpeg' }),
-          gpsData: resumableDraftEntry.image.gpsData,
-          captureDate: resumableDraftEntry.image.captureDate,
-          width: resumableDraftEntry.image.width,
-          height: resumableDraftEntry.image.height,
-          naturalWidth: resumableDraftEntry.image.naturalWidth,
-          naturalHeight: resumableDraftEntry.image.naturalHeight,
-          uploadedBucket: resumableDraftEntry.image.uploadedBucket,
-          uploadedPath: resumableDraftEntry.image.uploadedPath,
-          uploadedUrl: signedData.signedUrl,
+          images: signedImages,
+          primaryIndex: resumableDraftEntry.image.primaryIndex,
         }
       } catch {
         setError('We could not restore this draft image. Please re-upload the photo to continue.')

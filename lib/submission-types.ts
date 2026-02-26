@@ -105,16 +105,20 @@ export interface ExistingImageSelection {
 
 export interface NewImageSelection {
   mode: 'new'
-  file: File
+  images: NewUploadedImage[]
+  primaryIndex: number
+}
+
+export interface NewUploadedImage {
+  uploadedBucket: string
+  uploadedPath: string
+  uploadedUrl: string
   gpsData: GpsData | null
   captureDate: string | null
   width: number
   height: number
   naturalWidth: number
   naturalHeight: number
-  uploadedBucket: string
-  uploadedPath: string
-  uploadedUrl: string
 }
 
 export interface CragImageSelection {

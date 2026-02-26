@@ -162,7 +162,11 @@ export default function RouteCanvas({
     return formatGradeForDisplay(grade, system)
   }, [getGradeSystemForRoute])
 
-  const imageUrl = imageSelection.mode === 'existing' ? imageSelection.imageUrl : imageSelection.uploadedUrl
+  const imageUrl = imageSelection.mode === 'existing'
+    ? imageSelection.imageUrl
+    : imageSelection.mode === 'new'
+      ? imageSelection.images[imageSelection.primaryIndex]?.uploadedUrl || ''
+      : imageSelection.imageUrl
 
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)

@@ -1053,16 +1053,20 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
 
       const result: NewImageSelection = {
         mode: 'new',
-        file: fileToUpload,
-        gpsData: finalGps,
-        captureDate: null,
-        width: dimensions.width,
-        height: dimensions.height,
-        naturalWidth: dimensions.width,
-        naturalHeight: dimensions.height,
-        uploadedBucket: ROUTE_UPLOADS_BUCKET,
-        uploadedPath: data.path,
-        uploadedUrl: signedData.signedUrl,
+        images: [
+          {
+            uploadedBucket: ROUTE_UPLOADS_BUCKET,
+            uploadedPath: data.path,
+            uploadedUrl: signedData.signedUrl,
+            gpsData: finalGps,
+            captureDate: null,
+            width: dimensions.width,
+            height: dimensions.height,
+            naturalWidth: dimensions.width,
+            naturalHeight: dimensions.height,
+          }
+        ],
+        primaryIndex: 0,
       }
 
       onUploading(false, 100, '')

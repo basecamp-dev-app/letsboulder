@@ -5,7 +5,7 @@ import type { ImageSelection, NewImageSelection, GpsData } from '@/lib/submissio
 import dynamic from 'next/dynamic'
 import { Skeleton } from '@/components/ui/skeleton'
 
-const ImageUploader = dynamic(() => import('./ImageUploader'), {
+const MultiImageUploader = dynamic(() => import('./MultiImageUploader'), {
   ssr: false,
   loading: () => (
     <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center space-y-4">
@@ -31,7 +31,8 @@ export default function ImagePicker({ onSelect }: ImagePickerProps) {
     setUploading(false)
     setProgress(0)
     setCurrentStep('')
-    onSelect(result, result.gpsData || null)
+    const primaryImage = result.images[result.primaryIndex]
+    onSelect(result, primaryImage?.gpsData || null)
   }
 
   const handleUploadError = (err: string) => {
@@ -53,7 +54,7 @@ export default function ImagePicker({ onSelect }: ImagePickerProps) {
         </div>
       )}
 
-      <ImageUploader
+      <MultiImageUploader
         onComplete={handleUploadComplete}
         onError={handleUploadError}
         onUploading={handleUploadState}
