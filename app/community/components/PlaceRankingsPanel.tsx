@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
@@ -170,7 +171,7 @@ export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
             >
               <span className="w-7 shrink-0 text-sm font-semibold text-gray-600 dark:text-gray-300">#{entry.rank}</span>
               {entry.avatar_url ? (
-                <img src={entry.avatar_url} alt={entry.username} className="h-8 w-8 rounded-full object-cover" />
+                <Image src={entry.avatar_url} alt={entry.username} width={32} height={32} unoptimized className="h-8 w-8 rounded-full object-cover" />
               ) : (
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-200">
                   {entry.username.slice(0, 2).toUpperCase()}

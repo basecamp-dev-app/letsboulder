@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getServerClient } from '@/lib/supabase-server'
@@ -265,7 +266,14 @@ export default async function CommunityPlacePage({ params, searchParams }: { par
               <p className="text-xs text-gray-500 dark:text-gray-400">{gymMarkers.length} active routes</p>
             </div>
             <div className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
-              <img src={gymFloorPlan.image_url} alt={gymFloorPlan.name} className="block w-full" />
+              <Image
+                src={gymFloorPlan.image_url}
+                alt={gymFloorPlan.name}
+                width={1600}
+                height={1200}
+                unoptimized
+                className="block w-full h-auto"
+              />
               {gymMarkers.map(marker => (
                 <div
                   key={marker.id}

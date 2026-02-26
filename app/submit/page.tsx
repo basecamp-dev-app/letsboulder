@@ -213,7 +213,7 @@ function SubmitPageContent() {
     routes: [],
     routeType: null
   })
-  const [error, setError] = useState<string | null>(null)
+  const [, setError] = useState<string | null>(null)
   const [resumableDraftRouteCount, setResumableDraftRouteCount] = useState(0)
   const [resumableDraftEntry, setResumableDraftEntry] = useState<RouteDraftIndexEntry | null>(null)
   const [isResumingDraft, setIsResumingDraft] = useState(false)
@@ -227,6 +227,12 @@ function SubmitPageContent() {
     timeoutId: number | null
   }>({ client: null, channel: null, timeoutId: null })
   const hasShownRejectionToastRef = useRef(false)
+  const submitRoutesRef = useRef<((routeType?: ClimbType) => Promise<void>) | null>(null)
+  const routesLengthRef = useRef(0)
+  const isSubmittingRef = useRef(false)
+
+  routesLengthRef.current = routes.length
+  isSubmittingRef.current = isSubmitting
 
   const stopModerationRealtime = useCallback(() => {
     if (moderationRealtimeRef.current.timeoutId) {
@@ -328,7 +334,7 @@ function SubmitPageContent() {
             step: 'faceDirection',
             imageGps: gps
           })
-        } catch (e) {
+        } catch {
           sessionStorage.removeItem('pendingUpload')
         }
       }
@@ -390,17 +396,17 @@ function SubmitPageContent() {
       imageGps: resolvedImageGps,
       faceDirections: context.faceDirections,
     })
-  }, [step.step, activeDraftKey, context.image, context.crag, context.imageGps, context.faceDirections, context.routes.length])
+  }, [step.step, activeDraftKey, context, context.routes.length])
 
   useEffect(() => {
     const handleSubmitRoutes = () => {
-      if (routes.length > 0 && !isSubmitting) {
-        handleSubmit()
+      if (routesLengthRef.current > 0 && !isSubmittingRef.current) {
+        void submitRoutesRef.current?.()
       }
     }
     window.addEventListener('submit-routes', handleSubmitRoutes)
     return () => window.removeEventListener('submit-routes', handleSubmitRoutes)
-  }, [routes.length, isSubmitting])
+  }, [])
 
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
     const selectionGps = selection.mode === 'new' ? selection.gpsData : null
@@ -501,7 +507,7 @@ function SubmitPageContent() {
     }
   }, [step, context])
 
-  const handleSubmit = async (routeType?: ClimbType) => {
+  async function handleSubmit(routeType?: ClimbType) {
     if (isSubmitting) return
     if (!context.crag || !context.image || context.routes.length === 0) {
       setError('Incomplete submission data')
@@ -589,6 +595,8 @@ function SubmitPageContent() {
       setIsSubmitting(false)
     }
   }
+
+  submitRoutesRef.current = handleSubmit
 
   const handleStartOver = () => {
     if (activeDraftKey) {

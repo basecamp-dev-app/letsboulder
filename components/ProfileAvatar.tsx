@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react'
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback } from 'react'
+import NextImage from 'next/image'
 import { createClient } from '@/lib/supabase'
 import { dataURLToBlob } from '@/lib/image-utils'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
@@ -32,8 +33,6 @@ const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(
   initials,
   averageGrade,
   averagePoints,
-  previousGrade,
-  nextGrade,
   previousGradePoints,
   nextGradePoints,
   username,
@@ -230,7 +229,7 @@ const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(
     }
   }
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     if (!uploading) {
       setIsModalOpen(false)
       setFile(null)
@@ -238,7 +237,7 @@ const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(
       setError(null)
       setProgress(0)
     }
-  }
+  }, [uploading])
 
   const closeProfileModal = () => {
     setIsProfileModalOpen(false)
@@ -256,19 +255,6 @@ const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(
     const usernameRegex = /^[A-Za-z0-9._-]+$/
     if (!usernameRegex.test(trimmed)) return 'Username can only contain letters, numbers, underscores, periods, and hyphens'
     return null
-  }
-
-  const generateSuggestions = (): string[] => {
-    const suggestions: string[] = []
-    if (editFirstName || editLastName) {
-      const base = `${editFirstName || ''}.${editLastName || ''}`.toLowerCase().replace(/\.+/g, '.').replace(/^\.|\.$/g, '')
-      suggestions.push(base + Math.floor(Math.random() * 100))
-    }
-    suggestions.push(editUsername + Math.floor(Math.random() * 1000))
-    if (editFirstName) {
-      suggestions.push(editFirstName.toLowerCase() + Math.floor(Math.random() * 1000))
-    }
-    return suggestions.slice(0, 3)
   }
 
   const saveProfile = async () => {
@@ -328,7 +314,7 @@ const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(
       document.removeEventListener('keydown', handleEscape)
       document.body.style.overflow = 'unset'
     }
-  }, [isModalOpen, uploading])
+  }, [isModalOpen, closeModal])
 
   return (
     <>
@@ -373,9 +359,12 @@ const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(
             aria-label="Edit profile picture"
           >
             {avatarUrl ? (
-              <img
+              <NextImage
                 src={avatarUrl}
                 alt="Profile"
+                width={128}
+                height={128}
+                unoptimized
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -416,15 +405,21 @@ const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(
 
             <div className="flex flex-col items-center gap-4 mb-4">
               {preview ? (
-                <img
+                <NextImage
                   src={preview}
                   alt="Preview"
+                  width={128}
+                  height={128}
+                  unoptimized
                   className="w-32 h-32 rounded-full object-cover"
                 />
               ) : avatarUrl ? (
-                <img
+                <NextImage
                   src={avatarUrl}
                   alt="Current avatar"
+                  width={128}
+                  height={128}
+                  unoptimized
                   className="w-32 h-32 rounded-full object-cover"
                 />
               ) : (

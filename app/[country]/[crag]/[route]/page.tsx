@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createServerClient } from '@supabase/ssr'
@@ -215,9 +216,12 @@ export default async function RoutePage({ params }: { params: Promise<RouteParam
               </Link>
             </div>
             <div className="mt-4 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-950">
-              <img
+              <Image
                 src={best.images.url}
                 alt={`${routeName} topo photo`}
+                width={1600}
+                height={1200}
+                unoptimized
                 className="w-full max-h-[60vh] object-contain"
                 loading="lazy"
               />

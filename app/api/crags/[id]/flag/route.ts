@@ -75,7 +75,7 @@ export async function POST(
       return NextResponse.json({ error: 'You have already flagged this crag. It is being reviewed.' }, { status: 400 })
     }
 
-    const { data: flag, error: flagError } = await supabase
+    const { error: flagError } = await supabase
       .from('climb_flags')
       .insert({
         crag_id: cragId,

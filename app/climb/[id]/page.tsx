@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -1061,10 +1062,13 @@ export default function ClimbPage() {
 
       <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4">
         <div className="relative">
-          <img
+          <Image
             ref={imageRef}
             src={image.url}
             alt={displayClimb?.name || 'Climbing routes'}
+            width={1600}
+            height={1200}
+            unoptimized
             className="max-w-full max-h-[60vh] object-contain"
           />
           <canvas

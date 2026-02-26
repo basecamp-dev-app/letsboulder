@@ -22,7 +22,7 @@ interface FlagImageModalProps {
   onSubmitted?: () => void
 }
 
-export default function FlagImageModal({ imageId, imageUrl, onClose, onSubmitted }: FlagImageModalProps) {
+export default function FlagImageModal({ imageId, onClose, onSubmitted }: FlagImageModalProps) {
   useOverlayHistory({ open: true, onClose, id: `flag-image-${imageId}` })
 
   const [step, setStep] = useState<'select' | 'comment'>('select')

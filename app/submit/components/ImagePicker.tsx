@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import type { ImageSelection, NewImageSelection, GpsData } from '@/lib/submission-types'
 import dynamic from 'next/dynamic'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -21,7 +21,7 @@ interface ImagePickerProps {
   showBackButton?: boolean
 }
 
-export default function ImagePicker({ onSelect, showBackButton = false }: ImagePickerProps) {
+export default function ImagePicker({ onSelect }: ImagePickerProps) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [currentStep, setCurrentStep] = useState('')

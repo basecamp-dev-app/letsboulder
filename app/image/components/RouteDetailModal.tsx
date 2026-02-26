@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { HelpCircle, Loader2, X } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
@@ -428,9 +429,12 @@ export default function RouteDetailModal({
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           {t.profile.avatar_url ? (
-                            <img
+                            <Image
                               src={t.profile.avatar_url}
                               alt={t.profile.display_name}
+                              width={36}
+                              height={36}
+                              unoptimized
                               className="w-9 h-9 rounded-full object-cover"
                             />
                           ) : (

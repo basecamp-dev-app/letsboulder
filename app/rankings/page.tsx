@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
@@ -235,9 +236,12 @@ export default function LeaderboardPage() {
                 >
                   <RankBadge rank={entry.rank} />
                   {entry.avatar_url ? (
-                    <img
+                    <Image
                       src={entry.avatar_url}
                       alt={entry.username}
+                      width={36}
+                      height={36}
+                      unoptimized
                       className="w-9 h-9 rounded-full object-cover"
                     />
                   ) : (

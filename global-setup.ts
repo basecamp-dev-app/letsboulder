@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext } from 'playwright'
+import { chromium } from 'playwright'
 import path from 'path'
 import fs from 'fs'
 
@@ -27,7 +27,7 @@ async function globalSetup() {
 
     console.log(`Authenticating via ${authUrl.toString()}`)
 
-    const requestOptions: any = {
+    const requestOptions: { headers: Record<string, string> } = {
       headers: {},
     }
 
