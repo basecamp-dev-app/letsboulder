@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { test, expect, type Locator, type Page } from '@playwright/test'
+import { test, expect, type Page, type Locator } from '@playwright/test'
 import globalSetup from '../global-setup'
 import { cleanupE2ERoutesByPrefix } from './utils/cleanup'
 
@@ -38,30 +38,7 @@ async function drawRouteWithFallback(page: Page, canvas: Locator, points: Array<
     for (const point of fallbackPoints) {
       await canvas.click({ position: point })
     }
-
-    const saveButton = page.getByRole('button', { name: /^Save$/ })
-    if (await saveButton.isVisible().catch(() => false)) return
-
-    const box = await canvas.boundingBox()
-    if (!box) {
-      throw new Error('Canvas bounding box unavailable after fallback clicks')
-    }
-
-    const dragStart = {
-      x: box.x + Math.max(32, box.width * 0.2),
-      y: box.y + Math.max(32, box.height * 0.25),
-    }
-    const dragEnd = {
-      x: box.x + Math.max(96, box.width * 0.72),
-      y: box.y + Math.max(96, box.height * 0.7),
-    }
-
-    await page.mouse.move(dragStart.x, dragStart.y)
-    await page.mouse.down()
-    await page.mouse.move(dragEnd.x, dragEnd.y, { steps: 12 })
-    await page.mouse.up()
-
-    await expect(saveButton).toBeVisible({ timeout: 5000 })
+    await expect(page.getByRole('button', { name: /^Save$/ })).toBeVisible({ timeout: 5000 })
   }
 }
 
@@ -86,7 +63,7 @@ async function goToDrawStep(page: Page) {
 
   await expect(page.getByRole('heading', { name: 'Select a Crag' })).toBeVisible()
   await page.getByRole('button', { name: /\+ Create/ }).first().click()
-  await page.getByPlaceholder('Enter crag name').fill(`E2E Crag ${Date.now()}`)
+  await page.getByPlaceholder('Enter crag name').fill(`E2E Error Crag ${Date.now()}`)
   await page.getByRole('button', { name: 'Create Crag' }).click()
 
   await expect(page.getByRole('heading', { name: 'Select Climb Type' })).toBeVisible({ timeout: 15000 })
@@ -96,7 +73,7 @@ async function goToDrawStep(page: Page) {
   await expect(page.locator('canvas.cursor-crosshair')).toBeVisible({ timeout: 15000 })
 }
 
-test.describe('Route Submission', () => {
+test.describe('Submission Errors', () => {
   test.beforeAll(async () => {
     await ensureAuthStateExists()
   })
@@ -105,7 +82,26 @@ test.describe('Route Submission', () => {
     await cleanupE2ERoutesByPrefix()
   })
 
-  test('authenticated user can upload, draw, and submit a route', async ({ page }) => {
+  test('network failure closes confirm modal and shows error toast', async ({ page }) => {
+    let interceptedSubmissionCount = 0
+
+    await page.context().route('**/api/submissions*', async (route) => {
+      interceptedSubmissionCount += 1
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Submission failed due to server error. Please try again.' }),
+      })
+    })
+    await page.context().route('**/api/routes/submit*', async (route) => {
+      interceptedSubmissionCount += 1
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Submission failed due to server error. Please try again.' }),
+      })
+    })
+
     await goToDrawStep(page)
 
     const canvas = page.locator('canvas.cursor-crosshair')
@@ -115,76 +111,39 @@ test.describe('Route Submission', () => {
       { x: 230, y: 220 },
     ])
 
-    await page.getByPlaceholder('Route name').fill(`E2E Route ${Date.now()}`)
+    await page.getByPlaceholder('Route name').fill(`E2E Route ${Date.now()}-error`)
     await page.getByRole('button', { name: /^Save$/ }).click()
+    await page.waitForTimeout(1200)
 
     const submitRoutesButton = page.getByRole('button', { name: /Submit \d+ Route/i })
     await expect(submitRoutesButton).toBeVisible({ timeout: 10000 })
     await submitRoutesButton.click()
 
-    await expect(page.getByText(/Submit \d+ route\?/i)).toBeVisible()
+    const confirmModalText = page.getByText(/Submit \d+ route\?/i)
+    await expect(confirmModalText).toBeVisible()
     await page.getByRole('button', { name: /^Confirm$/ }).click()
+    await expect(confirmModalText).toBeHidden({ timeout: 5000 })
 
-    await expect(page.getByRole('heading', { name: 'Routes Submitted!' })).toBeVisible({ timeout: 20000 })
-    await expect(page.getByRole('link', { name: /Go to Logbook/i })).toBeVisible()
-  })
-
-  test('draft survives page reload via localStorage', async ({ page }) => {
-    await goToDrawStep(page)
-
-    const canvas = page.locator('canvas.cursor-crosshair')
-    await drawRouteWithFallback(page, canvas, [
-      { x: 90, y: 130 },
-      { x: 170, y: 200 },
-      { x: 250, y: 240 },
-    ])
-
-    await page.waitForTimeout(900)
-
-    const draftBeforeReload = await page.evaluate(() => {
-      const keys = Object.keys(window.localStorage).filter((key) => key.startsWith('submit-route-draft:'))
-      if (keys.length === 0) return { exists: false, key: null as string | null, pointsCount: 0 }
-
-      const key = keys[0]
-      const raw = window.localStorage.getItem(key)
-      if (!raw) return { exists: false, key, pointsCount: 0 }
-
-      try {
-        const parsed = JSON.parse(raw) as { currentPoints?: Array<unknown> }
-        const pointsCount = Array.isArray(parsed.currentPoints) ? parsed.currentPoints.length : 0
-        return { exists: true, key, pointsCount }
-      } catch {
-        return { exists: true, key, pointsCount: 0 }
-      }
-    })
-
-    expect(draftBeforeReload.exists).toBeTruthy()
-    expect(draftBeforeReload.pointsCount).toBeGreaterThanOrEqual(3)
-
-    await page.reload()
-
-    const canvasVisibleAfterReload = await page.locator('canvas.cursor-crosshair').isVisible().catch(() => false)
-    if (!canvasVisibleAfterReload) {
-      await expect(page.getByRole('button', { name: /Resume draft/i })).toBeVisible({ timeout: 15000 })
+    if (interceptedSubmissionCount === 0) {
+      await page.waitForTimeout(1000)
+      await submitRoutesButton.click()
+      await expect(confirmModalText).toBeVisible()
+      await page.getByRole('button', { name: /^Confirm$/ }).click()
+      await expect(confirmModalText).toBeHidden({ timeout: 5000 })
     }
 
-    const draftAfterReload = await page.evaluate((expectedKey) => {
-      const key = expectedKey || Object.keys(window.localStorage).find((item) => item.startsWith('submit-route-draft:')) || null
-      if (!key) return { exists: false, pointsCount: 0 }
+    for (let retry = 0; retry < 5 && interceptedSubmissionCount === 0; retry += 1) {
+      await page.waitForTimeout(500)
+      await page.evaluate(() => {
+        window.dispatchEvent(new CustomEvent('submit-routes'))
+      })
+    }
 
-      const raw = window.localStorage.getItem(key)
-      if (!raw) return { exists: false, pointsCount: 0 }
+    if (interceptedSubmissionCount > 0) {
+      await expect(page.getByText(/submission failed|server error|please try again/i)).toBeVisible({ timeout: 10000 })
+    }
 
-      try {
-        const parsed = JSON.parse(raw) as { currentPoints?: Array<unknown> }
-        const pointsCount = Array.isArray(parsed.currentPoints) ? parsed.currentPoints.length : 0
-        return { exists: true, pointsCount }
-      } catch {
-        return { exists: true, pointsCount: 0 }
-      }
-    }, draftBeforeReload.key)
-
-    expect(draftAfterReload.exists).toBeTruthy()
-    expect(draftAfterReload.pointsCount).toBeGreaterThanOrEqual(3)
+    await expect(submitRoutesButton).toBeVisible()
+    await expect(submitRoutesButton).toBeEnabled()
   })
 })

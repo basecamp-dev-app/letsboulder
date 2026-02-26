@@ -41,6 +41,22 @@ export default defineConfig({
         storageState: path.resolve(__dirname, 'playwright/.auth/user.json'),
       },
     },
+    {
+      name: 'mobile-safari',
+      testIgnore: /.*\.auth\.spec\.ts/,
+      use: {
+        ...devices['iPhone 12'],
+        storageState: path.resolve(__dirname, 'playwright/.auth/user.json'),
+      },
+    },
+    {
+      name: 'mobile-chrome',
+      testIgnore: /.*\.auth\.spec\.ts/,
+      use: {
+        ...devices['Pixel 7'],
+        storageState: path.resolve(__dirname, 'playwright/.auth/user.json'),
+      },
+    },
   ],
   webServer: process.env.CI ? undefined : {
     command: 'npm run dev',

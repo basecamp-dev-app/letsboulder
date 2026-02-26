@@ -39,6 +39,7 @@ interface EditableExistingRoute {
 interface RouteCanvasProps {
   imageSelection: ImageSelection
   onRoutesUpdate: (routes: NewRouteData[]) => void
+  onSubmitRoutes?: () => void
   existingRouteLines?: RouteLine[]
   draftKey?: string
   mode?: 'submit' | 'edit-existing'
@@ -129,6 +130,7 @@ function readDraftState(draftKey?: string): RouteCanvasDraft | null {
 export default function RouteCanvas({
   imageSelection,
   onRoutesUpdate,
+  onSubmitRoutes,
   existingRouteLines,
   draftKey,
   mode = 'submit',
@@ -383,6 +385,7 @@ export default function RouteCanvas({
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
+    const canDrawRoutes = !isEditExistingMode || canCreateRoutesInEditMode
 
     if (e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX
@@ -401,8 +404,13 @@ export default function RouteCanvas({
     if (dragHandleIndex !== null) {
       setDraggingPointIndex(dragHandleIndex)
       e.preventDefault()
+      return
     }
-  }, [canvasReady, getTouchPos, getDragHandleIndex, zoom])
+
+    if (canDrawRoutes && e.touches.length === 1) {
+      e.preventDefault()
+    }
+  }, [canvasReady, getTouchPos, getDragHandleIndex, zoom, isEditExistingMode, canCreateRoutesInEditMode])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
@@ -451,6 +459,7 @@ export default function RouteCanvas({
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
+    const canDrawRoutes = !isEditExistingMode || canCreateRoutesInEditMode
 
     if (e.touches.length === 2 && pinchStartZoom !== null && pinchStartDistance !== null && pinchCenter) {
       const dx = e.touches[0].clientX - e.touches[1].clientX
@@ -472,6 +481,10 @@ export default function RouteCanvas({
       return
     }
 
+    if (canDrawRoutes && e.touches.length === 1) {
+      e.preventDefault()
+    }
+
     if (draggingPointIndex === null || !editableRoute) return
 
     const pos = getTouchPos(e)
@@ -487,7 +500,7 @@ export default function RouteCanvas({
     }
 
     e.preventDefault()
-  }, [canvasReady, draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, pinchStartZoom, pinchStartDistance, pinchCenter, zoom, pan])
+  }, [canvasReady, draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, canCreateRoutesInEditMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, pinchStartZoom, pinchStartDistance, pinchCenter, zoom, pan])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggingPointIndex !== null && editableRoute) {
@@ -1100,6 +1113,10 @@ export default function RouteCanvas({
               <button
                 onClick={() => {
                   setShowSubmitConfirm(false)
+                  if (onSubmitRoutes) {
+                    onSubmitRoutes()
+                    return
+                  }
                   window.dispatchEvent(new CustomEvent('submit-routes'))
                 }}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
