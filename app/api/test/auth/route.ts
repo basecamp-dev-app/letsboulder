@@ -1,30 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
-import jwt from 'jsonwebtoken'
-import { randomUUID } from 'crypto'
+import { createServerClient } from '@supabase/ssr'
 
 export async function GET(request: NextRequest) {
-  const hostname = request.headers.get('x-forwarded-host') || request.headers.get('host')
-  const isDev = hostname?.includes('dev.')
+  const hostname = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
+  const host = hostname.split(':')[0].toLowerCase()
+  const isDev = host.startsWith('dev.')
+  const isLocal = host === 'localhost' || host === '127.0.0.1'
+  const allowAnyHost = process.env.ENABLE_TEST_AUTH_ENDPOINT === 'true'
   
-  if (!isDev) {
+  if (!isDev && !isLocal && !allowAnyHost) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   const apiKey = request.nextUrl.searchParams.get('api_key')
   const userId = request.nextUrl.searchParams.get('user_id')
+  const expectedApiKey = process.env.TEST_API_KEY?.trim()
+  const testUserPassword = process.env.TEST_USER_PASSWORD?.trim()
 
   if (!apiKey || !userId) {
     return NextResponse.json({ error: 'Missing api_key or user_id' }, { status: 400 })
   }
 
-  if (apiKey?.trim() !== process.env.TEST_API_KEY?.trim()) {
+  if (!expectedApiKey) {
+    return NextResponse.json({ error: 'Test auth not configured on server' }, { status: 500 })
+  }
+
+  if (!testUserPassword) {
+    return NextResponse.json({ error: 'TEST_USER_PASSWORD is required on server' }, { status: 500 })
+  }
+
+  if (apiKey.trim() !== expectedApiKey) {
     return NextResponse.json({ error: 'Invalid API key' }, { status: 401 })
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   const serviceRoleKey = process.env.DEV_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-  if (!serviceRoleKey) {
+  if (!anonKey || !serviceRoleKey) {
     return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
   }
 
@@ -49,47 +62,83 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const sessionsResponse = await fetch(
-      `${supabaseUrl}/auth/v1/admin/users/${userId}/sessions`,
+    const updateUserResponse = await fetch(
+      `${supabaseUrl}/auth/v1/admin/users/${userId}`,
       {
-        method: 'GET',
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${serviceRoleKey}`,
           'apikey': serviceRoleKey,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          password: testUserPassword,
+          email_confirm: true,
+        }),
       }
     )
 
-    const sessionsData = await sessionsResponse.json()
+    const updateUserData = await updateUserResponse.json()
 
-    if (!sessionsResponse.ok || !sessionsData.sessions || sessionsData.sessions.length === 0) {
+    if (!updateUserResponse.ok) {
       return NextResponse.json(
-        { error: 'No active session found', details: sessionsData },
+        { error: 'Failed to prepare test user', details: updateUserData },
         { status: 500 }
       )
     }
 
-    const session = sessionsData.sessions[0]
-
-    const accessToken = jwt.sign(
+    const tokenResponse = await fetch(
+      `${supabaseUrl}/auth/v1/token?grant_type=password`,
       {
-        sub: userId,
-        email: userData.email,
-        aud: 'authenticated',
-        role: 'authenticated',
-        iss: `${supabaseUrl}/auth/v1`,
-        session_id: session.id,
-        aal: session.aal,
-        is_anonymous: false,
-        app_metadata: {},
-        user_metadata: {},
-        amr: [],
-      },
-      serviceRoleKey,
-      { expiresIn: '1h' }
+        method: 'POST',
+        headers: {
+          'apikey': anonKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: userData.email,
+          password: testUserPassword,
+        }),
+      }
     )
 
-    const refreshToken = session.refresh_token || randomUUID()
+    const tokenData = await tokenResponse.json()
+
+    if (!tokenResponse.ok || !tokenData.access_token || !tokenData.refresh_token) {
+      return NextResponse.json(
+        { error: 'Failed to create auth session', details: tokenData },
+        { status: 500 }
+      )
+    }
+
+    const cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }> = []
+
+    const supabase = createServerClient(
+      supabaseUrl,
+      anonKey,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(newCookies) {
+            newCookies.forEach((cookie) => cookiesToSet.push(cookie))
+          },
+        },
+      }
+    )
+
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token,
+    })
+
+    if (sessionError) {
+      return NextResponse.json(
+        { error: 'Failed to persist auth session', details: sessionError.message },
+        { status: 500 }
+      )
+    }
 
     const response = NextResponse.json({
       success: true,
@@ -99,23 +148,8 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    const isProd = process.env.NODE_ENV === 'production'
-    const expiresIn = 3600
-
-    response.cookies.set('sb-access-token', accessToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: 'lax',
-      maxAge: expiresIn,
-      path: '/',
-    })
-
-    response.cookies.set('sb-refresh-token', refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7,
-      path: '/',
+    cookiesToSet.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options)
     })
 
     return response

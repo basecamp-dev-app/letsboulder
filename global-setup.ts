@@ -8,10 +8,11 @@ async function globalSetup() {
     : 'http://localhost:3000'
   
   const testApiKey = process.env.TEST_API_KEY?.trim()
-  const testUserId = (process.env.TEST_USER_ID || process.env.TEST_USER_EMAIL)?.trim()
+  const testUserId = process.env.TEST_USER_ID?.trim()
+  const testUserPassword = process.env.TEST_USER_PASSWORD?.trim()
 
-  if (!testApiKey || !testUserId) {
-    console.log('TEST_API_KEY or TEST_USER_ID not set, skipping authentication')
+  if (!testApiKey || !testUserId || !testUserPassword) {
+    console.log('TEST_API_KEY, TEST_USER_ID, and TEST_USER_PASSWORD are required, skipping authentication')
     return
   }
 
