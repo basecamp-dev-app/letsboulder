@@ -529,6 +529,11 @@ export default function ClimbPage() {
   }, [climbId, clearSelection])
 
   useEffect(() => {
+    if (!cragPath) return
+    router.prefetch(cragPath)
+  }, [cragPath, router])
+
+  useEffect(() => {
     const loadUserLogs = async () => {
       if (!user || routeLines.length === 0) {
         setUserLogs({})

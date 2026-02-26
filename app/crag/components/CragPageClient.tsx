@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -43,6 +43,8 @@ interface LeafletIconDefault {
 }
 
 let L: typeof import('leaflet') | null = null
+const CRAG_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000
+const cragImageCache = new Map<string, CachedCragImageData>()
 
 async function setupLeafletIcons() {
   if (typeof window !== 'undefined') {
@@ -84,6 +86,25 @@ interface ImageData {
   route_lines_count: number
   is_verified: boolean
   verification_count: number
+}
+
+interface RouteLineTargetRow {
+  id: string
+  image_id: string
+  climb_id: string
+}
+
+interface ImageRouteTarget {
+  climbId: string
+  routeId: string
+}
+
+interface CachedCragImageData {
+  crag: Crag | null
+  images: ImageData[]
+  cragCenter: [number, number] | null
+  defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
+  cachedAt: number
 }
 
 interface RawRouteLine {
@@ -238,7 +259,9 @@ export default function CragPageClient({
   const [isFlagging, setIsFlagging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [highlightedImageId, setHighlightedImageId] = useState<string | null>(null)
+  const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>({})
   const mapRef = useRef<L.Map | null>(null)
+  const prefetchedPathsRef = useRef(new Set<string>())
 
   const imageCardRefs = useRef(new Map<string, HTMLDivElement>())
 
@@ -247,7 +270,20 @@ export default function CragPageClient({
   }, [])
 
   useEffect(() => {
+    let ignore = false
+
     async function loadCrag() {
+      const cached = cragImageCache.get(id)
+      if (cached && Date.now() - cached.cachedAt <= CRAG_IMAGE_CACHE_TTL_MS) {
+        setCrag(cached.crag)
+        setImages(cached.images)
+        setCragCenter(cached.cragCenter)
+        setDefaultRouteTargetByImageId(cached.defaultRouteTargetByImageId)
+        setLoading(false)
+      } else {
+        setLoading(true)
+      }
+
       setRoutes([])
       setRoutesLoadState('idle')
       const supabase = createClient()
@@ -275,6 +311,7 @@ export default function CragPageClient({
       ] = await Promise.all([cragPromise, imagesPromise])
 
       if (cragError || !cragData) {
+        if (ignore) return
         console.error('Error fetching crag:', cragError)
         setLoading(false)
         return
@@ -307,20 +344,63 @@ export default function CragPageClient({
         }
       })
 
+      const imageIds = formattedImages.map((image) => image.id)
+      const nextDefaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
+
+      if (imageIds.length > 0) {
+        const { data: routeTargetsData, error: routeTargetsError } = await supabase
+          .from('route_lines')
+          .select('id, image_id, climb_id')
+          .in('image_id', imageIds)
+          .order('image_id', { ascending: true })
+          .order('sequence_order', { ascending: true, nullsFirst: false })
+          .order('created_at', { ascending: true })
+
+        if (routeTargetsError) {
+          console.error('Error fetching image route targets:', routeTargetsError)
+        } else {
+          for (const row of (routeTargetsData || []) as RouteLineTargetRow[]) {
+            if (nextDefaultRouteTargetByImageId[row.image_id]) continue
+            nextDefaultRouteTargetByImageId[row.image_id] = {
+              climbId: row.climb_id,
+              routeId: row.id,
+            }
+          }
+        }
+      }
+
+      if (ignore) return
+
       setCrag(cragData)
       setImages(formattedImages)
+      setDefaultRouteTargetByImageId(nextDefaultRouteTargetByImageId)
       const withCoords = formattedImages.filter(
         (img): img is ImageData & { latitude: number; longitude: number } => img.latitude !== null && img.longitude !== null
       )
+      let nextCenter: [number, number] | null = null
       if (withCoords.length > 0) {
-        setCragCenter(getAverageCoordinates(withCoords))
+        nextCenter = getAverageCoordinates(withCoords)
       } else {
-        setCragCenter(cragData.latitude && cragData.longitude ? [cragData.latitude, cragData.longitude] : null)
+        nextCenter = cragData.latitude && cragData.longitude ? [cragData.latitude, cragData.longitude] : null
       }
+
+      setCragCenter(nextCenter)
       setLoading(false)
+
+      cragImageCache.set(id, {
+        crag: cragData,
+        images: formattedImages,
+        cragCenter: nextCenter,
+        defaultRouteTargetByImageId: nextDefaultRouteTargetByImageId,
+        cachedAt: Date.now(),
+      })
     }
 
     loadCrag()
+
+    return () => {
+      ignore = true
+    }
   }, [id, initialCrag])
 
   useEffect(() => {
@@ -553,6 +633,49 @@ export default function CragPageClient({
     }
   }, [])
 
+  const getImageDestination = useCallback((imageId: string) => {
+    const target = defaultRouteTargetByImageId[imageId]
+    if (!target) return `/image/${imageId}`
+
+    const next = new URLSearchParams()
+    next.set('route', target.routeId)
+    return `/climb/${target.climbId}?${next.toString()}`
+  }, [defaultRouteTargetByImageId])
+
+  const prefetchImageDestination = useCallback((imageId: string) => {
+    const destination = getImageDestination(imageId)
+    if (prefetchedPathsRef.current.has(destination)) return
+    prefetchedPathsRef.current.add(destination)
+    router.prefetch(destination)
+  }, [getImageDestination, router])
+
+  const navigateToImageDestination = useCallback((imageId: string) => {
+    router.push(getImageDestination(imageId))
+  }, [getImageDestination, router])
+
+  useEffect(() => {
+    if (orderedImages.length === 0) return
+
+    const idsToPrefetch = orderedImages.slice(0, 8).map((image) => image.id)
+    const runPrefetch = () => {
+      idsToPrefetch.forEach((imageId) => prefetchImageDestination(imageId))
+    }
+
+    let idleId: number | null = null
+    const timeoutId = window.setTimeout(runPrefetch, 700)
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(runPrefetch, { timeout: 1200 })
+    }
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      if (idleId !== null && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId)
+      }
+    }
+  }, [orderedImages, prefetchImageDestination])
+
   if (loading) {
     return <CragPageSkeleton />
   }
@@ -672,8 +795,10 @@ export default function CragPageClient({
               >
                 <div
                   className="w-40 cursor-pointer pt-1"
+                  onMouseEnter={() => prefetchImageDestination(image.id)}
+                  onTouchStart={() => prefetchImageDestination(image.id)}
                   onClick={() => {
-                    router.push(`/image/${image.id}`)
+                    navigateToImageDestination(image.id)
                   }}
                 >
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
@@ -790,8 +915,10 @@ export default function CragPageClient({
                       className={`block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer ring-2 ring-transparent ${
                         highlightedImageId === image.id ? 'ring-blue-400' : ''
                       }`}
+                      onMouseEnter={() => prefetchImageDestination(image.id)}
+                      onTouchStart={() => prefetchImageDestination(image.id)}
                       onClick={() => {
-                        router.push(`/image/${image.id}`)
+                        navigateToImageDestination(image.id)
                       }}
                     >
                       <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
