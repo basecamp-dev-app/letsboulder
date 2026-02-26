@@ -80,14 +80,87 @@ interface PlaceCluster {
 }
 
 function getClusterGridSize(zoom: number): number {
-  if (zoom <= 4) return 6
+  if (zoom <= 3) return 15
+  if (zoom <= 4) return 8
+  if (zoom <= 5) return 5
   if (zoom <= 6) return 3
+  if (zoom <= 7) return 2
   if (zoom <= 8) return 1.2
   if (zoom <= 10) return 0.3
   if (zoom <= 11) return 0.12
   if (zoom <= 12) return 0.05
   if (zoom <= 13) return 0.025
   return 0.012
+}
+
+function getFirstSplitZoom(places: PlacePin[]): number {
+  if (places.length <= 1) return 10
+
+  let minLatDiff = Infinity
+  let minLngDiff = Infinity
+
+  for (let i = 0; i < places.length; i++) {
+    for (let j = i + 1; j < places.length; j++) {
+      const latDiff = Math.abs(places[i].latitude - places[j].latitude)
+      const lngDiff = Math.abs(places[i].longitude - places[j].longitude)
+      minLatDiff = Math.min(minLatDiff, latDiff)
+      minLngDiff = Math.min(minLngDiff, lngDiff)
+    }
+  }
+
+  for (let zoom = 10; zoom <= 18; zoom++) {
+    const gridSize = getClusterGridSize(zoom)
+    if (minLatDiff > gridSize || minLngDiff > gridSize) {
+      return zoom
+    }
+  }
+
+  return 10
+}
+
+function mergeCloseClusters(clusters: PlaceCluster[], minDistance: number): PlaceCluster[] {
+  if (clusters.length === 0) return clusters
+
+  const merged: PlaceCluster[] = []
+  const used = new Set<string>()
+
+  for (let i = 0; i < clusters.length; i++) {
+    if (used.has(clusters[i].id)) continue
+
+    const current = clusters[i]
+    const toMerge: PlaceCluster[] = [current]
+    used.add(current.id)
+
+    for (let j = i + 1; j < clusters.length; j++) {
+      if (used.has(clusters[j].id)) continue
+
+      const other = clusters[j]
+      const latDiff = Math.abs(current.latitude - other.latitude)
+      const lngDiff = Math.abs(current.longitude - other.longitude)
+
+      if (latDiff < minDistance && lngDiff < minDistance) {
+        toMerge.push(other)
+        used.add(other.id)
+      }
+    }
+
+    if (toMerge.length === 1) {
+      merged.push(current)
+    } else {
+      const allPlaces = toMerge.flatMap(c => c.places)
+      const avgLat = allPlaces.reduce((sum, p) => sum + p.latitude, 0) / allPlaces.length
+      const avgLng = allPlaces.reduce((sum, p) => sum + p.longitude, 0) / allPlaces.length
+      merged.push({
+        id: `merged-${current.id}`,
+        latitude: avgLat,
+        longitude: avgLng,
+        places: allPlaces,
+        placeCount: allPlaces.length
+      })
+    }
+  }
+
+  return merged
 }
 
 function isLngWithinBounds(lng: number, bounds: MapBounds): boolean {
@@ -180,7 +253,7 @@ export default function SatelliteClimbingMap() {
 
     if (visiblePins.length === 0) return []
 
-    if (mapZoom >= 12) {
+    if (mapZoom >= 10) {
       return visiblePins.map((pin) => ({
         id: pin.id,
         latitude: pin.latitude,
@@ -202,7 +275,7 @@ export default function SatelliteClimbingMap() {
       buckets.set(bucketKey, bucket)
     }
 
-    return Array.from(buckets.entries()).map(([bucketKey, bucket]) => {
+    let clusters: PlaceCluster[] = Array.from(buckets.entries()).map(([bucketKey, bucket]) => {
       const latitude = bucket.reduce((sum, pin) => sum + pin.latitude, 0) / bucket.length
       const longitude = bucket.reduce((sum, pin) => sum + pin.longitude, 0) / bucket.length
 
@@ -214,6 +287,14 @@ export default function SatelliteClimbingMap() {
         placeCount: bucket.length
       }
     })
+
+    if (mapZoom <= 5) {
+      clusters = mergeCloseClusters(clusters, 2)
+    } else if (mapZoom <= 7) {
+      clusters = mergeCloseClusters(clusters, 1)
+    }
+
+    return clusters
   }, [placePins, mapBounds, mapZoom])
 
   useEffect(() => {
@@ -475,20 +556,9 @@ export default function SatelliteClimbingMap() {
                 position={[place.latitude, place.longitude]}
                 icon={L.divIcon({
                   className: isGym ? 'gym-pin' : 'crag-pin',
-                  html: `<div style="
-                    background: ${isGym ? '#ec4899' : '#3b82f6'};
-                    width: 32px;
-                    height: 32px;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 18px;
-                    border: 2px solid white;
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-                  ">${isGym ? '🏋️' : '⛰️'}</div>`,
-                  iconSize: [32, 32],
-                  iconAnchor: [16, 16]
+                  html: `<div class="place-dot ${isGym ? 'gym-dot' : 'crag-dot'}"></div>`,
+                  iconSize: [20, 20],
+                  iconAnchor: [10, 10]
                 })}
                 zIndexOffset={1000}
                 eventHandlers={{
@@ -514,14 +584,7 @@ export default function SatelliteClimbingMap() {
             )
           }
 
-          const iconSize = cluster.placeCount > 99 ? 44 : cluster.placeCount > 9 ? 38 : 34
-          const cragCount = cluster.places.filter((place) => place.type === 'crag').length
-          const gymCount = cluster.placeCount - cragCount
-          const clusterLabel = gymCount > 0 && cragCount > 0
-            ? `${cragCount} crags + ${gymCount} gyms`
-            : gymCount > 0
-              ? `${gymCount} gyms`
-              : `${cragCount} crags`
+          const firstSplitZoom = getFirstSplitZoom(cluster.places)
 
           return (
             <Marker
@@ -529,23 +592,21 @@ export default function SatelliteClimbingMap() {
               position={[cluster.latitude, cluster.longitude]}
               icon={L.divIcon({
                 className: 'crag-cluster-wrapper',
-                html: `<div class="crag-cluster-pin" style="width:${iconSize}px;height:${iconSize}px;">${cluster.placeCount}</div>`,
-                iconSize: [iconSize, iconSize],
-                iconAnchor: [iconSize / 2, iconSize / 2]
+                html: `<div class="crag-cluster-pin">${cluster.placeCount}</div>`,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18]
               })}
               zIndexOffset={1200}
               eventHandlers={{
                 click: () => {
                   if (!mapRef.current) return
-                  const nextZoom = Math.min(mapRef.current.getZoom() + 2, 19)
-                  mapRef.current.setView([cluster.latitude, cluster.longitude], nextZoom)
+                  mapRef.current.setView([cluster.latitude, cluster.longitude], firstSplitZoom, {
+                    animate: true,
+                    duration: 0.5
+                  })
                 }
               }}
-            >
-              <Tooltip direction="center" opacity={1}>
-                <span className="font-semibold">{clusterLabel}</span>
-              </Tooltip>
-            </Marker>
+            />
           )
         })}
       </MapContainer>
