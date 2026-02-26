@@ -37,7 +37,19 @@ interface DraftImageSelectionSnapshotNew {
   naturalHeight: number
 }
 
-type DraftImageSelectionSnapshot = DraftImageSelectionSnapshotExisting | DraftImageSelectionSnapshotNew
+interface DraftImageSelectionSnapshotCragImage {
+  mode: 'crag-image'
+  cragImageId: string
+  imageUrl: string
+  linkedImageId: string | null
+  width: number | null
+  height: number | null
+}
+
+type DraftImageSelectionSnapshot =
+  | DraftImageSelectionSnapshotExisting
+  | DraftImageSelectionSnapshotNew
+  | DraftImageSelectionSnapshotCragImage
 
 interface RouteDraftIndexEntry {
   draftKey: string
@@ -125,6 +137,17 @@ function toImageSnapshot(image: ImageSelection): DraftImageSelectionSnapshot {
     }
   }
 
+  if (image.mode === 'crag-image') {
+    return {
+      mode: 'crag-image',
+      cragImageId: image.cragImageId,
+      imageUrl: image.imageUrl,
+      linkedImageId: image.linkedImageId,
+      width: image.width,
+      height: image.height,
+    }
+  }
+
   return {
     mode: 'new',
     uploadedBucket: image.uploadedBucket,
@@ -168,6 +191,10 @@ function getRouteDraftKey(context: SubmissionContext): string | null {
     return `${ROUTE_DRAFT_PREFIX}new:${context.image.uploadedBucket}:${context.image.uploadedPath}:${context.crag.id}`
   }
 
+  if (context.image.mode === 'crag-image') {
+    return `${ROUTE_DRAFT_PREFIX}crag-image:${context.image.cragImageId}:${context.crag.id}`
+  }
+
   return `${ROUTE_DRAFT_PREFIX}existing:${context.image.imageId}:${context.crag.id}`
 }
 
@@ -177,6 +204,10 @@ function getRouteDraftKeyFromImageAndCrag(image: ImageSelection | null, cragId: 
   if (image.mode === 'new') {
     if (!image.uploadedBucket || !image.uploadedPath) return null
     return `${ROUTE_DRAFT_PREFIX}new:${image.uploadedBucket}:${image.uploadedPath}:${cragId}`
+  }
+
+  if (image.mode === 'crag-image') {
+    return `${ROUTE_DRAFT_PREFIX}crag-image:${image.cragImageId}:${cragId}`
   }
 
   return `${ROUTE_DRAFT_PREFIX}existing:${image.imageId}:${cragId}`
@@ -199,6 +230,7 @@ const ImagePicker = dynamic(() => import('./components/ImagePicker'), { ssr: fal
 const RouteCanvas = dynamic(() => import('./components/RouteCanvas'), { ssr: false })
 const LocationPicker = dynamic(() => import('./components/LocationPicker'), { ssr: false })
 const FaceDirectionPicker = dynamic(() => import('./components/FaceDirectionPicker'), { ssr: false })
+const CragImageCanvasPicker = dynamic(() => import('./components/CragImageCanvasPicker'), { ssr: false })
 
 function SubmitPageContent() {
   const { routes, setRoutes, setIsSubmitting, isSubmitting } = useSubmitContext()
@@ -458,6 +490,27 @@ function SubmitPageContent() {
     })
   }, [context.imageGps, context.image])
 
+  const handleCragImageCanvasSelect = useCallback((selection: ImageSelection, crag: Crag) => {
+    const draftKey = getRouteDraftKeyFromImageAndCrag(selection, crag.id)
+
+    setContext((prev) => ({
+      ...prev,
+      image: selection,
+      imageGps: null,
+      faceDirections: [],
+      crag: { id: crag.id, name: crag.name, latitude: crag.latitude, longitude: crag.longitude },
+    }))
+
+    setStep({
+      step: 'climbType',
+      imageGps: null,
+      cragId: crag.id,
+      cragName: crag.name,
+      image: selection,
+      draftKey: draftKey || undefined,
+    })
+  }, [])
+
   const handleClimbTypeSelect = useCallback((routeType: ClimbType) => {
     if (isSubmitting) return
     setSelectedRouteType(routeType)
@@ -488,6 +541,9 @@ function SubmitPageContent() {
       case 'location':
         setStep({ step: 'image' })
         break
+      case 'cragImage':
+        setStep({ step: 'image' })
+        break
       case 'faceDirection':
         setStep({ step: 'location', imageGps: context.imageGps })
         break
@@ -503,6 +559,10 @@ function SubmitPageContent() {
         })
         break
       case 'climbType':
+        if (context.image?.mode === 'crag-image') {
+          setStep({ step: 'cragImage' })
+          break
+        }
         setStep({
           step: 'crag',
           imageGps: context.imageGps,
@@ -542,25 +602,33 @@ function SubmitPageContent() {
 
       const resolvedImageGps = resolveImageGps({ ...context, image: imageToSubmit })
 
-      const payload = imageToSubmit.mode === 'new' ? {
-        mode: 'new' as const,
-        imageBucket: imageToSubmit.uploadedBucket,
-        imagePath: imageToSubmit.uploadedPath,
-        imageLat: resolvedImageGps?.latitude ?? null,
-        imageLng: resolvedImageGps?.longitude ?? null,
-        faceDirections: faceDirectionsToSubmit,
-        captureDate: imageToSubmit.captureDate,
-        width: imageToSubmit.width,
-        height: imageToSubmit.height,
-        naturalWidth: imageToSubmit.naturalWidth,
-        naturalHeight: imageToSubmit.naturalHeight,
-        cragId: cragIdToSubmit,
-        routes: routesToSubmit
-      } : {
-        mode: 'existing' as const,
-        imageId: imageToSubmit.imageId,
-        routes: routesToSubmit
-      }
+      const payload = imageToSubmit.mode === 'new'
+        ? {
+            mode: 'new' as const,
+            imageBucket: imageToSubmit.uploadedBucket,
+            imagePath: imageToSubmit.uploadedPath,
+            imageLat: resolvedImageGps?.latitude ?? null,
+            imageLng: resolvedImageGps?.longitude ?? null,
+            faceDirections: faceDirectionsToSubmit,
+            captureDate: imageToSubmit.captureDate,
+            width: imageToSubmit.width,
+            height: imageToSubmit.height,
+            naturalWidth: imageToSubmit.naturalWidth,
+            naturalHeight: imageToSubmit.naturalHeight,
+            cragId: cragIdToSubmit,
+            routes: routesToSubmit,
+          }
+        : imageToSubmit.mode === 'crag-image'
+          ? {
+              mode: 'crag_image' as const,
+              cragImageId: imageToSubmit.cragImageId,
+              routes: routesToSubmit,
+            }
+          : {
+              mode: 'existing' as const,
+              imageId: imageToSubmit.imageId,
+              routes: routesToSubmit,
+            }
 
       if (imageToSubmit.mode === 'new' && !payload.cragId) {
         setError('Please select a crag before submitting')
@@ -670,11 +738,20 @@ function SubmitPageContent() {
         setIsResumingDraft(false)
         return
       }
-    } else {
+    } else if (resumableDraftEntry.image.mode === 'existing') {
       image = {
         mode: 'existing',
         imageId: resumableDraftEntry.image.imageId,
         imageUrl: resumableDraftEntry.image.imageUrl,
+      }
+    } else {
+      image = {
+        mode: 'crag-image',
+        cragImageId: resumableDraftEntry.image.cragImageId,
+        imageUrl: resumableDraftEntry.image.imageUrl,
+        linkedImageId: resumableDraftEntry.image.linkedImageId,
+        width: resumableDraftEntry.image.width,
+        height: resumableDraftEntry.image.height,
       }
     }
 
@@ -741,6 +818,31 @@ function SubmitPageContent() {
             <ImagePicker
               onSelect={(selection, gpsData) => handleImageSelect(selection, gpsData)}
               showBackButton={false}
+            />
+            <button
+              onClick={() => setStep({ step: 'cragImage' })}
+              className="mt-4 w-full rounded-lg border border-gray-300 bg-white py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              Use an uploaded crag image instead
+            </button>
+          </div>
+        )
+
+      case 'cragImage':
+        return (
+          <div className="max-w-md mx-auto">
+            <button
+              onClick={handleBack}
+              className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-4 flex items-center gap-1"
+            >
+              ← Back to image options
+            </button>
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Choose Crag Image Canvas</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Select a crag and pick any uploaded crag image to draw new routes on it.
+            </p>
+            <CragImageCanvasPicker
+              onSelect={(selection, crag) => handleCragImageCanvasSelect(selection, crag)}
             />
           </div>
         )

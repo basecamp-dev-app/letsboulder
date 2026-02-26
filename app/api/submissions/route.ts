@@ -48,6 +48,13 @@ interface ExistingImageSubmission {
   routeType?: (typeof VALID_ROUTE_TYPES)[number]
 }
 
+interface CragImageSubmission {
+  mode: 'crag_image'
+  cragImageId: string
+  routes: NewRouteData[]
+  routeType?: (typeof VALID_ROUTE_TYPES)[number]
+}
+
 interface NewRouteData {
   id: string
   name: string
@@ -83,7 +90,20 @@ interface AtomicSubmissionRouteResult {
   grade: string
 }
 
-type SubmissionRequest = NewImageSubmission | ExistingImageSubmission
+type SubmissionRequest = NewImageSubmission | ExistingImageSubmission | CragImageSubmission
+
+function parsePrivateStorageUrl(url: string): { bucket: string; path: string } | null {
+  if (!url.startsWith('private://')) return null
+  const withoutScheme = url.slice('private://'.length)
+  const slashIndex = withoutScheme.indexOf('/')
+  if (slashIndex <= 0) return null
+
+  const bucket = withoutScheme.slice(0, slashIndex)
+  const path = withoutScheme.slice(slashIndex + 1)
+  if (!bucket || !path) return null
+
+  return { bucket, path }
+}
 
 function normalizeRouteType(value: unknown): (typeof VALID_ROUTE_TYPES)[number] | null {
   if (typeof value !== 'string') return null
@@ -450,7 +470,7 @@ export async function POST(request: NextRequest) {
           { imageId: image.id }
         )
       }
-    } else {
+    } else if (body.mode === 'existing') {
       if (!body.imageId) {
         response = NextResponse.json({ error: 'Image ID is required' }, { status: 400 })
         return response
@@ -470,6 +490,90 @@ export async function POST(request: NextRequest) {
       imageId = existingImage.id
       imageUrl = existingImage.url
       existingCragId = existingImage.crag_id
+    } else {
+      if (!body.cragImageId) {
+        response = NextResponse.json({ error: 'Crag image ID is required' }, { status: 400 })
+        return response
+      }
+
+      const { data: cragImage, error: cragImageError } = await supabase
+        .from('crag_images')
+        .select('id, url, crag_id, width, height, linked_image_id')
+        .eq('id', body.cragImageId)
+        .single()
+
+      if (cragImageError || !cragImage) {
+        response = NextResponse.json({ error: 'Crag image not found' }, { status: 404 })
+        return response
+      }
+
+      existingCragId = cragImage.crag_id
+      imageUrl = cragImage.url
+
+      if (!existingCragId) {
+        response = NextResponse.json({ error: 'Crag image is not attached to a crag' }, { status: 400 })
+        return response
+      }
+
+      let resolvedImageId = cragImage.linked_image_id
+
+      if (!resolvedImageId) {
+        const parsedStorage = parsePrivateStorageUrl(cragImage.url)
+        const insertPayload: Record<string, unknown> = {
+          url: cragImage.url,
+          crag_id: existingCragId,
+          width: cragImage.width,
+          height: cragImage.height,
+          natural_width: cragImage.width,
+          natural_height: cragImage.height,
+          created_by: user.id,
+          latitude: null,
+          longitude: null,
+          capture_date: null,
+        }
+
+        if (parsedStorage) {
+          insertPayload.storage_bucket = parsedStorage.bucket
+          insertPayload.storage_path = parsedStorage.path
+        }
+
+        const imageClient = supabaseAdmin || supabase
+        const { data: createdImage, error: createImageError } = await imageClient
+          .from('images')
+          .insert(insertPayload)
+          .select('id')
+          .single()
+
+        if (createImageError || !createdImage) {
+          return createErrorResponse(createImageError || new Error('Failed to create linked image'), 'Error creating linked image')
+        }
+
+        resolvedImageId = createdImage.id
+
+        const { data: linkResult } = await supabase
+          .from('crag_images')
+          .update({ linked_image_id: resolvedImageId })
+          .eq('id', cragImage.id)
+          .is('linked_image_id', null)
+          .select('linked_image_id')
+          .maybeSingle()
+
+        if (linkResult?.linked_image_id) {
+          resolvedImageId = linkResult.linked_image_id
+        } else {
+          const { data: latestCragImage } = await supabase
+            .from('crag_images')
+            .select('linked_image_id')
+            .eq('id', cragImage.id)
+            .single()
+
+          if (latestCragImage?.linked_image_id) {
+            resolvedImageId = latestCragImage.linked_image_id
+          }
+        }
+      }
+
+      imageId = resolvedImageId
     }
 
     const cragId = body.mode === 'new' ? body.cragId : existingCragId
@@ -489,7 +593,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await getRegionData(supabase, imageId!)
+    if (!imageId) {
+      response = NextResponse.json({ error: 'Failed to resolve image for submission' }, { status: 500 })
+      return response
+    }
+
+    await getRegionData(supabase, imageId)
 
     for (let index = 0; index < preparedRoutes.length; index += 1) {
       const route = preparedRoutes[index]
@@ -624,8 +733,9 @@ export async function GET() {
     method: 'POST',
     required_fields: {
       common: ['routes (array with name, grade, points, sequenceOrder)'],
-      new_image_mode: ['mode: "new_image"', 'imageUrl', 'imageLat', 'imageLng', 'cragId'],
-      existing_image_mode: ['mode: "existing_image"', 'imageId']
+      new_image_mode: ['mode: "new"', 'imageBucket', 'imagePath', 'imageLat', 'imageLng', 'faceDirections', 'cragId'],
+      existing_image_mode: ['mode: "existing"', 'imageId'],
+      crag_image_mode: ['mode: "crag_image"', 'cragImageId']
     },
     rate_limit: `${MAX_ROUTES_PER_DAY} routes per day`
   })

@@ -16,6 +16,8 @@ interface PreviewImage {
   id: string
   file: File
   objectUrl: string
+  width: number
+  height: number
 }
 
 const DEFAULT_MAX_FILES = 8
@@ -56,6 +58,19 @@ export default function CragMultiImageUploader({
     })
   }
 
+  async function getImageDimensions(objectUrl: string): Promise<{ width: number; height: number }> {
+    return new Promise((resolve) => {
+      const image = new window.Image()
+      image.onload = () => {
+        resolve({ width: image.naturalWidth || 0, height: image.naturalHeight || 0 })
+      }
+      image.onerror = () => {
+        resolve({ width: 0, height: 0 })
+      }
+      image.src = objectUrl
+    })
+  }
+
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0 || remainingSlots === 0) return
     setError(null)
@@ -67,10 +82,14 @@ export default function CragMultiImageUploader({
       if (!file.type.startsWith('image/')) continue
 
       const compressed = await compressImage(file)
+      const objectUrl = URL.createObjectURL(compressed)
+      const dimensions = await getImageDimensions(objectUrl)
       processed.push({
         id: crypto.randomUUID(),
         file: compressed,
-        objectUrl: URL.createObjectURL(compressed),
+        objectUrl,
+        width: dimensions.width,
+        height: dimensions.height,
       })
     }
 
@@ -97,6 +116,8 @@ export default function CragMultiImageUploader({
       const formData = new FormData()
       for (const image of images) {
         formData.append('images', image.file, image.file.name)
+        formData.append('widths', String(image.width || 0))
+        formData.append('heights', String(image.height || 0))
       }
 
       const response = await csrfFetch(`/api/crags/${cragId}/images`, {

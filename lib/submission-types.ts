@@ -94,7 +94,7 @@ export interface NewRouteData {
   climbType?: ClimbType
 }
 
-export type ImageSelectionMode = 'existing' | 'new'
+export type ImageSelectionMode = 'existing' | 'new' | 'crag-image'
 
 export interface ExistingImageSelection {
   mode: 'existing'
@@ -117,6 +117,15 @@ export interface NewImageSelection {
   uploadedUrl: string
 }
 
+export interface CragImageSelection {
+  mode: 'crag-image'
+  cragImageId: string
+  imageUrl: string
+  linkedImageId: string | null
+  width: number | null
+  height: number | null
+}
+
 export interface GpsData {
   latitude: number
   longitude: number
@@ -126,7 +135,7 @@ export const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as c
 
 export type FaceDirection = typeof FACE_DIRECTIONS[number]
 
-export type ImageSelection = ExistingImageSelection | NewImageSelection
+export type ImageSelection = ExistingImageSelection | NewImageSelection | CragImageSelection
 
 export type ClimbType = 'sport' | 'boulder' | 'trad' | 'deep-water-solo'
 
@@ -141,6 +150,7 @@ export interface SubmissionContext {
 
 export type SubmissionStep =
   | { step: 'image' }
+  | { step: 'cragImage' }
   | { step: 'location'; imageGps: { latitude: number; longitude: number } | null }
   | { step: 'faceDirection'; imageGps: { latitude: number; longitude: number } | null }
   | { step: 'crag'; imageGps: { latitude: number; longitude: number } | null; cragId?: string; cragName?: string }

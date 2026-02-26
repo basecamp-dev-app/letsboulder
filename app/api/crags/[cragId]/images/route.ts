@@ -8,6 +8,118 @@ export const runtime = 'nodejs'
 const STORAGE_BUCKET = 'route-uploads'
 const MAX_FILES = 8
 
+interface CragImageRow {
+  id: string
+  url: string
+  width: number | null
+  height: number | null
+  linked_image_id: string | null
+  created_at: string
+}
+
+function parsePrivateStorageUrl(url: string): { bucket: string; path: string } | null {
+  if (!url.startsWith('private://')) return null
+  const withoutScheme = url.slice('private://'.length)
+  const slashIndex = withoutScheme.indexOf('/')
+  if (slashIndex <= 0) return null
+
+  const bucket = withoutScheme.slice(0, slashIndex)
+  const path = withoutScheme.slice(slashIndex + 1)
+  if (!bucket || !path) return null
+  return { bucket, path }
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ cragId: string }> }
+) {
+  const cookies = request.cookies
+  const { cragId } = await params
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookies.getAll() },
+        setAll() {},
+      },
+    }
+  )
+
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseAdmin = serviceRoleKey
+    ? createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serviceRoleKey,
+        { cookies: { getAll() { return [] }, setAll() {} } }
+      )
+    : null
+
+  try {
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    if (!cragId) {
+      return NextResponse.json({ error: 'Crag ID is required' }, { status: 400 })
+    }
+
+    const { data: existingCrag, error: cragError } = await supabase
+      .from('crags')
+      .select('id')
+      .eq('id', cragId)
+      .maybeSingle()
+
+    if (cragError) {
+      return createErrorResponse(cragError, 'Failed to validate crag')
+    }
+
+    if (!existingCrag) {
+      return NextResponse.json({ error: 'Crag not found' }, { status: 404 })
+    }
+
+    const { data, error } = await supabase
+      .from('crag_images')
+      .select('id, url, width, height, linked_image_id, created_at')
+      .eq('crag_id', cragId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    if (error) {
+      return createErrorResponse(error, 'Failed to load crag images')
+    }
+
+    const rows = (data || []) as CragImageRow[]
+    const signingClient = supabaseAdmin || supabase
+    const result: Array<CragImageRow & { signed_url: string | null }> = []
+
+    for (const row of rows) {
+      const parsed = parsePrivateStorageUrl(row.url)
+      if (!parsed) {
+        result.push({ ...row, signed_url: row.url })
+        continue
+      }
+
+      const { data: signedData, error: signedError } = await signingClient.storage
+        .from(parsed.bucket)
+        .createSignedUrl(parsed.path, 3600)
+
+      if (signedError || !signedData?.signedUrl) {
+        result.push({ ...row, signed_url: null })
+        continue
+      }
+
+      result.push({ ...row, signed_url: signedData.signedUrl })
+    }
+
+    return NextResponse.json({ images: result })
+  } catch (error) {
+    return createErrorResponse(error, 'Failed to fetch crag images')
+  }
+}
+
 function getFileExtension(file: File): string {
   if (file.type.startsWith('image/')) {
     const typeExt = file.type.slice('image/'.length).toLowerCase()
@@ -72,6 +184,8 @@ export async function POST(
     const formData = await request.formData()
     const fileValues = formData.getAll('images')
     const files = fileValues.filter((value): value is File => value instanceof File)
+    const widthValues = formData.getAll('widths').map((value) => Number(value))
+    const heightValues = formData.getAll('heights').map((value) => Number(value))
 
     if (files.length === 0) {
       return NextResponse.json({ error: 'At least one image is required' }, { status: 400 })
@@ -114,10 +228,16 @@ export async function POST(
         imageUrls.push(`private://${STORAGE_BUCKET}/${objectPath}`)
       }
 
-      const { data: insertedRows, error: insertError } = await supabase.rpc('insert_pin_images_atomic', {
-        p_crag_id: cragId,
-        p_urls: imageUrls,
+      const insertRows = imageUrls.map((url, index) => {
+        const width = Number.isFinite(widthValues[index]) ? widthValues[index] : null
+        const height = Number.isFinite(heightValues[index]) ? heightValues[index] : null
+        return { crag_id: cragId, url, width, height }
       })
+
+      const { data: insertedRows, error: insertError } = await supabase
+        .from('crag_images')
+        .insert(insertRows)
+        .select('id, url, width, height, linked_image_id, created_at')
 
       if (insertError) {
         throw insertError
