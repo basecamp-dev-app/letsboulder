@@ -1,0 +1,1 @@
+UPDATE "public"."profiles" SET "is_admin" = true;
