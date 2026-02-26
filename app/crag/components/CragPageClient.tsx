@@ -57,7 +57,7 @@ async function setupLeafletIcons() {
   }
 }
 
-interface Crag {
+export interface Crag {
   id: string
   name: string
   slug: string | null
@@ -203,6 +203,7 @@ function haversineMeters(from: [number, number], to: [number, number]) {
 
 interface CragPageClientProps {
   id: string
+  initialCrag?: Crag | null
   canonicalPath?: string
   communityPlaceId?: string | null
   communityPlaceSlug?: string | null
@@ -212,6 +213,7 @@ interface CragPageClientProps {
 
 export default function CragPageClient({
   id,
+  initialCrag = null,
   canonicalPath,
   communityPlaceId,
   communityPlaceSlug,
@@ -219,9 +221,10 @@ export default function CragPageClient({
   initialUpdatePosts = [],
 }: CragPageClientProps) {
   const gradeSystem = useGradeSystem()
-  const [crag, setCrag] = useState<Crag | null>(null)
+  const [crag, setCrag] = useState<Crag | null>(initialCrag)
   const [images, setImages] = useState<ImageData[]>([])
   const [routes, setRoutes] = useState<CragRoute[]>([])
+  const [routesLoadState, setRoutesLoadState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
   const [routeView, setRouteView] = useState<'images' | 'filters' | 'upcoming' | 'updates' | 'rankings'>('images')
   const [minGrade, setMinGrade] = useState<string>('')
   const [maxGrade, setMaxGrade] = useState<string>('')
@@ -243,16 +246,9 @@ export default function CragPageClient({
 
   useEffect(() => {
     async function loadCrag() {
+      setRoutes([])
+      setRoutesLoadState('idle')
       const supabase = createClient()
-
-      const cragPromise = supabase
-        .from('crags')
-        .select(`
-          *,
-          regions:region_id (id, name)
-        `)
-        .eq('id', id)
-        .single()
 
       const imagesPromise = supabase
         .from('images')
@@ -260,47 +256,21 @@ export default function CragPageClient({
         .eq('crag_id', id)
         .order('created_at', { ascending: false })
 
-      const climbsPromise = supabase
-        .from('climbs')
-        .select(`
-          id,
-          name,
-          grade,
-          slug,
-          route_type,
-          route_lines (
-            images (
-              face_direction,
-              face_directions
-            )
-          )
-        `)
-        .eq('crag_id', id)
-        .in('status', ['active', 'approved'])
-
-      const userPromise = supabase.auth.getUser()
-      const adminPromise = (async () => {
-        const { data: { user } } = await userPromise
-        if (!user) return false
-
-        const hasAuthAdmin = user.app_metadata?.gsyrocks_admin === true
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_admin')
-          .eq('id', user.id)
-          .single()
-
-        return hasAuthAdmin || profile?.is_admin === true
-      })()
+      const cragPromise = initialCrag
+        ? Promise.resolve({ data: initialCrag, error: null as null })
+        : supabase
+            .from('crags')
+            .select(`
+              *,
+              regions:region_id (id, name)
+            `)
+            .eq('id', id)
+            .single()
 
       const [
         { data: cragData, error: cragError },
         { data: imagesData, error: imagesError },
-        { data: climbsData, error: climbsError },
-        admin,
-      ] = await Promise.all([cragPromise, imagesPromise, climbsPromise, adminPromise])
-
-      setIsAdmin(admin)
+      ] = await Promise.all([cragPromise, imagesPromise])
 
       if (cragError || !cragData) {
         console.error('Error fetching crag:', cragError)
@@ -310,10 +280,6 @@ export default function CragPageClient({
 
       if (imagesError) {
         console.error('Error fetching images:', imagesError)
-      }
-
-      if (climbsError) {
-        console.error('Error fetching climbs:', climbsError)
       }
 
       const formattedImages: ImageData[] = (imagesData || []).map((img: {
@@ -339,11 +305,8 @@ export default function CragPageClient({
         }
       })
 
-      const formattedRoutes = formatCragRoutes((climbsData || []) as unknown as RawClimb[])
-
       setCrag(cragData)
       setImages(formattedImages)
-      setRoutes(formattedRoutes)
       const withCoords = formattedImages.filter(
         (img): img is ImageData & { latitude: number; longitude: number } => img.latitude !== null && img.longitude !== null
       )
@@ -356,7 +319,83 @@ export default function CragPageClient({
     }
 
     loadCrag()
-  }, [id])
+  }, [id, initialCrag])
+
+  useEffect(() => {
+    let ignore = false
+
+    async function loadAdminStatus() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || ignore) return
+
+      if (user.app_metadata?.gsyrocks_admin === true) {
+        setIsAdmin(true)
+        return
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single()
+
+      if (ignore) return
+      setIsAdmin(profile?.is_admin === true)
+    }
+
+    loadAdminStatus()
+
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (routeView !== 'filters' || routesLoadState !== 'idle') return
+
+    let ignore = false
+
+    async function loadRoutesForFilters() {
+      setRoutesLoadState('loading')
+
+      const supabase = createClient()
+      const { data: climbsData, error: climbsError } = await supabase
+        .from('climbs')
+        .select(`
+          id,
+          name,
+          grade,
+          slug,
+          route_type,
+          route_lines (
+            images (
+              face_direction,
+              face_directions
+            )
+          )
+        `)
+        .eq('crag_id', id)
+        .in('status', ['active', 'approved'])
+
+      if (ignore) return
+
+      if (climbsError) {
+        console.error('Error fetching climbs:', climbsError)
+        setRoutesLoadState('error')
+        return
+      }
+
+      setRoutes(formatCragRoutes((climbsData || []) as unknown as RawClimb[]))
+      setRoutesLoadState('loaded')
+    }
+
+    loadRoutesForFilters()
+
+    return () => {
+      ignore = true
+    }
+  }, [id, routeView, routesLoadState])
 
   useEffect(() => {
     if (!mapRef.current || !cragCenter) return
@@ -924,7 +963,11 @@ export default function CragPageClient({
               </p>
             </div>
 
-            {filteredRoutes.length === 0 ? (
+            {routesLoadState === 'loading' ? (
+              <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Loading route filters...</p>
+            ) : routesLoadState === 'error' ? (
+              <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Route filters are unavailable right now.</p>
+            ) : filteredRoutes.length === 0 ? (
               <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">No routes match this filter combination.</p>
             ) : (
               <>

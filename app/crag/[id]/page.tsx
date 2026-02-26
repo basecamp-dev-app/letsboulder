@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { notFound, permanentRedirect } from 'next/navigation'
 import CragPageClient from '@/app/crag/components/CragPageClient'
+import type { Crag } from '@/app/crag/components/CragPageClient'
 import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
 
 export const revalidate = 300
@@ -113,7 +114,20 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
 
   const { data: crag } = await supabase
     .from('crags')
-    .select('id, slug, country_code')
+    .select(`
+      id,
+      name,
+      slug,
+      country_code,
+      latitude,
+      longitude,
+      region_id,
+      description,
+      access_notes,
+      rock_type,
+      type,
+      regions:region_id (id, name)
+    `)
     .eq('id', id)
     .single()
 
@@ -123,11 +137,17 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
     permanentRedirect(`/${crag.country_code.toLowerCase()}/${crag.slug}`)
   }
 
+  const initialCrag: Crag = {
+    ...crag,
+    regions: Array.isArray(crag.regions) ? crag.regions[0] : crag.regions,
+  }
+
   const communityData = await loadCragCommunityData(supabase, id)
 
   return (
     <CragPageClient
       id={id}
+      initialCrag={initialCrag}
       canonicalPath={`/crag/${id}`}
       communityPlaceId={communityData.placeId}
       communityPlaceSlug={communityData.placeSlug}

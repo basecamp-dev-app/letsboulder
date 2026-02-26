@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
 import { MapPin, Bookmark } from 'lucide-react'
@@ -219,6 +220,7 @@ function MapStateWatcher({
 }
 
 export default function SatelliteClimbingMap() {
+  const router = useRouter()
   const mapRef = useRef<L.Map | null>(null)
   const [isClient, setIsClient] = useState(false)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
@@ -564,16 +566,16 @@ export default function SatelliteClimbingMap() {
                 eventHandlers={{
                   click: () => {
                     if (isGym && place.slug) {
-                      window.location.href = `/community/places/${place.slug}`
+                      router.push(`/community/places/${place.slug}`)
                       return
                     }
 
                     if (place.slug && place.country_code) {
-                      window.location.href = `/${place.country_code.toLowerCase()}/${place.slug}`
+                      router.push(`/${place.country_code.toLowerCase()}/${place.slug}`)
                       return
                     }
 
-                    window.location.href = `/crag/${place.id}`
+                    router.push(`/crag/${place.id}`)
                   },
                 }}
               >
