@@ -94,31 +94,6 @@ function getClusterGridSize(zoom: number): number {
   return 0.012
 }
 
-function getFirstSplitZoom(places: PlacePin[]): number {
-  if (places.length <= 1) return 10
-
-  let minLatDiff = Infinity
-  let minLngDiff = Infinity
-
-  for (let i = 0; i < places.length; i++) {
-    for (let j = i + 1; j < places.length; j++) {
-      const latDiff = Math.abs(places[i].latitude - places[j].latitude)
-      const lngDiff = Math.abs(places[i].longitude - places[j].longitude)
-      minLatDiff = Math.min(minLatDiff, latDiff)
-      minLngDiff = Math.min(minLngDiff, lngDiff)
-    }
-  }
-
-  for (let zoom = 10; zoom <= 18; zoom++) {
-    const gridSize = getClusterGridSize(zoom)
-    if (minLatDiff > gridSize || minLngDiff > gridSize) {
-      return zoom
-    }
-  }
-
-  return 10
-}
-
 function mergeCloseClusters(clusters: PlaceCluster[], minDistance: number): PlaceCluster[] {
   if (clusters.length === 0) return clusters
 
@@ -558,8 +533,6 @@ export default function SatelliteClimbingMap() {
             )
           }
 
-          const firstSplitZoom = getFirstSplitZoom(cluster.places)
-
           return (
             <Marker
               key={cluster.id}
@@ -574,7 +547,9 @@ export default function SatelliteClimbingMap() {
               eventHandlers={{
                 click: () => {
                   if (!mapRef.current) return
-                  mapRef.current.setView([cluster.latitude, cluster.longitude], firstSplitZoom, {
+                  const currentZoom = mapRef.current.getZoom()
+                  const newZoom = Math.min(currentZoom + 2, 15)
+                  mapRef.current.setView([cluster.latitude, cluster.longitude], newZoom, {
                     animate: true,
                     duration: 0.5
                   })
