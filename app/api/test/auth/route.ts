@@ -1,7 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+async function parseJsonSafe(response: Response): Promise<unknown> {
+  const text = await response.text()
+  if (!text) return null
+
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return { raw: text }
+  }
+}
+
 export async function GET(request: NextRequest) {
+  if (process.env.VERCEL_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   const hostname = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
   const host = hostname.split(':')[0].toLowerCase()
   const isDev = host.startsWith('dev.')
@@ -14,11 +29,16 @@ export async function GET(request: NextRequest) {
 
   const apiKey = request.nextUrl.searchParams.get('api_key')
   const userId = request.nextUrl.searchParams.get('user_id')
+  const testAuthHeader = request.headers.get('x-test-auth')
   const expectedApiKey = process.env.TEST_API_KEY?.trim()
   const testUserPassword = process.env.TEST_USER_PASSWORD?.trim()
 
   if (!apiKey || !userId) {
     return NextResponse.json({ error: 'Missing api_key or user_id' }, { status: 400 })
+  }
+
+  if (testAuthHeader !== '1') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   if (!expectedApiKey) {
@@ -53,11 +73,16 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const userData = await userResponse.json()
+    const userData = await parseJsonSafe(userResponse) as { email?: string }
 
     if (!userResponse.ok || !userData.email) {
+      console.error('Test auth user lookup failed', {
+        status: userResponse.status,
+        userId,
+        payload: userData,
+      })
       return NextResponse.json(
-        { error: 'User not found', details: userData },
+        { error: 'User not found' },
         { status: 500 }
       )
     }
@@ -78,11 +103,16 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const updateUserData = await updateUserResponse.json()
+    const updateUserData = await parseJsonSafe(updateUserResponse)
 
     if (!updateUserResponse.ok) {
+      console.error('Test auth user update failed', {
+        status: updateUserResponse.status,
+        userId,
+        payload: updateUserData,
+      })
       return NextResponse.json(
-        { error: 'Failed to prepare test user', details: updateUserData },
+        { error: 'Failed to prepare test user' },
         { status: 500 }
       )
     }
@@ -102,11 +132,16 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const tokenData = await tokenResponse.json()
+    const tokenData = await parseJsonSafe(tokenResponse) as { access_token?: string; refresh_token?: string }
 
     if (!tokenResponse.ok || !tokenData.access_token || !tokenData.refresh_token) {
+      console.error('Test auth token exchange failed', {
+        status: tokenResponse.status,
+        userId,
+        payload: tokenData,
+      })
       return NextResponse.json(
-        { error: 'Failed to create auth session', details: tokenData },
+        { error: 'Failed to create auth session' },
         { status: 500 }
       )
     }
@@ -134,8 +169,12 @@ export async function GET(request: NextRequest) {
     })
 
     if (sessionError) {
+      console.error('Test auth session persist failed', {
+        userId,
+        error: sessionError.message,
+      })
       return NextResponse.json(
-        { error: 'Failed to persist auth session', details: sessionError.message },
+        { error: 'Failed to persist auth session' },
         { status: 500 }
       )
     }

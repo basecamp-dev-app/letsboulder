@@ -16,7 +16,9 @@ async function globalSetup() {
     return
   }
 
-  console.log(`Setting up authenticated session for ${testUserId} against ${baseURL}`)
+  const maskedUserId = `${testUserId.slice(0, 8)}...${testUserId.slice(-4)}`
+
+  console.log(`Setting up authenticated session for ${maskedUserId} against ${baseURL}`)
 
   const browser = await chromium.launch()
   const context = await browser.newContext()
@@ -26,7 +28,7 @@ async function globalSetup() {
     authUrl.searchParams.set('api_key', testApiKey)
     authUrl.searchParams.set('user_id', testUserId)
 
-    console.log(`Authenticating via ${authUrl.toString()}`)
+    console.log(`Authenticating via ${new URL('/api/test/auth', baseURL).toString()}`)
 
     const requestOptions: { headers: Record<string, string> } = {
       headers: {},
@@ -36,6 +38,7 @@ async function globalSetup() {
       requestOptions.headers['CF-Access-Client-Id'] = process.env.CF_ACCESS_CLIENT_ID
       requestOptions.headers['CF-Access-Client-Secret'] = process.env.CF_ACCESS_CLIENT_SECRET
     }
+    requestOptions.headers['x-test-auth'] = '1'
 
     const response = await context.request.get(authUrl.toString(), requestOptions)
     
