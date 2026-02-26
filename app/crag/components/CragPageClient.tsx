@@ -1,10 +1,11 @@
 
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import SessionComposer from '@/app/community/components/SessionComposer'
@@ -42,6 +43,8 @@ interface LeafletIconDefault {
 }
 
 let L: typeof import('leaflet') | null = null
+const CRAG_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000
+const cragImageCache = new Map<string, CachedCragImageData>()
 
 async function setupLeafletIcons() {
   if (typeof window !== 'undefined') {
@@ -57,7 +60,7 @@ async function setupLeafletIcons() {
   }
 }
 
-interface Crag {
+export interface Crag {
   id: string
   name: string
   slug: string | null
@@ -83,6 +86,25 @@ interface ImageData {
   route_lines_count: number
   is_verified: boolean
   verification_count: number
+}
+
+interface RouteLineTargetRow {
+  id: string
+  image_id: string
+  climb_id: string
+}
+
+interface ImageRouteTarget {
+  climbId: string
+  routeId: string
+}
+
+interface CachedCragImageData {
+  crag: Crag | null
+  images: ImageData[]
+  cragCenter: [number, number] | null
+  defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
+  cachedAt: number
 }
 
 interface RawRouteLine {
@@ -203,6 +225,7 @@ function haversineMeters(from: [number, number], to: [number, number]) {
 
 interface CragPageClientProps {
   id: string
+  initialCrag?: Crag | null
   canonicalPath?: string
   communityPlaceId?: string | null
   communityPlaceSlug?: string | null
@@ -212,16 +235,19 @@ interface CragPageClientProps {
 
 export default function CragPageClient({
   id,
+  initialCrag = null,
   canonicalPath,
   communityPlaceId,
   communityPlaceSlug,
   initialSessionPosts = [],
   initialUpdatePosts = [],
 }: CragPageClientProps) {
+  const router = useRouter()
   const gradeSystem = useGradeSystem()
-  const [crag, setCrag] = useState<Crag | null>(null)
+  const [crag, setCrag] = useState<Crag | null>(initialCrag)
   const [images, setImages] = useState<ImageData[]>([])
   const [routes, setRoutes] = useState<CragRoute[]>([])
+  const [routesLoadState, setRoutesLoadState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
   const [routeView, setRouteView] = useState<'images' | 'filters' | 'upcoming' | 'updates' | 'rankings'>('images')
   const [minGrade, setMinGrade] = useState<string>('')
   const [maxGrade, setMaxGrade] = useState<string>('')
@@ -233,7 +259,9 @@ export default function CragPageClient({
   const [isFlagging, setIsFlagging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [highlightedImageId, setHighlightedImageId] = useState<string | null>(null)
+  const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>({})
   const mapRef = useRef<L.Map | null>(null)
+  const prefetchedPathsRef = useRef(new Set<string>())
 
   const imageCardRefs = useRef(new Map<string, HTMLDivElement>())
 
@@ -242,17 +270,23 @@ export default function CragPageClient({
   }, [])
 
   useEffect(() => {
-    async function loadCrag() {
-      const supabase = createClient()
+    let ignore = false
 
-      const cragPromise = supabase
-        .from('crags')
-        .select(`
-          *,
-          regions:region_id (id, name)
-        `)
-        .eq('id', id)
-        .single()
+    async function loadCrag() {
+      const cached = cragImageCache.get(id)
+      if (cached && Date.now() - cached.cachedAt <= CRAG_IMAGE_CACHE_TTL_MS) {
+        setCrag(cached.crag)
+        setImages(cached.images)
+        setCragCenter(cached.cragCenter)
+        setDefaultRouteTargetByImageId(cached.defaultRouteTargetByImageId)
+        setLoading(false)
+      } else {
+        setLoading(true)
+      }
+
+      setRoutes([])
+      setRoutesLoadState('idle')
+      const supabase = createClient()
 
       const imagesPromise = supabase
         .from('images')
@@ -260,49 +294,24 @@ export default function CragPageClient({
         .eq('crag_id', id)
         .order('created_at', { ascending: false })
 
-      const climbsPromise = supabase
-        .from('climbs')
-        .select(`
-          id,
-          name,
-          grade,
-          slug,
-          route_type,
-          route_lines (
-            images (
-              face_direction,
-              face_directions
-            )
-          )
-        `)
-        .eq('crag_id', id)
-        .in('status', ['active', 'approved'])
-
-      const userPromise = supabase.auth.getUser()
-      const adminPromise = (async () => {
-        const { data: { user } } = await userPromise
-        if (!user) return false
-
-        const hasAuthAdmin = user.app_metadata?.gsyrocks_admin === true
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('is_admin')
-          .eq('id', user.id)
-          .single()
-
-        return hasAuthAdmin || profile?.is_admin === true
-      })()
+      const cragPromise = initialCrag
+        ? Promise.resolve({ data: initialCrag, error: null as null })
+        : supabase
+            .from('crags')
+            .select(`
+              *,
+              regions:region_id (id, name)
+            `)
+            .eq('id', id)
+            .single()
 
       const [
         { data: cragData, error: cragError },
         { data: imagesData, error: imagesError },
-        { data: climbsData, error: climbsError },
-        admin,
-      ] = await Promise.all([cragPromise, imagesPromise, climbsPromise, adminPromise])
-
-      setIsAdmin(admin)
+      ] = await Promise.all([cragPromise, imagesPromise])
 
       if (cragError || !cragData) {
+        if (ignore) return
         console.error('Error fetching crag:', cragError)
         setLoading(false)
         return
@@ -310,10 +319,6 @@ export default function CragPageClient({
 
       if (imagesError) {
         console.error('Error fetching images:', imagesError)
-      }
-
-      if (climbsError) {
-        console.error('Error fetching climbs:', climbsError)
       }
 
       const formattedImages: ImageData[] = (imagesData || []).map((img: {
@@ -339,24 +344,140 @@ export default function CragPageClient({
         }
       })
 
-      const formattedRoutes = formatCragRoutes((climbsData || []) as unknown as RawClimb[])
+      const imageIds = formattedImages.map((image) => image.id)
+      const nextDefaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
+
+      if (imageIds.length > 0) {
+        const { data: routeTargetsData, error: routeTargetsError } = await supabase
+          .from('route_lines')
+          .select('id, image_id, climb_id')
+          .in('image_id', imageIds)
+          .order('image_id', { ascending: true })
+          .order('sequence_order', { ascending: true, nullsFirst: false })
+          .order('created_at', { ascending: true })
+
+        if (routeTargetsError) {
+          console.error('Error fetching image route targets:', routeTargetsError)
+        } else {
+          for (const row of (routeTargetsData || []) as RouteLineTargetRow[]) {
+            if (nextDefaultRouteTargetByImageId[row.image_id]) continue
+            nextDefaultRouteTargetByImageId[row.image_id] = {
+              climbId: row.climb_id,
+              routeId: row.id,
+            }
+          }
+        }
+      }
+
+      if (ignore) return
 
       setCrag(cragData)
       setImages(formattedImages)
-      setRoutes(formattedRoutes)
+      setDefaultRouteTargetByImageId(nextDefaultRouteTargetByImageId)
       const withCoords = formattedImages.filter(
         (img): img is ImageData & { latitude: number; longitude: number } => img.latitude !== null && img.longitude !== null
       )
+      let nextCenter: [number, number] | null = null
       if (withCoords.length > 0) {
-        setCragCenter(getAverageCoordinates(withCoords))
+        nextCenter = getAverageCoordinates(withCoords)
       } else {
-        setCragCenter(cragData.latitude && cragData.longitude ? [cragData.latitude, cragData.longitude] : null)
+        nextCenter = cragData.latitude && cragData.longitude ? [cragData.latitude, cragData.longitude] : null
       }
+
+      setCragCenter(nextCenter)
       setLoading(false)
+
+      cragImageCache.set(id, {
+        crag: cragData,
+        images: formattedImages,
+        cragCenter: nextCenter,
+        defaultRouteTargetByImageId: nextDefaultRouteTargetByImageId,
+        cachedAt: Date.now(),
+      })
     }
 
     loadCrag()
-  }, [id])
+
+    return () => {
+      ignore = true
+    }
+  }, [id, initialCrag])
+
+  useEffect(() => {
+    let ignore = false
+
+    async function loadAdminStatus() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || ignore) return
+
+      if (user.app_metadata?.gsyrocks_admin === true) {
+        setIsAdmin(true)
+        return
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .single()
+
+      if (ignore) return
+      setIsAdmin(profile?.is_admin === true)
+    }
+
+    loadAdminStatus()
+
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (routeView !== 'filters' || routesLoadState !== 'idle') return
+
+    let ignore = false
+
+    async function loadRoutesForFilters() {
+      setRoutesLoadState('loading')
+
+      const supabase = createClient()
+      const { data: climbsData, error: climbsError } = await supabase
+        .from('climbs')
+        .select(`
+          id,
+          name,
+          grade,
+          slug,
+          route_type,
+          route_lines (
+            images (
+              face_direction,
+              face_directions
+            )
+          )
+        `)
+        .eq('crag_id', id)
+        .in('status', ['active', 'approved'])
+
+      if (ignore) return
+
+      if (climbsError) {
+        console.error('Error fetching climbs:', climbsError)
+        setRoutesLoadState('error')
+        return
+      }
+
+      setRoutes(formatCragRoutes((climbsData || []) as unknown as RawClimb[]))
+      setRoutesLoadState('loaded')
+    }
+
+    loadRoutesForFilters()
+
+    return () => {
+      ignore = true
+    }
+  }, [id, routeView, routesLoadState])
 
   useEffect(() => {
     if (!mapRef.current || !cragCenter) return
@@ -512,6 +633,49 @@ export default function CragPageClient({
     }
   }, [])
 
+  const getImageDestination = useCallback((imageId: string) => {
+    const target = defaultRouteTargetByImageId[imageId]
+    if (!target) return `/image/${imageId}`
+
+    const next = new URLSearchParams()
+    next.set('route', target.routeId)
+    return `/climb/${target.climbId}?${next.toString()}`
+  }, [defaultRouteTargetByImageId])
+
+  const prefetchImageDestination = useCallback((imageId: string) => {
+    const destination = getImageDestination(imageId)
+    if (prefetchedPathsRef.current.has(destination)) return
+    prefetchedPathsRef.current.add(destination)
+    router.prefetch(destination)
+  }, [getImageDestination, router])
+
+  const navigateToImageDestination = useCallback((imageId: string) => {
+    router.push(getImageDestination(imageId))
+  }, [getImageDestination, router])
+
+  useEffect(() => {
+    if (orderedImages.length === 0) return
+
+    const idsToPrefetch = orderedImages.slice(0, 8).map((image) => image.id)
+    const runPrefetch = () => {
+      idsToPrefetch.forEach((imageId) => prefetchImageDestination(imageId))
+    }
+
+    let idleId: number | null = null
+    const timeoutId = window.setTimeout(runPrefetch, 700)
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(runPrefetch, { timeout: 1200 })
+    }
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      if (idleId !== null && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId)
+      }
+    }
+  }, [orderedImages, prefetchImageDestination])
+
   if (loading) {
     return <CragPageSkeleton />
   }
@@ -631,8 +795,10 @@ export default function CragPageClient({
               >
                 <div
                   className="w-40 cursor-pointer pt-1"
+                  onMouseEnter={() => prefetchImageDestination(image.id)}
+                  onTouchStart={() => prefetchImageDestination(image.id)}
                   onClick={() => {
-                    window.location.href = `/image/${image.id}`
+                    navigateToImageDestination(image.id)
                   }}
                 >
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
@@ -749,8 +915,10 @@ export default function CragPageClient({
                       className={`block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer ring-2 ring-transparent ${
                         highlightedImageId === image.id ? 'ring-blue-400' : ''
                       }`}
+                      onMouseEnter={() => prefetchImageDestination(image.id)}
+                      onTouchStart={() => prefetchImageDestination(image.id)}
                       onClick={() => {
-                        window.location.href = `/image/${image.id}`
+                        navigateToImageDestination(image.id)
                       }}
                     >
                       <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
@@ -924,7 +1092,11 @@ export default function CragPageClient({
               </p>
             </div>
 
-            {filteredRoutes.length === 0 ? (
+            {routesLoadState === 'loading' ? (
+              <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Loading route filters...</p>
+            ) : routesLoadState === 'error' ? (
+              <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Route filters are unavailable right now.</p>
+            ) : filteredRoutes.length === 0 ? (
               <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">No routes match this filter combination.</p>
             ) : (
               <>

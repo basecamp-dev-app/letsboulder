@@ -2,9 +2,13 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
-const CSRF_SECRET = new TextEncoder().encode(
-  process.env.CSRF_SECRET || 'default-csrf-secret-change-in-production'
-)
+const csrfSecretValue = process.env.CSRF_SECRET?.trim()
+
+if (!csrfSecretValue && process.env.NODE_ENV === 'production') {
+  throw new Error('FATAL: CSRF_SECRET missing')
+}
+
+const CSRF_SECRET = new TextEncoder().encode(csrfSecretValue || `dev-csrf-${process.pid}`)
 const CSRF_COOKIE_NAME = 'csrf_token'
 
 export async function generateCsrfToken(): Promise<string> {

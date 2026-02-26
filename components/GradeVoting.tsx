@@ -20,7 +20,6 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
   const [loading, setLoading] = useState(false)
 
   const totalVotes = votes.reduce((sum, v) => sum + v.vote_count, 0)
-  const maxVotes = Math.max(...votes.map(v => v.vote_count), 1)
 
   const handleVote = async (grade: string) => {
     if (loading) return

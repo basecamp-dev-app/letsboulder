@@ -141,7 +141,7 @@ function AuthCallbackContent() {
         }
 
         return false
-      } catch (err) {
+      } catch {
         attemptCountRef.current += 1
         if (attemptCountRef.current < MAX_RETRIES) {
           await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL_MS))
@@ -189,7 +189,6 @@ function AuthCallbackContent() {
         }
 
         setStatus('success')
-        const provider = user?.user_metadata?.provider || 'oauth'
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         router.push(redirectTo)
       } else {
@@ -244,7 +243,7 @@ function AuthCallbackContent() {
         }
 
         return false
-      } catch (err) {
+      } catch {
         attemptCountRef.current += 1
         if (attemptCountRef.current < MAX_RETRIES) {
           await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL_MS))
@@ -289,7 +288,6 @@ function AuthCallbackContent() {
         }
 
         setStatus('success')
-        const provider = user?.user_metadata?.provider || 'oauth'
         const redirectTo = validateRedirect(searchParams.get('redirect_to'))
         router.push(redirectTo)
       } else {

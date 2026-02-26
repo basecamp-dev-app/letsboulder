@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
-import { Share2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { RoutePoint } from '@/lib/useRouteSelection'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { useGradeSystem } from '@/hooks/useGradeSystem'

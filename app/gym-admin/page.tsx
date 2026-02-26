@@ -1,6 +1,7 @@
 'use client'
 
-import { MouseEvent, useEffect, useMemo, useState } from 'react'
+import { MouseEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 import { Loader2, Save } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
 
@@ -65,21 +66,7 @@ export default function GymAdminPage() {
     [gyms, selectedGymId]
   )
 
-  useEffect(() => {
-    loadGyms().catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    if (!selectedGymId) {
-      setActiveFloorPlan(null)
-      setRoutes([])
-      return
-    }
-
-    loadGymConfig(selectedGymId).catch(() => {})
-  }, [selectedGymId])
-
-  async function loadGyms() {
+  const loadGyms = useCallback(async () => {
     setLoadingGyms(true)
     setError(null)
 
@@ -103,7 +90,21 @@ export default function GymAdminPage() {
     } finally {
       setLoadingGyms(false)
     }
-  }
+  }, [selectedGymId])
+
+  useEffect(() => {
+    loadGyms().catch(() => {})
+  }, [loadGyms])
+
+  useEffect(() => {
+    if (!selectedGymId) {
+      setActiveFloorPlan(null)
+      setRoutes([])
+      return
+    }
+
+    loadGymConfig(selectedGymId).catch(() => {})
+  }, [selectedGymId])
 
   async function loadGymConfig(gymId: string) {
     setLoadingConfig(true)
@@ -318,7 +319,14 @@ export default function GymAdminPage() {
                 </div>
                 <div className="relative overflow-hidden rounded-lg border border-gray-800 bg-black">
                   <div className="relative" onClick={handleCanvasClick}>
-                    <img src={activeFloorPlan.image_url} alt={activeFloorPlan.name} className="block w-full select-none" />
+                    <Image
+                      src={activeFloorPlan.image_url}
+                      alt={activeFloorPlan.name}
+                      width={activeFloorPlan.image_width}
+                      height={activeFloorPlan.image_height}
+                      unoptimized
+                      className="block w-full h-auto select-none"
+                    />
                     {routes.map((route, index) => route.marker ? (
                       <button
                         key={route.id}

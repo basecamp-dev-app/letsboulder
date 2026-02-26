@@ -19,10 +19,27 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url)
-    const lat = parseFloat(searchParams.get('lat') || '0')
-    const lng = parseFloat(searchParams.get('lng') || '0')
+    const latParam = searchParams.get('lat')
+    const lngParam = searchParams.get('lng')
 
-    if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+    if (latParam === null || lngParam === null) {
+      return NextResponse.json(
+        { error: 'Valid lat and lng are required' },
+        { status: 400 }
+      )
+    }
+
+    const lat = latParam.trim().length > 0 ? Number(latParam) : Number.NaN
+    const lng = lngParam.trim().length > 0 ? Number(lngParam) : Number.NaN
+
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
       return NextResponse.json(
         { error: 'Valid lat and lng are required' },
         { status: 400 }

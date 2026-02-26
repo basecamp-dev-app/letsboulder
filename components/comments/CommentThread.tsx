@@ -57,6 +57,7 @@ interface CommentThreadProps {
   targetType: TargetType
   targetId: string
   className?: string
+  userId?: string | null
 }
 
 const TARGET_THREAD_CONFIG: Record<TargetType, TargetThreadConfig> = {
@@ -143,7 +144,7 @@ function formatTimestamp(value: string): string {
   })
 }
 
-export default function CommentThread({ targetType, targetId, className }: CommentThreadProps) {
+export default function CommentThread({ targetType, targetId, className, userId }: CommentThreadProps) {
   const [comments, setComments] = useState<CommentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -153,7 +154,7 @@ export default function CommentThread({ targetType, targetId, className }: Comme
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [userId, setUserId] = useState<string | null>(null)
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(userId ?? null)
 
   const threadConfig = TARGET_THREAD_CONFIG[targetType]
   const [category, setCategory] = useState<CommentCategory>(threadConfig.defaultCategory)
@@ -161,7 +162,7 @@ export default function CommentThread({ targetType, targetId, className }: Comme
   const cachedCommentsRef = useRef<Record<string, { comments: CommentItem[]; nextOffset: number | null }>>({})
 
   const hasMore = nextOffset !== null
-  const isSignedIn = !!userId
+  const isSignedIn = !!resolvedUserId
   const authRedirect = useMemo(() => {
     const fallbackPath = targetType === 'image' ? `/image/${targetId}` : targetType === 'crag' ? `/crag/${targetId}` : `/climb/${targetId}`
     return `/auth?redirect_to=${encodeURIComponent(fallbackPath)}`
@@ -243,21 +244,29 @@ export default function CommentThread({ targetType, targetId, className }: Comme
   }, [targetId, threadConfig.defaultCategory])
 
   useEffect(() => {
+    if (userId !== undefined) {
+      setResolvedUserId(userId)
+    }
+  }, [userId])
+
+  useEffect(() => {
+    if (userId !== undefined) return
+
     const supabase = createClient()
 
     void (async () => {
       const { data } = await supabase.auth.getUser()
-      setUserId(data.user?.id || null)
+      setResolvedUserId(data.user?.id || null)
     })()
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user?.id || null)
+      setResolvedUserId(session?.user?.id || null)
     })
 
     return () => {
       listener.subscription.unsubscribe()
     }
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     void fetchComments(0, false)

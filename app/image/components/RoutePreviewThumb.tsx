@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import Image from 'next/image'
 
 import type { RoutePoint } from '@/lib/useRouteSelection'
 
@@ -53,10 +54,13 @@ export default function RoutePreviewThumb({
       }
       aria-label="View route on image"
     >
-      <img
+      <Image
         src={imageUrl}
         alt="Route preview"
-        className="w-full h-full object-cover"
+        fill
+        unoptimized
+        sizes="(max-width: 640px) 96px, (max-width: 768px) 112px, 128px"
+        className="object-cover"
         loading="lazy"
       />
       {canDraw && (

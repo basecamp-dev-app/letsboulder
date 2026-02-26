@@ -4,11 +4,34 @@ import { createErrorResponse } from '@/lib/errors'
 
 export async function POST(request: NextRequest) {
   try {
-    const { latitude, longitude } = await request.json()
+    const body = await request.json()
+    const rawLatitude = body?.latitude
+    const rawLongitude = body?.longitude
 
-    if (!latitude || !longitude) {
+    const latitude =
+      typeof rawLatitude === 'number'
+        ? rawLatitude
+        : typeof rawLatitude === 'string' && rawLatitude.trim().length > 0
+          ? Number(rawLatitude)
+          : Number.NaN
+
+    const longitude =
+      typeof rawLongitude === 'number'
+        ? rawLongitude
+        : typeof rawLongitude === 'string' && rawLongitude.trim().length > 0
+          ? Number(rawLongitude)
+          : Number.NaN
+
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
       return NextResponse.json(
-        { error: 'Missing latitude or longitude' },
+        { error: 'Valid latitude and longitude are required' },
         { status: 400 }
       )
     }

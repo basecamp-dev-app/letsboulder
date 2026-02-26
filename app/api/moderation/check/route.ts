@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { moderateImageFromBytes, moderateImageFromUrl } from '@/lib/image-moderation'
+import { withCsrfProtection } from '@/lib/csrf-server'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -10,6 +11,9 @@ interface CheckRequestBody {
 }
 
 export async function POST(request: NextRequest) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
   const internalSecret = request.headers.get('x-internal-secret')
   if (!internalSecret || internalSecret !== process.env.INTERNAL_MODERATION_SECRET) {
     console.error('Unauthorized moderation check request', {

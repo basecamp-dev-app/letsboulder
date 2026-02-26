@@ -1,5 +1,6 @@
--- Auto-delete empty crags after a grace period.
--- Keeps submit flow safe: users can create a crag first, then upload images.
+-- Auto-delete empty crags immediately when the last image is deleted.
+-- Also deletes crags when images are moved to different crags (leaving old crag empty).
+-- Note: This will cascade delete all climbs associated with the crag.
 
 CREATE OR REPLACE FUNCTION public.delete_empty_crag(
   target_crag_id uuid,
@@ -70,10 +71,10 @@ BEGIN
   END IF;
 
   IF TG_OP = 'UPDATE' THEN
-    IF NEW.crag_id IS DISTINCT FROM OLD.crag_id THEN
+      IF NEW.crag_id IS DISTINCT FROM OLD.crag_id THEN
       PERFORM public.recompute_crag_location(OLD.crag_id);
       PERFORM public.recompute_crag_location(NEW.crag_id);
-      PERFORM public.delete_empty_crag(OLD.crag_id, interval '24 hours');
+      PERFORM public.delete_empty_crag(OLD.crag_id, interval '0 seconds');
       RETURN NEW;
     END IF;
 
@@ -87,7 +88,7 @@ BEGIN
 
   IF TG_OP = 'DELETE' THEN
     PERFORM public.recompute_crag_location(OLD.crag_id);
-    PERFORM public.delete_empty_crag(OLD.crag_id, interval '24 hours');
+    PERFORM public.delete_empty_crag(OLD.crag_id, interval '0 seconds');
     RETURN OLD;
   END IF;
 

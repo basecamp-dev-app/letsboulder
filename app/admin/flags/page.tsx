@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { Loader2, Check, Trash2 } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
 
@@ -142,11 +143,14 @@ export default function AdminFlagsPage() {
             >
               <div className="flex">
                 {flag.image && (
-                  <div className="w-48 h-48 flex-shrink-0">
-                    <img
+                  <div className="relative w-48 h-48 flex-shrink-0">
+                    <Image
                       src={flag.image.url}
                       alt="Flagged content"
-                      className="w-full h-full object-cover"
+                      fill
+                      unoptimized
+                      sizes="192px"
+                      className="object-cover"
                     />
                   </div>
                 )}

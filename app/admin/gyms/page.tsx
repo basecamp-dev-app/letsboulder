@@ -1,6 +1,7 @@
 'use client'
 
-import { ChangeEvent, MouseEvent, useEffect, useMemo, useState } from 'react'
+import { ChangeEvent, MouseEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import NextImage from 'next/image'
 import { Loader2, Plus, Upload, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
@@ -101,11 +102,7 @@ export default function AdminGymsPage() {
     [gyms, selectedGymId]
   )
 
-  useEffect(() => {
-    loadGyms().catch(() => {})
-  }, [])
-
-  async function loadGyms() {
+  const loadGyms = useCallback(async () => {
     setLoadingGyms(true)
     setError(null)
     try {
@@ -117,17 +114,19 @@ export default function AdminGymsPage() {
       }
 
       const payload = await response.json() as { gyms: GymListItem[] }
-      setGyms(payload.gyms || [])
-
-      if (!selectedGymId && payload.gyms.length > 0) {
-        setSelectedGymId(payload.gyms[0].id)
-      }
+      const items = payload.gyms || []
+      setGyms(items)
+      setSelectedGymId(current => current || items[0]?.id || '')
     } catch {
       setError('Failed to load gyms')
     } finally {
       setLoadingGyms(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    loadGyms().catch(() => {})
+  }, [loadGyms])
 
   useEffect(() => {
     if (!selectedGymId) {
@@ -550,7 +549,14 @@ export default function AdminGymsPage() {
                   </div>
                   <div className="relative overflow-hidden rounded-lg border border-gray-800 bg-black">
                     <div className="relative" onClick={handleCanvasClick}>
-                      <img src={activeFloorPlan.image_url} alt={activeFloorPlan.name} className="block w-full select-none" />
+                      <NextImage
+                        src={activeFloorPlan.image_url}
+                        alt={activeFloorPlan.name}
+                        width={activeFloorPlan.image_width}
+                        height={activeFloorPlan.image_height}
+                        unoptimized
+                        className="block w-full h-auto select-none"
+                      />
                       {routes.map((route, index) => route.marker ? (
                         <button
                           key={route.id}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import NextImage from 'next/image'
 import { createClient } from '@/lib/supabase'
 import { dataURLToBlob } from '@/lib/image-utils'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
@@ -196,9 +197,12 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
       >
         <div className="w-28 h-28 rounded-full overflow-hidden transition-opacity group-hover:opacity-90">
           {avatarUrl ? (
-            <img
+            <NextImage
               src={avatarUrl}
               alt="Profile"
+              width={112}
+              height={112}
+              unoptimized
               className="w-full h-full object-cover"
             />
           ) : (
@@ -231,15 +235,21 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
 
             <div className="flex flex-col items-center gap-4 mb-4">
               {preview ? (
-                <img
+                <NextImage
                   src={preview}
                   alt="Preview"
+                  width={128}
+                  height={128}
+                  unoptimized
                   className="w-32 h-32 rounded-full object-cover"
                 />
               ) : avatarUrl ? (
-                <img
+                <NextImage
                   src={avatarUrl}
                   alt="Current avatar"
+                  width={128}
+                  height={128}
+                  unoptimized
                   className="w-32 h-32 rounded-full object-cover"
                 />
               ) : (

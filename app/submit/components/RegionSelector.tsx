@@ -15,8 +15,6 @@ interface RegionSelectorProps {
 
 export default function RegionSelector({
   onSelect,
-  initialLat = null,
-  initialLng = null,
   preselectedRegion,
   loadingRegion = false,
   onClearPreselected

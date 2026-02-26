@@ -263,7 +263,6 @@ export async function PUT(request: NextRequest) {
           const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
 
           if (lastUpdateDate > sixtyDaysAgo) {
-            const daysRemaining = Math.ceil(60 - (Date.now() - lastUpdateDate.getTime()) / (24 * 60 * 60 * 1000))
             nameChangeBlocked = true
           } else {
             if (isFirstNameChanging) updateData.first_name = firstName.slice(0, 100)

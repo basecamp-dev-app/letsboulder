@@ -101,7 +101,7 @@ export async function POST(
 
     if (action === 'remove') {
       if (typedFlag.crag_id && !typedFlag.climb_id && !typedFlag.image_id) {
-        const { data: climbData, error: climbFetchError } = await supabase
+        const { error: climbFetchError } = await supabase
           .from('climbs')
           .select('id')
           .eq('crag_id', typedFlag.crag_id)

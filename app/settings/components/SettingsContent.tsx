@@ -327,8 +327,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
               <div className="space-y-6 max-w-xl">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+                    <label htmlFor="first-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
                     <input
+                      id="first-name"
                       type="text"
                       value={formData.firstName}
                       onChange={(e) => handleFormChange('firstName', e.target.value)}
@@ -336,8 +337,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+                    <label htmlFor="last-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
                     <input
+                      id="last-name"
                       type="text"
                       value={formData.lastName}
                       onChange={(e) => handleFormChange('lastName', e.target.value)}
@@ -347,8 +349,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gender</label>
+                  <label htmlFor="gender" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gender</label>
                   <select
+                    id="gender"
                     value={formData.gender}
                     onChange={(e) => handleFormChange('gender', e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
@@ -362,8 +365,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bio</label>
+                  <label htmlFor="bio" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bio</label>
                   <textarea
+                    id="bio"
                     value={formData.bio}
                     onChange={(e) => handleFormChange('bio', e.target.value)}
                     rows={4}
@@ -376,8 +380,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Height (cm)</label>
+                    <label htmlFor="height-cm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Height (cm)</label>
                     <input
+                      id="height-cm"
                       type="number"
                       min={100}
                       max={250}
@@ -388,8 +393,9 @@ export default function SettingsContent({ user }: SettingsContentProps) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reach (cm)</label>
+                    <label htmlFor="reach-cm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reach (cm)</label>
                     <input
+                      id="reach-cm"
                       type="number"
                       min={100}
                       max={260}

@@ -37,6 +37,7 @@ export default function Header() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [showMoreDropdown, setShowMoreDropdown] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
+  const latestSearchRequestRef = useRef(0)
   const searchRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
@@ -95,61 +96,81 @@ export default function Header() {
   }, [])
 
   const searchClimbsAndCrags = useCallback(async (query: string) => {
-    if (!query.trim() || query.length < 2) {
+    const trimmedQuery = query.trim()
+    if (!trimmedQuery || trimmedQuery.length < 2) {
+      latestSearchRequestRef.current += 1
       setSearchResults([])
+      setIsSearching(false)
       return
     }
 
+    const requestId = latestSearchRequestRef.current + 1
+    latestSearchRequestRef.current = requestId
     setIsSearching(true)
     const supabase = createClient()
 
-    const results: SearchResult[] = []
+    try {
+      const results: SearchResult[] = []
 
-    const { data: cragsData } = await supabase
-      .from('crags')
-      .select('id, name, latitude, longitude, slug, country_code')
-      .ilike('name', `%${query}%`)
-      .limit(5)
+      const { data: cragsData } = await supabase
+        .from('crags')
+        .select('id, name, latitude, longitude, slug, country_code')
+        .ilike('name', `%${trimmedQuery}%`)
+        .limit(5)
 
-    if (cragsData) {
-      cragsData.forEach((crag: CragData) => {
-        if (crag.name && crag.latitude !== null && crag.longitude !== null) {
-          results.push({
-            type: 'crag',
-            id: crag.id,
-            name: crag.name,
-            slug: crag.slug,
-            country_code: crag.country_code,
-            latitude: crag.latitude,
-            longitude: crag.longitude
-          })
-        }
-      })
-    }
+      if (requestId !== latestSearchRequestRef.current) {
+        return
+      }
 
-    const { data: climbsData } = await supabase
-      .from('climbs')
-      .select('id, name, crags!inner(name, latitude, longitude)')
-      .ilike('name', `%${query}%`)
-      .eq('status', 'approved')
-      .limit(10)
-
-    if (climbsData) {
-      climbsData.forEach((climb) => {
-        const crag = climb.crags?.[0]
-        results.push({
-          type: 'climb',
-          id: climb.id,
-          name: climb.name,
-          crag_name: crag?.name,
-          latitude: crag?.latitude ?? undefined,
-          longitude: crag?.longitude ?? undefined
+      if (cragsData) {
+        cragsData.forEach((crag: CragData) => {
+          if (crag.name && crag.latitude !== null && crag.longitude !== null) {
+            results.push({
+              type: 'crag',
+              id: crag.id,
+              name: crag.name,
+              slug: crag.slug,
+              country_code: crag.country_code,
+              latitude: crag.latitude,
+              longitude: crag.longitude
+            })
+          }
         })
-      })
-    }
+      }
 
-    setSearchResults(results)
-    setIsSearching(false)
+      const { data: climbsData } = await supabase
+        .from('climbs')
+        .select('id, name, crags!inner(name, latitude, longitude)')
+        .ilike('name', `%${trimmedQuery}%`)
+        .eq('status', 'approved')
+        .limit(10)
+
+      if (requestId !== latestSearchRequestRef.current) {
+        return
+      }
+
+      if (climbsData) {
+        climbsData.forEach((climb) => {
+          const crag = climb.crags?.[0]
+          results.push({
+            type: 'climb',
+            id: climb.id,
+            name: climb.name,
+            crag_name: crag?.name,
+            latitude: crag?.latitude ?? undefined,
+            longitude: crag?.longitude ?? undefined
+          })
+        })
+      }
+
+      if (requestId === latestSearchRequestRef.current) {
+        setSearchResults(results)
+      }
+    } finally {
+      if (requestId === latestSearchRequestRef.current) {
+        setIsSearching(false)
+      }
+    }
   }, [])
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {

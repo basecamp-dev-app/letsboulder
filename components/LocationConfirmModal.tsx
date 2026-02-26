@@ -30,7 +30,6 @@ interface LocationInfo {
 export default function LocationConfirmModal({
   latitude,
   longitude,
-  imageUrl,
   onConfirm,
   onCancel
 }: LocationConfirmModalProps) {
@@ -108,15 +107,16 @@ export default function LocationConfirmModal({
 
   useEffect(() => {
     if (!hasGps && mapRef.current && leaflet) {
+      const map = mapRef.current
       const handleMapClick = (e: L.LeafletMouseEvent) => {
         const { lat, lng } = e.latlng
         setAdjustedLat(lat)
         setAdjustedLng(lng)
         setMarkerPlaced(true)
       }
-      mapRef.current.on('click', handleMapClick)
+      map.on('click', handleMapClick)
       return () => {
-        mapRef.current?.off('click', handleMapClick)
+        map.off('click', handleMapClick)
       }
     }
   }, [hasGps, leaflet])

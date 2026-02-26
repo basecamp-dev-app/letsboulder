@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
-import { MapPin, Bookmark } from 'lucide-react'
+import { Bookmark } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useMapEvents } from 'react-leaflet'
@@ -80,14 +81,87 @@ interface PlaceCluster {
 }
 
 function getClusterGridSize(zoom: number): number {
-  if (zoom <= 4) return 6
+  if (zoom <= 3) return 15
+  if (zoom <= 4) return 8
+  if (zoom <= 5) return 5
   if (zoom <= 6) return 3
+  if (zoom <= 7) return 2
   if (zoom <= 8) return 1.2
   if (zoom <= 10) return 0.3
   if (zoom <= 11) return 0.12
   if (zoom <= 12) return 0.05
   if (zoom <= 13) return 0.025
   return 0.012
+}
+
+function getFirstSplitZoom(places: PlacePin[]): number {
+  if (places.length <= 1) return 10
+
+  let minLatDiff = Infinity
+  let minLngDiff = Infinity
+
+  for (let i = 0; i < places.length; i++) {
+    for (let j = i + 1; j < places.length; j++) {
+      const latDiff = Math.abs(places[i].latitude - places[j].latitude)
+      const lngDiff = Math.abs(places[i].longitude - places[j].longitude)
+      minLatDiff = Math.min(minLatDiff, latDiff)
+      minLngDiff = Math.min(minLngDiff, lngDiff)
+    }
+  }
+
+  for (let zoom = 10; zoom <= 18; zoom++) {
+    const gridSize = getClusterGridSize(zoom)
+    if (minLatDiff > gridSize || minLngDiff > gridSize) {
+      return zoom
+    }
+  }
+
+  return 10
+}
+
+function mergeCloseClusters(clusters: PlaceCluster[], minDistance: number): PlaceCluster[] {
+  if (clusters.length === 0) return clusters
+
+  const merged: PlaceCluster[] = []
+  const used = new Set<string>()
+
+  for (let i = 0; i < clusters.length; i++) {
+    if (used.has(clusters[i].id)) continue
+
+    const current = clusters[i]
+    const toMerge: PlaceCluster[] = [current]
+    used.add(current.id)
+
+    for (let j = i + 1; j < clusters.length; j++) {
+      if (used.has(clusters[j].id)) continue
+
+      const other = clusters[j]
+      const latDiff = Math.abs(current.latitude - other.latitude)
+      const lngDiff = Math.abs(current.longitude - other.longitude)
+
+      if (latDiff < minDistance && lngDiff < minDistance) {
+        toMerge.push(other)
+        used.add(other.id)
+      }
+    }
+
+    if (toMerge.length === 1) {
+      merged.push(current)
+    } else {
+      const allPlaces = toMerge.flatMap(c => c.places)
+      const avgLat = allPlaces.reduce((sum, p) => sum + p.latitude, 0) / allPlaces.length
+      const avgLng = allPlaces.reduce((sum, p) => sum + p.longitude, 0) / allPlaces.length
+      merged.push({
+        id: `merged-${current.id}`,
+        latitude: avgLat,
+        longitude: avgLng,
+        places: allPlaces,
+        placeCount: allPlaces.length
+      })
+    }
+  }
+
+  return merged
 }
 
 function isLngWithinBounds(lng: number, bounds: MapBounds): boolean {
@@ -146,6 +220,7 @@ function MapStateWatcher({
 }
 
 export default function SatelliteClimbingMap() {
+  const router = useRouter()
   const mapRef = useRef<L.Map | null>(null)
   const [isClient, setIsClient] = useState(false)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
@@ -154,13 +229,11 @@ export default function SatelliteClimbingMap() {
   const [user, setUser] = useState<User | null>(null)
   const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
   const [, setIsAtDefaultLocation] = useState(true)
-  const [useUserLocation, setUseUserLocation] = useState(false)
   const [placePins, setPlacePins] = useState<PlacePin[]>([])
   const [mapZoom, setMapZoom] = useState(WORLD_DEFAULT_ZOOM)
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [saveLocationLoading, setSaveLocationLoading] = useState(false)
-  const [defaultLocationLoading, setDefaultLocationLoading] = useState(true)
 
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
     setMapZoom(state.zoom)
@@ -180,7 +253,7 @@ export default function SatelliteClimbingMap() {
 
     if (visiblePins.length === 0) return []
 
-    if (mapZoom >= 12) {
+    if (mapZoom >= 10) {
       return visiblePins.map((pin) => ({
         id: pin.id,
         latitude: pin.latitude,
@@ -202,7 +275,7 @@ export default function SatelliteClimbingMap() {
       buckets.set(bucketKey, bucket)
     }
 
-    return Array.from(buckets.entries()).map(([bucketKey, bucket]) => {
+    let clusters: PlaceCluster[] = Array.from(buckets.entries()).map(([bucketKey, bucket]) => {
       const latitude = bucket.reduce((sum, pin) => sum + pin.latitude, 0) / bucket.length
       const longitude = bucket.reduce((sum, pin) => sum + pin.longitude, 0) / bucket.length
 
@@ -214,6 +287,14 @@ export default function SatelliteClimbingMap() {
         placeCount: bucket.length
       }
     })
+
+    if (mapZoom <= 5) {
+      clusters = mergeCloseClusters(clusters, 2)
+    } else if (mapZoom <= 7) {
+      clusters = mergeCloseClusters(clusters, 1)
+    }
+
+    return clusters
   }, [placePins, mapBounds, mapZoom])
 
   useEffect(() => {
@@ -291,7 +372,6 @@ export default function SatelliteClimbingMap() {
           .single()
 
         console.log('[Map] Profile fetch result:', { profile, error })
-        setDefaultLocationLoading(false)
 
         if (ignore) return
 
@@ -314,8 +394,6 @@ export default function SatelliteClimbingMap() {
         } else {
           console.log('[Map] No default_location in profile')
         }
-      } else {
-        setDefaultLocationLoading(false)
       }
     }
 
@@ -385,43 +463,20 @@ export default function SatelliteClimbingMap() {
   }, [])
 
   useEffect(() => {
-    if (!mapRef.current || !userLocation) return
-    if (useUserLocation) {
-      mapRef.current.setView(userLocation, 5)
-    }
-   }, [useUserLocation, userLocation])
-
-    useEffect(() => {
       if (!mapRef.current || !mapLoaded) return
 
-      console.log('[Map] Centering effect - mapLoaded:', mapLoaded, 'useUserLocation:', useUserLocation, 'userLocation:', userLocation, 'defaultLocation:', defaultLocation)
+      console.log('[Map] Centering effect - mapLoaded:', mapLoaded, 'defaultLocation:', defaultLocation)
 
-      if (useUserLocation && userLocation) {
-        console.log('[Map] Centering on userLocation:', userLocation)
-        mapRef.current.setView(userLocation, 11)
-      } else if (defaultLocation) {
+      if (defaultLocation) {
         console.log('[Map] Centering on defaultLocation:', { lat: defaultLocation.lat, lng: defaultLocation.lng, zoom: defaultLocation.zoom })
         mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
       } else {
         console.log('[Map] No saved location, falling back to world view')
         mapRef.current.setView(WORLD_DEFAULT_VIEW, WORLD_DEFAULT_ZOOM)
       }
-    }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
-
-
-
-
-
+    }, [mapLoaded, defaultLocation])
   if (!isClient) {
-    return <div className="h-screen w-full bg-gray-900" />
-  }
-
-  if (user && defaultLocationLoading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-gray-900">
-        <div className="text-white">Loading...</div>
-      </div>
-    )
+    return <div className="h-screen w-full bg-white dark:bg-gray-950" />
   }
 
   return (
@@ -475,35 +530,24 @@ export default function SatelliteClimbingMap() {
                 position={[place.latitude, place.longitude]}
                 icon={L.divIcon({
                   className: isGym ? 'gym-pin' : 'crag-pin',
-                  html: `<div style="
-                    background: ${isGym ? '#ec4899' : '#3b82f6'};
-                    width: 32px;
-                    height: 32px;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 18px;
-                    border: 2px solid white;
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-                  ">${isGym ? '🏋️' : '⛰️'}</div>`,
-                  iconSize: [32, 32],
-                  iconAnchor: [16, 16]
+                  html: `<div class="place-dot ${isGym ? 'gym-dot' : 'crag-dot'}"></div>`,
+                  iconSize: [20, 20],
+                  iconAnchor: [10, 10]
                 })}
                 zIndexOffset={1000}
                 eventHandlers={{
                   click: () => {
                     if (isGym && place.slug) {
-                      window.location.href = `/community/places/${place.slug}`
+                      router.push(`/community/places/${place.slug}`)
                       return
                     }
 
                     if (place.slug && place.country_code) {
-                      window.location.href = `/${place.country_code.toLowerCase()}/${place.slug}`
+                      router.push(`/${place.country_code.toLowerCase()}/${place.slug}`)
                       return
                     }
 
-                    window.location.href = `/crag/${place.id}`
+                    router.push(`/crag/${place.id}`)
                   },
                 }}
               >
@@ -514,14 +558,7 @@ export default function SatelliteClimbingMap() {
             )
           }
 
-          const iconSize = cluster.placeCount > 99 ? 44 : cluster.placeCount > 9 ? 38 : 34
-          const cragCount = cluster.places.filter((place) => place.type === 'crag').length
-          const gymCount = cluster.placeCount - cragCount
-          const clusterLabel = gymCount > 0 && cragCount > 0
-            ? `${cragCount} crags + ${gymCount} gyms`
-            : gymCount > 0
-              ? `${gymCount} gyms`
-              : `${cragCount} crags`
+          const firstSplitZoom = getFirstSplitZoom(cluster.places)
 
           return (
             <Marker
@@ -529,51 +566,24 @@ export default function SatelliteClimbingMap() {
               position={[cluster.latitude, cluster.longitude]}
               icon={L.divIcon({
                 className: 'crag-cluster-wrapper',
-                html: `<div class="crag-cluster-pin" style="width:${iconSize}px;height:${iconSize}px;">${cluster.placeCount}</div>`,
-                iconSize: [iconSize, iconSize],
-                iconAnchor: [iconSize / 2, iconSize / 2]
+                html: `<div class="crag-cluster-pin">${cluster.placeCount}</div>`,
+                iconSize: [36, 36],
+                iconAnchor: [18, 18]
               })}
               zIndexOffset={1200}
               eventHandlers={{
                 click: () => {
                   if (!mapRef.current) return
-                  const nextZoom = Math.min(mapRef.current.getZoom() + 2, 19)
-                  mapRef.current.setView([cluster.latitude, cluster.longitude], nextZoom)
+                  mapRef.current.setView([cluster.latitude, cluster.longitude], firstSplitZoom, {
+                    animate: true,
+                    duration: 0.5
+                  })
                 }
               }}
-            >
-              <Tooltip direction="center" opacity={1}>
-                <span className="font-semibold">{clusterLabel}</span>
-              </Tooltip>
-            </Marker>
+            />
           )
         })}
       </MapContainer>
-
-
-      {userLocation && (
-        <button
-          onClick={() => {
-            setUseUserLocation(!useUserLocation)
-            if (mapRef.current) {
-              if (!useUserLocation) {
-                mapRef.current.setView(userLocation, 5)
-              } else if (defaultLocation) {
-                mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
-              }
-            }
-          }}
-          className={`absolute top-4 right-32 z-[1000] border rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2 ${
-            useUserLocation
-              ? 'bg-blue-600 text-white border-blue-700'
-              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-          }`}
-        >
-          <MapPin className="w-4 h-4" />
-          {useUserLocation ? 'My Location' : 'Use My Location'}
-        </button>
-      )}
-
       <button
         onClick={handleSaveAsDefault}
         disabled={saveLocationLoading}
@@ -587,21 +597,6 @@ export default function SatelliteClimbingMap() {
         <div className="absolute top-4 right-20 z-[1000] bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm">
           Requesting location...
         </div>
-      )}
-
-      {useUserLocation && userLocation && defaultLocation && (
-        <button
-          onClick={() => {
-            setUseUserLocation(false)
-            if (mapRef.current) {
-              mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
-            }
-          }}
-          className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 z-[1000] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2"
-        >
-          <MapPin className="w-4 h-4" />
-          Go to Default Location
-        </button>
       )}
 
       {toast && (

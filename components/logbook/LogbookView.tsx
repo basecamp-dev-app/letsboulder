@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -198,9 +199,12 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
             </h1>
             <div className="flex items-center gap-3">
               {profile.avatar_url ? (
-                <img
+                <Image
                   src={profile.avatar_url}
                   alt={profile.username}
+                  width={40}
+                  height={40}
+                  unoptimized
                   className="w-10 h-10 rounded-full object-cover"
                 />
               ) : (
@@ -222,9 +226,12 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
         <Card className="m-0 border-x-0 border-t-0 rounded-none">
           <CardContent className="flex flex-col sm:flex-row items-center gap-6 py-6 px-4">
             {profile.avatar_url ? (
-              <img
+              <Image
                 src={profile.avatar_url}
                 alt={profile.username}
+                width={80}
+                height={80}
+                unoptimized
                 className="w-20 h-20 rounded-full object-cover"
               />
             ) : (
@@ -308,9 +315,12 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                         <span className="text-sm text-gray-500 dark:text-gray-400 w-6">{index + 1}.</span>
                         <Link href={`/climb/${log.climb_id}`} className="flex items-center gap-3 min-w-0 hover:opacity-90 transition-opacity">
                           {log.climbs?.image_url && (
-                            <img
+                            <Image
                               src={resolveRouteImageUrl(log.climbs.image_url)}
                               alt={log.climbs.name || 'Climb image'}
+                              width={48}
+                              height={48}
+                              unoptimized
                               className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded shrink-0"
                             />
                           )}
@@ -343,9 +353,12 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                   <div key={log.id} className="flex items-center gap-2 sm:gap-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
                     {log.climbs?.image_url && (
                       <Link href={`/climb/${log.climb_id}`} className="shrink-0">
-                        <img
+                        <Image
                           src={resolveRouteImageUrl(log.climbs.image_url)}
                           alt={log.climbs.name}
+                          width={48}
+                          height={48}
+                          unoptimized
                           className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded"
                         />
                       </Link>
@@ -402,9 +415,12 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                             href={`/image/${submission.id}`}
                             className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
                           >
-                            <img
+                            <Image
                               src={resolveRouteImageUrl(submission.url)}
                               alt="Submitted route image"
+                              width={48}
+                              height={48}
+                              unoptimized
                               className="w-12 h-12 object-cover rounded"
                             />
                             <div className="flex-1 min-w-0">
@@ -506,9 +522,12 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                         href={`/image/${submission.id}`}
                         className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
                       >
-                        <img
+                        <Image
                           src={resolveRouteImageUrl(submission.url)}
                           alt="Submitted route image"
+                          width={48}
+                          height={48}
+                          unoptimized
                           className="w-12 h-12 object-cover rounded"
                         />
                         <div className="flex-1 min-w-0">

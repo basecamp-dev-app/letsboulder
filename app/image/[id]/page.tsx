@@ -1,101 +1,81 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
-
-import { createClient } from '@/lib/supabase'
+import { createServerClient } from '@supabase/ssr'
+import { redirect } from 'next/navigation'
 
 interface RouteLink {
   id: string
   climb_id: string
 }
 
-export default function ImageRedirectPage() {
-  const params = useParams()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const imageId = params.id as string
+export default async function ImageRedirectPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ route?: string; tab?: string }>
+}) {
+  const { id: imageId } = await params
+  const query = await searchParams
 
-  const [error, setError] = useState<string | null>(null)
+  if (!imageId) {
+    redirect('/')
+  }
 
-  useEffect(() => {
-    const redirectToClimb = async () => {
-      if (!imageId) return
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll() { return [] }, setAll() {} } }
+  )
 
-      setError(null)
+  let routeLink: RouteLink | null = null
+  let targetPath: string | null = null
 
-      try {
-        const supabase = createClient()
-        const requestedRouteId = searchParams.get('route')
-        const requestedTab = searchParams.get('tab')
+  try {
+    const requestedRouteId = query.route
+    const requestedTab = query.tab
 
-        let routeLink: RouteLink | null = null
+    if (requestedRouteId) {
+      const { data: requestedRoute } = await supabase
+        .from('route_lines')
+        .select('id, climb_id')
+        .eq('id', requestedRouteId)
+        .eq('image_id', imageId)
+        .maybeSingle()
 
-        if (requestedRouteId) {
-          const { data: requestedRoute } = await supabase
-            .from('route_lines')
-            .select('id, climb_id')
-            .eq('id', requestedRouteId)
-            .eq('image_id', imageId)
-            .maybeSingle()
-
-          routeLink = (requestedRoute as RouteLink | null) ?? null
-        }
-
-        if (!routeLink) {
-          const { data: firstRoute, error: firstRouteError } = await supabase
-            .from('route_lines')
-            .select('id, climb_id')
-            .eq('image_id', imageId)
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .maybeSingle()
-
-          if (firstRouteError) throw firstRouteError
-          routeLink = (firstRoute as RouteLink | null) ?? null
-        }
-
-        if (!routeLink?.climb_id) {
-          setError('No climb routes found for this image')
-          return
-        }
-
-        const next = new URLSearchParams()
-        next.set('route', routeLink.id)
-        if (requestedTab === 'tops' || requestedTab === 'climb') {
-          next.set('tab', requestedTab)
-        }
-
-        router.replace(`/climb/${routeLink.climb_id}?${next.toString()}`)
-      } catch (err) {
-        console.error('Failed to redirect image page:', err)
-        setError('Failed to open climb page')
+      if (requestedRoute) {
+        routeLink = requestedRoute as RouteLink
       }
     }
 
-    redirectToClimb()
-  }, [imageId, router, searchParams])
+    if (!routeLink) {
+      const { data: firstRoute, error: firstRouteError } = await supabase
+        .from('route_lines')
+        .select('id, climb_id')
+        .eq('image_id', imageId)
+        .order('sequence_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center px-4">
-        <div className="text-center space-y-3">
-          <p className="text-red-600 dark:text-red-400">{error}</p>
-          <button
-            onClick={() => router.push('/')}
-            className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 dark:bg-gray-800 dark:hover:bg-gray-700"
-          >
-            Back to Map
-          </button>
-        </div>
-      </div>
-    )
+      if (firstRouteError) throw firstRouteError
+      if (firstRoute) {
+        routeLink = firstRoute as RouteLink
+      }
+    }
+
+    if (!routeLink?.climb_id) {
+      targetPath = '/'
+    } else {
+      const next = new URLSearchParams()
+      next.set('route', routeLink.id)
+      if (requestedTab === 'tops' || requestedTab === 'climb') {
+        next.set('tab', requestedTab)
+      }
+      targetPath = `/climb/${routeLink.climb_id}?${next.toString()}`
+    }
+  } catch (error) {
+    console.error('Failed to redirect image page:', error)
+    targetPath = '/'
   }
 
-  return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
-      <Loader2 className="w-8 h-8 animate-spin text-gray-500 dark:text-gray-400" />
-    </div>
-  )
+  redirect(targetPath)
 }

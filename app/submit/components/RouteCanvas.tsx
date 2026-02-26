@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import { useRouteSelection, RoutePoint, generateRouteId, findRouteAtPoint } from '@/lib/useRouteSelection'
 import { 
   drawSmoothCurve, 
@@ -12,7 +13,7 @@ import {
 import GradePicker from '@/components/GradePicker'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { ImageSelection, NewRouteData, RouteLine, ClimbType } from '@/lib/submission-types'
-import { useGradeSystem, useGradePreferences, getGradeSystemForClimbType } from '@/hooks/useGradeSystem'
+import { useGradePreferences, getGradeSystemForClimbType } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { draftStorageGetItem, draftStorageRemoveItem, draftStorageSetItem } from '@/lib/submit-draft-storage'
 
@@ -38,6 +39,7 @@ interface EditableExistingRoute {
 interface RouteCanvasProps {
   imageSelection: ImageSelection
   onRoutesUpdate: (routes: NewRouteData[]) => void
+  onSubmitRoutes?: () => void
   existingRouteLines?: RouteLine[]
   draftKey?: string
   mode?: 'submit' | 'edit-existing'
@@ -128,6 +130,7 @@ function readDraftState(draftKey?: string): RouteCanvasDraft | null {
 export default function RouteCanvas({
   imageSelection,
   onRoutesUpdate,
+  onSubmitRoutes,
   existingRouteLines,
   draftKey,
   mode = 'submit',
@@ -142,7 +145,6 @@ export default function RouteCanvas({
   const isEditExistingMode = mode === 'edit-existing'
   const canCreateRoutesInEditMode = isEditExistingMode && allowCreateRoutesInEditMode
   const initialDraft = readDraftState(draftKey)
-  const gradeSystem = useGradeSystem()
   const gradePreferences = useGradePreferences()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
@@ -150,14 +152,15 @@ export default function RouteCanvas({
   const imageContainerRef = useRef<HTMLDivElement>(null)
 
   // Get grade system for a specific climb type
-  const getGradeSystemForRoute = (climbType?: string) => 
-    getGradeSystemForClimbType(climbType || defaultClimbType, gradePreferences)
+  const getGradeSystemForRoute = useCallback((climbType?: string) => 
+    getGradeSystemForClimbType(climbType || defaultClimbType, gradePreferences),
+  [defaultClimbType, gradePreferences])
 
   // Get formatted grade for a specific climb type
-  const getGradeDisplay = (grade: string, climbType?: string) => {
+  const getGradeDisplay = useCallback((grade: string, climbType?: string) => {
     const system = getGradeSystemForRoute(climbType)
     return formatGradeForDisplay(grade, system)
-  }
+  }, [getGradeSystemForRoute])
 
   const imageUrl = imageSelection.mode === 'existing' ? imageSelection.imageUrl : imageSelection.uploadedUrl
 
@@ -382,6 +385,7 @@ export default function RouteCanvas({
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
+    const canDrawRoutes = !isEditExistingMode || canCreateRoutesInEditMode
 
     if (e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX
@@ -400,8 +404,13 @@ export default function RouteCanvas({
     if (dragHandleIndex !== null) {
       setDraggingPointIndex(dragHandleIndex)
       e.preventDefault()
+      return
     }
-  }, [canvasReady, getTouchPos, getDragHandleIndex, zoom])
+
+    if (canDrawRoutes && e.touches.length === 1) {
+      e.preventDefault()
+    }
+  }, [canvasReady, getTouchPos, getDragHandleIndex, zoom, isEditExistingMode, canCreateRoutesInEditMode])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
@@ -446,10 +455,11 @@ export default function RouteCanvas({
     } else {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
     }
-  }, [canvasReady, zoom, pan, pinchStartZoom, pinchStartDistance, draggingPointIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
+  }, [canvasReady, zoom, pan, pinchStartZoom, draggingPointIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
+    const canDrawRoutes = !isEditExistingMode || canCreateRoutesInEditMode
 
     if (e.touches.length === 2 && pinchStartZoom !== null && pinchStartDistance !== null && pinchCenter) {
       const dx = e.touches[0].clientX - e.touches[1].clientX
@@ -471,6 +481,10 @@ export default function RouteCanvas({
       return
     }
 
+    if (canDrawRoutes && e.touches.length === 1) {
+      e.preventDefault()
+    }
+
     if (draggingPointIndex === null || !editableRoute) return
 
     const pos = getTouchPos(e)
@@ -486,7 +500,7 @@ export default function RouteCanvas({
     }
 
     e.preventDefault()
-  }, [canvasReady, draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, pinchStartZoom, pinchStartDistance, pinchCenter, zoom, pan])
+  }, [canvasReady, draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, canCreateRoutesInEditMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, pinchStartZoom, pinchStartDistance, pinchCenter, zoom, pan])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggingPointIndex !== null && editableRoute) {
@@ -655,35 +669,13 @@ export default function RouteCanvas({
         drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, 'rgba(59, 130, 246, 0.95)', '12px Arial')
       }
     }
-  }, [completedRoutes, currentPoints, currentGrade, currentName, existingRoutes, selectedIds, gradeSystem, isEditExistingMode])
+  }, [completedRoutes, currentPoints, currentGrade, currentName, currentClimbType, existingRoutes, selectedIds, isEditExistingMode, getGradeDisplay])
 
   useEffect(() => {
     if (imageLoaded) {
       redraw()
     }
   }, [imageLoaded, redraw])
-
-  const getDisplayedImageBounds = useCallback((dims: { width: number; height: number; naturalWidth: number; naturalHeight: number }) => {
-    const canvasAspectRatio = dims.width / dims.height
-    const imageAspectRatio = dims.naturalWidth / dims.naturalHeight
-
-    let displayedImageWidth = dims.width
-    let displayedImageHeight = dims.height
-    let offsetX = 0
-    let offsetY = 0
-
-    if (canvasAspectRatio > imageAspectRatio) {
-      displayedImageHeight = dims.height
-      displayedImageWidth = displayedImageHeight * imageAspectRatio
-      offsetX = (dims.width - displayedImageWidth) / 2
-    } else {
-      displayedImageWidth = dims.width
-      displayedImageHeight = displayedImageWidth / imageAspectRatio
-      offsetY = (dims.height - displayedImageHeight) / 2
-    }
-
-    return { displayedImageWidth, displayedImageHeight, offsetX, offsetY }
-  }, [])
 
   const normalizeCanvasPoints = useCallback((points: RoutePoint[]) => {
     const canvas = canvasRef.current
@@ -847,10 +839,7 @@ export default function RouteCanvas({
   const disableEditInputs = isEditExistingMode ? (!canCreateRoutesInEditMode && !selectedExistingRoute) : isEditingExistingRoute
   const disableGradePicker = disableEditInputs || (isEditExistingMode && Boolean(selectedExistingRoute))
   const isEditing = selectedNewRoute || selectedExistingRoute || currentPoints.length > 0
-  const routeCount = completedRoutes.length
   const allRoutesValid = completedRoutes.every(route => route.name.trim().length > 0)
-  const nextRouteNumber = routeCount + 1
-
   return (
     <div className="h-full w-full flex flex-col md:flex-row">
       <div className="flex-1 min-h-0 relative bg-gray-100 dark:bg-gray-900" ref={containerRef}>
@@ -862,10 +851,13 @@ export default function RouteCanvas({
             transformOrigin: '0 0'
           }}
         >
-          <img
+          <Image
             ref={imageRef}
             src={imageUrl}
             alt="Route"
+            fill
+            unoptimized
+            sizes="100vw"
             className={`absolute inset-0 w-full h-full object-contain ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
             onLoad={() => {
               const img = imageRef.current
@@ -1121,6 +1113,10 @@ export default function RouteCanvas({
               <button
                 onClick={() => {
                   setShowSubmitConfirm(false)
+                  if (onSubmitRoutes) {
+                    onSubmitRoutes()
+                    return
+                  }
                   window.dispatchEvent(new CustomEvent('submit-routes'))
                 }}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

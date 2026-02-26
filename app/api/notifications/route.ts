@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { parsePagination } from '@/lib/pagination'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const unreadOnly = searchParams.get('unread_only') === 'true'
-  const limit = parseInt(searchParams.get('limit') || '50')
-  const offset = parseInt(searchParams.get('offset') || '0')
+  const { limit, offset } = parsePagination(searchParams, { limit: 50 })
 
   const cookies = request.cookies
 
