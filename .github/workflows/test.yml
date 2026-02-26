@@ -65,6 +65,7 @@ jobs:
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
           CI: true
 
       - name: Upload Playwright report
