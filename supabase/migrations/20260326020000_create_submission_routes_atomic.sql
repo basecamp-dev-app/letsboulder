@@ -122,7 +122,3 @@ BEGIN
   END LOOP;
 END;
 $function$;
-
-REVOKE ALL ON FUNCTION public.create_submission_routes_atomic(UUID, UUID, TEXT, JSONB) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.create_submission_routes_atomic(UUID, UUID, TEXT, JSONB) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.create_submission_routes_atomic(UUID, UUID, TEXT, JSONB) TO service_role;
