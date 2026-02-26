@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
-import { MapPin, Bookmark } from 'lucide-react'
+import { Bookmark } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useMapEvents } from 'react-leaflet'
@@ -229,13 +229,11 @@ export default function SatelliteClimbingMap() {
   const [user, setUser] = useState<User | null>(null)
   const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
   const [, setIsAtDefaultLocation] = useState(true)
-  const [useUserLocation, setUseUserLocation] = useState(false)
   const [placePins, setPlacePins] = useState<PlacePin[]>([])
   const [mapZoom, setMapZoom] = useState(WORLD_DEFAULT_ZOOM)
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [saveLocationLoading, setSaveLocationLoading] = useState(false)
-  const [defaultLocationLoading, setDefaultLocationLoading] = useState(true)
 
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
     setMapZoom(state.zoom)
@@ -374,7 +372,6 @@ export default function SatelliteClimbingMap() {
           .single()
 
         console.log('[Map] Profile fetch result:', { profile, error })
-        setDefaultLocationLoading(false)
 
         if (ignore) return
 
@@ -397,8 +394,6 @@ export default function SatelliteClimbingMap() {
         } else {
           console.log('[Map] No default_location in profile')
         }
-      } else {
-        setDefaultLocationLoading(false)
       }
     }
 
@@ -468,43 +463,20 @@ export default function SatelliteClimbingMap() {
   }, [])
 
   useEffect(() => {
-    if (!mapRef.current || !userLocation) return
-    if (useUserLocation) {
-      mapRef.current.setView(userLocation, 5)
-    }
-   }, [useUserLocation, userLocation])
-
-    useEffect(() => {
       if (!mapRef.current || !mapLoaded) return
 
-      console.log('[Map] Centering effect - mapLoaded:', mapLoaded, 'useUserLocation:', useUserLocation, 'userLocation:', userLocation, 'defaultLocation:', defaultLocation)
+      console.log('[Map] Centering effect - mapLoaded:', mapLoaded, 'defaultLocation:', defaultLocation)
 
-      if (useUserLocation && userLocation) {
-        console.log('[Map] Centering on userLocation:', userLocation)
-        mapRef.current.setView(userLocation, 11)
-      } else if (defaultLocation) {
+      if (defaultLocation) {
         console.log('[Map] Centering on defaultLocation:', { lat: defaultLocation.lat, lng: defaultLocation.lng, zoom: defaultLocation.zoom })
         mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
       } else {
         console.log('[Map] No saved location, falling back to world view')
         mapRef.current.setView(WORLD_DEFAULT_VIEW, WORLD_DEFAULT_ZOOM)
       }
-    }, [mapLoaded, defaultLocation, userLocation, useUserLocation])
-
-
-
-
-
+    }, [mapLoaded, defaultLocation])
   if (!isClient) {
-    return <div className="h-screen w-full bg-gray-900" />
-  }
-
-  if (user && defaultLocationLoading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-gray-900">
-        <div className="text-white">Loading...</div>
-      </div>
-    )
+    return <div className="h-screen w-full bg-white dark:bg-gray-950" />
   }
 
   return (
@@ -612,31 +584,6 @@ export default function SatelliteClimbingMap() {
           )
         })}
       </MapContainer>
-
-
-      {userLocation && (
-        <button
-          onClick={() => {
-            setUseUserLocation(!useUserLocation)
-            if (mapRef.current) {
-              if (!useUserLocation) {
-                mapRef.current.setView(userLocation, 5)
-              } else if (defaultLocation) {
-                mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
-              }
-            }
-          }}
-          className={`absolute top-4 right-32 z-[1000] border rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2 ${
-            useUserLocation
-              ? 'bg-blue-600 text-white border-blue-700'
-              : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-          }`}
-        >
-          <MapPin className="w-4 h-4" />
-          {useUserLocation ? 'My Location' : 'Use My Location'}
-        </button>
-      )}
-
       <button
         onClick={handleSaveAsDefault}
         disabled={saveLocationLoading}
@@ -650,21 +597,6 @@ export default function SatelliteClimbingMap() {
         <div className="absolute top-4 right-20 z-[1000] bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm">
           Requesting location...
         </div>
-      )}
-
-      {useUserLocation && userLocation && defaultLocation && (
-        <button
-          onClick={() => {
-            setUseUserLocation(false)
-            if (mapRef.current) {
-              mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
-            }
-          }}
-          className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 z-[1000] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm shadow-md flex items-center gap-2"
-        >
-          <MapPin className="w-4 h-4" />
-          Go to Default Location
-        </button>
       )}
 
       {toast && (
