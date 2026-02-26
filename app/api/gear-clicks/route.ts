@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/supabase-server'
+import { withCsrfProtection } from '@/lib/csrf-server'
 
 export async function GET() {
   try {
@@ -27,6 +28,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
   try {
     const { productId } = await request.json()
     

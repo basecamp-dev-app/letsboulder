@@ -151,15 +151,30 @@ export function generateRouteThumbnail(
     return tempCanvas.toDataURL('image/png')
   }
 
-  const scaleX = width / (Math.max(...points.map(p => p.x)) - Math.min(...points.map(p => p.x)) + 40)
-  const scaleY = height / (Math.max(...points.map(p => p.y)) - Math.min(...points.map(p => p.y)) + 40)
-  const scale = Math.min(scaleX, scaleY, 2)
-  const offsetX = (width - (Math.max(...points.map(p => p.x)) - Math.min(...points.map(p => p.x))) * scale) / 2
-  const offsetY = (height - (Math.max(...points.map(p => p.y)) - Math.min(...points.map(p => p.y))) * scale) / 2
+  let minX = points[0].x
+  let maxX = points[0].x
+  let minY = points[0].y
+  let maxY = points[0].y
 
-  const scaledPoints = points.map(p => ({
-    x: (p.x - Math.min(...points.map(p => p.x))) * scale + offsetX,
-    y: (p.y - Math.min(...points.map(p => p.y))) * scale + offsetY
+  for (let i = 1; i < points.length; i += 1) {
+    const point = points[i]
+    if (point.x < minX) minX = point.x
+    if (point.x > maxX) maxX = point.x
+    if (point.y < minY) minY = point.y
+    if (point.y > maxY) maxY = point.y
+  }
+
+  const spanX = maxX - minX
+  const spanY = maxY - minY
+  const scaleX = width / (spanX + 40)
+  const scaleY = height / (spanY + 40)
+  const scale = Math.min(scaleX, scaleY, 2)
+  const offsetX = (width - spanX * scale) / 2
+  const offsetY = (height - spanY * scale) / 2
+
+  const scaledPoints = points.map((point) => ({
+    x: (point.x - minX) * scale + offsetX,
+    y: (point.y - minY) * scale + offsetY
   }))
 
   ctx.strokeStyle = '#ef4444'

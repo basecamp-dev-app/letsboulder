@@ -10,6 +10,7 @@ async function globalSetup() {
   const testApiKey = process.env.TEST_API_KEY?.trim()
   const testUserId = process.env.TEST_USER_ID?.trim()
   const testUserPassword = process.env.TEST_USER_PASSWORD?.trim()
+  const internalTestKey = process.env.INTERNAL_TEST_KEY?.trim()
 
   if (!testApiKey || !testUserId || !testUserPassword) {
     console.log('TEST_API_KEY, TEST_USER_ID, and TEST_USER_PASSWORD are required, skipping authentication')
@@ -39,6 +40,10 @@ async function globalSetup() {
       requestOptions.headers['CF-Access-Client-Secret'] = process.env.CF_ACCESS_CLIENT_SECRET
     }
     requestOptions.headers['x-test-auth'] = '1'
+
+    if (!baseURL.includes('localhost') && !baseURL.includes('127.0.0.1') && internalTestKey) {
+      requestOptions.headers['x-internal-test-key'] = internalTestKey
+    }
 
     const response = await context.request.get(authUrl.toString(), requestOptions)
     

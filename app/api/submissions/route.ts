@@ -66,9 +66,28 @@ interface RoutePoint {
   y: number
 }
 
+interface PreparedRoute {
+  name: string
+  grade: string
+  description: string | null
+  points: RoutePoint[]
+  sequenceOrder: number
+  imageWidth: number
+  imageHeight: number
+  slug: string | null
+}
+
+interface AtomicSubmissionRouteResult {
+  climb_id: string
+  name: string
+  grade: string
+}
+
 type SubmissionRequest = NewImageSubmission | ExistingImageSubmission
 
-function normalizeRouteType(value: string | null | undefined): (typeof VALID_ROUTE_TYPES)[number] | null {
+function normalizeRouteType(value: unknown): (typeof VALID_ROUTE_TYPES)[number] | null {
+  if (typeof value !== 'string') return null
+
   if (!value) return null
 
   const normalized = value.trim().toLowerCase().replace(/_/g, '-')
@@ -117,16 +136,27 @@ export async function POST(request: NextRequest) {
 
   try {
     if (debugAuth) {
-      const cookieNames = cookies
-        .getAll()
-        .map((c) => c.name)
-        .filter((name) => name.startsWith('sb-') || name.toLowerCase().includes('supabase'))
+      const requestCookies = cookies.getAll()
+      const cookieNames: string[] = []
+
+      if (Array.isArray(requestCookies)) {
+        for (const cookie of requestCookies) {
+          cookieNames.push(cookie.name)
+        }
+      }
+
+      const supabaseCookieNames: string[] = []
+      for (const name of cookieNames) {
+        if (name.startsWith('sb-') || name.toLowerCase().includes('supabase')) {
+          supabaseCookieNames.push(name)
+        }
+      }
 
       console.log('[submissions] request', {
         host: requestUrl.host,
         path: requestUrl.pathname,
-        hasAuthCookies: cookieNames.length > 0,
-        cookieNames,
+        hasAuthCookies: supabaseCookieNames.length > 0,
+        cookieNames: supabaseCookieNames,
       })
     }
 
@@ -158,7 +188,7 @@ export async function POST(request: NextRequest) {
 
     const body: SubmissionRequest = await request.json()
 
-    if (!body.routes || body.routes.length === 0) {
+    if (!Array.isArray(body.routes) || body.routes.length === 0) {
       response = NextResponse.json({ error: 'At least one route is required' }, { status: 400 })
       return response
     }
@@ -181,9 +211,86 @@ export async function POST(request: NextRequest) {
 
     const normalizedRouteType = normalizeRouteType(body.routeType)
 
-    if (body.routeType && !normalizedRouteType) {
+    if (body.routeType !== undefined && body.routeType !== null && !normalizedRouteType) {
       response = NextResponse.json({ error: 'Invalid route type' }, { status: 400 })
       return response
+    }
+
+    const preparedRoutes: PreparedRoute[] = []
+    for (const route of body.routes) {
+      if (!route || typeof route !== 'object') {
+        response = NextResponse.json({ error: 'Invalid route payload' }, { status: 400 })
+        return response
+      }
+
+      if (typeof route.name !== 'string') {
+        response = NextResponse.json({ error: 'Route name is required' }, { status: 400 })
+        return response
+      }
+
+      const trimmedRouteName = route.name.trim()
+      if (!trimmedRouteName) {
+        response = NextResponse.json({ error: 'Route name is required' }, { status: 400 })
+        return response
+      }
+
+      if (route.description !== undefined && route.description !== null && typeof route.description !== 'string') {
+        response = NextResponse.json({ error: 'Route description must be a string' }, { status: 400 })
+        return response
+      }
+
+      const trimmedDescription = typeof route.description === 'string' ? route.description.trim() : null
+      if (trimmedDescription !== null && trimmedDescription.length > 500) {
+        response = NextResponse.json({ error: 'Route description must be 500 characters or less' }, { status: 400 })
+        return response
+      }
+
+      if (!VALID_GRADES.includes(route.grade as typeof VALID_GRADES[number])) {
+        response = NextResponse.json({ error: `Invalid grade: ${route.grade}` }, { status: 400 })
+        return response
+      }
+
+      if (!Array.isArray(route.points) || route.points.length < 2) {
+        response = NextResponse.json({ error: 'Route must have at least 2 points' }, { status: 400 })
+        return response
+      }
+
+      if (
+        typeof route.sequenceOrder !== 'number' ||
+        !Number.isFinite(route.sequenceOrder) ||
+        typeof route.imageWidth !== 'number' ||
+        !Number.isFinite(route.imageWidth) ||
+        typeof route.imageHeight !== 'number' ||
+        !Number.isFinite(route.imageHeight)
+      ) {
+        response = NextResponse.json({ error: 'Route dimensions and sequenceOrder must be valid numbers' }, { status: 400 })
+        return response
+      }
+
+      for (const point of route.points) {
+        if (
+          !point ||
+          typeof point !== 'object' ||
+          typeof point.x !== 'number' ||
+          !Number.isFinite(point.x) ||
+          typeof point.y !== 'number' ||
+          !Number.isFinite(point.y)
+        ) {
+          response = NextResponse.json({ error: 'Route points must contain valid x/y coordinates' }, { status: 400 })
+          return response
+        }
+      }
+
+      preparedRoutes.push({
+        name: trimmedRouteName,
+        grade: route.grade,
+        description: trimmedDescription,
+        points: route.points,
+        sequenceOrder: route.sequenceOrder,
+        imageWidth: route.imageWidth,
+        imageHeight: route.imageHeight,
+        slug: null,
+      })
     }
 
     const today = new Date().toISOString().split('T')[0]
@@ -194,34 +301,11 @@ export async function POST(request: NextRequest) {
       .eq('deleted_at', null)
       .gte('created_at', `${today}T00:00:00`)
 
-    if ((todayRoutes || 0) + body.routes.length > MAX_ROUTES_PER_DAY) {
+    if ((todayRoutes || 0) + preparedRoutes.length > MAX_ROUTES_PER_DAY) {
       response = NextResponse.json({
-        error: `Daily limit exceeded. You can submit ${MAX_ROUTES_PER_DAY} routes per day. You have ${(todayRoutes || 0)} already and are trying to submit ${body.routes.length}.`
+        error: `Daily limit exceeded. You can submit ${MAX_ROUTES_PER_DAY} routes per day. You have ${(todayRoutes || 0)} already and are trying to submit ${preparedRoutes.length}.`
       }, { status: 429 })
       return response
-    }
-
-    for (const route of body.routes) {
-      if (!route.name || !route.name.trim()) {
-        response = NextResponse.json({ error: 'Route name is required' }, { status: 400 })
-        return response
-      }
-      if (route.description !== undefined && route.description !== null && typeof route.description !== 'string') {
-        response = NextResponse.json({ error: 'Route description must be a string' }, { status: 400 })
-        return response
-      }
-      if (typeof route.description === 'string' && route.description.trim().length > 500) {
-        response = NextResponse.json({ error: 'Route description must be 500 characters or less' }, { status: 400 })
-        return response
-      }
-      if (!VALID_GRADES.includes(route.grade as typeof VALID_GRADES[number])) {
-        response = NextResponse.json({ error: `Invalid grade: ${route.grade}` }, { status: 400 })
-        return response
-      }
-      if (!route.points || route.points.length < 2) {
-        response = NextResponse.json({ error: 'Route must have at least 2 points' }, { status: 400 })
-        return response
-      }
     }
 
     let imageId: string | null = null
@@ -304,12 +388,24 @@ export async function POST(request: NextRequest) {
       imageId = image.id
 
       if (INTERNAL_MODERATION_SECRET) {
+        const csrfToken = request.headers.get('x-csrf-token')
+        const cookieHeader = request.headers.get('cookie')
+        const moderationHeaders: Record<string, string> = {
+          'content-type': 'application/json',
+          'x-internal-secret': INTERNAL_MODERATION_SECRET,
+        }
+
+        if (csrfToken) {
+          moderationHeaders['x-csrf-token'] = csrfToken
+        }
+
+        if (cookieHeader) {
+          moderationHeaders.cookie = cookieHeader
+        }
+
         fetch(new URL('/api/moderation/check', request.url), {
           method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'x-internal-secret': INTERNAL_MODERATION_SECRET,
-          },
+          headers: moderationHeaders,
           body: JSON.stringify({ imageId: image.id }),
         })
           .then(async (res) => {
@@ -387,58 +483,67 @@ export async function POST(request: NextRequest) {
         .not('slug', 'is', null)
         .limit(10000)
 
-      for (const row of (existingSlugs || []) as Array<{ slug: string | null }>) {
+      const slugRows = (existingSlugs || []) as Array<{ slug: string | null }>
+      for (const row of slugRows) {
         if (row.slug) usedRouteSlugs.add(row.slug)
       }
     }
 
     await getRegionData(supabase, imageId!)
 
-    const climbsData = body.routes.map((route, index) => {
-      const trimmedName = route.name.trim()
-      const slug = cragId ? makeUniqueSlug(trimmedName || `Route ${index + 1}`, usedRouteSlugs) : null
-      return {
-        name: trimmedName || `Route ${index + 1}`,
-        slug,
-        grade: route.grade,
-        description: route.description?.trim() || null,
-        route_type: normalizedRouteType || 'sport',
-        status: 'approved' as const,
-        user_id: user.id,
-        crag_id: cragId
-      }
-    })
-
-    const { data: climbs, error: climbsError } = await supabase
-      .from('climbs')
-      .insert(climbsData)
-      .select('id, name, grade')
-
-    if (climbsError) {
-      return createErrorResponse(climbsError, 'Error creating climbs')
+    for (let index = 0; index < preparedRoutes.length; index += 1) {
+      const route = preparedRoutes[index]
+      route.slug = cragId ? makeUniqueSlug(route.name || `Route ${index + 1}`, usedRouteSlugs) : null
     }
 
-    if (!climbs || climbs.length === 0) {
+    const routePayload: Array<{
+      name: string
+      slug: string | null
+      grade: string
+      description: string | null
+      points: RoutePoint[]
+      sequence_order: number
+      image_width: number
+      image_height: number
+    }> = []
+
+    for (const route of preparedRoutes) {
+      routePayload.push({
+        name: route.name,
+        slug: route.slug,
+        grade: route.grade,
+        description: route.description,
+        points: route.points,
+        sequence_order: route.sequenceOrder,
+        image_width: route.imageWidth,
+        image_height: route.imageHeight,
+      })
+    }
+
+    const { data: climbs, error: atomicError } = await supabase.rpc('create_submission_routes_atomic', {
+      p_image_id: imageId!,
+      p_crag_id: cragId,
+      p_route_type: normalizedRouteType || 'sport',
+      p_routes: routePayload,
+    })
+
+    if (atomicError) {
+      return createErrorResponse(atomicError, 'Error creating submission routes')
+    }
+
+    const createdClimbs = (climbs || []) as AtomicSubmissionRouteResult[]
+    if (!Array.isArray(createdClimbs) || createdClimbs.length === 0) {
       response = NextResponse.json({ error: 'Failed to create climbs' }, { status: 500 })
       return response
     }
 
-    const routeLinesData = climbs.map((climb, index) => ({
-      image_id: imageId!,
-      climb_id: climb.id,
-      points: body.routes[index].points,
-      color: 'red',
-      sequence_order: body.routes[index].sequenceOrder,
-      image_width: body.routes[index].imageWidth,
-      image_height: body.routes[index].imageHeight
-    }))
-
-    const { error: routeLinesError } = await supabase
-      .from('route_lines')
-      .insert(routeLinesData)
-
-    if (routeLinesError) {
-      return createErrorResponse(routeLinesError, 'Error creating route_lines')
+    const notificationClimbs: Array<{ id: string; name: string; grade: string }> = []
+    for (const climb of createdClimbs) {
+      notificationClimbs.push({
+        id: climb.climb_id,
+        name: climb.name,
+        grade: climb.grade,
+      })
     }
 
     if (cragId) {
@@ -452,7 +557,7 @@ export async function POST(request: NextRequest) {
 
       const cragName = cragData?.name || 'Unknown Crag'
 
-      await notifyNewSubmission(supabase, climbs, cragName, cragId, user.id).catch(err => {
+      await notifyNewSubmission(supabase, notificationClimbs, cragName, cragId, user.id).catch(err => {
         console.error('Discord notification error:', err)
       })
 
@@ -464,8 +569,8 @@ export async function POST(request: NextRequest) {
 
     response = NextResponse.json({
       success: true,
-      climbsCreated: climbs.length,
-      routeLinesCreated: routeLinesData.length,
+      climbsCreated: createdClimbs.length,
+      routeLinesCreated: routePayload.length,
       imageId: imageId || undefined
     })
     return response

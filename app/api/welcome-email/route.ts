@@ -5,6 +5,15 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
@@ -34,7 +43,9 @@ export async function POST(request: NextRequest) {
     return rateLimitResponse
   }
 
-  const { email, firstName } = await request.json()
+  const body = await request.json()
+  const email = typeof body?.email === 'string' ? body.email : null
+  const firstName = typeof body?.firstName === 'string' ? body.firstName : null
 
   if (!email) {
     return NextResponse.json({ error: 'Email is required' }, { status: 400 })
@@ -71,11 +82,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'Welcome email already sent' })
     }
 
-    const greeting = firstName ? `Hi ${firstName}!` : 'Hi there!'
+    const safeFirstName = firstName ? escapeHtml(firstName) : null
+    const greeting = safeFirstName ? `Hi ${safeFirstName}!` : 'Hi there!'
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const resendApiKey = process.env.RESEND_API_KEY
 
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    if (!resendApiKey) {
+      console.warn('RESEND_API_KEY missing, returning mock welcome email response')
+      return NextResponse.json({ success: true, id: 'mock_id', greeting })
+    }
+
+    const resend = new Resend(resendApiKey)
 
     await resend.emails.send({
       from: 'letsboulder <noreply@letsboulder.com>',

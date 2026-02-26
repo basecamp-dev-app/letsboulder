@@ -5,6 +5,27 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewFlag } from '@/lib/discord'
 
 const VALID_FLAG_TYPES = ['location', 'route_line', 'route_name', 'image_quality', 'wrong_crag', 'other']
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+interface FlagRow {
+  id: string
+  flag_type: string
+  comment: string
+  status: string
+  action_taken: string | null
+  resolved_by: string | null
+  resolved_at: string | null
+  created_at: string
+  flagger_id: string | null
+}
+
+interface FlaggerProfile {
+  id: string
+  email: string | null
+  username: string | null
+  first_name: string | null
+  last_name: string | null
+}
 
 export async function POST(
   request: NextRequest,
@@ -41,13 +62,19 @@ export async function POST(
     const body = await request.json()
     const { flag_type, comment } = body
 
+    if (typeof comment !== 'string') {
+      return NextResponse.json({ error: 'Comment must be at least 10 characters' }, { status: 400 })
+    }
+
+    const trimmedComment = comment.trim()
+
     if (!flag_type || !VALID_FLAG_TYPES.includes(flag_type)) {
       return NextResponse.json({
         error: `Invalid flag type. Must be one of: ${VALID_FLAG_TYPES.join(', ')}`
       }, { status: 400 })
     }
 
-    if (!comment || comment.trim().length < 10) {
+    if (!trimmedComment || trimmedComment.length < 10) {
       return NextResponse.json({ error: 'Comment must be at least 10 characters' }, { status: 400 })
     }
 
@@ -92,7 +119,7 @@ export async function POST(
         crag_id: climb.crag_id,
         flagger_id: user.id,
         flag_type,
-        comment: comment.trim(),
+        comment: trimmedComment,
         status: 'pending',
       })
       .select()
@@ -110,7 +137,7 @@ export async function POST(
       targetName: climb.name,
       cragName,
       cragId: climb.crag_id,
-      comment: comment.trim(),
+      comment: trimmedComment,
       flaggerId: user.id,
     }).catch(err => console.error('Discord notification error:', err))
 
@@ -119,7 +146,7 @@ export async function POST(
       flag: {
         id: flag.id,
         flag_type,
-        comment: comment.trim(),
+        comment: trimmedComment,
         status: 'pending',
       },
       message: 'Flag submitted successfully. An admin will review it soon.'
@@ -133,6 +160,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const cookies = request.cookies
   const { id: climbId } = await params
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status') || 'pending'
@@ -140,10 +168,32 @@ export async function GET(
   const supabase = await createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return [] }, setAll() {} } }
+    {
+      cookies: {
+        getAll() { return cookies.getAll() },
+        setAll() {},
+      },
+    }
   )
 
   try {
+    if (!UUID_PATTERN.test(climbId)) {
+      return NextResponse.json({ flags: [], count: 0 })
+    }
+
+    let canViewFlaggerEmail = false
+    const { data: authData } = await supabase.auth.getUser()
+
+    if (authData?.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', authData.user.id)
+        .single()
+
+      canViewFlaggerEmail = Boolean(profile?.is_admin)
+    }
+
     let query = supabase
       .from('climb_flags')
       .select(`
@@ -155,7 +205,7 @@ export async function GET(
         resolved_by,
         resolved_at,
         created_at,
-        flagger:flagger_id(id, email, username, first_name, last_name)
+        flagger_id
       `)
       .eq('climb_id', climbId)
       .order('created_at', { ascending: false })
@@ -170,9 +220,85 @@ export async function GET(
       return createErrorResponse(error, 'Error fetching flags')
     }
 
+    const flagRows = ((data || []) as FlagRow[])
+    const flaggerIds: string[] = []
+    for (const row of flagRows) {
+      if (typeof row.flagger_id === 'string' && row.flagger_id) {
+        flaggerIds.push(row.flagger_id)
+      }
+    }
+
+    const uniqueFlaggerIds = [...new Set(flaggerIds)]
+    const profileMap = new Map<string, FlaggerProfile>()
+
+    if (uniqueFlaggerIds.length > 0) {
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email, username, first_name, last_name')
+        .in('id', uniqueFlaggerIds)
+
+      if (profilesError) {
+        return createErrorResponse(profilesError, 'Error fetching flagger profiles')
+      }
+
+      for (const profile of (profiles || []) as FlaggerProfile[]) {
+        profileMap.set(profile.id, profile)
+      }
+    }
+
+    const flags = [] as Array<{
+      id: string
+      flag_type: string
+      comment: string
+      status: string
+      action_taken: string | null
+      resolved_by: string | null
+      resolved_at: string | null
+      created_at: string
+      flagger: {
+        id: string | null
+        username: string | null
+        first_name: string | null
+        last_name: string | null
+        email?: string | null
+      }
+    }>
+
+    for (const row of flagRows) {
+      const profile = row.flagger_id ? profileMap.get(row.flagger_id) : undefined
+      const flagger = {
+        id: row.flagger_id,
+        username: profile?.username || null,
+        first_name: profile?.first_name || null,
+        last_name: profile?.last_name || null,
+      } as {
+        id: string | null
+        username: string | null
+        first_name: string | null
+        last_name: string | null
+        email?: string | null
+      }
+
+      if (canViewFlaggerEmail) {
+        flagger.email = profile?.email || null
+      }
+
+      flags.push({
+        id: row.id,
+        flag_type: row.flag_type,
+        comment: row.comment,
+        status: row.status,
+        action_taken: row.action_taken,
+        resolved_by: row.resolved_by,
+        resolved_at: row.resolved_at,
+        created_at: row.created_at,
+        flagger,
+      })
+    }
+
     return NextResponse.json({
-      flags: data || [],
-      count: data?.length || 0
+      flags,
+      count: flags.length
     })
   } catch (error) {
     return createErrorResponse(error, 'Flags fetch error')

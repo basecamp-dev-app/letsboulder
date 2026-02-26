@@ -13,18 +13,17 @@ async function parseJsonSafe(response: Response): Promise<unknown> {
 }
 
 export async function GET(request: NextRequest) {
-  if (process.env.VERCEL_ENV === 'production') {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
-
-  const hostname = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
-  const host = hostname.split(':')[0].toLowerCase()
-  const isDev = host.startsWith('dev.')
+  const hostHeader = request.headers.get('host') || request.nextUrl.host
+  const host = hostHeader.split(':')[0].toLowerCase()
   const isLocal = host === 'localhost' || host === '127.0.0.1'
-  const allowAnyHost = process.env.ENABLE_TEST_AUTH_ENDPOINT === 'true'
-  
-  if (!isDev && !isLocal && !allowAnyHost) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (!isLocal) {
+    const internalTestKey = request.headers.get('x-internal-test-key')
+    const expectedInternalTestKey = process.env.INTERNAL_TEST_KEY?.trim()
+
+    if (!expectedInternalTestKey || internalTestKey?.trim() !== expectedInternalTestKey) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
   }
 
   const apiKey = request.nextUrl.searchParams.get('api_key')

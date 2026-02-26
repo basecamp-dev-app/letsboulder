@@ -210,7 +210,12 @@ export default async function proxy(request: NextRequest) {
       }
     )
 
-    await supabase.auth.getUser()
+    try {
+      await supabase.auth.getUser()
+    } catch (error) {
+      console.error('[Proxy Auth Error]:', error)
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
   }
 
   return supabaseResponse

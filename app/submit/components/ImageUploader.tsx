@@ -836,6 +836,16 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
   const detectedGpsRef = useRef<GpsData | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
+  const setPreviewObjectUrl = useCallback((source: Blob | File) => {
+    const nextUrl = URL.createObjectURL(source)
+    setPreviewUrl((currentUrl) => {
+      if (currentUrl) {
+        URL.revokeObjectURL(currentUrl)
+      }
+      return nextUrl
+    })
+  }, [])
+
   const updateDetectedGps = useCallback((gps: GpsData | null) => {
     detectedGpsRef.current = gps
     setDetectedGpsData(gps)
@@ -851,6 +861,17 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     const isAndroid = /Android/i.test(userAgent)
     setIsIosDevice(isIos)
     setIsAndroidDevice(isAndroid)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      setPreviewUrl((currentUrl) => {
+        if (currentUrl) {
+          URL.revokeObjectURL(currentUrl)
+        }
+        return null
+      })
+    }
   }, [])
 
   const processFile = async (selectedFile: File) => {
@@ -899,7 +920,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
 
           updateDetectedGps(gpsFromFile)
           setGpsDetectionComplete(true)
-          setPreviewUrl(URL.createObjectURL(previewBlob))
+          setPreviewObjectUrl(previewBlob)
           onUploading(true, 20, 'Compressing HEIC...')
         } catch {
           onError('Failed to process HEIC image. Please convert to JPEG first.')
@@ -910,7 +931,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
         gpsDebug('gps detection result', { file: selectedFile.name, source: gpsSource, gps: gpsFromFile })
         updateDetectedGps(gpsFromFile)
         setGpsDetectionComplete(true)
-        setPreviewUrl(URL.createObjectURL(selectedFile))
+        setPreviewObjectUrl(selectedFile)
         onUploading(true, 20, 'Compressing image...')
       }
 
@@ -1074,7 +1095,12 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
                 setCompressedFile(null)
                 updateDetectedGps(null)
                 setGpsDetectionComplete(false)
-                setPreviewUrl(null)
+                setPreviewUrl((currentUrl) => {
+                  if (currentUrl) {
+                    URL.revokeObjectURL(currentUrl)
+                  }
+                  return null
+                })
                 if (fileInputRef.current) fileInputRef.current.value = ''
               }}
               className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/70"

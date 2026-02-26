@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
+import { parsePagination } from '@/lib/pagination'
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
@@ -26,8 +27,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const cragId = searchParams.get('crag_id')
-    const limit = parseInt(searchParams.get('limit') || '20')
-    const offset = parseInt(searchParams.get('offset') || '0')
+    const { limit, offset } = parsePagination(searchParams)
     const includeRoutes = searchParams.get('include_routes') === 'true'
     const imageId = searchParams.get('image_id')
 

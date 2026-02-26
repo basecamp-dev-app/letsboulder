@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { parsePagination } from '@/lib/pagination'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status') || 'pending'
-  const limit = parseInt(searchParams.get('limit') || '20')
-  const offset = parseInt(searchParams.get('offset') || '0')
+  const { limit, offset } = parsePagination(searchParams)
   const cookies = request.cookies
 
   const supabase = createServerClient(
@@ -90,10 +90,15 @@ export async function GET(request: NextRequest) {
       }
     }))
 
-    const { count } = await supabase
+    let countQuery = supabase
       .from('climb_flags')
       .select('*', { count: 'exact', head: true })
-      .eq('status', status !== 'all' ? status : 'pending')
+
+    if (status !== 'all') {
+      countQuery = countQuery.eq('status', status)
+    }
+
+    const { count } = await countQuery
 
     return NextResponse.json({
       flags: flagsWithRelations,
