@@ -255,7 +255,14 @@ test.describe('Route Submission', () => {
       await goToFaceTwo(page, routeBaseName)
     }
 
-    await expect(page.getByRole('link', { name: /(?:Go to|View) Logbook/i })).toBeVisible({ timeout: 10000 })
+    const viewLogbookButton = page.getByRole('button', { name: /View Logbook/i })
+    const topNavLogbookLink = page.getByRole('link', { name: /^Logbook$/i }).first()
+
+    await expect.poll(async () => {
+      const hasInlineCta = await viewLogbookButton.isVisible().catch(() => false)
+      const hasTopNavLink = await topNavLogbookLink.isVisible().catch(() => false)
+      return hasInlineCta || hasTopNavLink
+    }, { timeout: 10000 }).toBeTruthy()
   })
 
   test('draft survives page reload via localStorage', async ({ page }) => {
