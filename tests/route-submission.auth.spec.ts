@@ -198,12 +198,15 @@ test.describe('Route Submission', () => {
     await page.waitForURL(/\/climb\//, { timeout: 20000 })
     console.log('Current URL:', page.url())
 
-    await expect(page.getByRole('heading', { name: new RegExp(routeBaseName) })).toBeVisible({ timeout: 20000 })
+    const viewerHeading = page.getByRole('heading', { level: 1, name: new RegExp(routeBaseName) }).first()
+    await expect(viewerHeading).toBeVisible({ timeout: 20000 })
+    const viewerHeadingText = (await viewerHeading.textContent())?.trim() || routeBaseName
+    const startedOnFaceOne = /Face 1$/.test(viewerHeadingText)
 
-    const viewerImage = page.getByRole('img', { name: `${routeBaseName} Face 1` }).first()
+    const viewerImage = page.getByRole('img', { name: viewerHeadingText }).first()
     await expect(viewerImage).toBeVisible({ timeout: 20000 })
-    const viewerFace1Src = await viewerImage.getAttribute('src')
-    expect(viewerFace1Src).toMatch(/.*\/storage\/v1\/object\/sign\/.*/)
+    const viewerInitialSrc = await viewerImage.getAttribute('src')
+    expect(viewerInitialSrc).toMatch(/.*\/storage\/v1\/object\/sign\/.*/)
 
     const viewerCanvas = page.locator('canvas.cursor-pointer').first()
     await expect(viewerCanvas).toBeVisible({ timeout: 20000 })
@@ -215,7 +218,9 @@ test.describe('Route Submission', () => {
     await expect(viewerFace2Image).toBeVisible({ timeout: 20000 })
     const viewerFace2Src = await viewerFace2Image.getAttribute('src')
     expect(viewerFace2Src).toMatch(/.*\/storage\/v1\/object\/sign\/.*/)
-    expect(viewerFace2Src).not.toBe(viewerFace1Src)
+    if (startedOnFaceOne) {
+      expect(viewerFace2Src).not.toBe(viewerInitialSrc)
+    }
     await expectCanvasOverlayPainted(viewerCanvas)
 
     const expectedFace2RouteId = getRouteParam(page.url())

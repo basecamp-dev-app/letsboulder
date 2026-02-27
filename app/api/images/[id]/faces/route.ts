@@ -208,10 +208,10 @@ export async function GET(
       return NextResponse.json({ error: 'Image not found' }, { status: 404 })
     }
 
-    const primaryOnlyUrlMap = await toViewableUrlMap([primaryImage.url], signingClient)
-    const primaryUrl = primaryOnlyUrlMap.get(primaryImage.url) ?? null
-
     if (!primaryImage.crag_id) {
+      const signedUrlMap = await toViewableUrlMap([primaryImage.url], signingClient)
+      const primaryUrl = signedUrlMap.get(primaryImage.url) ?? null
+
       const { data: summaryData } = await supabase.rpc('get_image_faces_summary', {
         p_image_id: imageId,
       })
@@ -261,6 +261,7 @@ export async function GET(
 
     const allFaceUrls = [primaryImage.url, ...(relatedFaces || []).map((face) => face.url)]
     const signedUrlMap = await toViewableUrlMap(allFaceUrls, signingClient)
+    const primaryUrl = signedUrlMap.get(primaryImage.url) ?? null
 
     const faces: FaceItem[] = []
     if (primaryUrl) {
