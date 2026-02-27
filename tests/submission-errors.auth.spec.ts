@@ -5,7 +5,10 @@ import globalSetup from '../global-setup'
 import { cleanupE2ERoutesByPrefix } from './utils/cleanup'
 
 const AUTH_STATE_PATH = path.resolve(process.cwd(), 'playwright/.auth/user.json')
-const IMAGE_FIXTURE_PATH = path.resolve(process.cwd(), 'tests/fixtures/images/IMG_20260220_170448.jpg')
+const IMAGE_FIXTURES = [
+  '/home/hadow/app-v2/tests/IMG-20260223-WA0006~2.jpg',
+  '/home/hadow/app-v2/tests/gg.png',
+]
 
 test.use({ storageState: AUTH_STATE_PATH })
 
@@ -47,7 +50,7 @@ async function goToDrawStep(page: Page) {
   await expect(page).not.toHaveURL(/\/auth/)
   await expect(page.getByRole('heading', { name: 'Upload Route Photo' })).toBeVisible()
 
-  await page.locator('input[type="file"]').setInputFiles(IMAGE_FIXTURE_PATH)
+  await page.locator('input[type="file"]').setInputFiles(IMAGE_FIXTURES)
   await page.getByRole('button', { name: 'Upload Photo' }).click()
 
   await expect(page.getByRole('heading', { name: 'Set Route Location' })).toBeVisible({ timeout: 30000 })
@@ -58,7 +61,10 @@ async function goToDrawStep(page: Page) {
   await confirmLocationButton.click()
 
   await expect(page.getByRole('heading', { name: 'Set Face Direction' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Select image / })).toHaveCount(2)
   await page.getByRole('button', { name: /^N$/ }).click()
+  await expect(page.getByRole('button', { name: 'Select image 2' })).toHaveClass(/border-2 border-blue-500/)
+  await page.getByRole('button', { name: /^W$/ }).click()
   await page.getByRole('button', { name: 'Confirm Face Directions' }).click()
 
   await expect(page.getByRole('heading', { name: 'Select a Crag' })).toBeVisible()

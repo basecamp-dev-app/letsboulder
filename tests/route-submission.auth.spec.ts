@@ -5,7 +5,10 @@ import globalSetup from '../global-setup'
 import { cleanupE2ERoutesByPrefix } from './utils/cleanup'
 
 const AUTH_STATE_PATH = path.resolve(process.cwd(), 'playwright/.auth/user.json')
-const IMAGE_FIXTURE_PATH = path.resolve(process.cwd(), 'tests/fixtures/images/IMG_20260220_170448.jpg')
+const IMAGE_FIXTURES = [
+  '/home/hadow/app-v2/tests/IMG-20260223-WA0006~2.jpg',
+  '/home/hadow/app-v2/tests/gg.png',
+]
 
 test.use({ storageState: AUTH_STATE_PATH })
 
@@ -70,7 +73,7 @@ async function goToDrawStep(page: Page) {
   await expect(page).not.toHaveURL(/\/auth/)
   await expect(page.getByRole('heading', { name: 'Upload Route Photo' })).toBeVisible()
 
-  await page.locator('input[type="file"]').setInputFiles(IMAGE_FIXTURE_PATH)
+  await page.locator('input[type="file"]').setInputFiles(IMAGE_FIXTURES)
   await page.getByRole('button', { name: 'Upload Photo' }).click()
 
   await expect(page.getByRole('heading', { name: 'Set Route Location' })).toBeVisible({ timeout: 30000 })
@@ -81,7 +84,10 @@ async function goToDrawStep(page: Page) {
   await confirmLocationButton.click()
 
   await expect(page.getByRole('heading', { name: 'Set Face Direction' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Select image / })).toHaveCount(2)
   await page.getByRole('button', { name: /^N$/ }).click()
+  await expect(page.getByRole('button', { name: 'Select image 2' })).toHaveClass(/border-2 border-blue-500/)
+  await page.getByRole('button', { name: /^W$/ }).click()
   await page.getByRole('button', { name: 'Confirm Face Directions' }).click()
 
   await expect(page.getByRole('heading', { name: 'Select a Crag' })).toBeVisible()
@@ -108,24 +114,47 @@ test.describe('Route Submission', () => {
   test('authenticated user can upload, draw, and submit a route', async ({ page }) => {
     await goToDrawStep(page)
 
-    const canvas = page.locator('canvas.cursor-crosshair')
-    await drawRouteWithFallback(page, canvas, [
+    const firstFaceCanvas = page.locator('canvas.cursor-crosshair')
+    await drawRouteWithFallback(page, firstFaceCanvas, [
       { x: 80, y: 120 },
       { x: 150, y: 180 },
       { x: 230, y: 220 },
     ])
 
-    await page.getByPlaceholder('Route name').fill(`E2E Route ${Date.now()}`)
+    const routeBaseName = `E2E Route ${Date.now()}`
+    await page.getByPlaceholder('Route name').fill(`${routeBaseName} Face 1`)
     await page.getByRole('button', { name: /^Save$/ }).click()
 
-    const submitRoutesButton = page.getByRole('button', { name: /Submit \d+ Route/i })
-    await expect(submitRoutesButton).toBeVisible({ timeout: 10000 })
-    await submitRoutesButton.click()
+    const submitFirstFaceButton = page.getByRole('button', { name: /Submit \d+ Route/i })
+    await expect(submitFirstFaceButton).toBeVisible({ timeout: 10000 })
+    await submitFirstFaceButton.click()
+
+    await expect(page.getByText(/Submit \d+ route\?/i)).toBeVisible()
+    await page.getByRole('button', { name: /^Confirm$/ }).click()
+
+    await expect(page.getByText('Face 2 of 2')).toBeVisible({ timeout: 20000 })
+    await expect(page.getByAltText('Route')).toHaveAttribute('src', /gg\.png/)
+
+    const secondFaceCanvas = page.locator('canvas.cursor-crosshair')
+    await drawRouteWithFallback(page, secondFaceCanvas, [
+      { x: 70, y: 110 },
+      { x: 140, y: 175 },
+      { x: 215, y: 235 },
+    ])
+
+    await page.getByPlaceholder('Route name').fill(`${routeBaseName} Face 2`)
+    await page.getByRole('button', { name: /^Save$/ }).click()
+
+    const submitFinalFaceButton = page.getByRole('button', { name: /Submit \d+ Route/i })
+    await expect(submitFinalFaceButton).toBeVisible({ timeout: 10000 })
+    await submitFinalFaceButton.click()
 
     await expect(page.getByText(/Submit \d+ route\?/i)).toBeVisible()
     await page.getByRole('button', { name: /^Confirm$/ }).click()
 
     await expect(page.getByRole('heading', { name: 'Routes Submitted!' })).toBeVisible({ timeout: 20000 })
+    await page.getByRole('link', { name: /View Routes on Image/i }).click()
+    await expect(page.locator('p').filter({ hasText: /2 faces/i }).first()).toBeVisible({ timeout: 20000 })
     await expect(page.getByRole('link', { name: /Go to Logbook/i })).toBeVisible()
   })
 
