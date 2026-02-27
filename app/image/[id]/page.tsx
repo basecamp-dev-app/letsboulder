@@ -80,7 +80,7 @@ export default async function ImageRedirectPage({
         }
       }
       return routeLink
-    })(), 3000)
+    })(), 2500)
 
     if (!resolvedRouteLink) {
       targetPath = '/'
@@ -94,7 +94,33 @@ export default async function ImageRedirectPage({
     }
   } catch (error) {
     console.error('Failed to redirect image page:', error)
-    targetPath = '/'
+
+    try {
+      const emergencyTimeout = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Emergency timeout')), 500)
+      })
+
+      const emergencyQuery = supabase
+        .from('route_lines')
+        .select('climb_id')
+        .eq('image_id', imageId)
+        .limit(1)
+        .maybeSingle()
+
+      const emergencyResult = await Promise.race([emergencyQuery, emergencyTimeout]) as { data: { climb_id: string } | null } | null
+
+      if (emergencyResult?.data?.climb_id) {
+        const next = new URLSearchParams()
+        if (query.tab === 'tops' || query.tab === 'climb') {
+          next.set('tab', query.tab)
+        }
+        targetPath = `/climb/${emergencyResult.data.climb_id}${next.toString() ? `?${next.toString()}` : ''}`
+      } else {
+        targetPath = '/'
+      }
+    } catch {
+      targetPath = '/'
+    }
   }
 
   redirect(targetPath)

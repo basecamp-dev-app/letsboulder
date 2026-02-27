@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -278,6 +278,7 @@ export default function ClimbPage() {
   const [faceGallery, setFaceGallery] = useState<FaceGalleryItem[]>([])
   const [totalFaces, setTotalFaces] = useState(1)
   const [totalRoutesCombined, setTotalRoutesCombined] = useState(0)
+  const [isFacesLoading, setIsFacesLoading] = useState(false)
   const [showDeferredSections, setShowDeferredSections] = useState(false)
   const [activeFaceIndex, setActiveFaceIndex] = useState(0)
   const [primaryImageId, setPrimaryImageId] = useState<string | null>(null)
@@ -291,6 +292,8 @@ export default function ClimbPage() {
     align: 'start',
   })
   const faceRouteCacheRef = useRef<Record<string, { image: ImageInfo; routeLines: DisplayRouteLine[] }>>({})
+  const initialRouteCountRef = useRef(0)
+  const prevActiveFaceIndexRef = useRef<number | null>(null)
   const gradeSystem = useGradeSystem()
 
   useOverlayHistory({ open: shareModalOpen, onClose: () => setShareModalOpen(false), id: 'share-climb-dialog' })
@@ -315,7 +318,7 @@ export default function ClimbPage() {
       linked_image_id: image.id,
       crag_image_id: null,
     } satisfies FaceGalleryItem]
-  }, [faceGallery, image])
+  }, [faceGallery, image?.id, image?.url])
 
   const updateEmblaControls = useCallback(() => {
     if (!emblaApi) return
@@ -549,57 +552,9 @@ export default function ClimbPage() {
         }
 
         setTotalRoutesCombined(mappedLines.length)
+        initialRouteCountRef.current = mappedLines.length
         setLoading(false)
 
-        void (async () => {
-          try {
-            if (imageInfo.crag_id) {
-              const { data: cragData } = await supabase
-                .from('crags')
-                .select('id, country_code, slug')
-                .eq('id', imageInfo.crag_id)
-                .maybeSingle()
-
-              if (cragData?.country_code && cragData?.slug) {
-                setCragPath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
-              } else {
-                setCragPath(`/crag/${imageInfo.crag_id}`)
-              }
-            }
-
-            const facesResponse = await fetch(`/api/images/${typedSeed.image_id}/faces`)
-            const facesPayload = await facesResponse.json().catch(() => ({} as FacesApiResponse))
-            const faces = Array.isArray(facesPayload.faces)
-              ? facesPayload.faces.filter((item: FaceGalleryItem) => typeof item.url === 'string' && !!item.url)
-              : []
-            setFaceGallery(faces)
-            setTotalFaces(typeof facesPayload.total_faces === 'number' ? Math.max(1, facesPayload.total_faces) : Math.max(1, faces.length))
-            setTotalRoutesCombined(typeof facesPayload.total_routes_combined === 'number' ? facesPayload.total_routes_combined : mappedLines.length)
-
-            if (imageInfo.created_by) {
-              const { data: profileData } = await supabase
-                .from('profiles')
-                .select('id, username, display_name, first_name, last_name, is_public, contribution_credit_platform, contribution_credit_handle')
-                .eq('id', imageInfo.created_by)
-                .single()
-
-              if (profileData?.is_public) {
-                const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
-                const displayName = fullName || profileData.display_name || profileData.username || 'Climber'
-                setPublicSubmitter({
-                  id: profileData.id,
-                  displayName,
-                  contributionCreditPlatform: imageInfo.contribution_credit_platform,
-                  contributionCreditHandle: imageInfo.contribution_credit_handle,
-                  profileContributionCreditPlatform: profileData.contribution_credit_platform,
-                  profileContributionCreditHandle: profileData.contribution_credit_handle,
-                })
-              }
-            }
-          } catch (auxError) {
-            console.warn('Deferred climb context load warning:', auxError)
-          }
-        })()
         return
       } catch (err) {
         console.error('Error loading climb:', err)
@@ -611,6 +566,91 @@ export default function ClimbPage() {
 
     loadClimbContext()
   }, [climbId, clearSelection])
+
+  useEffect(() => {
+    if (!primaryImageId) return
+
+    let cancelled = false
+    setIsFacesLoading(true)
+
+    void (async () => {
+      try {
+        const supabase = createClient()
+
+        const { data: seedRoute } = await supabase
+          .from('route_lines')
+          .select('image_id, image:images!inner(crag_id, created_by, contribution_credit_platform, contribution_credit_handle)')
+          .eq('climb_id', climbId)
+          .maybeSingle()
+
+        if (cancelled || !seedRoute) return
+
+        const typedSeed = seedRoute as unknown as SeedRouteResponse
+        const imageInfo = pickOne(typedSeed.image)
+
+        if (!imageInfo) return
+
+        if (imageInfo.crag_id) {
+          const { data: cragData } = await supabase
+            .from('crags')
+            .select('id, country_code, slug')
+            .eq('id', imageInfo.crag_id)
+            .maybeSingle()
+
+          if (!cancelled) {
+            if (cragData?.country_code && cragData?.slug) {
+              setCragPath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
+            } else {
+              setCragPath(`/crag/${imageInfo.crag_id}`)
+            }
+          }
+        }
+
+        const facesResponse = await fetch(`/api/images/${primaryImageId}/faces`)
+        const facesPayload = await facesResponse.json().catch(() => ({} as FacesApiResponse))
+
+        if (cancelled) return
+
+        const faces = Array.isArray(facesPayload.faces)
+          ? facesPayload.faces.filter((item: FaceGalleryItem) => typeof item.url === 'string' && !!item.url)
+          : []
+        setFaceGallery(faces)
+        setTotalFaces(typeof facesPayload.total_faces === 'number' ? Math.max(1, facesPayload.total_faces) : Math.max(1, faces.length))
+        setTotalRoutesCombined(typeof facesPayload.total_routes_combined === 'number' ? facesPayload.total_routes_combined : initialRouteCountRef.current)
+
+        if (imageInfo.created_by) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('id, username, display_name, first_name, last_name, is_public, contribution_credit_platform, contribution_credit_handle')
+            .eq('id', imageInfo.created_by)
+            .single()
+
+          if (!cancelled && profileData?.is_public) {
+            const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
+            const displayName = fullName || profileData.display_name || profileData.username || 'Climber'
+            setPublicSubmitter({
+              id: profileData.id,
+              displayName,
+              contributionCreditPlatform: imageInfo.contribution_credit_platform,
+              contributionCreditHandle: imageInfo.contribution_credit_handle,
+              profileContributionCreditPlatform: profileData.contribution_credit_platform,
+              profileContributionCreditHandle: profileData.contribution_credit_handle,
+            })
+          }
+        }
+      } catch (auxError) {
+        console.warn('Deferred climb context load warning:', auxError)
+      } finally {
+        if (!cancelled) {
+          setIsFacesLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [climbId, primaryImageId])
 
   useEffect(() => {
     if (!emblaApi) return
@@ -631,6 +671,11 @@ export default function ClimbPage() {
   }, [emblaApi, updateEmblaControls])
 
   useEffect(() => {
+    if (prevActiveFaceIndexRef.current === activeFaceIndex && faceRouteCacheRef.current[primaryImageId || '']) {
+      return
+    }
+    prevActiveFaceIndexRef.current = activeFaceIndex
+
     const activeFace = visibleFaces[activeFaceIndex]
     if (!activeFace) return
 
@@ -1326,76 +1371,84 @@ export default function ClimbPage() {
       )}
 
       <div className="group flex-1 relative overflow-hidden flex items-center justify-center p-4">
-        <div className="relative w-full max-w-6xl" ref={emblaRef}>
-          <div className="flex">
-            {visibleFaces.map((face, index) => (
-              <div key={face.id} className="relative min-w-0 shrink-0 grow-0 basis-full flex items-center justify-center">
-                <Image
-                  ref={index === activeFaceIndex ? imageRef : undefined}
-                  src={face.url}
-                  alt={displayClimb?.name || 'Climbing routes'}
-                  width={1600}
-                  height={1200}
-                  sizes="(max-width: 768px) 100vw, 1200px"
-                  fetchPriority={index === activeFaceIndex ? 'high' : undefined}
-                  unoptimized
-                  className="max-w-full max-h-[60vh] object-contain"
-                />
-              </div>
-            ))}
+        <Suspense fallback={
+          <div className="relative w-full max-w-6xl">
+            <div className="flex items-center justify-center min-h-[40vh]">
+              <div className="w-full max-w-3xl aspect-[4/3] bg-gray-200 dark:bg-gray-800 animate-pulse rounded-lg" />
+            </div>
           </div>
-
-          {totalFaces > 1 && (
-            <>
-              <div className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                <Layers className="h-3.5 w-3.5" />
-                <span>{totalFaces}</span>
-              </div>
-
-              {canScrollPrev && (
-                <button
-                  type="button"
-                  onClick={() => emblaApi?.scrollPrev()}
-                  aria-label="Previous face"
-                  className="absolute left-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-              )}
-
-              {canScrollNext && (
-                <button
-                  type="button"
-                  onClick={() => emblaApi?.scrollNext()}
-                  aria-label="Next face"
-                  className="absolute right-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              )}
-
-              <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/30 px-2 py-1 backdrop-blur-sm">
-                {visibleFaces.map((face, idx) => (
-                  <button
-                    key={`dot-${face.id}`}
-                    type="button"
-                    onClick={() => emblaApi?.scrollTo(idx)}
-                    aria-label={`Go to face ${idx + 1}`}
-                    className={`h-1.5 w-1.5 rounded-full transition ${idx === activeFaceIndex ? 'bg-white' : 'bg-white/50'}`}
+        }>
+          <div className="relative w-full max-w-6xl" ref={emblaRef}>
+            <div className="flex">
+              {visibleFaces.map((face, index) => (
+                <div key={face.id} className="relative min-w-0 shrink-0 grow-0 basis-full flex items-center justify-center">
+                  <Image
+                    ref={index === activeFaceIndex ? imageRef : undefined}
+                    src={face.url}
+                    alt={displayClimb?.name || 'Climbing routes'}
+                    width={1600}
+                    height={1200}
+                    sizes="(max-width: 768px) 100vw, 1200px"
+                    fetchPriority={index === activeFaceIndex ? 'high' : undefined}
+                    unoptimized
+                    className="max-w-full max-h-[60vh] object-contain"
                   />
-                ))}
-                <span className="ml-1 text-[10px] font-medium text-white">{activeFaceIndex + 1}/{visibleFaces.length}</span>
-              </div>
-            </>
-          )}
+                </div>
+              ))}
+            </div>
 
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 cursor-pointer"
-            onClick={handleCanvasClick}
-            style={{ pointerEvents: 'auto', touchAction: 'none' }}
-          />
-        </div>
+            {totalFaces > 1 && (
+              <>
+                <div className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>{totalFaces}</span>
+                </div>
+
+                {canScrollPrev && (
+                  <button
+                    type="button"
+                    onClick={() => emblaApi?.scrollPrev()}
+                    aria-label="Previous face"
+                    className="absolute left-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                )}
+
+                {canScrollNext && (
+                  <button
+                    type="button"
+                    onClick={() => emblaApi?.scrollNext()}
+                    aria-label="Next face"
+                    className="absolute right-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                )}
+
+                <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/30 px-2 py-1 backdrop-blur-sm">
+                  {visibleFaces.map((face, idx) => (
+                    <button
+                      key={`dot-${face.id}`}
+                      type="button"
+                      onClick={() => emblaApi?.scrollTo(idx)}
+                      aria-label={`Go to face ${idx + 1}`}
+                      className={`h-1.5 w-1.5 rounded-full transition ${idx === activeFaceIndex ? 'bg-white' : 'bg-white/50'}`}
+                    />
+                  ))}
+                  <span className="ml-1 text-[10px] font-medium text-white">{activeFaceIndex + 1}/{visibleFaces.length}</span>
+                </div>
+              </>
+            )}
+
+            <canvas
+              ref={canvasRef}
+              className="absolute inset-0 cursor-pointer"
+              onClick={handleCanvasClick}
+              style={{ pointerEvents: 'auto', touchAction: 'none' }}
+            />
+          </div>
+        </Suspense>
       </div>
 
       <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
@@ -1416,7 +1469,7 @@ export default function ClimbPage() {
                 </p>
               )}
               <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
-                {totalRoutesCombined} route{totalRoutesCombined === 1 ? '' : 's'}
+                {isFacesLoading ? 'Loading routes...' : `${totalRoutesCombined} route${totalRoutesCombined === 1 ? '' : 's'}`}
                 {totalFaces > 1 ? ` across ${totalFaces} faces` : ''}
               </p>
               {selectedClimb && (
