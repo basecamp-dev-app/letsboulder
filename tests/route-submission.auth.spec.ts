@@ -74,7 +74,8 @@ async function goToDrawStep(page: Page) {
   await expect(page.getByRole('heading', { name: 'Upload Route Photo' })).toBeVisible()
 
   await page.locator('input[type="file"]').setInputFiles(IMAGE_FIXTURES)
-  await page.getByRole('button', { name: 'Upload Photo' }).click()
+  await expect(page.getByText(/Compressing/i)).not.toBeVisible({ timeout: 15000 })
+  await page.getByRole('button', { name: /Upload|Batch|Next|Continue/i }).click()
 
   await expect(page.getByRole('heading', { name: 'Set Route Location' })).toBeVisible({ timeout: 30000 })
   const confirmLocationButton = page.getByRole('button', { name: /Confirm Location|Place Location/i })
