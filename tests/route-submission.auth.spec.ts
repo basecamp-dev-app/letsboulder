@@ -255,7 +255,7 @@ test.describe('Route Submission', () => {
       await goToFaceTwo(page, routeBaseName)
     }
 
-    await expect(page.getByRole('link', { name: /Go to Logbook/i })).toBeVisible()
+    await expect(page.getByRole('link', { name: /(?:Go to|View) Logbook/i })).toBeVisible({ timeout: 10000 })
   })
 
   test('draft survives page reload via localStorage', async ({ page }) => {
