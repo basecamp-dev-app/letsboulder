@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
+import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
 
 export const runtime = 'nodejs'
 
@@ -93,26 +94,65 @@ export async function GET(
 
     const rows = (data || []) as CragImageRow[]
     const signingClient = supabaseAdmin || supabase
-    const result: Array<CragImageRow & { signed_url: string | null }> = []
+    const pathsByBucket = new Map<string, Set<string>>()
 
     for (const row of rows) {
       const parsed = parsePrivateStorageUrl(row.url)
-      if (!parsed) {
-        result.push({ ...row, signed_url: row.url })
-        continue
-      }
+      if (!parsed) continue
+
+      const current = pathsByBucket.get(parsed.bucket) || new Set<string>()
+      current.add(parsed.path)
+      pathsByBucket.set(parsed.bucket, current)
+    }
+
+    const signedByKey = new Map<string, string>()
+
+    for (const [bucket, pathSet] of pathsByBucket.entries()) {
+      const paths = Array.from(pathSet)
+      if (paths.length === 0) continue
 
       const { data: signedData, error: signedError } = await signingClient.storage
-        .from(parsed.bucket)
-        .createSignedUrl(parsed.path, 3600)
+        .from(bucket)
+        .createSignedUrls(paths, 3600)
 
-      if (signedError || !signedData?.signedUrl) {
-        result.push({ ...row, signed_url: null })
+      if (signedError) {
+        console.warn('Crag images batch signed URL generation failed:', {
+          cragId,
+          bucket,
+          pathCount: paths.length,
+          error: signedError,
+        })
         continue
       }
 
-      result.push({ ...row, signed_url: signedData.signedUrl })
+      const bucketResults: NonNullable<SignedUrlBatchResponse['results']> = []
+      for (const item of signedData || []) {
+        if (typeof item.path !== 'string') continue
+        bucketResults.push({
+          bucket,
+          path: item.path,
+          signedUrl: item.signedUrl || null,
+        })
+      }
+      const payload: SignedUrlBatchResponse = { results: bucketResults }
+
+      for (const result of payload.results || []) {
+        if (!result.signedUrl) continue
+        signedByKey.set(getSignedUrlBatchKey(result.bucket, result.path), result.signedUrl)
+      }
     }
+
+    const result: Array<CragImageRow & { signed_url: string | null }> = rows.map((row) => {
+      const parsed = parsePrivateStorageUrl(row.url)
+      if (!parsed) {
+        return { ...row, signed_url: row.url }
+      }
+
+      return {
+        ...row,
+        signed_url: signedByKey.get(getSignedUrlBatchKey(parsed.bucket, parsed.path)) || null,
+      }
+    })
 
     return NextResponse.json({ images: result })
   } catch (error) {

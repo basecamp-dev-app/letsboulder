@@ -50,16 +50,50 @@ function parsePrivateStorageUrl(url: string): { bucket: string; path: string } |
   return { bucket, path }
 }
 
-async function toViewableUrl(
-  rawUrl: string,
+async function toViewableUrlMap(
+  rawUrls: string[],
   signer: ReturnType<typeof createServerClient>
-): Promise<string | null> {
-  const parsed = parsePrivateStorageUrl(rawUrl)
-  if (!parsed) return rawUrl
+): Promise<Map<string, string | null>> {
+  const map = new Map<string, string | null>()
+  const groupedPaths = new Map<string, Set<string>>()
 
-  const { data, error } = await signer.storage.from(parsed.bucket).createSignedUrl(parsed.path, 3600)
-  if (error || !data?.signedUrl) return null
-  return data.signedUrl
+  for (const rawUrl of rawUrls) {
+    if (!rawUrl) continue
+    const parsed = parsePrivateStorageUrl(rawUrl)
+    if (!parsed) {
+      map.set(rawUrl, rawUrl)
+      continue
+    }
+
+    const bucketPaths = groupedPaths.get(parsed.bucket) || new Set<string>()
+    bucketPaths.add(parsed.path)
+    groupedPaths.set(parsed.bucket, bucketPaths)
+  }
+
+  for (const [bucket, pathSet] of groupedPaths.entries()) {
+    const paths = Array.from(pathSet)
+    if (paths.length === 0) continue
+
+    const { data, error } = await signer.storage.from(bucket).createSignedUrls(paths, 3600)
+    if (error) {
+      for (const path of paths) {
+        map.set(`private://${bucket}/${path}`, null)
+      }
+      continue
+    }
+
+    const signedByPath = new Map<string, string>()
+    for (const item of data || []) {
+      if (!item?.path || !item?.signedUrl) continue
+      signedByPath.set(item.path, item.signedUrl)
+    }
+
+    for (const path of paths) {
+      map.set(`private://${bucket}/${path}`, signedByPath.get(path) ?? null)
+    }
+  }
+
+  return map
 }
 
 async function fetchPrimaryImage(
@@ -174,7 +208,8 @@ export async function GET(
       return NextResponse.json({ error: 'Image not found' }, { status: 404 })
     }
 
-    const primaryUrl = await toViewableUrl(primaryImage.url, signingClient)
+    const primaryOnlyUrlMap = await toViewableUrlMap([primaryImage.url], signingClient)
+    const primaryUrl = primaryOnlyUrlMap.get(primaryImage.url) ?? null
 
     if (!primaryImage.crag_id) {
       const { data: summaryData } = await supabase.rpc('get_image_faces_summary', {
@@ -224,6 +259,9 @@ export async function GET(
       }
     }
 
+    const allFaceUrls = [primaryImage.url, ...(relatedFaces || []).map((face) => face.url)]
+    const signedUrlMap = await toViewableUrlMap(allFaceUrls, signingClient)
+
     const faces: FaceItem[] = []
     if (primaryUrl) {
       faces.push({
@@ -237,22 +275,21 @@ export async function GET(
       })
     }
 
-    const signedFaceCandidates = await Promise.all(
-      (relatedFaces || []).map(async (face) => {
-        const signedUrl = await toViewableUrl(face.url, signingClient)
-        if (!signedUrl) return null
-        const resolvedLinkedImageId = face.linked_image_id === primaryImage.id ? null : face.linked_image_id
-        return {
-          id: `crag-image:${face.id}`,
-          is_primary: false,
-          url: signedUrl,
-          has_routes: !!(resolvedLinkedImageId && routeCountsByImageId.has(resolvedLinkedImageId)),
-          linked_image_id: resolvedLinkedImageId,
-          crag_image_id: face.id,
-          face_directions: face.face_directions ?? null,
-        } as FaceItem
-      })
-    )
+    const signedFaceCandidates = (relatedFaces || []).map((face) => {
+      const signedUrl = signedUrlMap.get(face.url) ?? null
+      if (!signedUrl) return null
+
+      const resolvedLinkedImageId = face.linked_image_id === primaryImage.id ? null : face.linked_image_id
+      return {
+        id: `crag-image:${face.id}`,
+        is_primary: false,
+        url: signedUrl,
+        has_routes: !!(resolvedLinkedImageId && routeCountsByImageId.has(resolvedLinkedImageId)),
+        linked_image_id: resolvedLinkedImageId,
+        crag_image_id: face.id,
+        face_directions: face.face_directions ?? null,
+      } as FaceItem
+    })
 
     const seenCragImageIds = new Set<string>()
     const seenFaceKeys = new Set<string>()

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
+import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
 
 interface DraftPatchImage {
   id: string
@@ -29,18 +30,6 @@ function normalizePatchImages(value: unknown): DraftPatchImage[] | null {
   }
 
   return images
-}
-
-function parsePrivateStorageUrl(url: string): { bucket: string; path: string } | null {
-  if (!url.startsWith('private://')) return null
-  const withoutScheme = url.slice('private://'.length)
-  const slashIndex = withoutScheme.indexOf('/')
-  if (slashIndex <= 0) return null
-
-  const bucket = withoutScheme.slice(0, slashIndex)
-  const path = withoutScheme.slice(slashIndex + 1)
-  if (!bucket || !path) return null
-  return { bucket, path }
 }
 
 export async function GET(
@@ -94,24 +83,56 @@ export async function GET(
       return createErrorResponse(imagesError, 'Failed to fetch draft images')
     }
 
-    const withSignedUrls: Array<Record<string, unknown>> = []
-    for (const image of images || []) {
-      const parsed = parsePrivateStorageUrl(`private://${image.storage_bucket}/${image.storage_path}`)
-      if (!parsed) {
-        withSignedUrls.push({ ...image, signed_url: null })
+    const imageRows = images || []
+    const pathsByBucket = new Map<string, Set<string>>()
+
+    for (const image of imageRows) {
+      if (!image.storage_bucket || !image.storage_path) continue
+      const current = pathsByBucket.get(image.storage_bucket) || new Set<string>()
+      current.add(image.storage_path)
+      pathsByBucket.set(image.storage_bucket, current)
+    }
+
+    const signedByKey = new Map<string, string>()
+
+    for (const [bucket, pathSet] of pathsByBucket.entries()) {
+      const paths = Array.from(pathSet)
+      if (paths.length === 0) continue
+
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrls(paths, 3600)
+      if (error) {
+        console.warn('Draft batch signed URL generation failed:', {
+          draftId: id,
+          bucket,
+          pathCount: paths.length,
+          error,
+        })
         continue
       }
 
-      const { data: signedData, error: signedError } = await supabase.storage
-        .from(parsed.bucket)
-        .createSignedUrl(parsed.path, 3600)
+      const bucketResults: NonNullable<SignedUrlBatchResponse['results']> = []
+      for (const item of data || []) {
+        if (typeof item.path !== 'string') continue
+        bucketResults.push({
+          bucket,
+          path: item.path,
+          signedUrl: item.signedUrl || null,
+        })
+      }
+      const payload: SignedUrlBatchResponse = { results: bucketResults }
 
-      if (signedError || !signedData?.signedUrl) {
-        withSignedUrls.push({ ...image, signed_url: null })
-      } else {
-        withSignedUrls.push({ ...image, signed_url: signedData.signedUrl })
+      for (const result of payload.results || []) {
+        if (!result.signedUrl) continue
+        signedByKey.set(getSignedUrlBatchKey(result.bucket, result.path), result.signedUrl)
       }
     }
+
+    const withSignedUrls: Array<Record<string, unknown>> = imageRows.map((image) => ({
+      ...image,
+      signed_url: image.storage_bucket && image.storage_path
+        ? (signedByKey.get(getSignedUrlBatchKey(image.storage_bucket, image.storage_path)) || null)
+        : null,
+    }))
 
     return NextResponse.json({ draft: { ...draft, images: withSignedUrls } })
   } catch (error) {

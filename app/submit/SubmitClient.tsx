@@ -11,6 +11,7 @@ import { csrfFetch, primeCsrfToken } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { draftStorageGetItem, draftStorageRemoveItem, draftStorageSetItem } from '@/lib/submit-draft-storage'
+import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
 import SubmissionCredit from '@/components/SubmissionCredit'
 
 const dynamic = nextDynamic
@@ -57,12 +58,6 @@ interface PendingFace {
 interface ServerDraftSession {
   id: string
   imageIds: string[]
-}
-
-interface BatchSignedUrlResult {
-  bucket: string
-  path: string
-  signedUrl: string | null
 }
 
 interface DraftImageSelectionSnapshotExisting {
@@ -1131,19 +1126,17 @@ function SubmitPageContent() {
           throw new Error('Unable to restore photo preview')
         }
 
-        const signedData = await signedUrlResponse.json().catch(() => ({} as {
-          results?: BatchSignedUrlResult[]
-        }))
+        const signedData = await signedUrlResponse.json().catch(() => ({} as SignedUrlBatchResponse))
         const signedResults = Array.isArray(signedData.results) ? signedData.results : []
         const signedByKey = new Map<string, string>()
 
         for (const item of signedResults) {
           if (!item?.signedUrl) continue
-          signedByKey.set(`${item.bucket}:${item.path}`, item.signedUrl)
+          signedByKey.set(getSignedUrlBatchKey(item.bucket, item.path), item.signedUrl)
         }
 
         const signedImages = restoredImages.map((draftImage) => {
-          const key = `${draftImage.uploadedBucket}:${draftImage.uploadedPath}`
+          const key = getSignedUrlBatchKey(draftImage.uploadedBucket, draftImage.uploadedPath)
           const signedUrl = signedByKey.get(key)
           if (!signedUrl) {
             throw new Error('Unable to restore photo preview')

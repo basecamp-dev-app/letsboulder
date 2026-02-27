@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { LogbookSkeleton } from '@/components/logbook/logbook-states'
 import { useToast } from '@/components/logbook/toast'
 import { getGradePoints } from '@/lib/grades'
+import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
 
 interface LoggedClimb {
   id: string
@@ -50,6 +51,12 @@ interface Submission {
   route_lines_count: number
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
+}
+
+interface DraftImageRef {
+  storage_bucket?: string
+  storage_path?: string
+  route_data?: unknown
 }
 
 function LoadingFallback() {
@@ -192,26 +199,48 @@ function LogbookContent() {
             console.error('Draft submissions query error:', draftError)
           }
 
-          const formattedDrafts: Submission[] = await Promise.all((draftSubmissions || []).map(async (draft) => {
+          const draftRows = (draftSubmissions || [])
+          const firstDraftImageObjects = draftRows
+            .map((draft) => {
+              const draftImages = (draft.submission_draft_images as DraftImageRef[] | null) || []
+              const firstImage = draftImages[0]
+              if (!firstImage?.storage_bucket || !firstImage?.storage_path) return null
+              return {
+                bucket: firstImage.storage_bucket,
+                path: firstImage.storage_path,
+              }
+            })
+            .filter((item): item is { bucket: string; path: string } => !!item)
+
+          const signedByKey = new Map<string, string>()
+          if (firstDraftImageObjects.length > 0) {
+            const signedUrlResponse = await fetch('/api/uploads/signed-urls/batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ objects: firstDraftImageObjects }),
+            })
+
+            if (signedUrlResponse.ok) {
+              const signedData = await signedUrlResponse.json().catch(() => ({} as SignedUrlBatchResponse))
+              for (const item of signedData.results || []) {
+                if (!item?.signedUrl) continue
+                signedByKey.set(getSignedUrlBatchKey(item.bucket, item.path), item.signedUrl)
+              }
+            }
+          }
+
+          const formattedDrafts: Submission[] = draftRows.map((draft) => {
             const cragRelation = draft.crags as { name?: string } | Array<{ name?: string }> | null
             const cragName = Array.isArray(cragRelation)
               ? (cragRelation[0]?.name || null)
               : (cragRelation?.name || null)
 
-            const draftImages = (draft.submission_draft_images as Array<{
-              storage_bucket?: string
-              storage_path?: string
-              route_data?: unknown
-            }> | null) || []
+            const draftImages = (draft.submission_draft_images as DraftImageRef[] | null) || []
 
             const firstImage = draftImages[0]
-            let previewUrl = ''
-            if (firstImage?.storage_bucket && firstImage?.storage_path) {
-              const { data: signedData } = await supabase.storage
-                .from(firstImage.storage_bucket)
-                .createSignedUrl(firstImage.storage_path, 3600)
-              previewUrl = signedData?.signedUrl || ''
-            }
+            const previewUrl = firstImage?.storage_bucket && firstImage?.storage_path
+              ? (signedByKey.get(getSignedUrlBatchKey(firstImage.storage_bucket, firstImage.storage_path)) || '')
+              : ''
 
             const routeCount = draftImages.reduce((count, image) => {
               const routeData = image.route_data
@@ -233,7 +262,7 @@ function LogbookContent() {
               contribution_credit_platform: null,
               contribution_credit_handle: null,
             }
-          }))
+          })
 
           const mergedSubmissions = [...formattedDrafts, ...formattedSubmissions]
             .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())

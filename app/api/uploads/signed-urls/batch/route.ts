@@ -1,24 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { getSignedUrlBatchKey, type BatchSignedUrlResult, type SignedUrlBatchRequestObject } from '@/lib/signed-url-batch'
 
-interface SignedUrlRequestItem {
-  bucket: string
-  path: string
-}
-
-interface SignedUrlResponseItem {
-  bucket: string
-  path: string
-  signedUrl: string | null
-}
-
-function normalizeObjects(input: unknown): SignedUrlRequestItem[] | null {
+function normalizeObjects(input: unknown): SignedUrlBatchRequestObject[] | null {
   if (!Array.isArray(input) || input.length === 0) return null
 
-  const normalized: SignedUrlRequestItem[] = []
+  const normalized: SignedUrlBatchRequestObject[] = []
   for (const item of input) {
     if (!item || typeof item !== 'object') return null
-    const candidate = item as Partial<SignedUrlRequestItem>
+    const candidate = item as Partial<SignedUrlBatchRequestObject>
     if (typeof candidate.bucket !== 'string' || !candidate.bucket) return null
     if (typeof candidate.path !== 'string' || !candidate.path) return null
     normalized.push({ bucket: candidate.bucket, path: candidate.path })
@@ -87,14 +77,14 @@ export async function POST(request: NextRequest) {
 
     for (const item of data || []) {
       if (!item?.path || !item?.signedUrl) continue
-      signedByKey.set(`${bucket}:${item.path}`, item.signedUrl)
+      signedByKey.set(getSignedUrlBatchKey(bucket, item.path), item.signedUrl)
     }
   }
 
-  const results: SignedUrlResponseItem[] = objects.map((item) => ({
+  const results: BatchSignedUrlResult[] = objects.map((item) => ({
     bucket: item.bucket,
     path: item.path,
-    signedUrl: signedByKey.get(`${item.bucket}:${item.path}`) ?? null,
+    signedUrl: signedByKey.get(getSignedUrlBatchKey(item.bucket, item.path)) ?? null,
   }))
 
   return NextResponse.json({ results })
