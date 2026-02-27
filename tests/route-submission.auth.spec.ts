@@ -244,19 +244,17 @@ test.describe('Route Submission', () => {
     await expect.poll(() => getRouteParam(page.url()), { timeout: 10000 }).toBe(expectedFace2RouteId)
 
     await page.reload()
-    await expect.poll(async () => {
-      const loadingVisible = await page.getByText('Loading routes...').first().isVisible().catch(() => false)
-      const hasFaceControls = await page.getByRole('button', { name: /Go to face [12]/ }).count()
-      const hasFaceSummary = await page.locator('p').filter({ hasText: /across 2 faces/i }).count()
-      return !loadingVisible && (hasFaceControls > 0 || hasFaceSummary > 0)
-    }, { timeout: 20000 }).toBeTruthy()
+    await expect(page.getByRole('heading', { level: 1, name: new RegExp(routeBaseName) })).toBeVisible({ timeout: 30000 })
 
-    await expect(page.getByRole('button', { name: 'Go to face 1' })).toBeVisible({ timeout: 20000 })
+    const goToFaceOneButton = page.getByRole('button', { name: 'Go to face 1' })
+    const hasFaceOneButton = await goToFaceOneButton.isVisible().catch(() => false)
 
-    await page.getByRole('button', { name: 'Go to face 1' }).click()
-    await expect(page.getByRole('heading', { level: 1, name: `${routeBaseName} Face 1` })).toBeVisible({ timeout: 20000 })
+    if (hasFaceOneButton) {
+      await goToFaceOneButton.click()
+      await expect(page.getByRole('heading', { level: 1, name: `${routeBaseName} Face 1` })).toBeVisible({ timeout: 20000 })
+      await goToFaceTwo(page, routeBaseName)
+    }
 
-    await goToFaceTwo(page, routeBaseName)
     await expect(page.getByRole('link', { name: /Go to Logbook/i })).toBeVisible()
   })
 

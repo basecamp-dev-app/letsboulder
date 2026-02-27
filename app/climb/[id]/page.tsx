@@ -610,10 +610,22 @@ export default function ClimbPage() {
           }
         }
 
-        const facesResponse = await fetch(`/api/images/${primaryImageId}/faces`)
-        const facesPayload = facesResponse.ok
-          ? await facesResponse.json().catch(() => ({} as FacesApiResponse))
-          : ({} as FacesApiResponse)
+        const facesAbortController = new AbortController()
+        const facesTimeoutId = window.setTimeout(() => {
+          facesAbortController.abort()
+        }, 12000)
+
+        const facesPayload: FacesApiResponse = await fetch(`/api/images/${primaryImageId}/faces`, {
+          signal: facesAbortController.signal,
+        })
+          .then(async (response) => {
+            if (!response.ok) return {} as FacesApiResponse
+            return response.json().catch(() => ({} as FacesApiResponse))
+          })
+          .catch(() => ({} as FacesApiResponse))
+          .finally(() => {
+            window.clearTimeout(facesTimeoutId)
+          })
 
         if (cancelled) return
 
