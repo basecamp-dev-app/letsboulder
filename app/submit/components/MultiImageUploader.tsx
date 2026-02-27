@@ -38,11 +38,17 @@ function SortableThumb({ image, index, onRemove }: SortableThumbProps) {
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-100"
+      {...attributes}
+      {...listeners}
+      className="relative h-24 w-24 shrink-0 cursor-grab overflow-hidden rounded-lg border border-gray-200 bg-gray-100 hover:ring-2 hover:ring-blue-500"
     >
       <button
         type="button"
-        onClick={() => onRemove(image.id)}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation()
+          onRemove(image.id)
+        }}
         className="absolute right-1 top-1 z-20 rounded-full bg-black/70 px-1.5 py-0.5 text-xs text-white"
         aria-label="Remove image"
       >
@@ -53,17 +59,6 @@ function SortableThumb({ image, index, onRemove }: SortableThumbProps) {
           Primary
         </div>
       )}
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center pb-1">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="touch-none rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white"
-          aria-label="Drag to reorder"
-        >
-          Drag
-        </button>
-      </div>
       <NextImage src={image.previewUrl} alt="Selected" fill unoptimized sizes="96px" className="object-cover" />
     </div>
   )
