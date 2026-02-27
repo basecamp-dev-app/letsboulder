@@ -6,6 +6,22 @@ interface RouteLink {
   climb_id: string
 }
 
+async function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeoutId: NodeJS.Timeout | null = null
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`Timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+  })
+
+  try {
+    return await Promise.race([operation, timeoutPromise])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
 export default async function ImageRedirectPage({
   params,
   searchParams,
@@ -26,51 +42,55 @@ export default async function ImageRedirectPage({
     { cookies: { getAll() { return [] }, setAll() {} } }
   )
 
-  let routeLink: RouteLink | null = null
   let targetPath: string | null = null
 
   try {
     const requestedRouteId = query.route
     const requestedTab = query.tab
 
-    if (requestedRouteId) {
-      const { data: requestedRoute } = await supabase
-        .from('route_lines')
-        .select('id, climb_id')
-        .eq('id', requestedRouteId)
-        .eq('image_id', imageId)
-        .maybeSingle()
+    const resolvedRouteLink = await withTimeout((async (): Promise<RouteLink | null> => {
+      let routeLink: RouteLink | null = null
 
-      if (requestedRoute) {
-        routeLink = requestedRoute as RouteLink
+      if (requestedRouteId) {
+        const { data: requestedRoute } = await supabase
+          .from('route_lines')
+          .select('id, climb_id')
+          .eq('id', requestedRouteId)
+          .eq('image_id', imageId)
+          .maybeSingle()
+
+        if (requestedRoute) {
+          routeLink = requestedRoute as RouteLink
+        }
       }
-    }
 
-    if (!routeLink) {
-      const { data: firstRoute, error: firstRouteError } = await supabase
-        .from('route_lines')
-        .select('id, climb_id')
-        .eq('image_id', imageId)
-        .order('sequence_order', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
+      if (!routeLink) {
+        const { data: firstRoute, error: firstRouteError } = await supabase
+          .from('route_lines')
+          .select('id, climb_id')
+          .eq('image_id', imageId)
+          .order('sequence_order', { ascending: true, nullsFirst: false })
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
 
-      if (firstRouteError) throw firstRouteError
-      if (firstRoute) {
-        routeLink = firstRoute as RouteLink
+        if (firstRouteError) throw firstRouteError
+        if (firstRoute) {
+          routeLink = firstRoute as RouteLink
+        }
       }
-    }
+      return routeLink
+    })(), 3000)
 
-    if (!routeLink?.climb_id) {
+    if (!resolvedRouteLink) {
       targetPath = '/'
     } else {
       const next = new URLSearchParams()
-      next.set('route', routeLink.id)
+      next.set('route', resolvedRouteLink.id)
       if (requestedTab === 'tops' || requestedTab === 'climb') {
         next.set('tab', requestedTab)
       }
-      targetPath = `/climb/${routeLink.climb_id}?${next.toString()}`
+      targetPath = `/climb/${resolvedRouteLink.climb_id}?${next.toString()}`
     }
   } catch (error) {
     console.error('Failed to redirect image page:', error)

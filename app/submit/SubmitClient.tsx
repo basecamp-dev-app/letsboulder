@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import Link from 'next/link'
 import nextDynamic from 'next/dynamic'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData, ClimbType, FaceDirection, NewUploadedImage } from '@/lib/submission-types'
 import { csrfFetch, primeCsrfToken } from '@/hooks/useCsrf'
@@ -17,6 +17,47 @@ const dynamic = nextDynamic
 const ROUTE_DRAFT_PREFIX = 'submit-route-draft:'
 const ROUTE_DRAFT_INDEX_KEY = 'submit-route-drafts:index'
 const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000
+const FACE_DIRECTIONS: FaceDirection[] = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+
+interface ServerDraftImagePayload {
+  id: string
+  display_order: number
+  storage_bucket: string
+  storage_path: string
+  width: number | null
+  height: number | null
+  route_data: Record<string, unknown> | null
+  signed_url: string | null
+}
+
+interface ServerDraftPayload {
+  id: string
+  crag_id: string | null
+  status: 'draft' | 'submitted'
+  metadata: Record<string, unknown> | null
+  crags: {
+    name?: string | null
+    latitude?: number | null
+    longitude?: number | null
+  } | Array<{
+    name?: string | null
+    latitude?: number | null
+    longitude?: number | null
+  }> | null
+  images: ServerDraftImagePayload[]
+}
+
+interface PendingFace {
+  cragImageId: string
+  imageUrl: string
+  width: number | null
+  height: number | null
+}
+
+interface ServerDraftSession {
+  id: string
+  imageIds: string[]
+}
 
 interface DraftImageSelectionSnapshotExisting {
   mode: 'existing'
@@ -240,10 +281,21 @@ function SubmitPageContent() {
   const [resumableDraftRouteCount, setResumableDraftRouteCount] = useState(0)
   const [resumableDraftEntry, setResumableDraftEntry] = useState<RouteDraftIndexEntry | null>(null)
   const [isResumingDraft, setIsResumingDraft] = useState(false)
+  const [pendingFaces, setPendingFaces] = useState<PendingFace[]>([])
+  const [batchTotalFaces, setBatchTotalFaces] = useState<number | null>(null)
+  const [batchCurrentFace, setBatchCurrentFace] = useState<number | null>(null)
+  const [batchCreatedClimbs, setBatchCreatedClimbs] = useState(0)
+  const [isFinalizingBatch, setIsFinalizingBatch] = useState(false)
+  const [drawSessionVersion, setDrawSessionVersion] = useState(0)
+  const [serverDraftSession, setServerDraftSession] = useState<ServerDraftSession | null>(null)
+  const serverDraftRouteDataRef = useRef<Record<number, unknown>>({})
+  const serverDraftAutosaveInFlightRef = useRef(false)
+  const serverDraftLastPayloadRef = useRef<string>('')
   const routeDraftKey = getRouteDraftKey(context)
   const stepDraftKey = step.step === 'draw' || step.step === 'climbType' ? step.draftKey : undefined
   const activeDraftKey = stepDraftKey || routeDraftKey
   const router = useRouter()
+  const searchParams = useSearchParams()
   const moderationRealtimeRef = useRef<{
     client: ReturnType<typeof createClient> | null
     channel: RealtimeChannel | null
@@ -373,7 +425,134 @@ function SubmitPageContent() {
 
   useEffect(() => {
     void primeCsrfToken().catch(() => {})
-  }, [])
+  }, [serverDraftSession])
+
+  useEffect(() => {
+    const draftId = searchParams.get('draftId')
+    if (!draftId) return
+
+    let cancelled = false
+
+    const loadServerDraft = async () => {
+      try {
+        const response = await fetch(`/api/submissions/drafts/${draftId}`)
+        const payload = await response.json().catch(() => ({} as { error?: string; draft?: ServerDraftPayload }))
+
+        if (!response.ok || !payload.draft) {
+          throw new Error(payload.error || 'Failed to load submission draft')
+        }
+
+        const draft = payload.draft
+        const images: ServerDraftImagePayload[] = Array.isArray(draft.images) ? draft.images : []
+        const uploadedImages: NewUploadedImage[] = images
+          .sort((a: ServerDraftImagePayload, b: ServerDraftImagePayload) => a.display_order - b.display_order)
+          .map((image: ServerDraftImagePayload) => ({
+            uploadedBucket: image.storage_bucket,
+            uploadedPath: image.storage_path,
+            uploadedUrl: image.signed_url || '',
+            gpsData: null,
+            captureDate: null,
+            width: image.width || 1200,
+            height: image.height || 1200,
+            naturalWidth: image.width || 1200,
+            naturalHeight: image.height || 1200,
+          }))
+          .filter((image: NewUploadedImage) => !!image.uploadedUrl)
+
+        setServerDraftSession({
+          id: draft.id,
+          imageIds: images
+            .sort((a: ServerDraftImagePayload, b: ServerDraftImagePayload) => a.display_order - b.display_order)
+            .map((image: ServerDraftImagePayload) => image.id),
+        })
+
+        serverDraftRouteDataRef.current = {}
+        images.forEach((image) => {
+          serverDraftRouteDataRef.current[image.display_order] = image.route_data || {}
+        })
+
+        if (uploadedImages.length === 0) {
+          throw new Error('This draft has no accessible photos')
+        }
+
+        const metadata = draft.metadata && typeof draft.metadata === 'object' ? draft.metadata : {}
+        const metadataPrimaryIndex = typeof metadata.primaryIndex === 'number' ? metadata.primaryIndex : 0
+        const primaryIndex = metadataPrimaryIndex >= 0 && metadataPrimaryIndex < uploadedImages.length ? metadataPrimaryIndex : 0
+
+        const cragRelation = Array.isArray(draft.crags) ? draft.crags[0] : draft.crags
+        const nextCrag = draft.crag_id
+          ? {
+              id: draft.crag_id,
+              name: cragRelation?.name || 'Selected crag',
+              latitude: typeof cragRelation?.latitude === 'number' ? cragRelation.latitude : null,
+              longitude: typeof cragRelation?.longitude === 'number' ? cragRelation.longitude : null,
+            }
+          : null
+
+        const metadataFaceDirections = Array.isArray((metadata as { faceDirections?: unknown }).faceDirections)
+          ? (metadata as { faceDirections: unknown[] }).faceDirections
+          : []
+
+        const nextFaceDirections = metadataFaceDirections
+          .filter((value): value is FaceDirection => typeof value === 'string' && FACE_DIRECTIONS.includes(value as FaceDirection))
+
+        const primaryImageId = images[primaryIndex]?.id || images[0]?.id || 'server'
+        const serverDraftKey = `${ROUTE_DRAFT_PREFIX}server:${draft.id}:${primaryImageId}`
+        const routeData = images[primaryIndex]?.route_data
+
+        if (routeData && typeof routeData === 'object') {
+          draftStorageSetItem(
+            serverDraftKey,
+            JSON.stringify({
+              ...routeData,
+              updatedAt: Date.now(),
+              expiresAt: Date.now() + DRAFT_TTL_MS,
+            })
+          )
+        }
+
+        if (cancelled) return
+
+        const selection: ImageSelection = {
+          mode: 'new',
+          images: uploadedImages,
+          primaryIndex,
+        }
+
+        setContext((prev) => ({
+          ...prev,
+          image: selection,
+          imageGps: null,
+          faceDirections: nextFaceDirections,
+          crag: nextCrag,
+          routes: [],
+        }))
+
+        if (nextCrag) {
+          setStep({
+            step: 'draw',
+            imageGps: null,
+            cragId: nextCrag.id,
+            cragName: nextCrag.name,
+            image: selection,
+            draftKey: serverDraftKey,
+          })
+        } else {
+          setStep({ step: 'crag', imageGps: null })
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to load submission draft'
+        setError(message)
+        addToast(message, 'error')
+      }
+    }
+
+    void loadServerDraft()
+
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams, addToast])
 
   useEffect(() => {
     setRoutes(context.routes)
@@ -435,13 +614,17 @@ function SubmitPageContent() {
     }
     window.addEventListener('submit-routes', handleSubmitRoutes)
     return () => window.removeEventListener('submit-routes', handleSubmitRoutes)
-  }, [])
+  }, [serverDraftSession])
 
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
     const selectionGps = selection.mode === 'new' ? (selection.images[selection.primaryIndex]?.gpsData || null) : null
     const resolvedGps = gpsData || selectionGps
     const gps = resolvedGps ? { latitude: resolvedGps.latitude, longitude: resolvedGps.longitude } : null
     latestFaceDirectionsRef.current = []
+    setDrawSessionVersion(0)
+    setPendingFaces([])
+    setBatchTotalFaces(selection.mode === 'new' && selection.images.length > 1 ? selection.images.length : null)
+    setBatchCurrentFace(selection.mode === 'new' && selection.images.length > 1 ? 1 : null)
     setContext(prev => ({ ...prev, image: selection, imageGps: gps, faceDirections: [] }))
 
     setStep({
@@ -449,6 +632,107 @@ function SubmitPageContent() {
       imageGps: gps
     })
   }, [])
+
+  useEffect(() => {
+    if (!context.image || context.image.mode !== 'new') return
+    if (serverDraftSession) return
+
+    const imageSelection = context.image
+
+    let cancelled = false
+
+    const createServerDraft = async () => {
+      try {
+        const response = await csrfFetch('/api/submissions/drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            images: imageSelection.images.map((image: NewUploadedImage) => ({
+              uploadedBucket: image.uploadedBucket,
+              uploadedPath: image.uploadedPath,
+              width: image.width,
+              height: image.height,
+            })),
+            metadata: {
+              primaryIndex: imageSelection.primaryIndex,
+              faceDirections: context.faceDirections,
+            },
+          }),
+        })
+
+        const payload = await response.json().catch(() => ({} as {
+          draft?: { id?: string; images?: Array<{ id: string; display_order: number }> }
+          error?: string
+        }))
+        if (!response.ok || !payload?.draft?.id) {
+          throw new Error(payload.error || 'Failed to initialize server draft')
+        }
+
+        const imageIds = (payload.draft.images || [])
+          .sort((a: { id: string; display_order: number }, b: { id: string; display_order: number }) => a.display_order - b.display_order)
+          .map((image: { id: string; display_order: number }) => image.id)
+
+        if (!cancelled) {
+          setServerDraftSession({ id: payload.draft.id, imageIds })
+        }
+      } catch {
+        if (!cancelled) {
+          addToast('Could not enable cloud autosave for this draft. Local autosave still works.', 'info')
+        }
+      }
+    }
+
+    void createServerDraft()
+    return () => {
+      cancelled = true
+    }
+  }, [context.image, context.faceDirections, serverDraftSession, addToast])
+
+  useEffect(() => {
+    if (!serverDraftSession) return
+    if (!activeDraftKey) return
+
+    const intervalId = window.setInterval(() => {
+      if (serverDraftAutosaveInFlightRef.current) return
+      if (isSubmittingRef.current) return
+
+      const raw = draftStorageGetItem(activeDraftKey)
+      if (!raw) return
+
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(raw)
+      } catch {
+        return
+      }
+
+      const currentIndex = batchCurrentFace && batchCurrentFace > 0 ? batchCurrentFace - 1 : 0
+      serverDraftRouteDataRef.current[currentIndex] = parsed
+
+      const imagesPayload = serverDraftSession.imageIds.map((imageId, index) => ({
+        id: imageId,
+        display_order: index,
+        route_data: serverDraftRouteDataRef.current[index] || {},
+      }))
+
+      const payloadSignature = JSON.stringify(imagesPayload)
+      if (payloadSignature === serverDraftLastPayloadRef.current) return
+      serverDraftLastPayloadRef.current = payloadSignature
+
+      serverDraftAutosaveInFlightRef.current = true
+      void csrfFetch(`/api/submissions/drafts/${serverDraftSession.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: imagesPayload }),
+      }).finally(() => {
+        serverDraftAutosaveInFlightRef.current = false
+      })
+    }, 5000)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [serverDraftSession, activeDraftKey, batchCurrentFace])
 
   const handleLocationConfirm = useCallback((gps: GpsData) => {
     setContext(prev => ({ ...prev, imageGps: gps }))
@@ -483,7 +767,15 @@ function SubmitPageContent() {
       image: context.image!,
       draftKey: draftKey || undefined,
     })
-  }, [context.imageGps, context.image])
+
+    if (serverDraftSession) {
+      const supabase = createClient()
+      void supabase
+        .from('submission_drafts')
+        .update({ crag_id: crag.id })
+        .eq('id', serverDraftSession.id)
+    }
+  }, [context.imageGps, context.image, serverDraftSession])
 
   const handleCragImageCanvasSelect = useCallback((selection: ImageSelection, crag: Crag) => {
     const draftKey = getRouteDraftKeyFromImageAndCrag(selection, crag.id)
@@ -504,7 +796,15 @@ function SubmitPageContent() {
       image: selection,
       draftKey: draftKey || undefined,
     })
-  }, [])
+
+    if (serverDraftSession) {
+      const supabase = createClient()
+      void supabase
+        .from('submission_drafts')
+        .update({ crag_id: crag.id })
+        .eq('id', serverDraftSession.id)
+    }
+  }, [serverDraftSession])
 
   const handleClimbTypeSelect = useCallback((routeType: ClimbType) => {
     if (isSubmitting) return
@@ -567,6 +867,43 @@ function SubmitPageContent() {
     }
   }, [step, context])
 
+  const continueToNextFace = useCallback((faces: PendingFace[], processedFaces: number, totalFaces: number | null) => {
+    if (faces.length === 0 || !context.crag) return false
+
+    const [nextFace, ...restFaces] = faces
+    const nextSelection: ImageSelection = {
+      mode: 'crag-image',
+      cragImageId: nextFace.cragImageId,
+      imageUrl: nextFace.imageUrl,
+      linkedImageId: null,
+      width: nextFace.width,
+      height: nextFace.height,
+    }
+
+    setPendingFaces(restFaces)
+    setBatchCurrentFace(processedFaces + 1)
+    setDrawSessionVersion((prev) => prev + 1)
+    latestRoutesRef.current = []
+    setRoutes([])
+    setContext((prev) => ({
+      ...prev,
+      image: nextSelection,
+      routes: [],
+    }))
+    setStep({
+      step: 'draw',
+      imageGps: context.imageGps,
+      cragId: context.crag.id,
+      cragName: context.crag.name,
+      image: nextSelection,
+      defaultClimbType: selectedRouteType || undefined,
+    })
+
+    addToast(`Saved face ${processedFaces}/${totalFaces || processedFaces + 1}. Now draw face ${processedFaces + 1}/${totalFaces || processedFaces + 1}.`, 'success')
+
+    return true
+  }, [addToast, context.crag, context.imageGps, selectedRouteType, setRoutes])
+
   async function handleSubmit(routeType?: ClimbType) {
     if (isSubmitting) return
     const routesToSubmit = context.routes.length > 0 ? context.routes : latestRoutesRef.current
@@ -582,6 +919,7 @@ function SubmitPageContent() {
     }
 
     setIsSubmitting(true)
+    setIsFinalizingBatch(false)
     setError(null)
 
     try {
@@ -646,14 +984,71 @@ function SubmitPageContent() {
 
       const data = await response.json()
 
+      if (imageToSubmit.mode === 'new') {
+        const supplementaryIds = Array.isArray(data?.supplementaryCragImageIds)
+          ? (data.supplementaryCragImageIds as string[])
+          : []
+
+        if (imageToSubmit.images.length > 1 && supplementaryIds.length > 0) {
+          const supplementaryImages = imageToSubmit.images.filter((_, index) => index !== imageToSubmit.primaryIndex)
+          const queuedFaces: PendingFace[] = supplementaryIds
+            .map((cragImageId, index) => ({
+              cragImageId,
+              imageUrl: supplementaryImages[index]?.uploadedUrl || '',
+              width: supplementaryImages[index]?.width ?? null,
+              height: supplementaryImages[index]?.height ?? null,
+            }))
+            .filter((face) => !!face.cragImageId && !!face.imageUrl)
+
+          if (queuedFaces.length > 0) {
+            setBatchTotalFaces(1 + queuedFaces.length)
+            setBatchCreatedClimbs((data?.climbsCreated as number) || 0)
+            const moved = continueToNextFace(queuedFaces, 1, 1 + queuedFaces.length)
+            if (moved) {
+              setIsFinalizingBatch(false)
+              setIsSubmitting(false)
+              return
+            }
+          }
+        }
+      }
+
+      if (imageToSubmit.mode === 'crag-image' && pendingFaces.length > 0 && batchCurrentFace && batchTotalFaces) {
+        setBatchCreatedClimbs((prev) => prev + ((data?.climbsCreated as number) || 0))
+        const moved = continueToNextFace(pendingFaces, batchCurrentFace, batchTotalFaces)
+        if (moved) {
+          setIsFinalizingBatch(false)
+          setIsSubmitting(false)
+          return
+        }
+      }
+
+      setIsFinalizingBatch(true)
+
       if (activeDraftKey) {
         draftStorageRemoveItem(activeDraftKey)
         removeDraftIndexEntry(activeDraftKey)
       }
 
+      setPendingFaces([])
+      setBatchTotalFaces(null)
+      setBatchCurrentFace(null)
+      const totalClimbsCreated = batchCreatedClimbs + ((data?.climbsCreated as number) || 0)
+      setBatchCreatedClimbs(0)
+
+      if (serverDraftSession) {
+        const supabase = createClient()
+        void supabase
+          .from('submission_drafts')
+          .update({ status: 'submitted' })
+          .eq('id', serverDraftSession.id)
+        setServerDraftSession(null)
+        serverDraftLastPayloadRef.current = ''
+      }
+
       setStep({
         step: 'success',
-        climbsCreated: data.climbsCreated,
+        climbsCreated: totalClimbsCreated || data.climbsCreated,
         imageId: data.imageId
       })
 
@@ -664,6 +1059,7 @@ function SubmitPageContent() {
       const errorMessage = err instanceof Error ? err.message : 'Submission failed'
       setError(errorMessage)
       addToast(errorMessage, 'error')
+      setIsFinalizingBatch(false)
     } finally {
       setIsSubmitting(false)
     }
@@ -680,6 +1076,15 @@ function SubmitPageContent() {
     latestRoutesRef.current = []
     latestFaceDirectionsRef.current = []
     setSelectedRouteType(null)
+    setPendingFaces([])
+    setBatchTotalFaces(null)
+    setBatchCurrentFace(null)
+    setBatchCreatedClimbs(0)
+    setIsFinalizingBatch(false)
+    setDrawSessionVersion(0)
+    setServerDraftSession(null)
+    serverDraftRouteDataRef.current = {}
+    serverDraftLastPayloadRef.current = ''
     setStep({ step: 'image' })
     setError(null)
   }
@@ -899,8 +1304,18 @@ function SubmitPageContent() {
       case 'draw':
         return (
           <div className="h-[calc(100svh-4rem)] md:h-[calc(100vh-64px)] touch-none overflow-hidden overscroll-none">
+            {batchTotalFaces && batchCurrentFace ? (
+              <div className="mx-auto mb-2 max-w-md rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+                Face {batchCurrentFace} of {batchTotalFaces}
+              </div>
+            ) : null}
+            {isFinalizingBatch ? (
+              <div className="mx-auto mb-2 max-w-md rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+                Finalizing submission...
+              </div>
+            ) : null}
             <RouteCanvas
-              key={stepDraftKey || routeDraftKey || 'route-canvas'}
+              key={`${stepDraftKey || routeDraftKey || 'route-canvas'}:${drawSessionVersion}`}
               imageSelection={step.image}
               onRoutesUpdate={handleRoutesUpdate}
               onSubmitRoutes={() => {

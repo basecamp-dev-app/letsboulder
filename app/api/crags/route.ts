@@ -269,6 +269,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (createError) {
+      console.error('Create crag insert failed:', createError)
       return createErrorResponse(createError, 'Error creating crag')
     }
 
@@ -279,6 +280,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(createdCrag, { status: 201 })
   } catch (error) {
+    console.error('POST /api/crags failed:', error)
     return createErrorResponse(error, 'Error creating crag')
   }
 }

@@ -31,10 +31,10 @@ function parsePrivateStorageUrl(url: string): { bucket: string; path: string } |
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ cragId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const cookies = request.cookies
-  const { cragId } = await params
+  const { id: cragId } = await params
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -137,13 +137,13 @@ function getFileExtension(file: File): string {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ cragId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
   const cookies = request.cookies
-  const { cragId } = await params
+  const { id: cragId } = await params
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

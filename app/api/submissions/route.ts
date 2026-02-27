@@ -356,6 +356,7 @@ export async function POST(request: NextRequest) {
     let climbsCreatedCount = 0
     let routeLinesCreatedCount = 0
     let supplementaryCreatedCount = 0
+    let supplementaryCragImageIds: string[] = []
     let primaryNewImage: NewSubmissionImage | null = null
     let validatedNewImages: NewSubmissionImage[] = []
 
@@ -440,7 +441,7 @@ export async function POST(request: NextRequest) {
 
       const { data: cragImage, error: cragImageError } = await supabase
         .from('crag_images')
-        .select('id, url, crag_id, width, height, linked_image_id')
+        .select('id, url, crag_id, width, height, source_image_id, linked_image_id')
         .eq('id', body.cragImageId)
         .single()
 
@@ -457,8 +458,9 @@ export async function POST(request: NextRequest) {
       }
 
       let resolvedImageId = cragImage.linked_image_id
+      const shouldCreateLinkedImage = !resolvedImageId || (cragImage.source_image_id && resolvedImageId === cragImage.source_image_id)
 
-      if (!resolvedImageId) {
+      if (shouldCreateLinkedImage) {
         const parsedStorage = parsePrivateStorageUrl(cragImage.url)
         const insertPayload: Record<string, unknown> = {
           url: cragImage.url,
@@ -491,26 +493,30 @@ export async function POST(request: NextRequest) {
 
         resolvedImageId = createdImage.id
 
-        const { data: linkResult } = await supabase
+        const linkingClient = supabaseAdmin || supabase
+        const { error: linkError } = await linkingClient
           .from('crag_images')
           .update({ linked_image_id: resolvedImageId })
           .eq('id', cragImage.id)
-          .is('linked_image_id', null)
+
+        if (linkError) {
+          return createErrorResponse(linkError, 'Error linking crag image to created image')
+        }
+
+        const { data: latestCragImage, error: latestCragImageError } = await linkingClient
+          .from('crag_images')
           .select('linked_image_id')
-          .maybeSingle()
+          .eq('id', cragImage.id)
+          .single()
 
-        if (linkResult?.linked_image_id) {
-          resolvedImageId = linkResult.linked_image_id
+        if (latestCragImageError) {
+          return createErrorResponse(latestCragImageError, 'Error verifying linked crag image')
+        }
+
+        if (latestCragImage?.linked_image_id) {
+          resolvedImageId = latestCragImage.linked_image_id
         } else {
-          const { data: latestCragImage } = await supabase
-            .from('crag_images')
-            .select('linked_image_id')
-            .eq('id', cragImage.id)
-            .single()
-
-          if (latestCragImage?.linked_image_id) {
-            resolvedImageId = latestCragImage.linked_image_id
-          }
+          return NextResponse.json({ error: 'Failed to persist crag image link' }, { status: 500 })
         }
       }
 
@@ -618,6 +624,7 @@ export async function POST(request: NextRequest) {
       climbsCreatedCount = unifiedResult.climbs_created || 0
       routeLinesCreatedCount = unifiedResult.route_lines_created || routePayload.length
       supplementaryCreatedCount = unifiedResult.supplementary_created || 0
+      supplementaryCragImageIds = Array.isArray(unifiedResult.crag_image_ids) ? unifiedResult.crag_image_ids : []
 
       const createdClimbIds = Array.isArray(unifiedResult.climb_ids) ? unifiedResult.climb_ids : []
       if (createdClimbIds.length > 0) {
@@ -735,6 +742,7 @@ export async function POST(request: NextRequest) {
       climbsCreated: climbsCreatedCount,
       routeLinesCreated: routeLinesCreatedCount,
       supplementaryImagesCreated: supplementaryCreatedCount,
+      supplementaryCragImageIds,
       imageId: imageId || undefined
     })
     shouldCleanupUploadedBlobs = false

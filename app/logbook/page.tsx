@@ -42,8 +42,10 @@ interface Profile {
 
 interface Submission {
   id: string
+  kind: 'submitted' | 'draft'
   url: string
   created_at: string
+  updated_at: string
   crag_name: string | null
   route_lines_count: number
   contribution_credit_platform: string | null
@@ -166,8 +168,10 @@ function LogbookContent() {
 
               return {
                 id: submission.id,
+                kind: 'submitted' as const,
                 url: submission.url,
                 created_at: submission.created_at,
+                updated_at: submission.created_at,
                 crag_name: cragName,
                 route_lines_count: routeLinesCount,
                 contribution_credit_platform: submission.contribution_credit_platform || null,
@@ -176,7 +180,65 @@ function LogbookContent() {
             })
             .filter((submission) => submission.route_lines_count > 0)
 
-          setSubmissions(formattedSubmissions)
+          const { data: draftSubmissions, error: draftError } = await supabase
+            .from('submission_drafts')
+            .select('id, created_at, updated_at, crags(name), submission_draft_images(storage_bucket, storage_path, route_data)')
+            .eq('user_id', user.id)
+            .eq('status', 'draft')
+            .order('updated_at', { ascending: false })
+            .limit(24)
+
+          if (draftError) {
+            console.error('Draft submissions query error:', draftError)
+          }
+
+          const formattedDrafts: Submission[] = await Promise.all((draftSubmissions || []).map(async (draft) => {
+            const cragRelation = draft.crags as { name?: string } | Array<{ name?: string }> | null
+            const cragName = Array.isArray(cragRelation)
+              ? (cragRelation[0]?.name || null)
+              : (cragRelation?.name || null)
+
+            const draftImages = (draft.submission_draft_images as Array<{
+              storage_bucket?: string
+              storage_path?: string
+              route_data?: unknown
+            }> | null) || []
+
+            const firstImage = draftImages[0]
+            let previewUrl = ''
+            if (firstImage?.storage_bucket && firstImage?.storage_path) {
+              const { data: signedData } = await supabase.storage
+                .from(firstImage.storage_bucket)
+                .createSignedUrl(firstImage.storage_path, 3600)
+              previewUrl = signedData?.signedUrl || ''
+            }
+
+            const routeCount = draftImages.reduce((count, image) => {
+              const routeData = image.route_data
+              if (routeData && typeof routeData === 'object' && 'completedRoutes' in (routeData as Record<string, unknown>)) {
+                const completedRoutes = (routeData as { completedRoutes?: unknown[] }).completedRoutes
+                return count + (Array.isArray(completedRoutes) ? completedRoutes.length : 0)
+              }
+              return count
+            }, 0)
+
+            return {
+              id: draft.id,
+              kind: 'draft' as const,
+              url: previewUrl,
+              created_at: draft.created_at,
+              updated_at: draft.updated_at,
+              crag_name: cragName,
+              route_lines_count: routeCount,
+              contribution_credit_platform: null,
+              contribution_credit_handle: null,
+            }
+          }))
+
+          const mergedSubmissions = [...formattedDrafts, ...formattedSubmissions]
+            .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+
+          setSubmissions(mergedSubmissions)
         }
       } catch (err) {
         console.error('Unexpected error checking auth:', err)

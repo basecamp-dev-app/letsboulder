@@ -86,6 +86,7 @@ interface ImageData {
   route_lines_count: number
   is_verified: boolean
   verification_count: number
+  supplementary_faces_count: number
 }
 
 interface RouteLineTargetRow {
@@ -294,6 +295,12 @@ export default function CragPageClient({
         .eq('crag_id', id)
         .order('created_at', { ascending: false })
 
+      const supplementaryImageIdsPromise = supabase
+        .from('crag_images')
+        .select('linked_image_id, source_image_id, url')
+        .eq('crag_id', id)
+        .not('linked_image_id', 'is', null)
+
       const cragPromise = initialCrag
         ? Promise.resolve({ data: initialCrag, error: null as null })
         : supabase
@@ -308,7 +315,8 @@ export default function CragPageClient({
       const [
         { data: cragData, error: cragError },
         { data: imagesData, error: imagesError },
-      ] = await Promise.all([cragPromise, imagesPromise])
+        { data: supplementaryImageIdsData, error: supplementaryImageIdsError },
+      ] = await Promise.all([cragPromise, imagesPromise, supplementaryImageIdsPromise])
 
       if (cragError || !cragData) {
         if (ignore) return
@@ -321,7 +329,34 @@ export default function CragPageClient({
         console.error('Error fetching images:', imagesError)
       }
 
-      const formattedImages: ImageData[] = (imagesData || []).map((img: {
+      if (supplementaryImageIdsError) {
+        console.error('Error fetching supplementary image IDs:', supplementaryImageIdsError)
+      }
+
+      const supplementaryImageIds = new Set(
+        (supplementaryImageIdsData || [])
+          .map((row: { linked_image_id: string | null }) => row.linked_image_id)
+          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      )
+
+      const supplementaryImageUrls = new Set(
+        (supplementaryImageIdsData || [])
+          .filter((row: { source_image_id: string | null; url?: string | null }) => !!row.source_image_id)
+          .map((row: { url?: string | null }) => row.url)
+          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      )
+
+      const supplementaryCountByPrimaryId: Record<string, number> = {}
+      for (const row of (supplementaryImageIdsData || []) as Array<{ source_image_id: string | null }>) {
+        if (!row.source_image_id) continue
+        supplementaryCountByPrimaryId[row.source_image_id] = (supplementaryCountByPrimaryId[row.source_image_id] || 0) + 1
+      }
+
+      const primaryImagesData = (imagesData || []).filter(
+        (img: { id: string; url: string }) => !supplementaryImageIds.has(img.id) && !supplementaryImageUrls.has(img.url)
+      )
+
+      const formattedImages: ImageData[] = primaryImagesData.map((img: {
         id: string
         url: string
         latitude: number | null
@@ -341,6 +376,7 @@ export default function CragPageClient({
           is_verified: img.is_verified || false,
           verification_count: img.verification_count || 0,
           route_lines_count: routeLinesCount,
+          supplementary_faces_count: supplementaryCountByPrimaryId[img.id] || 0,
         }
       })
 
@@ -803,6 +839,11 @@ export default function CragPageClient({
                 >
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
                     <Image src={image.url} alt="Routes" fill className="object-cover" sizes="160px" unoptimized />
+                    {image.supplementary_faces_count > 0 && (
+                      <div className="absolute bottom-1 left-1 rounded-full bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+                        {1 + image.supplementary_faces_count} faces
+                      </div>
+                    )}
                   </div>
                   <p className="font-semibold text-sm text-gray-900">
                     Image {imageIndexById.get(image.id) ?? ''}
@@ -930,6 +971,11 @@ export default function CragPageClient({
                           sizes="(max-width: 768px) 33vw, 25vw"
                           unoptimized
                         />
+                        {image.supplementary_faces_count > 0 && (
+                          <div className="absolute bottom-2 left-2 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+                            {1 + image.supplementary_faces_count} faces
+                          </div>
+                        )}
                         <div className="absolute top-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded-full font-semibold shadow-sm">
                           {imageIndexById.get(image.id) ?? ''}
                         </div>

@@ -60,8 +60,10 @@ interface Profile {
 
 interface Submission {
   id: string
+  kind: 'submitted' | 'draft'
   url: string
   created_at: string
+  updated_at: string
   crag_name: string | null
   route_lines_count: number
   contribution_credit_platform: string | null
@@ -412,7 +414,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                       >
                         <div className="flex items-center gap-3">
                           <Link
-                            href={`/image/${submission.id}`}
+                            href={submission.kind === 'draft' ? `/submit?draftId=${submission.id}` : `/image/${submission.id}`}
                             className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
                           >
                             <Image
@@ -426,33 +428,49 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                                 {submission.crag_name || 'Unknown crag'}
+                                {submission.kind === 'draft' && (
+                                  <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                    Draft
+                                  </span>
+                                )}
                               </p>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.created_at).toLocaleDateString()}
+                                {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.updated_at).toLocaleDateString()}
                                 {formattedHandle ? ` • ${formattedHandle}` : ''}
                               </p>
                             </div>
                           </Link>
                           {isOwnProfile && (
                             <div className="shrink-0 flex flex-col items-end gap-1">
-                              <Link
-                                href={`/logbook/submissions/${submission.id}/edit`}
-                                className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                              >
-                                Edit routes
-                              </Link>
-                              <button
-                                type="button"
-                                onClick={() => beginEditingCredit(submission)}
-                                className="text-xs font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
-                              >
-                                {formattedHandle ? 'Edit credit' : 'Add credit'}
-                              </button>
+                              {submission.kind === 'draft' ? (
+                                <Link
+                                  href={`/submit?draftId=${submission.id}`}
+                                  className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                                >
+                                  Continue drawing
+                                </Link>
+                              ) : (
+                                <Link
+                                  href={`/logbook/submissions/${submission.id}/edit`}
+                                  className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                                >
+                                  Edit routes
+                                </Link>
+                              )}
+                              {submission.kind === 'submitted' && (
+                                <button
+                                  type="button"
+                                  onClick={() => beginEditingCredit(submission)}
+                                  className="text-xs font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                                >
+                                  {formattedHandle ? 'Edit credit' : 'Add credit'}
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
 
-                        {isOwnProfile && isEditingCredit && (
+                        {isOwnProfile && submission.kind === 'submitted' && isEditingCredit && (
                           <div className="mt-3 flex flex-col gap-2 rounded-md border border-gray-200 dark:border-gray-700 p-3">
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                               <select
@@ -518,10 +536,10 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                     className="py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
                   >
                     <div className="flex items-center gap-3">
-                      <Link
-                        href={`/image/${submission.id}`}
-                        className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
-                      >
+                        <Link
+                          href={submission.kind === 'draft' ? `/submit?draftId=${submission.id}` : `/image/${submission.id}`}
+                          className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
+                        >
                         <Image
                           src={resolveRouteImageUrl(submission.url)}
                           alt="Submitted route image"
@@ -530,36 +548,52 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                           unoptimized
                           className="w-12 h-12 object-cover rounded"
                         />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                            {submission.crag_name || 'Unknown crag'}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.created_at).toLocaleDateString()}
-                            {formattedHandle ? ` • ${formattedHandle}` : ''}
-                          </p>
-                        </div>
-                      </Link>
-                      {isOwnProfile && (
-                        <div className="shrink-0 flex flex-col items-end gap-1">
-                          <Link
-                            href={`/logbook/submissions/${submission.id}/edit`}
-                            className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                          >
-                            Edit routes
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => beginEditingCredit(submission)}
-                            className="text-xs font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
-                          >
-                            {formattedHandle ? 'Edit credit' : 'Add credit'}
-                          </button>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                              {submission.crag_name || 'Unknown crag'}
+                              {submission.kind === 'draft' && (
+                                <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                  Draft
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.updated_at).toLocaleDateString()}
+                              {formattedHandle ? ` • ${formattedHandle}` : ''}
+                            </p>
+                          </div>
+                        </Link>
+                        {isOwnProfile && (
+                          <div className="shrink-0 flex flex-col items-end gap-1">
+                          {submission.kind === 'draft' ? (
+                            <Link
+                              href={`/submit?draftId=${submission.id}`}
+                              className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                            >
+                              Continue drawing
+                            </Link>
+                          ) : (
+                            <Link
+                              href={`/logbook/submissions/${submission.id}/edit`}
+                              className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                            >
+                              Edit routes
+                            </Link>
+                          )}
+                          {submission.kind === 'submitted' && (
+                            <button
+                              type="button"
+                              onClick={() => beginEditingCredit(submission)}
+                              className="text-xs font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                            >
+                              {formattedHandle ? 'Edit credit' : 'Add credit'}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
 
-                    {isOwnProfile && isEditingCredit && (
+                    {isOwnProfile && submission.kind === 'submitted' && isEditingCredit && (
                       <div className="mt-3 flex flex-col gap-2 rounded-md border border-gray-200 dark:border-gray-700 p-3">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                           <select

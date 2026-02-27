@@ -207,8 +207,11 @@ export default function CragSelector({
           setErrorMessage(errorData.error + (errorDetail ? `: ${errorDetail}` : ''))
         }
       }
-      } catch {
-      setErrorMessage('Failed to create crag. Please try again.')
+      } catch (error) {
+      const message = error instanceof Error && error.message
+        ? error.message
+        : 'Failed to create crag. Please try again.'
+      setErrorMessage(message)
     } finally {
       setIsCreating(false)
     }

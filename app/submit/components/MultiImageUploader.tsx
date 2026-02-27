@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import imageCompression from 'browser-image-compression'
 import NextImage from 'next/image'
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { NewImageSelection, NewUploadedImage } from '@/lib/submission-types'
@@ -53,13 +53,17 @@ function SortableThumb({ image, index, onRemove }: SortableThumbProps) {
           Primary
         </div>
       )}
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        className="absolute inset-0 z-10 cursor-grab active:cursor-grabbing"
-        aria-label="Drag to reorder"
-      />
+      <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center pb-1">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="touch-none rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white"
+          aria-label="Drag to reorder"
+        >
+          Drag
+        </button>
+      </div>
       <NextImage src={image.previewUrl} alt="Selected" fill unoptimized sizes="96px" className="object-cover" />
     </div>
   )
@@ -67,10 +71,17 @@ function SortableThumb({ image, index, onRemove }: SortableThumbProps) {
 
 export default function MultiImageUploader({ onComplete, onError, onUploading }: MultiImageUploaderProps) {
   const [images, setImages] = useState<SelectedImage[]>([])
+  const [isCompressing, setIsCompressing] = useState(false)
+  const [compressProgress, setCompressProgress] = useState(0)
+  const [compressingCount, setCompressingCount] = useState(0)
+  const [compressingTotal, setCompressingTotal] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const maxFiles = 8
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 8 } })
+  )
   const canUpload = useMemo(() => images.length > 0, [images.length])
 
   useEffect(() => {
@@ -90,6 +101,15 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
     })
   }, [])
 
+  const compressImage = useCallback(async (file: File): Promise<File> => {
+    return imageCompression(file, {
+      maxWidthOrHeight: 1600,
+      initialQuality: 0.75,
+      fileType: 'image/jpeg',
+      useWebWorker: true,
+    })
+  }, [])
+
   const addFiles = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return
 
@@ -98,32 +118,44 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
     if (incoming.length === 0) return
 
     onUploading(true, 5, 'Preparing photos...')
+    setIsCompressing(true)
+    setCompressingCount(0)
+    setCompressingTotal(incoming.length)
+    setCompressProgress(0)
 
     const processed: SelectedImage[] = []
-    for (const file of incoming) {
-      if (!file.type.startsWith('image/')) continue
+    try {
+      for (let index = 0; index < incoming.length; index += 1) {
+        const file = incoming[index]
+        if (!file.type.startsWith('image/')) {
+          const done = index + 1
+          setCompressingCount(done)
+          setCompressProgress(Math.round((done / incoming.length) * 100))
+          continue
+        }
 
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 0.8,
-        maxWidthOrHeight: 1800,
-        useWebWorker: true,
-        initialQuality: 0.82,
-      })
+        const compressed = await compressImage(file)
+        const previewUrl = URL.createObjectURL(compressed)
+        const dimensions = await getDimensions(previewUrl)
+        processed.push({
+          id: crypto.randomUUID(),
+          file: compressed,
+          previewUrl,
+          width: dimensions.width,
+          height: dimensions.height,
+        })
 
-      const previewUrl = URL.createObjectURL(compressed)
-      const dimensions = await getDimensions(previewUrl)
-      processed.push({
-        id: crypto.randomUUID(),
-        file: compressed,
-        previewUrl,
-        width: dimensions.width,
-        height: dimensions.height,
-      })
+        const done = index + 1
+        setCompressingCount(done)
+        setCompressProgress(Math.round((done / incoming.length) * 100))
+      }
+
+      setImages((prev) => [...prev, ...processed])
+    } finally {
+      setIsCompressing(false)
+      onUploading(false, 0, '')
     }
-
-    setImages((prev) => [...prev, ...processed])
-    onUploading(false, 0, '')
-  }, [getDimensions, images.length, onUploading])
+  }, [compressImage, getDimensions, images.length, onUploading])
 
   const handleRemove = useCallback((id: string) => {
     setImages((prev) => {
@@ -236,15 +268,20 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
         <button
           type="button"
           onClick={() => void uploadAll()}
-          disabled={!canUpload}
+          disabled={!canUpload || isCompressing}
           className="min-h-12 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
           Upload Batch
         </button>
       </div>
 
-      {images.length > 0 && (
+      {(images.length > 0 || isCompressing) && (
         <div className="space-y-2">
+          {isCompressing && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+              Compressing... {compressingCount}/{compressingTotal} ({compressProgress}%)
+            </div>
+          )}
           <p className="text-xs text-gray-600 dark:text-gray-400">
             Drag to reorder. The first image is used as the primary drawing canvas.
           </p>

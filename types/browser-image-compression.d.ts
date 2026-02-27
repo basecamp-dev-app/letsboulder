@@ -5,6 +5,7 @@ declare module 'browser-image-compression' {
     useWebWorker?: boolean
     preserveExif?: boolean
     initialQuality?: number
+    fileType?: string
     onProgress?: (progress: number) => void
   }
 

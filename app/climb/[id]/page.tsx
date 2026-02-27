@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
+import useEmblaCarousel from 'embla-carousel-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { findRouteAtPoint, RoutePoint, useRouteSelection } from '@/lib/useRouteSelection'
-import { Share2, Twitter, Facebook, MessageCircle, Link2, Flag, Star } from 'lucide-react'
+import { Share2, Twitter, Facebook, MessageCircle, Link2, Flag, Star, Layers, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { SITE_URL } from '@/lib/site'
@@ -70,6 +71,21 @@ interface DisplayRouteLine {
   points: RoutePoint[]
   color: string
   climb: ClimbInfo
+}
+
+interface FaceGalleryItem {
+  id: string
+  is_primary: boolean
+  url: string
+  has_routes: boolean
+  linked_image_id: string | null
+  crag_image_id: string | null
+}
+
+interface FacesApiResponse {
+  faces?: FaceGalleryItem[]
+  total_faces?: number
+  total_routes_combined?: number
 }
 
 interface SeedRouteResponse {
@@ -259,7 +275,22 @@ export default function ClimbPage() {
   const [hasUserInteractedWithSelection, setHasUserInteractedWithSelection] = useState(false)
   const [publicSubmitter, setPublicSubmitter] = useState<PublicSubmitter | null>(null)
   const [cragPath, setCragPath] = useState<string | null>(null)
+  const [faceGallery, setFaceGallery] = useState<FaceGalleryItem[]>([])
+  const [totalFaces, setTotalFaces] = useState(1)
+  const [totalRoutesCombined, setTotalRoutesCombined] = useState(0)
   const [showDeferredSections, setShowDeferredSections] = useState(false)
+  const [activeFaceIndex, setActiveFaceIndex] = useState(0)
+  const [primaryImageId, setPrimaryImageId] = useState<string | null>(null)
+  const [canScrollPrev, setCanScrollPrev] = useState(false)
+  const [canScrollNext, setCanScrollNext] = useState(false)
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    axis: 'x',
+    watchDrag: true,
+    loop: false,
+    containScroll: 'trimSnaps',
+    align: 'start',
+  })
+  const faceRouteCacheRef = useRef<Record<string, { image: ImageInfo; routeLines: DisplayRouteLine[] }>>({})
   const gradeSystem = useGradeSystem()
 
   useOverlayHistory({ open: shareModalOpen, onClose: () => setShareModalOpen(false), id: 'share-climb-dialog' })
@@ -272,6 +303,26 @@ export default function ClimbPage() {
     () => routeLines.find((route) => selectedIds.includes(route.id)) || null,
     [routeLines, selectedIds]
   )
+
+  const visibleFaces = useMemo(() => {
+    if (faceGallery.length > 0) return faceGallery
+    if (!image?.url) return []
+    return [{
+      id: `image:${image.id}`,
+      is_primary: true,
+      url: image.url,
+      has_routes: true,
+      linked_image_id: image.id,
+      crag_image_id: null,
+    } satisfies FaceGalleryItem]
+  }, [faceGallery, image])
+
+  const updateEmblaControls = useCallback(() => {
+    if (!emblaApi) return
+    setCanScrollPrev(emblaApi.canScrollPrev())
+    setCanScrollNext(emblaApi.canScrollNext())
+    setActiveFaceIndex(emblaApi.selectedScrollSnap())
+  }, [emblaApi])
   const defaultPathRoute = useMemo(
     () => routeLines.find((route) => route.climb.id === climbId) || routeLines[0] || null,
     [routeLines, climbId]
@@ -349,6 +400,9 @@ export default function ClimbPage() {
       setHasUserInteractedWithSelection(false)
       setPublicSubmitter(null)
       setCragPath(null)
+      setFaceGallery([])
+      setTotalFaces(1)
+      setTotalRoutesCombined(0)
       clearSelection()
 
       try {
@@ -428,20 +482,6 @@ export default function ClimbPage() {
           throw new Error('Climb image context not found')
         }
 
-        if (imageInfo.crag_id) {
-          const { data: cragData } = await supabase
-            .from('crags')
-            .select('id, country_code, slug')
-            .eq('id', imageInfo.crag_id)
-            .maybeSingle()
-
-          if (cragData?.country_code && cragData?.slug) {
-            setCragPath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
-          } else {
-            setCragPath(`/crag/${imageInfo.crag_id}`)
-          }
-        }
-
         const { data: allLines, error: allLinesError } = await supabase
           .from('route_lines')
           .select(`
@@ -494,29 +534,73 @@ export default function ClimbPage() {
           ...imageInfo,
           url: resolveRouteImageUrl(imageInfo.url),
         })
-
-        if (imageInfo.created_by) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('id, username, display_name, first_name, last_name, is_public, contribution_credit_platform, contribution_credit_handle')
-            .eq('id', imageInfo.created_by)
-            .single()
-
-          if (profileData?.is_public) {
-            const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
-            const displayName = fullName || profileData.display_name || profileData.username || 'Climber'
-            setPublicSubmitter({
-              id: profileData.id,
-              displayName,
-              contributionCreditPlatform: imageInfo.contribution_credit_platform,
-              contributionCreditHandle: imageInfo.contribution_credit_handle,
-              profileContributionCreditPlatform: profileData.contribution_credit_platform,
-              profileContributionCreditHandle: profileData.contribution_credit_handle,
-            })
-          }
-        }
+        setPrimaryImageId(typedSeed.image_id)
+        setActiveFaceIndex(0)
 
         setRouteLines(mappedLines)
+        faceRouteCacheRef.current = {
+          [typedSeed.image_id]: {
+            image: {
+              ...imageInfo,
+              url: resolveRouteImageUrl(imageInfo.url),
+            },
+            routeLines: mappedLines,
+          },
+        }
+
+        setTotalRoutesCombined(mappedLines.length)
+        setLoading(false)
+
+        void (async () => {
+          try {
+            if (imageInfo.crag_id) {
+              const { data: cragData } = await supabase
+                .from('crags')
+                .select('id, country_code, slug')
+                .eq('id', imageInfo.crag_id)
+                .maybeSingle()
+
+              if (cragData?.country_code && cragData?.slug) {
+                setCragPath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
+              } else {
+                setCragPath(`/crag/${imageInfo.crag_id}`)
+              }
+            }
+
+            const facesResponse = await fetch(`/api/images/${typedSeed.image_id}/faces`)
+            const facesPayload = await facesResponse.json().catch(() => ({} as FacesApiResponse))
+            const faces = Array.isArray(facesPayload.faces)
+              ? facesPayload.faces.filter((item: FaceGalleryItem) => typeof item.url === 'string' && !!item.url)
+              : []
+            setFaceGallery(faces)
+            setTotalFaces(typeof facesPayload.total_faces === 'number' ? Math.max(1, facesPayload.total_faces) : Math.max(1, faces.length))
+            setTotalRoutesCombined(typeof facesPayload.total_routes_combined === 'number' ? facesPayload.total_routes_combined : mappedLines.length)
+
+            if (imageInfo.created_by) {
+              const { data: profileData } = await supabase
+                .from('profiles')
+                .select('id, username, display_name, first_name, last_name, is_public, contribution_credit_platform, contribution_credit_handle')
+                .eq('id', imageInfo.created_by)
+                .single()
+
+              if (profileData?.is_public) {
+                const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
+                const displayName = fullName || profileData.display_name || profileData.username || 'Climber'
+                setPublicSubmitter({
+                  id: profileData.id,
+                  displayName,
+                  contributionCreditPlatform: imageInfo.contribution_credit_platform,
+                  contributionCreditHandle: imageInfo.contribution_credit_handle,
+                  profileContributionCreditPlatform: profileData.contribution_credit_platform,
+                  profileContributionCreditHandle: profileData.contribution_credit_handle,
+                })
+              }
+            }
+          } catch (auxError) {
+            console.warn('Deferred climb context load warning:', auxError)
+          }
+        })()
+        return
       } catch (err) {
         console.error('Error loading climb:', err)
         setError('Failed to load climb')
@@ -527,6 +611,130 @@ export default function ClimbPage() {
 
     loadClimbContext()
   }, [climbId, clearSelection])
+
+  useEffect(() => {
+    if (!emblaApi) return
+
+    const rafId = window.requestAnimationFrame(() => {
+      updateEmblaControls()
+    })
+
+    emblaApi.on('select', updateEmblaControls)
+    emblaApi.on('reInit', updateEmblaControls)
+    emblaApi.on('settle', updateEmblaControls)
+    return () => {
+      window.cancelAnimationFrame(rafId)
+      emblaApi.off('select', updateEmblaControls)
+      emblaApi.off('reInit', updateEmblaControls)
+      emblaApi.off('settle', updateEmblaControls)
+    }
+  }, [emblaApi, updateEmblaControls])
+
+  useEffect(() => {
+    const activeFace = visibleFaces[activeFaceIndex]
+    if (!activeFace) return
+
+    const targetImageId = activeFace.is_primary
+      ? primaryImageId
+      : activeFace.linked_image_id
+    if (!targetImageId) {
+      setImage((prev) => prev ? { ...prev, url: activeFace.url } : prev)
+      setRouteLines([])
+      clearSelection()
+      return
+    }
+
+    const cached = faceRouteCacheRef.current[targetImageId]
+    if (cached) {
+      setImage(cached.image)
+      setRouteLines(cached.routeLines)
+      clearSelection()
+      return
+    }
+
+    let cancelled = false
+
+    const loadFaceRoutes = async () => {
+      try {
+        const supabase = createClient()
+        const { data: imageData, error: imageError } = await supabase
+          .from('images')
+          .select('id, url, crag_id, width, height, natural_width, natural_height, created_by, contribution_credit_platform, contribution_credit_handle')
+          .eq('id', targetImageId)
+          .maybeSingle()
+
+        if (imageError || !imageData || cancelled) return
+
+        const imageInfo = imageData as ImageInfo
+        const { data: allLines, error: allLinesError } = await supabase
+          .from('route_lines')
+          .select(`
+            id,
+            points,
+            color,
+            image_width,
+            image_height,
+            climb_id,
+            climbs (id, name, grade, route_type, description)
+          `)
+          .eq('image_id', targetImageId)
+
+        if (allLinesError || cancelled) return
+
+        const mappedLines = ((allLines as unknown as RouteLineResponse[]) || [])
+          .map((line) => {
+            const climb = pickOne(line.climbs)
+            if (!climb) return null
+
+            const normalized = normalizePoints(parsePoints(line.points), {
+              routeWidth: line.image_width,
+              routeHeight: line.image_height,
+              imageWidth: imageInfo.natural_width || imageInfo.width,
+              imageHeight: imageInfo.natural_height || imageInfo.height,
+            })
+
+            if (normalized.length < 2) return null
+
+            return {
+              id: line.id,
+              points: normalized,
+              color: line.color || '#ef4444',
+              climb: {
+                id: climb.id,
+                name: climb.name,
+                grade: climb.grade,
+                route_type: climb.route_type,
+                description: climb.description,
+              },
+            } as DisplayRouteLine
+          })
+          .filter((line): line is DisplayRouteLine => line !== null)
+
+        const nextImage = {
+          ...imageInfo,
+          url: activeFace.url,
+        }
+
+        faceRouteCacheRef.current[targetImageId] = {
+          image: nextImage,
+          routeLines: mappedLines,
+        }
+
+        if (cancelled) return
+        setImage(nextImage)
+        setRouteLines(mappedLines)
+        clearSelection()
+      } catch {
+        // Ignore per-face loading errors and keep current context
+      }
+    }
+
+    void loadFaceRoutes()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeFaceIndex, visibleFaces, primaryImageId, clearSelection])
 
   useEffect(() => {
     if (!cragPath) return
@@ -1117,22 +1325,73 @@ export default function ClimbPage() {
         </div>
       )}
 
-      <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4">
-        <div className="relative">
-          <Image
-            ref={imageRef}
-            src={image.url}
-            alt={displayClimb?.name || 'Climbing routes'}
-            width={1600}
-            height={1200}
-            sizes="(max-width: 768px) 100vw, 1200px"
-            fetchPriority="high"
-            unoptimized
-            className="max-w-full max-h-[60vh] object-contain"
-          />
+      <div className="group flex-1 relative overflow-hidden flex items-center justify-center p-4">
+        <div className="relative w-full max-w-6xl" ref={emblaRef}>
+          <div className="flex">
+            {visibleFaces.map((face, index) => (
+              <div key={face.id} className="relative min-w-0 shrink-0 grow-0 basis-full flex items-center justify-center">
+                <Image
+                  ref={index === activeFaceIndex ? imageRef : undefined}
+                  src={face.url}
+                  alt={displayClimb?.name || 'Climbing routes'}
+                  width={1600}
+                  height={1200}
+                  sizes="(max-width: 768px) 100vw, 1200px"
+                  fetchPriority={index === activeFaceIndex ? 'high' : undefined}
+                  unoptimized
+                  className="max-w-full max-h-[60vh] object-contain"
+                />
+              </div>
+            ))}
+          </div>
+
+          {totalFaces > 1 && (
+            <>
+              <div className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                <Layers className="h-3.5 w-3.5" />
+                <span>{totalFaces}</span>
+              </div>
+
+              {canScrollPrev && (
+                <button
+                  type="button"
+                  onClick={() => emblaApi?.scrollPrev()}
+                  aria-label="Previous face"
+                  className="absolute left-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+              )}
+
+              {canScrollNext && (
+                <button
+                  type="button"
+                  onClick={() => emblaApi?.scrollNext()}
+                  aria-label="Next face"
+                  className="absolute right-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              )}
+
+              <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/30 px-2 py-1 backdrop-blur-sm">
+                {visibleFaces.map((face, idx) => (
+                  <button
+                    key={`dot-${face.id}`}
+                    type="button"
+                    onClick={() => emblaApi?.scrollTo(idx)}
+                    aria-label={`Go to face ${idx + 1}`}
+                    className={`h-1.5 w-1.5 rounded-full transition ${idx === activeFaceIndex ? 'bg-white' : 'bg-white/50'}`}
+                  />
+                ))}
+                <span className="ml-1 text-[10px] font-medium text-white">{activeFaceIndex + 1}/{visibleFaces.length}</span>
+              </div>
+            </>
+          )}
+
           <canvas
             ref={canvasRef}
-            className="absolute cursor-pointer"
+            className="absolute inset-0 cursor-pointer"
             onClick={handleCanvasClick}
             style={{ pointerEvents: 'auto', touchAction: 'none' }}
           />
@@ -1156,6 +1415,10 @@ export default function ClimbPage() {
                   Type: {formatRouteTypeLabel(selectedClimb.route_type)}
                 </p>
               )}
+              <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                {totalRoutesCombined} route{totalRoutesCombined === 1 ? '' : 's'}
+                {totalFaces > 1 ? ` across ${totalFaces} faces` : ''}
+              </p>
               {selectedClimb && (
                 <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {selectedClimbRatingSummary
