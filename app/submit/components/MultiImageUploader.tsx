@@ -193,8 +193,8 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
 
       for (let i = 0; i < total; i += 1) {
         const image = images[i]
-        const safeName = image.file.name.replace(/\s+/g, '-').toLowerCase()
-        const path = `${user.id}/${Date.now()}-${crypto.randomUUID()}-${safeName}`
+        const ext = image.file.name.split('.').pop() || 'jpg'
+        const path = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`
 
         const pct = 10 + Math.round((i / total) * 70)
         onUploading(true, pct, `Uploading image ${i + 1}/${total}...`)
