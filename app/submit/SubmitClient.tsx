@@ -59,6 +59,12 @@ interface ServerDraftSession {
   imageIds: string[]
 }
 
+interface BatchSignedUrlResult {
+  bucket: string
+  path: string
+  signedUrl: string | null
+}
+
 interface DraftImageSelectionSnapshotExisting {
   mode: 'existing'
   imageId: string
@@ -291,6 +297,7 @@ function SubmitPageContent() {
   const serverDraftRouteDataRef = useRef<Record<number, unknown>>({})
   const serverDraftAutosaveInFlightRef = useRef(false)
   const serverDraftLastPayloadRef = useRef<string>('')
+  const isCreatingDraftRef = useRef(false)
   const routeDraftKey = getRouteDraftKey(context)
   const stepDraftKey = step.step === 'draw' || step.step === 'climbType' ? step.draftKey : undefined
   const activeDraftKey = stepDraftKey || routeDraftKey
@@ -636,12 +643,16 @@ function SubmitPageContent() {
   useEffect(() => {
     if (!context.image || context.image.mode !== 'new') return
     if (serverDraftSession) return
+    if (isCreatingDraftRef.current) return
 
     const imageSelection = context.image
 
     let cancelled = false
 
     const createServerDraft = async () => {
+      if (isCreatingDraftRef.current) return
+      isCreatingDraftRef.current = true
+
       try {
         const response = await csrfFetch('/api/submissions/drafts', {
           method: 'POST',
@@ -679,6 +690,8 @@ function SubmitPageContent() {
         if (!cancelled) {
           addToast('Could not enable cloud autosave for this draft. Local autosave still works.', 'info')
         }
+      } finally {
+        isCreatingDraftRef.current = false
       }
     }
 
@@ -1083,6 +1096,7 @@ function SubmitPageContent() {
     setIsFinalizingBatch(false)
     setDrawSessionVersion(0)
     setServerDraftSession(null)
+    isCreatingDraftRef.current = false
     serverDraftRouteDataRef.current = {}
     serverDraftLastPayloadRef.current = ''
     setStep({ step: 'image' })
@@ -1102,26 +1116,42 @@ function SubmitPageContent() {
     if (resumableDraftEntry.image.mode === 'new') {
       try {
         const restoredImages = [...resumableDraftEntry.image.images]
-        const signedUrlJobs = restoredImages.map(async (draftImage) => {
-          const searchParams = new URLSearchParams({
-            bucket: draftImage.uploadedBucket,
-            path: draftImage.uploadedPath,
-          })
-
-          const signedUrlResponse = await fetch(`/api/uploads/signed-url?${searchParams.toString()}`)
-          if (!signedUrlResponse.ok) {
-            throw new Error('Unable to restore photo preview')
-          }
-
-          const signedData = await signedUrlResponse.json() as { signedUrl?: string }
-          if (!signedData.signedUrl) {
-            throw new Error('Unable to restore photo preview')
-          }
-
-          return { ...draftImage, uploadedUrl: signedData.signedUrl }
+        const signedUrlResponse = await fetch('/api/uploads/signed-urls/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            objects: restoredImages.map((draftImage) => ({
+              bucket: draftImage.uploadedBucket,
+              path: draftImage.uploadedPath,
+            })),
+          }),
         })
 
-        const signedImages = await Promise.all(signedUrlJobs)
+        if (!signedUrlResponse.ok) {
+          throw new Error('Unable to restore photo preview')
+        }
+
+        const signedData = await signedUrlResponse.json().catch(() => ({} as {
+          results?: BatchSignedUrlResult[]
+        }))
+        const signedResults = Array.isArray(signedData.results) ? signedData.results : []
+        const signedByKey = new Map<string, string>()
+
+        for (const item of signedResults) {
+          if (!item?.signedUrl) continue
+          signedByKey.set(`${item.bucket}:${item.path}`, item.signedUrl)
+        }
+
+        const signedImages = restoredImages.map((draftImage) => {
+          const key = `${draftImage.uploadedBucket}:${draftImage.uploadedPath}`
+          const signedUrl = signedByKey.get(key)
+          if (!signedUrl) {
+            throw new Error('Unable to restore photo preview')
+          }
+
+          return { ...draftImage, uploadedUrl: signedUrl }
+        })
+
 
         image = {
           mode: 'new',

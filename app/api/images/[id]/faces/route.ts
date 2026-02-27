@@ -16,6 +16,28 @@ interface FacesSummaryRow {
   total_routes_combined: number
 }
 
+interface PrimaryImageRow {
+  id: string
+  url: string
+  crag_id: string | null
+  face_directions?: string[] | null
+}
+
+interface RelatedFaceRow {
+  id: string
+  url: string
+  source_image_id: string | null
+  linked_image_id: string | null
+  face_directions?: string[] | null
+}
+
+function isMissingFaceDirectionsColumn(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const candidate = error as { code?: string; message?: string; details?: string }
+  const message = `${candidate.message || ''} ${candidate.details || ''}`.toLowerCase()
+  return candidate.code === '42703' && message.includes('face_directions')
+}
+
 function parsePrivateStorageUrl(url: string): { bucket: string; path: string } | null {
   if (!url.startsWith('private://')) return null
   const withoutScheme = url.slice('private://'.length)
@@ -38,6 +60,82 @@ async function toViewableUrl(
   const { data, error } = await signer.storage.from(parsed.bucket).createSignedUrl(parsed.path, 3600)
   if (error || !data?.signedUrl) return null
   return data.signedUrl
+}
+
+async function fetchPrimaryImage(
+  supabase: ReturnType<typeof createServerClient>,
+  imageId: string
+): Promise<{ data: PrimaryImageRow | null; error: unknown }> {
+  const withDirections = await supabase
+    .from('images')
+    .select('id, url, crag_id, face_directions')
+    .eq('id', imageId)
+    .maybeSingle()
+
+  if (!withDirections.error) {
+    return { data: (withDirections.data as PrimaryImageRow | null) ?? null, error: null }
+  }
+
+  if (!isMissingFaceDirectionsColumn(withDirections.error)) {
+    return { data: null, error: withDirections.error }
+  }
+
+  const fallback = await supabase
+    .from('images')
+    .select('id, url, crag_id')
+    .eq('id', imageId)
+    .maybeSingle()
+
+  if (fallback.error) return { data: null, error: fallback.error }
+  if (!fallback.data) return { data: null, error: null }
+
+  return {
+    data: {
+      ...(fallback.data as Omit<PrimaryImageRow, 'face_directions'>),
+      face_directions: null,
+    },
+    error: null,
+  }
+}
+
+async function fetchRelatedFaces(
+  supabase: ReturnType<typeof createServerClient>,
+  cragId: string,
+  primaryImageId: string
+): Promise<{ data: RelatedFaceRow[]; error: unknown }> {
+  const filter = `source_image_id.eq.${primaryImageId},and(source_image_id.is.null,linked_image_id.eq.${primaryImageId})`
+
+  const withDirections = await supabase
+    .from('crag_images')
+    .select('id, url, source_image_id, linked_image_id, face_directions')
+    .eq('crag_id', cragId)
+    .or(filter)
+    .order('created_at', { ascending: true })
+
+  if (!withDirections.error) {
+    return { data: (withDirections.data || []) as RelatedFaceRow[], error: null }
+  }
+
+  if (!isMissingFaceDirectionsColumn(withDirections.error)) {
+    return { data: [], error: withDirections.error }
+  }
+
+  const fallback = await supabase
+    .from('crag_images')
+    .select('id, url, source_image_id, linked_image_id')
+    .eq('crag_id', cragId)
+    .or(filter)
+    .order('created_at', { ascending: true })
+
+  if (fallback.error) return { data: [], error: fallback.error }
+
+  return {
+    data: ((fallback.data || []) as Array<Omit<RelatedFaceRow, 'face_directions'>>).map((face) => ({
+      ...face,
+      face_directions: null,
+    })),
+    error: null,
+  }
 }
 
 export async function GET(
@@ -65,13 +163,14 @@ export async function GET(
     : supabase
 
   try {
-    const { data: primaryImage, error: primaryError } = await supabase
-      .from('images')
-      .select('id, url, crag_id, face_directions')
-      .eq('id', imageId)
-      .maybeSingle()
+    const { data: primaryImage, error: primaryError } = await fetchPrimaryImage(supabase, imageId)
 
-    if (primaryError || !primaryImage) {
+    if (primaryError) {
+      console.error('Faces primary image query failed:', primaryError)
+      return NextResponse.json({ error: 'Failed to fetch image faces' }, { status: 500 })
+    }
+
+    if (!primaryImage) {
       return NextResponse.json({ error: 'Image not found' }, { status: 404 })
     }
 
@@ -85,27 +184,27 @@ export async function GET(
 
       return NextResponse.json({
         faces: primaryUrl ? [{
-        id: `image:${primaryImage.id}`,
-        is_primary: true,
-        url: primaryUrl,
-        has_routes: true,
-        linked_image_id: primaryImage.id,
-        crag_image_id: null,
-        face_directions: (primaryImage as { face_directions?: string[] }).face_directions ?? null,
-      } satisfies FaceItem] : [],
+          id: `image:${primaryImage.id}`,
+          is_primary: true,
+          url: primaryUrl,
+          has_routes: true,
+          linked_image_id: primaryImage.id,
+          crag_image_id: null,
+          face_directions: primaryImage.face_directions ?? null,
+        } satisfies FaceItem] : [],
         total_faces: summary?.total_faces ?? 1,
         total_routes_combined: summary?.total_routes_combined ?? 0,
       })
     }
 
-    const { data: relatedFaces, error: relatedError } = await supabase
-      .from('crag_images')
-      .select('id, url, source_image_id, linked_image_id, face_directions')
-      .eq('crag_id', primaryImage.crag_id)
-      .or(`source_image_id.eq.${primaryImage.id},and(source_image_id.is.null,linked_image_id.eq.${primaryImage.id})`)
-      .order('created_at', { ascending: true })
+    const { data: relatedFaces, error: relatedError } = await fetchRelatedFaces(
+      supabase,
+      primaryImage.crag_id,
+      primaryImage.id
+    )
 
     if (relatedError) {
+      console.error('Faces related images query failed:', relatedError)
       return NextResponse.json({ error: 'Failed to fetch related faces' }, { status: 500 })
     }
 
@@ -134,7 +233,7 @@ export async function GET(
         has_routes: true,
         linked_image_id: primaryImage.id,
         crag_image_id: null,
-        face_directions: (primaryImage as { face_directions?: string[] }).face_directions ?? null,
+        face_directions: primaryImage.face_directions ?? null,
       })
     }
 
@@ -150,7 +249,7 @@ export async function GET(
           has_routes: !!(resolvedLinkedImageId && routeCountsByImageId.has(resolvedLinkedImageId)),
           linked_image_id: resolvedLinkedImageId,
           crag_image_id: face.id,
-          face_directions: (face as { face_directions?: string[] }).face_directions ?? null,
+          face_directions: face.face_directions ?? null,
         } as FaceItem
       })
     )
