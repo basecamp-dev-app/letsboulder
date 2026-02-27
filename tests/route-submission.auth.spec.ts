@@ -6,8 +6,8 @@ import { cleanupE2ERoutesByPrefix } from './utils/cleanup'
 
 const AUTH_STATE_PATH = path.resolve(process.cwd(), 'playwright/.auth/user.json')
 const IMAGE_FIXTURES = [
-  '/home/hadow/app-v2/tests/IMG-20260223-WA0006~2.jpg',
-  '/home/hadow/app-v2/tests/gg.png',
+  path.join(__dirname, 'fixtures/IMG-20260223-WA0006~2.jpg'),
+  path.join(__dirname, 'fixtures/gg.png'),
 ]
 
 test.use({ storageState: AUTH_STATE_PATH })
