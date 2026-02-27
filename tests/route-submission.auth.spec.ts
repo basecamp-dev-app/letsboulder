@@ -103,6 +103,39 @@ async function goToDrawStep(page: Page) {
   await expect(page.locator('canvas.cursor-crosshair')).toBeVisible({ timeout: 15000 })
 }
 
+async function expectCanvasOverlayPainted(canvas: Locator) {
+  await expect.poll(async () => {
+    return canvas.evaluate((node) => {
+      const el = node as HTMLCanvasElement
+      const ctx = el.getContext('2d')
+      if (!ctx || el.width === 0 || el.height === 0) return 0
+
+      const imageData = ctx.getImageData(0, 0, el.width, el.height).data
+      let paintedPixels = 0
+
+      for (let i = 3; i < imageData.length; i += 4) {
+        if (imageData[i] > 0) paintedPixels += 1
+      }
+
+      return paintedPixels
+    })
+  }, { timeout: 10000 }).toBeGreaterThan(0)
+}
+
+function getRouteParam(currentUrl: string): string | null {
+  return new URL(currentUrl).searchParams.get('route')
+}
+
+async function goToFaceTwo(page: Page, routeBaseName: string) {
+  try {
+    await page.getByRole('button', { name: 'Next face' }).click({ timeout: 5000, force: true })
+  } catch {
+    await page.getByRole('button', { name: 'Go to face 2' }).click({ timeout: 5000 })
+  }
+
+  await expect(page.getByRole('heading', { level: 1, name: `${routeBaseName} Face 2` })).toBeVisible({ timeout: 20000 })
+}
+
 test.describe('Route Submission', () => {
   test.beforeAll(async () => {
     await ensureAuthStateExists()
@@ -162,7 +195,55 @@ test.describe('Route Submission', () => {
 
     await expect(page.getByRole('heading', { name: 'Routes Submitted!' })).toBeVisible({ timeout: 20000 })
     await page.getByRole('link', { name: /View Routes on Image/i }).click()
+    await page.waitForURL(/\/climb\//, { timeout: 20000 })
+
+    await expect(page.getByRole('heading', { level: 1, name: `${routeBaseName} Face 1` })).toBeVisible({ timeout: 20000 })
+
+    const viewerImage = page.getByRole('img', { name: `${routeBaseName} Face 1` }).first()
+    await expect(viewerImage).toBeVisible({ timeout: 20000 })
+    const viewerFace1Src = await viewerImage.getAttribute('src')
+    expect(viewerFace1Src).toMatch(/.*\/storage\/v1\/object\/sign\/.*/)
+
+    const viewerCanvas = page.locator('canvas.cursor-pointer').first()
+    await expect(viewerCanvas).toBeVisible({ timeout: 20000 })
+    await expectCanvasOverlayPainted(viewerCanvas)
+
+    await goToFaceTwo(page, routeBaseName)
+
+    const viewerFace2Image = page.getByRole('img', { name: `${routeBaseName} Face 2` }).first()
+    await expect(viewerFace2Image).toBeVisible({ timeout: 20000 })
+    const viewerFace2Src = await viewerFace2Image.getAttribute('src')
+    expect(viewerFace2Src).toMatch(/.*\/storage\/v1\/object\/sign\/.*/)
+    expect(viewerFace2Src).not.toBe(viewerFace1Src)
+    await expectCanvasOverlayPainted(viewerCanvas)
+
+    const expectedFace2RouteId = getRouteParam(page.url())
+    expect(expectedFace2RouteId).toBeTruthy()
+
+    await viewerCanvas.click({ position: { x: 10, y: 10 } })
+    await expect.poll(() => getRouteParam(page.url()), { timeout: 5000 }).toBeNull()
+
+    const canvasBox = await viewerCanvas.boundingBox()
+    if (!canvasBox) {
+      throw new Error('Viewer canvas bounding box unavailable')
+    }
+
+    await viewerCanvas.click({
+      position: {
+        x: Math.floor(canvasBox.width * 0.45),
+        y: Math.floor(canvasBox.height * 0.5),
+      },
+    })
+
+    await expect.poll(() => getRouteParam(page.url()), { timeout: 10000 }).toBe(expectedFace2RouteId)
+
+    await page.reload()
     await expect(page.locator('p').filter({ hasText: /2 faces/i }).first()).toBeVisible({ timeout: 20000 })
+
+    await page.getByRole('button', { name: 'Go to face 1' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: `${routeBaseName} Face 1` })).toBeVisible({ timeout: 20000 })
+
+    await goToFaceTwo(page, routeBaseName)
     await expect(page.getByRole('link', { name: /Go to Logbook/i })).toBeVisible()
   })
 
