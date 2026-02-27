@@ -47,6 +47,7 @@ interface ImageInfo {
   created_by: string | null
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
+  face_directions: string[] | null
 }
 
 interface PublicSubmitter {
@@ -80,6 +81,7 @@ interface FaceGalleryItem {
   has_routes: boolean
   linked_image_id: string | null
   crag_image_id: string | null
+  face_directions: string[] | null
 }
 
 interface FacesApiResponse {
@@ -317,8 +319,9 @@ export default function ClimbPage() {
       has_routes: true,
       linked_image_id: image.id,
       crag_image_id: null,
+      face_directions: image.face_directions ?? null,
     } satisfies FaceGalleryItem]
-  }, [faceGallery, image?.id, image?.url])
+  }, [faceGallery, image])
 
   const updateEmblaControls = useCallback(() => {
     if (!emblaApi) return
@@ -459,6 +462,7 @@ export default function ClimbPage() {
             created_by: null,
             contribution_credit_platform: null,
             contribution_credit_handle: null,
+            face_directions: null,
           })
           setRouteLines([
             {
@@ -1433,10 +1437,22 @@ export default function ClimbPage() {
                       type="button"
                       onClick={() => emblaApi?.scrollTo(idx)}
                       aria-label={`Go to face ${idx + 1}`}
-                      className={`h-1.5 w-1.5 rounded-full transition ${idx === activeFaceIndex ? 'bg-white' : 'bg-white/50'}`}
-                    />
+                      className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full border text-[11px] font-semibold transition ${
+                        idx === activeFaceIndex
+                          ? 'border-white bg-white text-black'
+                          : 'border-white/40 bg-black/35 text-white hover:bg-white/25'
+                      }`}
+                    >
+                      {idx + 1}
+                    </button>
                   ))}
                   <span className="ml-1 text-[10px] font-medium text-white">{activeFaceIndex + 1}/{visibleFaces.length}</span>
+                  {visibleFaces[activeFaceIndex]?.face_directions && visibleFaces[activeFaceIndex].face_directions.length > 0 && (
+                    <span className="ml-1 flex items-center gap-0.5 text-[10px] font-medium text-white/80">
+                      <span className="text-[9px]">🧭</span>
+                      {visibleFaces[activeFaceIndex].face_directions.join('+')}
+                    </span>
+                  )}
                 </div>
               </>
             )}

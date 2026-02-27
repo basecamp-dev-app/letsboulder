@@ -8,6 +8,7 @@ interface FaceItem {
   has_routes: boolean
   linked_image_id: string | null
   crag_image_id: string | null
+  face_directions: string[] | null
 }
 
 interface FacesSummaryRow {
@@ -66,7 +67,7 @@ export async function GET(
   try {
     const { data: primaryImage, error: primaryError } = await supabase
       .from('images')
-      .select('id, url, crag_id')
+      .select('id, url, crag_id, face_directions')
       .eq('id', imageId)
       .maybeSingle()
 
@@ -90,6 +91,7 @@ export async function GET(
         has_routes: true,
         linked_image_id: primaryImage.id,
         crag_image_id: null,
+        face_directions: (primaryImage as { face_directions?: string[] }).face_directions ?? null,
       } satisfies FaceItem] : [],
         total_faces: summary?.total_faces ?? 1,
         total_routes_combined: summary?.total_routes_combined ?? 0,
@@ -98,7 +100,7 @@ export async function GET(
 
     const { data: relatedFaces, error: relatedError } = await supabase
       .from('crag_images')
-      .select('id, url, source_image_id, linked_image_id')
+      .select('id, url, source_image_id, linked_image_id, face_directions')
       .eq('crag_id', primaryImage.crag_id)
       .or(`source_image_id.eq.${primaryImage.id},and(source_image_id.is.null,linked_image_id.eq.${primaryImage.id})`)
       .order('created_at', { ascending: true })
@@ -132,6 +134,7 @@ export async function GET(
         has_routes: true,
         linked_image_id: primaryImage.id,
         crag_image_id: null,
+        face_directions: (primaryImage as { face_directions?: string[] }).face_directions ?? null,
       })
     }
 
@@ -147,6 +150,7 @@ export async function GET(
           has_routes: !!(resolvedLinkedImageId && routeCountsByImageId.has(resolvedLinkedImageId)),
           linked_image_id: resolvedLinkedImageId,
           crag_image_id: face.id,
+          face_directions: (face as { face_directions?: string[] }).face_directions ?? null,
         } as FaceItem
       })
     )
