@@ -115,6 +115,9 @@ test.describe('Route Submission', () => {
   test('authenticated user can upload, draw, and submit a route', async ({ page }) => {
     await goToDrawStep(page)
 
+    const firstFaceSrc = await page.getByAltText('Route').getAttribute('src')
+    expect(firstFaceSrc).toMatch(/.*\/storage\/v1\/object\/sign\/.*/)
+
     const firstFaceCanvas = page.locator('canvas.cursor-crosshair')
     await drawRouteWithFallback(page, firstFaceCanvas, [
       { x: 80, y: 120 },
@@ -134,7 +137,11 @@ test.describe('Route Submission', () => {
     await page.getByRole('button', { name: /^Confirm$/ }).click()
 
     await expect(page.getByText('Face 2 of 2')).toBeVisible({ timeout: 20000 })
-    await expect(page.getByAltText('Route')).toHaveAttribute('src', /gg\.png/)
+
+    const routeImage = page.getByAltText('Route')
+    await expect(routeImage).toHaveAttribute('src', /.*\/storage\/v1\/object\/sign\/.*/)
+    const secondFaceSrc = await routeImage.getAttribute('src')
+    expect(secondFaceSrc).not.toBe(firstFaceSrc)
 
     const secondFaceCanvas = page.locator('canvas.cursor-crosshair')
     await drawRouteWithFallback(page, secondFaceCanvas, [
