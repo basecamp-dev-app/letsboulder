@@ -47,6 +47,8 @@ interface Submission {
   id: string
   url: string
   created_at: string
+  updated_at: string
+  kind: 'submitted' | 'draft'
   crag_name: string | null
   route_lines_count: number
   contribution_credit_platform: string | null
@@ -166,6 +168,8 @@ async function getPublicSubmissions(userId: string): Promise<Submission[]> {
         id: submission.id,
         url: submission.url,
         created_at: submission.created_at,
+        updated_at: submission.created_at,
+        kind: 'submitted' as const,
         crag_name: cragName,
         route_lines_count: routeLinesCount,
         contribution_credit_platform: submission.contribution_credit_platform || null,
