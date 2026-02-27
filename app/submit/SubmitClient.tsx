@@ -1272,6 +1272,8 @@ function SubmitPageContent() {
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Set Face Direction</h2>
             <FaceDirectionPicker
               gps={context.imageGps}
+              images={context.image?.mode === 'new' ? context.image.images : []}
+              activeImageIndex={context.image?.mode === 'new' ? context.image.primaryIndex : 0}
               initialFaceDirections={context.faceDirections}
               onConfirm={handleFaceDirectionConfirm}
             />
