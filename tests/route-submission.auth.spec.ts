@@ -244,7 +244,14 @@ test.describe('Route Submission', () => {
     await expect.poll(() => getRouteParam(page.url()), { timeout: 10000 }).toBe(expectedFace2RouteId)
 
     await page.reload()
-    await expect(page.locator('p').filter({ hasText: /2 faces/i }).first()).toBeVisible({ timeout: 20000 })
+    await expect.poll(async () => {
+      const loadingVisible = await page.getByText('Loading routes...').first().isVisible().catch(() => false)
+      const hasFaceControls = await page.getByRole('button', { name: /Go to face [12]/ }).count()
+      const hasFaceSummary = await page.locator('p').filter({ hasText: /across 2 faces/i }).count()
+      return !loadingVisible && (hasFaceControls > 0 || hasFaceSummary > 0)
+    }, { timeout: 20000 }).toBeTruthy()
+
+    await expect(page.getByRole('button', { name: 'Go to face 1' })).toBeVisible({ timeout: 20000 })
 
     await page.getByRole('button', { name: 'Go to face 1' }).click()
     await expect(page.getByRole('heading', { level: 1, name: `${routeBaseName} Face 1` })).toBeVisible({ timeout: 20000 })

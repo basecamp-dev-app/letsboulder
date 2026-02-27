@@ -611,7 +611,9 @@ export default function ClimbPage() {
         }
 
         const facesResponse = await fetch(`/api/images/${primaryImageId}/faces`)
-        const facesPayload = await facesResponse.json().catch(() => ({} as FacesApiResponse))
+        const facesPayload = facesResponse.ok
+          ? await facesResponse.json().catch(() => ({} as FacesApiResponse))
+          : ({} as FacesApiResponse)
 
         if (cancelled) return
 
@@ -622,25 +624,31 @@ export default function ClimbPage() {
         setTotalFaces(typeof facesPayload.total_faces === 'number' ? Math.max(1, facesPayload.total_faces) : Math.max(1, faces.length))
         setTotalRoutesCombined(typeof facesPayload.total_routes_combined === 'number' ? facesPayload.total_routes_combined : initialRouteCountRef.current)
 
-        if (imageInfo.created_by) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('id, username, display_name, first_name, last_name, is_public, contribution_credit_platform, contribution_credit_handle')
-            .eq('id', imageInfo.created_by)
-            .single()
+        if (!cancelled) {
+          setIsFacesLoading(false)
+        }
 
-          if (!cancelled && profileData?.is_public) {
-            const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
-            const displayName = fullName || profileData.display_name || profileData.username || 'Climber'
-            setPublicSubmitter({
-              id: profileData.id,
-              displayName,
-              contributionCreditPlatform: imageInfo.contribution_credit_platform,
-              contributionCreditHandle: imageInfo.contribution_credit_handle,
-              profileContributionCreditPlatform: profileData.contribution_credit_platform,
-              profileContributionCreditHandle: profileData.contribution_credit_handle,
-            })
-          }
+        if (imageInfo.created_by) {
+          void (async () => {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('id, username, display_name, first_name, last_name, is_public, contribution_credit_platform, contribution_credit_handle')
+              .eq('id', imageInfo.created_by)
+              .single()
+
+            if (!cancelled && profileData?.is_public) {
+              const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
+              const displayName = fullName || profileData.display_name || profileData.username || 'Climber'
+              setPublicSubmitter({
+                id: profileData.id,
+                displayName,
+                contributionCreditPlatform: imageInfo.contribution_credit_platform,
+                contributionCreditHandle: imageInfo.contribution_credit_handle,
+                profileContributionCreditPlatform: profileData.contribution_credit_platform,
+                profileContributionCreditHandle: profileData.contribution_credit_handle,
+              })
+            }
+          })()
         }
       } catch (auxError) {
         console.warn('Deferred climb context load warning:', auxError)
