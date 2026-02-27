@@ -280,6 +280,9 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
           <p className="text-xs text-gray-600 dark:text-gray-400">
             Drag to reorder. The first image is used as the primary drawing canvas.
           </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            One pin equals one submission. Add multiple photos here only when they are different faces of the same climb area.
+          </p>
           <div className="overflow-x-auto">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
               <SortableContext items={images.map((img) => img.id)} strategy={horizontalListSortingStrategy}>

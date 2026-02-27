@@ -1209,7 +1209,7 @@ function SubmitPageContent() {
           <div className="max-w-md mx-auto">
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Upload Route Photo</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Upload a photo of the route to begin. Photos containing people will be rejected. GPS location will be extracted to help find nearby crags.
+              Place one pin per submission, then add one or more photos as faces for that same pin. Photos containing people will be rejected. GPS location is extracted to help find nearby crags.
             </p>
             {resumableDraftRouteCount > 0 && resumableDraftEntry && (
               <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-700/60 dark:bg-amber-900/20">
@@ -1293,6 +1293,9 @@ function SubmitPageContent() {
               ← Back to location
             </button>
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Set Face Direction</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              These face directions apply to this single pinned submission across all selected photos.
+            </p>
             <FaceDirectionPicker
               gps={context.imageGps}
               images={context.image?.mode === 'new' ? context.image.images : []}

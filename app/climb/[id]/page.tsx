@@ -200,6 +200,12 @@ function getSubmissionCreditUrl(platform: string | null, handle: string | null):
   }
 }
 
+function getInitialViewerImageUrl(rawUrl: string | null | undefined): string {
+  if (!rawUrl) return ''
+  if (rawUrl.startsWith('private://')) return ''
+  return resolveRouteImageUrl(rawUrl)
+}
+
 function normalizePoints(
   points: RoutePoint[],
   dims: {
@@ -283,6 +289,8 @@ export default function ClimbPage() {
   const [isFacesLoading, setIsFacesLoading] = useState(false)
   const [showDeferredSections, setShowDeferredSections] = useState(false)
   const [activeFaceIndex, setActiveFaceIndex] = useState(0)
+  const [settledFaceIndex, setSettledFaceIndex] = useState(0)
+  const [isFaceTransitioning, setIsFaceTransitioning] = useState(false)
   const [primaryImageId, setPrimaryImageId] = useState<string | null>(null)
   const [canScrollPrev, setCanScrollPrev] = useState(false)
   const [canScrollNext, setCanScrollNext] = useState(false)
@@ -323,11 +331,15 @@ export default function ClimbPage() {
     } satisfies FaceGalleryItem]
   }, [faceGallery, image])
 
-  const updateEmblaControls = useCallback(() => {
+  const updateEmblaControls = useCallback((syncSettled = false) => {
     if (!emblaApi) return
+    const snap = emblaApi.selectedScrollSnap()
     setCanScrollPrev(emblaApi.canScrollPrev())
     setCanScrollNext(emblaApi.canScrollNext())
-    setActiveFaceIndex(emblaApi.selectedScrollSnap())
+    setActiveFaceIndex(snap)
+    if (syncSettled) {
+      setSettledFaceIndex(snap)
+    }
   }, [emblaApi])
   const defaultPathRoute = useMemo(
     () => routeLines.find((route) => route.climb.id === climbId) || routeLines[0] || null,
@@ -539,7 +551,7 @@ export default function ClimbPage() {
 
         setImage({
           ...imageInfo,
-          url: resolveRouteImageUrl(imageInfo.url),
+          url: getInitialViewerImageUrl(imageInfo.url),
         })
         setPrimaryImageId(typedSeed.image_id)
         setActiveFaceIndex(0)
@@ -549,7 +561,7 @@ export default function ClimbPage() {
           [typedSeed.image_id]: {
             image: {
               ...imageInfo,
-              url: resolveRouteImageUrl(imageInfo.url),
+              url: getInitialViewerImageUrl(imageInfo.url),
             },
             routeLines: mappedLines,
           },
@@ -594,22 +606,6 @@ export default function ClimbPage() {
 
         if (!imageInfo) return
 
-        if (imageInfo.crag_id) {
-          const { data: cragData } = await supabase
-            .from('crags')
-            .select('id, country_code, slug')
-            .eq('id', imageInfo.crag_id)
-            .maybeSingle()
-
-          if (!cancelled) {
-            if (cragData?.country_code && cragData?.slug) {
-              setCragPath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
-            } else {
-              setCragPath(`/crag/${imageInfo.crag_id}`)
-            }
-          }
-        }
-
         const facesAbortController = new AbortController()
         const facesTimeoutId = window.setTimeout(() => {
           facesAbortController.abort()
@@ -638,6 +634,22 @@ export default function ClimbPage() {
 
         if (!cancelled) {
           setIsFacesLoading(false)
+        }
+
+        if (imageInfo.crag_id) {
+          const { data: cragData } = await supabase
+            .from('crags')
+            .select('id, country_code, slug')
+            .eq('id', imageInfo.crag_id)
+            .maybeSingle()
+
+          if (!cancelled) {
+            if (cragData?.country_code && cragData?.slug) {
+              setCragPath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
+            } else {
+              setCragPath(`/crag/${imageInfo.crag_id}`)
+            }
+          }
         }
 
         if (imageInfo.created_by) {
@@ -680,27 +692,42 @@ export default function ClimbPage() {
     if (!emblaApi) return
 
     const rafId = window.requestAnimationFrame(() => {
-      updateEmblaControls()
+      updateEmblaControls(true)
     })
 
-    emblaApi.on('select', updateEmblaControls)
-    emblaApi.on('reInit', updateEmblaControls)
-    emblaApi.on('settle', updateEmblaControls)
+    const handleSelect = () => {
+      setIsFaceTransitioning(true)
+      updateEmblaControls(false)
+    }
+
+    const handleSettle = () => {
+      setIsFaceTransitioning(false)
+      updateEmblaControls(true)
+    }
+
+    const handleReInit = () => {
+      setIsFaceTransitioning(false)
+      updateEmblaControls(true)
+    }
+
+    emblaApi.on('select', handleSelect)
+    emblaApi.on('reInit', handleReInit)
+    emblaApi.on('settle', handleSettle)
     return () => {
       window.cancelAnimationFrame(rafId)
-      emblaApi.off('select', updateEmblaControls)
-      emblaApi.off('reInit', updateEmblaControls)
-      emblaApi.off('settle', updateEmblaControls)
+      emblaApi.off('select', handleSelect)
+      emblaApi.off('reInit', handleReInit)
+      emblaApi.off('settle', handleSettle)
     }
   }, [emblaApi, updateEmblaControls])
 
   useEffect(() => {
-    if (prevActiveFaceIndexRef.current === activeFaceIndex && faceRouteCacheRef.current[primaryImageId || '']) {
+    if (prevActiveFaceIndexRef.current === settledFaceIndex && faceRouteCacheRef.current[primaryImageId || '']) {
       return
     }
-    prevActiveFaceIndexRef.current = activeFaceIndex
+    prevActiveFaceIndexRef.current = settledFaceIndex
 
-    const activeFace = visibleFaces[activeFaceIndex]
+    const activeFace = visibleFaces[settledFaceIndex]
     if (!activeFace) return
 
     const targetImageId = activeFace.is_primary
@@ -720,6 +747,9 @@ export default function ClimbPage() {
       clearSelection()
       return
     }
+
+    setRouteLines([])
+    clearSelection()
 
     let cancelled = false
 
@@ -803,7 +833,23 @@ export default function ClimbPage() {
     return () => {
       cancelled = true
     }
-  }, [activeFaceIndex, visibleFaces, primaryImageId, clearSelection])
+  }, [settledFaceIndex, visibleFaces, primaryImageId, clearSelection])
+
+  useEffect(() => {
+    if (visibleFaces.length === 0) {
+      if (activeFaceIndex !== 0) setActiveFaceIndex(0)
+      if (settledFaceIndex !== 0) setSettledFaceIndex(0)
+      return
+    }
+
+    const maxIndex = visibleFaces.length - 1
+    if (activeFaceIndex > maxIndex) {
+      setActiveFaceIndex(maxIndex)
+    }
+    if (settledFaceIndex > maxIndex) {
+      setSettledFaceIndex(maxIndex)
+    }
+  }, [visibleFaces.length, activeFaceIndex, settledFaceIndex])
 
   useEffect(() => {
     if (!cragPath) return
@@ -1404,6 +1450,12 @@ export default function ClimbPage() {
         }>
           <div className="relative w-full max-w-6xl" ref={emblaRef}>
             <div className="flex">
+              {visibleFaces.length === 0 && (
+                <div className="flex w-full items-center justify-center py-16">
+                  <div className="h-56 w-full max-w-3xl animate-pulse rounded-lg bg-gray-200 dark:bg-gray-800" />
+                </div>
+              )}
+
               {visibleFaces.map((face, index) => (
                 <div key={face.id} className="relative min-w-0 shrink-0 grow-0 basis-full flex items-center justify-center">
                   <Image
@@ -1479,9 +1531,11 @@ export default function ClimbPage() {
 
             <canvas
               ref={canvasRef}
-              className="absolute inset-0 cursor-pointer"
+              className={`absolute inset-0 cursor-pointer transition-opacity duration-150 ${
+                isFaceTransitioning ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              }`}
               onClick={handleCanvasClick}
-              style={{ pointerEvents: 'auto', touchAction: 'none' }}
+              style={{ touchAction: 'none' }}
             />
           </div>
         </Suspense>

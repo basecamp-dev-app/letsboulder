@@ -2,19 +2,7 @@
 
 import { useState } from 'react'
 import type { ImageSelection, NewImageSelection, GpsData } from '@/lib/submission-types'
-import dynamic from 'next/dynamic'
-import { Skeleton } from '@/components/ui/skeleton'
-
-const MultiImageUploader = dynamic(() => import('./MultiImageUploader'), {
-  ssr: false,
-  loading: () => (
-    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center space-y-4">
-      <Skeleton className="h-12 w-12 rounded-full mx-auto" />
-      <Skeleton className="h-4 w-48 mx-auto" />
-      <Skeleton className="h-10 w-32 mx-auto" />
-    </div>
-  )
-})
+import MultiImageUploader from './MultiImageUploader'
 
 interface ImagePickerProps {
   onSelect: (selection: ImageSelection, gpsData: GpsData | null) => void
