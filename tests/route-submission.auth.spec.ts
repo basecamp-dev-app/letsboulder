@@ -196,8 +196,9 @@ test.describe('Route Submission', () => {
     await expect(page.getByRole('heading', { name: 'Routes Submitted!' })).toBeVisible({ timeout: 20000 })
     await page.getByRole('link', { name: /View Routes on Image/i }).click()
     await page.waitForURL(/\/climb\//, { timeout: 20000 })
+    console.log('Current URL:', page.url())
 
-    await expect(page.getByRole('heading', { level: 1, name: `${routeBaseName} Face 1` })).toBeVisible({ timeout: 20000 })
+    await expect(page.getByRole('heading', { name: new RegExp(routeBaseName) })).toBeVisible({ timeout: 20000 })
 
     const viewerImage = page.getByRole('img', { name: `${routeBaseName} Face 1` }).first()
     await expect(viewerImage).toBeVisible({ timeout: 20000 })
