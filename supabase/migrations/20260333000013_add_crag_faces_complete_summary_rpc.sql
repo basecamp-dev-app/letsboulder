@@ -14,8 +14,7 @@ WITH target AS (
     i.width,
     i.height,
     i.natural_width,
-    i.natural_height,
-    i.face_directions
+    i.natural_height
   FROM public.images i
   WHERE i.id = p_image_id
 ),
@@ -26,7 +25,6 @@ related_faces_raw AS (
     ci.linked_image_id,
     ci.width,
     ci.height,
-    ci.face_directions,
     ci.created_at
   FROM public.crag_images ci
   JOIN target t
@@ -44,7 +42,6 @@ related_faces AS (
     rfr.linked_image_id,
     rfr.width,
     rfr.height,
-    rfr.face_directions,
     rfr.created_at
   FROM related_faces_raw rfr
   ORDER BY COALESCE(rfr.linked_image_id::text, 'url:' || rfr.url), rfr.created_at ASC
@@ -92,7 +89,7 @@ primary_face AS (
     'url', t.url,
     'linked_image_id', t.id,
     'crag_image_id', NULL,
-    'face_directions', t.face_directions,
+    'face_directions', NULL,
     'metadata', jsonb_build_object(
       'width', COALESCE(t.natural_width, t.width),
       'height', COALESCE(t.natural_height, t.height)
@@ -112,7 +109,7 @@ supplementary_faces AS (
     'url', rf.url,
     'linked_image_id', CASE WHEN rf.linked_image_id = p_image_id THEN NULL ELSE rf.linked_image_id END,
     'crag_image_id', rf.crag_image_id,
-    'face_directions', rf.face_directions,
+    'face_directions', NULL,
     'metadata', jsonb_build_object(
       'width', COALESCE(li.natural_width, li.width, rf.width),
       'height', COALESCE(li.natural_height, li.height, rf.height)
