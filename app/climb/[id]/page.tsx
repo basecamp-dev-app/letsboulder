@@ -76,18 +76,45 @@ interface DisplayRouteLine {
 
 interface FaceGalleryItem {
   id: string
+  index?: number
+  image_id?: string | null
   is_primary: boolean
   url: string
   has_routes: boolean
   linked_image_id: string | null
   crag_image_id: string | null
   face_directions: string[] | null
+  metadata?: {
+    width: number | null
+    height: number | null
+  }
+  routes?: FaceRouteSummary[]
+}
+
+interface FaceRouteSummary {
+  id: string
+  climb_id: string
+  name: string
+  grade: string
+  route_type: string | null
+  description: string | null
+  color: string | null
+  points: RoutePoint[] | string | null
+  image_width: number | null
+  image_height: number | null
+  sequence_order: number | null
 }
 
 interface FacesApiResponse {
+  crag_id?: string | null
+  primary_image_id?: string
   faces?: FaceGalleryItem[]
   total_faces?: number
   total_routes_combined?: number
+  summary?: {
+    total_faces: number
+    total_routes: number
+  }
 }
 
 interface SeedRouteResponse {
@@ -233,6 +260,39 @@ function normalizePoints(
   return points
     .map((p) => ({ x: p.x / baseWidth, y: p.y / baseHeight }))
     .filter((p) => p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1)
+}
+
+function mapFaceRoutesToDisplayLines(
+  routes: FaceRouteSummary[] | undefined,
+  faceMeta: { width: number | null; height: number | null } | undefined
+): DisplayRouteLine[] {
+  if (!Array.isArray(routes) || routes.length === 0) return []
+
+  return routes
+    .map((route) => {
+      const normalized = normalizePoints(parsePoints(route.points), {
+        routeWidth: route.image_width,
+        routeHeight: route.image_height,
+        imageWidth: faceMeta?.width ?? null,
+        imageHeight: faceMeta?.height ?? null,
+      })
+
+      if (normalized.length < 2) return null
+
+      return {
+        id: route.id,
+        points: normalized,
+        color: route.color || '#ef4444',
+        climb: {
+          id: route.climb_id,
+          name: route.name,
+          grade: route.grade,
+          route_type: route.route_type,
+          description: route.description,
+        },
+      } as DisplayRouteLine
+    })
+    .filter((line): line is DisplayRouteLine => line !== null)
 }
 
 function smoothCurveToCanvasPath(ctx: CanvasRenderingContext2D, points: RoutePoint[], width: number, height: number) {
@@ -593,19 +653,6 @@ export default function ClimbPage() {
       try {
         const supabase = createClient()
 
-        const { data: seedRoute } = await supabase
-          .from('route_lines')
-          .select('image_id, image:images!inner(crag_id, created_by, contribution_credit_platform, contribution_credit_handle)')
-          .eq('climb_id', climbId)
-          .maybeSingle()
-
-        if (cancelled || !seedRoute) return
-
-        const typedSeed = seedRoute as unknown as SeedRouteResponse
-        const imageInfo = pickOne(typedSeed.image)
-
-        if (!imageInfo) return
-
         const facesAbortController = new AbortController()
         const facesTimeoutId = window.setTimeout(() => {
           facesAbortController.abort()
@@ -628,36 +675,93 @@ export default function ClimbPage() {
         const faces = Array.isArray(facesPayload.faces)
           ? facesPayload.faces.filter((item: FaceGalleryItem) => typeof item.url === 'string' && !!item.url)
           : []
+        const primaryBaseImage = faceRouteCacheRef.current[primaryImageId]?.image || null
+
         setFaceGallery(faces)
-        setTotalFaces(typeof facesPayload.total_faces === 'number' ? Math.max(1, facesPayload.total_faces) : Math.max(1, faces.length))
-        setTotalRoutesCombined(typeof facesPayload.total_routes_combined === 'number' ? facesPayload.total_routes_combined : initialRouteCountRef.current)
+
+        const totalFacesFromSummary = typeof facesPayload.summary?.total_faces === 'number'
+          ? facesPayload.summary.total_faces
+          : facesPayload.total_faces
+        const totalRoutesFromSummary = typeof facesPayload.summary?.total_routes === 'number'
+          ? facesPayload.summary.total_routes
+          : facesPayload.total_routes_combined
+
+        setTotalFaces(typeof totalFacesFromSummary === 'number' ? Math.max(1, totalFacesFromSummary) : Math.max(1, faces.length))
+        setTotalRoutesCombined(typeof totalRoutesFromSummary === 'number' ? totalRoutesFromSummary : initialRouteCountRef.current)
+
+        if (faces.length > 0) {
+          const nextCache = { ...faceRouteCacheRef.current }
+
+          for (const face of faces) {
+            const resolvedImageId = face.image_id || face.linked_image_id || (face.is_primary ? primaryImageId : null)
+            if (!resolvedImageId) continue
+
+            const faceRoutes = mapFaceRoutesToDisplayLines(face.routes, face.metadata)
+            const baseImage = nextCache[resolvedImageId]?.image
+
+            const nextImage: ImageInfo = face.is_primary
+              ? {
+                  id: resolvedImageId,
+                  url: face.url,
+                  crag_id: primaryBaseImage?.crag_id || null,
+                  width: face.metadata?.width ?? primaryBaseImage?.width ?? null,
+                  height: face.metadata?.height ?? primaryBaseImage?.height ?? null,
+                  natural_width: face.metadata?.width ?? primaryBaseImage?.natural_width ?? null,
+                  natural_height: face.metadata?.height ?? primaryBaseImage?.natural_height ?? null,
+                  created_by: primaryBaseImage?.created_by || null,
+                  contribution_credit_platform: primaryBaseImage?.contribution_credit_platform || null,
+                  contribution_credit_handle: primaryBaseImage?.contribution_credit_handle || null,
+                  face_directions: face.face_directions ?? primaryBaseImage?.face_directions ?? null,
+                }
+              : {
+                  id: resolvedImageId,
+                  url: face.url,
+                  crag_id: primaryBaseImage?.crag_id || baseImage?.crag_id || null,
+                  width: face.metadata?.width ?? baseImage?.width ?? null,
+                  height: face.metadata?.height ?? baseImage?.height ?? null,
+                  natural_width: face.metadata?.width ?? baseImage?.natural_width ?? null,
+                  natural_height: face.metadata?.height ?? baseImage?.natural_height ?? null,
+                  created_by: primaryBaseImage?.created_by || baseImage?.created_by || null,
+                  contribution_credit_platform: primaryBaseImage?.contribution_credit_platform || baseImage?.contribution_credit_platform || null,
+                  contribution_credit_handle: primaryBaseImage?.contribution_credit_handle || baseImage?.contribution_credit_handle || null,
+                  face_directions: face.face_directions ?? baseImage?.face_directions ?? null,
+                }
+
+            nextCache[resolvedImageId] = {
+              image: nextImage,
+              routeLines: faceRoutes,
+            }
+          }
+
+          faceRouteCacheRef.current = nextCache
+        }
 
         if (!cancelled) {
           setIsFacesLoading(false)
         }
 
-        if (imageInfo.crag_id) {
+        if (primaryBaseImage?.crag_id) {
           const { data: cragData } = await supabase
             .from('crags')
             .select('id, country_code, slug')
-            .eq('id', imageInfo.crag_id)
+            .eq('id', primaryBaseImage.crag_id)
             .maybeSingle()
 
           if (!cancelled) {
             if (cragData?.country_code && cragData?.slug) {
               setCragPath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
             } else {
-              setCragPath(`/crag/${imageInfo.crag_id}`)
+              setCragPath(`/crag/${primaryBaseImage.crag_id}`)
             }
           }
         }
 
-        if (imageInfo.created_by) {
+        if (primaryBaseImage?.created_by) {
           void (async () => {
             const { data: profileData } = await supabase
               .from('profiles')
               .select('id, username, display_name, first_name, last_name, is_public, contribution_credit_platform, contribution_credit_handle')
-              .eq('id', imageInfo.created_by)
+              .eq('id', primaryBaseImage.created_by)
               .single()
 
             if (!cancelled && profileData?.is_public) {
@@ -666,8 +770,8 @@ export default function ClimbPage() {
               setPublicSubmitter({
                 id: profileData.id,
                 displayName,
-                contributionCreditPlatform: imageInfo.contribution_credit_platform,
-                contributionCreditHandle: imageInfo.contribution_credit_handle,
+                contributionCreditPlatform: primaryBaseImage.contribution_credit_platform,
+                contributionCreditHandle: primaryBaseImage.contribution_credit_handle,
                 profileContributionCreditPlatform: profileData.contribution_credit_platform,
                 profileContributionCreditHandle: profileData.contribution_credit_handle,
               })
@@ -686,7 +790,7 @@ export default function ClimbPage() {
     return () => {
       cancelled = true
     }
-  }, [climbId, primaryImageId])
+  }, [primaryImageId])
 
   useEffect(() => {
     if (!emblaApi) return
@@ -748,91 +852,15 @@ export default function ClimbPage() {
       return
     }
 
-    setRouteLines([])
-    clearSelection()
-
-    let cancelled = false
-
-    const loadFaceRoutes = async () => {
-      try {
-        const supabase = createClient()
-        const { data: imageData, error: imageError } = await supabase
-          .from('images')
-          .select('id, url, crag_id, width, height, natural_width, natural_height, created_by, contribution_credit_platform, contribution_credit_handle')
-          .eq('id', targetImageId)
-          .maybeSingle()
-
-        if (imageError || !imageData || cancelled) return
-
-        const imageInfo = imageData as ImageInfo
-        const { data: allLines, error: allLinesError } = await supabase
-          .from('route_lines')
-          .select(`
-            id,
-            points,
-            color,
-            image_width,
-            image_height,
-            climb_id,
-            climbs (id, name, grade, route_type, description)
-          `)
-          .eq('image_id', targetImageId)
-
-        if (allLinesError || cancelled) return
-
-        const mappedLines = ((allLines as unknown as RouteLineResponse[]) || [])
-          .map((line) => {
-            const climb = pickOne(line.climbs)
-            if (!climb) return null
-
-            const normalized = normalizePoints(parsePoints(line.points), {
-              routeWidth: line.image_width,
-              routeHeight: line.image_height,
-              imageWidth: imageInfo.natural_width || imageInfo.width,
-              imageHeight: imageInfo.natural_height || imageInfo.height,
-            })
-
-            if (normalized.length < 2) return null
-
-            return {
-              id: line.id,
-              points: normalized,
-              color: line.color || '#ef4444',
-              climb: {
-                id: climb.id,
-                name: climb.name,
-                grade: climb.grade,
-                route_type: climb.route_type,
-                description: climb.description,
-              },
-            } as DisplayRouteLine
-          })
-          .filter((line): line is DisplayRouteLine => line !== null)
-
-        const nextImage = {
-          ...imageInfo,
-          url: activeFace.url,
-        }
-
-        faceRouteCacheRef.current[targetImageId] = {
-          image: nextImage,
-          routeLines: mappedLines,
-        }
-
-        if (cancelled) return
-        setImage(nextImage)
-        setRouteLines(mappedLines)
-        clearSelection()
-      } catch {
-        // Ignore per-face loading errors and keep current context
+    setImage((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        url: activeFace.url,
+        face_directions: activeFace.face_directions ?? prev.face_directions,
       }
-    }
-
-    void loadFaceRoutes()
-
-    return () => {
-      cancelled = true
-    }
+    })
+    clearSelection()
   }, [settledFaceIndex, visibleFaces, primaryImageId, clearSelection])
 
   useEffect(() => {

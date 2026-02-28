@@ -31,6 +31,46 @@ interface RelatedFaceRow {
   face_directions?: string[] | null
 }
 
+interface CompleteSummaryRoute {
+  id: string
+  climb_id: string
+  name: string
+  grade: string
+  route_type: string | null
+  description: string | null
+  color: string | null
+  points: unknown
+  image_width: number | null
+  image_height: number | null
+  sequence_order: number | null
+}
+
+interface CompleteSummaryFace {
+  image_id: string | null
+  index: number
+  is_primary: boolean
+  url: string | null
+  linked_image_id: string | null
+  crag_image_id: string | null
+  face_directions: string[] | null
+  metadata: {
+    width: number | null
+    height: number | null
+  } | null
+  routes: CompleteSummaryRoute[]
+  has_routes: boolean
+}
+
+interface CompleteSummaryPayload {
+  crag_id: string | null
+  primary_image_id: string
+  faces: CompleteSummaryFace[]
+  summary: {
+    total_faces: number
+    total_routes: number
+  }
+}
+
 function isMissingFaceDirectionsColumn(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
   const candidate = error as { code?: string; message?: string; details?: string }
@@ -197,6 +237,79 @@ export async function GET(
     : supabase
 
   try {
+    const { data: completeSummaryData, error: completeSummaryError } = await supabase.rpc('get_crag_faces_complete_summary', {
+      p_image_id: imageId,
+    })
+
+    if (!completeSummaryError && completeSummaryData) {
+      const completeSummary = completeSummaryData as CompleteSummaryPayload
+      const rawFaces = Array.isArray(completeSummary.faces) ? completeSummary.faces : []
+
+      const allFaceUrls = rawFaces
+        .map((face) => face.url)
+        .filter((url): url is string => typeof url === 'string' && !!url)
+
+      const signedUrlMap = await toViewableUrlMap(allFaceUrls, signingClient)
+
+      const faces = rawFaces
+        .map((face) => {
+          if (!face.url) return null
+          const signedUrl = signedUrlMap.get(face.url) ?? null
+          if (!signedUrl) return null
+
+          const linkedImageId = face.linked_image_id === completeSummary.primary_image_id ? null : face.linked_image_id
+          const resolvedImageId = face.image_id || linkedImageId || (face.is_primary ? completeSummary.primary_image_id : null)
+
+          return {
+            id: face.is_primary
+              ? `image:${completeSummary.primary_image_id}`
+              : `crag-image:${face.crag_image_id || face.index}`,
+            index: face.index,
+            image_id: resolvedImageId,
+            is_primary: face.is_primary,
+            url: signedUrl,
+            has_routes: face.has_routes || (Array.isArray(face.routes) && face.routes.length > 0),
+            linked_image_id: linkedImageId,
+            crag_image_id: face.crag_image_id,
+            face_directions: Array.isArray(face.face_directions) ? face.face_directions : null,
+            metadata: face.metadata || { width: null, height: null },
+            routes: Array.isArray(face.routes) ? face.routes : [],
+          }
+        })
+        .filter((face): face is {
+          id: string
+          index: number
+          image_id: string | null
+          is_primary: boolean
+          url: string
+          has_routes: boolean
+          linked_image_id: string | null
+          crag_image_id: string | null
+          face_directions: string[] | null
+          metadata: { width: number | null; height: number | null }
+          routes: CompleteSummaryRoute[]
+        } => face !== null)
+
+      const totalFaces = typeof completeSummary.summary?.total_faces === 'number'
+        ? completeSummary.summary.total_faces
+        : faces.length
+      const totalRoutes = typeof completeSummary.summary?.total_routes === 'number'
+        ? completeSummary.summary.total_routes
+        : faces.reduce((sum, face) => sum + face.routes.length, 0)
+
+      return NextResponse.json({
+        crag_id: completeSummary.crag_id || null,
+        primary_image_id: completeSummary.primary_image_id,
+        faces,
+        summary: {
+          total_faces: totalFaces,
+          total_routes: totalRoutes,
+        },
+        total_faces: totalFaces,
+        total_routes_combined: totalRoutes,
+      })
+    }
+
     const { data: primaryImage, error: primaryError } = await fetchPrimaryImage(supabase, imageId)
 
     if (primaryError) {
