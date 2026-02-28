@@ -15,6 +15,8 @@ const STALE_ENTRY_TTL_MS = 24 * 60 * 60 * 1000
 
 const RATE_LIMITS = {
   externalApi: { windowMs: 60 * 1000, maxRequests: 30 },
+  geoDetect: { windowMs: 60 * 1000, maxRequests: 5 },
+  clickSink: { windowMs: 60 * 1000, maxRequests: 10 },
   authenticatedWrite: { windowMs: 60 * 60 * 1000, maxRequests: 50 },
   publicSearch: { windowMs: 60 * 1000, maxRequests: 100 },
   sensitive: { windowMs: 60 * 60 * 1000, maxRequests: 10 },

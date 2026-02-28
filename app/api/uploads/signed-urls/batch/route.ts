@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { withCsrfProtection } from '@/lib/csrf-server'
 import { getSignedUrlBatchKey, type BatchSignedUrlResult, type SignedUrlBatchRequestObject } from '@/lib/signed-url-batch'
 
 function normalizeObjects(input: unknown): SignedUrlBatchRequestObject[] | null {
@@ -17,7 +18,74 @@ function normalizeObjects(input: unknown): SignedUrlBatchRequestObject[] | null 
   return normalized
 }
 
+function getAllowedHosts(request: NextRequest): Set<string> {
+  const allowedHosts = new Set<string>(['localhost', '127.0.0.1'])
+  const requestHost = request.headers.get('host')?.split(':')[0]?.trim().toLowerCase()
+  if (requestHost) {
+    allowedHosts.add(requestHost)
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (appUrl) {
+    try {
+      allowedHosts.add(new URL(appUrl).hostname.toLowerCase())
+    } catch {
+      // Ignore invalid NEXT_PUBLIC_APP_URL values
+    }
+  }
+
+  const vercelUrl = process.env.VERCEL_URL
+  if (vercelUrl) {
+    allowedHosts.add(vercelUrl.split(':')[0].trim().toLowerCase())
+  }
+
+  return allowedHosts
+}
+
+function isAllowedHost(hostname: string, allowedHosts: Set<string>): boolean {
+  const normalized = hostname.toLowerCase()
+  if (allowedHosts.has(normalized)) return true
+  if (normalized === 'letsboulder.vercel.app') return true
+  if (normalized.endsWith('-letsboulder.vercel.app')) return true
+  return false
+}
+
+function parseUrlHeader(value: string | null): URL | null {
+  if (!value) return null
+  try {
+    return new URL(value)
+  } catch {
+    return null
+  }
+}
+
+function validateRequestOrigin(request: NextRequest): NextResponse | null {
+  const originUrl = parseUrlHeader(request.headers.get('origin'))
+  const refererUrl = parseUrlHeader(request.headers.get('referer'))
+  if (!originUrl && !refererUrl) {
+    return NextResponse.json({ error: 'Missing origin context' }, { status: 403 })
+  }
+
+  const allowedHosts = getAllowedHosts(request)
+
+  if (originUrl && !isAllowedHost(originUrl.hostname, allowedHosts)) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  }
+
+  if (refererUrl && !isAllowedHost(refererUrl.hostname, allowedHosts)) {
+    return NextResponse.json({ error: 'Invalid request referer' }, { status: 403 })
+  }
+
+  return null
+}
+
 export async function POST(request: NextRequest) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
+  const originError = validateRequestOrigin(request)
+  if (originError) return originError
+
   const body = await request.json().catch(() => null)
   const objects = normalizeObjects(body?.objects)
 

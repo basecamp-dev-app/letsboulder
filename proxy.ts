@@ -23,6 +23,8 @@ const SESSION_REFRESH_PREFIXES = [
   '/logbook',
 ]
 
+const LOCATION_DETECT_MAX_BODY_BYTES = 2 * 1024
+
 function getClientIp(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for')
   if (forwarded) {
@@ -41,7 +43,17 @@ function isStateChangingMethod(method: string): boolean {
   return normalized === 'POST' || normalized === 'PUT' || normalized === 'PATCH' || normalized === 'DELETE'
 }
 
-function getApiBucket(pathname: string, method: string): 'search' | 'rankings' | 'write' | null {
+function getApiBucket(pathname: string, method: string): 'search' | 'rankings' | 'write' | 'geo' | 'clicks' | null {
+  const normalizedMethod = method.toUpperCase()
+
+  if (pathname.startsWith('/api/locations/detect') && normalizedMethod === 'POST') {
+    return 'geo'
+  }
+
+  if (pathname.startsWith('/api/gear-clicks') && normalizedMethod === 'POST') {
+    return 'clicks'
+  }
+
   if (
     pathname.startsWith('/api/places/search') ||
     pathname.startsWith('/api/places/nearby') ||
@@ -100,6 +112,19 @@ export default async function proxy(request: NextRequest) {
 
   const { pathname, searchParams } = request.nextUrl
 
+  if (pathname.startsWith('/api/locations/detect') && request.method.toUpperCase() === 'POST') {
+    const contentLengthHeader = request.headers.get('content-length')
+    if (contentLengthHeader) {
+      const contentLength = Number(contentLengthHeader)
+      if (Number.isFinite(contentLength) && contentLength > LOCATION_DETECT_MAX_BODY_BYTES) {
+        return NextResponse.json(
+          { error: 'Request body too large' },
+          { status: 413 }
+        )
+      }
+    }
+  }
+
   const rateLimitBucket = process.env.VERCEL_ENV === 'production'
     ? getApiBucket(pathname, request.method)
     : null
@@ -135,7 +160,19 @@ export default async function proxy(request: NextRequest) {
           limit: (key: string) => Promise<{ success: boolean; limit: number; remaining: number; reset: number }>
         }
 
-        if (rateLimitBucket === 'search') {
+        if (rateLimitBucket === 'geo') {
+          ratelimit = new Ratelimit({
+            redis,
+            limiter: Ratelimit.slidingWindow(5, '1 m'),
+            prefix: 'rl:api:geo',
+          })
+        } else if (rateLimitBucket === 'clicks') {
+          ratelimit = new Ratelimit({
+            redis,
+            limiter: Ratelimit.slidingWindow(10, '1 m'),
+            prefix: 'rl:api:clicks',
+          })
+        } else if (rateLimitBucket === 'search') {
           ratelimit = new Ratelimit({
             redis,
             limiter: Ratelimit.slidingWindow(60, '1 m'),
@@ -223,6 +260,8 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/api/locations/detect',
+    '/api/gear-clicks/:path*',
     '/auth/:path*',
     '/settings/:path*',
     '/submit/:path*',

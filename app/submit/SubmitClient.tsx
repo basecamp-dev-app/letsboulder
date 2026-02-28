@@ -1115,7 +1115,7 @@ function SubmitPageContent() {
     if (resumableDraftEntry.image.mode === 'new') {
       try {
         const restoredImages = [...resumableDraftEntry.image.images]
-        const signedUrlResponse = await fetch('/api/uploads/signed-urls/batch', {
+        const signedUrlResponse = await csrfFetch('/api/uploads/signed-urls/batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

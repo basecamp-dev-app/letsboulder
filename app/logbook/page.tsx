@@ -12,6 +12,7 @@ import { LogbookSkeleton } from '@/components/logbook/logbook-states'
 import { useToast } from '@/components/logbook/toast'
 import { getGradePoints } from '@/lib/grades'
 import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface LoggedClimb {
   id: string
@@ -214,7 +215,7 @@ function LogbookContent() {
 
           const signedByKey = new Map<string, string>()
           if (firstDraftImageObjects.length > 0) {
-            const signedUrlResponse = await fetch('/api/uploads/signed-urls/batch', {
+            const signedUrlResponse = await csrfFetch('/api/uploads/signed-urls/batch', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ objects: firstDraftImageObjects }),

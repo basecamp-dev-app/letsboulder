@@ -4,7 +4,23 @@ import { createErrorResponse } from '@/lib/errors'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const rawBody = await request.text()
+    if (rawBody.length > 2 * 1024) {
+      return NextResponse.json(
+        { error: 'Request body too large' },
+        { status: 413 }
+      )
+    }
+
+    let body: Record<string, unknown>
+    try {
+      body = JSON.parse(rawBody) as Record<string, unknown>
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid JSON body' },
+        { status: 400 }
+      )
+    }
     const rawLatitude = body?.latitude
     const rawLongitude = body?.longitude
 
@@ -36,7 +52,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const rateLimitResult = rateLimit(request, 'externalApi')
+    const rateLimitResult = rateLimit(request, 'geoDetect')
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse

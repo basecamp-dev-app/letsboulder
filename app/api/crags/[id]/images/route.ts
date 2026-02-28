@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { fileTypeFromBuffer } from 'file-type'
+import sharp from 'sharp'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
@@ -8,6 +10,21 @@ export const runtime = 'nodejs'
 
 const STORAGE_BUCKET = 'route-uploads'
 const MAX_FILES = 8
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+const MAX_IMAGE_PIXELS = 40_000_000
+const MAX_IMAGE_DIMENSION = 8_000
+const SIGNATURE_BYTES_TO_READ = 4_100
+const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+
+type AllowedImageMime = 'image/jpeg' | 'image/png' | 'image/webp'
+
+interface ValidatedUploadFile {
+  buffer: Buffer
+  mime: AllowedImageMime
+  extension: string
+  width: number
+  height: number
+}
 
 interface CragImageRow {
   id: string
@@ -160,19 +177,10 @@ export async function GET(
   }
 }
 
-function getFileExtension(file: File): string {
-  if (file.type.startsWith('image/')) {
-    const typeExt = file.type.slice('image/'.length).toLowerCase()
-    if (typeExt) return typeExt
-  }
-
-  const dotIndex = file.name.lastIndexOf('.')
-  if (dotIndex >= 0) {
-    const ext = file.name.slice(dotIndex + 1).toLowerCase()
-    if (ext) return ext
-  }
-
-  return 'jpg'
+function getExtensionForMime(mime: AllowedImageMime): string {
+  if (mime === 'image/jpeg') return 'jpg'
+  if (mime === 'image/png') return 'png'
+  return 'webp'
 }
 
 export async function POST(
@@ -224,8 +232,6 @@ export async function POST(
     const formData = await request.formData()
     const fileValues = formData.getAll('images')
     const files = fileValues.filter((value): value is File => value instanceof File)
-    const widthValues = formData.getAll('widths').map((value) => Number(value))
-    const heightValues = formData.getAll('heights').map((value) => Number(value))
 
     if (files.length === 0) {
       return NextResponse.json({ error: 'At least one image is required' }, { status: 400 })
@@ -237,26 +243,65 @@ export async function POST(
 
     const uploadedPaths: string[] = []
     const imageUrls: string[] = []
+    const validatedFiles: ValidatedUploadFile[] = []
 
     try {
       for (const file of files) {
-        if (!file.type.startsWith('image/')) {
-          return NextResponse.json({ error: 'Only image files are allowed' }, { status: 400 })
-        }
-
         if (file.size === 0) {
           return NextResponse.json({ error: 'Empty file uploaded' }, { status: 400 })
         }
+
+        if (file.size > MAX_UPLOAD_BYTES) {
+          return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 413 })
+        }
+
+        const signatureChunk = new Uint8Array(await file.slice(0, SIGNATURE_BYTES_TO_READ).arrayBuffer())
+        const detectedType = await fileTypeFromBuffer(signatureChunk)
+
+        if (!detectedType || !ALLOWED_IMAGE_MIMES.has(detectedType.mime)) {
+          return NextResponse.json({ error: 'Invalid file signature' }, { status: 400 })
+        }
+
+        const mime = detectedType.mime as AllowedImageMime
+        const extension = getExtensionForMime(mime)
+        const fileBuffer = Buffer.from(await file.arrayBuffer())
+
+        try {
+          const metadata = await sharp(fileBuffer, {
+            failOn: 'error',
+            limitInputPixels: MAX_IMAGE_PIXELS,
+          }).metadata()
+
+          const width = metadata.width
+          const height = metadata.height
+
+          if (!width || !height) {
+            return NextResponse.json({ error: 'Could not read image dimensions' }, { status: 400 })
+          }
+
+          if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION || (width * height) > MAX_IMAGE_PIXELS) {
+            return NextResponse.json({ error: 'Image dimensions exceed upload limits' }, { status: 400 })
+          }
+
+          validatedFiles.push({
+            buffer: fileBuffer,
+            mime,
+            extension,
+            width,
+            height,
+          })
+        } catch {
+          return NextResponse.json({ error: 'Invalid image payload' }, { status: 400 })
+        }
       }
 
-      for (const file of files) {
-        const ext = getFileExtension(file)
-        const objectPath = `${user.id}/crags/${cragId}/${crypto.randomUUID()}.${ext}`
+      for (const file of validatedFiles) {
+        const objectPath = `${user.id}/crags/${cragId}/${crypto.randomUUID()}.${file.extension}`
 
         const { error: uploadError } = await supabase.storage
           .from(STORAGE_BUCKET)
-          .upload(objectPath, file, {
-            contentType: file.type || 'application/octet-stream',
+          .upload(objectPath, file.buffer, {
+            contentType: file.mime,
             upsert: false,
           })
 
@@ -269,8 +314,8 @@ export async function POST(
       }
 
       const insertRows = imageUrls.map((url, index) => {
-        const width = Number.isFinite(widthValues[index]) ? widthValues[index] : null
-        const height = Number.isFinite(heightValues[index]) ? heightValues[index] : null
+        const width = validatedFiles[index]?.width ?? null
+        const height = validatedFiles[index]?.height ?? null
         return { crag_id: cragId, url, width, height }
       })
 
