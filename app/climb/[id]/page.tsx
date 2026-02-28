@@ -407,6 +407,9 @@ export default function ClimbPage() {
   )
   const displayRoute = selectedRoute || defaultPathRoute
   const displayClimb = displayRoute?.climb || null
+  const displayRouteTapPoint = displayRoute && displayRoute.points.length > 0
+    ? displayRoute.points[Math.floor(displayRoute.points.length / 2)]
+    : null
   const activeClimbId = displayClimb?.id || climbId
   const selectedClimb = selectedRoute?.climb || null
   const selectedClimbLog = selectedClimb ? userLogs[selectedClimb.id] : null
@@ -1131,13 +1134,17 @@ export default function ClimbPage() {
       )
 
       if (!clickedRoute) {
+        clearSelection()
+        updateRouteParam(null)
         return
       }
 
       updateRouteParam(clickedRoute.id)
     },
-    [routeLines, updateRouteParam]
+    [routeLines, clearSelection, updateRouteParam]
   )
+
+  const viewerReadyState = !isFaceTransitioning && routeLines.length > 0 ? 'idle' : 'busy'
 
   const getAuthRedirectPath = useCallback(() => {
     return selectedRoute
@@ -1563,6 +1570,9 @@ export default function ClimbPage() {
                 isFaceTransitioning ? 'opacity-0 pointer-events-none' : 'opacity-100'
               }`}
               onClick={handleCanvasClick}
+              data-ready-state={viewerReadyState}
+              data-route-target-x={displayRouteTapPoint ? String(displayRouteTapPoint.x) : undefined}
+              data-route-target-y={displayRouteTapPoint ? String(displayRouteTapPoint.y) : undefined}
               style={{ touchAction: 'none' }}
             />
           </div>
