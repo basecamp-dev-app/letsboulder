@@ -117,16 +117,6 @@ interface FacesApiResponse {
   }
 }
 
-interface SeedRouteResponse {
-  id: string
-  image_id: string | null
-  points: RoutePoint[] | string | null
-  image_width: number | null
-  image_height: number | null
-  image: ImageInfo | ImageInfo[] | null
-  climb: ClimbInfo | ClimbInfo[] | null
-}
-
 interface RouteLineResponse {
   id: string
   points: RoutePoint[] | string | null
@@ -488,23 +478,16 @@ export default function ClimbPage() {
 
       try {
         const supabase = createClient()
-        const { data: seedRoute, error: seedError } = await supabase
-          .from('route_lines')
-          .select(`
-            id,
-            image_id,
-            points,
-            image_width,
-            image_height,
-            image:images!inner(id, url, crag_id, width, height, natural_width, natural_height, created_by, contribution_credit_platform, contribution_credit_handle),
-            climb:climbs!inner(id, name, grade, route_type, description)
-          `)
-          .eq('climb_id', climbId)
-          .maybeSingle()
 
-        if (seedError) throw seedError
+        const { data: climbData, error: climbError } = await supabase
+          .from('climbs')
+          .select('id, name, grade, route_type, image_id')
+          .eq('id', climbId)
+          .single()
 
-        if (!seedRoute) {
+        if (climbError) throw climbError
+
+        if (!climbData.image_id) {
           const { data: legacyClimb, error: legacyError } = await supabase
             .from('climbs')
             .select('id, name, grade, image_url, coordinates')
@@ -556,11 +539,15 @@ export default function ClimbPage() {
           return
         }
 
-        const typedSeed = seedRoute as unknown as SeedRouteResponse
-        const imageInfo = pickOne(typedSeed.image)
-        const seedClimb = pickOne(typedSeed.climb)
+        const { data: imageData, error: imageError } = await supabase
+          .from('images')
+          .select('id, url, crag_id, width, height, natural_width, natural_height, created_by, contribution_credit_platform, contribution_credit_handle')
+          .eq('id', climbData.image_id)
+          .maybeSingle()
 
-        if (!imageInfo || !typedSeed.image_id || !seedClimb) {
+        if (imageError) throw imageError
+
+        if (!imageData) {
           throw new Error('Climb image context not found')
         }
 
@@ -575,7 +562,7 @@ export default function ClimbPage() {
             climb_id,
             climbs (id, name, grade, route_type, description)
           `)
-          .eq('image_id', typedSeed.image_id)
+          .eq('image_id', climbData.image_id)
 
         if (allLinesError) throw allLinesError
 
@@ -587,8 +574,8 @@ export default function ClimbPage() {
             const normalized = normalizePoints(parsePoints(line.points), {
               routeWidth: line.image_width,
               routeHeight: line.image_height,
-              imageWidth: imageInfo.natural_width || imageInfo.width,
-              imageHeight: imageInfo.natural_height || imageInfo.height,
+              imageWidth: imageData.natural_width || imageData.width,
+              imageHeight: imageData.natural_height || imageData.height,
             })
 
             if (normalized.length < 2) return null
@@ -613,18 +600,20 @@ export default function ClimbPage() {
         }
 
         setImage({
-          ...imageInfo,
-          url: getInitialViewerImageUrl(imageInfo.url),
+          ...imageData,
+          url: getInitialViewerImageUrl(imageData.url),
+          face_directions: null,
         })
-        setPrimaryImageId(typedSeed.image_id)
+        setPrimaryImageId(climbData.image_id)
         setActiveFaceIndex(0)
 
         setRouteLines(mappedLines)
         faceRouteCacheRef.current = {
-          [typedSeed.image_id]: {
+          [climbData.image_id]: {
             image: {
-              ...imageInfo,
-              url: getInitialViewerImageUrl(imageInfo.url),
+              ...imageData,
+              url: getInitialViewerImageUrl(imageData.url),
+              face_directions: null,
             },
             routeLines: mappedLines,
           },
