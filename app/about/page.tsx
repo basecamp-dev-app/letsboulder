@@ -83,7 +83,7 @@ export default function AboutPage() {
             </div>
               <div>
                 <h4 className="font-medium text-gray-900 dark:text-gray-100">Can I delete my data?</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Yes. Join our Discord server and we&apos;ll remove your account and all associated data.</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Yes, from Settings &gt; Privacy &gt; Delete account</p>
               </div>
           </CardContent>
         </Card>

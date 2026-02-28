@@ -10,6 +10,7 @@ import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionCont
 import { csrfFetch, primeCsrfToken } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
+import { Skeleton } from '@/components/ui/skeleton'
 import { draftStorageGetItem, draftStorageRemoveItem, draftStorageSetItem } from '@/lib/submit-draft-storage'
 import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
 import SubmissionCredit from '@/components/SubmissionCredit'
@@ -279,6 +280,7 @@ function SubmitPageContent() {
     routeType: null
   })
   const [, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [resumableDraftRouteCount, setResumableDraftRouteCount] = useState(0)
   const [resumableDraftEntry, setResumableDraftEntry] = useState<RouteDraftIndexEntry | null>(null)
   const [isResumingDraft, setIsResumingDraft] = useState(false)
@@ -421,6 +423,8 @@ function SubmitPageContent() {
           sessionStorage.removeItem('pendingUpload')
         }
       }
+
+      setLoading(false)
     }
     checkAuth()
   }, [router])
@@ -1209,7 +1213,7 @@ function SubmitPageContent() {
           <div className="max-w-md mx-auto">
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Upload Route Photo</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Place one pin per submission, then add one or more photos as faces for that same pin. Photos containing people will be rejected. GPS location is extracted to help find nearby crags.
+              <strong>One boulder or wall per submission.</strong> You can attach multiple photos and edit later from your logbook. Photos with people will be rejected. GPS metadata suggests nearby crags.
             </p>
             {resumableDraftRouteCount > 0 && resumableDraftEntry && (
               <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-700/60 dark:bg-amber-900/20">
@@ -1237,12 +1241,6 @@ function SubmitPageContent() {
               onSelect={(selection, gpsData) => handleImageSelect(selection, gpsData)}
               showBackButton={false}
             />
-            <button
-              onClick={() => setStep({ step: 'cragImage' })}
-              className="mt-4 w-full rounded-lg border border-gray-300 bg-white py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
-              Use an uploaded crag image instead
-            </button>
           </div>
         )
 
@@ -1457,7 +1455,15 @@ function SubmitPageContent() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <main className="max-w-4xl mx-auto px-4 py-8">
-        {renderStep()}
+        {loading ? (
+          <div className="max-w-md mx-auto space-y-4">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </div>
+        ) : (
+          renderStep()
+        )}
       </main>
     </div>
   )
