@@ -80,7 +80,7 @@ async function goToDrawStep(page: Page) {
   await expect(page.locator('canvas.cursor-crosshair')).toBeVisible({ timeout: 15000 })
 }
 
-test.describe('Submission Errors', () => {
+test.describe.serial('Submission Errors', () => {
   test.beforeAll(async () => {
     await ensureAuthStateExists()
   })

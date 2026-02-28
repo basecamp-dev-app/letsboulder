@@ -136,7 +136,7 @@ async function goToFaceTwo(page: Page, routeBaseName: string) {
   await expect(page.getByRole('heading', { level: 1, name: `${routeBaseName} Face 2` })).toBeVisible({ timeout: 20000 })
 }
 
-test.describe('Route Submission', () => {
+test.describe.serial('Route Submission', () => {
   test.beforeAll(async () => {
     await ensureAuthStateExists()
   })
