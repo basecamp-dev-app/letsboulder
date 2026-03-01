@@ -1079,7 +1079,13 @@ export default function RouteCanvas({
 
           {!isEditExistingMode && currentPoints.length < 2 && completedRoutes.length > 0 && (
             <button
-              onClick={() => setShowSubmitConfirm(true)}
+              onClick={() => {
+                if (onSubmitRoutes) {
+                  onSubmitRoutes()
+                  return
+                }
+                window.dispatchEvent(new CustomEvent('submit-routes'))
+              }}
               disabled={!allRoutesValid}
               className="w-full px-2 py-2 bg-blue-600 text-white text-sm disabled:opacity-60"
             >

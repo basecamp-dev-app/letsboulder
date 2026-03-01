@@ -311,6 +311,7 @@ function SubmitPageContent() {
   const latestFaceDirectionsRef = useRef<FaceDirection[]>([])
   const routesLengthRef = useRef(0)
   const isSubmittingRef = useRef(false)
+  const serverDraftLoadedRef = useRef(false)
 
   routesLengthRef.current = routes.length
   isSubmittingRef.current = isSubmitting
@@ -436,6 +437,8 @@ function SubmitPageContent() {
   useEffect(() => {
     const draftId = searchParams.get('draftId')
     if (!draftId) return
+    if (serverDraftLoadedRef.current) return
+    if (isSubmitting) return
 
     let cancelled = false
 
@@ -519,6 +522,8 @@ function SubmitPageContent() {
 
         if (cancelled) return
 
+        serverDraftLoadedRef.current = true
+
         const selection: ImageSelection = {
           mode: 'new',
           images: uploadedImages,
@@ -558,7 +563,7 @@ function SubmitPageContent() {
     return () => {
       cancelled = true
     }
-  }, [searchParams, addToast])
+  }, [searchParams, addToast, isSubmitting])
 
   useEffect(() => {
     setRoutes(context.routes)
@@ -1086,6 +1091,7 @@ function SubmitPageContent() {
       setError(errorMessage)
       addToast(errorMessage, 'error')
       setIsFinalizingBatch(false)
+      serverDraftLoadedRef.current = false
     } finally {
       setIsSubmitting(false)
     }
@@ -1112,6 +1118,7 @@ function SubmitPageContent() {
     isCreatingDraftRef.current = false
     serverDraftRouteDataRef.current = {}
     serverDraftLastPayloadRef.current = ''
+    serverDraftLoadedRef.current = false
     setStep({ step: 'image' })
     setError(null)
   }
