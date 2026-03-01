@@ -208,11 +208,7 @@ export default function TermsPage() {
             United Kingdom
           </p>
           <p className="text-gray-700 dark:text-gray-300">
-            If you have any questions about these Terms, please{' '}
-            <a href="https://discord.gg/vzAEMr2qrY" target="_blank" rel="noopener noreferrer" className="underline">
-              join our Discord server
-            </a>
-            .
+            If you have any questions about these Terms, please contact us at <a href="mailto:team@letsboulder.com" className="underline">team@letsboulder.com</a>.
           </p>
         </section>
 

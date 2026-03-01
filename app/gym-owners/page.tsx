@@ -3,7 +3,7 @@ import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Gym Owners - Climbing Gym Route Management',
-  description: 'letsboulder helps climbing gyms manage routes and share updates with climbers. Free below 40 users, then GBP 60 per month over 40 users.',
+  description: 'letsboulder helps climbing gyms manage routes and share updates with climbers.',
   alternates: {
     canonical: '/gym-owners',
   },
@@ -36,14 +36,6 @@ export default function GymOwnersPage() {
     mainEntity: [
       {
         '@type': 'Question',
-        name: 'How much does letsboulder cost for gyms?',
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: 'letsboulder is free below 40 users and GBP 60 per month over 40 users.',
-        },
-      },
-      {
-        '@type': 'Question',
         name: 'How do gym teams get started?',
         acceptedAnswer: {
           '@type': 'Answer',
@@ -64,8 +56,8 @@ export default function GymOwnersPage() {
           <p className="mt-3 max-w-3xl text-sm text-gray-700 dark:text-gray-300">
             letsboulder gives climbing gyms a practical workflow to manage routes and keep local climbers up to date.
           </p>
-          <p className="mt-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-            Pricing: Free below 40 users, £30/month over 40 users.
+          <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+            Contact us at <a href="mailto:team@letsboulder.com" className="underline">team@letsboulder.com</a> for more information.
           </p>
         </header>
 
@@ -77,7 +69,7 @@ export default function GymOwnersPage() {
             <li>3. Add your routes or boulders—you&apos;re in complete control of who sees them.</li>
           </ol>
           <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">
-            Your gym in letsboulder remains accessible only to you and the setters you invite until you&apos;re ready to make it available to your clients. Once you surpass 40 active users, we&apos;ll reach out to discuss your next steps and confirm if you&apos;d like to proceed.
+            Your gym in letsboulder remains accessible only to you and the setters you invite until you&apos;re ready to make it available to your clients.
           </p>
         </section>
 

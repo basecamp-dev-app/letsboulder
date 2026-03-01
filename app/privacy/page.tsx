@@ -167,11 +167,7 @@ export default function PrivacyPage() {
               on legitimate interests or direct marketing</li>
           </ul>
           <p className="text-gray-700 dark:text-gray-300">
-            To exercise any of these rights,{' '}
-            <a href="https://discord.gg/vzAEMr2qrY" target="_blank" rel="noopener noreferrer" className="underline">
-              join our Discord server
-            </a>
-            . We will respond within 30 days.
+            To exercise any of these rights, contact us at <a href="mailto:team@letsboulder.com" className="underline">team@letsboulder.com</a>. We will respond within 30 days.
           </p>
         </section>
 
@@ -192,10 +188,7 @@ export default function PrivacyPage() {
             We may collect anonymous usage metrics to understand how users interact with our application. This helps us improve our services by showing us aggregate usage patterns.
           </p>
           <p className="text-gray-700 dark:text-gray-300 mt-2">
-            You can opt out of analytics tracking by{' '}
-            <a href="https://discord.gg/vzAEMr2qrY" target="_blank" rel="noopener noreferrer" className="underline">
-              joining our Discord server
-            </a>.
+            You can opt out of analytics tracking by contacting us at <a href="mailto:team@letsboulder.com" className="underline">team@letsboulder.com</a>.
           </p>
         </section>
 

@@ -51,28 +51,30 @@ export default async function ImageRedirectPage({
     const resolvedRouteLink = await withTimeout((async (): Promise<RouteLink | null> => {
       let routeLink: RouteLink | null = null
 
-      if (requestedRouteId) {
-        const { data: requestedRoute } = await supabase
-          .from('route_lines')
-          .select('id, climb_id')
-          .eq('id', requestedRouteId)
-          .eq('image_id', imageId)
-          .maybeSingle()
+        if (requestedRouteId) {
+          const { data: requestedRoute } = await supabase
+            .from('route_lines')
+            .select('id, climb_id')
+            .eq('id', requestedRouteId)
+            .eq('image_id', imageId)
+            .not('climb_id', 'is', null)
+            .maybeSingle()
 
         if (requestedRoute) {
           routeLink = requestedRoute as RouteLink
         }
       }
 
-      if (!routeLink) {
-        const { data: firstRoute, error: firstRouteError } = await supabase
-          .from('route_lines')
-          .select('id, climb_id')
-          .eq('image_id', imageId)
-          .order('sequence_order', { ascending: true, nullsFirst: false })
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .maybeSingle()
+        if (!routeLink) {
+          const { data: firstRoute, error: firstRouteError } = await supabase
+            .from('route_lines')
+            .select('id, climb_id')
+            .eq('image_id', imageId)
+            .not('climb_id', 'is', null)
+            .order('sequence_order', { ascending: true, nullsFirst: false })
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle()
 
         if (firstRouteError) throw firstRouteError
         if (firstRoute) {
@@ -82,7 +84,7 @@ export default async function ImageRedirectPage({
       return routeLink
     })(), 2500)
 
-    if (!resolvedRouteLink) {
+    if (!resolvedRouteLink?.climb_id) {
       targetPath = '/'
     } else {
       const next = new URLSearchParams()
@@ -104,6 +106,7 @@ export default async function ImageRedirectPage({
         .from('route_lines')
         .select('climb_id')
         .eq('image_id', imageId)
+        .not('climb_id', 'is', null)
         .limit(1)
         .maybeSingle()
 

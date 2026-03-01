@@ -28,15 +28,6 @@ export default function Footer() {
             <Link href="/terms" className="mt-1 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               Terms
             </Link>
-            <a href="https://discord.gg/vzAEMr2qrY" target="_blank" rel="noopener noreferrer" className="mt-1 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
-              Discord
-            </a>
-            <a 
-              href="https://reddit.com/r/letsboulder" 
-              className="bg-[#FF4500] text-white px-4 py-2 rounded-full font-bold hover:bg-orange-600 transition"
-            >
-              Discuss on Reddit
-            </a>
           </nav>
         </div>
       </footer>
