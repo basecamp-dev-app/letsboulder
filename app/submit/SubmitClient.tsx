@@ -623,8 +623,22 @@ function SubmitPageContent() {
   }, [serverDraftSession])
 
   const handleImageSelect = useCallback((selection: ImageSelection, gpsData: GpsData | null) => {
-    const selectionGps = selection.mode === 'new' ? (selection.images[selection.primaryIndex]?.gpsData || null) : null
-    const resolvedGps = gpsData || selectionGps
+    let resolvedGps: GpsData | null = null
+
+    if (selection.mode === 'new') {
+      const validGps = selection.images
+        .map(img => img.gpsData)
+        .filter((gps): gps is GpsData => gps !== null)
+
+      if (validGps.length > 0) {
+        const avgLat = validGps.reduce((sum, gps) => sum + gps.latitude, 0) / validGps.length
+        const avgLng = validGps.reduce((sum, gps) => sum + gps.longitude, 0) / validGps.length
+        resolvedGps = { latitude: avgLat, longitude: avgLng }
+      }
+    } else {
+      resolvedGps = gpsData
+    }
+
     const gps = resolvedGps ? { latitude: resolvedGps.latitude, longitude: resolvedGps.longitude } : null
     latestFaceDirectionsRef.current = []
     setDrawSessionVersion(0)

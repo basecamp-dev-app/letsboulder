@@ -6,8 +6,9 @@ import NextImage from 'next/image'
 import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { NewImageSelection, NewUploadedImage } from '@/lib/submission-types'
+import type { NewImageSelection, NewUploadedImage, GpsData } from '@/lib/submission-types'
 import { createClient } from '@/lib/supabase'
+import { extractGpsFromFile } from '@/lib/image-gps'
 
 const ROUTE_UPLOADS_BUCKET = 'route-uploads'
 
@@ -23,6 +24,7 @@ interface SelectedImage {
   previewUrl: string
   width: number
   height: number
+  gpsData: GpsData | null
 }
 
 interface SortableThumbProps {
@@ -70,6 +72,7 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
   const [compressProgress, setCompressProgress] = useState(0)
   const [compressingCount, setCompressingCount] = useState(0)
   const [compressingTotal, setCompressingTotal] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const maxFiles = 8
 
@@ -129,7 +132,10 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
           continue
         }
 
-        const compressed = await compressImage(file)
+        const [compressed, gpsData] = await Promise.all([
+          compressImage(file),
+          extractGpsFromFile(file),
+        ])
         const previewUrl = URL.createObjectURL(compressed)
         const dimensions = await getDimensions(previewUrl)
         processed.push({
@@ -138,6 +144,7 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
           previewUrl,
           width: dimensions.width,
           height: dimensions.height,
+          gpsData,
         })
 
         const done = index + 1
@@ -171,6 +178,22 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
       return arrayMove(prev, oldIndex, newIndex)
     })
   }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    void addFiles(e.dataTransfer.files)
+  }, [addFiles])
 
   const uploadAll = useCallback(async () => {
     if (!canUpload) {
@@ -219,7 +242,7 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
           uploadedBucket: ROUTE_UPLOADS_BUCKET,
           uploadedPath: data.path,
           uploadedUrl: signedData.signedUrl,
-          gpsData: null,
+          gpsData: image.gpsData,
           captureDate: null,
           width: image.width,
           height: image.height,
@@ -252,23 +275,63 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
         onChange={(event) => void addFiles(event.target.files)}
       />
 
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="min-h-12 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white"
-        >
-          Add Photos
-        </button>
+      <div
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`
+          relative cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-all duration-200
+          ${isDragging
+            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+            : images.length === 0
+              ? 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+              : 'border-gray-200 dark:border-gray-700'
+          }
+        `}
+      >
+        {images.length === 0 ? (
+          <>
+            <svg
+              className={`mx-auto h-10 w-10 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            <p className="mt-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              {isDragging ? 'Drop photos here' : 'Drop photos or click to select'}
+            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              JPEG, PNG, HEIC, WebP, up to 8 photos
+            </p>
+          </>
+        ) : (
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Add more photos</span>
+          </div>
+        )}
+      </div>
+
+      {images.length > 0 && (
         <button
           type="button"
           onClick={() => void uploadAll()}
           disabled={!canUpload || isCompressing}
-          className="min-h-12 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="w-full rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50 hover:bg-emerald-700 transition-colors"
         >
-          Upload Batch
+          {isCompressing ? 'Processing...' : `Upload ${images.length} Photo${images.length !== 1 ? 's' : ''}`}
         </button>
-      </div>
+      )}
 
       {(images.length > 0 || isCompressing) && (
         <div className="space-y-2">
