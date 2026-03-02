@@ -208,7 +208,7 @@ export default function TermsPage() {
             United Kingdom
           </p>
           <p className="text-gray-700 dark:text-gray-300">
-            If you have any questions about these Terms, please contact us at <a href="mailto:team@letsboulder.com" className="underline">team@letsboulder.com</a>.
+            If you have any questions about these Terms, please contact us at <a href="mailto:hello@letsboulder.com" className="underline">hello@letsboulder.com</a>.
           </p>
         </section>
 

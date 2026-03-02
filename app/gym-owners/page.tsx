@@ -57,7 +57,7 @@ export default function GymOwnersPage() {
             letsboulder gives climbing gyms a practical workflow to manage routes and keep local climbers up to date.
           </p>
           <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
-            Contact us at <a href="mailto:team@letsboulder.com" className="underline">team@letsboulder.com</a> for more information.
+            Contact us at <a href="mailto:hello@letsboulder.com" className="underline">hello@letsboulder.com</a> for more information.
           </p>
         </header>
 
