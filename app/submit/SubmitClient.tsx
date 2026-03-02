@@ -89,6 +89,7 @@ type DraftImageSelectionSnapshot =
 
 interface RouteDraftIndexEntry {
   draftKey: string
+  serverDraftId?: string
   updatedAt: number
   expiresAt: number
   routeCount: number
@@ -114,6 +115,7 @@ function readDraftIndex(): RouteDraftIndexEntry[] {
       })
       .map((entry) => ({
         ...entry,
+        serverDraftId: typeof entry.serverDraftId === 'string' ? entry.serverDraftId : undefined,
         expiresAt: typeof entry.expiresAt === 'number' ? entry.expiresAt : entry.updatedAt + DRAFT_TTL_MS,
         routeCount: typeof entry.routeCount === 'number' ? entry.routeCount : 0,
         faceDirectionsByImage: (() => {
@@ -185,6 +187,25 @@ function pruneDraftIndex(): RouteDraftIndexEntry[] {
   const capped = next.slice(0, 20)
   writeDraftIndex(capped)
   return capped
+}
+
+function findServerDraftIndexEntry(draftId: string, options?: { allowLatestFallback?: boolean }): RouteDraftIndexEntry | null {
+  const entries = pruneDraftIndex()
+  const byServerDraftId = entries.find((entry) => entry.serverDraftId === draftId)
+  if (byServerDraftId) return byServerDraftId
+
+  const keyPrefix = `${ROUTE_DRAFT_PREFIX}server:${draftId}:`
+  const byLegacyPrefix = entries.find((entry) => entry.draftKey.startsWith(keyPrefix))
+  if (byLegacyPrefix) return byLegacyPrefix
+
+  if (!options?.allowLatestFallback) return null
+
+  for (const entry of entries) {
+    const routeCount = getDraftRouteCount(entry.draftKey)
+    if (routeCount > 0) return { ...entry, routeCount }
+  }
+
+  return null
 }
 
 function toImageSnapshot(image: ImageSelection): DraftImageSelectionSnapshot {
@@ -323,6 +344,8 @@ function SubmitPageContent() {
   const activeDraftKey = stepDraftKey || routeDraftKey
   const router = useRouter()
   const searchParams = useSearchParams()
+  const draftId = searchParams.get('draftId')
+  const fromContributions = searchParams.get('from') === 'contributions'
   const moderationRealtimeRef = useRef<{
     client: ReturnType<typeof createClient> | null
     channel: RealtimeChannel | null
@@ -335,9 +358,16 @@ function SubmitPageContent() {
   const routesLengthRef = useRef(0)
   const isSubmittingRef = useRef(false)
   const serverDraftLoadedRef = useRef(false)
+  const serverDraftLoadedIdRef = useRef<string | null>(null)
+  const syncedServerDraftCragRef = useRef<string>('')
+  const addToastRef = useRef(addToast)
 
   routesLengthRef.current = routes.length
   isSubmittingRef.current = isSubmitting
+
+  useEffect(() => {
+    addToastRef.current = addToast
+  }, [addToast])
 
   const stopModerationRealtime = useCallback(() => {
     if (moderationRealtimeRef.current.timeoutId) {
@@ -457,10 +487,103 @@ function SubmitPageContent() {
     void refreshCsrfToken().catch(() => {})
   }, [])
 
+  const resumeDraftEntry = useCallback(async (entry: RouteDraftIndexEntry, options?: { silent?: boolean }) => {
+    setIsResumingDraft(true)
+
+    try {
+      let image: ImageSelection
+
+      if (entry.image.mode === 'new') {
+        const restoredImages = [...entry.image.images]
+        const signedUrlResponse = await csrfFetch('/api/uploads/signed-urls/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            objects: restoredImages.map((draftImage) => ({
+              bucket: draftImage.uploadedBucket,
+              path: draftImage.uploadedPath,
+            })),
+          }),
+        })
+
+        if (!signedUrlResponse.ok) {
+          throw new Error('Unable to restore photo preview')
+        }
+
+        const signedData = await signedUrlResponse.json().catch(() => ({} as SignedUrlBatchResponse))
+        const signedResults = Array.isArray(signedData.results) ? signedData.results : []
+        const signedByKey = new Map<string, string>()
+
+        for (const item of signedResults) {
+          if (!item?.signedUrl) continue
+          signedByKey.set(getSignedUrlBatchKey(item.bucket, item.path), item.signedUrl)
+        }
+
+        const signedImages = restoredImages.map((draftImage) => {
+          const key = getSignedUrlBatchKey(draftImage.uploadedBucket, draftImage.uploadedPath)
+          const signedUrl = signedByKey.get(key)
+          if (!signedUrl) {
+            throw new Error('Unable to restore photo preview')
+          }
+
+          return { ...draftImage, uploadedUrl: signedUrl }
+        })
+
+        image = {
+          mode: 'new',
+          images: signedImages,
+          primaryIndex: entry.image.primaryIndex,
+        }
+      } else if (entry.image.mode === 'existing') {
+        image = {
+          mode: 'existing',
+          imageId: entry.image.imageId,
+          imageUrl: entry.image.imageUrl,
+        }
+      } else {
+        image = {
+          mode: 'crag-image',
+          cragImageId: entry.image.cragImageId,
+          imageUrl: entry.image.imageUrl,
+          linkedImageId: entry.image.linkedImageId,
+          width: entry.image.width,
+          height: entry.image.height,
+        }
+      }
+
+      setError(null)
+      setContext((prev) => ({
+        ...prev,
+        crag: entry.crag,
+        image,
+        imageGps: entry.imageGps,
+        faceDirectionsByImage: entry.faceDirectionsByImage,
+        routes: [],
+      }))
+      setStep({
+        step: 'draw',
+        imageGps: entry.imageGps,
+        cragId: entry.crag.id,
+        cragName: entry.crag.name,
+        image,
+        draftKey: entry.draftKey,
+      })
+
+      return true
+    } catch {
+      if (!options?.silent) {
+        setError('We could not restore this draft image. Please re-upload the photo to continue.')
+      }
+      return false
+    } finally {
+      setIsResumingDraft(false)
+    }
+  }, [])
+
   useEffect(() => {
-    const draftId = searchParams.get('draftId')
     if (!draftId) return
-    if (serverDraftLoadedRef.current) return
+    if (serverDraftLoadedIdRef.current === draftId) return
+    if (serverDraftLoadedRef.current && serverDraftLoadedIdRef.current === draftId) return
     if (isSubmitting) return
 
     let cancelled = false
@@ -564,6 +687,7 @@ function SubmitPageContent() {
         if (cancelled) return
 
         serverDraftLoadedRef.current = true
+        serverDraftLoadedIdRef.current = draftId
 
         const selection: ImageSelection = {
           mode: 'new',
@@ -593,9 +717,19 @@ function SubmitPageContent() {
           setStep({ step: 'crag', imageGps: null })
         }
       } catch (error) {
+        const localFallbackEntry = findServerDraftIndexEntry(draftId, { allowLatestFallback: fromContributions })
+        if (localFallbackEntry) {
+          const restored = await resumeDraftEntry(localFallbackEntry, { silent: true })
+          if (!cancelled && restored) {
+            serverDraftLoadedRef.current = true
+            serverDraftLoadedIdRef.current = draftId
+            return
+          }
+        }
+
         const message = error instanceof Error ? error.message : 'Failed to load submission draft'
         setError(message)
-        addToast(message, 'error')
+        addToastRef.current(message, 'error')
       }
     }
 
@@ -604,7 +738,7 @@ function SubmitPageContent() {
     return () => {
       cancelled = true
     }
-  }, [searchParams, addToast, isSubmitting])
+  }, [draftId, fromContributions, isSubmitting, resumeDraftEntry])
 
   useEffect(() => {
     setRoutes(context.routes)
@@ -648,6 +782,7 @@ function SubmitPageContent() {
 
     upsertDraftIndex({
       draftKey: activeDraftKey,
+      serverDraftId: serverDraftSession?.id,
       updatedAt: Date.now(),
       expiresAt: Date.now() + DRAFT_TTL_MS,
       routeCount: context.routes.length,
@@ -656,7 +791,40 @@ function SubmitPageContent() {
       imageGps: resolvedImageGps,
       faceDirectionsByImage: context.faceDirectionsByImage,
     })
-  }, [step.step, activeDraftKey, context, context.routes.length])
+  }, [step.step, activeDraftKey, context, context.routes.length, serverDraftSession?.id])
+
+  useEffect(() => {
+    if (!serverDraftSession?.id || !context.crag?.id) return
+    const cragId = context.crag.id
+
+    const syncKey = `${serverDraftSession.id}:${cragId}`
+    if (syncedServerDraftCragRef.current === syncKey) return
+
+    let cancelled = false
+
+    const syncDraftCrag = async () => {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from('submission_drafts')
+        .update({ crag_id: cragId })
+        .eq('id', serverDraftSession.id)
+
+      if (cancelled) return
+
+      if (error) {
+        addToast('Could not sync draft crag. It may show as unknown until reloaded.', 'info')
+        return
+      }
+
+      syncedServerDraftCragRef.current = syncKey
+    }
+
+    void syncDraftCrag()
+
+    return () => {
+      cancelled = true
+    }
+  }, [serverDraftSession?.id, context.crag?.id, addToast])
 
   useEffect(() => {
     const handleSubmitRoutes = () => {
@@ -840,14 +1008,7 @@ function SubmitPageContent() {
       draftKey: draftKey || undefined,
     })
 
-    if (serverDraftSession) {
-      const supabase = createClient()
-      void supabase
-        .from('submission_drafts')
-        .update({ crag_id: crag.id })
-        .eq('id', serverDraftSession.id)
-    }
-  }, [context.imageGps, context.image, serverDraftSession])
+  }, [context.imageGps, context.image])
 
   const handleCragImageCanvasSelect = useCallback((selection: ImageSelection, crag: Crag) => {
     const draftKey = getRouteDraftKeyFromImageAndCrag(selection, crag.id)
@@ -869,14 +1030,7 @@ function SubmitPageContent() {
       draftKey: draftKey || undefined,
     })
 
-    if (serverDraftSession) {
-      const supabase = createClient()
-      void supabase
-        .from('submission_drafts')
-        .update({ crag_id: crag.id })
-        .eq('id', serverDraftSession.id)
-    }
-  }, [serverDraftSession])
+  }, [])
 
   const handleClimbTypeSelect = useCallback((routeType: ClimbType) => {
     if (isSubmitting) return
@@ -1142,10 +1296,16 @@ function SubmitPageContent() {
 
       if (serverDraftSession) {
         const supabase = createClient()
-        void supabase
+        const { error: updateDraftError } = await supabase
           .from('submission_drafts')
-          .update({ status: 'submitted' })
+          .update({ status: 'submitted', crag_id: cragIdToSubmit || null })
           .eq('id', serverDraftSession.id)
+
+        if (updateDraftError) {
+          console.error('Failed to finalize submission draft:', updateDraftError)
+          addToast('Your routes were submitted, but draft cleanup failed. Please refresh your logbook.', 'info')
+        }
+
         setServerDraftSession(null)
         serverDraftLastPayloadRef.current = ''
       }
@@ -1167,6 +1327,7 @@ function SubmitPageContent() {
       addToast(errorMessage, 'error')
       setIsFinalizingBatch(false)
       serverDraftLoadedRef.current = false
+      serverDraftLoadedIdRef.current = null
     } finally {
       setIsSubmitting(false)
     }
@@ -1194,6 +1355,7 @@ function SubmitPageContent() {
     serverDraftRouteDataRef.current = {}
     serverDraftLastPayloadRef.current = ''
     serverDraftLoadedRef.current = false
+    serverDraftLoadedIdRef.current = null
     setStep({ step: 'image' })
     setError(null)
   }
@@ -1204,94 +1366,8 @@ function SubmitPageContent() {
       return
     }
 
-    setIsResumingDraft(true)
-
-    let image: ImageSelection
-
-    if (resumableDraftEntry.image.mode === 'new') {
-      try {
-        const restoredImages = [...resumableDraftEntry.image.images]
-        const signedUrlResponse = await csrfFetch('/api/uploads/signed-urls/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            objects: restoredImages.map((draftImage) => ({
-              bucket: draftImage.uploadedBucket,
-              path: draftImage.uploadedPath,
-            })),
-          }),
-        })
-
-        if (!signedUrlResponse.ok) {
-          throw new Error('Unable to restore photo preview')
-        }
-
-        const signedData = await signedUrlResponse.json().catch(() => ({} as SignedUrlBatchResponse))
-        const signedResults = Array.isArray(signedData.results) ? signedData.results : []
-        const signedByKey = new Map<string, string>()
-
-        for (const item of signedResults) {
-          if (!item?.signedUrl) continue
-          signedByKey.set(getSignedUrlBatchKey(item.bucket, item.path), item.signedUrl)
-        }
-
-        const signedImages = restoredImages.map((draftImage) => {
-          const key = getSignedUrlBatchKey(draftImage.uploadedBucket, draftImage.uploadedPath)
-          const signedUrl = signedByKey.get(key)
-          if (!signedUrl) {
-            throw new Error('Unable to restore photo preview')
-          }
-
-          return { ...draftImage, uploadedUrl: signedUrl }
-        })
-
-
-        image = {
-          mode: 'new',
-          images: signedImages,
-          primaryIndex: resumableDraftEntry.image.primaryIndex,
-        }
-      } catch {
-        setError('We could not restore this draft image. Please re-upload the photo to continue.')
-        setIsResumingDraft(false)
-        return
-      }
-    } else if (resumableDraftEntry.image.mode === 'existing') {
-      image = {
-        mode: 'existing',
-        imageId: resumableDraftEntry.image.imageId,
-        imageUrl: resumableDraftEntry.image.imageUrl,
-      }
-    } else {
-      image = {
-        mode: 'crag-image',
-        cragImageId: resumableDraftEntry.image.cragImageId,
-        imageUrl: resumableDraftEntry.image.imageUrl,
-        linkedImageId: resumableDraftEntry.image.linkedImageId,
-        width: resumableDraftEntry.image.width,
-        height: resumableDraftEntry.image.height,
-      }
-    }
-
-    setError(null)
-    setContext(prev => ({
-      ...prev,
-      crag: resumableDraftEntry.crag,
-      image,
-      imageGps: resumableDraftEntry.imageGps,
-      faceDirectionsByImage: resumableDraftEntry.faceDirectionsByImage,
-      routes: [],
-    }))
-    setStep({
-      step: 'draw',
-      imageGps: resumableDraftEntry.imageGps,
-      cragId: resumableDraftEntry.crag.id,
-      cragName: resumableDraftEntry.crag.name,
-      image,
-      draftKey: resumableDraftEntry.draftKey,
-    })
-    setIsResumingDraft(false)
-  }, [resumableDraftEntry])
+    await resumeDraftEntry(resumableDraftEntry)
+  }, [resumableDraftEntry, resumeDraftEntry])
 
   const handleDiscardDraft = useCallback(() => {
     if (!resumableDraftEntry) return
