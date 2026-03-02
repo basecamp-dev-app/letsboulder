@@ -355,6 +355,7 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  runtime: 'nodejs',
   matcher: [
     '/api/locations/detect',
     '/api/gear-clicks/:path*',
