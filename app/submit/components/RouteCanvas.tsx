@@ -208,6 +208,7 @@ export default function RouteCanvas({
   const [descriptionFocused, setDescriptionFocused] = useState(false)
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true)
   const draftWriteTimeoutRef = useRef<number | null>(null)
+  const isDrawingInProgress = currentPoints.length > 0
 
   const persistDraft = useCallback(() => {
     if (!draftKey) return
@@ -358,6 +359,11 @@ export default function RouteCanvas({
     if (e.button === 0 && !e.altKey) {
       const pos = getMousePos(e)
 
+      if (isDrawingInProgress) {
+        setCurrentPoints(prev => [...prev, pos])
+        return
+      }
+
       const dragHandleIndex = getDragHandleIndex(pos)
       if (dragHandleIndex !== null) {
         setDraggingPointIndex(dragHandleIndex)
@@ -385,7 +391,7 @@ export default function RouteCanvas({
         setCurrentPoints(prev => [...prev, pos])
       }
     }
-  }, [getMousePos, getDragHandleIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
+  }, [getMousePos, isDrawingInProgress, getDragHandleIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, existingRoutes, completedRoutes, selectRoute, clearSelection])
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
@@ -439,6 +445,11 @@ export default function RouteCanvas({
     const canvasX = (touch.clientX - rect.left - pan.x) / zoom
     const canvasY = (touch.clientY - rect.top - pan.y) / zoom
 
+    if (isDrawingInProgress) {
+      setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
+      return
+    }
+
     const allRoutes = [...existingRoutes, ...completedRoutes]
     const clickedRoute = findRouteAtPoint(allRoutes, { x: canvasX, y: canvasY }, 20)
 
@@ -459,7 +470,7 @@ export default function RouteCanvas({
     } else {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
     }
-  }, [canvasReady, zoom, pan, pinchStartZoom, draggingPointIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints, existingRoutes, completedRoutes, selectRoute, clearSelection])
+  }, [canvasReady, zoom, pan, pinchStartZoom, draggingPointIndex, isDrawingInProgress, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, existingRoutes, completedRoutes, selectRoute, clearSelection])
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
@@ -547,6 +558,31 @@ export default function RouteCanvas({
     setDraggingPointIndex(null)
     setIsPanning(false)
   }, [])
+
+  const cancelCurrentDrawing = useCallback(() => {
+    setCurrentPoints([])
+  }, [])
+
+  const handleCanvasContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawingInProgress) return
+    e.preventDefault()
+    cancelCurrentDrawing()
+  }, [isDrawingInProgress, cancelCurrentDrawing])
+
+  useEffect(() => {
+    if (!isDrawingInProgress) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      cancelCurrentDrawing()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isDrawingInProgress, cancelCurrentDrawing])
 
   const handleCompleteRoute = useCallback(() => {
     if (currentPoints.length < 2) return
@@ -923,6 +959,7 @@ export default function RouteCanvas({
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
+              onContextMenu={handleCanvasContextMenu}
             />
           </div>
         </div>
@@ -1050,10 +1087,10 @@ export default function RouteCanvas({
           </>
           )}
 
-          {currentPoints.length >= 2 && (!isEditExistingMode || canCreateRoutesInEditMode) && (
+          {currentPoints.length > 0 && (!isEditExistingMode || canCreateRoutesInEditMode) && (
             <div className="flex">
               <button
-                onClick={() => setCurrentPoints([])}
+                onClick={cancelCurrentDrawing}
                 className="flex-1 px-2 py-2 bg-gray-800 text-white text-sm"
               >
                 Cancel
@@ -1061,14 +1098,15 @@ export default function RouteCanvas({
               {!isEditExistingMode ? (
                 <button
                   onClick={handleCompleteRoute}
-                  className="flex-1 px-2 py-2 bg-blue-600 text-white text-sm"
+                  disabled={currentPoints.length < 2}
+                  className="flex-1 px-2 py-2 bg-blue-600 text-white text-sm disabled:opacity-60"
                 >
                   Save
                 </button>
               ) : (
                 <button
                   onClick={handleAddNewRouteInEditMode}
-                  disabled={!onSaveNewRoutes || savingNewRoutes}
+                  disabled={!onSaveNewRoutes || savingNewRoutes || currentPoints.length < 2}
                   className="flex-1 px-2 py-2 bg-emerald-600 text-white text-sm disabled:opacity-60"
                 >
                   {savingNewRoutes ? 'Adding...' : 'Add'}
