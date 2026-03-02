@@ -205,3 +205,66 @@ export async function PATCH(
     return createErrorResponse(error, 'Failed to patch submission draft')
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
+  const { id } = await params
+  if (!id) {
+    return NextResponse.json({ error: 'Draft ID is required' }, { status: 400 })
+  }
+
+  const cookies = request.cookies
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookies.getAll() },
+        setAll() {},
+      },
+    }
+  )
+
+  try {
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
+    if (authError || !userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const { data: draft, error: draftError } = await supabase
+      .from('submission_drafts')
+      .select('id, user_id, status')
+      .eq('id', id)
+      .single()
+
+    if (draftError || !draft) {
+      return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+    }
+
+    if (draft.user_id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    if (draft.status !== 'draft') {
+      return NextResponse.json({ error: 'Only draft submissions can be deleted' }, { status: 400 })
+    }
+
+    const { error: deleteError } = await supabase
+      .from('submission_drafts')
+      .delete()
+      .eq('id', id)
+
+    if (deleteError) {
+      return createErrorResponse(deleteError, 'Failed to delete submission draft')
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    return createErrorResponse(error, 'Failed to delete submission draft')
+  }
+}
