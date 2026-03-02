@@ -92,6 +92,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
   const [logs, setLogs] = useState<Climb[]>(initialLogs)
   const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
   const [editingCreditForId, setEditingCreditForId] = useState<string | null>(null)
   const [creditPlatform, setCreditPlatform] = useState<SubmissionCreditPlatform>('instagram')
   const [creditHandle, setCreditHandle] = useState('')
@@ -178,6 +179,21 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
       addToast('Failed to remove climb', 'error')
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const handleDeleteDraft = async (draftId: string) => {
+    setDeletingDraftId(draftId)
+    try {
+      const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error()
+
+      setSubmissions((previous) => previous.filter((submission) => submission.id !== draftId))
+      addToast('Draft deleted', 'success')
+    } catch {
+      addToast('Failed to delete draft', 'error')
+    } finally {
+      setDeletingDraftId(null)
     }
   }
 
@@ -443,12 +459,26 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                           {isOwnProfile && (
                             <div className="shrink-0 flex flex-col items-end gap-1">
                               {submission.kind === 'draft' ? (
-                                <Link
-                                  href={`/submit?draftId=${submission.id}`}
-                                  className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                                >
-                                  Continue drawing
-                                </Link>
+                                <>
+                                  <Link
+                                    href={`/submit?draftId=${submission.id}`}
+                                    className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                                  >
+                                    Continue drawing
+                                  </Link>
+                                  {deletingDraftId === submission.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteDraft(submission.id)}
+                                      className="text-gray-400 hover:text-red-500 p-1 transition-colors"
+                                      title="Delete draft"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </>
                               ) : (
                                 <Link
                                   href={`/logbook/submissions/${submission.id}/edit`}
@@ -566,12 +596,26 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                         {isOwnProfile && (
                           <div className="shrink-0 flex flex-col items-end gap-1">
                           {submission.kind === 'draft' ? (
-                            <Link
-                              href={`/submit?draftId=${submission.id}`}
-                              className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                            >
-                              Continue drawing
-                            </Link>
+                            <>
+                              <Link
+                                href={`/submit?draftId=${submission.id}`}
+                                className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                              >
+                                Continue drawing
+                              </Link>
+                              {deletingDraftId === submission.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteDraft(submission.id)}
+                                  className="text-gray-400 hover:text-red-500 p-1 transition-colors"
+                                  title="Delete draft"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </>
                           ) : (
                             <Link
                               href={`/logbook/submissions/${submission.id}/edit`}
