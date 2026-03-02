@@ -7,7 +7,7 @@ import nextDynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData, ClimbType, FaceDirection, NewUploadedImage } from '@/lib/submission-types'
-import { csrfFetch, primeCsrfToken } from '@/hooks/useCsrf'
+import { csrfFetch, refreshCsrfToken } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -431,8 +431,8 @@ function SubmitPageContent() {
   }, [router])
 
   useEffect(() => {
-    void primeCsrfToken().catch(() => {})
-  }, [serverDraftSession])
+    void refreshCsrfToken().catch(() => {})
+  }, [])
 
   useEffect(() => {
     const draftId = searchParams.get('draftId')
@@ -1014,6 +1014,8 @@ function SubmitPageContent() {
       }
 
       const data = await response.json()
+      const climbId = typeof data?.climbId === 'string' && data.climbId ? data.climbId : undefined
+      const routeId = typeof data?.routeId === 'string' && data.routeId ? data.routeId : undefined
 
       if (imageToSubmit.mode === 'new') {
         const supplementaryIds = Array.isArray(data?.supplementaryCragImageIds)
@@ -1080,7 +1082,9 @@ function SubmitPageContent() {
       setStep({
         step: 'success',
         climbsCreated: totalClimbsCreated || data.climbsCreated,
-        imageId: data.imageId
+        imageId: data.imageId,
+        climbId,
+        routeId,
       })
 
       if (imageToSubmit.mode === 'new') {
@@ -1444,7 +1448,9 @@ function SubmitPageContent() {
 
             {step.imageId && (
               <Link
-                href={`/image/${step.imageId}`}
+                href={step.climbId
+                  ? (step.routeId ? `/climb/${step.climbId}?route=${step.routeId}` : `/climb/${step.climbId}`)
+                  : `/image/${step.imageId}`}
                 className="block w-full bg-gray-800 text-white py-3 rounded-lg font-medium hover:bg-gray-700 transition-colors mb-4"
               >
                 View Routes on Image →

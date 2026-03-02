@@ -48,35 +48,31 @@ export default function ImageRedirectPage() {
     router.push(`/climb/${climbId}?${next.toString()}`)
   }, [tabParam, router])
 
-  const checkImageExists = useCallback(async (id: string): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase
-        .from('images')
-        .select('id')
-        .eq('id', id)
-        .maybeSingle()
-
-      if (error) {
-        console.error('Error checking image exists:', error)
-        return false
-      }
-
-      return !!data
-    } catch (err) {
-      console.error('Exception checking image exists:', err)
-      return false
-    }
-  }, [supabase])
-
   const checkForRoute = useCallback(async () => {
     if (!imageId) return null
 
     try {
+      const { data: relatedFaces, error: relatedFacesError } = await supabase
+        .from('crag_images')
+        .select('linked_image_id')
+        .or(`source_image_id.eq.${imageId},linked_image_id.eq.${imageId}`)
+
+      if (relatedFacesError) {
+        console.error('Error checking related faces:', relatedFacesError)
+      }
+
+      const relatedImageIds = (relatedFaces || [])
+        .map((face) => face.linked_image_id)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+
+      const imageIds = Array.from(new Set([imageId, ...relatedImageIds]))
+
       const { data, error } = await supabase
         .from('route_lines')
-        .select('id, climb_id')
-        .eq('image_id', imageId)
+        .select('id, climb_id, image_id')
+        .in('image_id', imageIds)
         .not('climb_id', 'is', null)
+        .order('image_id', { ascending: true })
         .order('sequence_order', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true })
         .limit(1)
@@ -143,18 +139,6 @@ export default function ImageRedirectPage() {
     console.log('[ImageRedirect] Starting with imageId:', imageId)
 
     const init = async () => {
-      console.log('[ImageRedirect] Checking if image exists:', imageId)
-      const imageExists = await checkImageExists(imageId)
-
-      if (!mountedRef.current) return
-      console.log('[ImageRedirect] Image exists:', imageExists)
-
-      if (!imageExists) {
-        console.log('[ImageRedirect] Image not found, redirecting to /')
-        router.replace('/')
-        return
-      }
-
       console.log('[ImageRedirect] Checking for existing routes')
       const result = await checkForRoute()
 
@@ -179,7 +163,7 @@ export default function ImageRedirectPage() {
         clearTimeout(pollingRef.current)
       }
     }
-  }, [imageId, checkImageExists, checkForRoute, navigateToClimb, startPolling, router])
+  }, [imageId, checkForRoute, navigateToClimb, startPolling, router])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">

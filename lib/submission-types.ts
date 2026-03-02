@@ -162,7 +162,7 @@ export type SubmissionStep =
   | { step: 'climbType'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; draftKey?: string }
   | { step: 'review'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; routes: NewRouteData[]; draftKey?: string }
   | { step: 'submitting' }
-  | { step: 'success'; climbsCreated: number; imageId?: string }
+  | { step: 'success'; climbsCreated: number; imageId?: string; climbId?: string; routeId?: string }
   | { step: 'error'; message: string }
 
 export function isValidGrade(grade: string): grade is Grade {

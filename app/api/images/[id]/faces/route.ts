@@ -3,12 +3,19 @@ import { createServerClient } from '@supabase/ssr'
 
 interface FaceItem {
   id: string
+  image_id?: string | null
+  index?: number
   is_primary: boolean
   url: string | null
   has_routes: boolean
   linked_image_id: string | null
   crag_image_id: string | null
   face_directions: string[] | null
+  metadata?: {
+    width: number | null
+    height: number | null
+  }
+  routes?: CompleteSummaryRoute[]
 }
 
 interface FacesSummaryRow {
@@ -28,6 +35,8 @@ interface RelatedFaceRow {
   url: string
   source_image_id: string | null
   linked_image_id: string | null
+  width: number | null
+  height: number | null
   face_directions?: string[] | null
 }
 
@@ -69,6 +78,96 @@ interface CompleteSummaryPayload {
     total_faces: number
     total_routes: number
   }
+}
+
+interface RouteLineRaw {
+  id: string
+  image_id: string
+  climb_id: string
+  color: string | null
+  points: unknown
+  image_width: number | null
+  image_height: number | null
+  sequence_order: number | null
+  created_at: string
+  climbs: {
+    id: string
+    name: string
+    grade: string
+    route_type: string | null
+    description: string | null
+  } | {
+    id: string
+    name: string
+    grade: string
+    route_type: string | null
+    description: string | null
+  }[] | null
+}
+
+function pickClimb(value: RouteLineRaw['climbs']) {
+  if (!value) return null
+  if (Array.isArray(value)) return value[0] ?? null
+  return value
+}
+
+async function fetchRoutesByImageIds(
+  supabase: ReturnType<typeof createServerClient>,
+  imageIds: string[]
+): Promise<Map<string, CompleteSummaryRoute[]>> {
+  const map = new Map<string, CompleteSummaryRoute[]>()
+  if (imageIds.length === 0) return map
+
+  const uniqueIds = Array.from(new Set(imageIds.filter((id) => !!id)))
+  if (uniqueIds.length === 0) return map
+
+  const { data, error } = await supabase
+    .from('route_lines')
+    .select(`
+      id,
+      image_id,
+      climb_id,
+      color,
+      points,
+      image_width,
+      image_height,
+      sequence_order,
+      created_at,
+      climbs (id, name, grade, route_type, description)
+    `)
+    .in('image_id', uniqueIds)
+    .order('sequence_order', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.warn('Faces fallback route query failed:', error)
+    return map
+  }
+
+  for (const row of (data || []) as RouteLineRaw[]) {
+    const climb = pickClimb(row.climbs)
+    if (!row.image_id || !climb) continue
+
+    const route: CompleteSummaryRoute = {
+      id: row.id,
+      climb_id: row.climb_id,
+      name: climb.name,
+      grade: climb.grade,
+      route_type: climb.route_type,
+      description: climb.description,
+      color: row.color,
+      points: row.points,
+      image_width: row.image_width,
+      image_height: row.image_height,
+      sequence_order: row.sequence_order,
+    }
+
+    const existing = map.get(row.image_id) || []
+    existing.push(route)
+    map.set(row.image_id, existing)
+  }
+
+  return map
 }
 
 function isMissingFaceDirectionsColumn(error: unknown): boolean {
@@ -181,7 +280,7 @@ async function fetchRelatedFaces(
 
   const withDirections = await supabase
     .from('crag_images')
-    .select('id, url, source_image_id, linked_image_id, face_directions')
+    .select('id, url, source_image_id, linked_image_id, width, height, face_directions')
     .eq('crag_id', cragId)
     .or(filter)
     .order('created_at', { ascending: true })
@@ -196,7 +295,7 @@ async function fetchRelatedFaces(
 
   const fallback = await supabase
     .from('crag_images')
-    .select('id, url, source_image_id, linked_image_id')
+    .select('id, url, source_image_id, linked_image_id, width, height')
     .eq('crag_id', cragId)
     .or(filter)
     .order('created_at', { ascending: true })
@@ -310,6 +409,11 @@ export async function GET(
       })
     }
 
+    console.warn('Faces complete summary RPC unavailable, using fallback path', {
+      imageId,
+      error: completeSummaryError,
+    })
+
     const { data: primaryImage, error: primaryError } = await fetchPrimaryImage(supabase, imageId)
 
     if (primaryError) {
@@ -360,17 +464,7 @@ export async function GET(
       .map((face) => face.linked_image_id)
       .filter((id): id is string => typeof id === 'string' && !!id)
 
-    const routeCountsByImageId = new Set<string>()
-    if (linkedIds.length > 0) {
-      const { data: routeLines } = await supabase
-        .from('route_lines')
-        .select('image_id')
-        .in('image_id', linkedIds)
-
-      for (const row of routeLines || []) {
-        if (row.image_id) routeCountsByImageId.add(row.image_id)
-      }
-    }
+    const routeMap = await fetchRoutesByImageIds(supabase, [primaryImage.id, ...linkedIds])
 
     const allFaceUrls = [primaryImage.url, ...(relatedFaces || []).map((face) => face.url)]
     const signedUrlMap = await toViewableUrlMap(allFaceUrls, signingClient)
@@ -378,30 +472,47 @@ export async function GET(
 
     const faces: FaceItem[] = []
     if (primaryUrl) {
+      const primaryRoutes = routeMap.get(primaryImage.id) || []
       faces.push({
         id: `image:${primaryImage.id}`,
+        image_id: primaryImage.id,
+        index: 0,
         is_primary: true,
         url: primaryUrl,
-        has_routes: true,
+        has_routes: primaryRoutes.length > 0,
         linked_image_id: primaryImage.id,
         crag_image_id: null,
         face_directions: primaryImage.face_directions ?? null,
+        metadata: {
+          width: null,
+          height: null,
+        },
+        routes: primaryRoutes,
       })
     }
 
-    const signedFaceCandidates = (relatedFaces || []).map((face) => {
+    const signedFaceCandidates = (relatedFaces || []).map((face, index) => {
       const signedUrl = signedUrlMap.get(face.url) ?? null
       if (!signedUrl) return null
 
       const resolvedLinkedImageId = face.linked_image_id === primaryImage.id ? null : face.linked_image_id
+      const resolvedImageId = resolvedLinkedImageId
+      const faceRoutes = resolvedImageId ? routeMap.get(resolvedImageId) || [] : []
       return {
         id: `crag-image:${face.id}`,
+        image_id: resolvedImageId,
+        index: index + 1,
         is_primary: false,
         url: signedUrl,
-        has_routes: !!(resolvedLinkedImageId && routeCountsByImageId.has(resolvedLinkedImageId)),
+        has_routes: faceRoutes.length > 0,
         linked_image_id: resolvedLinkedImageId,
         crag_image_id: face.id,
         face_directions: face.face_directions ?? null,
+        metadata: {
+          width: face.width ?? null,
+          height: face.height ?? null,
+        },
+        routes: faceRoutes,
       } as FaceItem
     })
 

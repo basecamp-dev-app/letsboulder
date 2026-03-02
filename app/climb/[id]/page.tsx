@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -69,6 +69,7 @@ interface ClimbInfo {
 
 interface DisplayRouteLine {
   id: string
+  imageId: string
   points: RoutePoint[]
   color: string
   climb: ClimbInfo
@@ -117,14 +118,34 @@ interface FacesApiResponse {
   }
 }
 
-interface RouteLineResponse {
+interface FullContextRouteLine {
   id: string
   points: RoutePoint[] | string | null
   color: string | null
   image_width: number | null
   image_height: number | null
   climb_id: string
-  climbs: ClimbInfo | ClimbInfo[] | null
+  climb: ClimbInfo | null
+}
+
+interface FullContextPayload {
+  climb: ClimbInfo | null
+  primary_image: ImageInfo | null
+  primary_route_lines: FullContextRouteLine[]
+  faces: FaceGalleryItem[]
+  summary?: {
+    total_faces: number
+    total_routes: number
+  }
+}
+
+interface TransitionBuffer {
+  faceId: string
+  targetImageId: string
+  targetImage: ImageInfo | null
+  targetRoutes: DisplayRouteLine[] | null
+  hasRoutes: boolean
+  isLoading: boolean
 }
 
 interface LegacyClimb {
@@ -156,12 +177,6 @@ const GRADE_OPINION_LABELS: Record<GradeOpinion, string> = {
   soft: 'Soft',
   agree: 'Agree',
   hard: 'Hard',
-}
-
-function pickOne<T>(value: T | T[] | null | undefined): T | null {
-  if (!value) return null
-  if (Array.isArray(value)) return value[0] ?? null
-  return value
 }
 
 function parsePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[] {
@@ -254,7 +269,8 @@ function normalizePoints(
 
 function mapFaceRoutesToDisplayLines(
   routes: FaceRouteSummary[] | undefined,
-  faceMeta: { width: number | null; height: number | null } | undefined
+  faceMeta: { width: number | null; height: number | null } | undefined,
+  imageId: string
 ): DisplayRouteLine[] {
   if (!Array.isArray(routes) || routes.length === 0) return []
 
@@ -271,6 +287,7 @@ function mapFaceRoutesToDisplayLines(
 
       return {
         id: route.id,
+        imageId,
         points: normalized,
         color: route.color || '#ef4444',
         climb: {
@@ -313,6 +330,8 @@ export default function ClimbPage() {
   const selectedIdsRef = useRef<string[]>([])
   const userLogsRef = useRef<Record<string, UserLogEntry>>({})
   const drawFrameRef = useRef<number | null>(null)
+  const loadedFaceIdsRef = useRef<Set<string>>(new Set())
+  const prefetchedFaceUrlsRef = useRef<Set<string>>(new Set())
 
   const [image, setImage] = useState<ImageInfo | null>(null)
   const [routeLines, setRouteLines] = useState<DisplayRouteLine[]>([])
@@ -344,6 +363,11 @@ export default function ClimbPage() {
   const [primaryImageId, setPrimaryImageId] = useState<string | null>(null)
   const [canScrollPrev, setCanScrollPrev] = useState(false)
   const [canScrollNext, setCanScrollNext] = useState(false)
+  const [loadedFaceVersion, setLoadedFaceVersion] = useState(0)
+  const [activeCanvasImageId, setActiveCanvasImageId] = useState<string | null>(null)
+  const [routeLinesImageId, setRouteLinesImageId] = useState<string | null>(null)
+  const [canvasFadeOut, setCanvasFadeOut] = useState(false)
+  const [transitionBuffer, setTransitionBuffer] = useState<TransitionBuffer | null>(null)
   const [emblaRef, emblaApi] = useEmblaCarousel({
     axis: 'x',
     watchDrag: true,
@@ -361,6 +385,8 @@ export default function ClimbPage() {
   const { selectedIds, selectRoute, clearSelection } = useRouteSelection()
 
   const selectedRouteParam = searchParams.get('route')
+  const [routeParamOverride, setRouteParamOverride] = useState<string | null>(null)
+  const effectiveRouteParam = routeParamOverride ?? selectedRouteParam
 
   const selectedRoute = useMemo(
     () => routeLines.find((route) => selectedIds.includes(route.id)) || null,
@@ -380,6 +406,24 @@ export default function ClimbPage() {
       face_directions: image.face_directions ?? null,
     } satisfies FaceGalleryItem]
   }, [faceGallery, image])
+
+  const markFaceLoaded = useCallback((faceId: string) => {
+    if (loadedFaceIdsRef.current.has(faceId)) return
+    loadedFaceIdsRef.current.add(faceId)
+    setLoadedFaceVersion((value) => value + 1)
+  }, [])
+
+  const prefetchFaceImage = useCallback((face: FaceGalleryItem | undefined) => {
+    if (!face?.url || typeof window === 'undefined') return
+    if (prefetchedFaceUrlsRef.current.has(face.url)) return
+    prefetchedFaceUrlsRef.current.add(face.url)
+    const img = new window.Image()
+    img.decoding = 'async'
+    img.src = face.url
+    if (typeof img.decode === 'function') {
+      img.decode().catch(() => {})
+    }
+  }, [])
 
   const updateEmblaControls = useCallback((syncSettled = false) => {
     if (!emblaApi) return
@@ -429,6 +473,7 @@ export default function ClimbPage() {
 
   const updateRouteParam = useCallback(
     (routeId: string | null) => {
+      setRouteParamOverride(routeId)
       const next = new URLSearchParams(searchParams.toString())
       if (routeId) {
         next.set('route', routeId)
@@ -437,7 +482,14 @@ export default function ClimbPage() {
       }
 
       const query = next.toString()
-      router.replace(query ? `/climb/${climbId}?${query}` : `/climb/${climbId}`, { scroll: false })
+      const relativeUrl = query ? `/climb/${climbId}?${query}` : `/climb/${climbId}`
+
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(window.history.state, '', relativeUrl)
+        return
+      }
+
+      router.replace(relativeUrl, { scroll: false })
     },
     [searchParams, router, climbId]
   )
@@ -463,6 +515,8 @@ export default function ClimbPage() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+
     const loadClimbContext = async () => {
       if (!climbId) return
 
@@ -474,20 +528,30 @@ export default function ClimbPage() {
       setFaceGallery([])
       setTotalFaces(1)
       setTotalRoutesCombined(0)
+      setIsFacesLoading(false)
+      setTransitionBuffer(null)
+      setCanvasFadeOut(false)
+      setActiveCanvasImageId(null)
+      setRouteLinesImageId(null)
+      setRouteParamOverride(null)
+      loadedFaceIdsRef.current.clear()
       clearSelection()
 
       try {
         const supabase = createClient()
+        const { data: fullContext, error: fullContextError } = await supabase
+          .rpc('get_climb_full_context', { p_climb_id: climbId })
 
-        const { data: climbData, error: climbError } = await supabase
-          .from('climbs')
-          .select('id, name, grade, route_type, image_id')
-          .eq('id', climbId)
-          .single()
+        if (fullContextError) throw fullContextError
 
-        if (climbError) throw climbError
+        const context = fullContext as FullContextPayload | null
+        if (!context?.climb?.id) {
+          throw new Error('Climb not found')
+        }
 
-        if (!climbData.image_id) {
+        const primaryImageData = context.primary_image
+
+        if (!primaryImageData?.id) {
           const { data: legacyClimb, error: legacyError } = await supabase
             .from('climbs')
             .select('id, name, grade, image_url, coordinates')
@@ -509,6 +573,9 @@ export default function ClimbPage() {
             throw new Error('No valid route lines found for this climb')
           }
 
+          if (cancelled) return
+          setActiveCanvasImageId(`legacy-${legacy.id}`)
+          setRouteLinesImageId(`legacy-${legacy.id}`)
           setImage({
             id: `legacy-${legacy.id}`,
             url: resolveRouteImageUrl(legacy.image_url),
@@ -525,6 +592,7 @@ export default function ClimbPage() {
           setRouteLines([
             {
               id: `legacy-${legacy.id}`,
+              imageId: `legacy-${legacy.id}`,
               points: normalized,
               color: '#ef4444',
               climb: {
@@ -539,58 +607,22 @@ export default function ClimbPage() {
           return
         }
 
-        const { data: imageData, error: imageError } = await supabase
-          .from('images')
-          .select('id, url, crag_id, width, height, natural_width, natural_height, created_by, contribution_credit_platform, contribution_credit_handle')
-          .eq('id', climbData.image_id)
-          .maybeSingle()
-
-        if (imageError) throw imageError
-
-        if (!imageData) {
-          throw new Error('Climb image context not found')
-        }
-
-        const { data: allLines, error: allLinesError } = await supabase
-          .from('route_lines')
-          .select(`
-            id,
-            points,
-            color,
-            image_width,
-            image_height,
-            climb_id,
-            climbs (id, name, grade, route_type, description)
-          `)
-          .eq('image_id', climbData.image_id)
-
-        if (allLinesError) throw allLinesError
-
-        const mappedLines = ((allLines as unknown as RouteLineResponse[]) || [])
+        const mappedLines = (Array.isArray(context.primary_route_lines) ? context.primary_route_lines : [])
           .map((line) => {
-            const climb = pickOne(line.climbs)
-            if (!climb) return null
-
+            if (!line?.climb) return null
             const normalized = normalizePoints(parsePoints(line.points), {
               routeWidth: line.image_width,
               routeHeight: line.image_height,
-              imageWidth: imageData.natural_width || imageData.width,
-              imageHeight: imageData.natural_height || imageData.height,
+              imageWidth: primaryImageData.natural_width || primaryImageData.width,
+              imageHeight: primaryImageData.natural_height || primaryImageData.height,
             })
-
             if (normalized.length < 2) return null
-
             return {
               id: line.id,
+              imageId: primaryImageData.id,
               points: normalized,
               color: line.color || '#ef4444',
-              climb: {
-                id: climb.id,
-                name: climb.name,
-                grade: climb.grade,
-                route_type: climb.route_type,
-                description: climb.description,
-              },
+              climb: line.climb,
             } as DisplayRouteLine
           })
           .filter((line): line is DisplayRouteLine => line !== null)
@@ -599,58 +631,44 @@ export default function ClimbPage() {
           throw new Error('No valid route lines found for this image')
         }
 
-        setImage({
-          ...imageData,
-          url: getInitialViewerImageUrl(imageData.url),
+        const primaryImage: ImageInfo = {
+          ...primaryImageData,
+          url: getInitialViewerImageUrl(primaryImageData.url),
           face_directions: null,
-        })
-        setPrimaryImageId(climbData.image_id)
-        setActiveFaceIndex(0)
+        }
 
+        if (cancelled) return
+        setImage(primaryImage)
+        setPrimaryImageId(primaryImage.id)
+        setActiveCanvasImageId(primaryImage.id)
+        setRouteLinesImageId(primaryImage.id)
+        setActiveFaceIndex(0)
+        setSettledFaceIndex(0)
         setRouteLines(mappedLines)
+        initialRouteCountRef.current = mappedLines.length
+
         faceRouteCacheRef.current = {
-          [climbData.image_id]: {
-            image: {
-              ...imageData,
-              url: getInitialViewerImageUrl(imageData.url),
-              face_directions: null,
-            },
+          [primaryImage.id]: {
+            image: primaryImage,
             routeLines: mappedLines,
           },
         }
 
-        setTotalRoutesCombined(mappedLines.length)
-        initialRouteCountRef.current = mappedLines.length
+        const initialFaces = Array.isArray(context.faces)
+          ? context.faces.filter((item) => typeof item?.url === 'string' && !!item.url)
+          : []
+        setFaceGallery(initialFaces)
+        setTotalFaces(typeof context.summary?.total_faces === 'number' ? Math.max(1, context.summary.total_faces) : 1)
+        setTotalRoutesCombined(typeof context.summary?.total_routes === 'number' ? context.summary.total_routes : mappedLines.length)
         setLoading(false)
-
-        return
-      } catch (err) {
-        console.error('Error loading climb:', err)
-        setError('Failed to load climb')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadClimbContext()
-  }, [climbId, clearSelection])
-
-  useEffect(() => {
-    if (!primaryImageId) return
-
-    let cancelled = false
-    setIsFacesLoading(true)
-
-    void (async () => {
-      try {
-        const supabase = createClient()
+        setIsFacesLoading(true)
 
         const facesAbortController = new AbortController()
         const facesTimeoutId = window.setTimeout(() => {
           facesAbortController.abort()
         }, 12000)
 
-        const facesPayload: FacesApiResponse = await fetch(`/api/images/${primaryImageId}/faces`, {
+        const facesPromise = fetch(`/api/images/${primaryImage.id}/faces`, {
           signal: facesAbortController.signal,
         })
           .then(async (response) => {
@@ -662,14 +680,38 @@ export default function ClimbPage() {
             window.clearTimeout(facesTimeoutId)
           })
 
+        const cragPromise = primaryImage.crag_id
+          ? supabase
+              .from('crags')
+              .select('id, country_code, slug')
+              .eq('id', primaryImage.crag_id)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null })
+
+        const profilePromise = primaryImage.created_by
+          ? supabase
+              .from('profiles')
+              .select('id, username, display_name, first_name, last_name, is_public, contribution_credit_platform, contribution_credit_handle')
+              .eq('id', primaryImage.created_by)
+              .single()
+          : Promise.resolve({ data: null, error: null })
+
+        const [facesPayload, cragResult, profileResult] = await Promise.all([
+          facesPromise,
+          cragPromise,
+          profilePromise,
+        ])
+
         if (cancelled) return
 
         const faces = Array.isArray(facesPayload.faces)
           ? facesPayload.faces.filter((item: FaceGalleryItem) => typeof item.url === 'string' && !!item.url)
           : []
-        const primaryBaseImage = faceRouteCacheRef.current[primaryImageId]?.image || null
+        const primaryBaseImage = faceRouteCacheRef.current[primaryImage.id]?.image || primaryImage
 
-        setFaceGallery(faces)
+        if (faces.length > 0) {
+          setFaceGallery(faces)
+        }
 
         const totalFacesFromSummary = typeof facesPayload.summary?.total_faces === 'number'
           ? facesPayload.summary.total_faces
@@ -678,18 +720,27 @@ export default function ClimbPage() {
           ? facesPayload.summary.total_routes
           : facesPayload.total_routes_combined
 
-        setTotalFaces(typeof totalFacesFromSummary === 'number' ? Math.max(1, totalFacesFromSummary) : Math.max(1, faces.length))
+        setTotalFaces(typeof totalFacesFromSummary === 'number' ? Math.max(1, totalFacesFromSummary) : Math.max(1, faces.length || 1))
         setTotalRoutesCombined(typeof totalRoutesFromSummary === 'number' ? totalRoutesFromSummary : initialRouteCountRef.current)
 
         if (faces.length > 0) {
           const nextCache = { ...faceRouteCacheRef.current }
 
           for (const face of faces) {
-            const resolvedImageId = face.image_id || face.linked_image_id || (face.is_primary ? primaryImageId : null)
+            const resolvedImageId = face.image_id || face.linked_image_id || (face.is_primary ? primaryImage.id : null)
             if (!resolvedImageId) continue
 
-            const faceRoutes = mapFaceRoutesToDisplayLines(face.routes, face.metadata)
+            const faceRoutes = mapFaceRoutesToDisplayLines(face.routes, face.metadata, resolvedImageId)
+            if (face.has_routes && faceRoutes.length === 0) {
+              console.log('[FaceRoutes] API reported routes but parsed none', {
+                faceId: face.id,
+                resolvedImageId,
+                hasRoutes: face.has_routes,
+              })
+            }
+
             const baseImage = nextCache[resolvedImageId]?.image
+            const previousEntry = nextCache[resolvedImageId]
 
             const nextImage: ImageInfo = face.is_primary
               ? {
@@ -721,68 +772,53 @@ export default function ClimbPage() {
 
             nextCache[resolvedImageId] = {
               image: nextImage,
-              routeLines: faceRoutes,
+              routeLines: faceRoutes.length > 0 ? faceRoutes : (previousEntry?.routeLines || []),
             }
           }
 
           faceRouteCacheRef.current = nextCache
         }
 
-        if (!cancelled) {
-          setIsFacesLoading(false)
-        }
-
-        if (primaryBaseImage?.crag_id) {
-          const { data: cragData } = await supabase
-            .from('crags')
-            .select('id, country_code, slug')
-            .eq('id', primaryBaseImage.crag_id)
-            .maybeSingle()
-
-          if (!cancelled) {
-            if (cragData?.country_code && cragData?.slug) {
-              setCragPath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
-            } else {
-              setCragPath(`/crag/${primaryBaseImage.crag_id}`)
-            }
+        const cragData = 'data' in cragResult ? cragResult.data : null
+        if (primaryImage.crag_id) {
+          if (cragData?.country_code && cragData?.slug) {
+            setCragPath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
+          } else {
+            setCragPath(`/crag/${primaryImage.crag_id}`)
           }
         }
 
-        if (primaryBaseImage?.created_by) {
-          void (async () => {
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('id, username, display_name, first_name, last_name, is_public, contribution_credit_platform, contribution_credit_handle')
-              .eq('id', primaryBaseImage.created_by)
-              .single()
-
-            if (!cancelled && profileData?.is_public) {
-              const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
-              const displayName = fullName || profileData.display_name || profileData.username || 'Climber'
-              setPublicSubmitter({
-                id: profileData.id,
-                displayName,
-                contributionCreditPlatform: primaryBaseImage.contribution_credit_platform,
-                contributionCreditHandle: primaryBaseImage.contribution_credit_handle,
-                profileContributionCreditPlatform: profileData.contribution_credit_platform,
-                profileContributionCreditHandle: profileData.contribution_credit_handle,
-              })
-            }
-          })()
+        const profileData = 'data' in profileResult ? profileResult.data : null
+        if (profileData?.is_public) {
+          const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
+          const displayName = fullName || profileData.display_name || profileData.username || 'Climber'
+          setPublicSubmitter({
+            id: profileData.id,
+            displayName,
+            contributionCreditPlatform: primaryImage.contribution_credit_platform,
+            contributionCreditHandle: primaryImage.contribution_credit_handle,
+            profileContributionCreditPlatform: profileData.contribution_credit_platform,
+            profileContributionCreditHandle: profileData.contribution_credit_handle,
+          })
         }
-      } catch (auxError) {
-        console.warn('Deferred climb context load warning:', auxError)
+      } catch (err) {
+        console.error('Error loading climb:', err)
+        if (!cancelled) {
+          setError('Failed to load climb')
+        }
       } finally {
         if (!cancelled) {
+          setLoading(false)
           setIsFacesLoading(false)
         }
       }
-    })()
+    }
 
+    void loadClimbContext()
     return () => {
       cancelled = true
     }
-  }, [primaryImageId])
+  }, [climbId, clearSelection])
 
   useEffect(() => {
     if (!emblaApi) return
@@ -793,6 +829,11 @@ export default function ClimbPage() {
 
     const handleSelect = () => {
       setIsFaceTransitioning(true)
+      setCanvasFadeOut(true)
+      setActiveCanvasImageId(null)
+      setRouteLinesImageId(null)
+      setRouteLines([])
+      clearSelection()
       updateEmblaControls(false)
     }
 
@@ -815,45 +856,90 @@ export default function ClimbPage() {
       emblaApi.off('reInit', handleReInit)
       emblaApi.off('settle', handleSettle)
     }
-  }, [emblaApi, updateEmblaControls])
+  }, [emblaApi, updateEmblaControls, clearSelection])
 
   useEffect(() => {
-    if (prevActiveFaceIndexRef.current === settledFaceIndex && faceRouteCacheRef.current[primaryImageId || '']) {
+    if (prevActiveFaceIndexRef.current === activeFaceIndex) {
       return
     }
-    prevActiveFaceIndexRef.current = settledFaceIndex
+    prevActiveFaceIndexRef.current = activeFaceIndex
 
-    const activeFace = visibleFaces[settledFaceIndex]
+    const activeFace = visibleFaces[activeFaceIndex]
     if (!activeFace) return
 
-    const targetImageId = activeFace.is_primary
-      ? primaryImageId
-      : activeFace.linked_image_id
+    const targetImageId = activeFace.image_id ?? activeFace.linked_image_id ?? primaryImageId
     if (!targetImageId) {
       setImage((prev) => prev ? { ...prev, url: activeFace.url } : prev)
+      setActiveCanvasImageId(null)
+      setRouteLinesImageId(null)
       setRouteLines([])
+      setTransitionBuffer(null)
+      setCanvasFadeOut(false)
       clearSelection()
       return
     }
 
     const cached = faceRouteCacheRef.current[targetImageId]
     if (cached) {
-      setImage(cached.image)
-      setRouteLines(cached.routeLines)
-      clearSelection()
+      setTransitionBuffer({
+        faceId: activeFace.id,
+        targetImageId,
+        targetImage: cached.image,
+        targetRoutes: cached.routeLines,
+        hasRoutes: activeFace.has_routes,
+        isLoading: true,
+      })
       return
     }
 
-    setImage((prev) => {
-      if (!prev) return prev
+    setTransitionBuffer({
+      faceId: activeFace.id,
+      targetImageId,
+      targetImage: null,
+      targetRoutes: null,
+      hasRoutes: activeFace.has_routes,
+      isLoading: true,
+    })
+  }, [activeFaceIndex, visibleFaces, primaryImageId, clearSelection])
+
+  useEffect(() => {
+    if (!transitionBuffer) return
+    if (transitionBuffer.targetImage && transitionBuffer.targetRoutes) return
+
+    const cached = faceRouteCacheRef.current[transitionBuffer.targetImageId]
+    if (!cached) return
+
+    setTransitionBuffer((prev) => {
+      if (!prev || prev.targetImageId !== transitionBuffer.targetImageId) return prev
       return {
         ...prev,
-        url: activeFace.url,
-        face_directions: activeFace.face_directions ?? prev.face_directions,
+        targetImage: cached.image,
+        targetRoutes: cached.routeLines,
       }
     })
+  }, [transitionBuffer, isFacesLoading, faceGallery])
+
+  useLayoutEffect(() => {
+    if (!transitionBuffer) return
+    if (!transitionBuffer.targetImage || !transitionBuffer.targetRoutes) return
+    if (!loadedFaceIdsRef.current.has(transitionBuffer.faceId)) return
+
+    if (transitionBuffer.hasRoutes && transitionBuffer.targetRoutes.length === 0) {
+      console.log('[FaceRoutes] Atomic commit has zero routes despite has_routes=true', {
+        faceId: transitionBuffer.faceId,
+        targetImageId: transitionBuffer.targetImageId,
+      })
+    }
+
+    setImage(transitionBuffer.targetImage)
+    setRouteLines(transitionBuffer.targetRoutes)
+    setRouteLinesImageId(transitionBuffer.targetImageId)
+    setActiveCanvasImageId(transitionBuffer.targetImageId)
+    setCanvasFadeOut(false)
+    setTransitionBuffer(null)
+    setIsFaceTransitioning(false)
     clearSelection()
-  }, [settledFaceIndex, visibleFaces, primaryImageId, clearSelection])
+  }, [loadedFaceVersion, transitionBuffer, clearSelection])
 
   useEffect(() => {
     if (visibleFaces.length === 0) {
@@ -870,6 +956,15 @@ export default function ClimbPage() {
       setSettledFaceIndex(maxIndex)
     }
   }, [visibleFaces.length, activeFaceIndex, settledFaceIndex])
+
+  useEffect(() => {
+    const current = visibleFaces[activeFaceIndex]
+    const next = visibleFaces[activeFaceIndex + 1]
+    const prev = visibleFaces[activeFaceIndex - 1]
+    prefetchFaceImage(current)
+    prefetchFaceImage(next)
+    prefetchFaceImage(prev)
+  }, [activeFaceIndex, visibleFaces, prefetchFaceImage])
 
   useEffect(() => {
     if (!cragPath) return
@@ -915,23 +1010,23 @@ export default function ClimbPage() {
 
   useEffect(() => {
     if (routeLines.length === 0) return
+    if (hasUserInteractedWithSelection) return
 
-    if (selectedRouteParam) {
-      const exists = routeLines.some((route) => route.id === selectedRouteParam)
-      if (exists && selectedIds[0] !== selectedRouteParam) {
-        selectRoute(selectedRouteParam)
+    if (effectiveRouteParam) {
+      const exists = routeLines.some((route) => route.id === effectiveRouteParam)
+      if (exists && selectedIds[0] !== effectiveRouteParam) {
+        selectRoute(effectiveRouteParam)
         return
       }
     }
 
-    if (hasUserInteractedWithSelection) return
     if (selectedIds.length > 0) return
 
     const preselected = routeLines.find((route) => route.climb.id === climbId)
     if (preselected) {
       selectRoute(preselected.id)
     }
-  }, [routeLines, selectedRouteParam, selectedIds, hasUserInteractedWithSelection, selectRoute, climbId])
+  }, [routeLines, effectiveRouteParam, selectedIds, hasUserInteractedWithSelection, selectRoute, climbId])
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
@@ -939,14 +1034,25 @@ export default function ClimbPage() {
     const liveSelectedIds = selectedIdsRef.current
     const liveUserLogs = userLogsRef.current
 
-    if (!canvas || liveRouteLines.length === 0) return
+    if (!canvas) return
     if (canvas.width <= 0 || canvas.height <= 0) return
-
-    const imageElement = imageRef.current
-    if (!imageElement || !imageElement.complete || imageElement.naturalWidth === 0 || imageElement.naturalHeight === 0) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+
+    const firstRouteImageId = liveRouteLines[0]?.imageId || null
+    if (!firstRouteImageId || activeCanvasImageId !== firstRouteImageId || routeLinesImageId !== firstRouteImageId) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      return
+    }
+
+    if (liveRouteLines.length === 0) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      return
+    }
+
+    const imageElement = imageRef.current
+    if (!imageElement || !imageElement.complete || imageElement.naturalWidth === 0 || imageElement.naturalHeight === 0) return
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
@@ -985,7 +1091,7 @@ export default function ClimbPage() {
     ctx.globalAlpha = 1
     ctx.shadowBlur = 0
     ctx.setLineDash([])
-  }, [])
+  }, [activeCanvasImageId, routeLinesImageId])
 
   const scheduleDraw = useCallback(() => {
     if (drawFrameRef.current !== null) {
@@ -1128,9 +1234,10 @@ export default function ClimbPage() {
         return
       }
 
+      selectRoute(clickedRoute.id)
       updateRouteParam(clickedRoute.id)
     },
-    [routeLines, clearSelection, updateRouteParam]
+    [routeLines, clearSelection, updateRouteParam, selectRoute]
   )
 
   const viewerReadyState = !isFaceTransitioning && routeLines.length > 0 ? 'idle' : 'busy'
@@ -1491,7 +1598,10 @@ export default function ClimbPage() {
                     sizes="(max-width: 768px) 100vw, 1200px"
                     fetchPriority={index === activeFaceIndex ? 'high' : undefined}
                     unoptimized
-                    className="max-w-full max-h-[60vh] object-contain"
+                    onLoad={() => markFaceLoaded(face.id)}
+                    className={`max-w-full max-h-[60vh] object-contain transition-opacity duration-200 ${
+                      index === activeFaceIndex ? 'opacity-100' : 'opacity-90'
+                    }`}
                   />
                 </div>
               ))}
@@ -1532,6 +1642,7 @@ export default function ClimbPage() {
                       key={`dot-${face.id}`}
                       type="button"
                       onClick={() => emblaApi?.scrollTo(idx)}
+                      onMouseEnter={() => prefetchFaceImage(face)}
                       aria-label={`Go to face ${idx + 1}`}
                       className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full border text-[11px] font-semibold transition ${
                         idx === activeFaceIndex
@@ -1556,7 +1667,7 @@ export default function ClimbPage() {
             <canvas
               ref={canvasRef}
               className={`absolute inset-0 cursor-pointer transition-opacity duration-150 ${
-                isFaceTransitioning ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                canvasFadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
               }`}
               onClick={handleCanvasClick}
               data-ready-state={viewerReadyState}
@@ -1564,6 +1675,13 @@ export default function ClimbPage() {
               data-route-target-y={displayRouteTapPoint ? String(displayRouteTapPoint.y) : undefined}
               style={{ touchAction: 'none' }}
             />
+            {transitionBuffer?.isLoading && (
+              <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
+                <div className="rounded-full bg-black/55 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+                  Loading face routes...
+                </div>
+              </div>
+            )}
           </div>
         </Suspense>
       </div>

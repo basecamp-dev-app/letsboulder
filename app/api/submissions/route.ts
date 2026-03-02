@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { createErrorResponse, sanitizeError } from '@/lib/errors'
+import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewSubmission } from '@/lib/discord'
 import { makeUniqueSlug } from '@/lib/slug'
@@ -357,6 +357,8 @@ export async function POST(request: NextRequest) {
     let routeLinesCreatedCount = 0
     let supplementaryCreatedCount = 0
     let supplementaryCragImageIds: string[] = []
+    let firstClimbId: string | undefined
+    let firstRouteId: string | undefined
     let primaryNewImage: NewSubmissionImage | null = null
     let validatedNewImages: NewSubmissionImage[] = []
 
@@ -627,6 +629,9 @@ export async function POST(request: NextRequest) {
       supplementaryCragImageIds = Array.isArray(unifiedResult.crag_image_ids) ? unifiedResult.crag_image_ids : []
 
       const createdClimbIds = Array.isArray(unifiedResult.climb_ids) ? unifiedResult.climb_ids : []
+      const createdRouteLineIds = Array.isArray(unifiedResult.route_line_ids) ? unifiedResult.route_line_ids : []
+      firstClimbId = createdClimbIds[0]
+      firstRouteId = createdRouteLineIds[0]
       if (createdClimbIds.length > 0) {
         const { data: createdClimbsRows } = await supabase
           .from('climbs')
@@ -714,11 +719,29 @@ export async function POST(request: NextRequest) {
       }))
       climbsCreatedCount = createdClimbs.length
       routeLinesCreatedCount = routePayload.length
+
+      const createdClimbIds = createdClimbs.map((climb) => climb.climb_id)
+      firstClimbId = createdClimbIds[0]
+      if (imageId && createdClimbIds.length > 0) {
+        const { data: createdRouteRows } = await supabase
+          .from('route_lines')
+          .select('id, climb_id')
+          .eq('image_id', imageId)
+          .in('climb_id', createdClimbIds)
+          .order('sequence_order', { ascending: true, nullsFirst: false })
+          .order('created_at', { ascending: true })
+
+        const firstRouteRow = (createdRouteRows || [])[0]
+        if (firstRouteRow?.id) {
+          firstRouteId = firstRouteRow.id
+          if (!firstClimbId && firstRouteRow.climb_id) {
+            firstClimbId = firstRouteRow.climb_id
+          }
+        }
+      }
     }
 
     if (cragId) {
-      await updateCragBoundary(supabase, cragId)
-
       const { data: cragData } = await supabase
         .from('crags')
         .select('name, slug, country_code')
@@ -743,7 +766,9 @@ export async function POST(request: NextRequest) {
       routeLinesCreated: routeLinesCreatedCount,
       supplementaryImagesCreated: supplementaryCreatedCount,
       supplementaryCragImageIds,
-      imageId: imageId || undefined
+      imageId: imageId || undefined,
+      climbId: firstClimbId,
+      routeId: firstRouteId,
     })
     shouldCleanupUploadedBlobs = false
     return response
@@ -788,22 +813,6 @@ async function getRegionData(supabase: ReturnType<typeof createServerClient>, im
     return ''
   } catch {
     return ''
-  }
-}
-
-async function updateCragBoundary(supabase: ReturnType<typeof createServerClient>, cragId: string) {
-  try {
-    const { data: routeData } = await supabase
-      .rpc('compute_crag_boundary', { crag_id: cragId })
-
-    if (routeData) {
-      await supabase
-        .from('crags')
-        .update({ boundary: routeData })
-        .eq('id', cragId)
-    }
-  } catch (error) {
-    sanitizeError(error, 'Failed to update crag boundary')
   }
 }
 
