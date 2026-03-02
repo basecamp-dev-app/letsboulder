@@ -4,6 +4,7 @@ import { jwtVerify } from 'jose'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse, sanitizeError } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 function getDeleteTokenSecret(): Uint8Array {
   const secret = process.env.DELETE_ACCOUNT_SECRET
@@ -68,76 +69,81 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'sensitive', user.id)
+    const rateLimitResult = rateLimit(request, 'sensitive', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
     }
 
-    if (user.id !== payload.userId) {
+    if (userId !== payload.userId) {
       return NextResponse.json({ error: 'Token does not match user' }, { status: 403 })
     }
 
     if (payload.deleteRouteUploads) {
       await supabaseAdmin.from('deleted_accounts').insert({
-        user_id: user.id,
+        user_id: userId,
         email: user.email,
         delete_route_uploads: payload.deleteRouteUploads
       })
 
       const { data: files } = await supabase.storage
         .from('route-uploads')
-        .list(user.id, { limit: 1000 })
+        .list(userId, { limit: 1000 })
 
       if (files && files.length > 0) {
-        const paths = files.map(f => `${user.id}/${f.name}`)
+        const paths = files.map(f => `${userId}/${f.name}`)
         await supabase.storage.from('route-uploads').remove(paths)
       }
     }
 
     const { data: avatarFiles } = await supabase.storage
       .from('avatars')
-      .list(user.id, { limit: 10 })
+      .list(userId, { limit: 10 })
 
     if (avatarFiles && avatarFiles.length > 0) {
-      const paths = avatarFiles.map(f => `${user.id}/${f.name}`)
+      const paths = avatarFiles.map(f => `${userId}/${f.name}`)
       await supabase.storage.from('avatars').remove(paths)
     }
 
-    await supabase.from('admin_actions').delete().eq('user_id', user.id)
-    await supabase.from('user_climbs').delete().eq('user_id', user.id)
-    await supabase.from('climb_corrections').delete().eq('user_id', user.id)
-    await supabase.from('correction_votes').delete().eq('user_id', user.id)
-    await supabase.from('logs').delete().eq('user_id', user.id)
-    await supabase.from('climb_verifications').delete().eq('user_id', user.id)
-    await supabase.from('grade_votes').delete().eq('user_id', user.id)
-    await supabase.from('route_grades').delete().eq('user_id', user.id)
+    await supabase.from('admin_actions').delete().eq('user_id', userId)
+    await supabase.from('user_climbs').delete().eq('user_id', userId)
+    await supabase.from('climb_corrections').delete().eq('user_id', userId)
+    await supabase.from('correction_votes').delete().eq('user_id', userId)
+    await supabase.from('logs').delete().eq('user_id', userId)
+    await supabase.from('climb_verifications').delete().eq('user_id', userId)
+    await supabase.from('grade_votes').delete().eq('user_id', userId)
+    await supabase.from('route_grades').delete().eq('user_id', userId)
 
     if (payload.deleteRouteUploads) {
-      await supabase.from('images').delete().eq('created_by', user.id)
-      await supabase.from('climbs').delete().eq('user_id', user.id)
+      await supabase.from('images').delete().eq('created_by', userId)
+      await supabase.from('climbs').delete().eq('user_id', userId)
     } else {
-      await supabase.from('images').update({ created_by: null }).eq('created_by', user.id)
-      await supabase.from('climbs').update({ user_id: null }).eq('user_id', user.id)
+      await supabase.from('images').update({ created_by: null }).eq('created_by', userId)
+      await supabase.from('climbs').update({ user_id: null }).eq('user_id', userId)
     }
 
     const { error: profileError } = await supabase
       .from('profiles')
       .delete()
-      .eq('id', user.id)
+      .eq('id', userId)
 
     if (profileError) {
       return createErrorResponse(profileError, 'Error deleting profile')
     }
 
     await supabase.auth.signOut()
-    await supabaseAdmin.auth.admin.deleteUser(user.id)
+    await supabaseAdmin.auth.admin.deleteUser(userId)
 
     return NextResponse.json({ success: true })
 

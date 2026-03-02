@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 interface DraftPatchImage {
   id: string
@@ -54,8 +55,8 @@ export async function GET(
   )
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
+    if (authError || !userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -69,7 +70,7 @@ export async function GET(
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
     }
 
-    if (draft.user_id !== user.id) {
+    if (draft.user_id !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -165,8 +166,8 @@ export async function PATCH(
   )
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
+    if (authError || !userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -186,7 +187,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
     }
 
-    if (draft.user_id !== user.id) {
+    if (draft.user_id !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

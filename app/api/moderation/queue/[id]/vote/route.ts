@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 interface QueueItem {
   id: string
@@ -36,9 +37,9 @@ export async function POST(
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -56,7 +57,7 @@ export async function POST(
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('is_admin')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (profileError || !profile?.is_admin) {
@@ -88,7 +89,7 @@ export async function POST(
       return NextResponse.json({ error: 'This submission has already been resolved' }, { status: 400 })
     }
 
-    if (queueItem.submitter_id === user.id) {
+    if (queueItem.submitter_id === userId) {
       return NextResponse.json({ error: 'You cannot vote on your own submission' }, { status: 400 })
     }
 
@@ -96,7 +97,7 @@ export async function POST(
       .from('moderation_votes')
       .select('id')
       .eq('queue_id', queueId)
-      .eq('voter_id', user.id)
+      .eq('voter_id', userId)
       .single()
 
     if (existingVote) {
@@ -107,7 +108,7 @@ export async function POST(
       .from('moderation_votes')
       .insert({
         queue_id: queueId,
-        voter_id: user.id,
+        voter_id: userId,
         vote_type,
         reason,
       })
@@ -130,7 +131,7 @@ export async function POST(
     const cragName = queueItem.crag?.name || 'Unknown crag'
     const cragId = queueItem.crag?.id || queueItem.crag_id
 
-    if (queueItem.submitter_id !== user.id) {
+    if (queueItem.submitter_id !== userId) {
       await supabase.from('notifications').insert({
         user_id: queueItem.submitter_id,
         type: wasResolved ? 'submission_resolved' : 'vote_recorded',

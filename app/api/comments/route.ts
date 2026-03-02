@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 const VALID_TARGET_TYPES = ['crag', 'image', 'climb'] as const
 const TARGET_CATEGORY_CONFIG = {
@@ -101,8 +102,7 @@ export async function GET(request: NextRequest) {
   const supabase = getSupabase(request)
 
   try {
-    const { data: authResult } = await supabase.auth.getUser()
-    const currentUserId = authResult.user?.id || null
+    const { userId: currentUserId } = await resolveUserIdWithFallback(request, supabase)
 
     let query = supabase
       .from('comments')
@@ -151,14 +151,13 @@ export async function POST(request: NextRequest) {
   const supabase = getSupabase(request)
 
   try {
-    const { data: authResult, error: authError } = await supabase.auth.getUser()
-    const user = authResult.user
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 
-    if (authError || !user) {
+    if (authError || !userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -207,7 +206,7 @@ export async function POST(request: NextRequest) {
       .insert({
         target_type: rawTargetType,
         target_id: rawTargetId,
-        author_id: user.id,
+        author_id: userId,
         body: trimmedBody,
         category: rawCategory,
       })

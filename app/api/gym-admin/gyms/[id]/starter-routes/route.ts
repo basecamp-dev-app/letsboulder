@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 interface StarterRouteInput {
   id?: string
@@ -34,13 +35,13 @@ async function requireGymRouteAccess(request: NextRequest, gymId: string) {
     { cookies: { getAll() { return cookies.getAll() }, setAll() {} } }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: NextResponse.json({ error: 'Authentication required' }, { status: 401 }), supabase: null, role: null as string | null }
+  const { userId } = await resolveUserIdWithFallback(request, supabase)
+  if (!userId) return { error: NextResponse.json({ error: 'Authentication required' }, { status: 401 }), supabase: null, role: null as string | null }
 
   const { data: membership, error: membershipError } = await supabase
     .from('gym_memberships')
     .select('role, status')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .eq('gym_place_id', gymId)
     .eq('status', 'active')
     .maybeSingle()

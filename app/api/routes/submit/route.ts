@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 const MAX_ROUTES_PER_DAY = 5
 
@@ -22,9 +23,9 @@ export async function POST(request: NextRequest) {
     }
   )
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 
-  if (authError || !user) {
+  if (authError || !userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
 
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
     const { count: todayRoutes } = await supabase
       .from('climbs')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('deleted_at', null)
       .gte('created_at', `${today}T00:00:00`)
 
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
         latitude,
         longitude,
         image_url: imageUrl,
-        user_id: user.id,
+        user_id: userId,
         status: 'pending',
         created_at: new Date().toISOString()
       })

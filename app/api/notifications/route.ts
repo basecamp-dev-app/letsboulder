@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { parsePagination } from '@/lib/pagination'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -18,16 +19,16 @@ export async function GET(request: NextRequest) {
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
     let query = supabase
       .from('notifications')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
     const { count } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('is_read', false)
 
     return NextResponse.json({ 
@@ -69,9 +70,9 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
     const { error } = await supabase
       .from('notifications')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         type,
         title,
         message,

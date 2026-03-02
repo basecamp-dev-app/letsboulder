@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
@@ -22,13 +23,13 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     const logs = climbIds.map(climbId => ({
-      user_id: user.id,
+      user_id: userId,
       climb_id: climbId,
       style,
       date_climbed: new Date().toISOString().split('T')[0],

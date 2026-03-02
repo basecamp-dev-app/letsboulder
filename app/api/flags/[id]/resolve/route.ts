@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 const VALID_ACTIONS = ['keep', 'edit', 'remove']
 
@@ -42,9 +43,9 @@ export async function POST(
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -55,7 +56,7 @@ export async function POST(
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('is_admin')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (profileError || !profile?.is_admin) {
@@ -148,7 +149,7 @@ export async function POST(
       .update({
         status: 'resolved',
         action_taken: action,
-        resolved_by: user.id,
+        resolved_by: userId,
         resolved_at: resolvedAt,
       })
       .eq('id', flagId)
@@ -228,7 +229,7 @@ export async function POST(
         id: typedFlag.id,
         status: 'resolved',
         action_taken: action,
-        resolved_by: user.id,
+        resolved_by: userId,
         resolved_at: resolvedAt,
       },
       message: `Flag resolved with action: ${action}`,

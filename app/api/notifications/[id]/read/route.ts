@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function POST(
   request: NextRequest,
@@ -25,9 +26,9 @@ export async function POST(
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -39,7 +40,7 @@ export async function POST(
       .from('notifications')
       .update({ is_read: true })
       .eq('id', notificationId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (error) {
       return createErrorResponse(error, 'Error marking notification as read')

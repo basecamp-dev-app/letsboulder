@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function POST(
   request: NextRequest,
@@ -24,16 +25,16 @@ export async function POST(
   )
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 
-    if (authError || !user) {
+    if (authError || !userId) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -56,7 +57,7 @@ export async function POST(
     }
 
     // Check if user is the submitter
-    if (climb.user_id === user.id) {
+    if (climb.user_id === userId) {
       return NextResponse.json(
         { error: 'You cannot verify your own route' },
         { status: 400 }
@@ -68,7 +69,7 @@ export async function POST(
       .from('climb_verifications')
       .select('id')
       .eq('climb_id', climbId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (existingVote) {
@@ -83,7 +84,7 @@ export async function POST(
       .from('climb_verifications')
       .insert({
         climb_id: climbId,
-        user_id: user.id
+        user_id: userId
       })
 
     if (insertError) {
@@ -131,16 +132,16 @@ export async function DELETE(
   )
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 
-    if (authError || !user) {
+    if (authError || !userId) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -153,7 +154,7 @@ export async function DELETE(
       .from('climb_verifications')
       .delete()
       .eq('climb_id', climbId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (deleteError) {
       return createErrorResponse(deleteError, 'Error removing verification')

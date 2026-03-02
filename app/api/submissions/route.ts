@@ -4,6 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewSubmission } from '@/lib/discord'
 import { makeUniqueSlug } from '@/lib/slug'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { revalidatePath } from 'next/cache'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -224,15 +225,18 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 
-    if (authError || !user) {
+    if (authError || !userId) {
       if (debugAuth) {
         console.warn('[submissions] auth.getUser failed', {
           host: requestUrl.host,
           path: requestUrl.pathname,
-          hasUser: Boolean(user),
-          authError: authError ? { name: authError.name, message: authError.message } : null,
+          hasUser: Boolean(userId),
+          authError: authError ? {
+            name: (authError as { name?: string }).name,
+            message: (authError as { message?: string }).message,
+          } : null,
         })
       }
       response = NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -242,7 +246,7 @@ export async function POST(request: NextRequest) {
     if (debugAuth) {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
       console.log('[submissions] session', {
-        userId: user.id,
+        userId,
         hasSession: Boolean(sessionData?.session),
         hasAccessToken: Boolean(sessionData?.session?.access_token),
         sessionUserId: sessionData?.session?.user?.id || null,
@@ -373,7 +377,7 @@ export async function POST(request: NextRequest) {
     const { count: todayRoutes } = await supabase
       .from('climbs')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('deleted_at', null)
       .gte('created_at', `${today}T00:00:00`)
 
@@ -412,7 +416,7 @@ export async function POST(request: NextRequest) {
         return response
       }
 
-      const userPathPrefix = `${user.id}/`
+      const userPathPrefix = `${userId}/`
       validatedNewImages = []
 
       for (const image of body.images) {
@@ -515,7 +519,7 @@ export async function POST(request: NextRequest) {
           height: cragImage.height,
           natural_width: cragImage.width,
           natural_height: cragImage.height,
-          created_by: user.id,
+          created_by: userId,
           latitude: null,
           longitude: null,
           capture_date: null,
@@ -824,7 +828,7 @@ export async function POST(request: NextRequest) {
 
       const cragName = cragData?.name || 'Unknown Crag'
 
-      await notifyNewSubmission(supabase, notificationClimbs, cragName, cragId, user.id).catch(err => {
+      await notifyNewSubmission(supabase, notificationClimbs, cragName, cragId, userId).catch(err => {
         console.error('Discord notification error:', err)
       })
 

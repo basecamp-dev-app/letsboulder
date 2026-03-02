@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function POST(
   request: NextRequest,
@@ -24,16 +25,16 @@ export async function POST(
   )
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 
-    if (authError || !user) {
+    if (authError || !userId) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -72,7 +73,7 @@ export async function POST(
     }
 
     // Check if user is the correction submitter
-    if (correction.user_id === user.id) {
+    if (correction.user_id === userId) {
       return NextResponse.json(
         { error: 'You cannot vote on your own correction' },
         { status: 400 }
@@ -84,7 +85,7 @@ export async function POST(
       .from('correction_votes')
       .select('id, vote_type')
       .eq('correction_id', correctionId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (existingVote) {
@@ -100,7 +101,7 @@ export async function POST(
         .from('correction_votes')
         .update({ vote_type })
         .eq('correction_id', correctionId)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
 
       if (updateError) {
         return createErrorResponse(updateError, 'Error updating vote')
@@ -161,7 +162,7 @@ export async function POST(
       .from('correction_votes')
       .insert({
         correction_id: correctionId,
-        user_id: user.id,
+        user_id: userId,
         vote_type
       })
 
@@ -297,16 +298,16 @@ export async function DELETE(
   )
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 
-    if (authError || !user) {
+    if (authError || !userId) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       )
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -319,7 +320,7 @@ export async function DELETE(
       .from('correction_votes')
       .delete()
       .eq('correction_id', correctionId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (deleteError) {
       return createErrorResponse(deleteError, 'Error removing vote')

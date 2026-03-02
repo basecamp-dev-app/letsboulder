@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 function getSupabase(request: NextRequest) {
   const cookies = request.cookies
@@ -28,14 +29,13 @@ export async function DELETE(
   const supabase = getSupabase(request)
 
   try {
-    const { data: authResult, error: authError } = await supabase.auth.getUser()
-    const user = authResult.user
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 
-    if (authError || !user) {
+    if (authError || !userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse

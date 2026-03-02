@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewFlag } from '@/lib/discord'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 const VALID_FLAG_TYPES = ['location', 'route_line', 'route_name', 'image_quality', 'wrong_crag', 'other']
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -49,9 +50,9 @@ export async function POST(
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -104,7 +105,7 @@ export async function POST(
       .from('climb_flags')
       .select('id, status')
       .eq('climb_id', climbId)
-      .eq('flagger_id', user.id)
+      .eq('flagger_id', userId)
       .eq('status', 'pending')
       .single()
 
@@ -117,7 +118,7 @@ export async function POST(
       .insert({
         climb_id: climbId,
         crag_id: climb.crag_id,
-        flagger_id: user.id,
+        flagger_id: userId,
         flag_type,
         comment: trimmedComment,
         status: 'pending',
@@ -138,7 +139,7 @@ export async function POST(
       cragName,
       cragId: climb.crag_id,
       comment: trimmedComment,
-      flaggerId: user.id,
+      flaggerId: userId,
     }).catch(err => console.error('Discord notification error:', err))
 
     return NextResponse.json({
@@ -182,13 +183,13 @@ export async function GET(
     }
 
     let canViewFlaggerEmail = false
-    const { data: authData } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (authData?.user) {
+    if (userId) {
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_admin')
-        .eq('id', authData.user.id)
+        .eq('id', userId)
         .single()
 
       canViewFlaggerEmail = Boolean(profile?.is_admin)

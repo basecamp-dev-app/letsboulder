@@ -4,6 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/lib/submission-credit'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function PATCH(
   request: NextRequest,
@@ -25,12 +26,12 @@ export async function PATCH(
   )
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
+    if (authError || !userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse

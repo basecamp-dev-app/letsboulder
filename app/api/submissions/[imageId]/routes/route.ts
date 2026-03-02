@@ -4,6 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { makeUniqueSlug } from '@/lib/slug'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { revalidatePath } from 'next/cache'
 
 interface RoutePoint {
@@ -139,12 +140,12 @@ export async function POST(
   )
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
+    if (authError || !userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -198,7 +199,7 @@ export async function POST(
       return NextResponse.json({ error: 'Image not found' }, { status: 404 })
     }
 
-    if (image.created_by !== user.id) {
+    if (image.created_by !== userId) {
       return NextResponse.json({ error: 'Only the original submitter can add routes to this image' }, { status: 403 })
     }
 
@@ -263,7 +264,7 @@ export async function POST(
         description: route.description?.trim() || null,
         route_type: resolvedRouteType,
         status: 'approved' as const,
-        user_id: user.id,
+        user_id: userId,
         crag_id: image.crag_id,
       }
     })
@@ -341,12 +342,12 @@ export async function PUT(
   )
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
+    if (authError || !userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse

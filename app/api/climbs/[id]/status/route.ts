@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function GET(
   request: NextRequest,
@@ -21,8 +22,7 @@ export async function GET(
   try {
     const { id: climbId } = await params
 
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
     // Get climb with verification info
     const { data: climb, error: climbError } = await supabase
@@ -46,17 +46,17 @@ export async function GET(
 
     // Check if user has verified
     let userHasVerified = false
-    if (user) {
+    if (userId) {
       const { data: userVerification } = await supabase
         .from('climb_verifications')
         .select('id')
         .eq('climb_id', climbId)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .single()
       userHasVerified = !!userVerification
     }
 
-    const userIsSubmitter = user ? climb.user_id === user.id : false
+    const userIsSubmitter = userId ? climb.user_id === userId : false
     const isVerified = (verificationCount || 0) >= 3
 
     // Get grade votes
@@ -77,12 +77,12 @@ export async function GET(
 
     // Get user's grade vote
     let userGradeVote: string | null = null
-    if (user) {
+    if (userId) {
       const { data: userGrade } = await supabase
         .from('grade_votes')
         .select('grade')
         .eq('climb_id', climbId)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .single()
       userGradeVote = userGrade?.grade || null
     }

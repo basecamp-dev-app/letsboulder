@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewFlag } from '@/lib/discord'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 const VALID_FLAG_TYPES = ['location', 'route_line', 'route_name', 'image_quality', 'wrong_crag', 'other']
 const MAX_COMMENT_LENGTH = 250
@@ -29,9 +30,9 @@ export async function POST(
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -71,7 +72,7 @@ export async function POST(
       .from('climb_flags')
       .select('id, status')
       .eq('image_id', imageId)
-      .eq('flagger_id', user.id)
+      .eq('flagger_id', userId)
       .eq('status', 'pending')
       .single()
 
@@ -89,7 +90,7 @@ export async function POST(
         image_id: imageId,
         crag_id: image.crag_id,
         climb_id: null,
-        flagger_id: user.id,
+        flagger_id: userId,
         flag_type,
         comment: trimmedComment,
         status: 'pending',
@@ -113,7 +114,7 @@ export async function POST(
       cragName: cragData?.name || 'Unknown Crag',
       cragId: image.crag_id,
       comment: trimmedComment,
-      flaggerId: user.id,
+      flaggerId: userId,
     }).catch(err => console.error('Discord notification error:', err))
 
     return NextResponse.json({

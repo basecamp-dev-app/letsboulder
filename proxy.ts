@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+const INTERNAL_USER_ID_HEADER = 'x-internal-user-id'
+const CSRF_COOKIE_NAME = 'csrf_token'
+
 const ALLOWED_REDIRECT_PATHS = [
   '/',
   '/map',
@@ -24,6 +27,108 @@ const SESSION_REFRESH_PREFIXES = [
 ]
 
 const LOCATION_DETECT_MAX_BODY_BYTES = 2 * 1024
+
+type UpstashRedisCtor = new (args: { url: string; token: string }) => unknown
+type UpstashRatelimitInstance = {
+  limit: (key: string) => Promise<{ success: boolean; limit: number; remaining: number; reset: number }>
+}
+type UpstashRatelimitCtor = {
+  new (args: { redis: unknown; limiter: unknown; prefix: string }): UpstashRatelimitInstance
+  slidingWindow: (tokens: number, window: unknown) => unknown
+}
+type UpstashDeps = {
+  Redis: UpstashRedisCtor
+  Ratelimit: unknown
+}
+
+let upstashDepsPromise: Promise<UpstashDeps | null> | null = null
+let upstashMissingWarningLogged = false
+let upstashUnavailableWarningLogged = false
+let redisClient: unknown | null = null
+const upstashLimiters = new Map<string, UpstashRatelimitInstance>()
+
+function mergeResponseMetadata(fromResponse: NextResponse, intoResponse: NextResponse): void {
+  fromResponse.headers.forEach((value, key) => {
+    if (key.toLowerCase() !== 'set-cookie') {
+      intoResponse.headers.set(key, value)
+    }
+  })
+
+  fromResponse.cookies.getAll().forEach((cookie) => {
+    intoResponse.cookies.set(cookie)
+  })
+}
+
+async function getUpstashDeps(): Promise<UpstashDeps | null> {
+  if (!upstashDepsPromise) {
+    upstashDepsPromise = Promise.all([
+      import('@upstash/redis').catch(() => null),
+      import('@upstash/ratelimit').catch(() => null),
+    ]).then(([redisModule, ratelimitModule]) => {
+      if (!redisModule || !ratelimitModule) {
+        if (!upstashMissingWarningLogged) {
+          upstashMissingWarningLogged = true
+          console.warn('Upstash rate limiting deps missing; skipping')
+        }
+        return null
+      }
+
+      return {
+        Redis: redisModule.Redis,
+        Ratelimit: ratelimitModule.Ratelimit,
+      }
+    })
+  }
+
+  return upstashDepsPromise
+}
+
+function getLimiterConfig(rateLimitBucket: 'search' | 'rankings' | 'write' | 'geo' | 'clicks'): { tokens: number; window: string; prefix: string } {
+  if (rateLimitBucket === 'geo') {
+    return { tokens: 5, window: '1 m', prefix: 'rl:api:geo' }
+  }
+
+  if (rateLimitBucket === 'clicks') {
+    return { tokens: 10, window: '1 m', prefix: 'rl:api:clicks' }
+  }
+
+  if (rateLimitBucket === 'search') {
+    return { tokens: 60, window: '1 m', prefix: 'rl:api:search' }
+  }
+
+  if (rateLimitBucket === 'rankings') {
+    return { tokens: 120, window: '1 m', prefix: 'rl:api:rankings' }
+  }
+
+  return { tokens: 90, window: '1 m', prefix: 'rl:api:write' }
+}
+
+function getOrCreateLimiter(
+  rateLimitBucket: 'search' | 'rankings' | 'write' | 'geo' | 'clicks',
+  url: string,
+  token: string,
+  deps: UpstashDeps
+): UpstashRatelimitInstance {
+  const { Redis } = deps
+  const Ratelimit = deps.Ratelimit as UpstashRatelimitCtor
+
+  if (!redisClient) {
+    redisClient = new Redis({ url, token })
+  }
+
+  const config = getLimiterConfig(rateLimitBucket)
+  const existingLimiter = upstashLimiters.get(config.prefix)
+  if (existingLimiter) return existingLimiter
+
+  const limiter = new Ratelimit({
+    redis: redisClient,
+    limiter: Ratelimit.slidingWindow(config.tokens, config.window),
+    prefix: config.prefix,
+  })
+
+  upstashLimiters.set(config.prefix, limiter)
+  return limiter
+}
 
 function getClientIp(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for')
@@ -105,12 +210,35 @@ function shouldSkipSessionRefreshForPrefetch(pathname: string, request: NextRequ
   return pathname === '/submit' || pathname.startsWith('/submit/') || pathname === '/logbook' || pathname.startsWith('/logbook/')
 }
 
+function shouldRequireCsrfEarly(pathname: string, method: string): boolean {
+  const normalizedMethod = method.toUpperCase()
+  if (!isStateChangingMethod(normalizedMethod)) return false
+  if (!pathname.startsWith('/api/')) return false
+  if (pathname.startsWith('/api/locations/detect')) return false
+
+  return true
+}
+
 export default async function proxy(request: NextRequest) {
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.delete(INTERNAL_USER_ID_HEADER)
+
   let supabaseResponse = NextResponse.next({
-    request,
+    request: {
+      headers: requestHeaders,
+    },
   })
 
   const { pathname, searchParams } = request.nextUrl
+
+  if (shouldRequireCsrfEarly(pathname, request.method)) {
+    const csrfHeader = request.headers.get('x-csrf-token')
+    const csrfCookie = request.cookies.get(CSRF_COOKIE_NAME)?.value
+
+    if (!csrfHeader || !csrfCookie) {
+      return NextResponse.json({ error: 'Invalid or missing CSRF token' }, { status: 403 })
+    }
+  }
 
   if (pathname.startsWith('/api/locations/detect') && request.method.toUpperCase() === 'POST') {
     const contentLengthHeader = request.headers.get('content-length')
@@ -135,62 +263,13 @@ export default async function proxy(request: NextRequest) {
 
     if (url && token) {
       try {
-        const upstashRedis = await eval("import('@upstash/redis')")
-          .catch(() => null) as unknown
-        const upstashRatelimit = await eval("import('@upstash/ratelimit')")
-          .catch(() => null) as unknown
-        if (!upstashRedis || !upstashRatelimit) {
-          console.warn('Upstash rate limiting deps missing; skipping')
+        const deps = await getUpstashDeps()
+        if (!deps) {
           return supabaseResponse
         }
 
-        const { Redis } = upstashRedis as { Redis: new (args: { url: string; token: string }) => unknown }
-        const { Ratelimit } = upstashRatelimit as {
-          Ratelimit: (new (args: { redis: unknown; limiter: unknown; prefix: string }) => {
-            limit: (key: string) => Promise<{ success: boolean; limit: number; remaining: number; reset: number }>
-          }) & {
-            slidingWindow: (tokens: number, window: string) => unknown
-          }
-        }
-
-        const redis = new Redis({ url, token })
         const ip = getClientIp(request)
-
-        let ratelimit: {
-          limit: (key: string) => Promise<{ success: boolean; limit: number; remaining: number; reset: number }>
-        }
-
-        if (rateLimitBucket === 'geo') {
-          ratelimit = new Ratelimit({
-            redis,
-            limiter: Ratelimit.slidingWindow(5, '1 m'),
-            prefix: 'rl:api:geo',
-          })
-        } else if (rateLimitBucket === 'clicks') {
-          ratelimit = new Ratelimit({
-            redis,
-            limiter: Ratelimit.slidingWindow(10, '1 m'),
-            prefix: 'rl:api:clicks',
-          })
-        } else if (rateLimitBucket === 'search') {
-          ratelimit = new Ratelimit({
-            redis,
-            limiter: Ratelimit.slidingWindow(60, '1 m'),
-            prefix: 'rl:api:search',
-          })
-        } else if (rateLimitBucket === 'rankings') {
-          ratelimit = new Ratelimit({
-            redis,
-            limiter: Ratelimit.slidingWindow(120, '1 m'),
-            prefix: 'rl:api:rankings',
-          })
-        } else {
-          ratelimit = new Ratelimit({
-            redis,
-            limiter: Ratelimit.slidingWindow(90, '1 m'),
-            prefix: 'rl:api:write',
-          })
-        }
+        const ratelimit = getOrCreateLimiter(rateLimitBucket, url, token, deps)
 
         const { success, limit, remaining, reset } = await ratelimit.limit(ip)
 
@@ -209,7 +288,10 @@ export default async function proxy(request: NextRequest) {
           )
         }
       } catch (error) {
-        console.warn('Upstash rate limiting unavailable:', error)
+        if (!upstashUnavailableWarningLogged) {
+          upstashUnavailableWarningLogged = true
+          console.warn('Upstash rate limiting unavailable:', error)
+        }
       }
     }
   }
@@ -236,19 +318,33 @@ export default async function proxy(request: NextRequest) {
           },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-            supabaseResponse = NextResponse.next({
-              request,
+            const updatedResponse = NextResponse.next({
+              request: {
+                headers: requestHeaders,
+              },
             })
+            mergeResponseMetadata(supabaseResponse, updatedResponse)
             cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options)
+              updatedResponse.cookies.set(name, value, options)
             )
+            supabaseResponse = updatedResponse
           },
         },
       }
     )
 
     try {
-      await supabase.auth.getUser()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user?.id) {
+        requestHeaders.set(INTERNAL_USER_ID_HEADER, user.id)
+        const updatedResponse = NextResponse.next({
+          request: {
+            headers: requestHeaders,
+          },
+        })
+        mergeResponseMetadata(supabaseResponse, updatedResponse)
+        supabaseResponse = updatedResponse
+      }
     } catch (error) {
       console.error('[Proxy Auth Error]:', error)
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })

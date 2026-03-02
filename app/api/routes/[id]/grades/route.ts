@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function GET(
   request: NextRequest,
@@ -22,7 +23,7 @@ export async function GET(
     }
   )
   
-  const { data: { user } } = await supabase.auth.getUser()
+  const { userId } = await resolveUserIdWithFallback(request, supabase)
   
   try {
     const { data: routeData, error: routeError } = await supabase
@@ -36,12 +37,12 @@ export async function GET(
     }
     
     let userVote = null
-    if (user) {
+    if (userId) {
       const { data: userGrade } = await supabase
         .from('route_grades')
         .select('grade')
         .eq('route_id', routeId)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .single()
       
       if (userGrade) {
@@ -104,13 +105,13 @@ export async function POST(
     }
   )
   
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
   
-  if (authError || !user) {
+  if (authError || !userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
 
-  const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+  const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
   const rateLimitResponse = createRateLimitResponse(rateLimitResult)
   if (!rateLimitResult.success) {
     return rateLimitResponse
@@ -140,7 +141,7 @@ export async function POST(
       .from('route_grades')
       .upsert({
         route_id: routeId,
-        user_id: user.id,
+        user_id: userId,
         grade
       }, {
         onConflict: 'route_id,user_id'

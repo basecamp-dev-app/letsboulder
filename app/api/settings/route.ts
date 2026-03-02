@@ -4,6 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/lib/submission-credit'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 const VALID_GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const
 const VALID_GRADE_SYSTEMS = ['font_scale', 'v_scale', 'yds_equivalent', 'french_equivalent', 'british_equivalent'] as const
@@ -48,16 +49,16 @@ export async function GET(request: NextRequest) {
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { data: profiles, error } = await supabase
       .from('profiles')
       .select('username, first_name, last_name, gender, height_cm, reach_cm, avatar_url, bio, boulder_system, route_system, trad_system, units, is_public, default_location, default_location_name, default_location_lat, default_location_lng, default_location_zoom, theme_preference, contribution_credit_platform, contribution_credit_handle')
-      .eq('id', user.id)
+      .eq('id', userId)
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1)
 
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
     const { count: imageCount } = await supabase
       .from('images')
       .select('*', { count: 'exact', head: true })
-      .eq('created_by', user.id)
+      .eq('created_by', userId)
 
       return NextResponse.json({
       settings: {
@@ -122,13 +123,13 @@ export async function PUT(request: NextRequest) {
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -243,7 +244,7 @@ export async function PUT(request: NextRequest) {
       const { data: currentProfiles } = await supabase
         .from('profiles')
         .select('first_name, last_name, name_updated_at')
-        .eq('id', user.id)
+        .eq('id', userId)
         .order('updated_at', { ascending: false, nullsFirst: false })
         .limit(1)
 
@@ -280,7 +281,7 @@ export async function PUT(request: NextRequest) {
     const { data: updatedRows, error: updateError } = await supabase
       .from('profiles')
       .update(updateData)
-      .eq('id', user.id)
+      .eq('id', userId)
       .select('id')
 
     if (updateError) {
@@ -290,7 +291,7 @@ export async function PUT(request: NextRequest) {
     if (!updatedRows || updatedRows.length === 0) {
       const { error: insertError } = await supabase
         .from('profiles')
-        .insert({ ...updateData, id: user.id })
+        .insert({ ...updateData, id: userId })
 
       if (insertError) {
         return createErrorResponse(insertError, 'INSERT error')

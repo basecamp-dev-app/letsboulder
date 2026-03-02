@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function GET(
   request: NextRequest,
@@ -23,13 +24,13 @@ export async function GET(
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -43,7 +44,7 @@ export async function GET(
       .from('climb_flags')
       .select('id, status, created_at')
       .eq('image_id', imageId)
-      .eq('flagger_id', user.id)
+      .eq('flagger_id', userId)
       .eq('status', 'pending')
       .single()
 

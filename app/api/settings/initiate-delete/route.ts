@@ -5,6 +5,7 @@ import { Resend } from 'resend'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 function getDeleteTokenSecret(): Uint8Array {
   const secret = process.env.DELETE_ACCOUNT_SECRET
@@ -42,13 +43,18 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
     if (!user || !user.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'sensitive', user.id)
+    const rateLimitResult = rateLimit(request, 'sensitive', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -57,7 +63,7 @@ export async function POST(request: NextRequest) {
     const deleteTokenSecret = getDeleteTokenSecret()
 
     const token = await new SignJWT({
-      userId: user.id,
+      userId,
       email: user.email,
       action: 'delete-account',
       deleteRouteUploads,

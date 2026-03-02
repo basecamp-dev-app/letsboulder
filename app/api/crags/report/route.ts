@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 interface ReportCragRequest {
   crag_id: string
@@ -21,9 +22,9 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 
-    if (authError || !user) {
+    if (authError || !userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
         crag_id,
         reason,
         status: 'pending',
-        reporter_id: user.id,
+        reporter_id: userId,
       })
 
     if (reportError) {

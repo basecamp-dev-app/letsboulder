@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function DELETE(
   request: NextRequest,
@@ -25,12 +26,12 @@ export async function DELETE(
   )
   
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -42,7 +43,7 @@ export async function DELETE(
       .from('user_climbs')
       .delete()
       .eq('id', id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
 
     if (error) {
       return createErrorResponse(error, 'Delete log error')

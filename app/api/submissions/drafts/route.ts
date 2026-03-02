@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export const runtime = 'nodejs'
 
@@ -58,12 +59,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const [authResult, body] = await Promise.all([
-      supabase.auth.getUser(),
+      resolveUserIdWithFallback(request, supabase),
       request.json().catch(() => null),
     ])
 
-    const { data: { user }, error: authError } = authResult
-    if (authError || !user) {
+    const { userId, authError } = authResult
+    if (authError || !userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'images must be a non-empty array' }, { status: 400 })
     }
 
-    const userPrefix = `${user.id}/`
+    const userPrefix = `${userId}/`
     for (const image of images) {
       if (!image.uploadedPath.startsWith(userPrefix)) {
         return NextResponse.json({ error: 'Invalid uploaded path owner' }, { status: 403 })
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
     const { data: existingDraft, error: existingDraftError } = await supabase
       .from('submission_drafts')
       .select('id, user_id, crag_id, status, metadata, created_at, updated_at')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('status', 'draft')
       .contains('metadata', { uploadSignature })
       .order('updated_at', { ascending: false })
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
     }
 
     const draftInsert = {
-      user_id: user.id,
+      user_id: userId,
       crag_id: typeof body?.cragId === 'string' ? body.cragId : null,
       status: 'draft' as const,
       metadata,

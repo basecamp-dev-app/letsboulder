@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
@@ -11,13 +12,13 @@ export async function GET(request: NextRequest) {
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
+    if (!userId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
 
     const { data: memberships, error: membershipsError } = await supabase
       .from('gym_memberships')
       .select('gym_place_id, role, status')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('status', 'active')
 
     if (membershipsError) return createErrorResponse(membershipsError, 'Failed to load gym memberships')

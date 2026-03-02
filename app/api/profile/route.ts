@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
@@ -21,16 +22,16 @@ export async function GET(request: NextRequest) {
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (error) {
@@ -63,13 +64,13 @@ export async function PUT(request: NextRequest) {
   )
 
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { userId } = await resolveUserIdWithFallback(request, supabase)
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -111,7 +112,7 @@ export async function PUT(request: NextRequest) {
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('email')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
     if (!existingProfile?.email) {
@@ -124,7 +125,7 @@ export async function PUT(request: NextRequest) {
     const { data: updated, error: updateError } = await supabase
       .from('profiles')
       .update(updateData)
-      .eq('id', user.id)
+      .eq('id', userId)
       .select()
       .single()
 

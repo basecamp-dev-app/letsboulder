@@ -4,6 +4,7 @@ import { rateLimit, RATE_LIMITS, createRateLimitResponse } from '@/lib/rate-limi
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { makeUniqueSlug } from '@/lib/slug'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 type PlaceType = 'crag' | 'gym'
 
@@ -45,13 +46,13 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 
-    if (authError || !user) {
+    if (authError || !userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
@@ -92,12 +93,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (type === 'gym') {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+
       const appMetadata = (user.app_metadata || {}) as Record<string, unknown>
       const hasGymOwnerClaim = appMetadata.gym_owner === true || appMetadata.gymOwner === true
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_admin')
-        .eq('id', user.id)
+        .eq('id', userId)
         .maybeSingle()
 
       const isAdmin = profile?.is_admin === true
