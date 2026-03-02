@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import 'leaflet/dist/leaflet.css'
 import { FACE_DIRECTIONS } from '@/lib/submission-types'
-import type { FaceDirection, GpsData, NewUploadedImage } from '@/lib/submission-types'
+import type { FaceDirection, FaceDirectionsByImage, GpsData, NewUploadedImage } from '@/lib/submission-types'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
@@ -16,8 +16,8 @@ interface FaceDirectionPickerProps {
   gps: GpsData | null
   images: NewUploadedImage[]
   activeImageIndex: number
-  initialFaceDirections?: FaceDirection[]
-  onConfirm: (faceDirections: FaceDirection[]) => void
+  initialFaceDirectionsByImage?: FaceDirectionsByImage
+  onConfirm: (faceDirectionsByImage: FaceDirectionsByImage) => void
 }
 
 const FACE_DIRECTION_DEGREES: Record<FaceDirection, number> = {
@@ -31,10 +31,8 @@ const FACE_DIRECTION_DEGREES: Record<FaceDirection, number> = {
   NW: 315,
 }
 
-export default function FaceDirectionPicker({ gps, images, activeImageIndex, initialFaceDirections = [], onConfirm }: FaceDirectionPickerProps) {
-  const [orientationsByImage, setOrientationsByImage] = useState<Record<number, FaceDirection[]>>(() => (
-    initialFaceDirections.length > 0 ? { [Math.max(0, activeImageIndex)]: initialFaceDirections } : {}
-  ))
+export default function FaceDirectionPicker({ gps, images, activeImageIndex, initialFaceDirectionsByImage = {}, onConfirm }: FaceDirectionPickerProps) {
+  const [orientationsByImage, setOrientationsByImage] = useState<FaceDirectionsByImage>(() => initialFaceDirectionsByImage)
   const [currentImageIndex, setCurrentImageIndex] = useState(() => Math.max(0, activeImageIndex))
   const [isClient, setIsClient] = useState(false)
   const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
@@ -57,21 +55,31 @@ export default function FaceDirectionPicker({ gps, images, activeImageIndex, ini
   useEffect(() => {
     const clampedActiveIndex = Math.min(Math.max(activeImageIndex, 0), maxImageIndex)
     setCurrentImageIndex(clampedActiveIndex)
-    setOrientationsByImage(initialFaceDirections.length > 0 ? { [clampedActiveIndex]: initialFaceDirections } : {})
-  }, [activeImageIndex, initialFaceDirections, maxImageIndex])
+    setOrientationsByImage(initialFaceDirectionsByImage)
+  }, [activeImageIndex, initialFaceDirectionsByImage, maxImageIndex])
 
   const handleConfirm = () => {
-    const selectedDirections = new Set<FaceDirection>()
-    Object.values(orientationsByImage).forEach((directions) => {
-      directions.forEach((direction) => {
-        selectedDirections.add(direction)
-      })
-    })
+    const normalizedByImage: FaceDirectionsByImage = {}
 
-    const consolidatedDirections = FACE_DIRECTIONS.filter((direction) => selectedDirections.has(direction))
-    if (consolidatedDirections.length === 0) return
-    onConfirm(consolidatedDirections)
+    for (const [rawIndex, directions] of Object.entries(orientationsByImage)) {
+      const index = Number(rawIndex)
+      if (!Number.isInteger(index) || index < 0 || index > maxImageIndex) continue
+      const uniqueDirections = FACE_DIRECTIONS.filter((direction) => (directions || []).includes(direction))
+      if (uniqueDirections.length > 0) {
+        normalizedByImage[index] = uniqueDirections
+      }
+    }
+
+    if (Object.keys(normalizedByImage).length === 0) return
+    onConfirm(normalizedByImage)
   }
+
+  const completedImageCount = hasBatchImages
+    ? images.filter((_, index) => (orientationsByImage[index] || []).length > 0).length
+    : currentFaceDirections.length > 0 ? 1 : 0
+  const canConfirm = hasBatchImages
+    ? completedImageCount === images.length && images.length > 0
+    : currentFaceDirections.length > 0
 
   const handleDirectionToggle = (direction: FaceDirection) => {
     let nextImageIndex: number | null = null
@@ -169,6 +177,11 @@ export default function FaceDirectionPicker({ gps, images, activeImageIndex, ini
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           Pick the direction the wall faces from your pin.
         </p>
+        {hasBatchImages && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {completedImageCount}/{images.length} photos set.
+          </p>
+        )}
         {currentFaceDirections.length > 0 ? (
           <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">Selected: {currentFaceDirections.join(', ')}</p>
         ) : (
@@ -261,7 +274,7 @@ export default function FaceDirectionPicker({ gps, images, activeImageIndex, ini
 
       <button
         onClick={handleConfirm}
-        disabled={Object.values(orientationsByImage).flat().length === 0 || !gps}
+        disabled={!canConfirm || !gps}
         className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
       >
         Confirm Face Directions

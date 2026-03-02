@@ -138,6 +138,7 @@ export interface GpsData {
 export const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
 
 export type FaceDirection = typeof FACE_DIRECTIONS[number]
+export type FaceDirectionsByImage = Record<number, FaceDirection[]>
 
 export type ImageSelection = ExistingImageSelection | NewImageSelection | CragImageSelection
 
@@ -147,7 +148,7 @@ export interface SubmissionContext {
   crag: Pick<Crag, 'id' | 'name' | 'latitude' | 'longitude'> | null
   image: ImageSelection | null
   imageGps: { latitude: number; longitude: number } | null
-  faceDirections: FaceDirection[]
+  faceDirectionsByImage: FaceDirectionsByImage
   routes: NewRouteData[]
   routeType: ClimbType | null
 }

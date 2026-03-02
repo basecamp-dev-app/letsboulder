@@ -634,7 +634,7 @@ export default function ClimbPage() {
         const primaryImage: ImageInfo = {
           ...primaryImageData,
           url: getInitialViewerImageUrl(primaryImageData.url),
-          face_directions: null,
+          face_directions: primaryImageData.face_directions ?? null,
         }
 
         if (cancelled) return
@@ -754,7 +754,7 @@ export default function ClimbPage() {
                   created_by: primaryBaseImage?.created_by || null,
                   contribution_credit_platform: primaryBaseImage?.contribution_credit_platform || null,
                   contribution_credit_handle: primaryBaseImage?.contribution_credit_handle || null,
-                  face_directions: face.face_directions ?? primaryBaseImage?.face_directions ?? null,
+                  face_directions: face.face_directions ?? null,
                 }
               : {
                   id: resolvedImageId,
@@ -767,7 +767,7 @@ export default function ClimbPage() {
                   created_by: primaryBaseImage?.created_by || baseImage?.created_by || null,
                   contribution_credit_platform: primaryBaseImage?.contribution_credit_platform || baseImage?.contribution_credit_platform || null,
                   contribution_credit_handle: primaryBaseImage?.contribution_credit_handle || baseImage?.contribution_credit_handle || null,
-                  face_directions: face.face_directions ?? baseImage?.face_directions ?? null,
+                  face_directions: face.face_directions ?? null,
                 }
 
             nextCache[resolvedImageId] = {

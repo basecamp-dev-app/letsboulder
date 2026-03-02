@@ -29,7 +29,8 @@ interface NewImageSubmission {
   images: NewSubmissionImage[]
   primaryIndex: number
   cragId: string
-  faceDirections: Array<(typeof VALID_FACE_DIRECTIONS)[number]>
+  faceDirectionsByImage?: Record<string, Array<(typeof VALID_FACE_DIRECTIONS)[number]>>
+  faceDirections?: Array<(typeof VALID_FACE_DIRECTIONS)[number]>
   routes: NewRouteData[]
   routeType?: (typeof VALID_ROUTE_TYPES)[number]
 }
@@ -139,6 +140,27 @@ function normalizeRouteType(value: unknown): (typeof VALID_ROUTE_TYPES)[number] 
   return normalized as (typeof VALID_ROUTE_TYPES)[number]
 }
 
+function normalizeFaceDirectionsByImage(
+  value: unknown,
+  imageCount: number
+): Record<number, Array<(typeof VALID_FACE_DIRECTIONS)[number]>> {
+  const normalized: Record<number, Array<(typeof VALID_FACE_DIRECTIONS)[number]>> = {}
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return normalized
+
+  for (const [rawIndex, rawDirections] of Object.entries(value)) {
+    const index = Number(rawIndex)
+    if (!Number.isInteger(index) || index < 0 || index >= imageCount) continue
+    if (!Array.isArray(rawDirections) || rawDirections.length === 0) continue
+    const unique = Array.from(new Set(rawDirections))
+      .filter((direction): direction is (typeof VALID_FACE_DIRECTIONS)[number] => VALID_FACE_DIRECTIONS.includes(direction as (typeof VALID_FACE_DIRECTIONS)[number]))
+    if (unique.length > 0) {
+      normalized[index] = unique
+    }
+  }
+
+  return normalized
+}
+
 export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
@@ -235,18 +257,30 @@ export async function POST(request: NextRequest) {
       return response
     }
 
+    let normalizedFaceDirectionsByImage: Record<number, Array<(typeof VALID_FACE_DIRECTIONS)[number]>> = {}
     if (body.mode === 'new') {
-      if (!Array.isArray(body.faceDirections) || body.faceDirections.length === 0) {
-        response = NextResponse.json({ error: 'At least one face direction is required' }, { status: 400 })
+      if (!Array.isArray(body.images) || body.images.length === 0) {
+        response = NextResponse.json({ error: 'At least one image is required' }, { status: 400 })
         return response
       }
 
-      const hasInvalidFaceDirection = body.faceDirections.some(
-        (faceDirection) => !VALID_FACE_DIRECTIONS.includes(faceDirection)
-      )
+      normalizedFaceDirectionsByImage = normalizeFaceDirectionsByImage(body.faceDirectionsByImage, body.images.length)
 
-      if (hasInvalidFaceDirection) {
-        response = NextResponse.json({ error: 'Invalid face direction value provided' }, { status: 400 })
+      if (Object.keys(normalizedFaceDirectionsByImage).length === 0 && Array.isArray(body.faceDirections)) {
+        const legacyDirections = Array.from(new Set(body.faceDirections))
+          .filter((direction): direction is (typeof VALID_FACE_DIRECTIONS)[number] => VALID_FACE_DIRECTIONS.includes(direction as (typeof VALID_FACE_DIRECTIONS)[number]))
+        if (
+          legacyDirections.length > 0
+          && Number.isInteger(body.primaryIndex)
+          && body.primaryIndex >= 0
+          && body.primaryIndex < body.images.length
+        ) {
+          normalizedFaceDirectionsByImage[body.primaryIndex] = legacyDirections
+        }
+      }
+
+      if (Object.keys(normalizedFaceDirectionsByImage).length === 0) {
+        response = NextResponse.json({ error: 'At least one face direction is required' }, { status: 400 })
         return response
       }
     }
@@ -416,6 +450,16 @@ export async function POST(request: NextRequest) {
       }
 
       primaryNewImage = validatedNewImages[body.primaryIndex]
+
+      const allImagesHaveDirections = validatedNewImages.every((_, index) => {
+        const directions = normalizedFaceDirectionsByImage[index] || []
+        return directions.length > 0
+      })
+
+      if (!allImagesHaveDirections) {
+        response = NextResponse.json({ error: 'Each image must include at least one face direction' }, { status: 400 })
+        return response
+      }
     } else if (body.mode === 'existing') {
       if (!body.imageId) {
         response = NextResponse.json({ error: 'Image ID is required' }, { status: 400 })
@@ -594,15 +638,20 @@ export async function POST(request: NextRequest) {
         height: primaryNewImage.height,
         natural_width: primaryNewImage.naturalWidth,
         natural_height: primaryNewImage.naturalHeight,
-        face_directions: body.faceDirections,
+        face_directions: normalizedFaceDirectionsByImage[body.primaryIndex] || [],
       }
 
       const supplementaryPayload = validatedNewImages
-        .filter((_, index) => index !== body.primaryIndex)
-        .map((img) => ({
+        .map((img, index) => ({
+          img,
+          index,
+        }))
+        .filter(({ index }) => index !== body.primaryIndex)
+        .map(({ img, index }) => ({
           url: `private://${img.uploadedBucket}/${img.uploadedPath}`,
           width: img.width,
           height: img.height,
+          face_directions: normalizedFaceDirectionsByImage[index] || [],
         }))
 
       const { data: unifiedData, error: unifiedError } = await supabase.rpc('create_unified_submission_atomic', {
@@ -627,6 +676,31 @@ export async function POST(request: NextRequest) {
       routeLinesCreatedCount = unifiedResult.route_lines_created || routePayload.length
       supplementaryCreatedCount = unifiedResult.supplementary_created || 0
       supplementaryCragImageIds = Array.isArray(unifiedResult.crag_image_ids) ? unifiedResult.crag_image_ids : []
+
+      if (supplementaryCragImageIds.length > 0) {
+        const imageClient = supabaseAdmin || supabase
+        const updates = supplementaryPayload
+          .map((supplementary, index) => {
+            const cragImageId = supplementaryCragImageIds[index]
+            if (!cragImageId) return null
+            return {
+              id: cragImageId,
+              face_directions: supplementary.face_directions,
+            }
+          })
+          .filter((item): item is { id: string; face_directions: Array<(typeof VALID_FACE_DIRECTIONS)[number]> } => item !== null)
+
+        for (const update of updates) {
+          const { error: updateFaceDirectionsError } = await imageClient
+            .from('crag_images')
+            .update({ face_directions: update.face_directions })
+            .eq('id', update.id)
+
+          if (updateFaceDirectionsError) {
+            return createErrorResponse(updateFaceDirectionsError, 'Error applying face directions to supplementary image')
+          }
+        }
+      }
 
       const createdClimbIds = Array.isArray(unifiedResult.climb_ids) ? unifiedResult.climb_ids : []
       const createdRouteLineIds = Array.isArray(unifiedResult.route_line_ids) ? unifiedResult.route_line_ids : []
@@ -822,7 +896,7 @@ export async function GET() {
     method: 'POST',
     required_fields: {
       common: ['routes (array with name, grade, points, sequenceOrder)'],
-      new_image_mode: ['mode: "new"', 'images[]', 'primaryIndex', 'faceDirections', 'cragId'],
+      new_image_mode: ['mode: "new"', 'images[]', 'primaryIndex', 'faceDirectionsByImage', 'cragId'],
       existing_image_mode: ['mode: "existing"', 'imageId'],
       crag_image_mode: ['mode: "crag_image"', 'cragImageId']
     },

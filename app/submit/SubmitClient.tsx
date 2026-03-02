@@ -6,7 +6,7 @@ import Link from 'next/link'
 import nextDynamic from 'next/dynamic'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData, ClimbType, FaceDirection, NewUploadedImage } from '@/lib/submission-types'
+import type { SubmissionStep, Crag, ImageSelection, NewRouteData, SubmissionContext, GpsData, ClimbType, FaceDirection, FaceDirectionsByImage, NewUploadedImage } from '@/lib/submission-types'
 import { csrfFetch, refreshCsrfToken } from '@/hooks/useCsrf'
 import { useSubmitContext } from '@/lib/submit-context'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
@@ -95,7 +95,7 @@ interface RouteDraftIndexEntry {
   image: DraftImageSelectionSnapshot
   crag: NonNullable<SubmissionContext['crag']>
   imageGps: SubmissionContext['imageGps']
-  faceDirections: FaceDirection[]
+  faceDirectionsByImage: FaceDirectionsByImage
 }
 
 function readDraftIndex(): RouteDraftIndexEntry[] {
@@ -116,6 +116,29 @@ function readDraftIndex(): RouteDraftIndexEntry[] {
         ...entry,
         expiresAt: typeof entry.expiresAt === 'number' ? entry.expiresAt : entry.updatedAt + DRAFT_TTL_MS,
         routeCount: typeof entry.routeCount === 'number' ? entry.routeCount : 0,
+        faceDirectionsByImage: (() => {
+          const candidate = (entry as { faceDirectionsByImage?: unknown }).faceDirectionsByImage
+          if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+            const normalized: FaceDirectionsByImage = {}
+            for (const [rawIndex, rawDirections] of Object.entries(candidate)) {
+              const index = Number(rawIndex)
+              if (!Number.isInteger(index) || index < 0) continue
+              if (!Array.isArray(rawDirections)) continue
+              const directions = FACE_DIRECTIONS.filter((direction) => rawDirections.includes(direction))
+              if (directions.length > 0) {
+                normalized[index] = directions
+              }
+            }
+            return normalized
+          }
+
+          const legacy = (entry as { faceDirections?: unknown[] }).faceDirections
+          const legacyDirections = Array.isArray(legacy)
+            ? FACE_DIRECTIONS.filter((direction) => legacy.includes(direction))
+            : []
+
+          return legacyDirections.length > 0 ? { 0: legacyDirections } : {}
+        })(),
       }))
   } catch {
     return []
@@ -275,7 +298,7 @@ function SubmitPageContent() {
     crag: null,
     image: null,
     imageGps: null,
-    faceDirections: [],
+    faceDirectionsByImage: {},
     routes: [],
     routeType: null
   })
@@ -308,7 +331,7 @@ function SubmitPageContent() {
   const hasShownRejectionToastRef = useRef(false)
   const submitRoutesRef = useRef<((routeType?: ClimbType) => Promise<void>) | null>(null)
   const latestRoutesRef = useRef<NewRouteData[]>([])
-  const latestFaceDirectionsRef = useRef<FaceDirection[]>([])
+  const latestFaceDirectionsByImageRef = useRef<FaceDirectionsByImage>({})
   const routesLengthRef = useRef(0)
   const isSubmittingRef = useRef(false)
   const serverDraftLoadedRef = useRef(false)
@@ -415,7 +438,7 @@ function SubmitPageContent() {
           }
 
           const gps = { latitude: data.latitude, longitude: data.longitude }
-          setContext(prev => ({ ...prev, image: newImageSelection, imageGps: gps, faceDirections: [] }))
+          setContext(prev => ({ ...prev, image: newImageSelection, imageGps: gps, faceDirectionsByImage: {} }))
           setStep({
             step: 'faceDirection',
             imageGps: gps
@@ -498,12 +521,30 @@ function SubmitPageContent() {
             }
           : null
 
-        const metadataFaceDirections = Array.isArray((metadata as { faceDirections?: unknown }).faceDirections)
-          ? (metadata as { faceDirections: unknown[] }).faceDirections
-          : []
+        const metadataFaceDirectionsByImage = (metadata as { faceDirectionsByImage?: unknown }).faceDirectionsByImage
+        const nextFaceDirectionsByImage: FaceDirectionsByImage = {}
 
-        const nextFaceDirections = metadataFaceDirections
-          .filter((value): value is FaceDirection => typeof value === 'string' && FACE_DIRECTIONS.includes(value as FaceDirection))
+        if (metadataFaceDirectionsByImage && typeof metadataFaceDirectionsByImage === 'object' && !Array.isArray(metadataFaceDirectionsByImage)) {
+          for (const [rawIndex, rawDirections] of Object.entries(metadataFaceDirectionsByImage)) {
+            const index = Number(rawIndex)
+            if (!Number.isInteger(index) || index < 0 || index >= uploadedImages.length) continue
+            if (!Array.isArray(rawDirections)) continue
+            const normalized = FACE_DIRECTIONS.filter((direction) => rawDirections.includes(direction))
+            if (normalized.length > 0) {
+              nextFaceDirectionsByImage[index] = normalized
+            }
+          }
+        }
+
+        if (Object.keys(nextFaceDirectionsByImage).length === 0) {
+          const metadataFaceDirections = Array.isArray((metadata as { faceDirections?: unknown }).faceDirections)
+            ? (metadata as { faceDirections: unknown[] }).faceDirections
+            : []
+          const legacyNormalized = FACE_DIRECTIONS.filter((direction) => metadataFaceDirections.includes(direction))
+          if (legacyNormalized.length > 0) {
+            nextFaceDirectionsByImage[primaryIndex] = legacyNormalized
+          }
+        }
 
         const primaryImageId = images[primaryIndex]?.id || images[0]?.id || 'server'
         const serverDraftKey = `${ROUTE_DRAFT_PREFIX}server:${draft.id}:${primaryImageId}`
@@ -534,7 +575,7 @@ function SubmitPageContent() {
           ...prev,
           image: selection,
           imageGps: null,
-          faceDirections: nextFaceDirections,
+          faceDirectionsByImage: nextFaceDirectionsByImage,
           crag: nextCrag,
           routes: [],
         }))
@@ -613,7 +654,7 @@ function SubmitPageContent() {
       image: toImageSnapshot(context.image),
       crag: context.crag,
       imageGps: resolvedImageGps,
-      faceDirections: context.faceDirections,
+      faceDirectionsByImage: context.faceDirectionsByImage,
     })
   }, [step.step, activeDraftKey, context, context.routes.length])
 
@@ -645,12 +686,12 @@ function SubmitPageContent() {
     }
 
     const gps = resolvedGps ? { latitude: resolvedGps.latitude, longitude: resolvedGps.longitude } : null
-    latestFaceDirectionsRef.current = []
+    latestFaceDirectionsByImageRef.current = {}
     setDrawSessionVersion(0)
     setPendingFaces([])
     setBatchTotalFaces(selection.mode === 'new' && selection.images.length > 1 ? selection.images.length : null)
     setBatchCurrentFace(selection.mode === 'new' && selection.images.length > 1 ? 1 : null)
-    setContext(prev => ({ ...prev, image: selection, imageGps: gps, faceDirections: [] }))
+    setContext(prev => ({ ...prev, image: selection, imageGps: gps, faceDirectionsByImage: {} }))
 
     setStep({
       step: 'location',
@@ -684,7 +725,7 @@ function SubmitPageContent() {
             })),
             metadata: {
               primaryIndex: imageSelection.primaryIndex,
-              faceDirections: context.faceDirections,
+              faceDirectionsByImage: context.faceDirectionsByImage,
             },
           }),
         })
@@ -717,7 +758,7 @@ function SubmitPageContent() {
     return () => {
       cancelled = true
     }
-  }, [context.image, context.faceDirections, serverDraftSession, addToast])
+  }, [context.image, context.faceDirectionsByImage, serverDraftSession, addToast])
 
   useEffect(() => {
     if (!serverDraftSession) return
@@ -773,9 +814,9 @@ function SubmitPageContent() {
     })
   }, [])
 
-  const handleFaceDirectionConfirm = useCallback((faceDirections: FaceDirection[]) => {
-    latestFaceDirectionsRef.current = faceDirections
-    setContext(prev => ({ ...prev, faceDirections }))
+  const handleFaceDirectionConfirm = useCallback((faceDirectionsByImage: FaceDirectionsByImage) => {
+    latestFaceDirectionsByImageRef.current = faceDirectionsByImage
+    setContext(prev => ({ ...prev, faceDirectionsByImage }))
     setStep({
       step: 'crag',
       imageGps: context.imageGps
@@ -815,7 +856,7 @@ function SubmitPageContent() {
       ...prev,
       image: selection,
       imageGps: null,
-      faceDirections: [],
+      faceDirectionsByImage: {},
       crag: { id: crag.id, name: crag.name, latitude: crag.latitude, longitude: crag.longitude },
     }))
 
@@ -942,7 +983,9 @@ function SubmitPageContent() {
     const stepCragId = 'cragId' in step ? step.cragId : undefined
     const imageToSubmit = context.image || stepImage || null
     const cragIdToSubmit = context.crag?.id || stepCragId
-    const faceDirectionsToSubmit = context.faceDirections.length > 0 ? context.faceDirections : latestFaceDirectionsRef.current
+    const faceDirectionsByImageToSubmit = Object.keys(context.faceDirectionsByImage).length > 0
+      ? context.faceDirectionsByImage
+      : latestFaceDirectionsByImageRef.current
 
     if (!imageToSubmit || !cragIdToSubmit || routesToSubmit.length === 0) {
       setError('Incomplete submission data')
@@ -974,7 +1017,7 @@ function SubmitPageContent() {
               gpsData: index === imageToSubmit.primaryIndex ? (resolvedImageGps || image.gpsData) : image.gpsData,
             })),
             primaryIndex: imageToSubmit.primaryIndex,
-            faceDirections: faceDirectionsToSubmit,
+            faceDirectionsByImage: faceDirectionsByImageToSubmit,
             cragId: cragIdToSubmit,
             routes: routesToSubmit,
           }
@@ -996,7 +1039,35 @@ function SubmitPageContent() {
         return
       }
 
-      if (imageToSubmit.mode === 'new' && faceDirectionsToSubmit.length === 0) {
+      if (imageToSubmit.mode === 'new' && Object.keys(faceDirectionsByImageToSubmit).length === 0) {
+        setError('Please select face directions before submitting')
+        setIsSubmitting(false)
+        return
+      }
+
+      if (imageToSubmit.mode === 'new') {
+        const allImagesHaveDirections = imageToSubmit.images.every((_, index) => {
+          const directions = faceDirectionsByImageToSubmit[index] || []
+          return directions.length > 0
+        })
+
+        if (!allImagesHaveDirections) {
+          setError('Please select at least one face direction for each photo before submitting')
+          setIsSubmitting(false)
+          return
+        }
+      }
+
+      if (imageToSubmit.mode === 'new') {
+        const primaryDirections = faceDirectionsByImageToSubmit[imageToSubmit.primaryIndex] || []
+        if (primaryDirections.length === 0) {
+          setError('Primary photo must have at least one face direction')
+          setIsSubmitting(false)
+          return
+        }
+      }
+
+      if (imageToSubmit.mode === 'new' && Object.values(faceDirectionsByImageToSubmit).flat().length === 0) {
         setError('Please select at least one face direction before submitting')
         setIsSubmitting(false)
         return
@@ -1108,9 +1179,9 @@ function SubmitPageContent() {
       draftStorageRemoveItem(activeDraftKey)
       removeDraftIndexEntry(activeDraftKey)
     }
-    setContext({ crag: null, image: null, imageGps: null, faceDirections: [], routes: [], routeType: null })
+    setContext({ crag: null, image: null, imageGps: null, faceDirectionsByImage: {}, routes: [], routeType: null })
     latestRoutesRef.current = []
-    latestFaceDirectionsRef.current = []
+    latestFaceDirectionsByImageRef.current = {}
     setSelectedRouteType(null)
     setPendingFaces([])
     setBatchTotalFaces(null)
@@ -1208,7 +1279,7 @@ function SubmitPageContent() {
       crag: resumableDraftEntry.crag,
       image,
       imageGps: resumableDraftEntry.imageGps,
-      faceDirections: resumableDraftEntry.faceDirections,
+      faceDirectionsByImage: resumableDraftEntry.faceDirectionsByImage,
       routes: [],
     }))
     setStep({
@@ -1317,13 +1388,13 @@ function SubmitPageContent() {
             </button>
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Set Face Direction</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              These face directions apply to this single pinned submission across all selected photos.
+              Set one or more face directions for each photo.
             </p>
             <FaceDirectionPicker
               gps={context.imageGps}
               images={context.image?.mode === 'new' ? context.image.images : []}
               activeImageIndex={context.image?.mode === 'new' ? context.image.primaryIndex : 0}
-              initialFaceDirections={context.faceDirections}
+              initialFaceDirectionsByImage={context.faceDirectionsByImage}
               onConfirm={handleFaceDirectionConfirm}
             />
           </div>
