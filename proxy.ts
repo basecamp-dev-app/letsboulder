@@ -26,6 +26,22 @@ const SESSION_REFRESH_PREFIXES = [
   '/logbook',
 ]
 
+const PROTECTED_STATE_CHANGING_PREFIXES = [
+  '/api/notifications',
+  '/api/submissions',
+  '/api/places',
+  '/api/gym-admin',
+  '/api/routes/submit',
+  '/api/settings',
+  '/api/profile',
+  '/api/log-routes',
+  '/api/flags',
+  '/api/moderation',
+  '/api/logs',
+  '/api/crags/report',
+  '/api/corrections',
+]
+
 const LOCATION_DETECT_MAX_BODY_BYTES = 2 * 1024
 
 type UpstashRedisCtor = new (args: { url: string; token: string }) => unknown
@@ -190,7 +206,18 @@ function isAllowedRedirectPath(path: string): boolean {
 function shouldRefreshSupabaseSession(pathname: string, method: string): boolean {
   if (pathname.startsWith('/auth')) return true
 
-  if (isStateChangingMethod(method)) return true
+  if (isStateChangingMethod(method)) {
+    if (PROTECTED_STATE_CHANGING_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+      return true
+    }
+
+    if (pathname.match(/^\/api\/climbs\/[^/]+\/(flag|grade-vote|correction|verify)$/)) return true
+    if (pathname.match(/^\/api\/images\/[^/]+\/(flag|flags)$/)) return true
+    if (pathname.match(/^\/api\/routes\/[^/]+\/grades$/)) return true
+    if (pathname.match(/^\/api\/comments\/[^/]+$/)) return true
+
+    return false
+  }
 
   return SESSION_REFRESH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 }
@@ -366,7 +393,7 @@ export const config = {
     '/logbook/:path*',
     '/api/notifications/:path*',
     '/api/submissions/:path*',
-    '/api/places/:path*',
+    '/api/places',
     '/api/gym-admin/:path*',
     '/api/routes/submit/:path*',
     '/api/settings/:path*',
@@ -383,7 +410,7 @@ export const config = {
     '/api/climbs/(.*)/verify',
     '/api/images/(.*)/flag',
     '/api/images/(.*)/flags',
-    '/api/comments/:path*',
+    '/api/comments/(.*)',
     '/api/routes/(.*)/grades',
     '/api/corrections/(.*)/vote',
   ],
