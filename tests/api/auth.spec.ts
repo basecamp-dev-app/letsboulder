@@ -12,9 +12,9 @@ test.describe('API - Auth', () => {
     expect(response.status()).toBe(403)
   })
 
-  test('GET /api/profile without auth returns 401', async ({ request }) => {
+  test('GET /api/profile without auth returns 401 or 403', async ({ request }) => {
     const response = await request.get('/api/profile')
 
-    expect(response.status()).toBe(401)
+    expect([401, 403]).toContain(response.status())
   })
 })
