@@ -1385,7 +1385,7 @@ function SubmitPageContent() {
           <div className="max-w-md mx-auto">
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Upload Route Photo</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              <strong>One boulder or wall per submission.</strong> You can attach multiple photos and edit later from your logbook. Photos with people will be rejected. GPS metadata suggests nearby crags.
+              <strong>One boulder or wall per submission.</strong> You can attach multiple photos and edit later from your logbook. GPS metadata suggests nearby crags.
             </p>
             {resumableDraftRouteCount > 0 && resumableDraftEntry && (
               <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-700/60 dark:bg-amber-900/20">
