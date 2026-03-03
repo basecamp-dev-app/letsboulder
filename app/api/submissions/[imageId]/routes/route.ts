@@ -7,6 +7,8 @@ import { makeUniqueSlug } from '@/lib/slug'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { revalidatePath } from 'next/cache'
 
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
 interface RoutePoint {
   x: number
   y: number
@@ -139,6 +141,14 @@ export async function POST(
     }
   )
 
+  const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY
+    ? createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        SUPABASE_SERVICE_ROLE_KEY,
+        { cookies: { getAll() { return [] }, setAll() {} } }
+      )
+    : null
+
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
     if (authError || !userId) {
@@ -199,8 +209,22 @@ export async function POST(
       return NextResponse.json({ error: 'Image not found' }, { status: 404 })
     }
 
-    if (image.created_by !== userId) {
-      return NextResponse.json({ error: 'Only the original submitter can add routes to this image' }, { status: 403 })
+    const imageOwnerId = typeof image.created_by === 'string' ? image.created_by : null
+    if (!imageOwnerId) {
+      return NextResponse.json({ error: 'This submission is not editable' }, { status: 403 })
+    }
+
+    if (imageOwnerId !== userId) {
+      const { data: collaboratorAccess, error: collaboratorError } = await supabase
+        .from('submission_collaborators')
+        .select('image_id')
+        .eq('image_id', imageId)
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (collaboratorError || !collaboratorAccess) {
+        return NextResponse.json({ error: 'Only the owner or a collaborator can add routes to this image' }, { status: 403 })
+      }
     }
 
     const { data: existingRouteLines, error: existingRouteLinesError } = await supabase
@@ -264,12 +288,14 @@ export async function POST(
         description: route.description?.trim() || null,
         route_type: resolvedRouteType,
         status: 'approved' as const,
-        user_id: userId,
+        user_id: imageOwnerId,
         crag_id: image.crag_id,
       }
     })
 
-    const { data: climbs, error: climbsError } = await supabase
+    const writeClient = supabaseAdmin || supabase
+
+    const { data: climbs, error: climbsError } = await writeClient
       .from('climbs')
       .insert(climbsData)
       .select('id')
@@ -292,13 +318,18 @@ export async function POST(
       image_height: routes[index].imageHeight,
     }))
 
-    const { error: routeLinesError } = await supabase
+    const { error: routeLinesError } = await writeClient
       .from('route_lines')
       .insert(routeLinesData)
 
     if (routeLinesError) {
       return createErrorResponse(routeLinesError, 'Create routes error')
     }
+
+    await writeClient
+      .from('images')
+      .update({ last_edited_by: userId })
+      .eq('id', imageId)
 
     revalidatePath('/')
     if (image.crag_id) {
@@ -391,6 +422,10 @@ export async function PUT(
     })
 
     if (updateError) {
+      const message = (updateError.message || '').toLowerCase()
+      if (message.includes('permission')) {
+        return NextResponse.json({ error: 'Only the owner or a collaborator can edit routes for this image' }, { status: 403 })
+      }
       return createErrorResponse(updateError, 'Update submitted routes error')
     }
 

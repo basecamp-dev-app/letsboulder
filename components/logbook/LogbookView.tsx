@@ -430,7 +430,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                       >
                         <div className="flex items-center gap-3">
                           <Link
-                            href={submission.kind === 'draft' ? `/submit?draftId=${submission.id}` : `/image/${submission.id}`}
+                            href={submission.kind === 'draft' ? `/submit?draftId=${submission.id}&from=contributions` : `/image/${submission.id}`}
                             className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
                           >
                             <Image
@@ -461,7 +461,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                               {submission.kind === 'draft' ? (
                                 <>
                                   <Link
-                                    href={`/submit?draftId=${submission.id}`}
+                                    href={`/submit?draftId=${submission.id}&from=contributions`}
                                     className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
                                   >
                                     Continue drawing
@@ -567,7 +567,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                   >
                     <div className="flex items-center gap-3">
                         <Link
-                          href={submission.kind === 'draft' ? `/submit?draftId=${submission.id}` : `/image/${submission.id}`}
+                          href={submission.kind === 'draft' ? `/submit?draftId=${submission.id}&from=contributions` : `/image/${submission.id}`}
                           className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
                         >
                         <Image
@@ -598,7 +598,7 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
                           {submission.kind === 'draft' ? (
                             <>
                               <Link
-                                href={`/submit?draftId=${submission.id}`}
+                                href={`/submit?draftId=${submission.id}&from=contributions`}
                                 className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
                               >
                                 Continue drawing

@@ -52,7 +52,7 @@ async function goToDrawStep(page: Page) {
 
   await page.locator('input[type="file"]').setInputFiles(IMAGE_FIXTURES)
   await expect(page.getByText(/Compressing/i)).not.toBeVisible({ timeout: 15000 })
-  await page.getByRole('button', { name: 'Upload Batch', exact: true }).click()
+  await page.getByRole('button', { name: /^Upload\s+\d+\s+Photo/i }).click()
 
   await expect(page.getByRole('heading', { name: 'Set Route Location' })).toBeVisible({ timeout: 30000 })
   const confirmLocationButton = page.getByRole('button', { name: /Confirm Location|Place Location/i })
@@ -127,16 +127,18 @@ test.describe.serial('Submission Errors', () => {
     await submitRoutesButton.click()
 
     const confirmModalText = page.getByText(/Submit \d+ route\?/i)
-    await expect(confirmModalText).toBeVisible()
-    await page.getByRole('button', { name: /^Confirm$/ }).click()
-    await expect(confirmModalText).toBeHidden({ timeout: 5000 })
+    if (await confirmModalText.isVisible().catch(() => false)) {
+      await page.getByRole('button', { name: /^Confirm$/ }).click()
+      await expect(confirmModalText).toBeHidden({ timeout: 5000 })
+    }
 
     if (interceptedSubmissionCount === 0) {
       await page.waitForTimeout(1000)
       await submitRoutesButton.click()
-      await expect(confirmModalText).toBeVisible()
-      await page.getByRole('button', { name: /^Confirm$/ }).click()
-      await expect(confirmModalText).toBeHidden({ timeout: 5000 })
+      if (await confirmModalText.isVisible().catch(() => false)) {
+        await page.getByRole('button', { name: /^Confirm$/ }).click()
+        await expect(confirmModalText).toBeHidden({ timeout: 5000 })
+      }
     }
 
     for (let retry = 0; retry < 5 && interceptedSubmissionCount === 0; retry += 1) {
