@@ -1,11 +1,7 @@
 name: E2E Tests
 
 on:
-  pull_request:
-    branches: [dev]
-  push:
-    branches: [dev]
-  workflow_dispatch:
+  deployment_status: # Triggers when Vercel says "I'm deployed!"
 
 jobs:
   test:
@@ -19,7 +15,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-      
+
+
+
+      - name: 'notify vercel'
+        uses: 'vercel/repository-dispatch/actions/status@v1'
+        with:
+          name: Vercel - letsboulder: lint
+                
       - name: Install dependencies
         run: npm ci
 
