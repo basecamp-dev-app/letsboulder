@@ -147,46 +147,16 @@ function LogbookContent() {
 
           setLogs(logsWithPoints)
 
-          const { data: imageSubmissions, error: submissionsError } = await supabase
-            .from('images')
-            .select('id, url, created_at, contribution_credit_platform, contribution_credit_handle, crags(name), route_lines(count)')
-            .eq('created_by', user.id)
-            .eq('moderation_status', 'approved')
-            .not('crag_id', 'is', null)
-            .not('latitude', 'is', null)
-            .not('longitude', 'is', null)
-            .order('created_at', { ascending: false })
-            .limit(24)
-
-          if (submissionsError) {
-            console.error('Submissions query error:', submissionsError)
+          const formattedSubmissions: Submission[] = []
+          const submissionsResponse = await fetch('/api/logbook/contributions?limit=24')
+          if (!submissionsResponse.ok) {
+            console.error('Submissions query error:', submissionsResponse.status)
+          } else {
+            const payload = await submissionsResponse.json().catch(() => ({ submissions: [] as Submission[] }))
+            if (Array.isArray(payload.submissions)) {
+              formattedSubmissions.push(...payload.submissions)
+            }
           }
-
-          const formattedSubmissions: Submission[] = (imageSubmissions || [])
-            .map((submission) => {
-              const cragRelation = submission.crags as { name?: string } | Array<{ name?: string }> | null
-              const cragName = Array.isArray(cragRelation)
-                ? (cragRelation[0]?.name || null)
-                : (cragRelation?.name || null)
-
-              const routeLines = submission.route_lines as Array<{ count?: number }> | null
-              const routeLinesCount = Array.isArray(routeLines) && routeLines[0]
-                ? (routeLines[0].count || 0)
-                : 0
-
-              return {
-                id: submission.id,
-                kind: 'submitted' as const,
-                url: submission.url,
-                created_at: submission.created_at,
-                updated_at: submission.created_at,
-                crag_name: cragName,
-                route_lines_count: routeLinesCount,
-                contribution_credit_platform: submission.contribution_credit_platform || null,
-                contribution_credit_handle: submission.contribution_credit_handle || null,
-              }
-            })
-            .filter((submission) => submission.route_lines_count > 0)
 
           const { data: draftSubmissions, error: draftError } = await supabase
             .from('submission_drafts')
