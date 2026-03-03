@@ -64,12 +64,10 @@ test.describe('Accessibility', () => {
 
   test('submit page has accessible form elements', async ({ page }) => {
     await page.goto('/submit')
-    
-    await page.waitForTimeout(2000)
-    
-    const buttons = page.getByRole('button')
-    const count = await buttons.count()
-    expect(count).toBeGreaterThan(0)
+
+    await expect(page).toHaveURL(/\/auth\?redirect_to=\/submit/)
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    await expect(page.getByRole('button', { name: /continue with google/i })).toBeVisible()
   })
 
   test('no critical accessibility violations on auth page', async ({ page }) => {
