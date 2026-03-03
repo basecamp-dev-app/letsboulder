@@ -19,6 +19,7 @@ import {
 } from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type NewRouteData, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ToastContainer, useToast } from '@/components/logbook/toast'
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
@@ -187,6 +188,7 @@ export default function EditSubmittedRoutesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const imageId = params.imageId as string
+  const { toasts, addToast, removeToast } = useToast()
 
   const [loading, setLoading] = useState(true)
   const [savingEdits, setSavingEdits] = useState(false)
@@ -730,22 +732,25 @@ export default function EditSubmittedRoutesPage() {
       if (inviteUrl && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(inviteUrl)
         setSuccess('Invite link created and copied')
+        addToast('Invite link copied', 'success')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create invite link')
     } finally {
       setCreatingInvite(false)
     }
-  }, [imageId, creatingInvite, isOwner, loadCollaborators])
+  }, [imageId, creatingInvite, isOwner, loadCollaborators, addToast])
 
   const handleCopyInvite = useCallback(async (inviteUrl: string) => {
     try {
       await navigator.clipboard.writeText(inviteUrl)
       setSuccess('Invite link copied')
+      addToast('Invite link copied', 'success')
     } catch {
       setError('Failed to copy invite link')
+      addToast('Failed to copy invite link', 'error')
     }
-  }, [])
+  }, [addToast])
 
   const handleRevokeInvite = useCallback(async (inviteId: string) => {
     if (!imageId || !isOwner || revokingInviteId) return
@@ -919,6 +924,7 @@ export default function EditSubmittedRoutesPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div className="mx-auto max-w-6xl px-4 py-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <Link
