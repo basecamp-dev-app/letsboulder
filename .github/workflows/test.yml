@@ -76,3 +76,9 @@ jobs:
           name: playwright-report
           path: playwright-report
           retention-days: 7
+
+      - name: notify vercel
+        uses: vercel/repository-dispatch/actions/status@v1
+        with:
+          repository-token: ${{ secrets.VERCEL_REPOSITORY_DISPATCH_TOKEN }}
+          name: 'Vercel - letsboulder: lint'
