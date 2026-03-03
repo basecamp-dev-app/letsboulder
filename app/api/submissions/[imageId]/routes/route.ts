@@ -326,6 +326,46 @@ export async function POST(
       return createErrorResponse(routeLinesError, 'Create routes error')
     }
 
+    const { data: collaboratorRows, error: collaboratorsError } = await supabase
+      .from('submission_collaborators')
+      .select('user_id')
+      .eq('image_id', imageId)
+
+    if (collaboratorsError) {
+      return createErrorResponse(collaboratorsError, 'Create routes error')
+    }
+
+    const voterUserIds = Array.from(new Set([
+      imageOwnerId,
+      ...((collaboratorRows || [])
+        .map((row) => row.user_id)
+        .filter((id): id is string => typeof id === 'string' && !!id)),
+    ]))
+
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: 'Service role key missing' }, { status: 500 })
+    }
+
+    const gradeVoteRows = climbs.flatMap((climb, index) => {
+      const grade = routes[index]?.grade
+      if (!grade) return []
+      return voterUserIds.map((voterUserId) => ({
+        climb_id: climb.id,
+        user_id: voterUserId,
+        grade,
+      }))
+    })
+
+    if (gradeVoteRows.length > 0) {
+      const { error: gradeVotesError } = await supabaseAdmin
+        .from('grade_votes')
+        .upsert(gradeVoteRows, { onConflict: 'climb_id,user_id' })
+
+      if (gradeVotesError) {
+        return createErrorResponse(gradeVotesError, 'Create routes error')
+      }
+    }
+
     await writeClient
       .from('images')
       .update({ last_edited_by: userId })
