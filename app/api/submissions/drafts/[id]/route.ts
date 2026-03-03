@@ -254,13 +254,19 @@ export async function DELETE(
       return NextResponse.json({ error: 'Only draft submissions can be deleted' }, { status: 400 })
     }
 
-    const { error: deleteError } = await supabase
+    const { data: deletedDraft, error: deleteError } = await supabase
       .from('submission_drafts')
       .delete()
       .eq('id', id)
+      .select('id')
+      .maybeSingle()
 
     if (deleteError) {
       return createErrorResponse(deleteError, 'Failed to delete submission draft')
+    }
+
+    if (!deletedDraft) {
+      return NextResponse.json({ error: 'Failed to delete submission draft' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })

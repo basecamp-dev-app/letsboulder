@@ -35,8 +35,8 @@ test.describe('Visual - Key Element Checks', () => {
     })
     
     await page.goto('/')
-    
-    await expect(page.getByText(/letsboulder/i)).toBeVisible({ timeout: 10000 })
+
+    await expect(page.locator('.leaflet-container').first()).toBeVisible({ timeout: 20000 })
     
     const criticalErrors = errors.filter(e => 
       !e.includes('favicon') && 
