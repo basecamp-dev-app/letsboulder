@@ -81,4 +81,4 @@ jobs:
         uses: vercel/repository-dispatch/actions/status@v1
         with:
           repository-token: ${{ secrets.VERCEL_REPOSITORY_DISPATCH_TOKEN }}
-          name: 'Vercel - letsboulder: lint'
+          name: 'Vercel - letsboulder: E2E Tests'
