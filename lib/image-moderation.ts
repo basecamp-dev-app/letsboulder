@@ -60,30 +60,20 @@ async function moderateImageBytes(bytes: Uint8Array): Promise<ModerationResult> 
     }
   }
 
-  const { DetectModerationLabelsCommand, DetectFacesCommand } = awsSdk as {
+  const { DetectModerationLabelsCommand } = awsSdk as {
     DetectModerationLabelsCommand: new (args: unknown) => unknown
-    DetectFacesCommand: new (args: unknown) => unknown
   }
 
   const client = await getRekognitionClient()
 
-  const [moderationRaw, facesRaw] = await Promise.all([
-    client.send(
-      new DetectModerationLabelsCommand({
-        Image: { Bytes: bytes },
-        MinConfidence: MIN_MODERATION_CONFIDENCE,
-      })
-    ),
-    client.send(
-      new DetectFacesCommand({
-        Image: { Bytes: bytes },
-        Attributes: ['DEFAULT'],
-      })
-    ),
-  ])
+  const moderationRaw = await client.send(
+    new DetectModerationLabelsCommand({
+      Image: { Bytes: bytes },
+      MinConfidence: MIN_MODERATION_CONFIDENCE,
+    })
+  )
 
   const moderationResp = moderationRaw as { ModerationLabels?: Array<{ Name?: string | null; Confidence?: number | null } | null> }
-  const facesResp = facesRaw as { FaceDetails?: unknown[] | null }
 
   const moderationLabels: ModerationLabel[] = (moderationResp.ModerationLabels || [])
     .map((l) => ({
@@ -92,20 +82,15 @@ async function moderateImageBytes(bytes: Uint8Array): Promise<ModerationResult> 
     }))
     .sort((a, b) => b.confidence - a.confidence)
 
-  const humanFaceCount = facesResp.FaceDetails?.length || 0
-  const hasHumans = humanFaceCount > 0
-
   let moderationStatus: ModerationResult['moderationStatus'] = 'approved'
 
   if (moderationLabels.length > 0) {
     moderationStatus = 'rejected'
-  } else if (hasHumans) {
-    moderationStatus = 'rejected'
   }
 
   return {
-    hasHumans,
-    humanFaceCount,
+    hasHumans: false,
+    humanFaceCount: 0,
     moderationLabels,
     moderationStatus,
   }

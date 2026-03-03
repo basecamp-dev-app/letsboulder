@@ -65,6 +65,8 @@ export interface RouteLine {
   color: string
   sequence_order: number
   created_at: string
+  image_width?: number
+  image_height?: number
   climb?: {
     id: string
     name: string | null

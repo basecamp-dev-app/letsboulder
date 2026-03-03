@@ -144,6 +144,25 @@ describe('POST /api/submissions', () => {
         }
       }
 
+      if (table === 'route_lines') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              in: vi.fn(() => ({
+                order: vi.fn(() => ({
+                  order: vi.fn(() =>
+                    makeThenableResult({
+                      data: [{ id: 'route-line-1', climb_id: 'climb-1' }],
+                      error: null,
+                    })
+                  ),
+                })),
+              })),
+            })),
+          })),
+        }
+      }
+
       return {
         select: vi.fn(() => makeThenableResult({ data: null, error: null, count: 0 })),
       }

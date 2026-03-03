@@ -1,0 +1,145 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { createErrorResponse } from '@/lib/errors'
+import { withCsrfProtection } from '@/lib/csrf-server'
+import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { revalidatePath } from 'next/cache'
+import { FACE_DIRECTIONS, type FaceDirection } from '@/lib/submission-types'
+
+interface UpdateImageMetadataPayload {
+  latitude: number | null
+  longitude: number | null
+  faceDirections: FaceDirection[]
+}
+
+function normalizePayload(value: unknown): UpdateImageMetadataPayload | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as {
+    latitude?: unknown
+    longitude?: unknown
+    faceDirections?: unknown
+  }
+
+  const latitude = candidate.latitude
+  const longitude = candidate.longitude
+  const faceDirections = candidate.faceDirections
+
+  if (!(latitude === null || typeof latitude === 'number')) return null
+  if (!(longitude === null || typeof longitude === 'number')) return null
+  if (!Array.isArray(faceDirections)) return null
+
+  if (typeof latitude === 'number' && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) return null
+  if (typeof longitude === 'number' && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) return null
+
+  const normalizedDirections = Array.from(
+    new Set(
+      faceDirections
+        .map((item) => (typeof item === 'string' ? item.toUpperCase() : ''))
+        .filter((item): item is FaceDirection => FACE_DIRECTIONS.includes(item as FaceDirection))
+    )
+  )
+
+  if (normalizedDirections.length !== faceDirections.length) {
+    return null
+  }
+
+  return {
+    latitude: latitude as number | null,
+    longitude: longitude as number | null,
+    faceDirections: normalizedDirections,
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ imageId: string }> }
+) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
+  const cookies = request.cookies
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookies.getAll() },
+        setAll() {},
+      },
+    }
+  )
+
+  try {
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
+    if (authError || !userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
+    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
+    if (!rateLimitResult.success) {
+      return rateLimitResponse
+    }
+
+    const { imageId } = await params
+    if (!imageId) {
+      return NextResponse.json({ error: 'Image ID is required' }, { status: 400 })
+    }
+
+    const body = await request.json().catch(() => null)
+    const payload = normalizePayload(body)
+    if (!payload) {
+      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+    }
+
+    const { data: result, error: rpcError } = await supabase.rpc('update_submission_image_metadata', {
+      p_image_id: imageId,
+      p_latitude: payload.latitude,
+      p_longitude: payload.longitude,
+      p_face_directions: payload.faceDirections,
+    })
+
+    if (rpcError) {
+      const message = (rpcError.message || '').toLowerCase()
+      if (message.includes('permission')) {
+        return NextResponse.json({ error: 'You do not have permission to edit this submission' }, { status: 403 })
+      }
+      if (message.includes('latitude') || message.includes('longitude') || message.includes('face direction')) {
+        return NextResponse.json({ error: rpcError.message }, { status: 400 })
+      }
+      return createErrorResponse(rpcError, 'Update submission image metadata error')
+    }
+
+    revalidatePath('/')
+
+    const { data: image } = await supabase
+      .from('images')
+      .select('crag_id')
+      .eq('id', imageId)
+      .single()
+
+    if (image?.crag_id) {
+      const { data: cragData } = await supabase
+        .from('crags')
+        .select('slug, country_code')
+        .eq('id', image.crag_id)
+        .single()
+
+      if (cragData?.slug && cragData?.country_code) {
+        revalidatePath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      metadata: result && typeof result === 'object' ? result : {
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        face_directions: payload.faceDirections,
+      },
+    })
+  } catch (error) {
+    return createErrorResponse(error, 'Update submission image metadata error')
+  }
+}

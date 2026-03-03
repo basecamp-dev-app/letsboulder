@@ -82,7 +82,6 @@ export async function POST(request: NextRequest) {
       .update({
         url: approvedUrl,
         moderation_status: result.moderationStatus,
-        has_humans: result.hasHumans,
         moderation_labels: result.moderationLabels,
         moderated_at: new Date().toISOString(),
         status: result.moderationStatus === 'approved' ? 'approved' : 'pending',
@@ -95,19 +94,10 @@ export async function POST(request: NextRequest) {
 
     if (image.created_by) {
       const moderationStatus = result.moderationStatus
-      const title =
-        moderationStatus === 'approved'
-          ? 'Photo approved'
-          : moderationStatus === 'flagged'
-            ? 'Photo needs changes'
-            : 'Photo rejected'
-
-      const message =
-        moderationStatus === 'approved'
-          ? 'Your photo was approved and is now visible.'
-          : moderationStatus === 'flagged'
-            ? 'Your photo appears to contain a person. Please upload a version without people.'
-            : 'Your photo appears to contain a person. Please upload a version without people.'
+      const title = moderationStatus === 'approved' ? 'Photo approved' : 'Photo rejected'
+      const message = moderationStatus === 'approved'
+        ? 'Your photo was approved and is now visible.'
+        : 'Your photo was rejected.'
 
       await supabase.from('notifications').insert({
         user_id: image.created_by,
@@ -121,8 +111,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       moderation_status: result.moderationStatus,
-      has_humans: result.hasHumans,
-      human_face_count: result.humanFaceCount,
     })
   } catch (error) {
     return createErrorResponse(error, 'Moderation check error')

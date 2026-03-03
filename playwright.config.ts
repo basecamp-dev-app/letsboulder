@@ -46,7 +46,6 @@ export default defineConfig({
       testIgnore: /.*\.auth\.spec\.ts/,
       use: {
         ...devices['iPhone 12'],
-        storageState: path.resolve(__dirname, 'playwright/.auth/user.json'),
       },
     },
     {
@@ -54,7 +53,6 @@ export default defineConfig({
       testIgnore: /.*\.auth\.spec\.ts/,
       use: {
         ...devices['Pixel 7'],
-        storageState: path.resolve(__dirname, 'playwright/.auth/user.json'),
       },
     },
   ],
