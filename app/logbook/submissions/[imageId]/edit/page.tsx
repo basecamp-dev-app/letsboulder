@@ -1,19 +1,33 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, Link2, MapPin, Share2, Trash2, Users } from 'lucide-react'
+import { Loader2, Link2, MapPin, Search, Trash2, Users } from 'lucide-react'
+import { useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import RouteCanvas from '@/app/submit/components/RouteCanvas'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import { createClient } from '@/lib/supabase'
+import {
+  normalizeSubmissionCreditHandle,
+  normalizeSubmissionCreditPlatform,
+  type SubmissionCreditPlatform,
+} from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type NewRouteData, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 
 interface EditableRoute {
   id: string
   name: string
+  grade: string
   description?: string
   points: RoutePoint[]
 }
@@ -67,6 +81,8 @@ interface EditableImageQuery {
   id: string
   url: string
   created_by: string | null
+  contribution_credit_platform: string | null
+  contribution_credit_handle: string | null
   latitude: number | null
   longitude: number | null
   face_directions: string[] | null
@@ -74,6 +90,13 @@ interface EditableImageQuery {
 }
 
 const VALID_ROUTE_TYPES = ['sport', 'boulder', 'trad', 'deep-water-solo'] as const
+const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'youtube', label: 'YouTube' },
+  { value: 'x', label: 'X' },
+  { value: 'other', label: 'Other' },
+]
 
 function normalizeRouteType(value: string | null | undefined): (typeof VALID_ROUTE_TYPES)[number] | null {
   if (!value) return null
@@ -110,6 +133,49 @@ function pickOne<T>(value: T | T[] | null | undefined): T | null {
   return value
 }
 
+function MapClickHandler({ onClick }: { onClick: (event: L.LeafletMouseEvent) => void }) {
+  useMapEvents({ click: onClick })
+  return null
+}
+
+function MapRecenter({ position }: { position: [number, number] | null }) {
+  const map = useMapEvents({})
+
+  useEffect(() => {
+    if (!position) return
+    map.setView(position, Math.max(map.getZoom(), 14))
+  }, [map, position])
+
+  return null
+}
+
+function parseCoordinate(value: string): number | null {
+  if (value.trim() === '') return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return Number.NaN
+  return parsed
+}
+
+function sortFaceDirections(directions: FaceDirection[]): FaceDirection[] {
+  return [...directions].sort((a, b) => FACE_DIRECTIONS.indexOf(a) - FACE_DIRECTIONS.indexOf(b))
+}
+
+function normalizePointForCompare(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000
+}
+
+function routeEditSignature(route: EditableRoute): string {
+  return JSON.stringify({
+    id: route.id,
+    name: route.name.trim(),
+    description: (route.description || '').trim(),
+    points: route.points.map((point) => ({
+      x: normalizePointForCompare(point.x),
+      y: normalizePointForCompare(point.y),
+    })),
+  })
+}
+
 export default function EditSubmittedRoutesPage() {
   const params = useParams()
   const router = useRouter()
@@ -124,22 +190,39 @@ export default function EditSubmittedRoutesPage() {
   const [imageSelection, setImageSelection] = useState<ImageSelection | null>(null)
   const [existingRouteLines, setExistingRouteLines] = useState<RouteLine[]>([])
   const [editedRoutes, setEditedRoutes] = useState<EditableRoute[]>([])
+  const [initialEditedRoutes, setInitialEditedRoutes] = useState<EditableRoute[]>([])
   const [canvasKey, setCanvasKey] = useState(0)
   const [latitude, setLatitude] = useState<string>('')
   const [longitude, setLongitude] = useState<string>('')
   const [faceDirections, setFaceDirections] = useState<FaceDirection[]>([])
-  const [savingImageMeta, setSavingImageMeta] = useState(false)
+  const [initialLatitude, setInitialLatitude] = useState<string>('')
+  const [initialLongitude, setInitialLongitude] = useState<string>('')
+  const [initialFaceDirections, setInitialFaceDirections] = useState<FaceDirection[]>([])
   const [shareOpen, setShareOpen] = useState(false)
   const [loadingCollaborators, setLoadingCollaborators] = useState(false)
   const [collaborators, setCollaborators] = useState<CollaboratorItem[]>([])
   const [activeInvites, setActiveInvites] = useState<InviteItem[]>([])
   const [isOwner, setIsOwner] = useState(false)
   const [ownerUserId, setOwnerUserId] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [ownerProfile, setOwnerProfile] = useState<{ displayName: string; username: string | null } | null>(null)
   const [creatingInvite, setCreatingInvite] = useState(false)
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null)
   const [removingCollaboratorId, setRemovingCollaboratorId] = useState<string | null>(null)
   const [latestInviteUrl, setLatestInviteUrl] = useState<string | null>(null)
+  const [creditPlatform, setCreditPlatform] = useState<SubmissionCreditPlatform>('instagram')
+  const [creditHandle, setCreditHandle] = useState('')
+  const [initialCreditPlatform, setInitialCreditPlatform] = useState<SubmissionCreditPlatform | null>(null)
+  const [initialCreditHandle, setInitialCreditHandle] = useState('')
+  const [savingAllChanges, setSavingAllChanges] = useState(false)
+  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchingLocation, setSearchingLocation] = useState(false)
+  const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
+
+  useEffect(() => {
+    import('leaflet').then((lib) => setLeaflet(lib))
+  }, [])
 
   const loadSubmission = useCallback(async () => {
     if (!imageId) return
@@ -156,6 +239,7 @@ export default function EditSubmittedRoutesPage() {
         router.push(`/auth?redirect_to=${encodeURIComponent(`/logbook/submissions/${imageId}/edit`)}`)
         return
       }
+      setCurrentUserId(user.id)
 
       const { data, error: imageError } = await supabase
         .from('images')
@@ -163,6 +247,8 @@ export default function EditSubmittedRoutesPage() {
           id,
           url,
           created_by,
+          contribution_credit_platform,
+          contribution_credit_handle,
           latitude,
           longitude,
           face_directions,
@@ -227,6 +313,14 @@ export default function EditSubmittedRoutesPage() {
         })
         .filter((line): line is RouteLine => line !== null)
 
+      const mappedEditableRoutes: EditableRoute[] = mappedRouteLines.map((routeLine, index) => ({
+        id: routeLine.id,
+        name: routeLine.climb?.name || `Route ${index + 1}`,
+        grade: routeLine.climb?.grade || '6A',
+        description: routeLine.climb?.description || undefined,
+        points: routeLine.points,
+      }))
+
       setImageSelection({
         mode: 'existing',
         imageId: submission.id,
@@ -234,12 +328,21 @@ export default function EditSubmittedRoutesPage() {
       })
       setLatitude(typeof submission.latitude === 'number' ? submission.latitude.toString() : '')
       setLongitude(typeof submission.longitude === 'number' ? submission.longitude.toString() : '')
+      setInitialLatitude(typeof submission.latitude === 'number' ? submission.latitude.toString() : '')
+      setInitialLongitude(typeof submission.longitude === 'number' ? submission.longitude.toString() : '')
       const submittedDirections = Array.isArray(submission.face_directions) ? submission.face_directions : []
       const normalizedDirections = FACE_DIRECTIONS.filter((direction) => submittedDirections.includes(direction))
       setFaceDirections(normalizedDirections)
+      setInitialFaceDirections(normalizedDirections)
       setOwnerUserId(typeof submission.created_by === 'string' ? submission.created_by : null)
+      const normalizedCreditPlatform = normalizeSubmissionCreditPlatform(submission.contribution_credit_platform)
+      setCreditPlatform(normalizedCreditPlatform || 'instagram')
+      setCreditHandle(submission.contribution_credit_handle || '')
+      setInitialCreditPlatform(normalizedCreditPlatform)
+      setInitialCreditHandle(submission.contribution_credit_handle || '')
       setExistingRouteLines(mappedRouteLines)
-      setEditedRoutes([])
+      setInitialEditedRoutes(mappedEditableRoutes)
+      setEditedRoutes(mappedEditableRoutes)
     } catch {
       setError('Failed to load this submission')
     } finally {
@@ -267,33 +370,111 @@ export default function EditSubmittedRoutesPage() {
   }, [existingRouteLines])
 
   const collaborationAdded = searchParams.get('collab') === 'added'
+  const canEditContributionCredit = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId
+  const markerPosition = useMemo<[number, number] | null>(() => {
+    const parsedLatitude = Number(latitude)
+    const parsedLongitude = Number(longitude)
+    if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) return null
+    if (parsedLatitude < -90 || parsedLatitude > 90) return null
+    if (parsedLongitude < -180 || parsedLongitude > 180) return null
+    return [parsedLatitude, parsedLongitude]
+  }, [latitude, longitude])
 
-  const handleSaveEdits = useCallback(async () => {
-    if (savingEdits || !imageId || editedRoutes.length === 0) return
+  const imageMetadataDirty = useMemo(() => {
+    const initialLat = parseCoordinate(initialLatitude)
+    const initialLng = parseCoordinate(initialLongitude)
+    const currentLat = parseCoordinate(latitude)
+    const currentLng = parseCoordinate(longitude)
+
+    const coordsChanged = initialLat !== currentLat || initialLng !== currentLng
+    const initialDirections = sortFaceDirections(initialFaceDirections).join('|')
+    const currentDirections = sortFaceDirections(faceDirections).join('|')
+    return coordsChanged || initialDirections !== currentDirections
+  }, [initialLatitude, initialLongitude, latitude, longitude, initialFaceDirections, faceDirections])
+
+  const creditDirty = useMemo(() => {
+    if (!canEditContributionCredit) return false
+
+    const initialNormalizedHandle = normalizeSubmissionCreditHandle(initialCreditHandle)
+    const currentNormalizedHandle = normalizeSubmissionCreditHandle(creditHandle)
+    const initialNormalizedPlatform = initialNormalizedHandle ? normalizeSubmissionCreditPlatform(initialCreditPlatform) : null
+    const currentNormalizedPlatform = currentNormalizedHandle ? normalizeSubmissionCreditPlatform(creditPlatform) : null
+
+    return initialNormalizedHandle !== currentNormalizedHandle || initialNormalizedPlatform !== currentNormalizedPlatform
+  }, [canEditContributionCredit, initialCreditHandle, creditHandle, initialCreditPlatform, creditPlatform])
+
+  const routeEditsDirty = useMemo(() => {
+    if (initialEditedRoutes.length === 0 && editedRoutes.length === 0) return false
+
+    const initialById = new Map(initialEditedRoutes.map((route) => [route.id, route]))
+    const currentById = new Map(editedRoutes.map((route) => [route.id, route]))
+
+    if (initialById.size !== currentById.size) return true
+
+    for (const [routeId, initialRoute] of initialById) {
+      const currentRoute = currentById.get(routeId)
+      if (!currentRoute) return true
+      if (routeEditSignature(initialRoute) !== routeEditSignature(currentRoute)) return true
+    }
+
+    return false
+  }, [initialEditedRoutes, editedRoutes])
+
+  const changedRouteGradeVotes = useMemo(() => {
+    const initialById = new Map(initialEditedRoutes.map((route) => [route.id, route.grade]))
+
+    return editedRoutes
+      .map((route) => ({
+        routeLineId: route.id,
+        grade: route.grade,
+        previousGrade: initialById.get(route.id),
+      }))
+      .filter((item) => item.previousGrade !== undefined && item.previousGrade !== item.grade)
+      .map((item) => ({ routeLineId: item.routeLineId, grade: item.grade }))
+  }, [initialEditedRoutes, editedRoutes])
+
+  const hasPendingChanges = imageMetadataDirty || routeEditsDirty || changedRouteGradeVotes.length > 0 || creditDirty
+
+  const routesToPersist = useMemo(() => {
+    const initialById = new Map(initialEditedRoutes.map((route) => [route.id, route]))
+
+    return editedRoutes.filter((route) => {
+      const initialRoute = initialById.get(route.id)
+      if (!initialRoute) return false
+      return routeEditSignature(initialRoute) !== routeEditSignature(route)
+    })
+  }, [initialEditedRoutes, editedRoutes])
+
+  const saveRouteEdits = useCallback(async () => {
+    if (!imageId || routesToPersist.length === 0) return false
 
     setSavingEdits(true)
-    setError(null)
-    setSuccess(null)
-
     try {
       const response = await csrfFetch(`/api/submissions/${imageId}/routes`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ routes: editedRoutes }),
+        body: JSON.stringify({ routes: routesToPersist }),
       })
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
         throw new Error(data?.error || 'Failed to save route edits')
       }
-
-      setSuccess('Saved route edits. Route slug URLs stay unchanged.')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save route edits')
+      setInitialEditedRoutes((previous) => previous.map((route) => {
+        const updated = routesToPersist.find((candidate) => candidate.id === route.id)
+        if (!updated) return route
+        return {
+          ...route,
+          name: updated.name,
+          description: updated.description,
+          points: updated.points,
+        }
+      }))
+      return true
     } finally {
       setSavingEdits(false)
     }
-  }, [savingEdits, imageId, editedRoutes])
+  }, [imageId, routesToPersist])
 
   const handleCreateRoutes = useCallback(async (routesToCreate: NewRouteData[]) => {
     if (savingNewRoutes || !imageId || routesToCreate.length === 0) return
@@ -333,50 +514,83 @@ export default function EditSubmittedRoutesPage() {
     })
   }, [])
 
-  const handleSaveImageMetadata = useCallback(async () => {
-    if (!imageId || savingImageMeta) return
+  const saveImageMetadata = useCallback(async () => {
+    if (!imageId || !imageMetadataDirty) return false
 
-    const parsedLatitude = latitude.trim() === '' ? null : Number(latitude)
-    const parsedLongitude = longitude.trim() === '' ? null : Number(longitude)
+    const parsedLatitude = parseCoordinate(latitude)
+    const parsedLongitude = parseCoordinate(longitude)
 
-    if (parsedLatitude !== null && (!Number.isFinite(parsedLatitude) || parsedLatitude < -90 || parsedLatitude > 90)) {
-      setError('Latitude must be between -90 and 90')
-      return
+    if (Number.isNaN(parsedLatitude) || (parsedLatitude !== null && (parsedLatitude < -90 || parsedLatitude > 90))) {
+      throw new Error('Latitude must be between -90 and 90')
     }
 
-    if (parsedLongitude !== null && (!Number.isFinite(parsedLongitude) || parsedLongitude < -180 || parsedLongitude > 180)) {
-      setError('Longitude must be between -180 and 180')
-      return
+    if (Number.isNaN(parsedLongitude) || (parsedLongitude !== null && (parsedLongitude < -180 || parsedLongitude > 180))) {
+      throw new Error('Longitude must be between -180 and 180')
     }
 
-    setSavingImageMeta(true)
-    setError(null)
-    setSuccess(null)
+    const response = await csrfFetch(`/api/submissions/${imageId}/image`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        latitude: parsedLatitude,
+        longitude: parsedLongitude,
+        faceDirections,
+      }),
+    })
 
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data?.error || 'Failed to update image metadata')
+    }
+
+    setInitialLatitude(latitude)
+    setInitialLongitude(longitude)
+    setInitialFaceDirections(faceDirections)
+    return true
+  }, [imageId, imageMetadataDirty, latitude, longitude, faceDirections])
+
+  const updateLocation = useCallback((nextLatitude: number, nextLongitude: number) => {
+    setLatitude(nextLatitude.toFixed(6))
+    setLongitude(nextLongitude.toFixed(6))
+    setLocationSearchError(null)
+  }, [])
+
+  const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
+    updateLocation(event.latlng.lat, event.latlng.lng)
+  }, [updateLocation])
+
+  const handleMarkerDragEnd = useCallback((event: L.LeafletEvent) => {
+    const marker = event.target as L.Marker
+    const next = marker.getLatLng()
+    updateLocation(next.lat, next.lng)
+  }, [updateLocation])
+
+  const handleSearchLocation = useCallback(async () => {
+    if (!searchQuery.trim()) return
+
+    setSearchingLocation(true)
+    setLocationSearchError(null)
     try {
-      const response = await csrfFetch(`/api/submissions/${imageId}/image`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          latitude: parsedLatitude,
-          longitude: parsedLongitude,
-          faceDirections,
-        }),
-      })
-
+      const response = await fetch(`/api/locations/search?q=${encodeURIComponent(searchQuery)}`)
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data?.error || 'Failed to update image metadata')
+        setLocationSearchError('Search failed')
+        return
       }
 
-      setSuccess('Saved location and face directions.')
-      await loadSubmission()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update image metadata')
+      const data = await response.json() as Array<{ lat?: number; lon?: number }> | null
+      const first = Array.isArray(data) ? data[0] : null
+      if (!first || typeof first.lat !== 'number' || typeof first.lon !== 'number') {
+        setLocationSearchError('Location not found')
+        return
+      }
+
+      updateLocation(first.lat, first.lon)
+    } catch {
+      setLocationSearchError('Failed to search location')
     } finally {
-      setSavingImageMeta(false)
+      setSearchingLocation(false)
     }
-  }, [imageId, savingImageMeta, latitude, longitude, faceDirections, loadSubmission])
+  }, [searchQuery, updateLocation])
 
   const loadCollaborators = useCallback(async () => {
     if (!imageId) return
@@ -507,6 +721,112 @@ export default function EditSubmittedRoutesPage() {
     }
   }, [imageId, isOwner, removingCollaboratorId, loadCollaborators])
 
+  const saveContributionCredit = useCallback(async () => {
+    if (!imageId || !canEditContributionCredit || !creditDirty) return false
+
+    const normalizedHandle = normalizeSubmissionCreditHandle(creditHandle)
+    if (creditHandle.trim().length > 0 && !normalizedHandle) {
+      throw new Error('Invalid handle. Use letters, numbers, dots, underscores, or hyphens.')
+    }
+
+    const response = await csrfFetch(`/api/submissions/${imageId}/credit`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform: normalizedHandle ? creditPlatform : null,
+        handle: normalizedHandle,
+      }),
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Failed to save contribution credit')
+    }
+
+    const updatedPlatform = normalizeSubmissionCreditPlatform(payload?.credit?.platform)
+    const updatedHandle = typeof payload?.credit?.handle === 'string' ? payload.credit.handle : ''
+
+    setCreditPlatform(updatedPlatform || 'instagram')
+    setCreditHandle(updatedHandle)
+    setInitialCreditPlatform(updatedPlatform)
+    setInitialCreditHandle(updatedHandle)
+    return true
+  }, [imageId, canEditContributionCredit, creditDirty, creditHandle, creditPlatform])
+
+  const saveRouteGradeVotes = useCallback(async () => {
+    if (!imageId || changedRouteGradeVotes.length === 0) return false
+
+    const response = await csrfFetch(`/api/submissions/${imageId}/grade-votes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grades: changedRouteGradeVotes }),
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Failed to save grade votes')
+    }
+
+    setInitialEditedRoutes((previous) => previous.map((route) => {
+      const updated = changedRouteGradeVotes.find((candidate) => candidate.routeLineId === route.id)
+      if (!updated) return route
+      return {
+        ...route,
+        grade: updated.grade,
+      }
+    }))
+
+    return true
+  }, [imageId, changedRouteGradeVotes])
+
+  const handleSaveAllChanges = useCallback(async () => {
+    if (!hasPendingChanges || savingAllChanges) return
+
+    setSavingAllChanges(true)
+    setError(null)
+    setSuccess(null)
+
+    const savedLabels: string[] = []
+    try {
+      if (imageMetadataDirty) {
+        await saveImageMetadata()
+        savedLabels.push('image metadata')
+      }
+
+      if (changedRouteGradeVotes.length > 0) {
+        await saveRouteGradeVotes()
+        savedLabels.push('grade votes')
+      }
+
+      if (routeEditsDirty) {
+        await saveRouteEdits()
+        savedLabels.push('routes')
+      }
+
+      if (creditDirty) {
+        await saveContributionCredit()
+        savedLabels.push('contribution credit')
+      }
+
+      setSuccess(savedLabels.length > 0 ? `Saved ${savedLabels.join(', ')}.` : 'No changes to save.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save changes')
+    } finally {
+      setSavingAllChanges(false)
+    }
+  }, [
+    hasPendingChanges,
+    savingAllChanges,
+    imageMetadataDirty,
+    saveImageMetadata,
+    changedRouteGradeVotes.length,
+    saveRouteGradeVotes,
+    routeEditsDirty,
+    saveRouteEdits,
+    creditDirty,
+    saveContributionCredit,
+  ])
+
   useEffect(() => {
     if (shareOpen) {
       loadCollaborators()
@@ -532,14 +852,14 @@ export default function EditSubmittedRoutesPage() {
             ← Back to logbook
           </Link>
           <div className="flex items-center gap-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">Grade remains community consensus</p>
             <button
               type="button"
-              onClick={() => setShareOpen(true)}
-              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+              onClick={handleSaveAllChanges}
+              disabled={!hasPendingChanges || savingAllChanges}
+              className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
             >
-              <Share2 className="h-3.5 w-3.5" />
-              Share
+              {savingAllChanges ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              Save all changes
             </button>
           </div>
         </div>
@@ -588,6 +908,73 @@ export default function EditSubmittedRoutesPage() {
             </label>
           </div>
 
+          <div className="mt-3 h-72 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+            <MapContainer
+              center={markerPosition || [20, 0]}
+              zoom={markerPosition ? 14 : 2}
+              style={{ height: '100%', width: '100%' }}
+            >
+              <MapRecenter position={markerPosition} />
+              <MapClickHandler onClick={handleMapClick} />
+              <TileLayer
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                attribution="Imagery © Esri"
+                maxZoom={19}
+              />
+              <TileLayer
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                attribution="Labels © Esri"
+                maxZoom={19}
+              />
+              {markerPosition && leaflet ? (
+                <Marker
+                  position={markerPosition}
+                  draggable={true}
+                  icon={leaflet.divIcon({
+                    className: 'location-marker',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10],
+                  })}
+                  eventHandlers={{ dragend: handleMarkerDragEnd }}
+                />
+              ) : null}
+            </MapContainer>
+          </div>
+
+          <div className="mt-3 flex gap-2">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    void handleSearchLocation()
+                  }
+                }}
+                placeholder="Search for a location..."
+                className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                void handleSearchLocation()
+              }}
+              disabled={searchingLocation}
+              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              {searchingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Search
+            </button>
+          </div>
+
+          {locationSearchError ? (
+            <p className="mt-2 text-xs text-red-600 dark:text-red-400">{locationSearchError}</p>
+          ) : null}
+
           <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
             {FACE_DIRECTIONS.map((direction) => {
               const selected = faceDirections.includes(direction)
@@ -608,17 +995,6 @@ export default function EditSubmittedRoutesPage() {
             })}
           </div>
 
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              onClick={handleSaveImageMetadata}
-              disabled={savingImageMeta}
-              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-            >
-              {savingImageMeta ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Save image metadata
-            </button>
-          </div>
         </div>
 
         {hasReadyData && imageSelection ? (
@@ -631,18 +1007,76 @@ export default function EditSubmittedRoutesPage() {
               mode="edit-existing"
               allowCreateRoutesInEditMode
               onEditRoutesUpdate={setEditedRoutes}
-              onSaveEdits={handleSaveEdits}
+              onSaveEdits={saveRouteEdits}
               savingEdits={savingEdits}
+              showEditSaveButton={false}
               onSaveNewRoutes={handleCreateRoutes}
               savingNewRoutes={savingNewRoutes}
             />
           </div>
         ) : null}
 
+        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-gray-500" />
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Collaborators</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShareOpen(true)}
+              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+            >
+              Manage collaborators
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-3 flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Contribution credit</h2>
+          </div>
+
+          {canEditContributionCredit ? (
+            <>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <label className="text-xs text-gray-600 dark:text-gray-300">
+                  Platform
+                  <select
+                    value={creditPlatform}
+                    onChange={(event) => setCreditPlatform(event.target.value as SubmissionCreditPlatform)}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                  >
+                    {CREDIT_PLATFORM_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs text-gray-600 dark:text-gray-300 md:col-span-2">
+                  Handle
+                  <input
+                    value={creditHandle}
+                    onChange={(event) => setCreditHandle(event.target.value)}
+                    placeholder="handle"
+                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                  />
+                </label>
+              </div>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Shown publicly as @{normalizeSubmissionCreditHandle(creditHandle) || 'handle'}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Only the original contributor can edit contribution credit.
+            </p>
+          )}
+        </div>
+
         <Dialog open={shareOpen} onOpenChange={setShareOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Share edit access</DialogTitle>
+              <DialogTitle>Collaborators</DialogTitle>
               <DialogDescription>
                 Create a link for collaborators to edit routes, location, and face directions.
               </DialogDescription>

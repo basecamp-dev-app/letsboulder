@@ -32,6 +32,7 @@ interface ExistingRoute {
 interface EditableExistingRoute {
   id: string
   name: string
+  grade: string
   description?: string
   points: RoutePoint[]
 }
@@ -47,6 +48,7 @@ interface RouteCanvasProps {
   onEditRoutesUpdate?: (routes: EditableExistingRoute[]) => void
   onSaveEdits?: () => void
   savingEdits?: boolean
+  showEditSaveButton?: boolean
   onSaveNewRoutes?: (routes: NewRouteData[]) => void
   savingNewRoutes?: boolean
   defaultClimbType?: ClimbType
@@ -138,6 +140,7 @@ export default function RouteCanvas({
   onEditRoutesUpdate,
   onSaveEdits,
   savingEdits = false,
+  showEditSaveButton = true,
   onSaveNewRoutes,
   savingNewRoutes = false,
   defaultClimbType,
@@ -759,6 +762,7 @@ export default function RouteCanvas({
     onEditRoutesUpdate(existingRoutes.map((route) => ({
       id: route.id,
       name: route.name,
+      grade: route.grade,
       description: route.description,
       points: normalizeCanvasPoints(route.points),
     })))
@@ -877,7 +881,7 @@ export default function RouteCanvas({
   const activeDescription = editableRoute ? (editableRoute.description || '') : currentDescription
   const isEditingExistingRoute = !isEditExistingMode && Boolean(selectedExistingRoute)
   const disableEditInputs = isEditExistingMode ? (!canCreateRoutesInEditMode && !selectedExistingRoute) : isEditingExistingRoute
-  const disableGradePicker = disableEditInputs || (isEditExistingMode && Boolean(selectedExistingRoute))
+  const disableGradePicker = disableEditInputs
   const isEditing = selectedNewRoute || selectedExistingRoute || currentPoints.length > 0
   const allRoutesValid = completedRoutes.every(route => route.name.trim().length > 0)
   return (
@@ -984,7 +988,7 @@ export default function RouteCanvas({
 
               {isEditExistingMode && (
                 <p className="px-2 text-xs text-blue-700 dark:text-blue-300">
-                  Existing route grades stay community-controlled.
+                  Grade changes are saved as collaborator votes when you save all changes.
                 </p>
               )}
 
@@ -1013,13 +1017,15 @@ export default function RouteCanvas({
               >
                 {getGradeDisplay(activeGrade, activeClimbType)}
               </button>
-              {gradePickerOpen && !isEditingExistingRoute && !selectedExistingRoute && (
+              {gradePickerOpen && !isEditingExistingRoute && (!isEditExistingMode || Boolean(selectedExistingRoute)) && (
                 <GradePicker
                   isOpen={gradePickerOpen}
                   currentGrade={activeGrade}
                   onSelect={(grade) => {
                     if (selectedNewRoute) {
                       updateSelectedNewRoute({ grade })
+                    } else if (isEditExistingMode && selectedExistingRoute) {
+                      updateSelectedExistingRoute({ grade })
                     } else {
                       setCurrentGrade(grade)
                     }
@@ -1131,7 +1137,7 @@ export default function RouteCanvas({
             </button>
           )}
 
-          {isEditExistingMode && (
+          {isEditExistingMode && showEditSaveButton && (
             <button
               onClick={onSaveEdits}
               disabled={!onSaveEdits || savingEdits}

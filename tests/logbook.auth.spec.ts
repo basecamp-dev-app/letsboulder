@@ -17,5 +17,10 @@ test.describe('Logbook (Authenticated)', () => {
     if (await submitLink.isVisible()) {
       await expect(submitLink).toBeVisible()
     }
+
+    const manageLink = page.getByRole('link', { name: /^manage$/i }).first()
+    if (await manageLink.isVisible()) {
+      await expect(manageLink).toHaveAttribute('href', /\/logbook\/submissions\/.+\/edit/)
+    }
   })
 })
