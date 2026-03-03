@@ -27,6 +27,8 @@ interface ExistingRoute {
   name: string
   description?: string
   climbType?: string
+  image_width?: number
+  image_height?: number
 }
 
 interface EditableExistingRoute {
@@ -52,6 +54,8 @@ interface RouteCanvasProps {
   onSaveNewRoutes?: (routes: NewRouteData[]) => void
   savingNewRoutes?: boolean
   defaultClimbType?: ClimbType
+  onDeleteExistingRoute?: (routeLineId: string) => Promise<void>
+  deletingExistingRouteId?: string | null
 }
 
 interface RouteCanvasDraft {
@@ -67,36 +71,32 @@ interface RouteCanvasDraft {
 
 function convertNormalizedPointsToCanvas(
   points: RoutePoint[],
-  dims: { width: number; height: number; naturalWidth: number; naturalHeight: number }
+  dims: { width: number; height: number; naturalWidth: number; naturalHeight: number },
+  originalImageWidth?: number,
+  originalImageHeight?: number
 ): RoutePoint[] {
   if (points.length < 2) return points
 
   const maxX = Math.max(...points.map((p) => p.x))
   const maxY = Math.max(...points.map((p) => p.y))
   const seemsNormalized = maxX <= 1.2 && maxY <= 1.2
-  if (!seemsNormalized) return points
-
-  const canvasAspectRatio = dims.width / dims.height
-  const imageAspectRatio = dims.naturalWidth / dims.naturalHeight
-
-  let displayedImageWidth = dims.width
-  let displayedImageHeight = dims.height
-  let offsetX = 0
-  let offsetY = 0
-
-  if (canvasAspectRatio > imageAspectRatio) {
-    displayedImageHeight = dims.height
-    displayedImageWidth = displayedImageHeight * imageAspectRatio
-    offsetX = (dims.width - displayedImageWidth) / 2
-  } else {
-    displayedImageWidth = dims.width
-    displayedImageHeight = displayedImageWidth / imageAspectRatio
-    offsetY = (dims.height - displayedImageHeight) / 2
+  if (seemsNormalized) {
+    return points.map((point) => ({
+      x: Math.min(1, Math.max(0, point.x)) * dims.width,
+      y: Math.min(1, Math.max(0, point.y)) * dims.height,
+    }))
   }
 
+  const alreadyCanvasSpace = maxX <= dims.width * 1.05 && maxY <= dims.height * 1.05
+  if (alreadyCanvasSpace) return points
+
+  const baseWidth = originalImageWidth && originalImageWidth > 0 ? originalImageWidth : dims.naturalWidth
+  const baseHeight = originalImageHeight && originalImageHeight > 0 ? originalImageHeight : dims.naturalHeight
+  if (!baseWidth || !baseHeight) return points
+
   return points.map((point) => ({
-    x: offsetX + point.x * displayedImageWidth,
-    y: offsetY + point.y * displayedImageHeight,
+    x: (point.x / baseWidth) * dims.width,
+    y: (point.y / baseHeight) * dims.height,
   }))
 }
 
@@ -144,6 +144,8 @@ export default function RouteCanvas({
   onSaveNewRoutes,
   savingNewRoutes = false,
   defaultClimbType,
+  onDeleteExistingRoute,
+  deletingExistingRouteId = null,
 }: RouteCanvasProps) {
   const isEditExistingMode = mode === 'edit-existing'
   const canCreateRoutesInEditMode = isEditExistingMode && allowCreateRoutesInEditMode
@@ -193,6 +195,8 @@ export default function RouteCanvas({
         grade: rl.climb?.grade || '6A',
         name: rl.climb?.name || `Route ${index + 1}`,
         description: rl.climb?.description || undefined,
+        image_width: rl.image_width,
+        image_height: rl.image_height,
       }))
     }
     return []
@@ -909,9 +913,23 @@ export default function RouteCanvas({
                 const rect = img.getBoundingClientRect()
                 const untransformedWidth = rect.width / zoom
                 const untransformedHeight = rect.height / zoom
+                const containerAspect = untransformedWidth / untransformedHeight
+                const naturalAspect = img.naturalWidth / img.naturalHeight
+
+                let displayedWidth: number
+                let displayedHeight: number
+
+                if (naturalAspect > containerAspect) {
+                  displayedWidth = untransformedWidth
+                  displayedHeight = untransformedWidth / naturalAspect
+                } else {
+                  displayedHeight = untransformedHeight
+                  displayedWidth = untransformedHeight * naturalAspect
+                }
+
                 const nextDims = {
-                  width: untransformedWidth,
-                  height: untransformedHeight,
+                  width: displayedWidth,
+                  height: displayedHeight,
                   naturalWidth: img.naturalWidth,
                   naturalHeight: img.naturalHeight,
                 }
@@ -925,7 +943,12 @@ export default function RouteCanvas({
                 if (isEditExistingMode) {
                   setExistingRoutes(prev => prev.map((route) => ({
                     ...route,
-                    points: convertNormalizedPointsToCanvas(route.points, nextDims),
+                    points: convertNormalizedPointsToCanvas(
+                      route.points,
+                      nextDims,
+                      route.image_width,
+                      route.image_height
+                    ),
                   })))
                 }
               }
@@ -1080,12 +1103,21 @@ export default function RouteCanvas({
                 className="w-full px-2 py-1 text-sm border-b border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none disabled:opacity-60"
               />
 
-              {selectedNewRoute && (
+              {(selectedNewRoute || (isEditExistingMode && selectedExistingRoute)) && (
                 <button
-                  onClick={handleDeleteSelected}
+                  onClick={() => {
+                    if (selectedNewRoute) {
+                      handleDeleteSelected()
+                      return
+                    }
+                    if (isEditExistingMode && selectedExistingRoute && onDeleteExistingRoute) {
+                      void onDeleteExistingRoute(selectedExistingRoute.id)
+                    }
+                  }}
+                  disabled={Boolean(isEditExistingMode && selectedExistingRoute && deletingExistingRouteId === selectedExistingRoute.id)}
                   className="w-full px-2 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
                 >
-                  Delete
+                  {isEditExistingMode && selectedExistingRoute && deletingExistingRouteId === selectedExistingRoute.id ? 'Deleting...' : 'Delete'}
                 </button>
               )}
             </div>

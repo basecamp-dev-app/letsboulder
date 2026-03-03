@@ -52,6 +52,12 @@ interface InviteItem {
   createdAt: string
 }
 
+interface DeleteTransferCandidate {
+  routeLineId: string
+  climbName: string
+  grade: string | null
+}
+
 interface ImageRouteLineQuery {
   id: string
   points: RoutePoint[] | string | null
@@ -219,6 +225,12 @@ export default function EditSubmittedRoutesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchingLocation, setSearchingLocation] = useState(false)
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
+  const [mapOpen, setMapOpen] = useState(false)
+  const [deletingExistingRouteId, setDeletingExistingRouteId] = useState<string | null>(null)
+  const [deleteTransferSourceRouteLineId, setDeleteTransferSourceRouteLineId] = useState<string | null>(null)
+  const [deleteTransferSourceName, setDeleteTransferSourceName] = useState('')
+  const [deleteTransferCandidates, setDeleteTransferCandidates] = useState<DeleteTransferCandidate[]>([])
+  const [selectedTransferTargetRouteLineId, setSelectedTransferTargetRouteLineId] = useState<string>('')
 
   useEffect(() => {
     import('leaflet').then((lib) => setLeaflet(lib))
@@ -301,6 +313,8 @@ export default function EditSubmittedRoutesPage() {
             color: 'red',
             sequence_order: line.sequence_order,
             created_at: new Date().toISOString(),
+            image_width: typeof line.image_width === 'number' ? line.image_width : undefined,
+            image_height: typeof line.image_height === 'number' ? line.image_height : undefined,
             climb: {
               id: climb.id,
               name: climb.name,
@@ -504,6 +518,68 @@ export default function EditSubmittedRoutesPage() {
       setSavingNewRoutes(false)
     }
   }, [savingNewRoutes, imageId, loadSubmission, preferredRouteType])
+
+  const handleDeleteExistingRoute = useCallback(async (routeLineId: string, transferTargetRouteLineId?: string) => {
+    if (!imageId || !routeLineId || deletingExistingRouteId) return
+
+    setDeletingExistingRouteId(routeLineId)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await csrfFetch(`/api/submissions/${imageId}/routes`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          routeLineId,
+          transferLogsToSameName: true,
+          targetRouteLineId: transferTargetRouteLineId || null,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({} as {
+        error?: string
+        code?: string
+        sourceRouteName?: string
+        candidates?: DeleteTransferCandidate[]
+        movedLogs?: number
+        droppedDuplicateLogs?: number
+      }))
+
+      if (!response.ok) {
+        if (response.status === 409 && payload?.code === 'multiple_transfer_targets' && Array.isArray(payload.candidates)) {
+          const candidates = payload.candidates.filter((candidate: DeleteTransferCandidate) => candidate.routeLineId !== routeLineId)
+          setDeleteTransferSourceRouteLineId(routeLineId)
+          setDeleteTransferSourceName(payload.sourceRouteName || '')
+          setDeleteTransferCandidates(candidates)
+          setSelectedTransferTargetRouteLineId(candidates[0]?.routeLineId || '')
+          return
+        }
+
+        throw new Error(payload?.error || 'Failed to delete route')
+      }
+
+      const movedLogs = typeof payload?.movedLogs === 'number' ? payload.movedLogs : 0
+      const droppedDuplicateLogs = typeof payload?.droppedDuplicateLogs === 'number' ? payload.droppedDuplicateLogs : 0
+      if (movedLogs > 0 || droppedDuplicateLogs > 0) {
+        setSuccess(`Route deleted. Moved ${movedLogs} log${movedLogs === 1 ? '' : 's'}${droppedDuplicateLogs > 0 ? `, skipped ${droppedDuplicateLogs} duplicate${droppedDuplicateLogs === 1 ? '' : 's'}` : ''}.`)
+      } else {
+        setSuccess('Route deleted.')
+      }
+
+      setDeleteTransferSourceRouteLineId(null)
+      setDeleteTransferSourceName('')
+      setDeleteTransferCandidates([])
+      setSelectedTransferTargetRouteLineId('')
+
+      await loadSubmission()
+      setCanvasKey((value) => value + 1)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete route')
+    } finally {
+      setDeletingExistingRouteId(null)
+    }
+  }, [imageId, deletingExistingRouteId, loadSubmission])
 
   const toggleFaceDirection = useCallback((direction: FaceDirection) => {
     setFaceDirections((prev) => {
@@ -908,38 +984,60 @@ export default function EditSubmittedRoutesPage() {
             </label>
           </div>
 
-          <div className="mt-3 h-72 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-            <MapContainer
-              center={markerPosition || [20, 0]}
-              zoom={markerPosition ? 14 : 2}
-              style={{ height: '100%', width: '100%' }}
+          {mapOpen ? (
+            <div className="mt-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Click map or drag marker to adjust location</p>
+                <button
+                  type="button"
+                  onClick={() => setMapOpen(false)}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                >
+                  Done
+                </button>
+              </div>
+              <div className="h-72 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+                <MapContainer
+                  center={markerPosition || [20, 0]}
+                  zoom={markerPosition ? 14 : 2}
+                  style={{ height: '100%', width: '100%' }}
+                >
+                  <MapRecenter position={markerPosition} />
+                  <MapClickHandler onClick={handleMapClick} />
+                  <TileLayer
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                    attribution="Imagery © Esri"
+                    maxZoom={19}
+                  />
+                  <TileLayer
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                    attribution="Labels © Esri"
+                    maxZoom={19}
+                  />
+                  {markerPosition && leaflet ? (
+                    <Marker
+                      position={markerPosition}
+                      draggable={true}
+                      icon={leaflet.divIcon({
+                        className: 'location-marker',
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10],
+                      })}
+                      eventHandlers={{ dragend: handleMarkerDragEnd }}
+                    />
+                  ) : null}
+                </MapContainer>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMapOpen(true)}
+              className="mt-3 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
             >
-              <MapRecenter position={markerPosition} />
-              <MapClickHandler onClick={handleMapClick} />
-              <TileLayer
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                attribution="Imagery © Esri"
-                maxZoom={19}
-              />
-              <TileLayer
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-                attribution="Labels © Esri"
-                maxZoom={19}
-              />
-              {markerPosition && leaflet ? (
-                <Marker
-                  position={markerPosition}
-                  draggable={true}
-                  icon={leaflet.divIcon({
-                    className: 'location-marker',
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10],
-                  })}
-                  eventHandlers={{ dragend: handleMarkerDragEnd }}
-                />
-              ) : null}
-            </MapContainer>
-          </div>
+              Adjust location on map
+            </button>
+          )}
 
           <div className="mt-3 flex gap-2">
             <div className="relative flex-1">
@@ -1012,6 +1110,8 @@ export default function EditSubmittedRoutesPage() {
               showEditSaveButton={false}
               onSaveNewRoutes={handleCreateRoutes}
               savingNewRoutes={savingNewRoutes}
+              onDeleteExistingRoute={handleDeleteExistingRoute}
+              deletingExistingRouteId={deletingExistingRouteId}
             />
           </div>
         ) : null}
@@ -1072,6 +1172,69 @@ export default function EditSubmittedRoutesPage() {
             </p>
           )}
         </div>
+
+        <Dialog
+          open={deleteTransferCandidates.length > 0 && !!deleteTransferSourceRouteLineId}
+          onOpenChange={(open) => {
+            if (open) return
+            setDeleteTransferSourceRouteLineId(null)
+            setDeleteTransferSourceName('')
+            setDeleteTransferCandidates([])
+            setSelectedTransferTargetRouteLineId('')
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Choose route to inherit logs</DialogTitle>
+              <DialogDescription>
+                Multiple routes named {deleteTransferSourceName ? `"${deleteTransferSourceName}"` : 'the same'} were found on this image. Pick one target before deleting.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <label className="text-xs text-gray-600 dark:text-gray-300">
+                Transfer logs to
+                <select
+                  value={selectedTransferTargetRouteLineId}
+                  onChange={(event) => setSelectedTransferTargetRouteLineId(event.target.value)}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                >
+                  {deleteTransferCandidates.map((candidate) => (
+                    <option key={candidate.routeLineId} value={candidate.routeLineId}>
+                      {candidate.climbName}{candidate.grade ? ` (${candidate.grade})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteTransferSourceRouteLineId(null)
+                    setDeleteTransferSourceName('')
+                    setDeleteTransferCandidates([])
+                    setSelectedTransferTargetRouteLineId('')
+                  }}
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!deleteTransferSourceRouteLineId || !selectedTransferTargetRouteLineId) return
+                    void handleDeleteExistingRoute(deleteTransferSourceRouteLineId, selectedTransferTargetRouteLineId)
+                  }}
+                  disabled={!deleteTransferSourceRouteLineId || !selectedTransferTargetRouteLineId || deletingExistingRouteId === deleteTransferSourceRouteLineId}
+                  className="flex-1 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  {deletingExistingRouteId === deleteTransferSourceRouteLineId ? 'Deleting...' : 'Transfer and delete'}
+                </button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={shareOpen} onOpenChange={setShareOpen}>
           <DialogContent>
