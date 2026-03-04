@@ -434,7 +434,7 @@ function SubmitPageContent() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        router.push('/auth?redirect_to=/submit')
+        router.push('/auth?redirect_to=/logbook/submissions%3Fmode%3Dnew')
         return
       }
 
@@ -1576,7 +1576,7 @@ function SubmitPageContent() {
                 {step.climbsCreated} route{step.climbsCreated !== 1 ? 's' : ''} visible on map. After 3 community verifications, they&apos;ll be marked as verified.
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg p-3">
-                You can edit all your submissions in your <Link href="/logbook" className="text-blue-600 dark:text-blue-400 hover:underline">logbook</Link>.
+                You can edit all your submissions in <Link href="/logbook/submissions" className="text-blue-600 dark:text-blue-400 hover:underline">submissions</Link>.
               </p>
             </div>
 
@@ -1605,10 +1605,10 @@ function SubmitPageContent() {
             )}
 
             <Link
-              href="/logbook"
+              href="/logbook/submissions"
               className="block w-full bg-gray-800 text-white py-3 rounded-lg font-medium hover:bg-gray-700 transition-colors mb-4"
             >
-              Go to Logbook →
+              Go to Submissions →
             </Link>
 
             <Link

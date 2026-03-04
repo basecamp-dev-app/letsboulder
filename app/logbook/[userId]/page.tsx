@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Lock, ArrowLeft } from 'lucide-react'
 import ProfileViewTracker from './components/ProfileViewTracker'
+import type { Submission } from '@/types/submissions'
 
 interface PublicLogbookPageProps {
   params: Promise<{ userId: string }>
@@ -41,18 +42,6 @@ interface Profile {
   is_public?: boolean
   first_name?: string
   last_name?: string
-}
-
-interface Submission {
-  id: string
-  url: string
-  created_at: string
-  updated_at: string
-  kind: 'submitted' | 'draft'
-  crag_name: string | null
-  route_lines_count: number
-  contribution_credit_platform: string | null
-  contribution_credit_handle: string | null
 }
 
 async function getProfile(userId: string): Promise<Profile | null> {
