@@ -15,9 +15,8 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
-import {
-  formatSubmissionCreditHandle,
-} from '@/lib/submission-credit'
+import SubmissionList from '@/components/submissions/SubmissionList'
+import type { Submission } from '@/types/submissions'
 
 const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
   ssr: false,
@@ -53,18 +52,6 @@ interface Profile {
   highest_grade?: string
   first_name?: string
   last_name?: string
-}
-
-interface Submission {
-  id: string
-  kind: 'submitted' | 'draft'
-  url: string
-  created_at: string
-  updated_at: string
-  crag_name: string | null
-  route_lines_count: number
-  contribution_credit_platform: string | null
-  contribution_credit_handle: string | null
 }
 
 interface LogbookViewProps {
@@ -341,84 +328,22 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
           {submissions.length > 0 && (
             <Card className="m-0 border-x-0 border-t-0 rounded-none">
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Contributions</CardTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-lg">Contributions</CardTitle>
+                  {isOwnProfile ? (
+                    <Link href="/logbook/submissions" className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">
+                      Manage all
+                    </Link>
+                  ) : null}
+                </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="space-y-0">
-                  {submissions.map((submission) => {
-                    const formattedHandle = formatSubmissionCreditHandle(submission.contribution_credit_handle)
-
-                    return (
-                      <div
-                        key={submission.id}
-                        className="py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Link
-                            href={submission.kind === 'draft' ? `/submit?draftId=${submission.id}&from=contributions` : `/image/${submission.id}`}
-                            className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
-                          >
-                            <Image
-                              src={resolveRouteImageUrl(submission.url)}
-                              alt="Submitted route image"
-                              width={48}
-                              height={48}
-                              unoptimized
-                              className="w-12 h-12 object-cover rounded"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                {submission.crag_name || 'Unknown crag'}
-                                {submission.kind === 'draft' && (
-                                  <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                                    Draft
-                                  </span>
-                                )}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.updated_at).toLocaleDateString()}
-                                {formattedHandle ? ` • ${formattedHandle}` : ''}
-                              </p>
-                            </div>
-                          </Link>
-                          {isOwnProfile && (
-                            <div className="shrink-0 flex flex-col items-end gap-1">
-                              {submission.kind === 'draft' ? (
-                                <>
-                                  <Link
-                                    href={`/submit?draftId=${submission.id}&from=contributions`}
-                                    className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                                  >
-                                    Continue drawing
-                                  </Link>
-                                  {deletingDraftId === submission.id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteDraft(submission.id)}
-                                      className="text-gray-400 hover:text-red-500 p-1 transition-colors"
-                                      title="Delete draft"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </>
-                              ) : (
-                                <Link
-                                  href={`/logbook/submissions/${submission.id}/edit`}
-                                  className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                                >
-                                  Manage
-                                </Link>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                <SubmissionList
+                  submissions={submissions}
+                  isOwnProfile={false}
+                  deletingDraftId={deletingDraftId}
+                  onDeleteDraft={handleDeleteDraft}
+                />
               </CardContent>
             </Card>
           )}
@@ -426,84 +351,22 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
       ) : submissions.length > 0 ? (
         <Card className="m-0 border-x-0 border-t-0 rounded-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Contributions</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-lg">Contributions</CardTitle>
+              {isOwnProfile ? (
+                <Link href="/logbook/submissions" className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">
+                  Manage all
+                </Link>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="space-y-0">
-              {submissions.map((submission) => {
-                const formattedHandle = formatSubmissionCreditHandle(submission.contribution_credit_handle)
-
-                return (
-                  <div
-                    key={submission.id}
-                    className="py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
-                  >
-                    <div className="flex items-center gap-3">
-                        <Link
-                          href={submission.kind === 'draft' ? `/submit?draftId=${submission.id}&from=contributions` : `/image/${submission.id}`}
-                          className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
-                        >
-                        <Image
-                          src={resolveRouteImageUrl(submission.url)}
-                          alt="Submitted route image"
-                          width={48}
-                          height={48}
-                          unoptimized
-                          className="w-12 h-12 object-cover rounded"
-                        />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                              {submission.crag_name || 'Unknown crag'}
-                              {submission.kind === 'draft' && (
-                                <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                                  Draft
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'} • {new Date(submission.updated_at).toLocaleDateString()}
-                              {formattedHandle ? ` • ${formattedHandle}` : ''}
-                            </p>
-                          </div>
-                        </Link>
-                        {isOwnProfile && (
-                          <div className="shrink-0 flex flex-col items-end gap-1">
-                          {submission.kind === 'draft' ? (
-                            <>
-                              <Link
-                                href={`/submit?draftId=${submission.id}&from=contributions`}
-                                className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                              >
-                                Continue drawing
-                              </Link>
-                              {deletingDraftId === submission.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteDraft(submission.id)}
-                                  className="text-gray-400 hover:text-red-500 p-1 transition-colors"
-                                  title="Delete draft"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </>
-                          ) : (
-                            <Link
-                              href={`/logbook/submissions/${submission.id}/edit`}
-                              className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                            >
-                              Manage
-                            </Link>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            <SubmissionList
+              submissions={submissions}
+              isOwnProfile={false}
+              deletingDraftId={deletingDraftId}
+              onDeleteDraft={handleDeleteDraft}
+            />
           </CardContent>
         </Card>
       ) : null}

@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/button'
 import { LogbookSkeleton } from '@/components/logbook/logbook-states'
 import { useToast } from '@/components/logbook/toast'
 import { getGradePoints } from '@/lib/grades'
-import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
+import type { Submission } from '@/types/submissions'
 
 interface LoggedClimb {
   id: string
@@ -40,24 +41,6 @@ interface Profile {
   total_climbs?: number
   total_points?: number
   highest_grade?: string
-}
-
-interface Submission {
-  id: string
-  kind: 'submitted' | 'draft'
-  url: string
-  created_at: string
-  updated_at: string
-  crag_name: string | null
-  route_lines_count: number
-  contribution_credit_platform: string | null
-  contribution_credit_handle: string | null
-}
-
-interface DraftImageRef {
-  storage_bucket?: string
-  storage_path?: string
-  route_data?: unknown
 }
 
 function LoadingFallback() {
@@ -147,97 +130,7 @@ function LogbookContent() {
 
           setLogs(logsWithPoints)
 
-          const formattedSubmissions: Submission[] = []
-          const submissionsResponse = await fetch('/api/logbook/contributions?limit=24')
-          if (!submissionsResponse.ok) {
-            console.error('Submissions query error:', submissionsResponse.status)
-          } else {
-            const payload = await submissionsResponse.json().catch(() => ({ submissions: [] as Submission[] }))
-            if (Array.isArray(payload.submissions)) {
-              formattedSubmissions.push(...payload.submissions)
-            }
-          }
-
-          const { data: draftSubmissions, error: draftError } = await supabase
-            .from('submission_drafts')
-            .select('id, created_at, updated_at, crags(name), submission_draft_images(storage_bucket, storage_path, route_data)')
-            .eq('user_id', user.id)
-            .eq('status', 'draft')
-            .order('updated_at', { ascending: false })
-            .limit(24)
-
-          if (draftError) {
-            console.error('Draft submissions query error:', draftError)
-          }
-
-          const draftRows = (draftSubmissions || [])
-          const firstDraftImageObjects = draftRows
-            .map((draft) => {
-              const draftImages = (draft.submission_draft_images as DraftImageRef[] | null) || []
-              const firstImage = draftImages[0]
-              if (!firstImage?.storage_bucket || !firstImage?.storage_path) return null
-              return {
-                bucket: firstImage.storage_bucket,
-                path: firstImage.storage_path,
-              }
-            })
-            .filter((item): item is { bucket: string; path: string } => !!item)
-
-          const signedByKey = new Map<string, string>()
-          if (firstDraftImageObjects.length > 0) {
-            const signedUrlResponse = await csrfFetch('/api/uploads/signed-urls/batch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ objects: firstDraftImageObjects }),
-            })
-
-            if (signedUrlResponse.ok) {
-              const signedData = await signedUrlResponse.json().catch(() => ({} as SignedUrlBatchResponse))
-              for (const item of signedData.results || []) {
-                if (!item?.signedUrl) continue
-                signedByKey.set(getSignedUrlBatchKey(item.bucket, item.path), item.signedUrl)
-              }
-            }
-          }
-
-          const formattedDrafts: Submission[] = draftRows.map((draft) => {
-            const cragRelation = draft.crags as { name?: string } | Array<{ name?: string }> | null
-            const cragName = Array.isArray(cragRelation)
-              ? (cragRelation[0]?.name || null)
-              : (cragRelation?.name || null)
-
-            const draftImages = (draft.submission_draft_images as DraftImageRef[] | null) || []
-
-            const firstImage = draftImages[0]
-            const previewUrl = firstImage?.storage_bucket && firstImage?.storage_path
-              ? (signedByKey.get(getSignedUrlBatchKey(firstImage.storage_bucket, firstImage.storage_path)) || '')
-              : ''
-
-            const routeCount = draftImages.reduce((count, image) => {
-              const routeData = image.route_data
-              if (routeData && typeof routeData === 'object' && 'completedRoutes' in (routeData as Record<string, unknown>)) {
-                const completedRoutes = (routeData as { completedRoutes?: unknown[] }).completedRoutes
-                return count + (Array.isArray(completedRoutes) ? completedRoutes.length : 0)
-              }
-              return count
-            }, 0)
-
-            return {
-              id: draft.id,
-              kind: 'draft' as const,
-              url: previewUrl,
-              created_at: draft.created_at,
-              updated_at: draft.updated_at,
-              crag_name: cragName,
-              route_lines_count: routeCount,
-              contribution_credit_platform: null,
-              contribution_credit_handle: null,
-            }
-          })
-
-          const mergedSubmissions = [...formattedDrafts, ...formattedSubmissions]
-            .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-
+          const mergedSubmissions = await fetchOwnSubmissions(supabase, user.id, csrfFetch, 24)
           setSubmissions(mergedSubmissions)
         }
       } catch (err) {
