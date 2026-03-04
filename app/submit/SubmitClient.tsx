@@ -1130,9 +1130,13 @@ function SubmitPageContent() {
     return true
   }, [addToast, context.crag, context.imageGps, selectedRouteType, setRoutes])
 
-  async function handleSubmit(routeType?: ClimbType) {
+  async function handleSubmit(routeType?: ClimbType, submittedRoutes?: NewRouteData[]) {
     if (isSubmitting) return
-    const routesToSubmit = context.routes.length > 0 ? context.routes : latestRoutesRef.current
+    const routesToSubmit = (submittedRoutes && submittedRoutes.length > 0)
+      ? submittedRoutes
+      : context.routes.length > 0
+        ? context.routes
+        : latestRoutesRef.current
     const stepImage = 'image' in step ? step.image : null
     const stepCragId = 'cragId' in step ? step.cragId : undefined
     const imageToSubmit = context.image || stepImage || null
@@ -1142,7 +1146,11 @@ function SubmitPageContent() {
       : latestFaceDirectionsByImageRef.current
 
     if (!imageToSubmit || !cragIdToSubmit || routesToSubmit.length === 0) {
-      setError('Incomplete submission data')
+      const errorMessage = routesToSubmit.length === 0
+        ? 'No saved routes to submit yet. Tap Save on the route first.'
+        : 'Incomplete submission data'
+      setError(errorMessage)
+      addToast(errorMessage, 'error')
       return
     }
 
@@ -1516,8 +1524,8 @@ function SubmitPageContent() {
               key={`${stepDraftKey || routeDraftKey || 'route-canvas'}:${drawSessionVersion}`}
               imageSelection={step.image}
               onRoutesUpdate={handleRoutesUpdate}
-              onSubmitRoutes={() => {
-                void handleSubmit(selectedRouteType || undefined)
+              onSubmitRoutes={(submittedRoutes) => {
+                void handleSubmit(selectedRouteType || undefined, submittedRoutes)
               }}
               draftKey={stepDraftKey || routeDraftKey || undefined}
               defaultClimbType={step.defaultClimbType}

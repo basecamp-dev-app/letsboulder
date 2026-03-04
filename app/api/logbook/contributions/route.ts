@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
+import { groupSubmittedImages } from '@/lib/submissions/group-submitted-images'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -12,6 +13,11 @@ interface ContributionRow {
   contribution_credit_handle: string | null
   crags: { name?: string } | Array<{ name?: string }> | null
   route_lines: Array<{ count?: number }> | null
+}
+
+interface CragImageLinkRow {
+  source_image_id: string | null
+  linked_image_id: string | null
 }
 
 export async function GET(request: NextRequest) {
@@ -58,31 +64,25 @@ export async function GET(request: NextRequest) {
       return createErrorResponse(error, 'Logbook contributions query error')
     }
 
-    const submissions = ((data || []) as ContributionRow[])
-      .map((submission) => {
-        const cragRelation = submission.crags
-        const cragName = Array.isArray(cragRelation)
-          ? (cragRelation[0]?.name || null)
-          : (cragRelation?.name || null)
+    const contributionRows = (data || []) as ContributionRow[]
+    const imageIds = contributionRows.map((row) => row.id)
 
-        const routeLines = submission.route_lines
-        const routeLinesCount = Array.isArray(routeLines) && routeLines[0]
-          ? (routeLines[0].count || 0)
-          : 0
+    let links: CragImageLinkRow[] = []
+    if (imageIds.length > 0) {
+      const idsCsv = imageIds.join(',')
+      const { data: linksData, error: linksError } = await readClient
+        .from('crag_images')
+        .select('source_image_id, linked_image_id')
+        .or(`linked_image_id.in.(${idsCsv}),source_image_id.in.(${idsCsv})`)
 
-        return {
-          id: submission.id,
-          kind: 'submitted' as const,
-          url: submission.url,
-          created_at: submission.created_at,
-          updated_at: submission.created_at,
-          crag_name: cragName,
-          route_lines_count: routeLinesCount,
-          contribution_credit_platform: submission.contribution_credit_platform || null,
-          contribution_credit_handle: submission.contribution_credit_handle || null,
-        }
-      })
-      .filter((submission) => submission.route_lines_count > 0)
+      if (linksError) {
+        return createErrorResponse(linksError, 'Logbook contributions relation query error')
+      }
+
+      links = (linksData || []) as CragImageLinkRow[]
+    }
+
+    const submissions = groupSubmittedImages(contributionRows, links)
 
     return NextResponse.json({ submissions })
   } catch (error) {

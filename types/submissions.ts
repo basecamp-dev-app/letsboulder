@@ -8,6 +8,8 @@ export interface Submission {
   route_lines_count: number
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
+  image_ids?: string[]
+  image_count?: number
 }
 
 export interface DraftImageRef {

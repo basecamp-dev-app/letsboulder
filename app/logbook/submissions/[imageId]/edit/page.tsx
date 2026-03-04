@@ -96,6 +96,26 @@ interface EditableImageQuery {
   route_lines: ImageRouteLineQuery[] | null
 }
 
+interface FaceSummaryItem {
+  id: string
+  image_id?: string | null
+  index?: number
+  is_primary: boolean
+  has_routes: boolean
+  face_directions?: string[] | null
+}
+
+interface FacesResponsePayload {
+  primary_image_id?: string
+  faces?: FaceSummaryItem[]
+}
+
+interface ManageFaceTab {
+  imageId: string
+  label: string
+  isPrimary: boolean
+}
+
 const VALID_ROUTE_TYPES = ['sport', 'boulder', 'trad', 'deep-water-solo'] as const
 const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
   { value: 'instagram', label: 'Instagram' },
@@ -229,6 +249,8 @@ export default function EditSubmittedRoutesPage() {
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
   const [mapOpen, setMapOpen] = useState(false)
   const [deletingExistingRouteId, setDeletingExistingRouteId] = useState<string | null>(null)
+  const [facesLoading, setFacesLoading] = useState(false)
+  const [manageFaces, setManageFaces] = useState<ManageFaceTab[]>([])
   const [deleteTransferSourceRouteLineId, setDeleteTransferSourceRouteLineId] = useState<string | null>(null)
   const [deleteTransferSourceName, setDeleteTransferSourceName] = useState('')
   const [deleteTransferCandidates, setDeleteTransferCandidates] = useState<DeleteTransferCandidate[]>([])
@@ -369,6 +391,54 @@ export default function EditSubmittedRoutesPage() {
   useEffect(() => {
     loadSubmission()
   }, [loadSubmission])
+
+  const loadManageFaces = useCallback(async () => {
+    if (!imageId) return
+
+    setFacesLoading(true)
+    try {
+      const response = await fetch(`/api/images/${imageId}/faces`, { cache: 'no-store' })
+      if (!response.ok) {
+        setManageFaces([])
+        return
+      }
+
+      const payload = await response.json() as FacesResponsePayload
+      const faces = Array.isArray(payload.faces) ? payload.faces : []
+      const nextFaces = faces
+        .filter((face): face is FaceSummaryItem & { image_id: string } => typeof face.image_id === 'string' && !!face.image_id)
+        .sort((a, b) => (a.index || 0) - (b.index || 0))
+        .map((face, index) => {
+          const directions = Array.isArray(face.face_directions) && face.face_directions.length > 0
+            ? face.face_directions.join('/')
+            : null
+          const defaultLabel = face.is_primary
+            ? 'Primary'
+            : `Face ${index + 1}`
+          return {
+            imageId: face.image_id,
+            label: directions ? `${defaultLabel} (${directions})` : defaultLabel,
+            isPrimary: face.is_primary,
+          }
+        })
+
+      const uniqueByImage = new Map(nextFaces.map((face) => [face.imageId, face]))
+      const orderedFaces = [...uniqueByImage.values()]
+      const hasCurrentImage = orderedFaces.some((face) => face.imageId === imageId)
+      if (!hasCurrentImage) {
+        orderedFaces.push({ imageId, label: 'Current image', isPrimary: false })
+      }
+      setManageFaces(orderedFaces)
+    } catch {
+      setManageFaces([])
+    } finally {
+      setFacesLoading(false)
+    }
+  }, [imageId])
+
+  useEffect(() => {
+    void loadManageFaces()
+  }, [loadManageFaces])
 
   const hasReadyData = useMemo(() => {
     return !!imageSelection
@@ -961,6 +1031,39 @@ export default function EditSubmittedRoutesPage() {
         {success && (
           <div className="mb-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
             {success}
+          </div>
+        )}
+
+        {(facesLoading || manageFaces.length > 1) && (
+          <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Manage all images</h2>
+              {facesLoading ? (
+                <span className="text-xs text-gray-500 dark:text-gray-400">Loading faces...</span>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {manageFaces.map((face) => {
+                const active = face.imageId === imageId
+                return (
+                  <button
+                    key={face.imageId}
+                    type="button"
+                    onClick={() => {
+                      if (active) return
+                      router.push(`/logbook/submissions/${face.imageId}/edit`)
+                    }}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      active
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    {face.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
 
