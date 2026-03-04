@@ -166,6 +166,19 @@ function removeDraftIndexEntry(draftKey: string) {
   writeDraftIndex(next)
 }
 
+function removeDraftIndexEntriesByServerDraftId(serverDraftId: string) {
+  if (!serverDraftId) return
+  const next = readDraftIndex().filter((entry) => entry.serverDraftId !== serverDraftId)
+  writeDraftIndex(next)
+}
+
+function buildUploadSignature(images: NewUploadedImage[]): string {
+  return images
+    .map((image) => `${image.uploadedBucket}/${image.uploadedPath}`)
+    .sort()
+    .join('|')
+}
+
 function pruneDraftIndex(): RouteDraftIndexEntry[] {
   const now = Date.now()
   const next: RouteDraftIndexEntry[] = []
@@ -1302,16 +1315,52 @@ function SubmitPageContent() {
       const totalClimbsCreated = batchCreatedClimbs + ((data?.climbsCreated as number) || 0)
       setBatchCreatedClimbs(0)
 
-      if (serverDraftSession) {
-        const supabase = createClient()
-        const { error: updateDraftError } = await supabase
-          .from('submission_drafts')
-          .update({ status: 'submitted', crag_id: cragIdToSubmit || null })
-          .eq('id', serverDraftSession.id)
+      const finalizedDraftId = serverDraftSession?.id || draftId || null
+      const uploadSignature = imageToSubmit.mode === 'new' ? buildUploadSignature(imageToSubmit.images) : null
 
-        if (updateDraftError) {
-          console.error('Failed to finalize submission draft:', updateDraftError)
+      if (finalizedDraftId || uploadSignature) {
+        const supabase = createClient()
+
+        let finalized = false
+
+        if (finalizedDraftId) {
+          const { data: updatedDraftById, error: updateDraftByIdError } = await supabase
+            .from('submission_drafts')
+            .update({ status: 'submitted', crag_id: cragIdToSubmit || null })
+            .eq('id', finalizedDraftId)
+            .eq('user_id', user.id)
+            .select('id')
+            .maybeSingle()
+
+          if (updateDraftByIdError) {
+            console.error('Failed to finalize submission draft by id:', updateDraftByIdError)
+          } else if (updatedDraftById) {
+            finalized = true
+          }
+        }
+
+        if (!finalized && uploadSignature) {
+          const { data: updatedDraftsBySignature, error: updateDraftBySignatureError } = await supabase
+            .from('submission_drafts')
+            .update({ status: 'submitted', crag_id: cragIdToSubmit || null })
+            .eq('user_id', user.id)
+            .eq('status', 'draft')
+            .contains('metadata', { uploadSignature })
+            .select('id')
+
+          if (updateDraftBySignatureError) {
+            console.error('Failed to finalize submission draft by upload signature:', updateDraftBySignatureError)
+          } else if ((updatedDraftsBySignature || []).length > 0) {
+            finalized = true
+          }
+        }
+
+        if (!finalized) {
           addToast('Your routes were submitted, but draft cleanup failed. Please refresh your logbook.', 'info')
+        }
+
+        if (finalizedDraftId) {
+          removeDraftIndexEntriesByServerDraftId(finalizedDraftId)
         }
 
         setServerDraftSession(null)
