@@ -7,7 +7,6 @@ dotenv.config({ path: path.resolve(__dirname, 'tests/.env.test') })
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
-  testIgnore: process.env.CI ? ['**/canvas.spec.ts'] : undefined,
   globalSetup: process.env.TEST_API_KEY && process.env.TEST_USER_ID && process.env.TEST_USER_PASSWORD
     ? path.resolve(__dirname, 'global-setup.ts')
     : undefined,

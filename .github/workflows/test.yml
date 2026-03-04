@@ -15,7 +15,7 @@ jobs:
   test:
     name: E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     
     steps:
       - uses: actions/checkout@v4
@@ -75,15 +75,7 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       
-      - name: Run public E2E tests
-        run: npx playwright test --project=public
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          CI: true
-
-      - name: Validate authenticated test env
+      - name: Validate Playwright env
         run: |
           required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_PASSWORD INTERNAL_TEST_KEY)
           for var in "${required_vars[@]}"; do
@@ -101,8 +93,8 @@ jobs:
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
 
-      - name: Run authenticated E2E tests
-        run: npx playwright test --project=authenticated
+      - name: Run Playwright test suite
+        run: npx playwright test
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
