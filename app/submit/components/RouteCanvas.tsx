@@ -42,7 +42,7 @@ interface EditableExistingRoute {
 interface RouteCanvasProps {
   imageSelection: ImageSelection
   onRoutesUpdate: (routes: NewRouteData[]) => void
-  onSubmitRoutes?: () => void
+  onSubmitRoutes?: (routes: NewRouteData[]) => void
   existingRouteLines?: RouteLine[]
   draftKey?: string
   mode?: 'submit' | 'edit-existing'
@@ -87,16 +87,30 @@ function convertNormalizedPointsToCanvas(
     }))
   }
 
+  const hasOriginalDimensions = Boolean(
+    originalImageWidth &&
+    originalImageWidth > 0 &&
+    originalImageHeight &&
+    originalImageHeight > 0
+  )
+
+  if (hasOriginalDimensions) {
+    const baseWidth = originalImageWidth as number
+    const baseHeight = originalImageHeight as number
+    return points.map((point) => ({
+      x: (point.x / baseWidth) * dims.width,
+      y: (point.y / baseHeight) * dims.height,
+    }))
+  }
+
   const alreadyCanvasSpace = maxX <= dims.width * 1.05 && maxY <= dims.height * 1.05
   if (alreadyCanvasSpace) return points
 
-  const baseWidth = originalImageWidth && originalImageWidth > 0 ? originalImageWidth : dims.naturalWidth
-  const baseHeight = originalImageHeight && originalImageHeight > 0 ? originalImageHeight : dims.naturalHeight
-  if (!baseWidth || !baseHeight) return points
+  if (!dims.naturalWidth || !dims.naturalHeight) return points
 
   return points.map((point) => ({
-    x: (point.x / baseWidth) * dims.width,
-    y: (point.y / baseHeight) * dims.height,
+    x: (point.x / dims.naturalWidth) * dims.width,
+    y: (point.y / dims.naturalHeight) * dims.height,
   }))
 }
 
@@ -215,6 +229,8 @@ export default function RouteCanvas({
   const [descriptionFocused, setDescriptionFocused] = useState(false)
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true)
   const draftWriteTimeoutRef = useRef<number | null>(null)
+  const previousCanvasSizeRef = useRef<{ width: number; height: number } | null>(null)
+  const hasHydratedExistingRoutesRef = useRef(false)
   const isDrawingInProgress = currentPoints.length > 0
 
   const persistDraft = useCallback(() => {
@@ -265,6 +281,11 @@ export default function RouteCanvas({
       }
     }
   }, [draftKey, persistDraft])
+
+  useEffect(() => {
+    hasHydratedExistingRoutesRef.current = false
+    previousCanvasSizeRef.current = null
+  }, [imageUrl])
 
   useEffect(() => {
     if (!draftKey) return
@@ -734,34 +755,41 @@ export default function RouteCanvas({
     }))
   }, [])
 
+  const getNormalizedCompletedRoutes = useCallback((): NewRouteData[] => {
+    if (!imageDimensions) return []
+
+    return completedRoutes.map((route, index) => ({
+      id: route.id,
+      name: route.name,
+      grade: route.grade,
+      description: route.description,
+      climbType: route.climbType as NewRouteData['climbType'],
+      points: normalizeCanvasPoints(route.points),
+      sequenceOrder: index,
+      imageWidth: imageDimensions.naturalWidth,
+      imageHeight: imageDimensions.naturalHeight,
+      imageNaturalWidth: imageDimensions.naturalWidth,
+      imageNaturalHeight: imageDimensions.naturalHeight,
+    }))
+  }, [completedRoutes, imageDimensions, normalizeCanvasPoints])
+
   useEffect(() => {
     const image = imageRef.current
     const canvas = canvasRef.current
     const container = containerRef.current
     if (!image || !canvas || !container || !image.complete || !imageDimensions) return
 
-    const normalizedRoutes = completedRoutes.map((route, index) => {
-      return {
-        id: route.id,
-        name: route.name,
-        grade: route.grade,
-        description: route.description,
-        climbType: route.climbType as NewRouteData['climbType'],
-        points: normalizeCanvasPoints(route.points),
-        sequenceOrder: index,
-        imageWidth: imageDimensions.naturalWidth,
-        imageHeight: imageDimensions.naturalHeight,
-        imageNaturalWidth: imageDimensions.naturalWidth,
-        imageNaturalHeight: imageDimensions.naturalHeight
-      }
-    })
+    const normalizedRoutes = getNormalizedCompletedRoutes()
 
     onRoutesUpdate(normalizedRoutes)
     redraw()
-  }, [completedRoutes, imageDimensions, normalizeCanvasPoints, onRoutesUpdate, redraw])
+  }, [getNormalizedCompletedRoutes, imageDimensions, onRoutesUpdate, redraw])
 
   useEffect(() => {
-    if (!isEditExistingMode || !imageDimensions || !onEditRoutesUpdate) return
+    if (!isEditExistingMode || !imageDimensions || !onEditRoutesUpdate || !canvasReady) return
+
+    const canvas = canvasRef.current
+    if (!canvas || canvas.width < 32 || canvas.height < 32) return
 
     onEditRoutesUpdate(existingRoutes.map((route) => ({
       id: route.id,
@@ -770,7 +798,7 @@ export default function RouteCanvas({
       description: route.description,
       points: normalizeCanvasPoints(route.points),
     })))
-  }, [isEditExistingMode, imageDimensions, existingRoutes, normalizeCanvasPoints, onEditRoutesUpdate])
+  }, [isEditExistingMode, imageDimensions, existingRoutes, normalizeCanvasPoints, onEditRoutesUpdate, canvasReady])
 
   const handleAddNewRouteInEditMode = useCallback(() => {
     if (!canCreateRoutesInEditMode || !onSaveNewRoutes || !imageDimensions || currentPoints.length < 2) return
@@ -831,6 +859,32 @@ export default function RouteCanvas({
       setCanvasReady(false)
       return
     }
+
+    const previousCanvasSize = previousCanvasSizeRef.current
+    if (previousCanvasSize && previousCanvasSize.width > 0 && previousCanvasSize.height > 0) {
+      const widthScale = displayedWidth / previousCanvasSize.width
+      const heightScale = displayedHeight / previousCanvasSize.height
+      const sizeChanged = Math.abs(widthScale - 1) > 0.001 || Math.abs(heightScale - 1) > 0.001
+
+      if (sizeChanged) {
+        const scalePoints = (points: RoutePoint[]) => points.map((point) => ({
+          x: point.x * widthScale,
+          y: point.y * heightScale,
+        }))
+
+        setExistingRoutes((prev) => prev.map((route) => ({
+          ...route,
+          points: scalePoints(route.points),
+        })))
+        setCompletedRoutes((prev) => prev.map((route) => ({
+          ...route,
+          points: scalePoints(route.points),
+        })))
+        setCurrentPoints((prev) => scalePoints(prev))
+      }
+    }
+
+    previousCanvasSizeRef.current = { width: displayedWidth, height: displayedHeight }
 
     canvas.style.left = offsetX + 'px'
     canvas.style.top = offsetY + 'px'
@@ -940,8 +994,8 @@ export default function RouteCanvas({
                   naturalHeight: nextDims.naturalHeight
                 })
 
-                if (isEditExistingMode) {
-                  setExistingRoutes(prev => prev.map((route) => ({
+                if (isEditExistingMode && !hasHydratedExistingRoutesRef.current) {
+                  setExistingRoutes((prev) => prev.map((route) => ({
                     ...route,
                     points: convertNormalizedPointsToCanvas(
                       route.points,
@@ -950,6 +1004,7 @@ export default function RouteCanvas({
                       route.image_height
                     ),
                   })))
+                  hasHydratedExistingRoutesRef.current = true
                 }
               }
               setImageLoaded(true)
@@ -1156,8 +1211,9 @@ export default function RouteCanvas({
           {!isEditExistingMode && currentPoints.length < 2 && completedRoutes.length > 0 && (
             <button
               onClick={() => {
+                const normalizedRoutes = getNormalizedCompletedRoutes()
                 if (onSubmitRoutes) {
-                  onSubmitRoutes()
+                  onSubmitRoutes(normalizedRoutes)
                   return
                 }
                 window.dispatchEvent(new CustomEvent('submit-routes'))
@@ -1199,8 +1255,9 @@ export default function RouteCanvas({
               <button
                 onClick={() => {
                   setShowSubmitConfirm(false)
+                  const normalizedRoutes = getNormalizedCompletedRoutes()
                   if (onSubmitRoutes) {
-                    onSubmitRoutes()
+                    onSubmitRoutes(normalizedRoutes)
                     return
                   }
                   window.dispatchEvent(new CustomEvent('submit-routes'))

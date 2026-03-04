@@ -4,15 +4,23 @@ on:
   deployment_status:
   pull_request:
     branches: [main, dev]
-  push:
-    branches: [main, dev]
   workflow_dispatch:
+    inputs:
+      playwright_base_url:
+        description: 'Optional base URL override for Playwright runs'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  deployments: read
+  statuses: write
 
 jobs:
   test:
     name: E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     
     steps:
       - uses: actions/checkout@v4
@@ -36,20 +44,91 @@ jobs:
        
       - name: Install Playwright browsers
         run: npx playwright install chromium
-      
-      - name: Run public E2E tests
-        run: npx playwright test --project=public
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-          CI: true
 
-      - name: Validate authenticated test env
+      - name: Resolve Playwright base URL
+        id: resolve_base_url
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const manualBaseUrl = '${{ github.event.inputs.playwright_base_url || '' }}'.trim();
+            if (manualBaseUrl) {
+              core.info(`Using manual base URL: ${manualBaseUrl}`);
+              core.setOutput('base_url', manualBaseUrl);
+              return;
+            }
+
+            if (context.eventName !== 'pull_request') {
+              core.setFailed('No playwright_base_url provided and event is not pull_request.');
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const sha = context.payload.pull_request.head.sha;
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            for (let attempt = 1; attempt <= 30; attempt++) {
+              core.info(`Attempt ${attempt}/30: looking up Vercel deployment for ${sha}`);
+
+              const deployments = await github.paginate(github.rest.repos.listDeployments, {
+                owner,
+                repo,
+                sha,
+                per_page: 100,
+              });
+
+              for (const deployment of deployments) {
+                const statuses = await github.paginate(github.rest.repos.listDeploymentStatuses, {
+                  owner,
+                  repo,
+                  deployment_id: deployment.id,
+                  per_page: 100,
+                });
+
+                const successStatus = statuses.find((status) => {
+                  if (status.state !== 'success') return false;
+                  const targetUrl = status.target_url || '';
+                  return /https:\/\/[a-z0-9-]+\.vercel\.app/i.test(targetUrl);
+                });
+
+                if (successStatus?.target_url) {
+                  core.info(`Resolved preview URL: ${successStatus.target_url}`);
+                  core.setOutput('base_url', successStatus.target_url);
+                  return;
+                }
+              }
+
+              await sleep(20000);
+            }
+
+            core.setFailed('Timed out waiting for successful Vercel preview deployment URL.');
+
+      - name: Wait for preview readiness
         run: |
-          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_PASSWORD)
+          base_url='${{ steps.resolve_base_url.outputs.base_url }}'
+          if [ -z "$base_url" ]; then
+            echo "Failed to resolve PLAYWRIGHT_BASE_URL"
+            exit 1
+          fi
+
+          for i in $(seq 1 30); do
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" "$base_url")
+            if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 400 ]; then
+              echo "PLAYWRIGHT_BASE_URL=$base_url" >> "$GITHUB_ENV"
+              echo "Using Playwright base URL: $base_url"
+              exit 0
+            fi
+
+            echo "Preview not ready yet (HTTP $status_code), retry $i/30"
+            sleep 10
+          done
+
+          echo "Preview URL did not become ready in time: $base_url"
+          exit 1
+      
+      - name: Validate Playwright env
+        run: |
+          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_PASSWORD INTERNAL_TEST_KEY)
           for var in "${required_vars[@]}"; do
             if [ -z "${!var}" ]; then
               echo "Missing required environment variable: $var"
@@ -59,20 +138,18 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
 
-      - name: Run authenticated E2E tests
-        run: npx playwright test --project=authenticated
+      - name: Run Playwright test suite
+        run: npx playwright test
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
-          TEST_DB_CONNECTION: ${{ secrets.TEST_DB_CONNECTION }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
@@ -88,7 +165,9 @@ jobs:
           retention-days: 7
 
       - name: notify vercel
+        if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        continue-on-error: true
         uses: vercel/repository-dispatch/actions/status@v1
         with:
-          repository-token: ${{ secrets.VERCEL_REPOSITORY_DISPATCH_TOKEN }}
+          github_token: ${{ github.token }}
           name: 'Vercel - letsboulder: E2E Tests'

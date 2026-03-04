@@ -65,7 +65,7 @@ test.describe('Accessibility', () => {
   test('submit page has accessible form elements', async ({ page }) => {
     await page.goto('/submit')
 
-    await expect(page).toHaveURL(/\/auth\?redirect_to=\/submit/)
+    await expect(page).toHaveURL(/\/auth\?redirect_to=(%2Fsubmit|\/submit|%2Flogbook%2Fsubmissions|\/logbook\/submissions)/)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await expect(page.getByRole('button', { name: /continue with google/i })).toBeVisible()
   })

@@ -434,7 +434,7 @@ function SubmitPageContent() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        router.push('/auth?redirect_to=/submit')
+        router.push('/auth?redirect_to=/logbook/submissions%3Fmode%3Dnew')
         return
       }
 
@@ -1130,9 +1130,13 @@ function SubmitPageContent() {
     return true
   }, [addToast, context.crag, context.imageGps, selectedRouteType, setRoutes])
 
-  async function handleSubmit(routeType?: ClimbType) {
+  async function handleSubmit(routeType?: ClimbType, submittedRoutes?: NewRouteData[]) {
     if (isSubmitting) return
-    const routesToSubmit = context.routes.length > 0 ? context.routes : latestRoutesRef.current
+    const routesToSubmit = (submittedRoutes && submittedRoutes.length > 0)
+      ? submittedRoutes
+      : context.routes.length > 0
+        ? context.routes
+        : latestRoutesRef.current
     const stepImage = 'image' in step ? step.image : null
     const stepCragId = 'cragId' in step ? step.cragId : undefined
     const imageToSubmit = context.image || stepImage || null
@@ -1142,7 +1146,11 @@ function SubmitPageContent() {
       : latestFaceDirectionsByImageRef.current
 
     if (!imageToSubmit || !cragIdToSubmit || routesToSubmit.length === 0) {
-      setError('Incomplete submission data')
+      const errorMessage = routesToSubmit.length === 0
+        ? 'No saved routes to submit yet. Tap Save on the route first.'
+        : 'Incomplete submission data'
+      setError(errorMessage)
+      addToast(errorMessage, 'error')
       return
     }
 
@@ -1516,8 +1524,8 @@ function SubmitPageContent() {
               key={`${stepDraftKey || routeDraftKey || 'route-canvas'}:${drawSessionVersion}`}
               imageSelection={step.image}
               onRoutesUpdate={handleRoutesUpdate}
-              onSubmitRoutes={() => {
-                void handleSubmit(selectedRouteType || undefined)
+              onSubmitRoutes={(submittedRoutes) => {
+                void handleSubmit(selectedRouteType || undefined, submittedRoutes)
               }}
               draftKey={stepDraftKey || routeDraftKey || undefined}
               defaultClimbType={step.defaultClimbType}
@@ -1576,7 +1584,7 @@ function SubmitPageContent() {
                 {step.climbsCreated} route{step.climbsCreated !== 1 ? 's' : ''} visible on map. After 3 community verifications, they&apos;ll be marked as verified.
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg p-3">
-                You can edit all your submissions in your <Link href="/logbook" className="text-blue-600 dark:text-blue-400 hover:underline">logbook</Link>.
+                You can edit all your submissions in <Link href="/logbook/submissions" className="text-blue-600 dark:text-blue-400 hover:underline">submissions</Link>.
               </p>
             </div>
 
@@ -1605,10 +1613,10 @@ function SubmitPageContent() {
             )}
 
             <Link
-              href="/logbook"
+              href="/logbook/submissions"
               className="block w-full bg-gray-800 text-white py-3 rounded-lg font-medium hover:bg-gray-700 transition-colors mb-4"
             >
-              Go to Logbook →
+              Go to Submissions →
             </Link>
 
             <Link
