@@ -111,6 +111,43 @@ export async function PUT(
       return createErrorResponse(rpcError, 'Update submission image metadata error')
     }
 
+    const { data: directLink } = await supabase
+      .from('crag_images')
+      .select('source_image_id')
+      .eq('linked_image_id', imageId)
+      .maybeSingle()
+
+    const sourceImageId = typeof directLink?.source_image_id === 'string' && directLink.source_image_id
+      ? directLink.source_image_id
+      : imageId
+
+    const relatedImageIds = new Set<string>([sourceImageId])
+    const { data: linkedImages } = await supabase
+      .from('crag_images')
+      .select('linked_image_id')
+      .eq('source_image_id', sourceImageId)
+
+    for (const link of linkedImages || []) {
+      if (typeof link.linked_image_id === 'string' && link.linked_image_id) {
+        relatedImageIds.add(link.linked_image_id)
+      }
+    }
+
+    if (relatedImageIds.size > 1) {
+      const { error: syncCoordsError } = await supabase
+        .from('images')
+        .update({
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          last_edited_by: userId,
+        })
+        .in('id', [...relatedImageIds])
+
+      if (syncCoordsError) {
+        console.error('Failed to sync linked image coordinates:', syncCoordsError)
+      }
+    }
+
     revalidatePath('/')
 
     const { data: image } = await supabase

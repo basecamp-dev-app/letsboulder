@@ -7,6 +7,22 @@ import { Button } from '@/components/ui/button'
 import { Lock, ArrowLeft } from 'lucide-react'
 import ProfileViewTracker from './components/ProfileViewTracker'
 import type { Submission } from '@/types/submissions'
+import { groupSubmittedImages } from '@/lib/submissions/group-submitted-images'
+
+interface PublicContributionRow {
+  id: string
+  url: string
+  created_at: string
+  contribution_credit_platform: string | null
+  contribution_credit_handle: string | null
+  crags: { name?: string } | Array<{ name?: string }> | null
+  route_lines: Array<{ count?: number }> | null
+}
+
+interface CragImageLinkRow {
+  source_image_id: string | null
+  linked_image_id: string | null
+}
 
 interface PublicLogbookPageProps {
   params: Promise<{ userId: string }>
@@ -141,31 +157,23 @@ async function getPublicSubmissions(userId: string): Promise<Submission[]> {
     return []
   }
 
-  return data
-    .map((submission) => {
-      const cragRelation = submission.crags as { name?: string } | Array<{ name?: string }> | null
-      const cragName = Array.isArray(cragRelation)
-        ? (cragRelation[0]?.name || null)
-        : (cragRelation?.name || null)
+  const contributionRows = data as PublicContributionRow[]
+  const imageIds = contributionRows.map((row) => row.id)
 
-      const routeLines = submission.route_lines as Array<{ count?: number }> | null
-      const routeLinesCount = Array.isArray(routeLines) && routeLines[0]
-        ? (routeLines[0].count || 0)
-        : 0
+  let links: CragImageLinkRow[] = []
+  if (imageIds.length > 0) {
+    const idsCsv = imageIds.join(',')
+    const { data: linksData, error: linksError } = await supabase
+      .from('crag_images')
+      .select('source_image_id, linked_image_id')
+      .or(`linked_image_id.in.(${idsCsv}),source_image_id.in.(${idsCsv})`)
 
-      return {
-        id: submission.id,
-        url: submission.url,
-        created_at: submission.created_at,
-        updated_at: submission.created_at,
-        kind: 'submitted' as const,
-        crag_name: cragName,
-        route_lines_count: routeLinesCount,
-        contribution_credit_platform: submission.contribution_credit_platform || null,
-        contribution_credit_handle: submission.contribution_credit_handle || null,
-      }
-    })
-    .filter((submission) => submission.route_lines_count > 0)
+    if (!linksError) {
+      links = (linksData || []) as CragImageLinkRow[]
+    }
+  }
+
+  return groupSubmittedImages(contributionRows, links)
 }
 
 function PrivateProfileCard({ username }: { username: string }) {
