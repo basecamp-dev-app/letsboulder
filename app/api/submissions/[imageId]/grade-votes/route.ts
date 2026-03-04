@@ -13,6 +13,44 @@ interface GradeVotePayloadItem {
   grade: string
 }
 
+interface GradeVoteRow {
+  climb_id: string | null
+  grade: string | null
+}
+
+function getUniqueConsensusGrade(rows: GradeVoteRow[]): string | null {
+  if (rows.length === 0) return null
+
+  const countByGrade = new Map<string, number>()
+  for (const row of rows) {
+    const grade = typeof row.grade === 'string' ? row.grade : null
+    if (!grade) continue
+    countByGrade.set(grade, (countByGrade.get(grade) || 0) + 1)
+  }
+
+  if (countByGrade.size === 0) return null
+
+  let topGrade: string | null = null
+  let topCount = 0
+  let tied = false
+
+  for (const [grade, count] of countByGrade.entries()) {
+    if (count > topCount) {
+      topGrade = grade
+      topCount = count
+      tied = false
+      continue
+    }
+
+    if (count === topCount) {
+      tied = true
+    }
+  }
+
+  if (tied) return null
+  return topGrade
+}
+
 function normalizePayload(value: unknown): GradeVotePayloadItem[] | null {
   if (!Array.isArray(value) || value.length === 0) return null
 
@@ -182,6 +220,43 @@ export async function POST(
 
       if (upsertError) {
         return createErrorResponse(upsertError, 'Save submission grade votes error')
+      }
+
+      const uniqueClimbIds = Array.from(new Set(voteRows.map((row) => row.climb_id)))
+      const { data: gradeVoteRows, error: gradeVoteRowsError } = await supabaseAdmin
+        .from('grade_votes')
+        .select('climb_id, grade')
+        .in('climb_id', uniqueClimbIds)
+
+      if (gradeVoteRowsError) {
+        return createErrorResponse(gradeVoteRowsError, 'Save submission grade votes error')
+      }
+
+      const rowsByClimbId = new Map<string, GradeVoteRow[]>()
+      for (const row of (gradeVoteRows || []) as GradeVoteRow[]) {
+        const climbId = typeof row.climb_id === 'string' ? row.climb_id : null
+        if (!climbId) continue
+        const currentRows = rowsByClimbId.get(climbId) || []
+        currentRows.push(row)
+        rowsByClimbId.set(climbId, currentRows)
+      }
+
+      const consensusUpdates = uniqueClimbIds
+        .map((climbId) => {
+          const consensusGrade = getUniqueConsensusGrade(rowsByClimbId.get(climbId) || [])
+          if (!consensusGrade) return null
+          return { id: climbId, grade: consensusGrade }
+        })
+        .filter((value): value is { id: string; grade: string } => value !== null)
+
+      if (consensusUpdates.length > 0) {
+        const { error: consensusUpdateError } = await supabaseAdmin
+          .from('climbs')
+          .upsert(consensusUpdates, { onConflict: 'id' })
+
+        if (consensusUpdateError) {
+          return createErrorResponse(consensusUpdateError, 'Save submission grade votes error')
+        }
       }
     }
 

@@ -157,15 +157,11 @@ export interface GradeVotingProps {
   redirectTo?: string
 }
 
-// Grade vote scale: 1A..6A (no plus), then include plus from 6A+ onwards.
+// Grade vote scale starts at 4A.
 export const VALID_GRADES = [
-  '1A', '1B', '1C',
-  '2A', '2B', '2C',
-  '3A', '3B', '3C',
-  '4A', '4B', '4C',
-  '5A', '5B', '5C',
-  '6A',
-  '6A+', '6B', '6B+', '6C', '6C+',
+  '4A', '4A+', '4B', '4B+', '4C', '4C+',
+  '5A', '5A+', '5B', '5B+', '5C', '5C+',
+  '6A', '6A+', '6B', '6B+', '6C', '6C+',
   '7A', '7A+', '7B', '7B+', '7C', '7C+',
   '8A', '8A+', '8B', '8B+', '8C', '8C+',
   '9A', '9A+', '9B', '9B+', '9C', '9C+'
@@ -173,7 +169,7 @@ export const VALID_GRADES = [
 
 export type Grade = typeof VALID_GRADES[number]
 
-export const MIN_SELECTABLE_GRADE: Grade = '3A'
+export const MIN_SELECTABLE_GRADE: Grade = '4A'
 export const SELECTABLE_GRADES = VALID_GRADES.slice(
   Math.max(0, VALID_GRADES.indexOf(MIN_SELECTABLE_GRADE))
 ) as readonly Grade[]
