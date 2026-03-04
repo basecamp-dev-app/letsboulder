@@ -7,6 +7,10 @@ on:
     branches: [main, dev]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  statuses: write
+
 jobs:
   test:
     name: E2E
@@ -118,8 +122,9 @@ jobs:
           retention-days: 7
 
       - name: notify vercel
-        if: always()
+        if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        continue-on-error: true
         uses: vercel/repository-dispatch/actions/status@v1
         with:
-          repository-token: ${{ secrets.VERCEL_REPOSITORY_DISPATCH_TOKEN }}
+          github_token: ${{ secrets.VERCEL_REPOSITORY_DISPATCH_TOKEN }}
           name: 'Vercel - letsboulder: E2E Tests'
