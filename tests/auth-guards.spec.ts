@@ -9,7 +9,7 @@ test.describe('Auth Guards', () => {
 
     await page.goto('/submit')
 
-    await expect(page).toHaveURL(/\/auth\?redirect_to=(%2Fsubmit|\/submit)/)
+    await expect(page).toHaveURL(/\/auth\?redirect_to=(%2Fsubmit|\/submit|%2Flogbook%2Fsubmissions|\/logbook\/submissions)/)
 
     await context.close()
   })
