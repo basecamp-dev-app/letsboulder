@@ -13,12 +13,17 @@ const IMAGE_FIXTURES = [
 test.use({ storageState: AUTH_STATE_PATH })
 
 async function ensureAuthStateExists() {
-  if (process.env.TEST_API_KEY && process.env.TEST_USER_ID && process.env.TEST_USER_PASSWORD) {
-    await globalSetup()
-    return
+  if (fs.existsSync(AUTH_STATE_PATH)) return
+
+  if (process.env.CI) {
+    throw new Error('Missing auth state after global setup')
   }
 
-  if (fs.existsSync(AUTH_STATE_PATH)) return
+  if (process.env.TEST_API_KEY && process.env.TEST_USER_ID && process.env.TEST_USER_PASSWORD) {
+    await globalSetup()
+    if (fs.existsSync(AUTH_STATE_PATH)) return
+  }
+
   throw new Error('Missing auth state and test auth credentials')
 }
 
