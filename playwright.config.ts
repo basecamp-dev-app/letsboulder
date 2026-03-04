@@ -17,13 +17,17 @@ export default defineConfig({
   workers: process.env.CI ? 3 : undefined,
   reporter: 'html',
   use: {
-    baseURL: process.env.CI ? 'https://dev.letsboulder.com' : 'http://localhost:3000',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || (process.env.CI ? 'https://dev.letsboulder.com' : 'http://localhost:3000'),
     trace: 'on-first-retry',
     headless: true,
-    ...(process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET ? {
+    ...(process.env.CF_ACCESS_CLIENT_ID || process.env.CF_ACCESS_CLIENT_SECRET || process.env.INTERNAL_TEST_KEY ? {
       extraHTTPHeaders: {
-        'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID!,
-        'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET!,
+        ...(process.env.CF_ACCESS_CLIENT_ID ? { 'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID } : {}),
+        ...(process.env.CF_ACCESS_CLIENT_SECRET ? { 'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET } : {}),
+        ...(process.env.INTERNAL_TEST_KEY ? {
+          'x-e2e-test-key': process.env.INTERNAL_TEST_KEY,
+          'x-internal-test-key': process.env.INTERNAL_TEST_KEY,
+        } : {}),
       },
     } : {}),
   },

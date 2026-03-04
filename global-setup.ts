@@ -3,9 +3,8 @@ import path from 'path'
 import fs from 'fs'
 
 async function globalSetup() {
-  const baseURL = process.env.CI 
-    ? 'https://dev.letsboulder.com' 
-    : 'http://localhost:3000'
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL
+    || (process.env.CI ? 'https://dev.letsboulder.com' : 'http://localhost:3000')
   
   const testApiKey = process.env.TEST_API_KEY?.trim()
   const testUserId = process.env.TEST_USER_ID?.trim()
@@ -41,7 +40,8 @@ async function globalSetup() {
     }
     requestOptions.headers['x-test-auth'] = '1'
 
-    if (!baseURL.includes('localhost') && !baseURL.includes('127.0.0.1') && internalTestKey) {
+    if (internalTestKey) {
+      requestOptions.headers['x-e2e-test-key'] = internalTestKey
       requestOptions.headers['x-internal-test-key'] = internalTestKey
     }
 
