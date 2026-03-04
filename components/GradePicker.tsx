@@ -6,7 +6,7 @@ import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { GRADES } from '@/lib/grades'
 
-const MIN_GRADE = '3A'
+const MIN_GRADE = '4A'
 const FRENCH_GRADES = GRADES.slice(Math.max(0, GRADES.indexOf(MIN_GRADE)))
 
 interface GradePickerProps {
