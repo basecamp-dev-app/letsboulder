@@ -173,6 +173,22 @@ interface StarRatingSummary {
   rating_count: number
 }
 
+interface PanOffset {
+  x: number
+  y: number
+}
+
+interface ViewerTouchState {
+  mode: 'none' | 'pan' | 'pinch'
+  startDistance: number
+  startZoom: number
+  startPan: PanOffset
+  startTouch: { x: number; y: number } | null
+}
+
+const MIN_VIEWER_ZOOM = 1
+const MAX_VIEWER_ZOOM = 3
+
 const GRADE_OPINION_LABELS: Record<GradeOpinion, string> = {
   soft: 'Soft',
   agree: 'Agree',
@@ -326,12 +342,21 @@ export default function ClimbPage() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
+  const viewerTransformRef = useRef<HTMLDivElement>(null)
   const routeLinesRef = useRef<DisplayRouteLine[]>([])
   const selectedIdsRef = useRef<string[]>([])
   const userLogsRef = useRef<Record<string, UserLogEntry>>({})
   const drawFrameRef = useRef<number | null>(null)
   const loadedFaceIdsRef = useRef<Set<string>>(new Set())
   const prefetchedFaceUrlsRef = useRef<Set<string>>(new Set())
+  const suppressCanvasClickRef = useRef(false)
+  const touchStateRef = useRef<ViewerTouchState>({
+    mode: 'none',
+    startDistance: 0,
+    startZoom: MIN_VIEWER_ZOOM,
+    startPan: { x: 0, y: 0 },
+    startTouch: null,
+  })
 
   const [image, setImage] = useState<ImageInfo | null>(null)
   const [routeLines, setRouteLines] = useState<DisplayRouteLine[]>([])
@@ -368,9 +393,12 @@ export default function ClimbPage() {
   const [routeLinesImageId, setRouteLinesImageId] = useState<string | null>(null)
   const [canvasFadeOut, setCanvasFadeOut] = useState(false)
   const [transitionBuffer, setTransitionBuffer] = useState<TransitionBuffer | null>(null)
+  const [zoom, setZoom] = useState(MIN_VIEWER_ZOOM)
+  const [pan, setPan] = useState<PanOffset>({ x: 0, y: 0 })
+  const emblaDragEnabled = zoom <= MIN_VIEWER_ZOOM
   const [emblaRef, emblaApi] = useEmblaCarousel({
     axis: 'x',
-    watchDrag: true,
+    watchDrag: emblaDragEnabled,
     loop: false,
     containScroll: 'trimSnaps',
     align: 'start',
@@ -435,6 +463,40 @@ export default function ClimbPage() {
       setSettledFaceIndex(snap)
     }
   }, [emblaApi])
+
+  const clampPanForZoom = useCallback((nextPan: PanOffset, nextZoom: number): PanOffset => {
+    if (nextZoom <= MIN_VIEWER_ZOOM) {
+      return { x: 0, y: 0 }
+    }
+
+    const viewer = viewerTransformRef.current
+    if (!viewer) return nextPan
+
+    const baseWidth = viewer.offsetWidth
+    const baseHeight = viewer.offsetHeight
+    if (baseWidth <= 0 || baseHeight <= 0) return nextPan
+
+    const maxX = ((nextZoom - MIN_VIEWER_ZOOM) * baseWidth) / 2
+    const maxY = ((nextZoom - MIN_VIEWER_ZOOM) * baseHeight) / 2
+
+    return {
+      x: Math.min(maxX, Math.max(-maxX, nextPan.x)),
+      y: Math.min(maxY, Math.max(-maxY, nextPan.y)),
+    }
+  }, [])
+
+  const resetZoomPan = useCallback(() => {
+    setZoom(MIN_VIEWER_ZOOM)
+    setPan({ x: 0, y: 0 })
+    touchStateRef.current = {
+      mode: 'none',
+      startDistance: 0,
+      startZoom: MIN_VIEWER_ZOOM,
+      startPan: { x: 0, y: 0 },
+      startTouch: null,
+    }
+    suppressCanvasClickRef.current = false
+  }, [])
   const defaultPathRoute = useMemo(
     () => routeLines.find((route) => route.climb.id === climbId) || routeLines[0] || null,
     [routeLines, climbId]
@@ -534,6 +596,7 @@ export default function ClimbPage() {
       setActiveCanvasImageId(null)
       setRouteLinesImageId(null)
       setRouteParamOverride(null)
+      resetZoomPan()
       loadedFaceIdsRef.current.clear()
       clearSelection()
 
@@ -818,7 +881,7 @@ export default function ClimbPage() {
     return () => {
       cancelled = true
     }
-  }, [climbId, clearSelection])
+  }, [climbId, clearSelection, resetZoomPan])
 
   useEffect(() => {
     if (!emblaApi) return
@@ -828,6 +891,7 @@ export default function ClimbPage() {
     })
 
     const handleSelect = () => {
+      resetZoomPan()
       setIsFaceTransitioning(true)
       setCanvasFadeOut(true)
       setActiveCanvasImageId(null)
@@ -856,7 +920,18 @@ export default function ClimbPage() {
       emblaApi.off('reInit', handleReInit)
       emblaApi.off('settle', handleSettle)
     }
-  }, [emblaApi, updateEmblaControls, clearSelection])
+  }, [emblaApi, updateEmblaControls, clearSelection, resetZoomPan])
+
+  useEffect(() => {
+    if (!emblaApi) return
+    emblaApi.reInit()
+    const rafId = window.requestAnimationFrame(() => {
+      updateEmblaControls(true)
+    })
+    return () => {
+      window.cancelAnimationFrame(rafId)
+    }
+  }, [emblaApi, emblaDragEnabled, updateEmblaControls])
 
   useEffect(() => {
     if (prevActiveFaceIndexRef.current === activeFaceIndex) {
@@ -938,8 +1013,17 @@ export default function ClimbPage() {
     setCanvasFadeOut(false)
     setTransitionBuffer(null)
     setIsFaceTransitioning(false)
+    resetZoomPan()
     clearSelection()
-  }, [loadedFaceVersion, transitionBuffer, clearSelection])
+  }, [loadedFaceVersion, transitionBuffer, clearSelection, resetZoomPan])
+
+  useEffect(() => {
+    if (zoom > MIN_VIEWER_ZOOM) {
+      setPan((prev) => clampPanForZoom(prev, zoom))
+      return
+    }
+    setPan({ x: 0, y: 0 })
+  }, [zoom, clampPanForZoom])
 
   useEffect(() => {
     if (visibleFaces.length === 0) {
@@ -1125,9 +1209,12 @@ export default function ClimbPage() {
       const container = canvas.parentElement
       if (!container || imageElement.naturalWidth === 0 || imageElement.naturalHeight === 0) return
 
-      const containerRect = container.getBoundingClientRect()
+      const containerWidth = container.clientWidth
+      const containerHeight = container.clientHeight
+      if (containerWidth <= 0 || containerHeight <= 0) return
+
       const imageAspect = imageElement.naturalWidth / imageElement.naturalHeight
-      const containerAspect = containerRect.width / containerRect.height
+      const containerAspect = containerWidth / containerHeight
 
       let displayWidth = 0
       let displayHeight = 0
@@ -1135,13 +1222,13 @@ export default function ClimbPage() {
       let offsetY = 0
 
       if (imageAspect > containerAspect) {
-        displayWidth = containerRect.width
-        displayHeight = containerRect.width / imageAspect
-        offsetY = (containerRect.height - displayHeight) / 2
+        displayWidth = containerWidth
+        displayHeight = containerWidth / imageAspect
+        offsetY = (containerHeight - displayHeight) / 2
       } else {
-        displayHeight = containerRect.height
-        displayWidth = containerRect.height * imageAspect
-        offsetX = (containerRect.width - displayWidth) / 2
+        displayHeight = containerHeight
+        displayWidth = containerHeight * imageAspect
+        offsetX = (containerWidth - displayWidth) / 2
       }
 
       const nextWidth = Math.max(1, Math.round(displayWidth))
@@ -1203,6 +1290,11 @@ export default function ClimbPage() {
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
+      if (suppressCanvasClickRef.current) {
+        suppressCanvasClickRef.current = false
+        return
+      }
+
       const canvas = canvasRef.current
       if (!canvas || routeLines.length === 0) return
 
@@ -1211,12 +1303,14 @@ export default function ClimbPage() {
       const canvasRect = canvas.getBoundingClientRect()
       const canvasX = e.clientX - canvasRect.left
       const canvasY = e.clientY - canvasRect.top
+      if (canvasRect.width <= 0 || canvasRect.height <= 0) return
+
       const normalizedPoint = {
-        x: canvasX / canvas.width,
-        y: canvasY / canvas.height,
+        x: canvasX / canvasRect.width,
+        y: canvasY / canvasRect.height,
       }
 
-      const threshold = 20 / Math.max(1, Math.min(canvas.width, canvas.height))
+      const threshold = 20 / Math.max(1, Math.min(canvasRect.width, canvasRect.height))
       const clickedRoute = findRouteAtPoint(
         routeLines.map((route) => ({
           id: route.id,
@@ -1238,6 +1332,112 @@ export default function ClimbPage() {
       updateRouteParam(clickedRoute.id)
     },
     [routeLines, clearSelection, updateRouteParam, selectRoute]
+  )
+
+  const handleViewerTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (e.touches.length === 2) {
+        const [touchA, touchB] = [e.touches[0], e.touches[1]]
+        const dx = touchA.clientX - touchB.clientX
+        const dy = touchA.clientY - touchB.clientY
+        const distance = Math.hypot(dx, dy)
+        touchStateRef.current = {
+          mode: 'pinch',
+          startDistance: distance,
+          startZoom: zoom,
+          startPan: pan,
+          startTouch: null,
+        }
+        return
+      }
+
+      if (e.touches.length === 1 && zoom > MIN_VIEWER_ZOOM) {
+        const touch = e.touches[0]
+        touchStateRef.current = {
+          mode: 'pan',
+          startDistance: 0,
+          startZoom: zoom,
+          startPan: pan,
+          startTouch: {
+            x: touch.clientX,
+            y: touch.clientY,
+          },
+        }
+      }
+    },
+    [zoom, pan]
+  )
+
+  const handleViewerTouchMove = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      const touchState = touchStateRef.current
+
+      if (touchState.mode === 'pinch' && e.touches.length === 2) {
+        const [touchA, touchB] = [e.touches[0], e.touches[1]]
+        const dx = touchA.clientX - touchB.clientX
+        const dy = touchA.clientY - touchB.clientY
+        const distance = Math.hypot(dx, dy)
+        if (touchState.startDistance <= 0) return
+
+        const nextZoom = Math.min(
+          MAX_VIEWER_ZOOM,
+          Math.max(MIN_VIEWER_ZOOM, touchState.startZoom * (distance / touchState.startDistance))
+        )
+        setZoom(nextZoom)
+        setPan((prev) => clampPanForZoom(prev, nextZoom))
+        suppressCanvasClickRef.current = true
+        e.preventDefault()
+        return
+      }
+
+      if (touchState.mode === 'pan' && e.touches.length === 1 && zoom > MIN_VIEWER_ZOOM && touchState.startTouch) {
+        const touch = e.touches[0]
+        const deltaX = touch.clientX - touchState.startTouch.x
+        const deltaY = touch.clientY - touchState.startTouch.y
+        setPan(
+          clampPanForZoom(
+            {
+              x: touchState.startPan.x + deltaX,
+              y: touchState.startPan.y + deltaY,
+            },
+            zoom
+          )
+        )
+        suppressCanvasClickRef.current = true
+        e.preventDefault()
+      }
+    },
+    [zoom, clampPanForZoom]
+  )
+
+  const handleViewerTouchEnd = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      if (e.touches.length === 0) {
+        touchStateRef.current = {
+          mode: 'none',
+          startDistance: 0,
+          startZoom: zoom,
+          startPan: pan,
+          startTouch: null,
+        }
+        return
+      }
+
+      if (e.touches.length === 1 && zoom > MIN_VIEWER_ZOOM) {
+        const touch = e.touches[0]
+        touchStateRef.current = {
+          mode: 'pan',
+          startDistance: 0,
+          startZoom: zoom,
+          startPan: pan,
+          startTouch: {
+            x: touch.clientX,
+            y: touch.clientY,
+          },
+        }
+      }
+    },
+    [zoom, pan]
   )
 
   const viewerReadyState = !isFaceTransitioning && routeLines.length > 0 ? 'idle' : 'busy'
@@ -1589,20 +1789,49 @@ export default function ClimbPage() {
 
               {visibleFaces.map((face, index) => (
                 <div key={face.id} className="relative min-w-0 shrink-0 grow-0 basis-full flex items-center justify-center">
-                  <Image
-                    ref={index === activeFaceIndex ? imageRef : undefined}
-                    src={face.url}
-                    alt={displayClimb?.name || 'Climbing routes'}
-                    width={1600}
-                    height={1200}
-                    sizes="(max-width: 768px) 100vw, 1200px"
-                    fetchPriority={index === activeFaceIndex ? 'high' : undefined}
-                    unoptimized
-                    onLoad={() => markFaceLoaded(face.id)}
-                    className={`max-w-full max-h-[60vh] object-contain transition-opacity duration-200 ${
-                      index === activeFaceIndex ? 'opacity-100' : 'opacity-90'
-                    }`}
-                  />
+                  <div
+                    ref={index === activeFaceIndex ? viewerTransformRef : undefined}
+                    className="relative"
+                    style={index === activeFaceIndex
+                      ? {
+                          transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+                          transformOrigin: 'center center',
+                          touchAction: zoom > MIN_VIEWER_ZOOM ? 'none' : 'auto',
+                        }
+                      : undefined}
+                    onTouchStart={index === activeFaceIndex ? handleViewerTouchStart : undefined}
+                    onTouchMove={index === activeFaceIndex ? handleViewerTouchMove : undefined}
+                    onTouchEnd={index === activeFaceIndex ? handleViewerTouchEnd : undefined}
+                    onTouchCancel={index === activeFaceIndex ? handleViewerTouchEnd : undefined}
+                  >
+                    <Image
+                      ref={index === activeFaceIndex ? imageRef : undefined}
+                      src={face.url}
+                      alt={displayClimb?.name || 'Climbing routes'}
+                      width={1600}
+                      height={1200}
+                      sizes="(max-width: 768px) 100vw, 1200px"
+                      fetchPriority={index === activeFaceIndex ? 'high' : undefined}
+                      unoptimized
+                      onLoad={() => markFaceLoaded(face.id)}
+                      className={`max-w-full max-h-[60vh] object-contain transition-opacity duration-200 ${
+                        index === activeFaceIndex ? 'opacity-100' : 'opacity-90'
+                      }`}
+                    />
+                    {index === activeFaceIndex && (
+                      <canvas
+                        ref={canvasRef}
+                        className={`absolute inset-0 cursor-pointer transition-opacity duration-150 ${
+                          canvasFadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                        }`}
+                        onClick={handleCanvasClick}
+                        data-ready-state={viewerReadyState}
+                        data-route-target-x={displayRouteTapPoint ? String(displayRouteTapPoint.x) : undefined}
+                        data-route-target-y={displayRouteTapPoint ? String(displayRouteTapPoint.y) : undefined}
+                        style={{ touchAction: zoom > MIN_VIEWER_ZOOM ? 'none' : 'auto' }}
+                      />
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1664,17 +1893,15 @@ export default function ClimbPage() {
               </>
             )}
 
-            <canvas
-              ref={canvasRef}
-              className={`absolute inset-0 cursor-pointer transition-opacity duration-150 ${
-                canvasFadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
-              }`}
-              onClick={handleCanvasClick}
-              data-ready-state={viewerReadyState}
-              data-route-target-x={displayRouteTapPoint ? String(displayRouteTapPoint.x) : undefined}
-              data-route-target-y={displayRouteTapPoint ? String(displayRouteTapPoint.y) : undefined}
-              style={{ touchAction: 'none' }}
-            />
+            {zoom > MIN_VIEWER_ZOOM && (
+              <button
+                type="button"
+                onClick={resetZoomPan}
+                className="absolute left-2 top-2 z-20 rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-black/70"
+              >
+                Reset zoom
+              </button>
+            )}
             {transitionBuffer?.isLoading && (
               <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
                 <div className="rounded-full bg-black/55 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
