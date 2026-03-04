@@ -81,7 +81,7 @@ jobs:
 
       - name: Validate authenticated test env
         run: |
-          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_PASSWORD)
+          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_PASSWORD INTERNAL_TEST_KEY)
           for var in "${required_vars[@]}"; do
             if [ -z "${!var}" ]; then
               echo "Missing required environment variable: $var"
@@ -95,6 +95,7 @@ jobs:
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
 
       - name: Run authenticated E2E tests
         run: npx playwright test --project=authenticated
@@ -105,6 +106,7 @@ jobs:
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
           CI: true
 
       - name: Upload Playwright report
