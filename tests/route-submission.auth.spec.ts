@@ -13,8 +13,13 @@ const IMAGE_FIXTURES = [
 test.use({ storageState: AUTH_STATE_PATH })
 
 async function ensureAuthStateExists() {
+  if (process.env.TEST_API_KEY && process.env.TEST_USER_ID && process.env.TEST_USER_PASSWORD) {
+    await globalSetup()
+    return
+  }
+
   if (fs.existsSync(AUTH_STATE_PATH)) return
-  await globalSetup()
+  throw new Error('Missing auth state and test auth credentials')
 }
 
 async function drawRouteWithFallback(page: Page, canvas: Locator, points: Array<{ x: number; y: number }>) {
