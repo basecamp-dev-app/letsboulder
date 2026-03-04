@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
-import { formatGradeForDisplay } from '@/lib/grade-display'
+import { formatGradeForDisplay, toWholeVGrade } from '@/lib/grade-display'
 import { GRADES } from '@/lib/grades'
 
 const MIN_GRADE = '4A'
@@ -32,8 +32,51 @@ export default function GradePicker({
 }: GradePickerProps) {
   const gradeSystem = useGradeSystem()
   const [search, setSearch] = useState('')
-  const [selectedGrade, setSelectedGrade] = useState(currentGrade || '')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const gradeOptions = useMemo(() => {
+    if (gradeSystem !== 'v_scale') {
+      return FRENCH_GRADES.map((grade) => ({
+        grade,
+        label: formatGradeForDisplay(grade, gradeSystem),
+      }))
+    }
+
+    const byWholeV = new Map<string, string>()
+    for (const grade of FRENCH_GRADES) {
+      const wholeV = toWholeVGrade(grade)
+      if (!wholeV) continue
+      if (!byWholeV.has(wholeV)) {
+        byWholeV.set(wholeV, grade)
+      }
+    }
+
+    return Array.from(byWholeV.entries()).map(([label, grade]) => ({ grade, label }))
+  }, [gradeSystem])
+
+  const selectedGrade = currentGrade || ''
+
+  const selectedWholeV = useMemo(() => {
+    if (gradeSystem !== 'v_scale') return null
+    return toWholeVGrade(selectedGrade)
+  }, [gradeSystem, selectedGrade])
+
+  const userVoteWholeV = useMemo(() => {
+    if (gradeSystem !== 'v_scale') return null
+    return toWholeVGrade(userVote || null)
+  }, [gradeSystem, userVote])
+
+  const consensusWholeV = useMemo(() => {
+    if (gradeSystem !== 'v_scale') return null
+    return toWholeVGrade(consensusGrade || null)
+  }, [consensusGrade, gradeSystem])
+
+  const getDisplayLabel = (grade: string | null | undefined): string => {
+    if (gradeSystem === 'v_scale') {
+      return toWholeVGrade(grade) || formatGradeForDisplay(grade, gradeSystem)
+    }
+    return formatGradeForDisplay(grade, gradeSystem)
+  }
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -43,15 +86,13 @@ export default function GradePicker({
 
   useOverlayHistory({ open: isOpen, onClose, id: 'grade-picker' })
 
-  const filteredGrades = FRENCH_GRADES.filter((grade) => {
+  const filteredGrades = gradeOptions.filter((option) => {
     const query = search.toLowerCase().trim()
     if (!query) return true
-    const display = formatGradeForDisplay(grade, gradeSystem).toLowerCase()
-    return grade.toLowerCase().includes(query) || display.includes(query)
+    return option.grade.toLowerCase().includes(query) || option.label.toLowerCase().includes(query)
   })
 
   const handleSelect = (grade: string) => {
-    setSelectedGrade(grade)
     onSelect(grade)
     onClose()
   }
@@ -94,15 +135,21 @@ export default function GradePicker({
         </div>
 
         <div className="max-h-64 overflow-y-auto">
-          {filteredGrades.map(grade => {
-            const isSelected = selectedGrade === grade
-            const isUserVote = userVote === grade
-            const isConsensus = consensusGrade === grade
+          {filteredGrades.map((option) => {
+            const isSelected = gradeSystem === 'v_scale'
+              ? selectedWholeV === option.label
+              : selectedGrade === option.grade
+            const isUserVote = gradeSystem === 'v_scale'
+              ? userVoteWholeV === option.label
+              : userVote === option.grade
+            const isConsensus = gradeSystem === 'v_scale'
+              ? consensusWholeV === option.label
+              : consensusGrade === option.grade
 
             return (
               <button
-                key={grade}
-                onClick={() => handleSelect(grade)}
+                key={option.grade}
+                onClick={() => handleSelect(option.grade)}
                 className={`w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
                   isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                 }`}
@@ -110,7 +157,7 @@ export default function GradePicker({
                 <span className={`font-medium ${
                   isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-gray-100'
                 }`}>
-                  {formatGradeForDisplay(grade, gradeSystem)}
+                  {option.label}
                 </span>
                 <div className="flex items-center gap-2">
                   {isConsensus && (
@@ -132,7 +179,7 @@ export default function GradePicker({
         {mode === 'vote' && consensusGrade && (
           <div className="p-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Current consensus: <strong>{formatGradeForDisplay(consensusGrade, gradeSystem)}</strong> with {voteCount} votes
+              Current consensus: <strong>{getDisplayLabel(consensusGrade)}</strong> with {voteCount} votes
             </p>
           </div>
         )}
