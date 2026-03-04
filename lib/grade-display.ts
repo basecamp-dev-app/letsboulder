@@ -49,6 +49,17 @@ function toVGrade(grade: string): string {
   return FRENCH_TO_V_DISPLAY[grade] || grade
 }
 
+export function toWholeVGrade(grade: string | null | undefined): string | null {
+  const normalized = grade?.trim().toUpperCase()
+  if (!normalized) return null
+
+  const display = toVGrade(normalized)
+  const match = /^V(\d+)/i.exec(display)
+  if (!match) return null
+
+  return `V${match[1]}`
+}
+
 export function formatGradeForDisplay(grade: string | null | undefined, gradeSystem: GradeSystem): string {
   const normalized = grade?.trim().toUpperCase()
   if (!normalized) return '—'
