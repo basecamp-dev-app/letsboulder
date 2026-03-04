@@ -118,5 +118,5 @@ jobs:
         continue-on-error: true
         uses: vercel/repository-dispatch/actions/status@v1
         with:
-          github_token: ${{ secrets.VERCEL_REPOSITORY_DISPATCH_TOKEN }}
+          github_token: ${{ github.token }}
           name: 'Vercel - letsboulder: E2E Tests'
