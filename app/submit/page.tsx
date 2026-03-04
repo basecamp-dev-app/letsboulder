@@ -1,14 +1,20 @@
 import { redirect } from 'next/navigation'
-import { getServerClient } from '@/lib/supabase-server'
-import SubmitClient from './SubmitClient'
 
-export default async function SubmitPage() {
-  const supabase = await getServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+interface SubmitPageProps {
+  searchParams: Promise<{ draftId?: string; from?: string }>
+}
 
-  if (!user) {
-    redirect('/auth?redirect_to=/submit')
+export default async function SubmitPage({ searchParams }: SubmitPageProps) {
+  const params = await searchParams
+  const nextParams = new URLSearchParams({ mode: 'new' })
+
+  if (params.draftId) {
+    nextParams.set('draftId', params.draftId)
   }
 
-  return <SubmitClient />
+  if (params.from) {
+    nextParams.set('from', params.from)
+  }
+
+  redirect(`/logbook/submissions?${nextParams.toString()}`)
 }
