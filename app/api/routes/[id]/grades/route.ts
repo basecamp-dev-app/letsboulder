@@ -64,6 +64,7 @@ export async function GET(
       .map(([grade, count]) => ({ grade, count }))
       .sort((a, b) => {
         const gradeOrder = [
+          '4A', '4A+', '4B', '4B+', '4C', '4C+',
           '5A', '5A+', '5B', '5B+', '5C', '5C+',
           '6A', '6A+', '6B', '6B+', '6C', '6C+',
           '7A', '7A+', '7B', '7B+', '7C', '7C+',
@@ -126,6 +127,7 @@ export async function POST(
     }
     
     const validGrades = [
+      '4A', '4A+', '4B', '4B+', '4C', '4C+',
       '5A', '5A+', '5B', '5B+', '5C', '5C+',
       '6A', '6A+', '6B', '6B+', '6C', '6C+',
       '7A', '7A+', '7B', '7B+', '7C', '7C+',
