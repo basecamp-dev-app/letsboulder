@@ -11,7 +11,7 @@ import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
-import { FACE_DIRECTIONS, type Crag, type FaceDirection, type ImageSelection, type NewRouteData, type RouteLine, type RoutePoint } from '@/lib/submission-types'
+import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type NewRouteData, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { createClient } from '@/lib/supabase'
 
 interface DraftImagePayload {
@@ -241,7 +241,12 @@ export default function EditDraftPage() {
   const [creditPlatform, setCreditPlatform] = useState<SubmissionCreditPlatform>('instagram')
   const [creditHandle, setCreditHandle] = useState('')
   const [cragId, setCragId] = useState<string | null>(null)
-  const [selectedCrag, setSelectedCrag] = useState<Pick<Crag, 'id' | 'name' | 'latitude' | 'longitude'> | null>(null)
+  const [selectedCrag, setSelectedCrag] = useState<{
+    id: string
+    name: string
+    latitude: number | null
+    longitude: number | null
+  } | null>(null)
   const [showCragSelector, setShowCragSelector] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [draftUpdatedAt, setDraftUpdatedAt] = useState<string | null>(null)
@@ -1235,7 +1240,9 @@ export default function EditDraftPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{selectedCrag.name}</p>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {selectedCrag.latitude !== 0 || selectedCrag.longitude !== 0
+                    {typeof selectedCrag.latitude === 'number' && Number.isFinite(selectedCrag.latitude)
+                      && typeof selectedCrag.longitude === 'number' && Number.isFinite(selectedCrag.longitude)
+                      && (selectedCrag.latitude !== 0 || selectedCrag.longitude !== 0)
                       ? `${selectedCrag.latitude.toFixed(4)}, ${selectedCrag.longitude.toFixed(4)}`
                       : 'Crag selected'}
                   </p>
