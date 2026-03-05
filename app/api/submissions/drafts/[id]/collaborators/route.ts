@@ -5,6 +5,8 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
 interface DraftCollaboratorRow {
   draft_id: string
   user_id: string
@@ -17,13 +19,17 @@ interface ProfileRow {
   username: string | null
   display_name: string | null
   avatar_url: string | null
+  first_name?: string | null
+  last_name?: string | null
 }
 
-function getDisplayName(profile: ProfileRow | null): string {
-  if (!profile) return 'Unknown user'
+function getDisplayName(profile: ProfileRow | null, userId: string): string {
+  if (!profile) return `user_${userId.slice(0, 8)}`
   if (profile.display_name) return profile.display_name
   if (profile.username) return profile.username
-  return 'Unknown user'
+  const fullName = [profile.first_name || '', profile.last_name || ''].join(' ').trim()
+  if (fullName) return fullName
+  return `user_${userId.slice(0, 8)}`
 }
 
 export async function GET(
@@ -41,6 +47,14 @@ export async function GET(
       },
     }
   )
+
+  const readClient = SUPABASE_SERVICE_ROLE_KEY
+    ? createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        SUPABASE_SERVICE_ROLE_KEY,
+        { cookies: { getAll() { return [] }, setAll() {} } }
+      )
+    : supabase
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
@@ -95,9 +109,9 @@ export async function GET(
     let profilesById = new Map<string, ProfileRow>()
 
     if (profileIds.length > 0) {
-      const { data: profileRows } = await supabase
+      const { data: profileRows } = await readClient
         .from('profiles')
-        .select('id, username, display_name, avatar_url')
+        .select('id, username, display_name, avatar_url, first_name, last_name')
         .in('id', profileIds)
       profilesById = new Map(((profileRows || []) as ProfileRow[]).map((profile) => [profile.id, profile]))
     }
@@ -110,7 +124,7 @@ export async function GET(
         role: row.role,
         createdAt: row.created_at,
         profile: {
-          displayName: getDisplayName(profile),
+          displayName: getDisplayName(profile, row.user_id),
           username: profile?.username || null,
           avatarUrl: profile?.avatar_url || null,
         },
@@ -157,7 +171,7 @@ export async function GET(
         ? {
             userId: draft.user_id,
             profile: {
-              displayName: getDisplayName(ownerProfile),
+              displayName: getDisplayName(ownerProfile, draft.user_id),
               username: ownerProfile?.username || null,
               avatarUrl: ownerProfile?.avatar_url || null,
             },
