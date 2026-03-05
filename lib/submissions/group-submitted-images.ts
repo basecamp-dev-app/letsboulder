@@ -4,6 +4,7 @@ interface SubmissionImageRow {
   id: string
   url: string
   created_at: string
+  moderation_status?: string | null
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
   crags: { name?: string } | Array<{ name?: string }> | null
@@ -26,6 +27,11 @@ interface SubmissionGroupAggregate {
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
   image_ids: string[]
+  has_published_image: boolean
+}
+
+function toSubmittedStatus(moderationStatus: string | null | undefined): 'pending_review' | 'published' {
+  return moderationStatus === 'approved' ? 'published' : 'pending_review'
 }
 
 function pickCragName(value: SubmissionImageRow['crags']): string | null {
@@ -95,6 +101,7 @@ export function groupSubmittedImages(
         contribution_credit_platform: row.contribution_credit_platform || null,
         contribution_credit_handle: row.contribution_credit_handle || null,
         image_ids: [row.id],
+        has_published_image: row.moderation_status === 'approved',
       })
       continue
     }
@@ -114,12 +121,16 @@ export function groupSubmittedImages(
     if (!existing.image_ids.includes(row.id)) {
       existing.image_ids.push(row.id)
     }
+    if (row.moderation_status === 'approved') {
+      existing.has_published_image = true
+    }
   }
 
   return [...grouped.values()]
     .map((group) => ({
       id: group.id,
       kind: 'submitted' as const,
+      status: toSubmittedStatus(group.has_published_image ? 'approved' : 'pending'),
       url: group.canonical_url,
       created_at: group.created_at,
       updated_at: group.updated_at,

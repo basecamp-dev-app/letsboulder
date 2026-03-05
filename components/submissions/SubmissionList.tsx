@@ -11,15 +11,27 @@ interface SubmissionListProps {
   submissions: Submission[]
   isOwnProfile: boolean
   deletingDraftId: string | null
+  publishingDraftId: string | null
   onDeleteDraft: (draftId: string) => void
+  onPublishDraft: (draftId: string) => void
 }
 
-export default function SubmissionList({ submissions, isOwnProfile, deletingDraftId, onDeleteDraft }: SubmissionListProps) {
+export default function SubmissionList({ submissions, isOwnProfile, deletingDraftId, publishingDraftId, onDeleteDraft, onPublishDraft }: SubmissionListProps) {
   return (
     <div className="space-y-0">
       {submissions.map((submission) => {
         const formattedHandle = formatSubmissionCreditHandle(submission.contribution_credit_handle)
-        const draftHref = `/logbook/submissions?draftId=${submission.id}&from=contributions`
+        const draftHref = `/logbook/drafts/${submission.id}/edit`
+        const statusLabel = submission.status === 'draft'
+          ? 'Draft'
+          : submission.status === 'pending_review'
+            ? 'Pending review'
+            : 'Published'
+        const statusClassName = submission.status === 'draft'
+          ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
+          : submission.status === 'pending_review'
+            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+            : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
 
         return (
           <div
@@ -42,11 +54,9 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                     {submission.crag_name || 'Unknown crag'}
-                    {submission.kind === 'draft' && (
-                      <span className="ml-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                        Draft
-                      </span>
-                    )}
+                    <span className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusClassName}`}>
+                      {statusLabel}
+                    </span>
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'}
@@ -68,8 +78,19 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                         href={draftHref}
                         className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
                       >
-                        Continue drawing
+                        Edit draft
                       </Link>
+                      {publishingDraftId === submission.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onPublishDraft(submission.id)}
+                          className="text-xs font-medium text-green-700 hover:text-green-800 dark:text-green-300 dark:hover:text-green-200"
+                        >
+                          Publish
+                        </button>
+                      )}
                       {deletingDraftId === submission.id ? (
                         <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
                       ) : (

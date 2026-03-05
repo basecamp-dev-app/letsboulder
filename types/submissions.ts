@@ -1,6 +1,7 @@
 export interface Submission {
   id: string
   kind: 'submitted' | 'draft'
+  status: 'draft' | 'pending_review' | 'published'
   url: string
   created_at: string
   updated_at: string
