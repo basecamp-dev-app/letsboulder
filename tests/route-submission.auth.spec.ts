@@ -57,7 +57,7 @@ test.describe.serial('Route Submission Draft Intake', () => {
     await createDraftFromIntake(page)
 
     await page.getByRole('button', { name: 'Save draft' }).click()
-    await expect(page.getByText('Draft saved. Not published to the map.')).toBeVisible({ timeout: 20000 })
+    await expect(page).toHaveURL(/\/logbook\/drafts\/[0-9a-f-]+\/edit/i)
 
     const draftUrl = page.url()
     await page.reload()
