@@ -1,15 +1,17 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
-import { Loader2, MapPin } from 'lucide-react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { Link2, Loader2, MapPin, Trash2, Users } from 'lucide-react'
 import RouteCanvas from '@/app/submit/components/RouteCanvas'
 import CragSelector from '@/app/submit/components/CragSelector'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type Crag, type FaceDirection, type ImageSelection, type NewRouteData, type RouteLine, type RoutePoint } from '@/lib/submission-types'
+import { createClient } from '@/lib/supabase'
 
 interface DraftImagePayload {
   id: string
@@ -22,11 +24,61 @@ interface DraftImagePayload {
 
 interface DraftPayload {
   id: string
+  user_id: string
   crag_id: string | null
   status: string
+  updated_at: string
+  last_edited_by: string | null
   metadata: Record<string, unknown> | null
   crags: { name?: string; latitude?: number | null; longitude?: number | null } | Array<{ name?: string; latitude?: number | null; longitude?: number | null }> | null
   images: DraftImagePayload[]
+}
+
+interface CollaboratorItem {
+  userId: string
+  role: string
+  createdAt: string
+  profile: {
+    displayName: string
+    username: string | null
+    avatarUrl: string | null
+  }
+}
+
+interface InviteItem {
+  id: string
+  token: string
+  maxUses: number | null
+  usedCount: number
+  expiresAt: string | null
+  createdAt: string
+}
+
+interface DraftSavePayload {
+  images: Array<{
+    id: string
+    display_order: number
+    route_data: Record<string, unknown>
+  }>
+  cragId: string | null
+  metadata: Record<string, unknown>
+}
+
+interface DraftConflictResponse {
+  code: 'draft_conflict'
+  message: string
+  current_updated_at: string
+  current_data?: {
+    updated_at: string
+    last_updated_by: string | null
+    last_updated_by_display_name?: string | null
+  }
+}
+
+interface ConflictState {
+  serverUpdatedAt: string
+  lastEditorName: string | null
+  pendingChanges: DraftSavePayload
 }
 
 interface DraftRoute {
@@ -158,6 +210,7 @@ function areDraftRoutesEqual(a: DraftRoute[], b: DraftRoute[]): boolean {
 export default function EditDraftPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toasts, addToast, removeToast } = useToast()
   const draftId = params.draftId as string
 
@@ -180,6 +233,21 @@ export default function EditDraftPage() {
   const [cragId, setCragId] = useState<string | null>(null)
   const [selectedCrag, setSelectedCrag] = useState<Pick<Crag, 'id' | 'name' | 'latitude' | 'longitude'> | null>(null)
   const [showCragSelector, setShowCragSelector] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [draftUpdatedAt, setDraftUpdatedAt] = useState<string | null>(null)
+  const [conflict, setConflict] = useState<ConflictState | null>(null)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [loadingCollaborators, setLoadingCollaborators] = useState(false)
+  const [collaborators, setCollaborators] = useState<CollaboratorItem[]>([])
+  const [activeInvites, setActiveInvites] = useState<InviteItem[]>([])
+  const [isOwner, setIsOwner] = useState(false)
+  const [ownerUserId, setOwnerUserId] = useState<string | null>(null)
+  const [ownerProfile, setOwnerProfile] = useState<{ displayName: string; username: string | null } | null>(null)
+  const [creatingInvite, setCreatingInvite] = useState(false)
+  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null)
+  const [removingCollaboratorId, setRemovingCollaboratorId] = useState<string | null>(null)
+  const [latestInviteUrl, setLatestInviteUrl] = useState<string | null>(null)
+  const hasShownCollabToastRef = useRef(false)
 
   const loadDraft = useCallback(async () => {
     if (!draftId) return
@@ -188,7 +256,7 @@ export default function EditDraftPage() {
     setError(null)
     try {
       const response = await fetch(`/api/submissions/drafts/${draftId}`, { cache: 'no-store' })
-      const payload = await response.json().catch(() => ({} as { draft?: DraftPayload; error?: string }))
+      const payload = await response.json().catch(() => ({} as { draft?: DraftPayload; isOwner?: boolean; error?: string }))
       if (!response.ok || !payload?.draft) {
         throw new Error(payload.error || 'Failed to load draft')
       }
@@ -263,6 +331,8 @@ export default function EditDraftPage() {
         : null
 
       setDraft(nextDraft)
+      setDraftUpdatedAt(nextDraft.updated_at)
+      setConflict(null)
       setManageFaces(nextManageFaces)
       setActiveImageId(nextManageFaces[nextPrimaryIndex]?.imageId || nextManageFaces[0]?.imageId || null)
       setPrimaryIndex(nextPrimaryIndex)
@@ -274,6 +344,9 @@ export default function EditDraftPage() {
       setCragId(nextDraft.crag_id)
       setSelectedCrag(nextCrag)
       setShowCragSelector(!nextDraft.crag_id)
+      if (typeof payload.isOwner === 'boolean') {
+        setIsOwner(payload.isOwner)
+      }
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : 'Failed to load draft'
       setError(message)
@@ -285,6 +358,61 @@ export default function EditDraftPage() {
   useEffect(() => {
     void loadDraft()
   }, [loadDraft])
+
+  useEffect(() => {
+    const supabase = createClient()
+    void supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id || null)
+    })
+  }, [])
+
+  const loadCollaborators = useCallback(async () => {
+    if (!draftId) return
+
+    setLoadingCollaborators(true)
+    try {
+      const response = await fetch(`/api/submissions/drafts/${draftId}/collaborators`, { cache: 'no-store' })
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({} as { error?: string }))
+        throw new Error(data.error || 'Failed to load draft collaborators')
+      }
+
+      const data = await response.json() as {
+        owner: {
+          userId: string
+          profile: {
+            displayName: string
+            username: string | null
+          }
+        } | null
+        collaborators: CollaboratorItem[]
+        isOwner: boolean
+        activeInvites?: InviteItem[]
+      }
+
+      setOwnerUserId(data.owner?.userId || null)
+      setOwnerProfile(data.owner?.profile || null)
+      setCollaborators(Array.isArray(data.collaborators) ? data.collaborators : [])
+      setIsOwner(Boolean(data.isOwner))
+      setActiveInvites(Array.isArray(data.activeInvites) ? data.activeInvites : [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load draft collaborators')
+    } finally {
+      setLoadingCollaborators(false)
+    }
+  }, [draftId])
+
+  useEffect(() => {
+    void loadCollaborators()
+  }, [loadCollaborators])
+
+  const collaborationAdded = searchParams.get('collab') === 'added'
+
+  useEffect(() => {
+    if (!collaborationAdded || hasShownCollabToastRef.current) return
+    addToast('You were added as a draft collaborator', 'success')
+    hasShownCollabToastRef.current = true
+  }, [collaborationAdded, addToast])
 
   const activeFace = useMemo(() => {
     if (!activeImageId) return null
@@ -425,8 +553,124 @@ export default function EditDraftPage() {
     setPrimaryIndex(activeFaceIndex)
   }, [activeFaceIndex])
 
+  const handleCreateInvite = useCallback(async () => {
+    if (!draftId || creatingInvite || !isOwner) return
+
+    setCreatingInvite(true)
+    setError(null)
+    try {
+      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/collaborators`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxUses: null, expiresAt: null }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({} as { error?: string }))
+        throw new Error(data.error || 'Failed to create draft invite link')
+      }
+
+      const data = await response.json() as { invite?: { inviteUrl?: string } }
+      const inviteUrl = data.invite?.inviteUrl || null
+      setLatestInviteUrl(inviteUrl)
+      setSuccess('Invite link created')
+      await loadCollaborators()
+
+      if (inviteUrl && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(inviteUrl)
+        addToast('Invite link copied', 'success')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create draft invite link')
+    } finally {
+      setCreatingInvite(false)
+    }
+  }, [draftId, creatingInvite, isOwner, loadCollaborators, addToast])
+
+  const handleCopyInvite = useCallback(async (inviteUrl: string) => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl)
+      setSuccess('Invite link copied')
+      addToast('Invite link copied', 'success')
+    } catch {
+      setError('Failed to copy invite link')
+      addToast('Failed to copy invite link', 'error')
+    }
+  }, [addToast])
+
+  const handleRevokeInvite = useCallback(async (inviteId: string) => {
+    if (!draftId || !isOwner || revokingInviteId) return
+
+    setRevokingInviteId(inviteId)
+    setError(null)
+    try {
+      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/collaborators`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteId }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({} as { error?: string }))
+        throw new Error(data.error || 'Failed to revoke invite')
+      }
+
+      setSuccess('Invite revoked')
+      await loadCollaborators()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to revoke invite')
+    } finally {
+      setRevokingInviteId(null)
+    }
+  }, [draftId, isOwner, revokingInviteId, loadCollaborators])
+
+  const handleRemoveCollaborator = useCallback(async (collaboratorUserId: string) => {
+    if (!draftId || removingCollaboratorId) return
+
+    setRemovingCollaboratorId(collaboratorUserId)
+    setError(null)
+    try {
+      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/collaborators/${collaboratorUserId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({} as { error?: string }))
+        throw new Error(data.error || 'Failed to remove collaborator')
+      }
+
+      if (currentUserId && collaboratorUserId === currentUserId && !isOwner) {
+        addToast('You left this draft', 'success')
+        router.push('/logbook')
+        return
+      }
+
+      setSuccess('Collaborator removed')
+      await loadCollaborators()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove collaborator')
+    } finally {
+      setRemovingCollaboratorId(null)
+    }
+  }, [draftId, removingCollaboratorId, currentUserId, isOwner, addToast, router, loadCollaborators])
+
+  const handleDeleteDraft = useCallback(async () => {
+    if (!draftId || !isOwner) return
+
+    setError(null)
+    const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, { method: 'DELETE' })
+    const payload = await response.json().catch(() => ({} as { error?: string }))
+    if (!response.ok) {
+      setError(payload.error || 'Failed to delete draft')
+      return
+    }
+
+    addToast('Draft deleted', 'success')
+    router.push('/logbook')
+  }, [draftId, isOwner, addToast, router])
+
   const saveDraft = useCallback(async () => {
-    if (!draft) return false
+    if (!draft || !draftUpdatedAt) return false
     setSavingDraft(true)
     setError(null)
     setSuccess(null)
@@ -468,30 +712,54 @@ export default function EditDraftPage() {
         throw new Error('Invalid credit handle format')
       }
 
+      const savePayload: DraftSavePayload = {
+        images: imagesPayload,
+        cragId,
+        metadata: {
+          ...(draft.metadata || {}),
+          primaryIndex,
+          faceDirectionsByImage,
+          routeType,
+          contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
+          contributionCreditHandle: normalizedHandle,
+        },
+      }
+
       const response = await csrfFetch(`/api/submissions/drafts/${draft.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          images: imagesPayload,
-          cragId,
-          metadata: {
-            ...(draft.metadata || {}),
-            primaryIndex,
-            faceDirectionsByImage,
-            routeType,
-            contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
-            contributionCreditHandle: normalizedHandle,
-          },
+          ...savePayload,
+          expected_updated_at: draftUpdatedAt,
         }),
       })
 
-      const payload = await response.json().catch(() => ({} as { error?: string }))
+      const payload = await response.json().catch(() => ({} as {
+        error?: string
+        code?: string
+        message?: string
+        draft?: { updated_at?: string }
+        current_updated_at?: string
+        current_data?: { last_updated_by_display_name?: string | null }
+      }))
+
       if (!response.ok) {
+        if (response.status === 409 && payload.code === 'draft_conflict') {
+          const conflictPayload = payload as DraftConflictResponse
+          setConflict({
+            serverUpdatedAt: conflictPayload.current_updated_at,
+            lastEditorName: conflictPayload.current_data?.last_updated_by_display_name || 'Another collaborator',
+            pendingChanges: savePayload,
+          })
+          return false
+        }
         throw new Error(payload.error || 'Failed to save draft')
       }
 
       setDraft((prev) => prev ? {
         ...prev,
+        updated_at: payload.draft?.updated_at || prev.updated_at,
+        last_edited_by: currentUserId,
         metadata: {
           ...(prev.metadata || {}),
           primaryIndex,
@@ -501,6 +769,8 @@ export default function EditDraftPage() {
           contributionCreditHandle: normalizedHandle,
         },
       } : prev)
+      setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
+      setConflict(null)
       setSuccess('Draft saved. Not published to the map.')
       return true
     } catch (saveError) {
@@ -509,10 +779,10 @@ export default function EditDraftPage() {
     } finally {
       setSavingDraft(false)
     }
-  }, [draft, routesByImageId, routeType, creditHandle, creditPlatform, cragId, primaryIndex, faceDirectionsByImage])
+  }, [draft, draftUpdatedAt, routesByImageId, routeType, creditHandle, creditPlatform, cragId, primaryIndex, faceDirectionsByImage, currentUserId])
 
   const publishDraft = useCallback(async () => {
-    if (!draft) return
+    if (!draft || !isOwner) return
     setPublishingDraft(true)
     setError(null)
 
@@ -546,7 +816,26 @@ export default function EditDraftPage() {
     } finally {
       setPublishingDraft(false)
     }
-  }, [draft, saveDraft, addToast, router])
+  }, [draft, isOwner, saveDraft, addToast, router])
+
+  const handleReloadLatestDraft = useCallback(async () => {
+    setConflict(null)
+    setSuccess(null)
+    await loadDraft()
+    await loadCollaborators()
+  }, [loadDraft, loadCollaborators])
+
+  const handleCopyUnsavedEdits = useCallback(async () => {
+    if (!conflict) return
+
+    const textPayload = JSON.stringify(conflict.pendingChanges, null, 2)
+    try {
+      await navigator.clipboard.writeText(textPayload)
+      addToast('Unsaved edits copied', 'success')
+    } catch {
+      setError('Failed to copy unsaved edits')
+    }
+  }, [conflict, addToast])
 
   if (loading) {
     return (
@@ -571,21 +860,37 @@ export default function EditDraftPage() {
             <button
               type="button"
               onClick={() => { void saveDraft() }}
-              disabled={savingDraft || publishingDraft}
+              disabled={savingDraft || publishingDraft || !!conflict}
               className="inline-flex items-center gap-1 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900"
             >
               {savingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
               Save draft
             </button>
-            <button
-              type="button"
-              onClick={() => { void publishDraft() }}
-              disabled={publishingDraft || savingDraft || !cragId}
-              className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-            >
-              {publishingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-              Publish
-            </button>
+            {isOwner ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { void publishDraft() }}
+                  disabled={publishingDraft || savingDraft || !cragId || !!conflict}
+                  className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {publishingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                  Publish
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void handleDeleteDraft() }}
+                  className="inline-flex items-center gap-1 rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete draft
+                </button>
+              </>
+            ) : (
+              <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                Waiting for owner to publish
+              </span>
+            )}
           </div>
         </div>
 
@@ -593,8 +898,16 @@ export default function EditDraftPage() {
           <span className="mr-2 inline-flex rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700 dark:bg-gray-700 dark:text-gray-100">
             Draft
           </span>
-          Only you can see this. It is not on the map until you publish.
+          {isOwner
+            ? 'Only collaborators can see this draft. It is not on the map until you publish.'
+            : 'You are collaborating on this draft. The owner must publish it to map.'}
         </div>
+
+        {collaborationAdded ? (
+          <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+            You&apos;ve been added as a collaborator. You can now edit this draft.
+          </div>
+        ) : null}
 
         {error ? (
           <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
@@ -773,6 +1086,22 @@ export default function EditDraftPage() {
         ) : null}
 
         <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-gray-500" />
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Collaborators</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShareOpen(true)}
+              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+            >
+              Manage collaborators
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-3 flex items-center gap-2">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Contribution credit</h2>
           </div>
@@ -803,6 +1132,184 @@ export default function EditDraftPage() {
             Shown publicly as @{normalizeSubmissionCreditHandle(creditHandle) || 'handle'} after publish.
           </p>
         </div>
+
+        <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Draft collaborators</DialogTitle>
+              <DialogDescription>
+                {isOwner
+                  ? 'Create a link for collaborators to help edit this draft before publishing.'
+                  : 'You can view collaborators. Only the owner can manage invites.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <div className="rounded-md border border-gray-200 p-3 dark:border-gray-800">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <Link2 className="h-4 w-4" />
+                  Invite link
+                </div>
+                {isOwner ? (
+                  <button
+                    type="button"
+                    onClick={() => { void handleCreateInvite() }}
+                    disabled={creatingInvite}
+                    className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {creatingInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Create new link
+                  </button>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Only the owner can create invite links.</p>
+                )}
+
+                {latestInviteUrl ? (
+                  <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-2 text-xs dark:border-gray-700 dark:bg-gray-900">
+                    <p className="break-all text-gray-700 dark:text-gray-200">{latestInviteUrl}</p>
+                    <button
+                      type="button"
+                      onClick={() => { void handleCopyInvite(latestInviteUrl) }}
+                      className="mt-2 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                      Copy link
+                    </button>
+                  </div>
+                ) : null}
+
+                {activeInvites.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {activeInvites.map((invite) => {
+                      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+                      const inviteUrl = `${origin}/api/submissions/drafts/collaborate/${invite.token}`
+                      return (
+                        <div key={invite.id} className="rounded-md border border-gray-200 p-2 text-xs dark:border-gray-700">
+                          <p className="break-all text-gray-600 dark:text-gray-300">{inviteUrl}</p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => { void handleCopyInvite(inviteUrl) }}
+                              className="rounded-md border border-gray-300 px-2 py-1 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            >
+                              Copy
+                            </button>
+                            {isOwner ? (
+                              <button
+                                type="button"
+                                onClick={() => { void handleRevokeInvite(invite.id) }}
+                                disabled={revokingInviteId === invite.id}
+                                className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
+                              >
+                                {revokingInviteId === invite.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                Revoke
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-md border border-gray-200 p-3 dark:border-gray-800">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                  <Users className="h-4 w-4" />
+                  Collaborators
+                </div>
+
+                {loadingCollaborators ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading collaborators...
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {ownerUserId && ownerProfile ? (
+                      <div className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-2 dark:border-gray-700">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{ownerProfile.displayName} (Owner)</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{ownerProfile.username ? `@${ownerProfile.username}` : 'No username'}</p>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {collaborators.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">No collaborators yet.</p>
+                    ) : (
+                      collaborators.map((collaborator) => (
+                        <div key={collaborator.userId} className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-2 dark:border-gray-700">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{collaborator.profile.displayName}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{collaborator.profile.username ? `@${collaborator.profile.username}` : 'No username'}</p>
+                          </div>
+                          {isOwner ? (
+                            <button
+                              type="button"
+                              onClick={() => { void handleRemoveCollaborator(collaborator.userId) }}
+                              disabled={removingCollaboratorId === collaborator.userId}
+                              className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
+                            >
+                              {removingCollaboratorId === collaborator.userId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                              Remove
+                            </button>
+                          ) : null}
+                        </div>
+                      ))
+                    )}
+
+                    {!isOwner && currentUserId ? (
+                      <button
+                        type="button"
+                        onClick={() => { void handleRemoveCollaborator(currentUserId) }}
+                        disabled={removingCollaboratorId === currentUserId}
+                        className="mt-2 inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
+                      >
+                        {removingCollaboratorId === currentUserId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        Leave draft
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!conflict} onOpenChange={() => {}}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Draft updated by another collaborator</DialogTitle>
+              <DialogDescription>
+                {conflict?.lastEditorName
+                  ? `${conflict.lastEditorName} saved a newer version of this draft.`
+                  : 'A newer version exists on the server.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Reload the latest draft before continuing. You can copy your unsaved edits first.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { void handleReloadLatestDraft() }}
+                  className="flex-1 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  Reload latest draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void handleCopyUnsavedEdits() }}
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  Copy unsaved edits
+                </button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
