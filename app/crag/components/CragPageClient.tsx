@@ -65,6 +65,8 @@ export interface Crag {
   name: string
   slug: string | null
   country_code: string | null
+  region_name?: string | null
+  sub_area?: string | null
   latitude: number | null
   longitude: number | null
   region_id: string | null
@@ -1011,6 +1013,16 @@ export default function CragPageClient({
               {crag.rock_type && (
                 <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 capitalize">
                   {crag.rock_type}
+                </span>
+              )}
+              {crag.region_name && (
+                <span className="px-3 py-1 rounded-full text-sm bg-blue-600 text-white border border-blue-600">
+                  Region: {crag.region_name}
+                </span>
+              )}
+              {crag.sub_area && (
+                <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
+                  Sub-area: {crag.sub_area}
                 </span>
               )}
               <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 tabular-nums">
