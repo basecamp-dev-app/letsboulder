@@ -88,11 +88,23 @@ interface EditableImageQuery {
   id: string
   url: string
   created_by: string | null
+  crag_id: string | null
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
   latitude: number | null
   longitude: number | null
   face_directions: string[] | null
+  crags?: {
+    id: string
+    name: string
+    region_name: string | null
+    sub_area: string | null
+  } | Array<{
+    id: string
+    name: string
+    region_name: string | null
+    sub_area: string | null
+  }> | null
   route_lines: ImageRouteLineQuery[] | null
 }
 
@@ -222,9 +234,16 @@ export default function EditSubmittedRoutesPage() {
   const [canvasKey, setCanvasKey] = useState(0)
   const [latitude, setLatitude] = useState<string>('')
   const [longitude, setLongitude] = useState<string>('')
+  const [cragId, setCragId] = useState<string | null>(null)
+  const [cragName, setCragName] = useState('')
+  const [regionTag, setRegionTag] = useState('')
+  const [subArea, setSubArea] = useState('')
   const [faceDirections, setFaceDirections] = useState<FaceDirection[]>([])
   const [initialLatitude, setInitialLatitude] = useState<string>('')
   const [initialLongitude, setInitialLongitude] = useState<string>('')
+  const [initialCragName, setInitialCragName] = useState('')
+  const [initialRegionTag, setInitialRegionTag] = useState('')
+  const [initialSubArea, setInitialSubArea] = useState('')
   const [initialFaceDirections, setInitialFaceDirections] = useState<FaceDirection[]>([])
   const [shareOpen, setShareOpen] = useState(false)
   const [loadingCollaborators, setLoadingCollaborators] = useState(false)
@@ -283,11 +302,13 @@ export default function EditSubmittedRoutesPage() {
           id,
           url,
           created_by,
+          crag_id,
           contribution_credit_platform,
           contribution_credit_handle,
           latitude,
           longitude,
           face_directions,
+          crags:crag_id (id, name, region_name, sub_area),
           route_lines (
             id,
             points,
@@ -370,8 +391,16 @@ export default function EditSubmittedRoutesPage() {
       setInitialLongitude(typeof submission.longitude === 'number' ? submission.longitude.toString() : '')
       const submittedDirections = Array.isArray(submission.face_directions) ? submission.face_directions : []
       const normalizedDirections = FACE_DIRECTIONS.filter((direction) => submittedDirections.includes(direction))
+      const linkedCrag = pickOne(submission.crags)
       setFaceDirections(normalizedDirections)
       setInitialFaceDirections(normalizedDirections)
+      setCragId(typeof submission.crag_id === 'string' ? submission.crag_id : null)
+      setCragName(linkedCrag?.name || '')
+      setRegionTag(linkedCrag?.region_name || '')
+      setSubArea(linkedCrag?.sub_area || '')
+      setInitialCragName(linkedCrag?.name || '')
+      setInitialRegionTag(linkedCrag?.region_name || '')
+      setInitialSubArea(linkedCrag?.sub_area || '')
       setOwnerUserId(typeof submission.created_by === 'string' ? submission.created_by : null)
       const normalizedCreditPlatform = normalizeSubmissionCreditPlatform(submission.contribution_credit_platform)
       setCreditPlatform(normalizedCreditPlatform || 'instagram')
@@ -457,6 +486,7 @@ export default function EditSubmittedRoutesPage() {
 
   const collaborationAdded = searchParams.get('collab') === 'added'
   const canEditContributionCredit = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId
+  const canEditCragMetadata = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId && !!cragId
   const markerPosition = useMemo<[number, number] | null>(() => {
     const parsedLatitude = Number(latitude)
     const parsedLongitude = Number(longitude)
@@ -477,6 +507,17 @@ export default function EditSubmittedRoutesPage() {
     const currentDirections = sortFaceDirections(faceDirections).join('|')
     return coordsChanged || initialDirections !== currentDirections
   }, [initialLatitude, initialLongitude, latitude, longitude, initialFaceDirections, faceDirections])
+
+  const cragMetadataDirty = useMemo(() => {
+    if (!canEditCragMetadata) return false
+    const currentName = cragName.trim()
+    const currentRegion = regionTag.trim()
+    const currentSubArea = subArea.trim()
+    const initialName = initialCragName.trim()
+    const initialRegion = initialRegionTag.trim()
+    const initialSubAreaValue = initialSubArea.trim()
+    return currentName !== initialName || currentRegion !== initialRegion || currentSubArea !== initialSubAreaValue
+  }, [canEditCragMetadata, cragName, regionTag, subArea, initialCragName, initialRegionTag, initialSubArea])
 
   const creditDirty = useMemo(() => {
     if (!canEditContributionCredit) return false
@@ -519,7 +560,7 @@ export default function EditSubmittedRoutesPage() {
       .map((item) => ({ routeLineId: item.routeLineId, grade: item.grade }))
   }, [initialEditedRoutes, editedRoutes])
 
-  const hasPendingChanges = imageMetadataDirty || routeEditsDirty || changedRouteGradeVotes.length > 0 || creditDirty
+  const hasPendingChanges = imageMetadataDirty || cragMetadataDirty || routeEditsDirty || changedRouteGradeVotes.length > 0 || creditDirty
 
   const routesToPersist = useMemo(() => {
     const initialById = new Map(initialEditedRoutes.map((route) => [route.id, route]))
@@ -696,6 +737,39 @@ export default function EditSubmittedRoutesPage() {
     setInitialFaceDirections(faceDirections)
     return true
   }, [imageId, imageMetadataDirty, latitude, longitude, faceDirections])
+
+  const saveCragMetadata = useCallback(async () => {
+    if (!imageId || !canEditCragMetadata || !cragMetadataDirty) return false
+
+    const trimmedCragName = cragName.trim()
+    const trimmedRegionTag = regionTag.trim()
+    if (!trimmedCragName) {
+      throw new Error('Crag name is required')
+    }
+    if (!trimmedRegionTag) {
+      throw new Error('Region tag is required')
+    }
+
+    const response = await csrfFetch(`/api/submissions/${imageId}/crag`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cragName: trimmedCragName,
+        regionTag: trimmedRegionTag,
+        subArea: subArea.trim() || null,
+      }),
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Failed to update crag metadata')
+    }
+
+    setInitialCragName(trimmedCragName)
+    setInitialRegionTag(trimmedRegionTag)
+    setInitialSubArea(subArea.trim())
+    return true
+  }, [imageId, canEditCragMetadata, cragMetadataDirty, cragName, regionTag, subArea])
 
   const updateLocation = useCallback((nextLatitude: number, nextLongitude: number) => {
     setLatitude(nextLatitude.toFixed(6))
@@ -944,6 +1018,11 @@ export default function EditSubmittedRoutesPage() {
         savedLabels.push('image metadata')
       }
 
+      if (cragMetadataDirty) {
+        await saveCragMetadata()
+        savedLabels.push('crag details')
+      }
+
       if (changedRouteGradeVotes.length > 0) {
         await saveRouteGradeVotes()
         savedLabels.push('grade votes')
@@ -970,6 +1049,8 @@ export default function EditSubmittedRoutesPage() {
     savingAllChanges,
     imageMetadataDirty,
     saveImageMetadata,
+    cragMetadataDirty,
+    saveCragMetadata,
     changedRouteGradeVotes.length,
     saveRouteGradeVotes,
     routeEditsDirty,
@@ -1066,6 +1147,47 @@ export default function EditSubmittedRoutesPage() {
             </div>
           </div>
         )}
+
+        <details className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900" open={cragMetadataDirty}>
+          <summary className="cursor-pointer text-sm font-semibold text-gray-900 dark:text-gray-100">Location details</summary>
+          <div className="mt-3 space-y-3">
+            {canEditCragMetadata ? (
+              <>
+                <label className="text-xs text-gray-600 dark:text-gray-300">
+                  Crag name
+                  <input
+                    value={cragName}
+                    onChange={(event) => setCragName(event.target.value)}
+                    placeholder="e.g. Leaning Tower"
+                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                  />
+                </label>
+                <label className="text-xs text-gray-600 dark:text-gray-300">
+                  Region tag
+                  <input
+                    value={regionTag}
+                    onChange={(event) => setRegionTag(event.target.value)}
+                    placeholder="e.g. Yosemite Valley"
+                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                  />
+                </label>
+                <label className="text-xs text-gray-600 dark:text-gray-300">
+                  Sub-area (optional)
+                  <input
+                    value={subArea}
+                    onChange={(event) => setSubArea(event.target.value)}
+                    placeholder="e.g. Valley S Side"
+                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                  />
+                </label>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Only the submission owner can edit crag and region details.
+              </p>
+            )}
+          </div>
+        </details>
 
         <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-3 flex items-center gap-2">

@@ -21,6 +21,13 @@ interface NearbyCragResult extends Crag {
   distance?: number | null
 }
 
+interface LocationTagSearchResult {
+  id: string
+  kind: 'region' | 'sub_area'
+  name: string
+  country_code: string | null
+}
+
 export default function CragSelector({
   latitude,
   longitude,
@@ -33,7 +40,11 @@ export default function CragSelector({
   const [loading, setLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [newCragName, setNewCragName] = useState('')
+  const [newCragRegionTag, setNewCragRegionTag] = useState('')
+  const [newCragSubArea, setNewCragSubArea] = useState('')
   const [newCragRockType, setNewCragRockType] = useState('')
+  const [regionTagResults, setRegionTagResults] = useState<LocationTagSearchResult[]>([])
+  const [regionTagLoading, setRegionTagLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
@@ -140,6 +151,45 @@ export default function CragSelector({
     }
   }, [])
 
+  useEffect(() => {
+    const value = newCragRegionTag.trim()
+    if (value.length < 2 || !showCreate) {
+      setRegionTagResults([])
+      return
+    }
+
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      setRegionTagLoading(true)
+      try {
+        const params = new URLSearchParams({ q: value, kind: 'region' })
+        const response = await fetch(`/api/location-tags/search?${params}`)
+        if (!response.ok) {
+          setRegionTagResults([])
+          return
+        }
+
+        const data = await response.json()
+        if (!cancelled) {
+          setRegionTagResults(Array.isArray(data) ? data : [])
+        }
+      } catch {
+        if (!cancelled) {
+          setRegionTagResults([])
+        }
+      } finally {
+        if (!cancelled) {
+          setRegionTagLoading(false)
+        }
+      }
+    }, 300)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [newCragRegionTag, showCreate])
+
   const handleSelect = (crag: Crag) => {
     setQuery(crag.name)
     setResults([])
@@ -164,6 +214,8 @@ export default function CragSelector({
         },
         body: JSON.stringify({
           name: newCragName.trim(),
+          region_tag: newCragRegionTag.trim(),
+          sub_area: newCragSubArea.trim() || null,
           rock_type: newCragRockType.trim() || null,
           latitude: latitude ?? null,
           longitude: longitude ?? null,
@@ -175,7 +227,10 @@ export default function CragSelector({
         setSuccessMessage(`Crag "${newCrag.name}" created successfully!`)
         setShowCreate(false)
         setNewCragName('')
+        setNewCragRegionTag('')
+        setNewCragSubArea('')
         setNewCragRockType('')
+        setRegionTagResults([])
         setQuery(newCrag.name)
         onSelect(newCrag)
         onCreateNew?.(newCrag.name)
@@ -189,7 +244,10 @@ export default function CragSelector({
           setTimeout(() => {
             setShowCreate(false)
             setNewCragName('')
+            setNewCragRegionTag('')
+            setNewCragSubArea('')
             setNewCragRockType('')
+            setRegionTagResults([])
             setQuery(errorData.existingCragName)
             searchCrags(errorData.existingCragName)
           }, 2000)
@@ -198,7 +256,10 @@ export default function CragSelector({
           setTimeout(() => {
             setShowCreate(false)
             setNewCragName('')
+            setNewCragRegionTag('')
+            setNewCragSubArea('')
             setNewCragRockType('')
+            setRegionTagResults([])
             setQuery(errorData.existingCragName)
             searchCrags(errorData.existingCragName)
           }, 2000)
@@ -220,7 +281,10 @@ export default function CragSelector({
   const handleCancelCreate = () => {
     setShowCreate(false)
     setNewCragName('')
+    setNewCragRegionTag('')
+    setNewCragSubArea('')
     setNewCragRockType('')
+    setRegionTagResults([])
     setErrorMessage('')
   }
 
@@ -257,9 +321,51 @@ export default function CragSelector({
             type="text"
             value={newCragName}
             onChange={(e) => setNewCragName(e.target.value)}
-            placeholder="Enter crag name"
+            placeholder="Crag name (required)"
             className="w-full px-3 py-3 min-h-[48px] text-lg pr-24 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
+          />
+
+          <div className="relative">
+            <input
+              type="text"
+              value={newCragRegionTag}
+              onChange={(e) => setNewCragRegionTag(e.target.value)}
+              placeholder="Region/Area tag (required, e.g. Yosemite Valley)"
+              className="w-full px-3 py-3 min-h-[48px] text-lg border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {regionTagLoading && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+              </div>
+            )}
+            {regionTagResults.length > 0 && (
+              <ul className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-auto">
+                {regionTagResults.map((tag) => (
+                  <li
+                    key={tag.id}
+                    onClick={() => {
+                      setNewCragRegionTag(tag.name)
+                      setRegionTagResults([])
+                    }}
+                    className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <div className="font-medium text-gray-900 dark:text-gray-100">{tag.name}</div>
+                    {tag.country_code && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{tag.country_code}</div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <input
+            type="text"
+            value={newCragSubArea}
+            onChange={(e) => setNewCragSubArea(e.target.value)}
+            placeholder="Sub-area (optional, e.g. Valley S Side)"
+            className="w-full px-3 py-3 min-h-[48px] text-lg border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
 
           <input
@@ -272,7 +378,7 @@ export default function CragSelector({
           <div className="flex gap-2">
             <button
               onClick={handleCreate}
-              disabled={!newCragName.trim() || isCreating}
+              disabled={!newCragName.trim() || !newCragRegionTag.trim() || isCreating}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isCreating && (

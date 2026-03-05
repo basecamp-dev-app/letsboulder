@@ -8,12 +8,14 @@ interface Crag {
   id: string
   name: string
   rock_type: string | null
+  region_tag: string | null
+  sub_area: string | null
 }
 
 interface RenameCragModalProps {
   crag: Crag
   onClose: () => void
-  onSave: (cragId: string, data: { name: string; rock_type: string | null }) => void
+  onSave: (cragId: string, data: { name: string; rock_type: string | null; region_tag: string; sub_area: string | null }) => void
 }
 
 const ROCK_TYPES = [
@@ -37,17 +39,21 @@ export default function RenameCragModal({ crag, onClose, onSave }: RenameCragMod
   useOverlayHistory({ open: true, onClose, id: `admin-rename-crag-${crag.id}` })
 
   const [name, setName] = useState(crag.name)
+  const [regionTag, setRegionTag] = useState(crag.region_tag || '')
+  const [subArea, setSubArea] = useState(crag.sub_area || '')
   const [rockType, setRockType] = useState(crag.rock_type || '')
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
-    if (!name.trim()) return
+    if (!name.trim() || !regionTag.trim()) return
 
     setSaving(true)
     try {
       await onSave(crag.id, {
         name: name.trim(),
         rock_type: rockType || null,
+        region_tag: regionTag.trim(),
+        sub_area: subArea.trim() || null,
       })
       onClose()
     } finally {
@@ -81,6 +87,28 @@ export default function RenameCragModal({ crag, onClose, onSave }: RenameCragMod
           </div>
 
           <div>
+            <label className="block text-sm text-gray-400 mb-1">Region Tag</label>
+            <input
+              type="text"
+              value={regionTag}
+              onChange={(e) => setRegionTag(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              placeholder="e.g. Yosemite Valley"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Sub-area (optional)</label>
+            <input
+              type="text"
+              value={subArea}
+              onChange={(e) => setSubArea(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              placeholder="e.g. Valley S Side"
+            />
+          </div>
+
+          <div>
             <label className="block text-sm text-gray-400 mb-1">Rock Type</label>
             <select
               value={rockType}
@@ -105,7 +133,7 @@ export default function RenameCragModal({ crag, onClose, onSave }: RenameCragMod
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || !name.trim()}
+            disabled={saving || !name.trim() || !regionTag.trim()}
             className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Save'}
