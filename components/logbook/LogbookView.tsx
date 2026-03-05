@@ -429,7 +429,7 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
                       })}
                     </div>
                     <Link
-                      href="/logbook/submissions?mode=new"
+                      href="/submit"
                       className="inline-flex rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
                     >
                       New upload
@@ -495,7 +495,7 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
                   })}
                 </div>
                 <Link
-                  href="/logbook/submissions?mode=new"
+                  href="/submit"
                   className="inline-flex rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
                 >
                   New upload

@@ -13,8 +13,40 @@ interface DraftPatchImage {
 
 interface DraftPatchBody {
   images: DraftPatchImage[]
+  expected_updated_at?: string
   metadata?: Record<string, unknown>
   cragId?: string | null
+}
+
+interface DraftConflictResponse {
+  code: 'draft_conflict'
+  message: string
+  current_updated_at: string
+  current_data: {
+    updated_at: string
+    last_updated_by: string | null
+    last_updated_by_display_name: string | null
+  }
+}
+
+interface DraftPatchResult {
+  draft_id: string
+  updated_at: string
+  updated_count: number
+  images: Array<Record<string, unknown>>
+}
+
+interface ProfileRow {
+  id: string
+  username: string | null
+  display_name: string | null
+}
+
+function resolveDisplayName(profile: ProfileRow | null): string | null {
+  if (!profile) return null
+  if (profile.display_name) return profile.display_name
+  if (profile.username) return profile.username
+  return null
 }
 
 function normalizePatchImages(value: unknown): DraftPatchImage[] | null {
@@ -68,16 +100,12 @@ export async function GET(
 
     const { data: draft, error: draftError } = await supabase
       .from('submission_drafts')
-      .select('id, user_id, crag_id, status, metadata, created_at, updated_at, crags(name, latitude, longitude)')
+      .select('id, user_id, crag_id, status, metadata, created_at, updated_at, last_edited_by, crags(name, latitude, longitude)')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (draftError || !draft) {
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
-    }
-
-    if (draft.user_id !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { data: images, error: imagesError } = await supabase
@@ -141,7 +169,9 @@ export async function GET(
         : null,
     }))
 
-    return NextResponse.json({ draft: { ...draft, images: withSignedUrls } })
+
+    const isOwner = draft.user_id === userId
+    return NextResponse.json({ draft: { ...draft, images: withSignedUrls }, isOwner })
   } catch (error) {
     return createErrorResponse(error, 'Failed to fetch submission draft')
   }
@@ -183,28 +213,108 @@ export async function PATCH(
       return NextResponse.json({ error: 'images must be a non-empty array of {id, display_order, route_data}' }, { status: 400 })
     }
 
+    const expectedUpdatedAtRaw = typeof body?.expected_updated_at === 'string' ? body.expected_updated_at : ''
+    const expectedUpdatedAtDate = expectedUpdatedAtRaw ? new Date(expectedUpdatedAtRaw) : null
+    if (!expectedUpdatedAtDate || Number.isNaN(expectedUpdatedAtDate.getTime())) {
+      return NextResponse.json({ error: 'expected_updated_at is required and must be a valid ISO timestamp' }, { status: 400 })
+    }
+
     const { data: draft, error: draftError } = await supabase
       .from('submission_drafts')
-      .select('id, user_id')
+      .select('id, user_id, status, updated_at, last_edited_by')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (draftError || !draft) {
       return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
     }
 
-    if (draft.user_id !== userId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const isOwner = draft.user_id === userId
+    if (!isOwner) {
+      const { data: collaboratorAccess, error: collaboratorError } = await supabase
+        .from('submission_draft_collaborators')
+        .select('draft_id')
+        .eq('draft_id', id)
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (collaboratorError || !collaboratorAccess) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
-    const { data: patchResult, error: patchError } = await supabase.rpc('patch_submission_draft_images_atomic', {
+    if (draft.status !== 'draft') {
+      return NextResponse.json({ error: 'Only draft submissions can be edited' }, { status: 400 })
+    }
+
+    const expectedUpdatedAt = expectedUpdatedAtDate.toISOString()
+    const expectedUpdatedAtMs = expectedUpdatedAtDate.getTime()
+    const currentUpdatedAtMs = new Date(draft.updated_at).getTime()
+    if (!Number.isFinite(currentUpdatedAtMs) || currentUpdatedAtMs !== expectedUpdatedAtMs) {
+      let lastUpdatedByDisplayName: string | null = null
+      if (typeof draft.last_edited_by === 'string' && draft.last_edited_by) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, username, display_name')
+          .eq('id', draft.last_edited_by)
+          .maybeSingle()
+        lastUpdatedByDisplayName = resolveDisplayName((profile || null) as ProfileRow | null)
+      }
+
+      const conflictPayload: DraftConflictResponse = {
+        code: 'draft_conflict',
+        message: 'This draft was updated by another collaborator. Reload to continue editing.',
+        current_updated_at: draft.updated_at,
+        current_data: {
+          updated_at: draft.updated_at,
+          last_updated_by: draft.last_edited_by,
+          last_updated_by_display_name: lastUpdatedByDisplayName,
+        },
+      }
+      return NextResponse.json(conflictPayload, { status: 409 })
+    }
+
+    const { data: patchResultRaw, error: patchError } = await supabase.rpc('patch_submission_draft_images_atomic', {
       p_draft_id: id,
       p_images: images,
+      p_expected_updated_at: expectedUpdatedAt,
     })
 
     if (patchError) {
+      if (patchError.message === 'Draft conflict') {
+        const { data: currentDraft } = await supabase
+          .from('submission_drafts')
+          .select('updated_at, last_edited_by')
+          .eq('id', id)
+          .maybeSingle()
+
+        let lastUpdatedByDisplayName: string | null = null
+        if (typeof currentDraft?.last_edited_by === 'string' && currentDraft.last_edited_by) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, username, display_name')
+            .eq('id', currentDraft.last_edited_by)
+            .maybeSingle()
+          lastUpdatedByDisplayName = resolveDisplayName((profile || null) as ProfileRow | null)
+        }
+
+        const fallbackUpdatedAt = currentDraft?.updated_at || expectedUpdatedAt
+        const conflictPayload: DraftConflictResponse = {
+          code: 'draft_conflict',
+          message: 'This draft was updated by another collaborator. Reload to continue editing.',
+          current_updated_at: fallbackUpdatedAt,
+          current_data: {
+            updated_at: fallbackUpdatedAt,
+            last_updated_by: currentDraft?.last_edited_by || null,
+            last_updated_by_display_name: lastUpdatedByDisplayName,
+          },
+        }
+        return NextResponse.json(conflictPayload, { status: 409 })
+      }
       return createErrorResponse(patchError, 'Failed to patch submission draft')
     }
+
+    const patchResult = (patchResultRaw || null) as DraftPatchResult | null
 
     const metadataPatch = body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
       ? body.metadata
@@ -234,8 +344,9 @@ export async function PATCH(
         ? { ...existingMetadata, ...metadataPatch }
         : existingMetadata
 
-      const updatePayload: { metadata?: Record<string, unknown>; crag_id?: string | null; updated_at: string } = {
+      const updatePayload: { metadata?: Record<string, unknown>; crag_id?: string | null; updated_at: string; last_edited_by: string } = {
         updated_at: new Date().toISOString(),
+        last_edited_by: userId,
       }
       if (metadataPatch) {
         updatePayload.metadata = nextMetadata
@@ -244,14 +355,25 @@ export async function PATCH(
         updatePayload.crag_id = nextCragId
       }
 
-      const { error: updateDraftError } = await supabase
+      const { data: updatedDraft, error: updateDraftError } = await supabase
         .from('submission_drafts')
         .update(updatePayload)
         .eq('id', id)
+        .eq('status', 'draft')
+        .select('updated_at')
+        .maybeSingle()
 
       if (updateDraftError) {
         return createErrorResponse(updateDraftError, 'Failed to update submission draft metadata')
       }
+
+      return NextResponse.json({
+        success: true,
+        draft: {
+          ...(patchResult || {}),
+          updated_at: updatedDraft?.updated_at || patchResult?.updated_at || updatePayload.updated_at,
+        },
+      })
     }
 
     return NextResponse.json({ success: true, draft: patchResult })
