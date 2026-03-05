@@ -2,7 +2,11 @@
   "name": "climbing-app",
   "version": "0.1.0",
   "private": true,
-  "overrides": {},
+  "overrides": {
+    "fast-xml-parser": "^5.3.8",
+    "mailparser": "^3.9.3",
+    "tar": "^7.5.10"
+  },
   "scripts": {
     "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --turbo",
     "build": "NEXT_TELEMETRY_DISABLED=1 next build --webpack",
