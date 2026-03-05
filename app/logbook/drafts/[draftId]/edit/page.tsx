@@ -260,6 +260,12 @@ export default function EditDraftPage() {
   const [addingFaces, setAddingFaces] = useState(false)
   const addFaceInputRef = useRef<HTMLInputElement | null>(null)
   const hasShownCollabToastRef = useRef(false)
+  const autosaveTimeoutRef = useRef<number | null>(null)
+  const hasLoadedRoutesRef = useRef(false)
+  const lastPersistedRoutesRef = useRef('')
+  const autosavePausedRef = useRef(false)
+  const autosavePausedSnapshotRef = useRef('')
+  const [autosaveState, setAutosaveState] = useState<'idle' | 'pending' | 'saving' | 'syncing' | 'saved'>('idle')
 
   const loadDraft = useCallback(async () => {
     if (!draftId) return
@@ -350,6 +356,15 @@ export default function EditDraftPage() {
       setPrimaryIndex(nextPrimaryIndex)
       setFaceDirectionsByImage(nextFaceDirectionsByImage)
       setRoutesByImageId(nextRoutesByImageId)
+      hasLoadedRoutesRef.current = true
+      lastPersistedRoutesRef.current = JSON.stringify(nextRoutesByImageId)
+      autosavePausedRef.current = false
+      autosavePausedSnapshotRef.current = ''
+      if (autosaveTimeoutRef.current) {
+        window.clearTimeout(autosaveTimeoutRef.current)
+        autosaveTimeoutRef.current = null
+      }
+      setAutosaveState('idle')
       setRouteType(normalizedRouteType)
       setCreditPlatform(normalizedCreditPlatform || 'instagram')
       setCreditHandle(normalizedCreditHandle)
@@ -789,11 +804,22 @@ export default function EditDraftPage() {
     router.push('/logbook')
   }, [draftId, isOwner, addToast, router])
 
-  const saveDraft = useCallback(async () => {
+  const saveDraft = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true
     if (!draft || !draftUpdatedAt) return false
+
+    if (autosaveTimeoutRef.current) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+    }
+
     setSavingDraft(true)
-    setError(null)
-    setSuccess(null)
+    if (silent) {
+      setAutosaveState('saving')
+    } else {
+      setError(null)
+      setSuccess(null)
+    }
 
     try {
       const imagesPayload = draft.images
@@ -860,12 +886,26 @@ export default function EditDraftPage() {
         message?: string
         draft?: { updated_at?: string }
         current_updated_at?: string
-        current_data?: { last_updated_by_display_name?: string | null }
+        current_data?: { last_updated_by?: string | null; last_updated_by_display_name?: string | null }
       }))
 
       if (!response.ok) {
         if (response.status === 409 && payload.code === 'draft_conflict') {
           const conflictPayload = payload as DraftConflictResponse
+          const isSelfConflict = conflictPayload.current_data?.last_updated_by === currentUserId
+          if (silent || isSelfConflict) {
+            setDraftUpdatedAt(conflictPayload.current_updated_at)
+            if (silent) {
+              setAutosaveState('syncing')
+              if (!isSelfConflict) {
+                autosavePausedRef.current = true
+                autosavePausedSnapshotRef.current = JSON.stringify(routesByImageId)
+              }
+            } else {
+              setAutosaveState('idle')
+            }
+            return false
+          }
           setConflict({
             serverUpdatedAt: conflictPayload.current_updated_at,
             lastEditorName: conflictPayload.current_data?.last_updated_by_display_name || 'Another collaborator',
@@ -890,19 +930,91 @@ export default function EditDraftPage() {
         },
       } : prev)
       setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
+      lastPersistedRoutesRef.current = JSON.stringify(routesByImageId)
       setConflict(null)
-      setSuccess('Draft saved. Not published to the map.')
+      if (silent) {
+        setAutosaveState('saved')
+      } else {
+        setAutosaveState('idle')
+        setSuccess('Draft saved. Not published to the map.')
+      }
       return true
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Failed to save draft')
+      setAutosaveState('idle')
+      if (!silent) {
+        setError(saveError instanceof Error ? saveError.message : 'Failed to save draft')
+      }
       return false
     } finally {
       setSavingDraft(false)
     }
   }, [draft, draftUpdatedAt, routesByImageId, routeType, creditHandle, creditPlatform, cragId, primaryIndex, faceDirectionsByImage, currentUserId])
 
+  const handleManualSave = useCallback(() => {
+    if (autosaveTimeoutRef.current) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+    }
+    void saveDraft()
+  }, [saveDraft])
+
+  useEffect(() => {
+    if (!hasLoadedRoutesRef.current) return
+    if (!draft || !draftUpdatedAt) return
+    if (loading || publishingDraft || savingDraft || !!conflict) return
+
+    const serializedRoutes = JSON.stringify(routesByImageId)
+
+    if (autosavePausedRef.current) {
+      if (serializedRoutes === autosavePausedSnapshotRef.current) {
+        return
+      }
+      autosavePausedRef.current = false
+      autosavePausedSnapshotRef.current = ''
+    }
+
+    if (serializedRoutes === lastPersistedRoutesRef.current) {
+      if (autosaveState === 'pending' || autosaveState === 'syncing') {
+        setAutosaveState('idle')
+      }
+      return
+    }
+
+    if (autosaveTimeoutRef.current) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+    }
+
+    setAutosaveState('pending')
+    autosaveTimeoutRef.current = window.setTimeout(() => {
+      autosaveTimeoutRef.current = null
+      void saveDraft({ silent: true })
+    }, 1000)
+
+    return () => {
+      if (autosaveTimeoutRef.current) {
+        window.clearTimeout(autosaveTimeoutRef.current)
+        autosaveTimeoutRef.current = null
+      }
+    }
+  }, [routesByImageId, draft, draftUpdatedAt, loading, publishingDraft, savingDraft, conflict, autosaveState, saveDraft])
+
+  useEffect(() => {
+    return () => {
+      if (autosaveTimeoutRef.current) {
+        window.clearTimeout(autosaveTimeoutRef.current)
+        autosaveTimeoutRef.current = null
+      }
+    }
+  }, [])
+
   const publishDraft = useCallback(async () => {
     if (!draft || !isOwner) return
+
+    if (autosaveTimeoutRef.current) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
+    }
+
     setPublishingDraft(true)
     setError(null)
 
@@ -979,7 +1091,7 @@ export default function EditDraftPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => { void saveDraft() }}
+              onClick={handleManualSave}
               disabled={savingDraft || publishingDraft || !!conflict}
               className="inline-flex items-center gap-1 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900"
             >
@@ -1013,6 +1125,18 @@ export default function EditDraftPage() {
             )}
           </div>
         </div>
+
+        {autosaveState !== 'idle' ? (
+          <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+            {autosaveState === 'pending'
+              ? 'Autosave queued...'
+              : autosaveState === 'saving'
+                ? 'Autosaving...'
+                : autosaveState === 'syncing'
+                  ? 'Syncing...'
+                  : 'Autosaved'}
+          </div>
+        ) : null}
 
         <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
           <span className="mr-2 inline-flex rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700 dark:bg-gray-700 dark:text-gray-100">
