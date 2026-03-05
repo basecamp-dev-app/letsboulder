@@ -70,7 +70,7 @@ export default function SubmissionListView() {
         <div className="mb-4 flex items-center justify-between gap-3">
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Submissions</h1>
           <Link
-            href="/logbook/submissions?mode=new"
+            href="/submit"
             className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             New upload
@@ -121,7 +121,7 @@ export default function SubmissionListView() {
                       : 'No submissions yet.'}
                 </p>
                 <Link
-                  href="/logbook/submissions?mode=new"
+                  href="/submit"
                   className="inline-flex rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
                 >
                   Start a new upload

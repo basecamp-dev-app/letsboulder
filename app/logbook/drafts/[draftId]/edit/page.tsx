@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import NextImage from 'next/image'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Link2, Loader2, MapPin, Trash2, Users } from 'lucide-react'
-import RouteCanvas from '@/app/submit/components/RouteCanvas'
+import { Link2, Loader2, MapPin, Plus, Trash2, Users } from 'lucide-react'
+import RouteCanvas from '@/components/routes/RouteCanvas'
 import CragSelector from '@/app/submit/components/CragSelector'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -73,6 +74,15 @@ interface DraftConflictResponse {
     last_updated_by: string | null
     last_updated_by_display_name?: string | null
   }
+}
+
+interface DraftAppendImagesResponse {
+  success: boolean
+  draft: {
+    updated_at: string
+    appended_image_ids?: string[]
+    images?: DraftImagePayload[]
+  } | null
 }
 
 interface ConflictState {
@@ -247,6 +257,8 @@ export default function EditDraftPage() {
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null)
   const [removingCollaboratorId, setRemovingCollaboratorId] = useState<string | null>(null)
   const [latestInviteUrl, setLatestInviteUrl] = useState<string | null>(null)
+  const [addingFaces, setAddingFaces] = useState(false)
+  const addFaceInputRef = useRef<HTMLInputElement | null>(null)
   const hasShownCollabToastRef = useRef(false)
 
   const loadDraft = useCallback(async () => {
@@ -552,6 +564,114 @@ export default function EditDraftPage() {
     if (activeFaceIndex < 0) return
     setPrimaryIndex(activeFaceIndex)
   }, [activeFaceIndex])
+
+  const getImageDimensions = useCallback((file: File): Promise<{ width: number; height: number }> => {
+    return new Promise((resolve) => {
+      const objectUrl = URL.createObjectURL(file)
+      const image = new window.Image()
+      image.onload = () => {
+        URL.revokeObjectURL(objectUrl)
+        resolve({ width: image.naturalWidth || 1200, height: image.naturalHeight || 1200 })
+      }
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl)
+        resolve({ width: 1200, height: 1200 })
+      }
+      image.src = objectUrl
+    })
+  }, [])
+
+  const handleAddFaces = useCallback(async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0 || !draftId || !draftUpdatedAt || addingFaces) return
+
+    const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'))
+    if (files.length === 0) {
+      setError('Select at least one image file')
+      return
+    }
+
+    setAddingFaces(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error('Authentication required')
+      }
+
+      const uploadedImages: Array<{ storage_bucket: string; storage_path: string; width: number; height: number; route_data: Record<string, unknown> }> = []
+
+      for (const file of files) {
+        const ext = file.name.split('.').pop() || 'jpg'
+        const storagePath = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('route-uploads')
+          .upload(storagePath, file, { upsert: false })
+
+        if (uploadError) {
+          throw new Error(uploadError.message || 'Failed to upload face image')
+        }
+
+        const dimensions = await getImageDimensions(file)
+        uploadedImages.push({
+          storage_bucket: 'route-uploads',
+          storage_path: storagePath,
+          width: dimensions.width,
+          height: dimensions.height,
+          route_data: {},
+        })
+      }
+
+      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          images: uploadedImages,
+          expected_updated_at: draftUpdatedAt,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({} as DraftAppendImagesResponse & DraftConflictResponse & { error?: string }))
+
+      if (!response.ok) {
+        if (response.status === 409 && (payload as DraftConflictResponse).code === 'draft_conflict') {
+          const conflictPayload = payload as DraftConflictResponse
+          setConflict({
+            serverUpdatedAt: conflictPayload.current_updated_at,
+            lastEditorName: conflictPayload.current_data?.last_updated_by_display_name || 'Another collaborator',
+            pendingChanges: {
+              images: [],
+              metadata: {},
+              cragId,
+            },
+          })
+          return
+        }
+
+        throw new Error((payload as { error?: string }).error || 'Failed to add face images')
+      }
+
+      const appendedIds = payload.draft?.appended_image_ids || []
+      const newestImageId = appendedIds[appendedIds.length - 1] || null
+      await loadDraft()
+      if (newestImageId) {
+        setActiveImageId(newestImageId)
+      }
+      if (payload.draft?.updated_at) {
+        setDraftUpdatedAt(payload.draft.updated_at)
+      }
+      setSuccess(`Added ${files.length} face${files.length === 1 ? '' : 's'} to draft`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add face images')
+    } finally {
+      setAddingFaces(false)
+      if (addFaceInputRef.current) {
+        addFaceInputRef.current.value = ''
+      }
+    }
+  }, [addingFaces, cragId, draftId, draftUpdatedAt, getImageDimensions, loadDraft])
 
   const handleCreateInvite = useCallback(async () => {
     if (!draftId || creatingInvite || !isOwner) return
@@ -924,17 +1044,38 @@ export default function EditDraftPage() {
         <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Manage all images</h2>
-            {activeFace ? (
+            <div className="flex items-center gap-2">
+              {activeFace ? (
+                <button
+                  type="button"
+                  onClick={setActiveAsPrimary}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                >
+                  Set current as primary
+                </button>
+              ) : null}
               <button
                 type="button"
-                onClick={setActiveAsPrimary}
-                className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                onClick={() => addFaceInputRef.current?.click()}
+                disabled={addingFaces || !!conflict}
+                className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
               >
-                Set current as primary
+                {addingFaces ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                Add face(s)
               </button>
-            ) : null}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <input
+            ref={addFaceInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(event) => {
+              void handleAddFaces(event.target.files)
+            }}
+          />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {manageFaces.map((face) => {
               const isActive = face.imageId === activeImageId
               const isPrimary = face.index === primaryIndex
@@ -943,12 +1084,15 @@ export default function EditDraftPage() {
                   key={face.imageId}
                   type="button"
                   onClick={() => setActiveImageId(face.imageId)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  className={`rounded-md border p-2 text-left text-xs font-medium transition-colors ${
                     isActive
-                      ? 'border-blue-600 bg-blue-600 text-white'
+                      ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-200'
                       : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
                   }`}
                 >
+                  <div className="relative mb-1 h-16 w-full overflow-hidden rounded border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
+                    <NextImage src={face.signedUrl} alt={`Face ${face.index + 1}`} fill unoptimized sizes="160px" className="object-cover" />
+                  </div>
                   {isPrimary ? `Primary (${face.index + 1})` : `Face ${face.index + 1}`}
                 </button>
               )

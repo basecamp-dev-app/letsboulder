@@ -118,7 +118,7 @@ export default function FaceSwipeGallery({ faces, isOwner }: FaceSwipeGalleryPro
                 {isOwner && !face.has_routes && !face.is_primary ? (
                   <div className="border-t border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
                     Add routes to this face in{' '}
-                    <Link href="/logbook/submissions?mode=new" className="font-semibold text-blue-700 underline dark:text-blue-300">
+                    <Link href="/submit" className="font-semibold text-blue-700 underline dark:text-blue-300">
                       Submit
                     </Link>
                   </div>

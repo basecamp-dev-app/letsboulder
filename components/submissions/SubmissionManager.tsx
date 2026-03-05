@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import SubmissionFlowView from '@/components/submissions/SubmissionFlowView'
 import SubmissionListView from '@/components/submissions/SubmissionListView'
 
 export default function SubmissionManager() {
@@ -31,7 +30,17 @@ export default function SubmissionManager() {
 
   const mode = searchParams.get('mode')
   const draftId = searchParams.get('draftId')
-  const isSubmitMode = mode === 'new' || !!draftId
+
+  useEffect(() => {
+    if (!authChecked || !isAuthenticated) return
+    if (mode === 'new') {
+      router.replace('/submit')
+      return
+    }
+    if (draftId) {
+      router.replace(`/logbook/drafts/${draftId}/edit`)
+    }
+  }, [authChecked, isAuthenticated, mode, draftId, router])
 
   if (!authChecked) {
     return <div className="min-h-screen bg-white dark:bg-gray-950" />
@@ -41,8 +50,8 @@ export default function SubmissionManager() {
     return null
   }
 
-  if (isSubmitMode) {
-    return <SubmissionFlowView />
+  if (mode === 'new' || draftId) {
+    return <div className="min-h-screen bg-white dark:bg-gray-950" />
   }
 
   return <SubmissionListView />
