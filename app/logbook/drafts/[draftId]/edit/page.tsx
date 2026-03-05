@@ -1210,7 +1210,7 @@ export default function EditDraftPage() {
         {imageSelection ? (
           <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
             <RouteCanvas
-              key={activeFace?.imageId || 'draft-canvas'}
+              key={`${activeFace?.imageId || 'draft-canvas'}:${existingRouteLines.length}`}
               imageSelection={imageSelection}
               onRoutesUpdate={() => {}}
               existingRouteLines={existingRouteLines}
