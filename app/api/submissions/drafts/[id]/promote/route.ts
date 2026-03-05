@@ -46,11 +46,49 @@ export async function POST(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
+    const { data: draft, error: draftError } = await supabase
+      .from('submission_drafts')
+      .select('id, user_id, metadata')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (draftError) {
+      return createErrorResponse(draftError, 'Failed to validate draft before publish')
+    }
+
+    if (!draft) {
+      return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+    }
+
+    if (draft.user_id !== userId) {
+      return NextResponse.json({ error: 'Only the draft owner can publish this draft' }, { status: 403 })
+    }
+
+    const metadata = draft.metadata && typeof draft.metadata === 'object'
+      ? draft.metadata as Record<string, unknown>
+      : {}
+    const location = metadata.location && typeof metadata.location === 'object'
+      ? metadata.location as Record<string, unknown>
+      : null
+    const latitude = location && typeof location.latitude === 'number' ? location.latitude : null
+    const longitude = location && typeof location.longitude === 'number' ? location.longitude : null
+
+    const hasValidLocation =
+      typeof latitude === 'number' && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
+      typeof longitude === 'number' && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
+
+    if (!hasValidLocation) {
+      return NextResponse.json({ error: 'Set a valid location before publishing this draft' }, { status: 400 })
+    }
+
     const { data, error } = await supabase.rpc('promote_draft_to_submission', {
       p_draft_id: id,
     })
 
     if (error) {
+      if (typeof error.message === 'string' && error.message.includes('Draft location is required before publishing')) {
+        return NextResponse.json({ error: 'Set a valid location before publishing this draft' }, { status: 400 })
+      }
       return createErrorResponse(error, 'Failed to publish draft')
     }
 

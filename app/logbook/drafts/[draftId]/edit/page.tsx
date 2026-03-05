@@ -1,10 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import NextImage from 'next/image'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Link2, Loader2, MapPin, Plus, Trash2, Users } from 'lucide-react'
+import { Link2, Loader2, MapPin, Plus, Search, Trash2, Users } from 'lucide-react'
+import { useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import RouteCanvas from '@/components/routes/RouteCanvas'
 import CragSelector from '@/app/submit/components/CragSelector'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
@@ -13,6 +17,10 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type NewRouteData, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { createClient } from '@/lib/supabase'
+
+const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false })
+const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false })
 
 interface DraftImagePayload {
   id: string
@@ -175,6 +183,21 @@ function sortFaceDirections(directions: FaceDirection[]): FaceDirection[] {
   return [...directions].sort((a, b) => FACE_DIRECTIONS.indexOf(a) - FACE_DIRECTIONS.indexOf(b))
 }
 
+function MapClickHandler({ onClick }: { onClick: (event: L.LeafletMouseEvent) => void }) {
+  useMapEvents({ click: onClick })
+  return null
+}
+
+function MapRecenter({ position }: { position: [number, number] | null }) {
+  const map = useMapEvents({})
+  useEffect(() => {
+    if (position) {
+      map.setView(position, Math.max(map.getZoom(), 14))
+    }
+  }, [map, position])
+  return null
+}
+
 function normalizePointForCompare(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000
 }
@@ -240,6 +263,8 @@ export default function EditDraftPage() {
   const [routeType, setRouteType] = useState<string>('sport')
   const [creditPlatform, setCreditPlatform] = useState<SubmissionCreditPlatform>('instagram')
   const [creditHandle, setCreditHandle] = useState('')
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
   const [cragId, setCragId] = useState<string | null>(null)
   const [selectedCrag, setSelectedCrag] = useState<{
     id: string
@@ -271,6 +296,11 @@ export default function EditDraftPage() {
   const autosavePausedRef = useRef(false)
   const autosavePausedSnapshotRef = useRef('')
   const [autosaveState, setAutosaveState] = useState<'idle' | 'pending' | 'saving' | 'syncing' | 'saved'>('idle')
+  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchingLocation, setSearchingLocation] = useState(false)
+  const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
+  const [mapOpen, setMapOpen] = useState(false)
 
   const loadDraft = useCallback(async () => {
     if (!draftId) return
@@ -342,6 +372,13 @@ export default function EditDraftPage() {
       const normalizedCreditHandle = typeof (metadata as { contributionCreditHandle?: unknown }).contributionCreditHandle === 'string'
         ? String((metadata as { contributionCreditHandle?: unknown }).contributionCreditHandle)
         : ''
+      const metadataLocation = (metadata as { location?: unknown }).location
+      const metadataLatitude = metadataLocation && typeof metadataLocation === 'object' && typeof (metadataLocation as { latitude?: unknown }).latitude === 'number'
+        ? (metadataLocation as { latitude: number }).latitude
+        : null
+      const metadataLongitude = metadataLocation && typeof metadataLocation === 'object' && typeof (metadataLocation as { longitude?: unknown }).longitude === 'number'
+        ? (metadataLocation as { longitude: number }).longitude
+        : null
 
       const cragRelation = Array.isArray(nextDraft.crags) ? nextDraft.crags[0] : nextDraft.crags
       const nextCrag = nextDraft.crag_id
@@ -362,7 +399,11 @@ export default function EditDraftPage() {
       setFaceDirectionsByImage(nextFaceDirectionsByImage)
       setRoutesByImageId(nextRoutesByImageId)
       hasLoadedRoutesRef.current = true
-      lastPersistedRoutesRef.current = JSON.stringify(nextRoutesByImageId)
+      lastPersistedRoutesRef.current = JSON.stringify({
+        routesByImageId: nextRoutesByImageId,
+        latitude: typeof metadataLatitude === 'number' ? metadataLatitude : null,
+        longitude: typeof metadataLongitude === 'number' ? metadataLongitude : null,
+      })
       autosavePausedRef.current = false
       autosavePausedSnapshotRef.current = ''
       if (autosaveTimeoutRef.current) {
@@ -373,6 +414,8 @@ export default function EditDraftPage() {
       setRouteType(normalizedRouteType)
       setCreditPlatform(normalizedCreditPlatform || 'instagram')
       setCreditHandle(normalizedCreditHandle)
+      setLatitude(typeof metadataLatitude === 'number' ? metadataLatitude.toString() : '')
+      setLongitude(typeof metadataLongitude === 'number' ? metadataLongitude.toString() : '')
       setCragId(nextDraft.crag_id)
       setSelectedCrag(nextCrag)
       setShowCragSelector(!nextDraft.crag_id)
@@ -396,6 +439,10 @@ export default function EditDraftPage() {
     void supabase.auth.getUser().then(({ data }) => {
       setCurrentUserId(data.user?.id || null)
     })
+  }, [])
+
+  useEffect(() => {
+    import('leaflet').then((lib) => setLeaflet(lib))
   }, [])
 
   const loadCollaborators = useCallback(async () => {
@@ -488,6 +535,17 @@ export default function EditDraftPage() {
       imageUrl: activeFace.signedUrl,
     }
   }, [activeFace])
+
+  const markerPosition = useMemo<[number, number] | null>(() => {
+    const parsedLatitude = Number(latitude)
+    const parsedLongitude = Number(longitude)
+    if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) return null
+    if (parsedLatitude < -90 || parsedLatitude > 90) return null
+    if (parsedLongitude < -180 || parsedLongitude > 180) return null
+    return [parsedLatitude, parsedLongitude]
+  }, [latitude, longitude])
+
+  const hasValidLocation = markerPosition !== null
 
   const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
     if (!activeFaceId) return
@@ -809,6 +867,49 @@ export default function EditDraftPage() {
     router.push('/logbook')
   }, [draftId, isOwner, addToast, router])
 
+  const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
+    setLatitude(event.latlng.lat.toFixed(6))
+    setLongitude(event.latlng.lng.toFixed(6))
+  }, [])
+
+  const handleMarkerDragEnd = useCallback((event: L.LeafletEvent) => {
+    const marker = event.target as L.Marker
+    const position = marker.getLatLng()
+    setLatitude(position.lat.toFixed(6))
+    setLongitude(position.lng.toFixed(6))
+  }, [])
+
+  const handleSearchLocation = useCallback(async () => {
+    const query = searchQuery.trim()
+    if (!query) return
+
+    setSearchingLocation(true)
+    setLocationSearchError(null)
+    try {
+      const response = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}`)
+      const payload = await response.json().catch(() => ({} as { results?: Array<{ lat?: string; lon?: string }> }))
+      const firstResult = Array.isArray(payload.results) ? payload.results[0] : null
+
+      if (!response.ok || !firstResult?.lat || !firstResult?.lon) {
+        throw new Error('No location found')
+      }
+
+      const lat = Number(firstResult.lat)
+      const lng = Number(firstResult.lon)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new Error('Invalid location coordinates')
+      }
+
+      setLatitude(lat.toFixed(6))
+      setLongitude(lng.toFixed(6))
+      setMapOpen(true)
+    } catch (err) {
+      setLocationSearchError(err instanceof Error ? err.message : 'Failed to search location')
+    } finally {
+      setSearchingLocation(false)
+    }
+  }, [searchQuery])
+
   const saveDraft = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true
     if (!draft || !draftUpdatedAt) return false
@@ -871,6 +972,10 @@ export default function EditDraftPage() {
           primaryIndex,
           faceDirectionsByImage,
           routeType,
+          location: {
+            latitude: markerPosition ? markerPosition[0] : null,
+            longitude: markerPosition ? markerPosition[1] : null,
+          },
           contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
           contributionCreditHandle: normalizedHandle,
         },
@@ -904,7 +1009,11 @@ export default function EditDraftPage() {
               setAutosaveState('syncing')
               if (!isSelfConflict) {
                 autosavePausedRef.current = true
-                autosavePausedSnapshotRef.current = JSON.stringify(routesByImageId)
+              autosavePausedSnapshotRef.current = JSON.stringify({
+                routesByImageId,
+                latitude: markerPosition ? markerPosition[0] : null,
+                longitude: markerPosition ? markerPosition[1] : null,
+              })
               }
             } else {
               setAutosaveState('idle')
@@ -935,7 +1044,11 @@ export default function EditDraftPage() {
         },
       } : prev)
       setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
-      lastPersistedRoutesRef.current = JSON.stringify(routesByImageId)
+      lastPersistedRoutesRef.current = JSON.stringify({
+        routesByImageId,
+        latitude: markerPosition ? markerPosition[0] : null,
+        longitude: markerPosition ? markerPosition[1] : null,
+      })
       setConflict(null)
       if (silent) {
         setAutosaveState('saved')
@@ -953,7 +1066,7 @@ export default function EditDraftPage() {
     } finally {
       setSavingDraft(false)
     }
-  }, [draft, draftUpdatedAt, routesByImageId, routeType, creditHandle, creditPlatform, cragId, primaryIndex, faceDirectionsByImage, currentUserId])
+  }, [draft, draftUpdatedAt, routesByImageId, routeType, creditHandle, creditPlatform, cragId, markerPosition, primaryIndex, faceDirectionsByImage, currentUserId])
 
   const handleManualSave = useCallback(() => {
     if (autosaveTimeoutRef.current) {
@@ -968,7 +1081,11 @@ export default function EditDraftPage() {
     if (!draft || !draftUpdatedAt) return
     if (loading || publishingDraft || savingDraft || !!conflict) return
 
-    const serializedRoutes = JSON.stringify(routesByImageId)
+    const serializedRoutes = JSON.stringify({
+      routesByImageId,
+      latitude: markerPosition ? markerPosition[0] : null,
+      longitude: markerPosition ? markerPosition[1] : null,
+    })
 
     if (autosavePausedRef.current) {
       if (serializedRoutes === autosavePausedSnapshotRef.current) {
@@ -1001,7 +1118,7 @@ export default function EditDraftPage() {
         autosaveTimeoutRef.current = null
       }
     }
-  }, [routesByImageId, draft, draftUpdatedAt, loading, publishingDraft, savingDraft, conflict, autosaveState, saveDraft])
+  }, [routesByImageId, markerPosition, draft, draftUpdatedAt, loading, publishingDraft, savingDraft, conflict, autosaveState, saveDraft])
 
   useEffect(() => {
     return () => {
@@ -1108,7 +1225,7 @@ export default function EditDraftPage() {
                 <button
                   type="button"
                   onClick={() => { void publishDraft() }}
-                  disabled={publishingDraft || savingDraft || !cragId || !!conflict}
+                  disabled={publishingDraft || savingDraft || !cragId || !hasValidLocation || !!conflict}
                   className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
                 >
                   {publishingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -1295,6 +1412,119 @@ export default function EditDraftPage() {
             </div>
           ) : null}
 
+          <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/60">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Image location</h3>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label className="text-xs text-gray-600 dark:text-gray-300">
+                Latitude
+                <input
+                  value={latitude}
+                  onChange={(event) => setLatitude(event.target.value)}
+                  placeholder="e.g. 48.4049"
+                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                />
+              </label>
+              <label className="text-xs text-gray-600 dark:text-gray-300">
+                Longitude
+                <input
+                  value={longitude}
+                  onChange={(event) => setLongitude(event.target.value)}
+                  placeholder="e.g. 2.6920"
+                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                />
+              </label>
+            </div>
+
+            {mapOpen ? (
+              <div className="mt-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Click map or drag marker to adjust location</p>
+                  <button
+                    type="button"
+                    onClick={() => setMapOpen(false)}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                  >
+                    Done
+                  </button>
+                </div>
+                <div className="h-72 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+                  <MapContainer
+                    center={markerPosition || [20, 0]}
+                    zoom={markerPosition ? 14 : 2}
+                    style={{ height: '100%', width: '100%' }}
+                  >
+                    <MapRecenter position={markerPosition} />
+                    <MapClickHandler onClick={handleMapClick} />
+                    <TileLayer
+                      url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                      attribution="Imagery © Esri"
+                      maxZoom={19}
+                    />
+                    <TileLayer
+                      url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                      attribution="Labels © Esri"
+                      maxZoom={19}
+                    />
+                    {markerPosition && leaflet ? (
+                      <Marker
+                        position={markerPosition}
+                        draggable={true}
+                        icon={leaflet.divIcon({
+                          className: 'location-marker',
+                          iconSize: [20, 20],
+                          iconAnchor: [10, 10],
+                        })}
+                        eventHandlers={{ dragend: handleMarkerDragEnd }}
+                      />
+                    ) : null}
+                  </MapContainer>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setMapOpen(true)}
+                className="mt-3 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Adjust location on map
+              </button>
+            )}
+
+            <div className="mt-3 flex gap-2">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      void handleSearchLocation()
+                    }
+                  }}
+                  placeholder="Search for a location..."
+                  className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleSearchLocation()
+                }}
+                disabled={searchingLocation}
+                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {searchingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Search
+              </button>
+            </div>
+
+            {locationSearchError ? (
+              <p className="mt-2 text-xs text-red-600 dark:text-red-400">{locationSearchError}</p>
+            ) : null}
+          </div>
+
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="text-xs text-gray-600 dark:text-gray-300">
               Route type default
@@ -1312,6 +1542,9 @@ export default function EditDraftPage() {
           </div>
           {!cragId ? (
             <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">Select a crag before publishing this draft.</p>
+          ) : null}
+          {!hasValidLocation ? (
+            <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">Set a valid image location before publishing this draft.</p>
           ) : null}
         </div>
 
