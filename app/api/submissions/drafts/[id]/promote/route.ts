@@ -16,6 +16,26 @@ interface PromoteResult {
   published_at?: string
 }
 
+interface DatabaseErrorLike {
+  message?: string
+  details?: string
+  hint?: string
+  code?: string
+}
+
+function isPermissionDeniedError(error: DatabaseErrorLike | null | undefined): boolean {
+  if (!error) return false
+
+  if (error.code === '42501') return true
+
+  const message = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase()
+  return (
+    message.includes('row-level security')
+    || message.includes('permission denied')
+    || message.includes('violates row-level security policy')
+  )
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -89,6 +109,11 @@ export async function POST(
       if (typeof error.message === 'string' && error.message.includes('Draft location is required before publishing')) {
         return NextResponse.json({ error: 'Set a valid location before publishing this draft' }, { status: 400 })
       }
+
+      if (isPermissionDeniedError(error)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
       return createErrorResponse(error, 'Failed to publish draft')
     }
 

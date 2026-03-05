@@ -401,6 +401,7 @@ export default function EditDraftPage() {
       hasLoadedRoutesRef.current = true
       lastPersistedRoutesRef.current = JSON.stringify({
         routesByImageId: nextRoutesByImageId,
+        faceDirectionsByImage: nextFaceDirectionsByImage,
         latitude: typeof metadataLatitude === 'number' ? metadataLatitude : null,
         longitude: typeof metadataLongitude === 'number' ? metadataLongitude : null,
       })
@@ -1011,6 +1012,7 @@ export default function EditDraftPage() {
                 autosavePausedRef.current = true
               autosavePausedSnapshotRef.current = JSON.stringify({
                 routesByImageId,
+                faceDirectionsByImage,
                 latitude: markerPosition ? markerPosition[0] : null,
                 longitude: markerPosition ? markerPosition[1] : null,
               })
@@ -1046,6 +1048,7 @@ export default function EditDraftPage() {
       setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
       lastPersistedRoutesRef.current = JSON.stringify({
         routesByImageId,
+        faceDirectionsByImage,
         latitude: markerPosition ? markerPosition[0] : null,
         longitude: markerPosition ? markerPosition[1] : null,
       })
@@ -1083,6 +1086,7 @@ export default function EditDraftPage() {
 
     const serializedRoutes = JSON.stringify({
       routesByImageId,
+      faceDirectionsByImage,
       latitude: markerPosition ? markerPosition[0] : null,
       longitude: markerPosition ? markerPosition[1] : null,
     })
@@ -1118,7 +1122,7 @@ export default function EditDraftPage() {
         autosaveTimeoutRef.current = null
       }
     }
-  }, [routesByImageId, markerPosition, draft, draftUpdatedAt, loading, publishingDraft, savingDraft, conflict, autosaveState, saveDraft])
+  }, [routesByImageId, faceDirectionsByImage, markerPosition, draft, draftUpdatedAt, loading, publishingDraft, savingDraft, conflict, autosaveState, saveDraft])
 
   useEffect(() => {
     return () => {
