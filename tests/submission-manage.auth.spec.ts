@@ -138,7 +138,7 @@ test.describe.serial('Submission manage grade voting', () => {
     await cleanupE2ERoutesByPrefix(ROUTE_PREFIX)
   })
 
-  test('manage-grade vote applies one vote per owner and collaborator', async ({ page }) => {
+  test('@full manage-grade vote applies one vote per owner and collaborator', async ({ page }) => {
     const routeName = `${ROUTE_PREFIX} ${Date.now()}`
     await submitSingleRoute(page, routeName)
 

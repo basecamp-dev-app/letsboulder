@@ -46,14 +46,14 @@ test.describe.serial('Route Submission Draft Intake', () => {
     await ensureAuthStateExists()
   })
 
-  test('authenticated user can create draft and land in draft editor', async ({ page }) => {
+  test('@smoke authenticated user can create draft and land in draft editor', async ({ page }) => {
     await createDraftFromIntake(page)
 
     await expect(page.getByText('Draft', { exact: true })).toBeVisible({ timeout: 20000 })
     await expect(page.getByRole('button', { name: 'Save draft' })).toBeVisible({ timeout: 20000 })
   })
 
-  test('draft editor save works without localStorage wizard state', async ({ page }) => {
+  test('@full draft editor save works without localStorage wizard state', async ({ page }) => {
     await createDraftFromIntake(page)
 
     await page.getByRole('button', { name: 'Save draft' }).click()

@@ -1,5 +1,8 @@
 import { supabaseAdmin } from './supabase-admin'
 
+const SEEDED_PLACE_SLUG = 'e2e-seeded-place'
+const SEEDED_PLACE_NAME = 'E2E Seeded Place'
+
 export async function createTestPlace(): Promise<{ id: string; name: string; slug: string }> {
   const timestamp = Date.now()
   const name = `Test Place ${timestamp}`
@@ -53,6 +56,42 @@ export async function createTestCommunityPost(
 export async function cleanupTestPlace(placeId: string): Promise<void> {
   await supabaseAdmin.from('community_posts').delete().eq('place_id', placeId)
   await supabaseAdmin.from('places').delete().eq('id', placeId)
+}
+
+export async function ensureSeededPlace(seed?: { slug: string; name: string }): Promise<{ id: string; name: string; slug: string }> {
+  const slug = seed?.slug || SEEDED_PLACE_SLUG
+  const name = seed?.name || SEEDED_PLACE_NAME
+
+  const { data, error } = await supabaseAdmin
+    .from('places')
+    .upsert({
+      name,
+      slug,
+      type: 'crag',
+      country_code: 'GB',
+      primary_discipline: 'boulder',
+    }, { onConflict: 'slug' })
+    .select('id, name, slug')
+    .single()
+
+  if (error || !data) {
+    throw new Error(`Failed to ensure seeded place: ${error?.message || 'missing row'}`)
+  }
+
+  return data
+}
+
+export async function cleanupSeededPlace(slug = SEEDED_PLACE_SLUG): Promise<void> {
+  const { data } = await supabaseAdmin
+    .from('places')
+    .select('id')
+    .eq('slug', slug)
+    .maybeSingle()
+
+  if (!data?.id) return
+
+  await supabaseAdmin.from('community_posts').delete().eq('place_id', data.id)
+  await supabaseAdmin.from('places').delete().eq('id', data.id)
 }
 
 export async function getExistingPlace(): Promise<{ id: string; name: string; slug: string } | null> {

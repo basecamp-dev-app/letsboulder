@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Auth Guards', () => {
-  test('unauthenticated context is redirected from /submit to auth', async ({ browser }) => {
+  test('@smoke unauthenticated context is redirected from /submit to auth', async ({ browser }) => {
     const context = await browser.newContext({
       storageState: { cookies: [], origins: [] },
     })
@@ -14,7 +14,7 @@ test.describe('Auth Guards', () => {
     await context.close()
   })
 
-  test('unauthenticated request to /api/routes/submit is rejected', async ({ browser }) => {
+  test('@smoke unauthenticated request to /api/routes/submit is rejected', async ({ browser }) => {
     const context = await browser.newContext({
       storageState: { cookies: [], origins: [] },
     })

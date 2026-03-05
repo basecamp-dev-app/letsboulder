@@ -7,6 +7,8 @@ dotenv.config({ path: path.resolve(__dirname, 'tests/.env.test') })
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
+  grep: process.env.PW_GREP ? new RegExp(process.env.PW_GREP) : undefined,
+  grepInvert: process.env.PW_GREP_INVERT ? new RegExp(process.env.PW_GREP_INVERT) : undefined,
   globalSetup: process.env.TEST_API_KEY && process.env.TEST_USER_ID && process.env.TEST_USER_PASSWORD
     ? path.resolve(__dirname, 'global-setup.ts')
     : undefined,

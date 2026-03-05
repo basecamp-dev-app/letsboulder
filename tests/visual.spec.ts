@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Visual - Key Element Checks', () => {
-  test('auth page has all key elements', async ({ page }) => {
+  test('@full auth page has all key elements', async ({ page }) => {
     await page.goto('/auth')
     
     await expect(page.getByText('Welcome to letsboulder')).toBeVisible()
@@ -11,7 +11,7 @@ test.describe('Visual - Key Element Checks', () => {
     await expect(page.getByText('Terms of Service')).toBeVisible()
   })
 
-  test('community page has all key elements', async ({ page }) => {
+  test('@full community page has all key elements', async ({ page }) => {
     await page.goto('/community')
     
     await expect(page.getByRole('heading', { name: 'Community' })).toBeVisible()
@@ -19,14 +19,14 @@ test.describe('Visual - Key Element Checks', () => {
     await expect(page.getByRole('link', { name: /open global rankings/i })).toBeVisible()
   })
 
-  test('logbook page has all key elements for unauthenticated user', async ({ page }) => {
+  test('@full logbook page has all key elements for unauthenticated user', async ({ page }) => {
     await page.goto('/logbook')
     
     await expect(page.getByRole('heading', { name: 'My Climbing Logbook' })).toBeVisible()
     await expect(page.getByText('Please login to view your logbook')).toBeVisible()
   })
 
-  test('home page loads without critical errors', async ({ page }) => {
+  test('@full home page loads without critical errors', async ({ page }) => {
     const errors: string[] = []
     page.on('console', msg => {
       if (msg.type() === 'error') {

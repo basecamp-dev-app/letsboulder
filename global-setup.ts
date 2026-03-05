@@ -1,6 +1,55 @@
 import { chromium } from 'playwright'
 import path from 'path'
 import fs from 'fs'
+import { createClient } from '@supabase/supabase-js'
+
+const SEEDED_PLACE_SLUG_PUBLIC = 'e2e-seeded-place-public'
+const SEEDED_PLACE_SLUG_AUTH = 'e2e-seeded-place-auth'
+
+async function ensureSeedData() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.log('Skipping global seed data: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing')
+    return
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+
+  const seeds = [
+    { slug: SEEDED_PLACE_SLUG_PUBLIC, name: 'E2E Seeded Place Public' },
+    { slug: SEEDED_PLACE_SLUG_AUTH, name: 'E2E Seeded Place Auth' },
+  ]
+
+  const seededPlaces: Array<{ id: string; slug: string; name: string }> = []
+  for (const seed of seeds) {
+    const { data, error } = await supabaseAdmin
+      .from('places')
+      .upsert({
+        slug: seed.slug,
+        name: seed.name,
+        type: 'crag',
+        country_code: 'GB',
+        primary_discipline: 'boulder',
+      }, { onConflict: 'slug' })
+      .select('id, slug, name')
+      .single()
+
+    if (error || !data) {
+      throw new Error(`Failed to seed place ${seed.slug}: ${error?.message || 'missing row'}`)
+    }
+
+    seededPlaces.push(data)
+  }
+
+  const seedPath = path.join(process.cwd(), 'playwright', '.auth', 'seed.json')
+  fs.mkdirSync(path.dirname(seedPath), { recursive: true })
+  fs.writeFileSync(seedPath, JSON.stringify({ seededPlaces }, null, 2))
+  console.log(`Seed data saved to ${seedPath}`)
+}
 
 async function globalSetup() {
   const baseURL = process.env.PLAYWRIGHT_BASE_URL
@@ -13,6 +62,7 @@ async function globalSetup() {
 
   if (!testApiKey || !testUserId || !testUserPassword) {
     console.log('TEST_API_KEY, TEST_USER_ID, and TEST_USER_PASSWORD are required, skipping authentication')
+    await ensureSeedData()
     return
   }
 
@@ -71,7 +121,9 @@ async function globalSetup() {
     }
 
     await context.storageState({ path: storageStatePath })
-    
+
+    await ensureSeedData()
+
     console.log(`Session saved to ${storageStatePath}`)
   } catch (error) {
     console.error('Failed to set up authenticated session:', error)
