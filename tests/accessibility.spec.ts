@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Accessibility', () => {
-  test('auth page has proper heading structure', async ({ page }) => {
+  test('@full auth page has proper heading structure', async ({ page }) => {
     await page.goto('/auth')
     
     const h1 = page.locator('h1')
@@ -14,55 +14,47 @@ test.describe('Accessibility', () => {
     expect(headingLevel).toBe(1)
   })
 
-  test('auth page buttons have accessible names', async ({ page }) => {
+  test('@full auth page buttons have accessible names', async ({ page }) => {
     await page.goto('/auth')
     
     const googleButton = page.getByRole('button', { name: /continue with google/i })
-    await expect(googleButton).toBeVisible()
     await expect(googleButton).toBeVisible()
     
     const discordButton = page.getByRole('button', { name: /continue with discord/i })
     await expect(discordButton).toBeVisible()
   })
 
-  test('auth page has proper language attribute', async ({ page }) => {
+  test('@full auth page has proper language attribute', async ({ page }) => {
     await page.goto('/auth')
     
     const html = page.locator('html')
     await expect(html).toHaveAttribute('lang', /en/i)
   })
 
-  test('community page has accessible heading structure', async ({ page }) => {
+  test('@full community page has accessible heading structure', async ({ page }) => {
     await page.goto('/community')
     
     const h1 = page.locator('h1')
     await expect(h1).toBeVisible()
   })
 
-  test('form inputs have labels', async ({ page }) => {
+  test('@full form inputs have labels', async ({ page }) => {
     await page.goto('/auth')
-    
+
     await page.getByText('Sign in with email instead').click()
-    await page.waitForTimeout(1000)
-    
+
     const emailInput = page.getByPlaceholder('you@example.com')
-    if (await emailInput.isVisible()) {
-      await expect(emailInput).toBeVisible()
-    }
+    await expect(emailInput).toBeVisible({ timeout: 10000 })
   })
 
-  test('page has skip to main content link', async ({ page }) => {
+  test('@full page has skip to main content link', async ({ page }) => {
     await page.goto('/')
-    
+
     const skipLink = page.getByRole('link', { name: /skip to|skip main/i })
-    const hasSkipLink = await skipLink.count() > 0
-    
-    if (!hasSkipLink) {
-      test.skip()
-    }
+    await expect(skipLink.first()).toBeVisible({ timeout: 10000 })
   })
 
-  test('submit page has accessible form elements', async ({ page }) => {
+  test('@full submit page has accessible form elements', async ({ page }) => {
     await page.goto('/submit')
 
     await expect(page).toHaveURL(/\/auth\?redirect_to=(%2Fsubmit|\/submit|%2Flogbook%2Fsubmissions|\/logbook\/submissions)/)
@@ -70,7 +62,7 @@ test.describe('Accessibility', () => {
     await expect(page.getByRole('button', { name: /continue with google/i })).toBeVisible()
   })
 
-  test('no critical accessibility violations on auth page', async ({ page }) => {
+  test('@full no critical accessibility violations on auth page', async ({ page }) => {
     const violations: string[] = []
     
     page.on('console', msg => {
@@ -81,10 +73,10 @@ test.describe('Accessibility', () => {
         }
       }
     })
-    
+
     await page.goto('/auth')
-    await page.waitForTimeout(1000)
-    
+    await expect(page.getByRole('button', { name: /continue with google/i })).toBeVisible({ timeout: 10000 })
+
     expect(violations.length).toBe(0)
   })
 })

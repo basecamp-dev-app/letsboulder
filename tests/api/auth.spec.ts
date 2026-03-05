@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('API - Auth', () => {
-  test('PUT /api/profile without auth returns 403 (CSRF)', async ({ request }) => {
+  test('@full PUT /api/profile without auth returns 403 (CSRF)', async ({ request }) => {
     const response = await request.put('/api/profile', {
       data: {
         username: 'testuser',
@@ -12,7 +12,7 @@ test.describe('API - Auth', () => {
     expect(response.status()).toBe(403)
   })
 
-  test('GET /api/profile without auth returns 401 or 403', async ({ request }) => {
+  test('@full GET /api/profile without auth returns 401 or 403', async ({ request }) => {
     const response = await request.get('/api/profile')
 
     expect([401, 403]).toContain(response.status())

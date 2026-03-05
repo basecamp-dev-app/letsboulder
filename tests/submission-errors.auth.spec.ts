@@ -99,7 +99,7 @@ test.describe.serial('Submission Errors', () => {
     await cleanupE2ERoutesByPrefix()
   })
 
-  test('network failure closes confirm modal and shows error toast', async ({ page }) => {
+  test('@smoke network failure closes confirm modal and shows error toast', async ({ page }) => {
     let interceptedSubmissionCount = 0
 
     await page.context().route('**/api/submissions*', async (route) => {
@@ -130,10 +130,9 @@ test.describe.serial('Submission Errors', () => {
 
     await page.getByPlaceholder('Route name').fill(`E2E Route ${Date.now()}-error`)
     await page.getByRole('button', { name: /^Save$/ }).click()
-    await page.waitForTimeout(1200)
+    await expect(page.getByRole('button', { name: /Submit \d+ Route/i })).toBeVisible({ timeout: 10000 })
 
     const submitRoutesButton = page.getByRole('button', { name: /Submit \d+ Route/i })
-    await expect(submitRoutesButton).toBeVisible({ timeout: 10000 })
     await submitRoutesButton.click()
 
     const confirmModalText = page.getByText(/Submit \d+ route\?/i)
@@ -143,7 +142,7 @@ test.describe.serial('Submission Errors', () => {
     }
 
     if (interceptedSubmissionCount === 0) {
-      await page.waitForTimeout(1000)
+      await expect(submitRoutesButton).toBeEnabled({ timeout: 5000 })
       await submitRoutesButton.click()
       if (await confirmModalText.isVisible().catch(() => false)) {
         await page.getByRole('button', { name: /^Confirm$/ }).click()
@@ -152,7 +151,10 @@ test.describe.serial('Submission Errors', () => {
     }
 
     for (let retry = 0; retry < 5 && interceptedSubmissionCount === 0; retry += 1) {
-      await page.waitForTimeout(500)
+      await page.waitForResponse(
+        (response) => /\/api\/(submissions|routes\/submit)/.test(response.url()),
+        { timeout: 2000 }
+      ).catch(() => null)
       await page.evaluate(() => {
         window.dispatchEvent(new CustomEvent('submit-routes'))
       })
