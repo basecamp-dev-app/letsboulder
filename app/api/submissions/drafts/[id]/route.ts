@@ -11,6 +11,12 @@ interface DraftPatchImage {
   route_data: unknown
 }
 
+interface DraftPatchBody {
+  images: DraftPatchImage[]
+  metadata?: Record<string, unknown>
+  cragId?: string | null
+}
+
 function normalizePatchImages(value: unknown): DraftPatchImage[] | null {
   if (!Array.isArray(value) || value.length === 0) return null
 
@@ -171,7 +177,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body = await request.json().catch(() => null)
+    const body = await request.json().catch(() => null) as DraftPatchBody | null
     const images = normalizePatchImages(body?.images)
     if (!images) {
       return NextResponse.json({ error: 'images must be a non-empty array of {id, display_order, route_data}' }, { status: 400 })
@@ -198,6 +204,54 @@ export async function PATCH(
 
     if (patchError) {
       return createErrorResponse(patchError, 'Failed to patch submission draft')
+    }
+
+    const metadataPatch = body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+      ? body.metadata
+      : null
+    const nextCragId = typeof body?.cragId === 'string'
+      ? body.cragId
+      : body?.cragId === null
+        ? null
+        : undefined
+
+    if (metadataPatch || nextCragId !== undefined) {
+      const { data: existingDraft, error: existingDraftError } = await supabase
+        .from('submission_drafts')
+        .select('metadata')
+        .eq('id', id)
+        .single()
+
+      if (existingDraftError) {
+        return createErrorResponse(existingDraftError, 'Failed to read submission draft metadata')
+      }
+
+      const existingMetadata = existingDraft?.metadata && typeof existingDraft.metadata === 'object' && !Array.isArray(existingDraft.metadata)
+        ? existingDraft.metadata as Record<string, unknown>
+        : {}
+
+      const nextMetadata = metadataPatch
+        ? { ...existingMetadata, ...metadataPatch }
+        : existingMetadata
+
+      const updatePayload: { metadata?: Record<string, unknown>; crag_id?: string | null; updated_at: string } = {
+        updated_at: new Date().toISOString(),
+      }
+      if (metadataPatch) {
+        updatePayload.metadata = nextMetadata
+      }
+      if (nextCragId !== undefined) {
+        updatePayload.crag_id = nextCragId
+      }
+
+      const { error: updateDraftError } = await supabase
+        .from('submission_drafts')
+        .update(updatePayload)
+        .eq('id', id)
+
+      if (updateDraftError) {
+        return createErrorResponse(updateDraftError, 'Failed to update submission draft metadata')
+      }
     }
 
     return NextResponse.json({ success: true, draft: patchResult })
