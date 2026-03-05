@@ -5,6 +5,8 @@ import { createErrorResponse } from '@/lib/errors'
 import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
 interface DraftPatchImage {
   id: string
   display_order: number
@@ -92,6 +94,14 @@ export async function GET(
     }
   )
 
+  const readClient = SUPABASE_SERVICE_ROLE_KEY
+    ? createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        SUPABASE_SERVICE_ROLE_KEY,
+        { cookies: { getAll() { return [] }, setAll() {} } }
+      )
+    : supabase
+
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
     if (authError || !userId) {
@@ -134,7 +144,7 @@ export async function GET(
       const paths = Array.from(pathSet)
       if (paths.length === 0) continue
 
-      const { data, error } = await supabase.storage.from(bucket).createSignedUrls(paths, 3600)
+      const { data, error } = await readClient.storage.from(bucket).createSignedUrls(paths, 3600)
       if (error) {
         console.warn('Draft batch signed URL generation failed:', {
           draftId: id,
