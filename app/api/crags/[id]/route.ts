@@ -7,6 +7,14 @@ import { revalidatePath } from 'next/cache'
 interface UpdateCragRequest {
   name?: string
   rock_type?: string | null
+  region_tag?: string
+  sub_area?: string | null
+}
+
+interface LocationTagRow {
+  id: string
+  name: string
+  country_code: string | null
 }
 
 export async function PUT(
@@ -52,10 +60,15 @@ export async function PUT(
     }
 
     const body: UpdateCragRequest = await request.json()
+    const trimmedName = body.name?.trim()
+    const trimmedRegionTag = body.region_tag?.trim()
+    const normalizedSubArea = body.sub_area === undefined
+      ? undefined
+      : (body.sub_area?.trim() || null)
 
     const { data: existingCrag, error: fetchError } = await supabase
       .from('crags')
-      .select('id, name, slug, country_code')
+      .select('id, name, slug, country_code, region_name, sub_area')
       .eq('id', cragId)
       .single()
 
@@ -64,18 +77,112 @@ export async function PUT(
     }
 
     const updateData: Record<string, unknown> = {}
-    if (body.name !== undefined) updateData.name = body.name
+    if (body.name !== undefined) {
+      if (!trimmedName) {
+        return NextResponse.json({ error: 'Crag name cannot be empty' }, { status: 400 })
+      }
+      updateData.name = trimmedName
+    }
     if (body.rock_type !== undefined) updateData.rock_type = body.rock_type
+    if (normalizedSubArea !== undefined) updateData.sub_area = normalizedSubArea
+
+    let primaryRegionTagId: string | null = null
+    if (body.region_tag !== undefined) {
+      if (!trimmedRegionTag) {
+        return NextResponse.json({ error: 'Region tag cannot be empty' }, { status: 400 })
+      }
+
+      updateData.region_name = trimmedRegionTag
+
+      const countryCode = existingCrag.country_code ? existingCrag.country_code.toUpperCase() : null
+      const { data: existingTagRows, error: existingTagError } = await supabase
+        .from('location_tags')
+        .select('id, name, country_code')
+        .eq('kind', 'region')
+        .ilike('name', trimmedRegionTag)
+        .limit(10)
+
+      if (existingTagError) {
+        return createErrorResponse(existingTagError, 'Error resolving region tag')
+      }
+
+      const matchedTag = ((existingTagRows || []) as LocationTagRow[]).find((tag) => {
+        if (countryCode && tag.country_code && tag.country_code.toUpperCase() !== countryCode) return false
+        return true
+      })
+
+      if (matchedTag?.id) {
+        primaryRegionTagId = matchedTag.id
+      } else {
+        const slug = trimmedRegionTag
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '') || 'region'
+
+        const { data: createdTag, error: createdTagError } = await supabase
+          .from('location_tags')
+          .insert({
+            kind: 'region',
+            name: trimmedRegionTag,
+            slug,
+            country_code: countryCode,
+          })
+          .select('id')
+          .single()
+
+        if (createdTagError || !createdTag?.id) {
+          const { data: fallbackTag, error: fallbackTagError } = await supabase
+            .from('location_tags')
+            .select('id')
+            .eq('kind', 'region')
+            .ilike('name', trimmedRegionTag)
+            .limit(1)
+            .maybeSingle()
+
+          if (fallbackTagError || !fallbackTag?.id) {
+            return createErrorResponse(createdTagError || fallbackTagError, 'Error creating region tag')
+          }
+
+          primaryRegionTagId = fallbackTag.id
+        } else {
+          primaryRegionTagId = createdTag.id
+        }
+      }
+    }
 
     const { data: updatedCrag, error: updateError } = await supabase
       .from('crags')
       .update(updateData)
       .eq('id', cragId)
-      .select('id, name, rock_type, type, latitude, longitude')
+      .select('id, name, rock_type, type, latitude, longitude, region_name, sub_area')
       .single()
 
     if (updateError) {
       return createErrorResponse(updateError, 'Error updating crag')
+    }
+
+    if (body.region_tag !== undefined && primaryRegionTagId) {
+      const { error: deleteTagError } = await supabase
+        .from('crag_location_tags')
+        .delete()
+        .eq('crag_id', cragId)
+        .eq('is_primary_region', true)
+
+      if (deleteTagError) {
+        return createErrorResponse(deleteTagError, 'Error clearing existing primary region tag')
+      }
+
+      const { error: insertTagError } = await supabase
+        .from('crag_location_tags')
+        .upsert({
+          crag_id: cragId,
+          tag_id: primaryRegionTagId,
+          is_primary_region: true,
+        }, { onConflict: 'crag_id,tag_id' })
+
+      if (insertTagError) {
+        return createErrorResponse(insertTagError, 'Error updating primary region tag')
+      }
     }
 
     await supabase.from('admin_actions').insert({
@@ -85,7 +192,11 @@ export async function PUT(
       details: {
         previous_name: existingCrag.name,
         new_name: body.name,
-        rock_type: body.rock_type
+        rock_type: body.rock_type,
+        previous_region_tag: existingCrag.region_name,
+        new_region_tag: body.region_tag,
+        previous_sub_area: existingCrag.sub_area,
+        new_sub_area: normalizedSubArea
       }
     })
 
@@ -97,7 +208,7 @@ export async function PUT(
     return NextResponse.json({
       success: true,
       crag: updatedCrag,
-      message: `Crag renamed from "${existingCrag.name}" to "${body.name}"`
+      message: `Crag updated: "${existingCrag.name}"`
     })
   } catch (error) {
     return createErrorResponse(error, 'Error updating crag')

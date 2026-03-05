@@ -9,10 +9,13 @@ import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 interface Crag {
   id: string
   name: string
-  latitude: number
-  longitude: number
+  latitude: number | null
+  longitude: number | null
   rock_type: string | null
   type: string | null
+  region_tag: string | null
+  sub_area: string | null
+  has_primary_region_tag: boolean
   climb_count: number
   image_count: number
   route_type_counts?: Array<{ type: string; count: number }>
@@ -31,6 +34,7 @@ export default function AdminCragsPage() {
   const [crags, setCrags] = useState<Crag[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [missingRegionOnly, setMissingRegionOnly] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [renamingCrag, setRenamingCrag] = useState<Crag | null>(null)
   const [removingCrag, setRemovingCrag] = useState<Crag | null>(null)
@@ -65,7 +69,7 @@ export default function AdminCragsPage() {
     }
   }
 
-  const handleRename = async (cragId: string, data: { name: string; rock_type: string | null }) => {
+  const handleRename = async (cragId: string, data: { name: string; rock_type: string | null; region_tag: string; sub_area: string | null }) => {
     try {
       const response = await csrfFetch(`/api/crags/${cragId}`, {
         method: 'PUT',
@@ -123,8 +127,20 @@ export default function AdminCragsPage() {
     }
   }
 
+  const missingRegionCount = crags.filter((crag) => !crag.has_primary_region_tag).length
+
   const filteredCrags = crags
-    .filter(crag => crag.name.toLowerCase().includes(search.toLowerCase()))
+    .filter((crag) => {
+      const query = search.toLowerCase()
+      const matchesSearch = (
+        crag.name.toLowerCase().includes(query)
+        || (crag.region_tag || '').toLowerCase().includes(query)
+        || (crag.sub_area || '').toLowerCase().includes(query)
+      )
+      if (!matchesSearch) return false
+      if (!missingRegionOnly) return true
+      return !crag.has_primary_region_tag
+    })
     .sort((a, b) => {
       if (b.climb_count !== a.climb_count) return b.climb_count - a.climb_count
       return a.name.localeCompare(b.name)
@@ -201,15 +217,27 @@ export default function AdminCragsPage() {
 
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold text-white">Crags</h1>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search crags..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 w-64"
-          />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setMissingRegionOnly((prev) => !prev)}
+            className={`px-3 py-2 rounded-lg text-sm border transition-colors ${
+              missingRegionOnly
+                ? 'bg-amber-500/20 border-amber-400/40 text-amber-200'
+                : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+            }`}
+          >
+            Missing Region Tag ({missingRegionCount})
+          </button>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search crags..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 w-64"
+            />
+          </div>
         </div>
       </div>
 
@@ -231,6 +259,7 @@ export default function AdminCragsPage() {
             <thead className="bg-gray-800">
               <tr>
                 <th className="text-left px-4 py-3 text-gray-400 font-medium text-sm">Crag Name</th>
+                <th className="text-left px-4 py-3 text-gray-400 font-medium text-sm">Location</th>
                 <th className="text-left px-4 py-3 text-gray-400 font-medium text-sm">Type</th>
                 <th className="text-left px-4 py-3 text-gray-400 font-medium text-sm">Rock</th>
                 <th className="text-left px-4 py-3 text-gray-400 font-medium text-sm">Climbs</th>
@@ -247,9 +276,33 @@ export default function AdminCragsPage() {
                       <div>
                         <p className="text-white font-medium">{crag.name}</p>
                         <p className="text-xs text-gray-500">
-                          {crag.latitude.toFixed(4)}, {crag.longitude.toFixed(4)}
+                          {crag.latitude != null && crag.longitude != null
+                            ? `${crag.latitude.toFixed(4)}, ${crag.longitude.toFixed(4)}`
+                            : 'No coordinates'}
                         </p>
                       </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {crag.has_primary_region_tag && crag.region_tag ? (
+                        <span className="px-2 py-1 bg-blue-900/50 text-blue-300 text-xs rounded">
+                          Region: {crag.region_tag}
+                        </span>
+                      ) : crag.region_tag ? (
+                        <span className="px-2 py-1 bg-amber-900/50 text-amber-300 text-xs rounded">
+                          Unlinked Region: {crag.region_tag}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 bg-red-900/40 text-red-300 text-xs rounded">
+                          Missing region tag
+                        </span>
+                      )}
+                      {crag.sub_area && (
+                        <span className="px-2 py-1 bg-gray-800 text-gray-300 text-xs rounded">
+                          Sub-area: {crag.sub_area}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">

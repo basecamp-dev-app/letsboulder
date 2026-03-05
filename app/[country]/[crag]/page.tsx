@@ -55,6 +55,7 @@ interface CragSlugRow {
   slug: string | null
   country_code: string | null
   region_name: string | null
+  sub_area: string | null
   country: string | null
   latitude: number | null
   longitude: number | null
@@ -84,6 +85,7 @@ const getCragByCountrySlug = cache(async (countryCode: string, cragSlug: string)
       slug,
       country_code,
       region_name,
+      sub_area,
       country,
       latitude,
       longitude,
