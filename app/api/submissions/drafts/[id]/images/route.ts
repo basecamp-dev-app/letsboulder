@@ -29,6 +29,13 @@ interface ProfileRow {
   display_name: string | null
 }
 
+interface DatabaseErrorLike {
+  message?: string
+  details?: string
+  hint?: string
+  code?: string
+}
+
 function normalizeImages(value: unknown): DraftAppendImageInput[] | null {
   if (!Array.isArray(value) || value.length === 0) return null
 
@@ -58,6 +65,19 @@ function resolveDisplayName(profile: ProfileRow | null): string | null {
   if (profile.display_name) return profile.display_name
   if (profile.username) return profile.username
   return null
+}
+
+function isPermissionDeniedError(error: DatabaseErrorLike | null | undefined): boolean {
+  if (!error) return false
+
+  if (error.code === '42501') return true
+
+  const message = `${error.message || ''} ${error.details || ''} ${error.hint || ''}`.toLowerCase()
+  return (
+    message.includes('row-level security')
+    || message.includes('permission denied')
+    || message.includes('violates row-level security policy')
+  )
 }
 
 export async function POST(
@@ -154,6 +174,10 @@ export async function POST(
 
       if (appendError.message === 'Draft not found') {
         return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+      }
+
+      if (isPermissionDeniedError(appendError)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
       return createErrorResponse(appendError, 'Failed to append draft images')
