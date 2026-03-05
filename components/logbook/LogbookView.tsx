@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { createClient } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import GradePyramid from '@/components/GradePyramid'
 import { calculateStats, getLowestGrade, getGradeFromPoints, type LogEntry } from '@/lib/grades'
@@ -16,6 +17,7 @@ import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import SubmissionList from '@/components/submissions/SubmissionList'
+import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
 import type { Submission } from '@/types/submissions'
 
 const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
@@ -62,13 +64,17 @@ interface LogbookViewProps {
   initialSubmissions?: Submission[]
 }
 
-export default function LogbookView({ isOwnProfile, initialLogs = [], profile, initialSubmissions = [] }: LogbookViewProps) {
+type OwnerSubmissionsTab = 'all' | 'drafts' | 'pending-review' | 'published'
+
+export default function LogbookView({ userId, isOwnProfile, initialLogs = [], profile, initialSubmissions = [] }: LogbookViewProps) {
   const gradeSystem = useGradeSystem()
   const router = useRouter()
   const [logs, setLogs] = useState<Climb[]>(initialLogs)
   const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
+  const [publishingDraftId, setPublishingDraftId] = useState<string | null>(null)
+  const [ownerSubmissionTab, setOwnerSubmissionTab] = useState<OwnerSubmissionsTab>('all')
   const { toasts, addToast, removeToast } = useToast()
 
   const stats = useMemo(() => {
@@ -110,11 +116,73 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
     }
   }
 
+  const handlePublishDraft = async (draftId: string) => {
+    setPublishingDraftId(draftId)
+    try {
+      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/promote`, { method: 'POST' })
+      const payload = await response.json().catch(() => ({} as {
+        published?: {
+          imageId?: string
+          imageIds?: string[]
+          routeLineIds?: string[]
+        }
+      }))
+      if (!response.ok) throw new Error()
+
+      const supabase = createClient()
+      const refreshed = await fetchOwnSubmissions(supabase, userId, csrfFetch, 24)
+      setSubmissions(refreshed)
+
+      const imageId = payload.published?.imageId
+      const imageCount = Array.isArray(payload.published?.imageIds)
+        ? payload.published.imageIds.length
+        : (imageId ? 1 : 0)
+      const routeCount = Array.isArray(payload.published?.routeLineIds)
+        ? payload.published.routeLineIds.length
+        : 0
+      addToast(`Success! Created ${routeCount} route${routeCount === 1 ? '' : 's'} across ${imageCount} face${imageCount === 1 ? '' : 's'}.`, 'success')
+      if (imageId) {
+        const query = new URLSearchParams({
+          publishedFaces: String(imageCount),
+          publishedRoutes: String(routeCount),
+        })
+        router.push(`/logbook/submissions/${imageId}/edit?${query.toString()}`)
+      }
+    } catch {
+      addToast('Failed to publish draft', 'error')
+    } finally {
+      setPublishingDraftId(null)
+    }
+  }
+
   const statusStyles = {
     flash: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200',
     top: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200',
     try: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200',
   }
+
+  const ownerSubmissionCounts = useMemo(() => ({
+    all: submissions.length,
+    drafts: submissions.filter((submission) => submission.status === 'draft').length,
+    'pending-review': submissions.filter((submission) => submission.status === 'pending_review').length,
+    published: submissions.filter((submission) => submission.status === 'published').length,
+  }), [submissions])
+
+  const ownerVisibleSubmissions = useMemo(() => {
+    if (ownerSubmissionTab === 'drafts') {
+      return submissions.filter((submission) => submission.status === 'draft')
+    }
+
+    if (ownerSubmissionTab === 'pending-review') {
+      return submissions.filter((submission) => submission.status === 'pending_review')
+    }
+
+    if (ownerSubmissionTab === 'published') {
+      return submissions.filter((submission) => submission.status === 'published')
+    }
+
+    return submissions
+  }, [ownerSubmissionTab, submissions])
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
@@ -325,47 +393,133 @@ export default function LogbookView({ isOwnProfile, initialLogs = [], profile, i
             </CardContent>
           </Card>
 
-          {submissions.length > 0 && (
+          {(isOwnProfile || submissions.length > 0) && (
             <Card className="m-0 border-x-0 border-t-0 rounded-none">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-lg">Contributions</CardTitle>
-                  {isOwnProfile ? (
-                    <Link href="/logbook/submissions" className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">
-                      Manage all
-                    </Link>
-                  ) : null}
+                  <CardTitle className="text-lg">{isOwnProfile ? 'Your submissions' : 'Contributions'}</CardTitle>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
+                {isOwnProfile && (
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {[
+                        { id: 'all', label: 'All' },
+                        { id: 'drafts', label: 'Drafts' },
+                        { id: 'pending-review', label: 'Pending review' },
+                        { id: 'published', label: 'Published' },
+                      ].map((tab) => {
+                        const isActive = ownerSubmissionTab === tab.id
+                        const count = ownerSubmissionCounts[tab.id as OwnerSubmissionsTab]
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setOwnerSubmissionTab(tab.id as OwnerSubmissionsTab)}
+                            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                              isActive
+                                ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {tab.label} ({count})
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <Link
+                      href="/logbook/submissions?mode=new"
+                      className="inline-flex rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                    >
+                      New upload
+                    </Link>
+                  </div>
+                )}
+                {isOwnProfile && ownerVisibleSubmissions.length === 0 ? (
+                  <p className="py-2 text-sm text-gray-500 dark:text-gray-400">
+                    {ownerSubmissionTab === 'drafts'
+                      ? 'No drafts yet.'
+                      : ownerSubmissionTab === 'pending-review'
+                        ? 'No submissions pending review.'
+                        : ownerSubmissionTab === 'published'
+                          ? 'No published submissions yet.'
+                          : 'No submissions yet.'}
+                  </p>
+                ) : null}
                 <SubmissionList
-                  submissions={submissions}
-                  isOwnProfile={false}
+                  submissions={isOwnProfile ? ownerVisibleSubmissions : submissions}
+                  isOwnProfile={isOwnProfile}
                   deletingDraftId={deletingDraftId}
+                  publishingDraftId={publishingDraftId}
                   onDeleteDraft={handleDeleteDraft}
+                  onPublishDraft={handlePublishDraft}
                 />
               </CardContent>
             </Card>
           )}
         </div>
-      ) : submissions.length > 0 ? (
+      ) : (isOwnProfile || submissions.length > 0) ? (
         <Card className="m-0 border-x-0 border-t-0 rounded-none">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-lg">Contributions</CardTitle>
-              {isOwnProfile ? (
-                <Link href="/logbook/submissions" className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">
-                  Manage all
-                </Link>
-              ) : null}
+              <CardTitle className="text-lg">{isOwnProfile ? 'Your submissions' : 'Contributions'}</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
+            {isOwnProfile && (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    { id: 'all', label: 'All' },
+                    { id: 'drafts', label: 'Drafts' },
+                    { id: 'pending-review', label: 'Pending review' },
+                    { id: 'published', label: 'Published' },
+                  ].map((tab) => {
+                    const isActive = ownerSubmissionTab === tab.id
+                    const count = ownerSubmissionCounts[tab.id as OwnerSubmissionsTab]
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setOwnerSubmissionTab(tab.id as OwnerSubmissionsTab)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                          isActive
+                            ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {tab.label} ({count})
+                      </button>
+                    )
+                  })}
+                </div>
+                <Link
+                  href="/logbook/submissions?mode=new"
+                  className="inline-flex rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                >
+                  New upload
+                </Link>
+              </div>
+            )}
+            {isOwnProfile && ownerVisibleSubmissions.length === 0 ? (
+              <p className="py-2 text-sm text-gray-500 dark:text-gray-400">
+                {ownerSubmissionTab === 'drafts'
+                  ? 'No drafts yet.'
+                  : ownerSubmissionTab === 'pending-review'
+                    ? 'No submissions pending review.'
+                    : ownerSubmissionTab === 'published'
+                      ? 'No published submissions yet.'
+                      : 'No submissions yet.'}
+              </p>
+            ) : null}
             <SubmissionList
-              submissions={submissions}
-              isOwnProfile={false}
+              submissions={isOwnProfile ? ownerVisibleSubmissions : submissions}
+              isOwnProfile={isOwnProfile}
               deletingDraftId={deletingDraftId}
+              publishingDraftId={publishingDraftId}
               onDeleteDraft={handleDeleteDraft}
+              onPublishDraft={handlePublishDraft}
             />
           </CardContent>
         </Card>

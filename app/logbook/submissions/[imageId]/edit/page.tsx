@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -485,6 +485,9 @@ export default function EditSubmittedRoutesPage() {
   }, [existingRouteLines])
 
   const collaborationAdded = searchParams.get('collab') === 'added'
+  const publishedFacesParam = searchParams.get('publishedFaces')
+  const publishedRoutesParam = searchParams.get('publishedRoutes')
+  const hasShownPublishedToastRef = useRef(false)
   const canEditContributionCredit = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId
   const canEditCragMetadata = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId && !!cragId
   const markerPosition = useMemo<[number, number] | null>(() => {
@@ -1058,6 +1061,21 @@ export default function EditSubmittedRoutesPage() {
     creditDirty,
     saveContributionCredit,
   ])
+
+  useEffect(() => {
+    if (hasShownPublishedToastRef.current) return
+
+    const publishedFaces = Number(publishedFacesParam || '0')
+    const publishedRoutes = Number(publishedRoutesParam || '0')
+    if (!Number.isFinite(publishedFaces) || !Number.isFinite(publishedRoutes)) return
+    if (publishedFaces <= 0 && publishedRoutes <= 0) return
+
+    hasShownPublishedToastRef.current = true
+    addToast(
+      `Success! Created ${publishedRoutes} route${publishedRoutes === 1 ? '' : 's'} across ${publishedFaces} face${publishedFaces === 1 ? '' : 's'}.`,
+      'success'
+    )
+  }, [publishedFacesParam, publishedRoutesParam, addToast])
 
   useEffect(() => {
     if (shareOpen) {

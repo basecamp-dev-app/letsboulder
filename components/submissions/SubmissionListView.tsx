@@ -7,16 +7,17 @@ import SubmissionList from '@/components/submissions/SubmissionList'
 import { useSubmissions } from '@/lib/submissions/useSubmissions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-type SubmissionsTab = 'all' | 'drafts' | 'published'
+type SubmissionsTab = 'all' | 'drafts' | 'pending-review' | 'published'
 
 const TABS: Array<{ id: SubmissionsTab; label: string }> = [
   { id: 'all', label: 'All' },
   { id: 'drafts', label: 'Drafts' },
+  { id: 'pending-review', label: 'Pending review' },
   { id: 'published', label: 'Published' },
 ]
 
 function normalizeTab(value: string | null): SubmissionsTab {
-  if (value === 'drafts' || value === 'published') return value
+  if (value === 'drafts' || value === 'published' || value === 'pending-review') return value
   return 'all'
 }
 
@@ -24,23 +25,28 @@ export default function SubmissionListView() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { submissions, loading, error, deletingDraftId, deleteDraft } = useSubmissions()
+  const { submissions, loading, error, deletingDraftId, publishingDraftId, deleteDraft, publishDraft } = useSubmissions()
 
   const activeTab = normalizeTab(searchParams.get('tab'))
 
   const counts = useMemo(() => ({
     all: submissions.length,
-    drafts: submissions.filter((submission) => submission.kind === 'draft').length,
-    published: submissions.filter((submission) => submission.kind === 'submitted').length,
+    drafts: submissions.filter((submission) => submission.status === 'draft').length,
+    'pending-review': submissions.filter((submission) => submission.status === 'pending_review').length,
+    published: submissions.filter((submission) => submission.status === 'published').length,
   }), [submissions])
 
   const filteredSubmissions = useMemo(() => {
     if (activeTab === 'drafts') {
-      return submissions.filter((submission) => submission.kind === 'draft')
+      return submissions.filter((submission) => submission.status === 'draft')
+    }
+
+    if (activeTab === 'pending-review') {
+      return submissions.filter((submission) => submission.status === 'pending_review')
     }
 
     if (activeTab === 'published') {
-      return submissions.filter((submission) => submission.kind === 'submitted')
+      return submissions.filter((submission) => submission.status === 'published')
     }
 
     return submissions
@@ -108,6 +114,8 @@ export default function SubmissionListView() {
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {activeTab === 'drafts'
                     ? 'No drafts yet.'
+                    : activeTab === 'pending-review'
+                      ? 'No submissions pending review.'
                     : activeTab === 'published'
                       ? 'No published submissions yet.'
                       : 'No submissions yet.'}
@@ -124,8 +132,20 @@ export default function SubmissionListView() {
                 submissions={filteredSubmissions}
                 isOwnProfile={true}
                 deletingDraftId={deletingDraftId}
+                publishingDraftId={publishingDraftId}
                 onDeleteDraft={(draftIdToDelete) => {
                   void deleteDraft(draftIdToDelete)
+                }}
+                onPublishDraft={(draftIdToPublish) => {
+                  void publishDraft(draftIdToPublish).then((result) => {
+                    if (result.ok && result.imageId) {
+                      const query = new URLSearchParams({
+                        publishedFaces: String(result.imageCount),
+                        publishedRoutes: String(result.routeCount),
+                      })
+                      router.push(`/logbook/submissions/${result.imageId}/edit?${query.toString()}`)
+                    }
+                  })
                 }}
               />
             )}
