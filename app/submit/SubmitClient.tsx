@@ -1545,7 +1545,7 @@ function SubmitPageContent() {
             </button>
             <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Select a Crag</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Select or create a crag near your image location.
+              Select an existing crag or create one with a required region tag and optional sub-area.
             </p>
             <CragSelector
               latitude={context.imageGps?.latitude ?? null}
