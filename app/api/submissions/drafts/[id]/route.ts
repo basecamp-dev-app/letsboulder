@@ -213,7 +213,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'images must be a non-empty array of {id, display_order, route_data}' }, { status: 400 })
     }
 
-    const expectedUpdatedAtRaw = typeof body?.expected_updated_at === 'string' ? body.expected_updated_at : ''
+    const expectedUpdatedAtRaw = typeof body?.expected_updated_at === 'string' ? body.expected_updated_at.trim() : ''
     const expectedUpdatedAtDate = expectedUpdatedAtRaw ? new Date(expectedUpdatedAtRaw) : null
     if (!expectedUpdatedAtDate || Number.isNaN(expectedUpdatedAtDate.getTime())) {
       return NextResponse.json({ error: 'expected_updated_at is required and must be a valid ISO timestamp' }, { status: 400 })
@@ -247,7 +247,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Only draft submissions can be edited' }, { status: 400 })
     }
 
-    const expectedUpdatedAt = expectedUpdatedAtDate.toISOString()
+    const expectedUpdatedAt = expectedUpdatedAtRaw
     const expectedUpdatedAtMs = expectedUpdatedAtDate.getTime()
     const currentUpdatedAtMs = new Date(draft.updated_at).getTime()
     if (!Number.isFinite(currentUpdatedAtMs) || currentUpdatedAtMs !== expectedUpdatedAtMs) {
