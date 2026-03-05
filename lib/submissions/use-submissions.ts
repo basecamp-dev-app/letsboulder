@@ -11,6 +11,7 @@ export function useSubmissions() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
+  const [publishingDraftId, setPublishingDraftId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -52,6 +53,42 @@ export function useSubmissions() {
     }
   }, [])
 
+  const publishDraft = useCallback(async (draftId: string) => {
+    setPublishingDraftId(draftId)
+    try {
+      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/promote`, { method: 'POST' })
+      const payload = await response.json().catch(() => ({} as {
+        published?: {
+          imageId?: string
+          imageIds?: string[]
+          routeLineIds?: string[]
+        }
+      }))
+      if (!response.ok) {
+        throw new Error('Failed to publish draft')
+      }
+
+      await refresh()
+      const imageIds = Array.isArray(payload.published?.imageIds) ? payload.published.imageIds : []
+      const routeLineIds = Array.isArray(payload.published?.routeLineIds) ? payload.published.routeLineIds : []
+      return {
+        ok: true,
+        imageId: payload.published?.imageId || null,
+        imageCount: imageIds.length > 0 ? imageIds.length : (payload.published?.imageId ? 1 : 0),
+        routeCount: routeLineIds.length,
+      }
+    } catch {
+      return {
+        ok: false,
+        imageId: null,
+        imageCount: 0,
+        routeCount: 0,
+      }
+    } finally {
+      setPublishingDraftId(null)
+    }
+  }, [refresh])
+
   useEffect(() => {
     void refresh()
   }, [refresh])
@@ -61,7 +98,9 @@ export function useSubmissions() {
     loading,
     error,
     deletingDraftId,
+    publishingDraftId,
     refresh,
     deleteDraft,
+    publishDraft,
   }
 }

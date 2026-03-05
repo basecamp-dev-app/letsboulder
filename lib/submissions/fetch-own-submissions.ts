@@ -27,7 +27,16 @@ export async function fetchOwnSubmissions(
   if (submissionsResponse.ok) {
     const payload = await submissionsResponse.json().catch(() => ({ submissions: [] as Submission[] }))
     if (Array.isArray(payload.submissions)) {
-      formattedSubmissions.push(...payload.submissions)
+      for (const submission of payload.submissions) {
+        if (!submission || typeof submission !== 'object') continue
+        const candidate = submission as Submission
+        formattedSubmissions.push({
+          ...candidate,
+          status: candidate.status === 'published' || candidate.status === 'pending_review'
+            ? candidate.status
+            : 'pending_review',
+        })
+      }
     }
   }
 
@@ -93,6 +102,7 @@ export async function fetchOwnSubmissions(
     return {
       id: draft.id,
       kind: 'draft',
+      status: 'draft',
       url: previewUrl,
       created_at: draft.created_at,
       updated_at: draft.updated_at,

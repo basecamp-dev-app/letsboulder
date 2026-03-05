@@ -346,6 +346,7 @@ function SubmitPageContent() {
   const [batchCurrentFace, setBatchCurrentFace] = useState<number | null>(null)
   const [batchCreatedClimbs, setBatchCreatedClimbs] = useState(0)
   const [isFinalizingBatch, setIsFinalizingBatch] = useState(false)
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
   const [drawSessionVersion, setDrawSessionVersion] = useState(0)
   const [serverDraftSession, setServerDraftSession] = useState<ServerDraftSession | null>(null)
   const serverDraftRouteDataRef = useRef<Record<number, unknown>>({})
@@ -880,58 +881,71 @@ function SubmitPageContent() {
     })
   }, [])
 
+  const ensureServerDraftSession = useCallback(async (): Promise<ServerDraftSession> => {
+    if (serverDraftSession) return serverDraftSession
+
+    if (!context.image || context.image.mode !== 'new') {
+      throw new Error('Only new photo uploads can be saved as drafts from this flow')
+    }
+
+    if (isCreatingDraftRef.current) {
+      throw new Error('Draft setup in progress. Please try again in a second.')
+    }
+
+    isCreatingDraftRef.current = true
+    try {
+      const response = await csrfFetch('/api/submissions/drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          images: context.image.images.map((image: NewUploadedImage) => ({
+            uploadedBucket: image.uploadedBucket,
+            uploadedPath: image.uploadedPath,
+            width: image.width,
+            height: image.height,
+          })),
+          metadata: {
+            primaryIndex: context.image.primaryIndex,
+            faceDirectionsByImage: context.faceDirectionsByImage,
+          },
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({} as {
+        draft?: { id?: string; images?: Array<{ id: string; display_order: number }> }
+        error?: string
+      }))
+
+      if (!response.ok || !payload?.draft?.id) {
+        throw new Error(payload.error || 'Failed to initialize server draft')
+      }
+
+      const imageIds = (payload.draft.images || [])
+        .sort((a: { id: string; display_order: number }, b: { id: string; display_order: number }) => a.display_order - b.display_order)
+        .map((image: { id: string; display_order: number }) => image.id)
+
+      const nextSession = { id: payload.draft.id, imageIds }
+      setServerDraftSession(nextSession)
+      return nextSession
+    } finally {
+      isCreatingDraftRef.current = false
+    }
+  }, [context.image, context.faceDirectionsByImage, serverDraftSession])
+
   useEffect(() => {
     if (!context.image || context.image.mode !== 'new') return
     if (serverDraftSession) return
     if (isCreatingDraftRef.current) return
 
-    const imageSelection = context.image
-
     let cancelled = false
 
     const createServerDraft = async () => {
-      if (isCreatingDraftRef.current) return
-      isCreatingDraftRef.current = true
-
       try {
-        const response = await csrfFetch('/api/submissions/drafts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            images: imageSelection.images.map((image: NewUploadedImage) => ({
-              uploadedBucket: image.uploadedBucket,
-              uploadedPath: image.uploadedPath,
-              width: image.width,
-              height: image.height,
-            })),
-            metadata: {
-              primaryIndex: imageSelection.primaryIndex,
-              faceDirectionsByImage: context.faceDirectionsByImage,
-            },
-          }),
-        })
-
-        const payload = await response.json().catch(() => ({} as {
-          draft?: { id?: string; images?: Array<{ id: string; display_order: number }> }
-          error?: string
-        }))
-        if (!response.ok || !payload?.draft?.id) {
-          throw new Error(payload.error || 'Failed to initialize server draft')
-        }
-
-        const imageIds = (payload.draft.images || [])
-          .sort((a: { id: string; display_order: number }, b: { id: string; display_order: number }) => a.display_order - b.display_order)
-          .map((image: { id: string; display_order: number }) => image.id)
-
-        if (!cancelled) {
-          setServerDraftSession({ id: payload.draft.id, imageIds })
-        }
+        await ensureServerDraftSession()
       } catch {
         if (!cancelled) {
           addToast('Could not enable cloud autosave for this draft. Local autosave still works.', 'info')
         }
-      } finally {
-        isCreatingDraftRef.current = false
       }
     }
 
@@ -939,7 +953,7 @@ function SubmitPageContent() {
     return () => {
       cancelled = true
     }
-  }, [context.image, context.faceDirectionsByImage, serverDraftSession, addToast])
+  }, [context.image, serverDraftSession, addToast, ensureServerDraftSession])
 
   useEffect(() => {
     if (!serverDraftSession) return
@@ -1142,6 +1156,94 @@ function SubmitPageContent() {
 
     return true
   }, [addToast, context.crag, context.imageGps, selectedRouteType, setRoutes])
+
+  const handleSaveAsDraft = useCallback(async (routeType?: ClimbType, submittedRoutes?: NewRouteData[]) => {
+    if (isSavingDraft || isSubmitting) return
+
+    const routesToSave = (submittedRoutes && submittedRoutes.length > 0)
+      ? submittedRoutes
+      : context.routes.length > 0
+        ? context.routes
+        : latestRoutesRef.current
+
+    if (!routesToSave || routesToSave.length === 0) {
+      setError('No saved routes to store in draft yet. Tap Save on the route first.')
+      return
+    }
+
+    if (!context.image || context.image.mode !== 'new') {
+      setError('Save as draft is available for new photo uploads only')
+      return
+    }
+
+    setIsSavingDraft(true)
+    setError(null)
+
+    try {
+      const draftSession = await ensureServerDraftSession()
+      const currentIndex = batchCurrentFace && batchCurrentFace > 0 ? batchCurrentFace - 1 : 0
+      const existingRouteData = serverDraftRouteDataRef.current[currentIndex]
+      const existingRouteDataObject = existingRouteData && typeof existingRouteData === 'object' && !Array.isArray(existingRouteData)
+        ? existingRouteData as Record<string, unknown>
+        : {}
+
+      serverDraftRouteDataRef.current[currentIndex] = {
+        ...existingRouteDataObject,
+        completedRoutes: routesToSave,
+      }
+
+      const imagesPayload = draftSession.imageIds.map((imageId, index) => ({
+        id: imageId,
+        display_order: index,
+        route_data: serverDraftRouteDataRef.current[index] || {},
+      }))
+
+      const response = await csrfFetch(`/api/submissions/drafts/${draftSession.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          images: imagesPayload,
+          cragId: context.crag?.id || null,
+          metadata: {
+            primaryIndex: context.image.primaryIndex,
+            faceDirectionsByImage: latestFaceDirectionsByImageRef.current,
+            routeType: routeType || selectedRouteType || context.routeType || 'sport',
+          },
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({} as { error?: string }))
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to save draft')
+      }
+
+      if (activeDraftKey) {
+        removeDraftIndexEntry(activeDraftKey)
+      }
+      removeDraftIndexEntriesByServerDraftId(draftSession.id)
+      addToast('Draft saved. Not published to map.', 'success')
+      router.push(`/logbook/drafts/${draftSession.id}/edit`)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save draft'
+      setError(message)
+      addToast(message, 'error')
+    } finally {
+      setIsSavingDraft(false)
+    }
+  }, [
+    activeDraftKey,
+    addToast,
+    batchCurrentFace,
+    context.crag?.id,
+    context.image,
+    context.routeType,
+    context.routes,
+    ensureServerDraftSession,
+    isSavingDraft,
+    isSubmitting,
+    router,
+    selectedRouteType,
+  ])
 
   async function handleSubmit(routeType?: ClimbType, submittedRoutes?: NewRouteData[]) {
     if (isSubmitting) return
@@ -1573,6 +1675,12 @@ function SubmitPageContent() {
               key={`${stepDraftKey || routeDraftKey || 'route-canvas'}:${drawSessionVersion}`}
               imageSelection={step.image}
               onRoutesUpdate={handleRoutesUpdate}
+              onSaveDraft={step.image.mode === 'new'
+                ? (draftRoutes) => {
+                    void handleSaveAsDraft(selectedRouteType || undefined, draftRoutes)
+                  }
+                : undefined}
+              savingDraft={isSavingDraft}
               onSubmitRoutes={(submittedRoutes) => {
                 void handleSubmit(selectedRouteType || undefined, submittedRoutes)
               }}
