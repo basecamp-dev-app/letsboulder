@@ -15,10 +15,6 @@ import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { ImageSelection, NewRouteData, RouteLine, ClimbType } from '@/lib/submission-types'
 import { useGradePreferences, getGradeSystemForClimbType } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
-import { draftStorageGetItem, draftStorageRemoveItem, draftStorageSetItem } from '@/lib/submit-draft-storage'
-
-const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000
-const DRAFT_WRITE_DEBOUNCE_MS = 750
 
 interface ExistingRoute {
   id: string
@@ -44,7 +40,6 @@ interface RouteCanvasProps {
   onRoutesUpdate: (routes: NewRouteData[]) => void
   onSubmitRoutes?: (routes: NewRouteData[]) => void
   existingRouteLines?: RouteLine[]
-  draftKey?: string
   mode?: 'submit' | 'edit-existing'
   allowCreateRoutesInEditMode?: boolean
   onEditRoutesUpdate?: (routes: EditableExistingRoute[]) => void
@@ -56,19 +51,6 @@ interface RouteCanvasProps {
   defaultClimbType?: ClimbType
   onDeleteExistingRoute?: (routeLineId: string) => Promise<void>
   deletingExistingRouteId?: string | null
-  onSaveDraft?: (routes: NewRouteData[]) => void
-  savingDraft?: boolean
-}
-
-interface RouteCanvasDraft {
-  updatedAt: number
-  expiresAt: number
-  completedRoutes: ExistingRoute[]
-  currentPoints: RoutePoint[]
-  currentName: string
-  currentGrade: string
-  currentClimbType?: string
-  currentDescription: string
 }
 
 function convertNormalizedPointsToCanvas(
@@ -116,41 +98,11 @@ function convertNormalizedPointsToCanvas(
   }))
 }
 
-function readDraftState(draftKey?: string): RouteCanvasDraft | null {
-  if (!draftKey) return null
-
-  try {
-    const rawDraft = draftStorageGetItem(draftKey)
-    if (!rawDraft) return null
-
-    const parsed = JSON.parse(rawDraft) as Partial<RouteCanvasDraft>
-    const expiresAt = typeof parsed.expiresAt === 'number' ? parsed.expiresAt : 0
-    if (expiresAt > 0 && expiresAt < Date.now()) {
-      draftStorageRemoveItem(draftKey)
-      return null
-    }
-
-    return {
-      updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
-      expiresAt: typeof parsed.expiresAt === 'number' ? parsed.expiresAt : Date.now() + DRAFT_TTL_MS,
-      completedRoutes: Array.isArray(parsed.completedRoutes) ? parsed.completedRoutes : [],
-      currentPoints: Array.isArray(parsed.currentPoints) ? parsed.currentPoints : [],
-      currentName: typeof parsed.currentName === 'string' ? parsed.currentName : '',
-      currentGrade: typeof parsed.currentGrade === 'string' ? parsed.currentGrade : '6A',
-      currentClimbType: typeof parsed.currentClimbType === 'string' ? parsed.currentClimbType : undefined,
-      currentDescription: typeof parsed.currentDescription === 'string' ? parsed.currentDescription : '',
-    }
-  } catch {
-    return null
-  }
-}
-
 export default function RouteCanvas({
   imageSelection,
   onRoutesUpdate,
   onSubmitRoutes,
   existingRouteLines,
-  draftKey,
   mode = 'submit',
   allowCreateRoutesInEditMode = false,
   onEditRoutesUpdate,
@@ -162,12 +114,9 @@ export default function RouteCanvas({
   defaultClimbType,
   onDeleteExistingRoute,
   deletingExistingRouteId = null,
-  onSaveDraft,
-  savingDraft = false,
 }: RouteCanvasProps) {
   const isEditExistingMode = mode === 'edit-existing'
   const canCreateRoutesInEditMode = isEditExistingMode && allowCreateRoutesInEditMode
-  const initialDraft = readDraftState(draftKey)
   const gradePreferences = useGradePreferences()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
@@ -198,13 +147,13 @@ export default function RouteCanvas({
   const [pinchStartZoom, setPinchStartZoom] = useState<number | null>(null)
   const [pinchStartDistance, setPinchStartDistance] = useState<number | null>(null)
   const [pinchCenter, setPinchCenter] = useState<{ x: number; y: number } | null>(null)
-  const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>(() => initialDraft?.currentPoints ?? [])
-  const [currentName, setCurrentName] = useState(() => initialDraft?.currentName ?? '')
-  const [currentGrade, setCurrentGrade] = useState(() => initialDraft?.currentGrade ?? '6A')
-  const [currentClimbType, setCurrentClimbType] = useState<string | undefined>(() => initialDraft?.currentClimbType ?? defaultClimbType)
-  const [currentDescription, setCurrentDescription] = useState(() => initialDraft?.currentDescription ?? '')
+  const [currentPoints, setCurrentPoints] = useState<RoutePoint[]>([])
+  const [currentName, setCurrentName] = useState('')
+  const [currentGrade, setCurrentGrade] = useState('6A')
+  const [currentClimbType, setCurrentClimbType] = useState<string | undefined>(defaultClimbType)
+  const [currentDescription, setCurrentDescription] = useState('')
   const [gradePickerOpen, setGradePickerOpen] = useState(false)
-  const [completedRoutes, setCompletedRoutes] = useState<ExistingRoute[]>(() => initialDraft?.completedRoutes ?? [])
+  const [completedRoutes, setCompletedRoutes] = useState<ExistingRoute[]>([])
   const [existingRoutes, setExistingRoutes] = useState<ExistingRoute[]>(() => {
     if (existingRouteLines && existingRouteLines.length > 0) {
       return existingRouteLines.map((rl, index) => ({
@@ -232,82 +181,15 @@ export default function RouteCanvas({
   const [draggingPointIndex, setDraggingPointIndex] = useState<number | null>(null)
   const [descriptionFocused, setDescriptionFocused] = useState(false)
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true)
-  const draftWriteTimeoutRef = useRef<number | null>(null)
   const previousCanvasSizeRef = useRef<{ width: number; height: number } | null>(null)
   const hasHydratedExistingRoutesRef = useRef(false)
   const isDrawingInProgress = currentPoints.length > 0
-
-  const persistDraft = useCallback(() => {
-    if (!draftKey) return
-
-    const hasDraftContent =
-      completedRoutes.length > 0 ||
-      currentPoints.length > 0 ||
-      currentName.trim().length > 0 ||
-      currentDescription.trim().length > 0
-
-    if (!hasDraftContent) {
-      draftStorageRemoveItem(draftKey)
-      return
-    }
-
-    const now = Date.now()
-    const draft: RouteCanvasDraft = {
-      updatedAt: now,
-      expiresAt: now + DRAFT_TTL_MS,
-      completedRoutes,
-      currentPoints,
-      currentName,
-      currentGrade,
-      currentClimbType,
-      currentDescription,
-    }
-
-    draftStorageSetItem(draftKey, JSON.stringify(draft))
-  }, [draftKey, completedRoutes, currentPoints, currentName, currentGrade, currentClimbType, currentDescription])
-
-  useEffect(() => {
-    if (!draftKey) return
-
-    if (draftWriteTimeoutRef.current) {
-      window.clearTimeout(draftWriteTimeoutRef.current)
-    }
-
-    draftWriteTimeoutRef.current = window.setTimeout(() => {
-      persistDraft()
-      draftWriteTimeoutRef.current = null
-    }, DRAFT_WRITE_DEBOUNCE_MS)
-
-    return () => {
-      if (draftWriteTimeoutRef.current) {
-        window.clearTimeout(draftWriteTimeoutRef.current)
-        draftWriteTimeoutRef.current = null
-      }
-    }
-  }, [draftKey, persistDraft])
 
   useEffect(() => {
     hasHydratedExistingRoutesRef.current = false
     previousCanvasSizeRef.current = null
   }, [imageUrl])
 
-  useEffect(() => {
-    if (!draftKey) return
-
-    const flushDraft = () => {
-      if (draftWriteTimeoutRef.current) {
-        window.clearTimeout(draftWriteTimeoutRef.current)
-        draftWriteTimeoutRef.current = null
-      }
-      persistDraft()
-    }
-
-    window.addEventListener('pagehide', flushDraft)
-    return () => {
-      window.removeEventListener('pagehide', flushDraft)
-      flushDraft()
-    }
-  }, [draftKey, persistDraft])
 
   useOverlayHistory({
     open: showSubmitConfirm,
@@ -1214,18 +1096,6 @@ export default function RouteCanvas({
 
           {!isEditExistingMode && currentPoints.length < 2 && completedRoutes.length > 0 && (
             <div className="flex gap-2">
-              {onSaveDraft ? (
-                <button
-                  onClick={() => {
-                    const normalizedRoutes = getNormalizedCompletedRoutes()
-                    onSaveDraft(normalizedRoutes)
-                  }}
-                  disabled={!allRoutesValid || savingDraft}
-                  className="flex-1 px-2 py-2 bg-gray-800 text-white text-sm disabled:opacity-60"
-                >
-                  {savingDraft ? 'Saving...' : 'Save as Draft'}
-                </button>
-              ) : null}
               <button
                 onClick={() => {
                   const normalizedRoutes = getNormalizedCompletedRoutes()
