@@ -56,6 +56,8 @@ interface RouteCanvasProps {
   defaultClimbType?: ClimbType
   onDeleteExistingRoute?: (routeLineId: string) => Promise<void>
   deletingExistingRouteId?: string | null
+  onSaveDraft?: (routes: NewRouteData[]) => void
+  savingDraft?: boolean
 }
 
 interface RouteCanvasDraft {
@@ -160,6 +162,8 @@ export default function RouteCanvas({
   defaultClimbType,
   onDeleteExistingRoute,
   deletingExistingRouteId = null,
+  onSaveDraft,
+  savingDraft = false,
 }: RouteCanvasProps) {
   const isEditExistingMode = mode === 'edit-existing'
   const canCreateRoutesInEditMode = isEditExistingMode && allowCreateRoutesInEditMode
@@ -1209,20 +1213,34 @@ export default function RouteCanvas({
           )}
 
           {!isEditExistingMode && currentPoints.length < 2 && completedRoutes.length > 0 && (
-            <button
-              onClick={() => {
-                const normalizedRoutes = getNormalizedCompletedRoutes()
-                if (onSubmitRoutes) {
-                  onSubmitRoutes(normalizedRoutes)
-                  return
-                }
-                window.dispatchEvent(new CustomEvent('submit-routes'))
-              }}
-              disabled={!allRoutesValid}
-              className="w-full px-2 py-2 bg-blue-600 text-white text-sm disabled:opacity-60"
-            >
-              Submit {completedRoutes.length} Route{completedRoutes.length !== 1 ? 's' : ''}
-            </button>
+            <div className="flex gap-2">
+              {onSaveDraft ? (
+                <button
+                  onClick={() => {
+                    const normalizedRoutes = getNormalizedCompletedRoutes()
+                    onSaveDraft(normalizedRoutes)
+                  }}
+                  disabled={!allRoutesValid || savingDraft}
+                  className="flex-1 px-2 py-2 bg-gray-800 text-white text-sm disabled:opacity-60"
+                >
+                  {savingDraft ? 'Saving...' : 'Save as Draft'}
+                </button>
+              ) : null}
+              <button
+                onClick={() => {
+                  const normalizedRoutes = getNormalizedCompletedRoutes()
+                  if (onSubmitRoutes) {
+                    onSubmitRoutes(normalizedRoutes)
+                    return
+                  }
+                  window.dispatchEvent(new CustomEvent('submit-routes'))
+                }}
+                disabled={!allRoutesValid}
+                className="flex-1 px-2 py-2 bg-blue-600 text-white text-sm disabled:opacity-60"
+              >
+                Publish {completedRoutes.length} Route{completedRoutes.length !== 1 ? 's' : ''}
+              </button>
+            </div>
           )}
 
           {isEditExistingMode && showEditSaveButton && (
