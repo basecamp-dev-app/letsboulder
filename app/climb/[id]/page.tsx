@@ -1,16 +1,13 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
-import Image from 'next/image'
-import Link from 'next/link'
 import useEmblaCarousel from 'embla-carousel-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 import { findRouteAtPoint, RoutePoint, useRouteSelection } from '@/lib/useRouteSelection'
-import { Share2, Twitter, Facebook, MessageCircle, Link2, Flag, Star, Layers, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { SITE_URL } from '@/lib/site'
@@ -18,19 +15,13 @@ import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { climbOfflinePackQueryKey, fetchClimbOfflinePack } from '@/lib/climb/queries'
 import { deleteClimbOfflinePack, getOfflinePackStatus, saveClimbOfflinePack } from '@/lib/offline/packs'
+import { runWhenIdle } from '@/lib/run-when-idle'
 import { formatSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/lib/submission-credit'
 import type { GradeOpinion } from '@/lib/grade-feedback'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
 import ClimbPageSkeleton from '@/app/climb/components/ClimbPageSkeleton'
-import FlagClimbModal from '@/components/FlagClimbModal'
+import ClimbFaceViewer from '@/app/climb/components/ClimbFaceViewer'
+import ClimbRouteRail from '@/app/climb/components/ClimbRouteRail'
+import ClimbInfoPanel from '@/app/climb/components/ClimbInfoPanel'
 
 const VideoBetaSection = dynamic(() => import('@/app/climb/components/VideoBetaSection'), {
   ssr: false,
@@ -38,6 +29,9 @@ const VideoBetaSection = dynamic(() => import('@/app/climb/components/VideoBetaS
 const CommentThread = dynamic(() => import('@/components/comments/CommentThread'), {
   ssr: false,
 })
+const ClimbShareDialog = dynamic(() => import('@/app/climb/components/ClimbShareDialog'))
+const ClimbOfflineDialog = dynamic(() => import('@/app/climb/components/ClimbOfflineDialog'))
+const FlagClimbModal = dynamic(() => import('@/components/FlagClimbModal'), { ssr: false })
 
 interface ImageInfo {
   id: string
@@ -1372,24 +1366,7 @@ export default function ClimbPage() {
 
   useEffect(() => {
     setShowDeferredSections(false)
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-    let idleId: number | null = null
-    const scheduleShow = () => setShowDeferredSections(true)
-
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      idleId = window.requestIdleCallback(scheduleShow, { timeout: 1200 })
-    } else {
-      timeoutId = setTimeout(scheduleShow, 350)
-    }
-
-    return () => {
-      if (idleId !== null && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
-        window.cancelIdleCallback(idleId)
-      }
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId)
-      }
-    }
+    return runWhenIdle(() => setShowDeferredSections(true), 1200)
   }, [climbId])
 
   useEffect(() => {
@@ -1419,27 +1396,16 @@ export default function ClimbPage() {
     if (starRatingSummaryByClimbId[selectedClimb.id]) return
 
     let cancelled = false
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-    let idleId: number | null = null
     const run = () => {
       if (cancelled) return
       void loadStarRatingSummary(selectedClimb.id)
     }
 
-    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-      idleId = window.requestIdleCallback(run, { timeout: 900 })
-    } else {
-      timeoutId = setTimeout(run, 250)
-    }
+    const cancelIdle = runWhenIdle(run, 900)
 
     return () => {
       cancelled = true
-      if (idleId !== null && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
-        window.cancelIdleCallback(idleId)
-      }
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId)
-      }
+      cancelIdle()
     }
   }, [selectedClimb, starRatingSummaryByClimbId, loadStarRatingSummary])
 
@@ -1722,612 +1688,129 @@ export default function ClimbPage() {
         </div>
       )}
 
-      <div className="group flex-1 relative overflow-hidden flex items-center justify-center p-4">
-        <Suspense fallback={
-          <div className="relative w-full max-w-6xl">
-            <div className="flex items-center justify-center min-h-[40vh]">
-              <div className="w-full max-w-3xl aspect-[4/3] bg-gray-200 dark:bg-gray-800 animate-pulse rounded-lg" />
-            </div>
-          </div>
-        }>
-          <div className="relative w-full max-w-6xl" ref={emblaRef}>
-            <div className="flex">
-              {visibleFaces.length === 0 && (
-                <div className="flex w-full items-center justify-center py-16">
-                  <div className="h-56 w-full max-w-3xl animate-pulse rounded-lg bg-gray-200 dark:bg-gray-800" />
-                </div>
-              )}
+      <ClimbFaceViewer
+        visibleFaces={visibleFaces}
+        activeFaceIndex={activeFaceIndex}
+        totalFaces={totalFaces}
+        canScrollPrev={canScrollPrev}
+        canScrollNext={canScrollNext}
+        zoom={zoom}
+        minViewerZoom={MIN_VIEWER_ZOOM}
+        pan={pan}
+        canvasFadeOut={canvasFadeOut}
+        transitionBufferLoading={!!transitionBuffer?.isLoading}
+        displayClimbName={displayClimb?.name || 'Climbing routes'}
+        viewerReadyState={viewerReadyState}
+        displayRouteTapPoint={displayRouteTapPoint}
+        emblaRef={emblaRef}
+        viewerTransformRef={viewerTransformRef}
+        imageRef={imageRef}
+        canvasRef={canvasRef}
+        onTouchStart={handleViewerTouchStart}
+        onTouchMove={handleViewerTouchMove}
+        onTouchEnd={handleViewerTouchEnd}
+        onCanvasClick={handleCanvasClick}
+        onFaceLoad={markFaceLoaded}
+        onScrollPrev={() => emblaApi?.scrollPrev()}
+        onScrollNext={() => emblaApi?.scrollNext()}
+        onScrollTo={(index) => emblaApi?.scrollTo(index)}
+        onPrefetchFace={(face) => {
+          prefetchFaceImage(face ? visibleFaces.find((item) => item.id === face.id) : undefined)
+        }}
+        onResetZoomPan={resetZoomPan}
+      />
 
-              {visibleFaces.map((face, index) => (
-                <div key={face.id} className="relative min-w-0 shrink-0 grow-0 basis-full flex items-center justify-center">
-                  <div
-                    ref={index === activeFaceIndex ? viewerTransformRef : undefined}
-                    className="relative"
-                    style={index === activeFaceIndex
-                      ? {
-                          transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-                          transformOrigin: 'center center',
-                          touchAction: zoom > MIN_VIEWER_ZOOM ? 'none' : 'auto',
-                        }
-                      : undefined}
-                    onTouchStart={index === activeFaceIndex ? handleViewerTouchStart : undefined}
-                    onTouchMove={index === activeFaceIndex ? handleViewerTouchMove : undefined}
-                    onTouchEnd={index === activeFaceIndex ? handleViewerTouchEnd : undefined}
-                    onTouchCancel={index === activeFaceIndex ? handleViewerTouchEnd : undefined}
-                  >
-                    <Image
-                      ref={index === activeFaceIndex ? imageRef : undefined}
-                      src={face.url}
-                      alt={displayClimb?.name || 'Climbing routes'}
-                      width={1600}
-                      height={1200}
-                      sizes="(max-width: 768px) 100vw, 1200px"
-                      fetchPriority={index === activeFaceIndex ? 'high' : undefined}
-                      unoptimized
-                      onLoad={() => markFaceLoaded(face.id)}
-                      className={`max-w-full max-h-[60vh] object-contain transition-opacity duration-200 ${
-                        index === activeFaceIndex ? 'opacity-100' : 'opacity-90'
-                      }`}
-                    />
-                    {index === activeFaceIndex && (
-                      <canvas
-                        ref={canvasRef}
-                        className={`absolute inset-0 cursor-pointer transition-opacity duration-150 ${
-                          canvasFadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
-                        }`}
-                        onClick={handleCanvasClick}
-                        data-ready-state={viewerReadyState}
-                        data-route-target-x={displayRouteTapPoint ? String(displayRouteTapPoint.x) : undefined}
-                        data-route-target-y={displayRouteTapPoint ? String(displayRouteTapPoint.y) : undefined}
-                        style={{ touchAction: zoom > MIN_VIEWER_ZOOM ? 'none' : 'auto' }}
-                      />
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+      <ClimbRouteRail
+        routeLines={routeLines}
+        selectedIds={selectedIds}
+        gradeSystem={gradeSystem}
+        routeCardRefs={routeCardRefs}
+        onSelectRoute={(routeId) => {
+          setHasUserInteractedWithSelection(true)
+          selectRoute(routeId)
+          updateRouteParam(routeId)
+          scrollRouteCardIntoView(routeId)
+        }}
+      />
 
-            {totalFaces > 1 && (
-              <>
-                <div className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                  <Layers className="h-3.5 w-3.5" />
-                  <span>{totalFaces}</span>
-                </div>
+      <ClimbInfoPanel
+        selectedClimb={selectedClimb}
+        selectedRouteExists={!!selectedRoute}
+        totalRoutesCombined={totalRoutesCombined}
+        totalFaces={totalFaces}
+        isFacesLoading={isFacesLoading}
+        cragPath={cragPath}
+        isOfflineSaved={isOfflineSaved}
+        offlinePackAvailable={!!offlinePack}
+        publicSubmitter={publicSubmitter ? { id: publicSubmitter.id, displayName: publicSubmitter.displayName } : null}
+        formattedContributionHandle={formattedContributionHandle}
+        contributionCreditUrl={contributionCreditUrl}
+        selectedClimbLogged={selectedClimbLogged}
+        selectedClimbLog={selectedClimbLog}
+        selectedClimbHasSavedFeedback={selectedClimbHasSavedFeedback}
+        selectedClimbFeedbackCollapsed={selectedClimbFeedbackCollapsed}
+        selectedClimbRatingSummary={selectedClimbRatingSummary}
+        selectedClimbAverageRating={selectedClimbAverageRating}
+        selectedClimbRoundedStars={selectedClimbRoundedStars}
+        pendingGradeOpinion={pendingGradeOpinion}
+        pendingStarRating={pendingStarRating}
+        savingFeedback={savingFeedback}
+        logging={logging}
+        userPresent={!!user}
+        gradeSystem={gradeSystem}
+        gradeOpinionLabels={GRADE_OPINION_LABELS}
+        formatRouteTypeLabel={formatRouteTypeLabel}
+        onOpenOffline={() => setOfflineDialogOpen(true)}
+        onOpenFlag={handleOpenFlagModal}
+        onShare={typeof navigator.share === 'function' ? handleNativeShare : () => setShareModalOpen(true)}
+        onGoToAuth={() => {
+          router.push(`/auth?redirect_to=${encodeURIComponent(getAuthRedirectPath())}`)
+        }}
+        onLog={handleLog}
+        onSetFeedbackCollapsed={(collapsed) => {
+          if (!selectedClimb) return
+          setFeedbackCollapsedByClimbId((prev) => ({ ...prev, [selectedClimb.id]: collapsed }))
+        }}
+        onSetPendingGradeOpinion={setPendingGradeOpinion}
+        onSetPendingStarRating={setPendingStarRating}
+        onSaveFeedback={handleSaveFeedback}
+        onGoToLogbook={() => router.push('/logbook')}
+        deferredSections={
+          <>
+            {showDeferredSections && image.id && !image.id.startsWith('legacy-') ? <VideoBetaSection climbId={activeClimbId} /> : null}
+            {showDeferredSections && image.id && !image.id.startsWith('legacy-') ? <CommentThread targetType="image" targetId={image.id} userId={user?.id || null} className="mt-6" /> : null}
+          </>
+        }
+      />
 
-                {canScrollPrev && (
-                  <button
-                    type="button"
-                    onClick={() => emblaApi?.scrollPrev()}
-                    aria-label="Previous face"
-                    className="absolute left-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                )}
+      {shareModalOpen ? (
+        <ClimbShareDialog
+          open={shareModalOpen}
+          climbName={displayClimb?.name || 'this climb'}
+          onOpenChange={setShareModalOpen}
+          onShareTwitter={handleShareTwitter}
+          onShareFacebook={handleShareFacebook}
+          onShareWhatsApp={handleShareWhatsApp}
+          onCopyLink={handleCopyLink}
+        />
+      ) : null}
 
-                {canScrollNext && (
-                  <button
-                    type="button"
-                    onClick={() => emblaApi?.scrollNext()}
-                    aria-label="Next face"
-                    className="absolute right-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
-                )}
-
-                <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/30 px-2 py-1 backdrop-blur-sm">
-                  {visibleFaces.map((face, idx) => (
-                    <button
-                      key={`dot-${face.id}`}
-                      type="button"
-                      onClick={() => emblaApi?.scrollTo(idx)}
-                      onMouseEnter={() => prefetchFaceImage(face)}
-                      aria-label={`Go to face ${idx + 1}`}
-                      className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full border text-[11px] font-semibold transition ${
-                        idx === activeFaceIndex
-                          ? 'border-white bg-white text-black'
-                          : 'border-white/40 bg-black/35 text-white hover:bg-white/25'
-                      }`}
-                    >
-                      {idx + 1}
-                    </button>
-                  ))}
-                  <span className="ml-1 text-[10px] font-medium text-white">{activeFaceIndex + 1}/{visibleFaces.length}</span>
-                  {visibleFaces[activeFaceIndex]?.face_directions && visibleFaces[activeFaceIndex].face_directions.length > 0 && (
-                    <span className="ml-1 flex items-center gap-0.5 text-[10px] font-medium text-white/80">
-                      <span className="text-[9px]">🧭</span>
-                      {visibleFaces[activeFaceIndex].face_directions.join('+')}
-                    </span>
-                  )}
-                </div>
-              </>
-            )}
-
-            {zoom > MIN_VIEWER_ZOOM && (
-              <button
-                type="button"
-                onClick={resetZoomPan}
-                className="absolute left-2 top-2 z-20 rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm transition hover:bg-black/70"
-              >
-                Reset zoom
-              </button>
-            )}
-            {transitionBuffer?.isLoading && (
-              <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center">
-                <div className="rounded-full bg-black/55 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
-                  Loading face routes...
-                </div>
-              </div>
-            )}
-          </div>
-        </Suspense>
-      </div>
-
-      {routeLines.length > 1 && (
-        <div className="border-t border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
-          <div className="mx-auto max-w-6xl">
-            <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory">
-              {routeLines.map((route) => {
-                const isActive = selectedIds.includes(route.id)
-                return (
-                  <button
-                    key={route.id}
-                    ref={(node) => {
-                      routeCardRefs.current[route.id] = node
-                    }}
-                    type="button"
-                    onClick={() => {
-                      setHasUserInteractedWithSelection(true)
-                      selectRoute(route.id)
-                      updateRouteParam(route.id)
-                      scrollRouteCardIntoView(route.id)
-                    }}
-                    className={`snap-center shrink-0 rounded-xl border px-3 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                      isActive
-                        ? 'border-blue-500 bg-blue-50 shadow-[0_0_0_1px_rgba(59,130,246,0.45)] dark:border-blue-400 dark:bg-blue-950/40'
-                        : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800'
-                    }`}
-                    aria-pressed={isActive}
-                    aria-label={`Select route ${route.climb.name}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: route.color }}
-                        aria-hidden="true"
-                      />
-                      <span className={`text-xs font-semibold ${
-                        isActive ? 'text-blue-800 dark:text-blue-100' : 'text-gray-600 dark:text-gray-300'
-                      }`}>
-                        {formatGradeForDisplay(route.climb.grade, gradeSystem)}
-                      </span>
-                    </div>
-                    <p className={`mt-1 max-w-[14rem] truncate text-sm font-medium ${
-                      isActive ? 'text-blue-900 dark:text-blue-50' : 'text-gray-900 dark:text-gray-100'
-                    }`}>
-                      {route.climb.name}
-                    </p>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
-        <div className="max-w-md mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                {selectedClimb ? selectedClimb.name : 'Select a route'}
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400">
-                {selectedClimb
-                  ? `Grade: ${formatGradeForDisplay(selectedClimb.grade, gradeSystem)}`
-                  : 'Tap a route on the image to select it'}
-              </p>
-              {selectedClimb?.route_type && (
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Type: {formatRouteTypeLabel(selectedClimb.route_type)}
-                </p>
-              )}
-              <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
-                {isFacesLoading ? 'Loading routes...' : `${totalRoutesCombined} route${totalRoutesCombined === 1 ? '' : 's'}`}
-                {totalFaces > 1 ? ` across ${totalFaces} faces` : ''}
-              </p>
-              {selectedClimb && (
-                <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {selectedClimbRatingSummary
-                    ? selectedClimbRatingSummary.rating_count > 0
-                      ? (
-                          <div className="flex items-center gap-2">
-                            <span>{selectedClimbAverageRating?.toFixed(1) || '0.0'}</span>
-                            <div className="flex items-center gap-0.5" aria-label="Community star rating">
-                              {[1, 2, 3, 4, 5].map((value) => {
-                                const active = value <= selectedClimbRoundedStars
-                                return (
-                                  <Star
-                                    key={value}
-                                    className={`w-4 h-4 ${
-                                      active
-                                        ? 'fill-amber-400 text-amber-500'
-                                        : 'text-gray-300 dark:text-gray-600'
-                                    }`}
-                                  />
-                                )
-                              })}
-                            </div>
-                            <span>({selectedClimbRatingSummary.rating_count})</span>
-                          </div>
-                        )
-                      : 'Community rating: No ratings yet'
-                    : 'Community rating: Loading...'}
-                </div>
-              )}
-              {selectedClimb?.description && (
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedClimb.description}</p>
-              )}
-              {publicSubmitter && (
-                <>
-                  {formattedContributionHandle && (
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Credit to{' '}
-                      {contributionCreditUrl ? (
-                        <a
-                          href={contributionCreditUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline decoration-gray-400 underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200"
-                        >
-                          {formattedContributionHandle}
-                        </a>
-                      ) : (
-                        <span>{formattedContributionHandle}</span>
-                      )}
-                    </p>
-                  )}
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Submitted by{' '}
-                    <Link
-                      href={`/logbook/${publicSubmitter.id}`}
-                      prefetch={false}
-                      className="underline decoration-gray-400 underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200"
-                    >
-                      {publicSubmitter.displayName}
-                    </Link>
-                  </p>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {cragPath && (
-                <Link
-                  href={cragPath}
-                  className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  View crag
-                </Link>
-              )}
-              <button
-                onClick={() => setOfflineDialogOpen(true)}
-                disabled={!offlinePack}
-                className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isOfflineSaved ? 'Saved offline' : 'Save offline'}
-              </button>
-              <button
-                onClick={handleOpenFlagModal}
-                disabled={!selectedClimb}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label="Report incorrect route info"
-                title={selectedClimb ? 'Report incorrect route info' : 'Select a route to report'}
-              >
-                <Flag className="w-5 h-5" />
-              </button>
-              <button
-                onClick={typeof navigator.share === 'function' ? handleNativeShare : () => setShareModalOpen(true)}
-                className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors"
-                aria-label="Share climb"
-              >
-                <Share2 className="w-5 h-5" />
-              </button>
-              {selectedClimbLogged && (
-                <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 rounded-full text-sm font-medium">
-                  Logged
-                </span>
-              )}
-            </div>
-          </div>
-
-          {!selectedClimbLogged && (
-            <div className="space-y-3">
-              {!user ? (
-                <button
-                  onClick={() => {
-                    router.push(`/auth?redirect_to=${encodeURIComponent(getAuthRedirectPath())}`)
-                  }}
-                  className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
-                >
-                  Sign in to Log This Climb
-                </button>
-              ) : (
-                <>
-                  <p className="text-gray-400 text-sm">
-                    {selectedRoute ? 'Route selected - choose an option below' : 'Tap a route to select it'}
-                  </p>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => handleLog('flash')}
-                      disabled={logging || !selectedClimb}
-                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-                    >
-                      Flash
-                    </button>
-                    <button
-                      onClick={() => handleLog('top')}
-                      disabled={logging || !selectedClimb}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-                    >
-                      Send
-                    </button>
-                    <button
-                      onClick={() => handleLog('try')}
-                      disabled={logging || !selectedClimb}
-                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-                    >
-                      Try
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {selectedClimbLogged && selectedClimb && (
-            <div className="space-y-3">
-              {selectedClimbFeedbackCollapsed ? (
-                <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-green-700 dark:text-green-400">Saved</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Grade feel:{' '}
-                        {selectedClimbLog?.gradeOpinion
-                          ? GRADE_OPINION_LABELS[selectedClimbLog.gradeOpinion]
-                          : 'Not set'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setFeedbackCollapsedByClimbId((prev) => ({ ...prev, [selectedClimb.id]: false }))}
-                      className="text-xs font-medium px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      Edit
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-1 mt-3">
-                    {[1, 2, 3, 4, 5].map((value) => {
-                      const active = (selectedClimbLog?.starRating ?? 0) >= value
-                      return (
-                        <Star
-                          key={value}
-                          className={`w-4 h-4 ${
-                            active
-                              ? 'fill-amber-400 text-amber-500'
-                              : 'text-gray-300 dark:text-gray-600'
-                          }`}
-                        />
-                      )
-                    })}
-                    {!selectedClimbLog?.starRating && (
-                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">No star rating yet</span>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">How did the grade feel?</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Current grade: {formatGradeForDisplay(selectedClimb.grade, gradeSystem)}
-                  </p>
-                  <div className="grid grid-cols-3 gap-2 mt-3">
-                    {([
-                      { value: 'soft', label: 'Soft' },
-                      { value: 'agree', label: 'Agree' },
-                      { value: 'hard', label: 'Hard' },
-                    ] as Array<{ value: GradeOpinion; label: string }>).map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setPendingGradeOpinion(option.value)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                          pendingGradeOpinion === option.value
-                            ? 'border-gray-900 dark:border-gray-100 bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
-                            : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-4">Rate the climb</p>
-                  <div className="flex items-center gap-1 mt-2">
-                    {[1, 2, 3, 4, 5].map((value) => {
-                      const active = (pendingStarRating ?? 0) >= value
-                      return (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => setPendingStarRating(value)}
-                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                          aria-label={`Rate ${value} star${value > 1 ? 's' : ''}`}
-                        >
-                          <Star
-                            className={`w-5 h-5 ${
-                              active
-                                ? 'fill-amber-400 text-amber-500'
-                                : 'text-gray-300 dark:text-gray-600'
-                            }`}
-                          />
-                        </button>
-                      )
-                    })}
-                    {pendingStarRating && (
-                      <button
-                        type="button"
-                        onClick={() => setPendingStarRating(null)}
-                        className="ml-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={handleSaveFeedback}
-                    disabled={savingFeedback || (!pendingGradeOpinion && !pendingStarRating)}
-                    className="mt-4 w-full px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-                  >
-                    {savingFeedback ? 'Saving...' : selectedClimbHasSavedFeedback ? 'Update Feedback' : 'Save Feedback'}
-                  </button>
-                </div>
-              )}
-
-              <button
-                onClick={() => router.push('/logbook')}
-                className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors"
-              >
-                View Logbook
-              </button>
-            </div>
-          )}
-
-          {showDeferredSections && image.id && !image.id.startsWith('legacy-') && (
-            <VideoBetaSection climbId={activeClimbId} />
-          )}
-
-          {showDeferredSections && image.id && !image.id.startsWith('legacy-') && (
-            <CommentThread targetType="image" targetId={image.id} userId={user?.id || null} className="mt-6" />
-          )}
-        </div>
-      </div>
-
-      <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
-        <DialogContent className="bg-gray-900 border-gray-800 text-white">
-          <DialogHeader>
-            <DialogTitle>Share Climb</DialogTitle>
-            <DialogDescription className="text-gray-400">
-              Share &ldquo;{displayClimb?.name || 'this climb'}&rdquo; with your friends
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-4 gap-3 py-4">
-            <Button
-              variant="outline"
-              onClick={handleShareTwitter}
-              className="flex flex-col items-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800"
-            >
-              <Twitter className="w-6 h-6 text-blue-400" />
-              <span className="text-xs">Twitter</span>
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleShareFacebook}
-              className="flex flex-col items-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800"
-            >
-              <Facebook className="w-6 h-6 text-blue-600" />
-              <span className="text-xs">Facebook</span>
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleShareWhatsApp}
-              className="flex flex-col items-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800"
-            >
-              <MessageCircle className="w-6 h-6 text-green-500" />
-              <span className="text-xs">WhatsApp</span>
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleCopyLink}
-              className="flex flex-col items-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800"
-            >
-              <Link2 className="w-6 h-6 text-gray-400" />
-              <span className="text-xs">Copy</span>
-            </Button>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setShareModalOpen(false)} className="w-full">
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={offlineDialogOpen} onOpenChange={setOfflineDialogOpen}>
-        <DialogContent className="border-gray-200 bg-white text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white">
-          <DialogHeader>
-            <DialogTitle>{isOfflineSaved ? 'Offline pack saved' : 'Save climb offline'}</DialogTitle>
-            <DialogDescription className="text-gray-500 dark:text-gray-400">
-              {isOfflineSaved
-                ? 'This climb pack stores topo photos and core climb data on this device.'
-                : 'This saves topo photos and core climb data for offline viewing.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 text-sm">
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/60">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-gray-500 dark:text-gray-400">Climb</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{displayClimb?.name || climbPackData?.climb?.name || 'This climb'}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <span className="text-gray-500 dark:text-gray-400">Photos</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{offlinePack?.mediaCount || 0}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <span className="text-gray-500 dark:text-gray-400">Estimated size</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePack?.estimatedBytes || 0)}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                <span className="text-gray-500 dark:text-gray-400">Storage used</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlineUsageBytes)} of {formatBytes(offlineBudgetBytes)}</span>
-              </div>
-            </div>
-
-            {offlineSaveWouldExceedBudget && !isOfflineSaved && (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-                This pack exceeds your offline storage budget. Remove another saved climb first.
-              </p>
-            )}
-          </div>
-
-          <DialogFooter>
-            {isOfflineSaved ? (
-              <>
-                <Button variant="outline" onClick={() => setOfflineDialogOpen(false)} disabled={offlineActionLoading}>
-                  Close
-                </Button>
-                <Button variant="ghost" onClick={handleRemoveOfflinePack} disabled={offlineActionLoading} className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
-                  {offlineActionLoading ? 'Removing...' : 'Remove offline pack'}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="outline" onClick={() => setOfflineDialogOpen(false)} disabled={offlineActionLoading}>
-                  Cancel
-                </Button>
-                <Button onClick={handleConfirmOfflineSave} disabled={offlineActionLoading || !offlinePack || offlineSaveWouldExceedBudget}>
-                  {offlineActionLoading ? 'Saving...' : 'Save offline'}
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {offlineDialogOpen ? (
+        <ClimbOfflineDialog
+          open={offlineDialogOpen}
+          isOfflineSaved={isOfflineSaved}
+          offlineActionLoading={offlineActionLoading}
+          offlineSaveWouldExceedBudget={offlineSaveWouldExceedBudget}
+          climbName={displayClimb?.name || climbPackData?.climb?.name || 'This climb'}
+          offlinePack={offlinePack}
+          offlineUsageBytes={offlineUsageBytes}
+          offlineBudgetBytes={offlineBudgetBytes}
+          formatBytes={formatBytes}
+          onOpenChange={setOfflineDialogOpen}
+          onConfirmSave={handleConfirmOfflineSave}
+          onRemove={handleRemoveOfflinePack}
+        />
+      ) : null}
 
       {flagModalOpen && selectedClimb && (
         <FlagClimbModal

@@ -9,6 +9,8 @@ import { Bookmark } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useMapEvents } from 'react-leaflet'
+import MapLoadingShell from '@/components/map/MapLoadingShell'
+import { runWhenIdle } from '@/lib/run-when-idle'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -305,48 +307,49 @@ export default function SatelliteClimbingMap() {
   }, [isClient])
 
   useEffect(() => {
-    if (!isClient) return
-    loadPlacePins()
-  }, [isClient, loadPlacePins])
+    if (!isClient || !mapLoaded) return
+    return runWhenIdle(() => {
+      void loadPlacePins()
+    }, 150)
+  }, [isClient, loadPlacePins, mapLoaded])
 
   useEffect(() => {
-    if (!isClient) return
+    if (!isClient || !mapLoaded) return
 
     if (!navigator.geolocation) return
 
-    setLocationStatus('requesting')
+    return runWhenIdle(() => {
+      setLocationStatus('requesting')
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords
-        setUserLocation([latitude, longitude])
-        setLocationStatus('tracking')
-      },
-      () => setLocationStatus('error'),
-      { enableHighAccuracy: true, timeout: 15000 }
-    )
-  }, [isClient])
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords
+          setUserLocation([latitude, longitude])
+          setLocationStatus('tracking')
+        },
+        () => setLocationStatus('error'),
+        { enableHighAccuracy: true, timeout: 15000 }
+      )
+    }, 400)
+  }, [isClient, mapLoaded])
 
   useEffect(() => {
-    if (!isClient) return
+    if (!isClient || !mapLoaded) return
 
     let ignore = false
 
     const fetchUser = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      console.log('[Map] fetchUser - user:', user?.id)
       if (ignore) return
       setUser(user)
 
       if (user) {
-        const { data: profile, error } = await supabase
+        const { data: profile } = await supabase
           .from('profiles')
           .select('default_location_lat, default_location_lng, default_location_zoom')
           .eq('id', user.id)
           .single()
-
-        console.log('[Map] Profile fetch result:', { profile, error })
 
         if (ignore) return
 
@@ -356,18 +359,11 @@ export default function SatelliteClimbingMap() {
           && profile?.default_location_lng !== null
           && profile?.default_location_lng !== undefined
         ) {
-          console.log('[Map] Setting defaultLocation:', {
-            lat: profile.default_location_lat,
-            lng: profile.default_location_lng,
-            zoom: profile.default_location_zoom || 12
-          })
           setDefaultLocation({
             lat: profile.default_location_lat,
             lng: profile.default_location_lng,
             zoom: profile.default_location_zoom || 12
           })
-        } else {
-          console.log('[Map] No default_location in profile')
         }
       }
     }
@@ -376,13 +372,16 @@ export default function SatelliteClimbingMap() {
       fetchUser()
     }
 
-    fetchUser()
+    const cancelIdle = runWhenIdle(() => {
+      void fetchUser()
+    }, 450)
     window.addEventListener('focus', handleFocus)
     return () => {
       ignore = true
+      cancelIdle()
       window.removeEventListener('focus', handleFocus)
     }
-    }, [isClient])
+    }, [isClient, mapLoaded])
 
   const handleSaveAsDefault = async () => {
     if (!mapRef.current || !user) {
@@ -440,18 +439,14 @@ export default function SatelliteClimbingMap() {
   useEffect(() => {
       if (!mapRef.current || !mapLoaded) return
 
-      console.log('[Map] Centering effect - mapLoaded:', mapLoaded, 'defaultLocation:', defaultLocation)
-
       if (defaultLocation) {
-        console.log('[Map] Centering on defaultLocation:', { lat: defaultLocation.lat, lng: defaultLocation.lng, zoom: defaultLocation.zoom })
         mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
       } else {
-        console.log('[Map] No saved location, falling back to world view')
         mapRef.current.setView(WORLD_DEFAULT_VIEW, WORLD_DEFAULT_ZOOM)
       }
     }, [mapLoaded, defaultLocation])
   if (!isClient) {
-    return <div className="h-screen w-full bg-white dark:bg-gray-950" />
+    return <MapLoadingShell />
   }
 
   return (
@@ -559,6 +554,11 @@ export default function SatelliteClimbingMap() {
           )
         })}
       </MapContainer>
+      {!mapLoaded ? (
+        <div className="pointer-events-none absolute inset-0 z-[900] transition-opacity duration-300">
+          <MapLoadingShell />
+        </div>
+      ) : null}
       <button
         onClick={handleSaveAsDefault}
         disabled={saveLocationLoading}

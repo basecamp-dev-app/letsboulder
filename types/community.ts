@@ -22,6 +22,7 @@ export interface CommunitySessionPost {
   created_at: string
   updated_at: string
   author: CommunityAuthor | null
+  is_pending?: boolean
 }
 
 export interface CommunityUpdatePost {
@@ -35,4 +36,5 @@ export interface CommunityUpdatePost {
   created_at: string
   updated_at: string
   author: CommunityAuthor | null
+  is_pending?: boolean
 }

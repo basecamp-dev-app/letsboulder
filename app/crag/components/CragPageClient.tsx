@@ -9,12 +9,7 @@ import { useRouter } from 'next/navigation'
 import { Download, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
-import SessionComposer from '@/app/community/components/SessionComposer'
-import UpcomingFeed from '@/app/community/components/UpcomingFeed'
-import UpdateComposer from '@/app/community/components/UpdateComposer'
-import UpdatesFeed from '@/app/community/components/UpdatesFeed'
-import TopThisPlacePanel from '@/app/community/components/TopThisPlacePanel'
-import PlaceRankingsPanel from '@/app/community/components/PlaceRankingsPanel'
+import PlaceCommunityClient from '@/app/community/components/PlaceCommunityClient'
 import { SITE_URL } from '@/lib/site'
 import { GRADES, normalizeGrade } from '@/lib/grades'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
@@ -41,6 +36,8 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
+const TopThisPlacePanel = dynamic(() => import('@/app/community/components/TopThisPlacePanel'))
+const PlaceRankingsPanel = dynamic(() => import('@/app/community/components/PlaceRankingsPanel'))
 
 interface LeafletIconDefault {
   prototype: {
@@ -1126,7 +1123,7 @@ export default function CragPageClient({
                   }}
                 >
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
-                    <Image src={image.url} alt="Routes" fill className="object-cover" sizes="160px" unoptimized />
+                    <Image src={image.url} alt="Routes" fill className="object-cover" sizes="160px" />
                     {image.supplementary_faces_count > 0 && (
                       <div className="absolute bottom-1 left-1 rounded-full bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
                         {1 + image.supplementary_faces_count} faces
@@ -1268,7 +1265,6 @@ export default function CragPageClient({
                                 fill
                                 className="object-cover"
                                 sizes="80px"
-                                unoptimized
                               />
                             ) : null}
                           </div>
@@ -1314,7 +1310,6 @@ export default function CragPageClient({
                           fill
                           className="object-cover"
                           sizes="(max-width: 768px) 33vw, 25vw"
-                          unoptimized
                         />
                         {image.supplementary_faces_count > 0 && (
                           <div className="absolute bottom-2 left-2 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
@@ -1552,15 +1547,23 @@ export default function CragPageClient({
 
         {routeView === 'upcoming' && (
           <div className="mb-6 space-y-4">
-            <SessionComposer placeId={resolvedCommunityPlaceId} />
-            <UpcomingFeed posts={initialSessionPosts} />
+            <PlaceCommunityClient
+              activeTab="upcoming"
+              placeId={resolvedCommunityPlaceId}
+              sessionPosts={initialSessionPosts}
+              updatePosts={initialUpdatePosts}
+            />
           </div>
         )}
 
         {routeView === 'updates' && (
           <div className="mb-6 space-y-4">
-            <UpdateComposer placeId={resolvedCommunityPlaceId} />
-            <UpdatesFeed posts={initialUpdatePosts} />
+            <PlaceCommunityClient
+              activeTab="updates"
+              placeId={resolvedCommunityPlaceId}
+              sessionPosts={initialSessionPosts}
+              updatePosts={initialUpdatePosts}
+            />
           </div>
         )}
 

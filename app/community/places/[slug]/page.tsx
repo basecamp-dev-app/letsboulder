@@ -2,11 +2,8 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import PlaceCommunityClient from '@/app/community/components/PlaceCommunityClient'
 import { getServerClient } from '@/lib/supabase-server'
-import SessionComposer from '@/app/community/components/SessionComposer'
-import UpcomingFeed from '@/app/community/components/UpcomingFeed'
-import UpdateComposer from '@/app/community/components/UpdateComposer'
-import UpdatesFeed from '@/app/community/components/UpdatesFeed'
 import TopThisPlacePanel from '@/app/community/components/TopThisPlacePanel'
 import PlaceRankingsPanel from '@/app/community/components/PlaceRankingsPanel'
 import { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
@@ -271,7 +268,7 @@ export default async function CommunityPlacePage({ params, searchParams }: { par
                 alt={gymFloorPlan.name}
                 width={1600}
                 height={1200}
-                unoptimized
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 960px"
                 className="block w-full h-auto"
               />
               {gymMarkers.map(marker => (
@@ -317,19 +314,13 @@ export default async function CommunityPlacePage({ params, searchParams }: { par
           </Link>
         </div>
 
-        {activeTab === 'upcoming' || activeTab === 'updates' ? (
-          <div className="mt-4">
-            {activeTab === 'upcoming' ? <SessionComposer placeId={typedPlace.id} /> : <UpdateComposer placeId={typedPlace.id} />}
-          </div>
-        ) : null}
-
-        <div className="mt-4">
-          {activeTab === 'upcoming'
-            ? <UpcomingFeed posts={sessionPosts} />
-            : activeTab === 'updates'
-              ? <UpdatesFeed posts={updatePosts} />
-              : <PlaceRankingsPanel slug={slug} />}
-        </div>
+        {activeTab === 'upcoming' || activeTab === 'updates'
+          ? <PlaceCommunityClient activeTab={activeTab} placeId={typedPlace.id} sessionPosts={sessionPosts} updatePosts={updatePosts} />
+          : (
+            <div className="mt-4">
+              <PlaceRankingsPanel slug={slug} />
+            </div>
+          )}
       </div>
     </div>
   )

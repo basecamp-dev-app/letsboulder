@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -48,10 +48,12 @@ export default function Header() {
   const [showMoreDropdown, setShowMoreDropdown] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const latestSearchRequestRef = useRef(0)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const pathname = usePathname()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     const el = headerRef.current
@@ -76,7 +78,6 @@ export default function Header() {
   }, [pathname])
 
   useEffect(() => {
-    const supabase = createClient()
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       setUser(user)
@@ -90,7 +91,7 @@ export default function Header() {
     )
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [supabase])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -117,20 +118,27 @@ export default function Header() {
     const requestId = latestSearchRequestRef.current + 1
     latestSearchRequestRef.current = requestId
     setIsSearching(true)
-    const supabase = createClient()
-
     try {
-      const results: SearchResult[] = []
-
-      const { data: cragsData } = await supabase
-        .from('crags')
-        .select('id, name, latitude, longitude, slug, country_code')
-        .ilike('name', `%${trimmedQuery}%`)
-        .limit(5)
+      const [cragsResponse, climbsResponse] = await Promise.all([
+        supabase
+          .from('crags')
+          .select('id, name, latitude, longitude, slug, country_code')
+          .ilike('name', `%${trimmedQuery}%`)
+          .limit(5),
+        supabase
+          .from('climbs')
+          .select('id, name, crags!inner(name, latitude, longitude)')
+          .ilike('name', `%${trimmedQuery}%`)
+          .eq('status', 'approved')
+          .limit(10)
+      ])
 
       if (requestId !== latestSearchRequestRef.current) {
         return
       }
+
+      const results: SearchResult[] = []
+      const cragsData = cragsResponse.data
 
       if (cragsData) {
         cragsData.forEach((crag: CragData) => {
@@ -148,16 +156,7 @@ export default function Header() {
         })
       }
 
-      const { data: climbsData } = await supabase
-        .from('climbs')
-        .select('id, name, crags!inner(name, latitude, longitude)')
-        .ilike('name', `%${trimmedQuery}%`)
-        .eq('status', 'approved')
-        .limit(10)
-
-      if (requestId !== latestSearchRequestRef.current) {
-        return
-      }
+      const climbsData = climbsResponse.data
 
       if (climbsData) {
         climbsData.forEach((climb: ClimbSearchRow) => {
@@ -181,13 +180,38 @@ export default function Header() {
         setIsSearching(false)
       }
     }
-  }, [])
+  }, [supabase])
+
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+      searchTimeoutRef.current = null
+    }
+
+    const trimmedQuery = searchQuery.trim()
+    if (!trimmedQuery || trimmedQuery.length < 2) {
+      latestSearchRequestRef.current += 1
+      setSearchResults([])
+      setIsSearching(false)
+      return
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      void searchClimbsAndCrags(searchQuery)
+    }, 250)
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+        searchTimeoutRef.current = null
+      }
+    }
+  }, [searchClimbsAndCrags, searchQuery])
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const query = e.target.value
     setSearchQuery(query)
     setShowSearchDropdown(true)
-    searchClimbsAndCrags(query)
   }
 
   const handleResultClick = (result: SearchResult) => {
@@ -209,7 +233,6 @@ export default function Header() {
   }
 
   const handleLogout = async () => {
-    const supabase = createClient()
     await supabase.auth.signOut()
     window.location.href = '/'
   }

@@ -97,20 +97,34 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
     })
   }
 
+  const applyLogsUpdate = (nextLogs: Climb[]) => {
+    setLogs(nextLogs)
+    syncOwnLogbookCache((current) => ({
+      ...current,
+      logs: current.logs.filter((log) => nextLogs.some((nextLog) => nextLog.id === log.id)),
+    }))
+  }
+
+  const applySubmissionsUpdate = (nextSubmissions: Submission[]) => {
+    setSubmissions(nextSubmissions)
+    syncOwnLogbookCache((current) => ({
+      ...current,
+      submissions: nextSubmissions,
+    }))
+  }
+
   const handleDeleteLog = async (logId: string) => {
     setDeletingId(logId)
+    const previousLogs = logs
+    const nextLogs = previousLogs.filter((log) => log.id !== logId)
+    applyLogsUpdate(nextLogs)
+
     try {
       const response = await csrfFetch(`/api/logs/${logId}`, { method: 'DELETE' })
       if (!response.ok) throw new Error()
-
-      const updatedLogs = logs.filter(log => log.id !== logId)
-      setLogs(updatedLogs)
-      syncOwnLogbookCache((current) => ({
-        ...current,
-        logs: current.logs.filter((log) => log.id !== logId),
-      }))
       addToast('Climb removed from logbook', 'success')
     } catch {
+      applyLogsUpdate(previousLogs)
       addToast('Failed to remove climb', 'error')
     } finally {
       setDeletingId(null)
@@ -119,17 +133,16 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
 
   const handleDeleteDraft = async (draftId: string) => {
     setDeletingDraftId(draftId)
+    const previousSubmissions = submissions
+    const nextSubmissions = previousSubmissions.filter((submission) => submission.id !== draftId)
+    applySubmissionsUpdate(nextSubmissions)
+
     try {
       const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, { method: 'DELETE' })
       if (!response.ok) throw new Error()
-
-      setSubmissions((previous) => previous.filter((submission) => submission.id !== draftId))
-      syncOwnLogbookCache((current) => ({
-        ...current,
-        submissions: current.submissions.filter((submission) => submission.id !== draftId),
-      }))
       addToast('Draft deleted', 'success')
     } catch {
+      applySubmissionsUpdate(previousSubmissions)
       addToast('Failed to delete draft', 'error')
     } finally {
       setDeletingDraftId(null)
@@ -138,6 +151,20 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
 
   const handlePublishDraft = async (draftId: string) => {
     setPublishingDraftId(draftId)
+    const previousSubmissions = submissions
+    const now = new Date().toISOString()
+    const optimisticSubmissions: Submission[] = previousSubmissions.map((submission) => (
+      submission.id === draftId
+        ? {
+            ...submission,
+            status: 'pending_review' as const,
+            updated_at: now,
+            is_optimistic: true,
+          }
+        : submission
+    ))
+    applySubmissionsUpdate(optimisticSubmissions)
+
     try {
       const response = await csrfFetch(`/api/submissions/drafts/${draftId}/promote`, { method: 'POST' })
       const payload = await response.json().catch(() => ({} as {
@@ -151,11 +178,7 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
 
       const supabase = createClient()
       const refreshed = await fetchOwnSubmissions(supabase, userId, csrfFetch, 24)
-      setSubmissions(refreshed)
-      syncOwnLogbookCache((current) => ({
-        ...current,
-        submissions: refreshed,
-      }))
+      applySubmissionsUpdate(refreshed)
 
       const imageId = payload.published?.imageId
       const imageCount = Array.isArray(payload.published?.imageIds)
@@ -173,6 +196,7 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
         router.push(`/logbook/submissions/${imageId}/edit?${query.toString()}`)
       }
     } catch {
+      applySubmissionsUpdate(previousSubmissions)
       addToast('Failed to publish draft', 'error')
     } finally {
       setPublishingDraftId(null)
@@ -343,7 +367,6 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
                               alt={log.climbs.name || 'Climb image'}
                               width={48}
                               height={48}
-                              unoptimized
                               className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded shrink-0"
                             />
                           )}
@@ -381,7 +404,6 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
                           alt={log.climbs.name}
                           width={48}
                           height={48}
-                          unoptimized
                           className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded"
                         />
                       </Link>

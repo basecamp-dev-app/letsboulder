@@ -324,7 +324,7 @@ export default function GymAdminPage() {
                       alt={activeFloorPlan.name}
                       width={activeFloorPlan.image_width}
                       height={activeFloorPlan.image_height}
-                      unoptimized
+                      sizes="(max-width: 1024px) 100vw, 66vw"
                       className="block w-full h-auto select-none"
                     />
                     {routes.map((route, index) => route.marker ? (

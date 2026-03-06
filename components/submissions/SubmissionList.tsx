@@ -22,16 +22,55 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
       {submissions.map((submission) => {
         const formattedHandle = formatSubmissionCreditHandle(submission.contribution_credit_handle)
         const draftHref = `/logbook/drafts/${submission.id}/edit`
-        const statusLabel = submission.status === 'draft'
+        const isOptimisticPublishing = submission.is_optimistic && submission.status === 'pending_review'
+        const isDraftActionsVisible = submission.kind === 'draft' && submission.status === 'draft' && !isOptimisticPublishing
+        const statusLabel = isOptimisticPublishing
+          ? 'Publishing'
+          : submission.status === 'draft'
           ? 'Draft'
           : submission.status === 'pending_review'
             ? 'Pending review'
             : 'Published'
-        const statusClassName = submission.status === 'draft'
+        const statusClassName = isOptimisticPublishing
+          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
+          : submission.status === 'draft'
           ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
           : submission.status === 'pending_review'
             ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
             : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
+        const destinationHref = submission.kind === 'draft'
+          ? draftHref
+          : `/image/${submission.id}`
+        const content = (
+          <>
+            <Image
+              src={resolveRouteImageUrl(submission.url)}
+              alt="Submitted route image"
+              width={48}
+              height={48}
+              sizes="48px"
+              unoptimized={submission.kind === 'draft'}
+              className="w-12 h-12 object-cover rounded"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                {submission.crag_name || 'Unknown crag'}
+                <span className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusClassName}`}>
+                  {statusLabel}
+                </span>
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'}
+                {submission.kind === 'submitted' && (submission.image_count || 0) > 1
+                  ? ` • ${submission.image_count} images`
+                  : ''}
+                {' • '}
+                {new Date(submission.updated_at).toLocaleDateString()}
+                {formattedHandle ? ` • ${formattedHandle}` : ''}
+              </p>
+            </div>
+          </>
+        )
 
         return (
           <div
@@ -39,40 +78,22 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
             className="py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
           >
             <div className="flex items-center gap-3">
-              <Link
-                href={submission.kind === 'draft' ? draftHref : `/image/${submission.id}`}
-                className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
-              >
-                <Image
-                  src={resolveRouteImageUrl(submission.url)}
-                  alt="Submitted route image"
-                  width={48}
-                  height={48}
-                  unoptimized
-                  className="w-12 h-12 object-cover rounded"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                    {submission.crag_name || 'Unknown crag'}
-                    <span className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusClassName}`}>
-                      {statusLabel}
-                    </span>
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'}
-                    {submission.kind === 'submitted' && (submission.image_count || 0) > 1
-                      ? ` • ${submission.image_count} images`
-                      : ''}
-                    {' • '}
-                    {new Date(submission.updated_at).toLocaleDateString()}
-                    {formattedHandle ? ` • ${formattedHandle}` : ''}
-                  </p>
+              {isOptimisticPublishing ? (
+                <div className="flex min-w-0 flex-1 items-center gap-3 rounded-sm opacity-80">
+                  {content}
                 </div>
-              </Link>
+              ) : (
+                <Link
+                  href={destinationHref}
+                  className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
+                >
+                  {content}
+                </Link>
+              )}
 
               {isOwnProfile && (
                 <div className="shrink-0 flex flex-col items-end gap-1">
-                  {submission.kind === 'draft' ? (
+                  {isDraftActionsVisible ? (
                     <>
                       <Link
                         href={draftHref}
@@ -104,6 +125,11 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                         </button>
                       )}
                     </>
+                  ) : isOptimisticPublishing ? (
+                    <div className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Publishing...
+                    </div>
                   ) : (
                     <Link
                       href={`/logbook/submissions/${submission.id}/edit`}

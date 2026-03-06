@@ -331,7 +331,10 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
         {post.grade_min || post.grade_max ? ` • ${post.grade_min || '?'} to ${post.grade_max || '?'}` : ''}
       </p>
       <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-200">{post.body}</p>
-      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Posted by {authorLabel(post)}</p>
+      <div className="mt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <p>Posted by {authorLabel(post)}</p>
+        {post.is_pending ? <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Sending...</span> : null}
+      </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <button

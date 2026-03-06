@@ -66,6 +66,10 @@ export default async function Home() {
 
   return (
     <>
+      <section className="sr-only">
+        <h1>Climbing map and photo topos</h1>
+        <p>Browse climbing areas, route beta, and community updates while the interactive map loads.</p>
+      </section>
       <MapViewport />
       <script
         type="application/ld+json"
