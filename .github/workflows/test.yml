@@ -21,7 +21,15 @@ permissions:
 jobs:
   smoke:
     name: E2E Smoke
-    if: github.event_name != 'schedule'
+    if: |
+      github.event_name != 'schedule' &&
+      (
+        github.event_name != 'deployment_status' ||
+        (
+          github.event.deployment_status.state == 'success' &&
+          github.event.deployment.ref == 'dev'
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -64,6 +72,17 @@ jobs:
             if (manualBaseUrl) {
               core.info(`Using manual base URL: ${manualBaseUrl}`);
               core.setOutput('base_url', manualBaseUrl);
+              return;
+            }
+
+            if (context.eventName === 'deployment_status') {
+              const targetUrl = context.payload.deployment_status?.target_url || '';
+              if (!targetUrl) {
+                core.setFailed('Deployment status event is missing target_url.');
+                return;
+              }
+              core.info(`Using deployment target URL: ${targetUrl}`);
+              core.setOutput('base_url', targetUrl);
               return;
             }
 
@@ -157,6 +176,31 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
+      - name: Preflight test auth endpoint
+        run: |
+          base_url='${{ env.PLAYWRIGHT_BASE_URL }}'
+          test_url="$base_url/api/test/auth?api_key=${TEST_API_KEY}&user_id=${TEST_USER_ID}"
+
+          status_code=$(curl -s -o /tmp/test-auth-response.txt -w "%{http_code}" \
+            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+            -H "x-internal-test-key: ${INTERNAL_TEST_KEY}" \
+            -H "x-test-auth: 1" \
+            "$test_url")
+
+          if [ "$status_code" -ne 200 ]; then
+            echo "Preflight auth failed with status $status_code"
+            cat /tmp/test-auth-response.txt
+            exit 1
+          fi
+          echo "Preflight auth succeeded"
+        env:
+          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
+          INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
       - name: Run Playwright smoke suite
         run: npx playwright test --project=public --project=authenticated --grep @smoke
         env:
@@ -235,6 +279,31 @@ jobs:
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
+      - name: Preflight test auth endpoint
+        run: |
+          base_url='${{ env.PLAYWRIGHT_BASE_URL }}'
+          test_url="$base_url/api/test/auth?api_key=${TEST_API_KEY}&user_id=${TEST_USER_ID}"
+
+          status_code=$(curl -s -o /tmp/test-auth-response.txt -w "%{http_code}" \
+            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+            -H "x-internal-test-key: ${INTERNAL_TEST_KEY}" \
+            -H "x-test-auth: 1" \
+            "$test_url")
+
+          if [ "$status_code" -ne 200 ]; then
+            echo "Preflight auth failed with status $status_code"
+            cat /tmp/test-auth-response.txt
+            exit 1
+          fi
+          echo "Preflight auth succeeded"
+        env:
+          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
+          TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
