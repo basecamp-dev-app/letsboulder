@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, MessageSquare, Trash2 } from 'lucide-react'
+import type { Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 
@@ -259,7 +260,7 @@ export default function CommentThread({ targetType, targetId, className, userId 
       setResolvedUserId(data.user?.id || null)
     })()
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
       setResolvedUserId(session?.user?.id || null)
     })
 

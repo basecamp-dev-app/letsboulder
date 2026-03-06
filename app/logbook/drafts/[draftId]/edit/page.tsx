@@ -8,6 +8,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Link2, Loader2, MapPin, Plus, Search, Trash2, Users } from 'lucide-react'
 import { useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
+import type { UserResponse } from '@supabase/supabase-js'
 import 'leaflet/dist/leaflet.css'
 import RouteCanvas from '@/components/routes/RouteCanvas'
 import CragSelector from '@/app/submit/components/CragSelector'
@@ -437,7 +438,7 @@ export default function EditDraftPage() {
 
   useEffect(() => {
     const supabase = createClient()
-    void supabase.auth.getUser().then(({ data }) => {
+    void supabase.auth.getUser().then(({ data }: UserResponse) => {
       setCurrentUserId(data.user?.id || null)
     })
   }, [])

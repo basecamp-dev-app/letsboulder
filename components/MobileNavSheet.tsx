@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { MOBILE_MORE_MENU_ITEMS } from '@/lib/nav-items'
-import type { User } from '@supabase/supabase-js'
+import type { Session, User } from '@supabase/supabase-js'
 import { suppressOverlayCleanup, useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 interface MobileNavSheetProps {
@@ -56,7 +56,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
     }
     getUser()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
       setUser(session?.user || null)
     })
 

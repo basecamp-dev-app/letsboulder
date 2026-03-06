@@ -338,14 +338,14 @@ export default function CragPageClient({
       const supplementaryImageIds = new Set(
         (supplementaryImageIdsData || [])
           .map((row: { linked_image_id: string | null }) => row.linked_image_id)
-          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+          .filter((value: string | null): value is string => typeof value === 'string' && value.length > 0)
       )
 
       const supplementaryImageUrls = new Set(
         (supplementaryImageIdsData || [])
           .filter((row: { source_image_id: string | null; url?: string | null }) => !!row.source_image_id)
           .map((row: { url?: string | null }) => row.url)
-          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+          .filter((value: string | null | undefined): value is string => typeof value === 'string' && value.length > 0)
       )
 
       const supplementaryCountByPrimaryId: Record<string, number> = {}

@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
-import { User } from '@supabase/supabase-js'
+import type { Session, User } from '@supabase/supabase-js'
 import { DESKTOP_MORE_MENU_ITEMS } from '@/lib/nav-items'
 
 interface SearchResult {
@@ -27,6 +27,16 @@ interface CragData {
   longitude: number | null
   slug: string | null
   country_code: string | null
+}
+
+interface ClimbSearchRow {
+  id: string
+  name: string
+  crags?: Array<{
+    name: string | null
+    latitude: number | null
+    longitude: number | null
+  }> | null
 }
 
 export default function Header() {
@@ -74,7 +84,7 @@ export default function Header() {
     getUser()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (_event: string, session: Session | null) => {
         setUser(session?.user ?? null)
       }
     )
@@ -150,13 +160,13 @@ export default function Header() {
       }
 
       if (climbsData) {
-        climbsData.forEach((climb) => {
+        climbsData.forEach((climb: ClimbSearchRow) => {
           const crag = climb.crags?.[0]
           results.push({
             type: 'climb',
             id: climb.id,
             name: climb.name,
-            crag_name: crag?.name,
+            crag_name: crag?.name ?? undefined,
             latitude: crag?.latitude ?? undefined,
             longitude: crag?.longitude ?? undefined
           })
