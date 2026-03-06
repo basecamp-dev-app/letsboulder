@@ -77,7 +77,7 @@ self.addEventListener('message', (event) => {
       if (message.type === 'SAVE_CLIMB_PACK') {
         const pack = message.payload || {}
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []
-        const packUrls = [OFFLINE_LAUNCH_URL, pack.pageUrl, pack.manifestUrl].filter(Boolean)
+        const packUrls = [OFFLINE_LAUNCH_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
         await cacheUrls(PACK_CACHE, packUrls)
         await cacheUrls(MEDIA_CACHE, mediaUrls)
         respond({ ok: true })
@@ -87,7 +87,7 @@ self.addEventListener('message', (event) => {
       if (message.type === 'REMOVE_CLIMB_PACK') {
         const pack = message.payload || {}
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []
-        const packUrls = [pack.pageUrl, pack.manifestUrl].filter(Boolean)
+        const packUrls = [`/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
         await removeUrls(PACK_CACHE, packUrls)
         await removeUrls(MEDIA_CACHE, mediaUrls)
         respond({ ok: true })
@@ -115,7 +115,7 @@ self.addEventListener('message', (event) => {
         await cacheUrls(PACK_CACHE, [OFFLINE_LAUNCH_URL, payload.canonicalPath, payload.manifestUrl].filter(Boolean))
 
         for (const climb of climbs) {
-          await cacheUrls(PACK_CACHE, [climb.pageUrl, climb.manifestUrl].filter(Boolean))
+          await cacheUrls(PACK_CACHE, [`/climb/${climb.climbId}`, climb.pageUrl, climb.manifestUrl].filter(Boolean))
 
           broadcastProgress({
             type: 'OFFLINE_JOB_PROGRESS',
@@ -167,7 +167,7 @@ self.addEventListener('message', (event) => {
         const climbs = Array.isArray(payload.climbs) ? payload.climbs : []
         await removeUrls(PACK_CACHE, [payload.canonicalPath, payload.manifestUrl].filter(Boolean))
         for (const climb of climbs) {
-          await removeUrls(PACK_CACHE, [climb.pageUrl, climb.manifestUrl].filter(Boolean))
+          await removeUrls(PACK_CACHE, [`/climb/${climb.climbId}`, climb.pageUrl, climb.manifestUrl].filter(Boolean))
           await removeUrls(MEDIA_CACHE, Array.isArray(climb.mediaUrls) ? climb.mediaUrls : [])
         }
         respond({ ok: true })

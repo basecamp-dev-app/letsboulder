@@ -204,7 +204,7 @@ export default function OfflinePage() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef2f7_100%)] px-4 py-10 text-gray-900 dark:bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.15),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#111827_100%)] dark:text-gray-100">
       <div className="mx-auto max-w-2xl">
         <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-xl shadow-emerald-950/5 backdrop-blur dark:border-white/10 dark:bg-gray-950/80 dark:shadow-black/30">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-300">Offline launch</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-300">Offline</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-950 dark:text-white">Offline library</h1>
           <p id="offline-subtitle" className="mt-2 text-sm text-gray-600 dark:text-gray-300">
             Loading saved climbs on this device...
@@ -222,11 +222,11 @@ export default function OfflinePage() {
           <div className="mt-6 grid gap-3 md:grid-cols-2">
             <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
               <p className="text-xs font-semibold uppercase tracking-[0.2em]">Crag Folders</p>
-              <p className="mt-2">A saved crag opens like a folder with all nested climb packs inside.</p>
+              <p className="mt-2">Saved crags</p>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-4 text-sm text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
               <p className="text-xs font-semibold uppercase tracking-[0.2em]">Standalone Climbs</p>
-              <p className="mt-2">Single climb downloads open directly to the saved topo image and routes.</p>
+              <p className="mt-2">Saved climbs</p>
             </div>
           </div>
 
@@ -236,9 +236,6 @@ export default function OfflinePage() {
 
           <div id="offline-pack-list" className="mt-8 space-y-3" />
 
-          <div className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900/70 dark:text-gray-300">
-            Tip: open a crag folder first when you want the `Crag {'>'} Climb` offline flow. Open a standalone climb when you already know the exact route pack you want.
-          </div>
         </div>
       </div>
 
