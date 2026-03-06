@@ -1,8 +1,86 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
+import sharp from 'sharp'
 
 export const runtime = 'nodejs'
+
+const MAX_WIDTH = 2400
+const DEFAULT_QUALITY = 75
+
+function parsePositiveInt(value: string | null): number | null {
+  if (!value) return null
+  const parsed = Number.parseInt(value, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) return null
+  return parsed
+}
+
+function normalizeQuality(value: string | null): number {
+  const parsed = parsePositiveInt(value)
+  if (!parsed) return DEFAULT_QUALITY
+  return Math.min(100, Math.max(1, parsed))
+}
+
+function pickOutputFormat(request: NextRequest, contentType: string, requestedFormat: string | null) {
+  const normalized = requestedFormat?.toLowerCase() || null
+  if (normalized === 'avif' || normalized === 'webp' || normalized === 'jpeg' || normalized === 'png') {
+    return normalized
+  }
+
+  const accept = request.headers.get('accept') || ''
+  if (accept.includes('image/avif')) return 'avif'
+  if (accept.includes('image/webp')) return 'webp'
+  if (contentType.includes('png')) return 'png'
+  if (contentType.includes('jpeg') || contentType.includes('jpg')) return 'jpeg'
+  return null
+}
+
+async function transformImage(
+  request: NextRequest,
+  bytes: Buffer,
+  contentType: string
+): Promise<{ bytes: Buffer; contentType: string } | null> {
+  const widthParam = parsePositiveInt(request.nextUrl.searchParams.get('w'))
+  const quality = normalizeQuality(request.nextUrl.searchParams.get('q'))
+  const requestedFormat = request.nextUrl.searchParams.get('format')
+  const shouldTransform = widthParam !== null || requestedFormat !== null || request.nextUrl.searchParams.has('q')
+
+  if (!shouldTransform || !contentType.startsWith('image/')) {
+    return null
+  }
+
+  const width = widthParam ? Math.min(widthParam, MAX_WIDTH) : null
+  const outputFormat = pickOutputFormat(request, contentType, requestedFormat)
+  let pipeline = sharp(bytes, { failOn: 'none' }).rotate()
+
+  if (width) {
+    pipeline = pipeline.resize({
+      width,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+  }
+
+  switch (outputFormat) {
+    case 'avif':
+      pipeline = pipeline.avif({ quality })
+      return { bytes: await pipeline.toBuffer(), contentType: 'image/avif' }
+    case 'webp':
+      pipeline = pipeline.webp({ quality })
+      return { bytes: await pipeline.toBuffer(), contentType: 'image/webp' }
+    case 'jpeg':
+      pipeline = pipeline.jpeg({ quality, mozjpeg: true })
+      return { bytes: await pipeline.toBuffer(), contentType: 'image/jpeg' }
+    case 'png':
+      pipeline = pipeline.png({ quality })
+      return { bytes: await pipeline.toBuffer(), contentType: 'image/png' }
+    default:
+      if (width) {
+        return { bytes: await pipeline.toBuffer(), contentType }
+      }
+      return null
+  }
+}
 
 function getServiceRoleClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -23,20 +101,19 @@ function getServiceRoleClient() {
 async function canReadObject(bucket: string, path: string, userId: string | null) {
   const admin = getServiceRoleClient()
 
-  const { data: imageRow, error: imageError } = await admin
+  const { data: imageRows, error: imageError } = await admin
     .from('images')
     .select('id, created_by, moderation_status')
     .eq('storage_bucket', bucket)
     .eq('storage_path', path)
-    .maybeSingle()
+    .limit(10)
 
   if (imageError) {
     throw imageError
   }
 
-  if (imageRow) {
-    if (imageRow.moderation_status === 'approved') return true
-    if (userId && imageRow.created_by === userId) return true
+  if ((imageRows || []).some((row) => row.moderation_status === 'approved' || (!!userId && row.created_by === userId))) {
+    return true
   }
 
   const privateRef = `private://${bucket}/${path}`
@@ -107,14 +184,18 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to load media' }, { status: 404 })
     }
 
-    const bytes = await data.arrayBuffer()
+    const bytes = Buffer.from(await data.arrayBuffer())
     const contentType = data.type || 'application/octet-stream'
+    const transformed = await transformImage(request, bytes, contentType)
+    const responseBytes = transformed?.bytes || bytes
+    const responseContentType = transformed?.contentType || contentType
 
-    return new NextResponse(bytes, {
+    return new NextResponse(new Uint8Array(responseBytes), {
       headers: {
-        'Content-Type': contentType,
-        'Content-Length': String(bytes.byteLength),
+        'Content-Type': responseContentType,
+        'Content-Length': String(responseBytes.byteLength),
         'Cache-Control': 'public, max-age=31536000, immutable',
+        Vary: 'Accept',
       },
     })
   } catch (error) {

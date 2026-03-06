@@ -10,7 +10,6 @@ import { Download, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import PlaceCommunityClient from '@/app/community/components/PlaceCommunityClient'
-import { SITE_URL } from '@/lib/site'
 import { GRADES, normalizeGrade } from '@/lib/grades'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
@@ -118,11 +117,16 @@ interface RouteLineTargetRow {
   id: string
   image_id: string
   climb_id: string
+  climbs:
+    | { slug: string | null }
+    | Array<{ slug: string | null }>
+    | null
 }
 
 interface ImageRouteTarget {
   climbId: string
   routeId: string
+  climbSlug: string | null
 }
 
 interface CachedCragImageData {
@@ -247,6 +251,7 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
       defaultRouteTargetByImageId[primaryImage.id] = {
         climbId: firstPrimaryRoute.climb_id,
         routeId: firstPrimaryRoute.id,
+        climbSlug: getOfflineSlug(payload.offline_pack.canonicalPath, climb.id),
       }
     }
 
@@ -342,7 +347,6 @@ function haversineMeters(from: [number, number], to: [number, number]) {
 interface CragPageClientProps {
   id: string
   initialCrag?: Crag | null
-  canonicalPath?: string
   communityPlaceId?: string | null
   communityPlaceSlug?: string | null
   initialSessionPosts?: CommunitySessionPost[]
@@ -352,7 +356,6 @@ interface CragPageClientProps {
 export default function CragPageClient({
   id,
   initialCrag = null,
-  canonicalPath,
   communityPlaceId,
   communityPlaceSlug,
   initialSessionPosts = [],
@@ -575,7 +578,7 @@ export default function CragPageClient({
       if (imageIds.length > 0) {
         const { data: routeTargetsData, error: routeTargetsError } = await supabase
           .from('route_lines')
-          .select('id, image_id, climb_id')
+          .select('id, image_id, climb_id, climbs(slug)')
           .in('image_id', imageIds)
           .order('image_id', { ascending: true })
           .order('sequence_order', { ascending: true, nullsFirst: false })
@@ -586,9 +589,11 @@ export default function CragPageClient({
         } else {
           for (const row of (routeTargetsData || []) as RouteLineTargetRow[]) {
             if (nextDefaultRouteTargetByImageId[row.image_id]) continue
+            const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
             nextDefaultRouteTargetByImageId[row.image_id] = {
               climbId: row.climb_id,
               routeId: row.id,
+              climbSlug: climb?.slug || null,
             }
           }
         }
@@ -895,10 +900,14 @@ export default function CragPageClient({
     const target = defaultRouteTargetByImageId[imageId]
     if (!target) return `/image/${imageId}`
 
+    if (target.climbSlug && routeHrefBase) {
+      return `${routeHrefBase}/${target.climbSlug}`
+    }
+
     const next = new URLSearchParams()
     next.set('route', target.routeId)
     return `/climb/${target.climbId}?${next.toString()}`
-  }, [defaultRouteTargetByImageId])
+  }, [defaultRouteTargetByImageId, routeHrefBase])
 
   const prefetchImageDestination = useCallback((imageId: string) => {
     const destination = getImageDestination(imageId)
@@ -944,46 +953,6 @@ export default function CragPageClient({
         <div className="text-gray-500 dark:text-gray-400">Crag not found</div>
       </div>
     )
-  }
-
-  const cragSchema = {
-    "@context": "https://schema.org",
-    "@type": "Place",
-    "name": crag.name,
-    "description": crag.description || `${crag.type || 'Bouldering'} crag`,
-    "url": `${SITE_URL}${canonicalPath || `/crag/${crag.id}`}`,
-    "address": {
-      "@type": "PostalAddress",
-      "addressLocality": crag.regions?.name,
-      "addressCountry": crag.country_code || "GB"
-    },
-    "geo": {
-      "@type": "GeoCoordinates",
-      "latitude": crag.latitude,
-      "longitude": crag.longitude
-    },
-    " amenityUsage": "Bouldering"
-  } as Record<string, unknown>
-
-  const additionalProperties: Record<string, unknown>[] = []
-  if (crag.rock_type) {
-    additionalProperties.push({
-      "@type": "PropertyValue",
-      "name": "rockType",
-      "value": crag.rock_type
-    })
-  }
-
-  if (crag.type) {
-    additionalProperties.push({
-      "@type": "PropertyValue",
-      "name": "climbingType",
-      "value": crag.type
-    })
-  }
-
-  if (additionalProperties.length > 0) {
-    cragSchema.additionalProperty = additionalProperties
   }
 
   const resolvedCommunityPlaceId = communityPlaceId || crag.id
@@ -1058,10 +1027,6 @@ export default function CragPageClient({
           {toast}
         </div>
       )}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(cragSchema) }}
-      />
       <div className="relative h-[26vh] md:h-[50vh] bg-gray-200 dark:bg-gray-800">
         <MapContainer
           ref={mapRef as React.RefObject<L.Map | null>}
@@ -1123,7 +1088,13 @@ export default function CragPageClient({
                   }}
                 >
                   <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
-                    <Image src={image.url} alt="Routes" fill className="object-cover" sizes="160px" />
+                    <Image
+                      src={image.url}
+                      alt={`${crag.name} topo preview ${imageIndexById.get(image.id) ?? ''}`.trim()}
+                      fill
+                      className="object-cover"
+                      sizes="160px"
+                    />
                     {image.supplementary_faces_count > 0 && (
                       <div className="absolute bottom-1 left-1 rounded-full bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
                         {1 + image.supplementary_faces_count} faces
@@ -1306,7 +1277,7 @@ export default function CragPageClient({
                       <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
                         <Image
                           src={image.url}
-                          alt="Route image"
+                          alt={`${crag.name} topo image ${imageIndexById.get(image.id) ?? ''}`.trim()}
                           fill
                           className="object-cover"
                           sizes="(max-width: 768px) 33vw, 25vw"
@@ -1367,20 +1338,6 @@ export default function CragPageClient({
                 {isOfflineCragMode ? offlineCragClimbs.length : totalRoutes} {isOfflineCragMode ? `climb${offlineCragClimbs.length === 1 ? '' : 's'}` : 'routes'}
               </span>
             </div>
-
-            {crag.description && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm mb-6">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Description</p>
-                <p className="text-gray-900 dark:text-gray-100">{crag.description}</p>
-              </div>
-            )}
-
-            {crag.access_notes && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm mb-6">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Access Notes</p>
-                <p className="text-gray-900 dark:text-gray-100">{crag.access_notes}</p>
-              </div>
-            )}
 
           </>
         )}

@@ -5,6 +5,8 @@ import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import CragPageClient from '@/app/crag/components/CragPageClient'
 import type { Crag } from '@/app/crag/components/CragPageClient'
+import CragStructuredData from '@/app/crag/components/CragStructuredData'
+import type { BreadcrumbItem } from '@/app/crag/components/crag-page-types'
 import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
 
 export const revalidate = 60
@@ -183,7 +185,7 @@ export async function generateMetadata({ params }: { params: Promise<CragSlugPar
     title,
     description: `View climbing routes at ${crag.name}${locationSuffix}. Discover photo topos, beta, access info, and nearby climbs.`,
     robots: {
-      index: country.toLowerCase() === 'gg',
+      index: true,
       follow: true,
     },
     alternates: {
@@ -226,14 +228,24 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
     regions: Array.isArray(crag.regions) ? crag.regions[0] : crag.regions || undefined,
   }
 
+  const canonicalPath = `/${country.toLowerCase()}/${cragSlug}`
+  const breadcrumbs: BreadcrumbItem[] = [
+    { label: 'Home', href: '/' },
+    { label: countryCode },
+    { label: crag.name },
+  ]
   const communityData = await loadCragCommunityData(supabase, crag.id)
 
   return (
     <>
+      <CragStructuredData
+        crag={initialCrag}
+        canonicalPath={canonicalPath}
+        breadcrumbs={breadcrumbs}
+      />
       <CragPageClient
         id={crag.id}
         initialCrag={initialCrag}
-        canonicalPath={`/${country.toLowerCase()}/${cragSlug}`}
         communityPlaceId={communityData.placeId}
         communityPlaceSlug={communityData.placeSlug}
         initialSessionPosts={communityData.sessionPosts}
