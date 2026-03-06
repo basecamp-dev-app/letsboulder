@@ -116,6 +116,8 @@ export interface CragOfflinePackManifest {
   mediaCount: number
   climbs: CragOfflinePackClimbSummary[]
   removedClimbIds: string[]
+  failedClimbIds?: string[]
+  warning?: string | null
 }
 
 export interface ClimbPackResponse {

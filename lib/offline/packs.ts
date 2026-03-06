@@ -42,6 +42,7 @@ export interface CragOfflinePreview {
   usageBytes: number
   budgetBytes: number
   isUpToDate: boolean
+  warning?: string | null
 }
 
 interface SaveCragOfflineResult {
@@ -207,6 +208,7 @@ export async function getCragOfflinePreview(cragId: string): Promise<CragOffline
     usageBytes,
     budgetBytes: OFFLINE_PACK_BUDGET_BYTES,
     isUpToDate: !!existingPack && existingPack.cragVersionHash === manifest.cragVersionHash,
+    warning: manifest.warning || null,
   }
 }
 

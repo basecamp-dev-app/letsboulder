@@ -19,6 +19,8 @@ const offlinePageScript = `
   const listEl = document.getElementById('offline-pack-list');
   const emptyEl = document.getElementById('offline-empty');
   const subtitleEl = document.getElementById('offline-subtitle');
+  const retryEl = document.getElementById('offline-retry');
+  const onlineActionEl = document.getElementById('offline-online-action');
 
   function formatBytes(bytes) {
     if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
@@ -73,8 +75,14 @@ const offlinePageScript = `
     }).join('');
   }
 
+  function setStatus(message, showRetry) {
+    if (subtitleEl) subtitleEl.textContent = message;
+    if (retryEl) retryEl.hidden = !showRetry;
+  }
+
   function loadPacks() {
     if (!('indexedDB' in window)) {
+      setStatus('Offline storage is not available on this device.', false);
       renderPacks([]);
       return;
     }
@@ -93,7 +101,7 @@ const offlinePageScript = `
 
     const request = indexedDB.open(DB_NAME);
     request.onerror = function () {
-      subtitleEl.textContent = 'Unable to read offline storage on this device.';
+      setStatus('Unable to read offline storage on this device.', true);
       renderPacks([]);
     };
     request.onsuccess = function () {
@@ -125,10 +133,34 @@ const offlinePageScript = `
               })
             : [];
           renderPacks(legacyPacks);
+          if (legacyPacks.length === 0) {
+            setStatus('No saved offline packs found on this device yet.', false);
+          }
           db.close();
         });
       });
     };
+  }
+
+  if (navigator.onLine) {
+    setStatus('You are back online. Opening the map...', false);
+    if (onlineActionEl) onlineActionEl.hidden = false;
+    if (onlineActionEl) {
+      onlineActionEl.addEventListener('click', function () {
+        window.location.replace('/');
+      });
+    }
+    window.setTimeout(function () {
+      window.location.replace('/');
+    }, 350);
+    return;
+  }
+
+  if (retryEl) {
+    retryEl.addEventListener('click', function () {
+      setStatus('Loading saved climbs on this device...', false);
+      loadPacks();
+    });
   }
 
   loadPacks();
@@ -145,6 +177,15 @@ export default function OfflinePage() {
           <p id="offline-subtitle" className="mt-2 text-sm text-gray-600 dark:text-gray-300">
             Loading saved climbs on this device...
           </p>
+
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button id="offline-online-action" hidden className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+              Open map
+            </button>
+            <button id="offline-retry" hidden className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+              Retry
+            </button>
+          </div>
 
           <div id="offline-empty" className="mt-8 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-5 py-6 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-300" hidden>
             No saved offline packs found on this device yet.

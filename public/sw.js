@@ -233,6 +233,26 @@ self.addEventListener('fetch', (event) => {
         return response
       } catch (error) {
         if (cached) return cached
+
+        if (request.mode === 'navigate') {
+          const offlineFallback = await cache.match(new Request(OFFLINE_LAUNCH_URL, { credentials: 'same-origin' }))
+          if (offlineFallback) return offlineFallback
+        }
+
+        throw error
+      }
+    })())
+    return
+  }
+
+  if (request.mode === 'navigate') {
+    event.respondWith((async () => {
+      try {
+        return await fetch(request)
+      } catch (error) {
+        const cache = await caches.open(PACK_CACHE)
+        const offlineFallback = await cache.match(new Request(OFFLINE_LAUNCH_URL, { credentials: 'same-origin' }))
+        if (offlineFallback) return offlineFallback
         throw error
       }
     })())

@@ -12,6 +12,11 @@ interface ClimbRow {
   status: string | null
 }
 
+interface FailedClimbSummary {
+  climbId: string
+  error: string
+}
+
 function getAdminClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -66,20 +71,36 @@ export async function GET(
 
     const limit = pLimit(3)
     const climbRows = (climbs || []) as ClimbRow[]
-    const climbSummaries = await Promise.all(
+    const failedClimbIds: FailedClimbSummary[] = []
+    const settledClimbs = await Promise.all(
       climbRows.map((climb) => limit(async () => {
-        const pack = await buildClimbOfflinePack(climb.id)
-        return {
-          climbId: climb.id,
-          climbName: climb.name || pack.offline_pack.climbName,
-          canonicalPath: pack.offline_pack.canonicalPath || pack.offline_pack.pageUrl,
-          manifestUrl: pack.offline_pack.manifestUrl,
-          versionHash: pack.offline_pack.version,
-          estimatedBytes: pack.offline_pack.estimatedBytes,
-          mediaCount: pack.offline_pack.mediaCount,
+        try {
+          const pack = await buildClimbOfflinePack(climb.id)
+          return {
+            climbId: climb.id,
+            climbName: climb.name || pack.offline_pack.climbName,
+            canonicalPath: pack.offline_pack.canonicalPath || pack.offline_pack.pageUrl,
+            manifestUrl: pack.offline_pack.manifestUrl,
+            versionHash: pack.offline_pack.version,
+            estimatedBytes: pack.offline_pack.estimatedBytes,
+            mediaCount: pack.offline_pack.mediaCount,
+          }
+        } catch (error) {
+          console.error('Failed to build climb summary for crag offline pack:', { cragId, climbId: climb.id, error })
+          failedClimbIds.push({
+            climbId: climb.id,
+            error: error instanceof Error ? error.message : 'Unknown climb-pack error',
+          })
+          return null
         }
       }))
     )
+
+    const climbSummaries = settledClimbs.filter((value): value is NonNullable<typeof value> => !!value)
+
+    if (climbSummaries.length === 0 && climbRows.length > 0) {
+      return NextResponse.json({ error: 'Failed to load any climbs for this crag pack' }, { status: 500 })
+    }
 
     const estimatedBytes = climbSummaries.reduce((sum, climb) => sum + climb.estimatedBytes, 0)
     const mediaCount = climbSummaries.reduce((sum, climb) => sum + climb.mediaCount, 0)
@@ -101,6 +122,10 @@ export async function GET(
       mediaCount,
       climbs: climbSummaries,
       removedClimbIds: [],
+      failedClimbIds: failedClimbIds.map((item) => item.climbId),
+      warning: failedClimbIds.length > 0
+        ? `${failedClimbIds.length} climb${failedClimbIds.length === 1 ? '' : 's'} could not be prepared and will be skipped.`
+        : null,
     }
 
     return NextResponse.json(payload)

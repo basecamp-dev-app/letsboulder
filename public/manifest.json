@@ -2,7 +2,7 @@
   "name": "letsboulder - Bouldering Topos & Climbing Logbook",
   "short_name": "letsboulder",
   "description": "Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.",
-  "start_url": "/offline",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
