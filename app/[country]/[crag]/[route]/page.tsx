@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
-import Image from 'next/image'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createServerClient } from '@supabase/ssr'
+import ClimbPageClient from '@/app/climb/components/ClimbPageClient'
 import { SITE_URL } from '@/lib/site'
+import { resolveRouteImageUrl } from '@/lib/route-image-url'
 
 export const revalidate = 60
 
@@ -20,6 +20,8 @@ interface CragRow {
   country_code: string | null
   region_name: string | null
   country: string | null
+  latitude: number | null
+  longitude: number | null
 }
 
 interface ClimbRow {
@@ -29,6 +31,8 @@ interface ClimbRow {
   grade: string
   description: string | null
   crag_id: string | null
+  latitude: number | null
+  longitude: number | null
 }
 
 interface RouteLineWithImage {
@@ -52,97 +56,46 @@ async function getSupabase() {
   )
 }
 
-export async function generateMetadata({ params }: { params: Promise<RouteParams> }): Promise<Metadata> {
-  const { country, crag: cragSlug, route: routeSlug } = await params
-  if (!country || country.length !== 2) return {}
-
+async function getRoutePageData(countryCode: string, cragSlug: string, routeSlug: string) {
   const supabase = await getSupabase()
-  const countryCode = country.toUpperCase()
 
   const { data: crag } = await supabase
     .from('crags')
-    .select('id, name, slug, country_code, region_name, country')
+    .select('id, name, slug, country_code, region_name, country, latitude, longitude')
     .eq('country_code', countryCode)
     .eq('slug', cragSlug)
     .single()
 
-  if (!crag) return { title: 'Route Not Found' }
-
-  const { data: climb } = await supabase
-    .from('climbs')
-    .select('id, name, slug, grade, description, crag_id')
-    .eq('crag_id', (crag as CragRow).id)
-    .eq('slug', routeSlug)
-    .single()
-
-  if (!climb) return { title: 'Route Not Found' }
-
-  const routeName = ((climb as ClimbRow).name || '').trim() || 'Route'
-  const grade = (climb as ClimbRow).grade
-  const title = `${routeName} (${grade}) - ${(crag as CragRow).name}`
-  const description = (climb as ClimbRow).description
-    ? `${(climb as ClimbRow).description}`
-    : `Topo, beta, and ascents for ${routeName} (${grade}) at ${(crag as CragRow).name}.`
-
-  return {
-    title,
-    description,
-    robots: {
-      index: false,
-      follow: true,
-    },
-    alternates: {
-      canonical: `/${country.toLowerCase()}/${cragSlug}/${routeSlug}`,
-    },
-    openGraph: {
-      title,
-      description,
-      url: `/${country.toLowerCase()}/${cragSlug}/${routeSlug}`,
-      images: [
-        {
-          url: '/og.png',
-          width: 1200,
-          height: 630,
-          alt: title,
-        },
-      ],
-    },
+  if (!crag) {
+    return { crag: null, climb: null, bestImage: null, logCount: 0 }
   }
-}
-
-export default async function RoutePage({ params }: { params: Promise<RouteParams> }) {
-  const { country, crag: cragSlug, route: routeSlug } = await params
-  if (!country || country.length !== 2) notFound()
-
-  const supabase = await getSupabase()
-  const countryCode = country.toUpperCase()
-
-  const { data: crag } = await supabase
-    .from('crags')
-    .select('id, name, slug, country_code, region_name, country')
-    .eq('country_code', countryCode)
-    .eq('slug', cragSlug)
-    .single()
-
-  if (!crag) notFound()
 
   const { data: climb } = await supabase
     .from('climbs')
-    .select('id, name, slug, grade, description, crag_id')
+    .select('id, name, slug, grade, description, crag_id, latitude, longitude')
     .eq('crag_id', (crag as CragRow).id)
     .eq('slug', routeSlug)
+    .in('status', ['active', 'approved'])
     .single()
 
-  if (!climb) notFound()
+  if (!climb) {
+    return { crag: crag as CragRow, climb: null, bestImage: null, logCount: 0 }
+  }
 
-  const { data: routeLines } = await supabase
-    .from('route_lines')
-    .select('id, image_id, sequence_order, images (id, url, is_verified, verification_count, created_at)')
-    .eq('climb_id', (climb as ClimbRow).id)
+  const [{ data: routeLines }, { count: logCount }] = await Promise.all([
+    supabase
+      .from('route_lines')
+      .select('id, image_id, sequence_order, images (id, url, is_verified, verification_count, created_at)')
+      .eq('climb_id', (climb as ClimbRow).id),
+    supabase
+      .from('user_climbs')
+      .select('id', { count: 'exact', head: true })
+      .eq('climb_id', (climb as ClimbRow).id),
+  ])
 
   const lines = (routeLines || []) as unknown as RouteLineWithImage[]
-  const best = [...lines]
-    .filter((l) => !!l.images?.url)
+  const bestImage = [...lines]
+    .filter((line) => !!line.images?.url)
     .sort((a, b) => {
       const av = a.images?.is_verified ? 1 : 0
       const bv = b.images?.is_verified ? 1 : 0
@@ -154,92 +107,125 @@ export default async function RoutePage({ params }: { params: Promise<RouteParam
       const bd = b.images?.created_at ? new Date(b.images.created_at).getTime() : 0
       if (ad !== bd) return bd - ad
       return (a.id || '').localeCompare(b.id || '')
-    })[0]
+    })[0] || null
 
-  const { count: logCount } = await supabase
-    .from('user_climbs')
-    .select('id', { count: 'exact', head: true })
-    .eq('climb_id', (climb as ClimbRow).id)
+  return {
+    crag: crag as CragRow,
+    climb: climb as ClimbRow,
+    bestImage,
+    logCount: logCount || 0,
+  }
+}
 
-  const routeName = ((climb as ClimbRow).name || '').trim() || 'Route'
-  const grade = (climb as ClimbRow).grade
-  const locationBits = [(crag as CragRow).region_name, (crag as CragRow).country].filter(Boolean).join(', ')
+export async function generateMetadata({ params }: { params: Promise<RouteParams> }): Promise<Metadata> {
+  const { country, crag: cragSlug, route: routeSlug } = await params
+  if (!country || country.length !== 2) return {}
+
+  const countryCode = country.toUpperCase()
+
+  const { crag, climb, bestImage } = await getRoutePageData(countryCode, cragSlug, routeSlug)
+
+  if (!crag) return { title: 'Route Not Found' }
+
+  if (!climb) return { title: 'Route Not Found' }
+
+  const routeName = (climb.name || '').trim() || 'Route'
+  const grade = climb.grade
+  const title = `${routeName} (${grade}) | ${crag.name} Bouldering`
+  const description = climb.description
+    ? climb.description
+    : `Topo, beta, and ascents for ${routeName} (${grade}) at ${crag.name}.`
+  const canonicalPath = `/${country.toLowerCase()}/${cragSlug}/${routeSlug}`
+  const imageUrl = bestImage?.images?.url ? resolveRouteImageUrl(bestImage.images.url) : '/og.png'
+
+  return {
+    title,
+    description,
+    robots: {
+      index: true,
+      follow: true,
+    },
+    alternates: {
+      canonical: canonicalPath,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalPath,
+      images: [
+        {
+          url: imageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${routeName} (${grade}) topo at ${crag.name}`,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [imageUrl],
+    },
+  }
+}
+
+export default async function RoutePage({ params }: { params: Promise<RouteParams> }) {
+  const { country, crag: cragSlug, route: routeSlug } = await params
+  if (!country || country.length !== 2) notFound()
+
+  const countryCode = country.toUpperCase()
+
+  const { crag, climb, bestImage: best } = await getRoutePageData(countryCode, cragSlug, routeSlug)
+
+  if (!crag) notFound()
+
+  if (!climb) notFound()
+
+  const routeName = (climb.name || '').trim() || 'Route'
+  const grade = climb.grade
+  const canonicalPath = `/${country.toLowerCase()}/${cragSlug}/${routeSlug}`
+  const breadcrumbItems = [
+    { label: 'Home', href: '/' },
+    { label: countryCode },
+    { label: crag.name, href: `/${country.toLowerCase()}/${cragSlug}` },
+    { label: routeName },
+  ]
+  const routeGeo = typeof (climb.latitude ?? crag.latitude) === 'number' && typeof (climb.longitude ?? crag.longitude) === 'number'
+    ? {
+        '@type': 'GeoCoordinates',
+        latitude: climb.latitude ?? crag.latitude,
+        longitude: climb.longitude ?? crag.longitude,
+      }
+    : undefined
+  const routeSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: `${routeName} (${grade})`,
+    description: climb.description || `Topo and beta for ${routeName} at ${crag.name}.`,
+    mainEntityOfPage: `${SITE_URL}${canonicalPath}`,
+    url: `${SITE_URL}${canonicalPath}`,
+    image: best?.images?.url ? [resolveRouteImageUrl(best.images.url)] : undefined,
+    about: {
+      '@type': 'Place',
+      name: crag.name,
+      geo: routeGeo,
+    },
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: breadcrumbItems.map((item, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: item.label,
+        item: item.href ? `${SITE_URL}${item.href}` : `${SITE_URL}${canonicalPath}`,
+      })),
+    },
+  }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950">
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            {country.toLowerCase()} / {(crag as CragRow).name}
-          </p>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">
-            {routeName}
-          </h1>
-          <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-800 px-2.5 py-1 text-sm font-medium text-gray-900 dark:text-gray-100">
-              {grade}
-            </span>
-            {locationBits && (
-              <span className="text-sm text-gray-600 dark:text-gray-400">{locationBits}</span>
-            )}
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              {logCount || 0} logged ascent{(logCount || 0) === 1 ? '' : 's'}
-            </span>
-          </div>
-        </div>
-
-        {(climb as ClimbRow).description && (
-          <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 mb-6">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Description</h2>
-            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{(climb as ClimbRow).description}</p>
-          </div>
-        )}
-
-        {best?.images?.url ? (
-          <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Topo</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Open the interactive topo to see this line highlighted.
-            </p>
-            <div className="flex gap-2 flex-wrap">
-              <Link
-                href={`/image/${best.images.id}?route=${best.id}`}
-                className="inline-flex items-center justify-center rounded-lg bg-gray-900 text-white px-4 py-2 text-sm font-medium hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
-              >
-                View Interactive Topo
-              </Link>
-              <Link
-                href={`/${country.toLowerCase()}/${cragSlug}`}
-                className="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm font-medium text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800"
-              >
-                View Crag
-              </Link>
-            </div>
-            <div className="mt-4 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-950">
-              <Image
-                src={best.images.url}
-                alt={`${routeName} topo photo`}
-                width={1600}
-                height={1200}
-                sizes="(max-width: 768px) 100vw, 960px"
-                className="w-full max-h-[60vh] object-contain"
-                loading="lazy"
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">Topo</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              No topo image is linked to this route yet.
-            </p>
-          </div>
-        )}
-
-        <div className="mt-6 text-xs text-gray-500 dark:text-gray-500">
-          <span className="tabular-nums">{SITE_URL}</span>
-        </div>
-      </div>
-    </div>
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(routeSchema) }} />
+      <ClimbPageClient climbId={climb.id} />
+    </>
   )
 }
