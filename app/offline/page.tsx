@@ -79,22 +79,27 @@ const offlinePageScript = `
       return;
     }
 
+    function readKey(db, key, onSuccess) {
+      const transaction = db.transaction(STORE_NAME, 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(key);
+      request.onerror = function () {
+        onSuccess(null);
+      };
+      request.onsuccess = function () {
+        onSuccess(request.result);
+      };
+    }
+
     const request = indexedDB.open(DB_NAME);
     request.onerror = function () {
+      subtitleEl.textContent = 'Unable to read offline storage on this device.';
       renderPacks([]);
     };
     request.onsuccess = function () {
       const db = request.result;
-      const transaction = db.transaction(STORE_NAME, 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const getRequest = store.get(PACK_RECORDS_KEY);
 
-      getRequest.onerror = function () {
-        renderPacks([]);
-      };
-
-      getRequest.onsuccess = function () {
-        const raw = getRequest.result;
+      readKey(db, PACK_RECORDS_KEY, function (raw) {
         const packs = raw && typeof raw === 'object'
           ? Object.values(raw).sort(function (a, b) {
               return String(a.displayName || '').localeCompare(String(b.displayName || ''));
@@ -102,15 +107,11 @@ const offlinePageScript = `
           : [];
         if (packs.length > 0) {
           renderPacks(packs);
+          db.close();
           return;
         }
 
-        const legacyRequest = store.get(LEGACY_PACKS_KEY);
-        legacyRequest.onerror = function () {
-          renderPacks([]);
-        };
-        legacyRequest.onsuccess = function () {
-          const legacyRaw = legacyRequest.result;
+        readKey(db, LEGACY_PACKS_KEY, function (legacyRaw) {
           const legacyPacks = legacyRaw && typeof legacyRaw === 'object'
             ? Object.values(legacyRaw).map(function (pack) {
                 return {
@@ -124,8 +125,9 @@ const offlinePageScript = `
               })
             : [];
           renderPacks(legacyPacks);
-        };
-      };
+          db.close();
+        });
+      });
     };
   }
 

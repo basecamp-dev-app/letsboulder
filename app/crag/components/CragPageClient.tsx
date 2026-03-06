@@ -26,6 +26,8 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
+import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
+import type { ClimbPackResponse } from '@/lib/climb/queries'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -94,6 +96,13 @@ interface ImageData {
   is_verified: boolean
   verification_count: number
   supplementary_faces_count: number
+}
+
+interface OfflineHydratedCragData {
+  images: ImageData[]
+  routes: CragRoute[]
+  defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
+  cragCenter: [number, number] | null
 }
 
 interface RouteLineTargetRow {
@@ -190,6 +199,77 @@ function formatCragRoutes(climbs: RawClimb[] | null | undefined): CragRoute[] {
     routeType: climb.route_type,
     directions: extractDirections(climb.route_lines),
   }))
+}
+
+function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedCragData {
+  const imageMap = new Map<string, ImageData>()
+  const defaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
+  const routeMap = new Map<string, CragRoute>()
+
+  const getOfflineSlug = (canonicalPath: string | undefined, climbId: string) => {
+    if (!canonicalPath || canonicalPath === `/climb/${climbId}`) return null
+    const parts = canonicalPath.split('/').filter(Boolean)
+    return parts.length > 0 ? parts[parts.length - 1] : null
+  }
+
+  for (const payload of payloads) {
+    const primaryImage = payload.primary_image
+    const climb = payload.climb
+    if (!primaryImage || !climb) continue
+
+    const existingImage = imageMap.get(primaryImage.id)
+    const primaryRouteCount = Array.isArray(payload.primary_route_lines) ? payload.primary_route_lines.length : 0
+    const supplementaryFacesCount = Math.max(0, (payload.faces || []).filter((face) => !face.is_primary).length)
+
+    imageMap.set(primaryImage.id, {
+      id: primaryImage.id,
+      url: primaryImage.url,
+      latitude: existingImage?.latitude ?? null,
+      longitude: existingImage?.longitude ?? null,
+      route_lines_count: (existingImage?.route_lines_count || 0) + primaryRouteCount,
+      is_verified: existingImage?.is_verified || false,
+      verification_count: existingImage?.verification_count || 0,
+      supplementary_faces_count: Math.max(existingImage?.supplementary_faces_count || 0, supplementaryFacesCount),
+    })
+
+    const firstPrimaryRoute = payload.primary_route_lines?.[0]
+    if (firstPrimaryRoute && !defaultRouteTargetByImageId[primaryImage.id]) {
+      defaultRouteTargetByImageId[primaryImage.id] = {
+        climbId: firstPrimaryRoute.climb_id,
+        routeId: firstPrimaryRoute.id,
+      }
+    }
+
+    const directions = new Set<string>()
+    for (const face of payload.faces || []) {
+      for (const direction of face.face_directions || []) {
+        if (direction) directions.add(direction)
+      }
+    }
+
+    routeMap.set(climb.id, {
+      id: climb.id,
+      name: climb.name || 'Unnamed route',
+      grade: normalizeGrade(climb.grade) || 'Unknown',
+      slug: getOfflineSlug(payload.offline_pack.canonicalPath, climb.id),
+      routeType: climb.route_type,
+      directions: Array.from(directions).sort((a, b) => {
+        const aIndex = faceDirectionIndex.get(a as typeof FACE_DIRECTIONS[number])
+        const bIndex = faceDirectionIndex.get(b as typeof FACE_DIRECTIONS[number])
+        if (aIndex === undefined && bIndex === undefined) return a.localeCompare(b)
+        if (aIndex === undefined) return 1
+        if (bIndex === undefined) return -1
+        return aIndex - bIndex
+      }),
+    })
+  }
+
+  return {
+    images: Array.from(imageMap.values()),
+    routes: Array.from(routeMap.values()),
+    defaultRouteTargetByImageId,
+    cragCenter: null,
+  }
 }
 
 function normalizeRouteType(value: string): string {
@@ -307,6 +387,7 @@ export default function CragPageClient({
     let ignore = false
 
     async function loadCrag() {
+      const offlineOnly = typeof navigator !== 'undefined' && navigator.onLine === false
       const cached = cragImageCache.get(id)
       if (cached && Date.now() - cached.cachedAt <= CRAG_IMAGE_CACHE_TTL_MS) {
         setCrag(cached.crag)
@@ -320,6 +401,23 @@ export default function CragPageClient({
 
       setRoutes([])
       setRoutesLoadState('idle')
+
+      if (offlineOnly) {
+        const offlinePayloads = await getStoredCragClimbPayloads(id)
+        if (offlinePayloads.length > 0) {
+          if (ignore) return
+          const hydrated = hydrateOfflineCragData(offlinePayloads)
+          setImages(hydrated.images)
+          setRoutes(hydrated.routes)
+          setRoutesLoadState('loaded')
+          setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
+          setCrag(initialCrag)
+          setCragCenter(hydrated.cragCenter)
+          setLoading(false)
+          return
+        }
+      }
+
       const supabase = createClient()
 
       const imagesPromise = supabase
@@ -345,11 +443,36 @@ export default function CragPageClient({
             .eq('id', id)
             .single()
 
-      const [
-        { data: cragData, error: cragError },
-        { data: imagesData, error: imagesError },
-        { data: supplementaryImageIdsData, error: supplementaryImageIdsError },
-      ] = await Promise.all([cragPromise, imagesPromise, supplementaryImageIdsPromise])
+      let cragData
+      let cragError
+      let imagesData
+      let imagesError
+      let supplementaryImageIdsData
+      let supplementaryImageIdsError
+
+      try {
+        ;[
+          { data: cragData, error: cragError },
+          { data: imagesData, error: imagesError },
+          { data: supplementaryImageIdsData, error: supplementaryImageIdsError },
+        ] = await Promise.all([cragPromise, imagesPromise, supplementaryImageIdsPromise])
+      } catch (error) {
+        const offlinePayloads = await getStoredCragClimbPayloads(id)
+        if (offlinePayloads.length > 0) {
+          if (ignore) return
+          const hydrated = hydrateOfflineCragData(offlinePayloads)
+          setImages(hydrated.images)
+          setRoutes(hydrated.routes)
+          setRoutesLoadState('loaded')
+          setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
+          setCrag(initialCrag)
+          setCragCenter(hydrated.cragCenter)
+          setLoading(false)
+          return
+        }
+
+        throw error
+      }
 
       if (cragError || !cragData) {
         if (ignore) return
@@ -508,26 +631,51 @@ export default function CragPageClient({
     let ignore = false
 
     async function loadRoutesForFilters() {
+      const offlineOnly = typeof navigator !== 'undefined' && navigator.onLine === false
       setRoutesLoadState('loading')
 
+      if (offlineOnly) {
+        const offlinePayloads = await getStoredCragClimbPayloads(id)
+        if (!ignore && offlinePayloads.length > 0) {
+          setRoutes(hydrateOfflineCragData(offlinePayloads).routes)
+          setRoutesLoadState('loaded')
+          return
+        }
+      }
+
       const supabase = createClient()
-      const { data: climbsData, error: climbsError } = await supabase
-        .from('climbs')
-        .select(`
-          id,
-          name,
-          grade,
-          slug,
-          route_type,
-          route_lines (
-            images (
-              face_direction,
-              face_directions
+
+      let climbsData
+      let climbsError
+      try {
+        const response = await supabase
+          .from('climbs')
+          .select(`
+            id,
+            name,
+            grade,
+            slug,
+            route_type,
+            route_lines (
+              images (
+                face_direction,
+                face_directions
+              )
             )
-          )
-        `)
-        .eq('crag_id', id)
-        .in('status', ['active', 'approved'])
+          `)
+          .eq('crag_id', id)
+          .in('status', ['active', 'approved'])
+        climbsData = response.data
+        climbsError = response.error
+      } catch (error) {
+        const offlinePayloads = await getStoredCragClimbPayloads(id)
+        if (!ignore && offlinePayloads.length > 0) {
+          setRoutes(hydrateOfflineCragData(offlinePayloads).routes)
+          setRoutesLoadState('loaded')
+          return
+        }
+        throw error
+      }
 
       if (ignore) return
 

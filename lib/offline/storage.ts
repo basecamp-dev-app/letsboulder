@@ -188,3 +188,13 @@ export async function getOfflineCragPack(cragId: string): Promise<CragOfflinePac
   const stored = await getStoredCragManifest(cragId)
   return stored?.manifest || null
 }
+
+export async function getStoredCragClimbPayloads(cragId: string): Promise<ClimbPackResponse[]> {
+  const storedCrag = await getStoredCragManifest(cragId)
+  if (!storedCrag) return []
+
+  const manifests = await listStoredClimbManifests()
+  return manifests
+    .filter((entry) => entry.ownerPackIds.includes(storedCrag.manifest.packId) && entry.payload)
+    .map((entry) => entry.payload as ClimbPackResponse)
+}
