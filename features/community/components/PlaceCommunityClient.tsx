@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import SessionComposer from '@/app/community/components/SessionComposer'
-import UpcomingFeed from '@/app/community/components/UpcomingFeed'
-import UpdateComposer from '@/app/community/components/UpdateComposer'
-import UpdatesFeed from '@/app/community/components/UpdatesFeed'
+import SessionComposer from '@/features/community/components/SessionComposer'
+import UpcomingFeed from '@/features/community/components/UpcomingFeed'
+import UpdateComposer from '@/features/community/components/UpdateComposer'
+import UpdatesFeed from '@/features/community/components/UpdatesFeed'
 import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
 
 interface PlaceCommunityClientProps {

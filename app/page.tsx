@@ -37,7 +37,6 @@ export default async function Home() {
     '@type': 'SiteNavigationElement',
     name: 'Main Navigation',
     item: [
-      { name: 'Community', url: `${SITE_URL}/community` },
       { name: 'Logbook', url: `${SITE_URL}/logbook` },
       { name: 'Upload Topos', url: `${SITE_URL}/submit` },
       { name: 'Bouldering Map', url: `${SITE_URL}/bouldering-map` },

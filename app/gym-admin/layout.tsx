@@ -60,8 +60,8 @@ export default function GymAdminLayout({ children }: { children: React.ReactNode
             <Building2 className="h-5 w-5 text-blue-400" />
             <span className="font-semibold">Gym Admin</span>
           </div>
-          <Link href="/community" className="text-sm text-gray-300 hover:text-white">
-            Back to Community
+          <Link href="/" className="text-sm text-gray-300 hover:text-white">
+            Back to map
           </Link>
         </div>
       </div>

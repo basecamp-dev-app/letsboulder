@@ -11,14 +11,6 @@ test.describe('Visual - Key Element Checks', () => {
     await expect(page.getByText('Terms of Service')).toBeVisible()
   })
 
-  test('@full community page has all key elements', async ({ page }) => {
-    await page.goto('/community')
-    
-    await expect(page.getByRole('heading', { name: 'Community' })).toBeVisible()
-    await expect(page.getByText('Pick a place to see upcoming sessions')).toBeVisible()
-    await expect(page.getByRole('link', { name: /open global rankings/i })).toBeVisible()
-  })
-
   test('@full logbook page has all key elements for unauthenticated user', async ({ page }) => {
     await page.goto('/logbook')
     

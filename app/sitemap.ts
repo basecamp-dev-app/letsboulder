@@ -59,7 +59,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: SITE_URL, lastModified: now },
     { url: `${SITE_URL}/about`, lastModified: now },
-    { url: `${SITE_URL}/community`, lastModified: now },
     { url: `${SITE_URL}/bouldering-map`, lastModified: now },
     { url: `${SITE_URL}/climbing-map`, lastModified: now },
     { url: `${SITE_URL}/rock-climbing-map`, lastModified: now },
