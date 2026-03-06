@@ -1,5 +1,4 @@
 import { SignJWT, jwtVerify } from 'jose'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
 const CSRF_COOKIE_NAME = 'csrf_token'
@@ -20,11 +19,6 @@ export async function generateCsrfToken(): Promise<string> {
     .setIssuedAt()
     .setExpirationTime('2h')
     .sign(getCsrfSecret())
-}
-
-export async function getCsrfToken(): Promise<string | undefined> {
-  const cookieStore = await cookies()
-  return cookieStore.get(CSRF_COOKIE_NAME)?.value
 }
 
 export async function setCsrfCookie(response: NextResponse): Promise<void> {
