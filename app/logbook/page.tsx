@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
-import { createClient } from '@/lib/supabase'
-import type { User } from '@supabase/supabase-js'
+import { useEffect, Suspense } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import LogbookView from '@/components/logbook/LogbookView'
@@ -10,38 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { LogbookSkeleton } from '@/components/logbook/logbook-states'
 import { useToast } from '@/components/logbook/toast'
-import { getGradePoints } from '@/lib/grades'
-import { csrfFetch } from '@/hooks/useCsrf'
-import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
-import type { Submission } from '@/types/submissions'
-
-interface LoggedClimb {
-  id: string
-  climb_id: string
-  style: string
-  created_at: string
-  points?: number
-  climbs: {
-    id: string
-    name: string
-    grade: string
-    image_url?: string
-    crags: {
-      name: string
-    }
-  }
-}
-
-interface Profile {
-  id: string
-  username: string
-  display_name?: string
-  avatar_url?: string
-  bio?: string
-  total_climbs?: number
-  total_points?: number
-  highest_grade?: string
-}
+import { fetchOwnLogbookData, ownLogbookQueryKey } from '@/lib/logbook/queries'
 
 function LoadingFallback() {
   return (
@@ -60,87 +28,23 @@ export default function LogbookPage() {
 }
 
 function LogbookContent() {
-  const [user, setUser] = useState<User | null>(null)
-  const [logs, setLogs] = useState<LoggedClimb[]>([])
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [submissions, setSubmissions] = useState<Submission[]>([])
-  const [loading, setLoading] = useState(true)
   const searchParams = useSearchParams()
   const { addToast } = useToast()
+  const { data, isLoading, error } = useQuery({
+    queryKey: ownLogbookQueryKey,
+    queryFn: fetchOwnLogbookData,
+    staleTime: 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    meta: {
+      persist: true,
+    },
+  })
 
   useEffect(() => {
-    const checkUser = async () => {
-      try {
-        const supabase = createClient()
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-
-        if (userError) {
-          console.error('Auth error:', userError)
-          if (userError.name === 'AuthSessionMissingError' || userError.message.includes('session')) {
-            setLoading(false)
-            return
-          }
-        }
-
-        setUser(user)
-
-        if (user) {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade')
-            .eq('id', user.id)
-            .single()
-
-          if (!profileError && profileData) {
-            setProfile(profileData)
-          }
-
-          const { data: logsData, error: logsError } = await supabase
-            .from('user_climbs')
-            .select('*, climbs(id, name, grade, route_lines!inner(images!inner(url, crags!inner(name))))')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-
-          if (logsError) {
-            console.error('Logs query error:', logsError)
-          }
-
-          const cragsByClimbId: Record<string, string> = {}
-          const logsWithCrags = (logsData || []).map((log) => {
-            const routeLines = log.climbs?.route_lines as Array<{ images?: { url?: string; crags?: { name: string } } }> | undefined
-            const cragName = routeLines?.[0]?.images?.crags?.name || 'Unknown crag'
-            const imageUrl = routeLines?.[0]?.images?.url
-            cragsByClimbId[log.climb_id] = cragName
-            return {
-              ...log,
-              climbs: {
-                ...log.climbs,
-                image_url: imageUrl,
-                crags: { name: cragName }
-              }
-            }
-          })
-
-          const logsWithPoints = logsWithCrags.map((log) => ({
-            ...log,
-            points: log.style === 'flash'
-              ? getGradePoints(log.climbs?.grade) + 10
-              : getGradePoints(log.climbs?.grade)
-          }))
-
-          setLogs(logsWithPoints)
-
-          const mergedSubmissions = await fetchOwnSubmissions(supabase, user.id, csrfFetch, 24)
-          setSubmissions(mergedSubmissions)
-        }
-      } catch (err) {
-        console.error('Unexpected error checking auth:', err)
-      } finally {
-        setLoading(false)
-      }
+    if (error) {
+      console.error('Failed to load logbook:', error)
     }
-    checkUser()
-  }, [])
+  }, [error])
 
   useEffect(() => {
     if (searchParams.get('success')) {
@@ -151,7 +55,7 @@ function LogbookContent() {
     }
   }, [searchParams, addToast])
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-950">
         <LogbookSkeleton variant="own" />
@@ -159,7 +63,7 @@ function LogbookContent() {
     )
   }
 
-  if (!user) {
+  if (!data?.user) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-950 px-4 py-8">
         <Card className="max-w-sm mx-auto">
@@ -181,11 +85,11 @@ function LogbookContent() {
 
   return (
     <LogbookView
-      userId={user.id}
+      userId={data.user.id}
       isOwnProfile={true}
-      initialLogs={logs}
-      profile={profile || undefined}
-      initialSubmissions={submissions}
+      initialLogs={data.logs}
+      profile={data.profile || undefined}
+      initialSubmissions={data.submissions}
     />
   )
 }

@@ -1,12 +1,14 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import useEmblaCarousel from 'embla-carousel-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import type { Session } from '@supabase/supabase-js'
 import { findRouteAtPoint, RoutePoint, useRouteSelection } from '@/lib/useRouteSelection'
 import { Share2, Twitter, Facebook, MessageCircle, Link2, Flag, Star, Layers, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
@@ -14,7 +16,8 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { SITE_URL } from '@/lib/site'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
-import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import { climbOfflinePackQueryKey, fetchClimbOfflinePack } from '@/lib/climb/queries'
+import { deleteClimbOfflinePack, getOfflinePackStatus, saveClimbOfflinePack } from '@/lib/offline/packs'
 import { formatSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/lib/submission-credit'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import {
@@ -106,39 +109,6 @@ interface FaceRouteSummary {
   sequence_order: number | null
 }
 
-interface FacesApiResponse {
-  crag_id?: string | null
-  primary_image_id?: string
-  faces?: FaceGalleryItem[]
-  total_faces?: number
-  total_routes_combined?: number
-  summary?: {
-    total_faces: number
-    total_routes: number
-  }
-}
-
-interface FullContextRouteLine {
-  id: string
-  points: RoutePoint[] | string | null
-  color: string | null
-  image_width: number | null
-  image_height: number | null
-  climb_id: string
-  climb: ClimbInfo | null
-}
-
-interface FullContextPayload {
-  climb: ClimbInfo | null
-  primary_image: ImageInfo | null
-  primary_route_lines: FullContextRouteLine[]
-  faces: FaceGalleryItem[]
-  summary?: {
-    total_faces: number
-    total_routes: number
-  }
-}
-
 interface TransitionBuffer {
   faceId: string
   targetImageId: string
@@ -146,15 +116,6 @@ interface TransitionBuffer {
   targetRoutes: DisplayRouteLine[] | null
   hasRoutes: boolean
   isLoading: boolean
-}
-
-interface LegacyClimb {
-  id: string
-  name: string
-  grade: string
-  route_type?: string | null
-  image_url: string
-  coordinates: RoutePoint[] | string
 }
 
 interface UserLogEntry {
@@ -250,8 +211,15 @@ function getSubmissionCreditUrl(platform: string | null, handle: string | null):
 
 function getInitialViewerImageUrl(rawUrl: string | null | undefined): string {
   if (!rawUrl) return ''
-  if (rawUrl.startsWith('private://')) return ''
-  return resolveRouteImageUrl(rawUrl)
+  return rawUrl
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB'
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function normalizePoints(
@@ -361,12 +329,14 @@ export default function ClimbPage() {
 
   const [image, setImage] = useState<ImageInfo | null>(null)
   const [routeLines, setRouteLines] = useState<DisplayRouteLine[]>([])
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isApplyingClimbPack, setIsApplyingClimbPack] = useState(false)
   const [logging, setLogging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [shareToast, setShareToast] = useState<string | null>(null)
+  const [offlineDialogOpen, setOfflineDialogOpen] = useState(false)
+  const [offlineActionLoading, setOfflineActionLoading] = useState(false)
   const [flagModalOpen, setFlagModalOpen] = useState(false)
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [userLogs, setUserLogs] = useState<Record<string, UserLogEntry>>({})
@@ -394,6 +364,9 @@ export default function ClimbPage() {
   const [routeLinesImageId, setRouteLinesImageId] = useState<string | null>(null)
   const [canvasFadeOut, setCanvasFadeOut] = useState(false)
   const [transitionBuffer, setTransitionBuffer] = useState<TransitionBuffer | null>(null)
+  const [savedOfflinePackVersion, setSavedOfflinePackVersion] = useState<string | null>(null)
+  const [offlineUsageBytes, setOfflineUsageBytes] = useState(0)
+  const [offlineBudgetBytes, setOfflineBudgetBytes] = useState(250 * 1024 * 1024)
   const [zoom, setZoom] = useState(MIN_VIEWER_ZOOM)
   const [pan, setPan] = useState<PanOffset>({ x: 0, y: 0 })
   const emblaDragEnabled = zoom <= MIN_VIEWER_ZOOM
@@ -408,6 +381,16 @@ export default function ClimbPage() {
   const initialRouteCountRef = useRef(0)
   const prevActiveFaceIndexRef = useRef<number | null>(null)
   const gradeSystem = useGradeSystem()
+  const { data: climbPackData, isLoading: isClimbPackLoading, error: climbPackError } = useQuery({
+    queryKey: climbOfflinePackQueryKey(climbId),
+    queryFn: () => fetchClimbOfflinePack(climbId),
+    enabled: !!climbId,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
+    meta: {
+      persist: true,
+    },
+  })
 
   useOverlayHistory({ open: shareModalOpen, onClose: () => setShareModalOpen(false), id: 'share-climb-dialog' })
 
@@ -580,7 +563,7 @@ export default function ClimbPage() {
     getUser()
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
       setUser(session?.user ?? null)
     })
 
@@ -588,12 +571,12 @@ export default function ClimbPage() {
   }, [])
 
   useEffect(() => {
+    if (!climbId || !climbPackData) return
+
     let cancelled = false
 
-    const loadClimbContext = async () => {
-      if (!climbId) return
-
-      setLoading(true)
+    const applyClimbPack = async () => {
+      setIsApplyingClimbPack(true)
       setError(null)
       setHasUserInteractedWithSelection(false)
       setPublicSubmitter(null)
@@ -612,76 +595,50 @@ export default function ClimbPage() {
       clearSelection()
 
       try {
-        const supabase = createClient()
-        const { data: fullContext, error: fullContextError } = await supabase
-          .rpc('get_climb_full_context', { p_climb_id: climbId })
-
-        if (fullContextError) throw fullContextError
-
-        const context = fullContext as FullContextPayload | null
-        if (!context?.climb?.id) {
+        const primaryImageData = climbPackData.primary_image
+        if (!climbPackData.climb?.id || !primaryImageData?.id) {
           throw new Error('Climb not found')
         }
 
-        const primaryImageData = context.primary_image
+        const primaryRouteLines = Array.isArray(climbPackData.primary_route_lines) ? climbPackData.primary_route_lines : []
+        const faces = Array.isArray(climbPackData.faces)
+          ? climbPackData.faces.filter((item) => typeof item?.url === 'string' && !!item.url) as FaceGalleryItem[]
+          : []
 
-        if (!primaryImageData?.id) {
-          const { data: legacyClimb, error: legacyError } = await supabase
-            .from('climbs')
-            .select('id, name, grade, image_url, coordinates')
-            .eq('id', climbId)
-            .single()
-
-          if (legacyError) throw legacyError
-
-          const legacy = legacyClimb as LegacyClimb
-          const parsedPoints = parsePoints(legacy.coordinates)
-          const normalized = normalizePoints(parsedPoints, {
+        if (primaryImageData.id.startsWith('legacy-')) {
+          const legacyLine = primaryRouteLines[0]
+          const normalized = normalizePoints(parsePoints(legacyLine?.points), {
             routeWidth: null,
             routeHeight: null,
             imageWidth: null,
             imageHeight: null,
           })
 
-          if (normalized.length < 2) {
+          if (normalized.length < 2 || !legacyLine?.climb) {
             throw new Error('No valid route lines found for this climb')
           }
 
           if (cancelled) return
-          setActiveCanvasImageId(`legacy-${legacy.id}`)
-          setRouteLinesImageId(`legacy-${legacy.id}`)
-          setImage({
-            id: `legacy-${legacy.id}`,
-            url: resolveRouteImageUrl(legacy.image_url),
-            crag_id: null,
-            width: null,
-            height: null,
-            natural_width: null,
-            natural_height: null,
-            created_by: null,
-            contribution_credit_platform: null,
-            contribution_credit_handle: null,
-            face_directions: null,
-          })
+          setPrimaryImageId(primaryImageData.id)
+          setActiveCanvasImageId(primaryImageData.id)
+          setRouteLinesImageId(primaryImageData.id)
+          setImage(primaryImageData)
           setRouteLines([
             {
-              id: `legacy-${legacy.id}`,
-              imageId: `legacy-${legacy.id}`,
+              id: legacyLine.id,
+              imageId: primaryImageData.id,
               points: normalized,
-              color: '#ef4444',
-              climb: {
-                id: legacy.id,
-                name: legacy.name,
-                grade: legacy.grade,
-                route_type: legacy.route_type || null,
-                description: null,
-              },
+              color: legacyLine.color || '#ef4444',
+              climb: legacyLine.climb,
             },
           ])
+          setFaceGallery(faces)
+          setTotalFaces(typeof climbPackData.summary?.total_faces === 'number' ? Math.max(1, climbPackData.summary.total_faces) : 1)
+          setTotalRoutesCombined(typeof climbPackData.summary?.total_routes === 'number' ? climbPackData.summary.total_routes : 1)
           return
         }
 
-        const mappedLines = (Array.isArray(context.primary_route_lines) ? context.primary_route_lines : [])
+        const mappedLines = primaryRouteLines
           .map((line) => {
             if (!line?.climb) return null
             const normalized = normalizePoints(parsePoints(line.points), {
@@ -721,178 +678,103 @@ export default function ClimbPage() {
         setRouteLines(mappedLines)
         initialRouteCountRef.current = mappedLines.length
 
-        faceRouteCacheRef.current = {
+        const nextCache: Record<string, { image: ImageInfo; routeLines: DisplayRouteLine[] }> = {
           [primaryImage.id]: {
             image: primaryImage,
             routeLines: mappedLines,
           },
         }
 
-        const initialFaces = Array.isArray(context.faces)
-          ? context.faces.filter((item) => typeof item?.url === 'string' && !!item.url)
-          : []
-        setFaceGallery(initialFaces)
-        setTotalFaces(typeof context.summary?.total_faces === 'number' ? Math.max(1, context.summary.total_faces) : 1)
-        setTotalRoutesCombined(typeof context.summary?.total_routes === 'number' ? context.summary.total_routes : mappedLines.length)
-        setLoading(false)
-        setIsFacesLoading(true)
+        const primaryBaseImage = primaryImage
+        for (const face of faces) {
+          const resolvedImageId = face.image_id || face.linked_image_id || (face.is_primary ? primaryImage.id : null)
+          if (!resolvedImageId) continue
 
-        const facesAbortController = new AbortController()
-        const facesTimeoutId = window.setTimeout(() => {
-          facesAbortController.abort()
-        }, 12000)
+          const faceRoutes = mapFaceRoutesToDisplayLines(face.routes, face.metadata, resolvedImageId)
+          const baseImage = nextCache[resolvedImageId]?.image
+          const previousEntry = nextCache[resolvedImageId]
 
-        const facesPromise = fetch(`/api/images/${primaryImage.id}/faces`, {
-          signal: facesAbortController.signal,
-        })
-          .then(async (response) => {
-            if (!response.ok) return {} as FacesApiResponse
-            return response.json().catch(() => ({} as FacesApiResponse))
-          })
-          .catch(() => ({} as FacesApiResponse))
-          .finally(() => {
-            window.clearTimeout(facesTimeoutId)
-          })
+          const nextImage: ImageInfo = face.is_primary
+            ? {
+                id: resolvedImageId,
+                url: face.url,
+                crag_id: primaryBaseImage.crag_id || null,
+                width: face.metadata?.width ?? primaryBaseImage.width ?? null,
+                height: face.metadata?.height ?? primaryBaseImage.height ?? null,
+                natural_width: face.metadata?.width ?? primaryBaseImage.natural_width ?? null,
+                natural_height: face.metadata?.height ?? primaryBaseImage.natural_height ?? null,
+                created_by: primaryBaseImage.created_by || null,
+                contribution_credit_platform: primaryBaseImage.contribution_credit_platform || null,
+                contribution_credit_handle: primaryBaseImage.contribution_credit_handle || null,
+                face_directions: face.face_directions ?? null,
+              }
+            : {
+                id: resolvedImageId,
+                url: face.url,
+                crag_id: primaryBaseImage.crag_id || baseImage?.crag_id || null,
+                width: face.metadata?.width ?? baseImage?.width ?? null,
+                height: face.metadata?.height ?? baseImage?.height ?? null,
+                natural_width: face.metadata?.width ?? baseImage?.natural_width ?? null,
+                natural_height: face.metadata?.height ?? baseImage?.natural_height ?? null,
+                created_by: primaryBaseImage.created_by || baseImage?.created_by || null,
+                contribution_credit_platform: primaryBaseImage.contribution_credit_platform || baseImage?.contribution_credit_platform || null,
+                contribution_credit_handle: primaryBaseImage.contribution_credit_handle || baseImage?.contribution_credit_handle || null,
+                face_directions: face.face_directions ?? null,
+              }
 
-        const cragPromise = primaryImage.crag_id
-          ? supabase
-              .from('crags')
-              .select('id, country_code, slug')
-              .eq('id', primaryImage.crag_id)
-              .maybeSingle()
-          : Promise.resolve({ data: null, error: null })
-
-        const profilePromise = primaryImage.created_by
-          ? supabase
-              .from('profiles')
-              .select('id, username, display_name, first_name, last_name, is_public, contribution_credit_platform, contribution_credit_handle')
-              .eq('id', primaryImage.created_by)
-              .single()
-          : Promise.resolve({ data: null, error: null })
-
-        const [facesPayload, cragResult, profileResult] = await Promise.all([
-          facesPromise,
-          cragPromise,
-          profilePromise,
-        ])
-
-        if (cancelled) return
-
-        const faces = Array.isArray(facesPayload.faces)
-          ? facesPayload.faces.filter((item: FaceGalleryItem) => typeof item.url === 'string' && !!item.url)
-          : []
-        const primaryBaseImage = faceRouteCacheRef.current[primaryImage.id]?.image || primaryImage
-
-        if (faces.length > 0) {
-          setFaceGallery(faces)
-        }
-
-        const totalFacesFromSummary = typeof facesPayload.summary?.total_faces === 'number'
-          ? facesPayload.summary.total_faces
-          : facesPayload.total_faces
-        const totalRoutesFromSummary = typeof facesPayload.summary?.total_routes === 'number'
-          ? facesPayload.summary.total_routes
-          : facesPayload.total_routes_combined
-
-        setTotalFaces(typeof totalFacesFromSummary === 'number' ? Math.max(1, totalFacesFromSummary) : Math.max(1, faces.length || 1))
-        setTotalRoutesCombined(typeof totalRoutesFromSummary === 'number' ? totalRoutesFromSummary : initialRouteCountRef.current)
-
-        if (faces.length > 0) {
-          const nextCache = { ...faceRouteCacheRef.current }
-
-          for (const face of faces) {
-            const resolvedImageId = face.image_id || face.linked_image_id || (face.is_primary ? primaryImage.id : null)
-            if (!resolvedImageId) continue
-
-            const faceRoutes = mapFaceRoutesToDisplayLines(face.routes, face.metadata, resolvedImageId)
-            if (face.has_routes && faceRoutes.length === 0) {
-              console.log('[FaceRoutes] API reported routes but parsed none', {
-                faceId: face.id,
-                resolvedImageId,
-                hasRoutes: face.has_routes,
-              })
-            }
-
-            const baseImage = nextCache[resolvedImageId]?.image
-            const previousEntry = nextCache[resolvedImageId]
-
-            const nextImage: ImageInfo = face.is_primary
-              ? {
-                  id: resolvedImageId,
-                  url: face.url,
-                  crag_id: primaryBaseImage?.crag_id || null,
-                  width: face.metadata?.width ?? primaryBaseImage?.width ?? null,
-                  height: face.metadata?.height ?? primaryBaseImage?.height ?? null,
-                  natural_width: face.metadata?.width ?? primaryBaseImage?.natural_width ?? null,
-                  natural_height: face.metadata?.height ?? primaryBaseImage?.natural_height ?? null,
-                  created_by: primaryBaseImage?.created_by || null,
-                  contribution_credit_platform: primaryBaseImage?.contribution_credit_platform || null,
-                  contribution_credit_handle: primaryBaseImage?.contribution_credit_handle || null,
-                  face_directions: face.face_directions ?? null,
-                }
-              : {
-                  id: resolvedImageId,
-                  url: face.url,
-                  crag_id: primaryBaseImage?.crag_id || baseImage?.crag_id || null,
-                  width: face.metadata?.width ?? baseImage?.width ?? null,
-                  height: face.metadata?.height ?? baseImage?.height ?? null,
-                  natural_width: face.metadata?.width ?? baseImage?.natural_width ?? null,
-                  natural_height: face.metadata?.height ?? baseImage?.natural_height ?? null,
-                  created_by: primaryBaseImage?.created_by || baseImage?.created_by || null,
-                  contribution_credit_platform: primaryBaseImage?.contribution_credit_platform || baseImage?.contribution_credit_platform || null,
-                  contribution_credit_handle: primaryBaseImage?.contribution_credit_handle || baseImage?.contribution_credit_handle || null,
-                  face_directions: face.face_directions ?? null,
-                }
-
-            nextCache[resolvedImageId] = {
-              image: nextImage,
-              routeLines: faceRoutes.length > 0 ? faceRoutes : (previousEntry?.routeLines || []),
-            }
-          }
-
-          faceRouteCacheRef.current = nextCache
-        }
-
-        const cragData = 'data' in cragResult ? cragResult.data : null
-        if (primaryImage.crag_id) {
-          if (cragData?.country_code && cragData?.slug) {
-            setCragPath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
-          } else {
-            setCragPath(`/crag/${primaryImage.crag_id}`)
+          nextCache[resolvedImageId] = {
+            image: nextImage,
+            routeLines: faceRoutes.length > 0 ? faceRoutes : (previousEntry?.routeLines || []),
           }
         }
 
-        const profileData = 'data' in profileResult ? profileResult.data : null
-        if (profileData?.is_public) {
-          const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim()
-          const displayName = fullName || profileData.display_name || profileData.username || 'Climber'
-          setPublicSubmitter({
-            id: profileData.id,
-            displayName,
-            contributionCreditPlatform: primaryImage.contribution_credit_platform,
-            contributionCreditHandle: primaryImage.contribution_credit_handle,
-            profileContributionCreditPlatform: profileData.contribution_credit_platform,
-            profileContributionCreditHandle: profileData.contribution_credit_handle,
-          })
-        }
+        faceRouteCacheRef.current = nextCache
+        setFaceGallery(faces)
+        setTotalFaces(typeof climbPackData.summary?.total_faces === 'number' ? Math.max(1, climbPackData.summary.total_faces) : Math.max(1, faces.length || 1))
+        setTotalRoutesCombined(typeof climbPackData.summary?.total_routes === 'number' ? climbPackData.summary.total_routes : mappedLines.length)
+        setCragPath(climbPackData.crag_path)
+        setPublicSubmitter(climbPackData.public_submitter)
       } catch (err) {
-        console.error('Error loading climb:', err)
+        console.error('Error applying climb pack:', err)
         if (!cancelled) {
           setError('Failed to load climb')
         }
       } finally {
         if (!cancelled) {
-          setLoading(false)
+          setIsApplyingClimbPack(false)
           setIsFacesLoading(false)
         }
       }
     }
 
-    void loadClimbContext()
+    void applyClimbPack()
     return () => {
       cancelled = true
     }
-  }, [climbId, clearSelection, resetZoomPan])
+  }, [climbId, climbPackData, clearSelection, resetZoomPan])
+
+  useEffect(() => {
+    if (!climbPackError) return
+    console.error('Error loading climb pack:', climbPackError)
+    setError('Failed to load climb')
+  }, [climbPackError])
+
+  const refreshOfflineStatus = useCallback(async () => {
+    if (typeof window === 'undefined' || !climbId) return
+
+    try {
+      const status = await getOfflinePackStatus(climbId)
+      setSavedOfflinePackVersion(status.pack?.version || null)
+      setOfflineUsageBytes(status.usageBytes)
+      setOfflineBudgetBytes(status.budgetBytes)
+    } catch (statusError) {
+      console.error('Failed to read offline pack status:', statusError)
+    }
+  }, [climbId])
+
+  useEffect(() => {
+    void refreshOfflineStatus()
+  }, [refreshOfflineStatus])
 
   useEffect(() => {
     if (!emblaApi) return
@@ -1727,7 +1609,7 @@ export default function ClimbPage() {
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
 
-  if (loading) {
+  if (isClimbPackLoading || isApplyingClimbPack) {
     return <ClimbPageSkeleton />
   }
 
@@ -1748,6 +1630,59 @@ export default function ClimbPage() {
   }
 
   const displayClimbTypeLabel = displayClimb?.route_type ? formatRouteTypeLabel(displayClimb.route_type) : null
+  const offlinePack = climbPackData?.offline_pack || null
+  const isOfflineSaved = !!savedOfflinePackVersion
+  const offlineSaveWouldExceedBudget = offlinePack
+    ? (offlineUsageBytes - (savedOfflinePackVersion ? offlinePack.estimatedBytes : 0) + offlinePack.estimatedBytes) > offlineBudgetBytes
+    : false
+
+  const handleConfirmOfflineSave = async () => {
+    if (!offlinePack) return
+
+    setOfflineActionLoading(true)
+    try {
+      if (typeof navigator !== 'undefined' && navigator.storage?.persist) {
+        await navigator.storage.persist().catch(() => false)
+      }
+
+      const status = await getOfflinePackStatus(climbId)
+      const projectedUsage = status.usageBytes - (status.pack?.estimatedBytes || 0) + offlinePack.estimatedBytes
+      if (projectedUsage > status.budgetBytes) {
+        setToast('Not enough offline storage budget. Remove another pack first.')
+        setTimeout(() => setToast(null), 2500)
+        return
+      }
+
+      await saveClimbOfflinePack(offlinePack)
+      await refreshOfflineStatus()
+      setOfflineDialogOpen(false)
+      setToast('Climb saved for offline viewing')
+      setTimeout(() => setToast(null), 2500)
+    } catch (saveError) {
+      console.error('Offline save failed:', saveError)
+      setToast('Failed to save offline pack')
+      setTimeout(() => setToast(null), 2500)
+    } finally {
+      setOfflineActionLoading(false)
+    }
+  }
+
+  const handleRemoveOfflinePack = async () => {
+    setOfflineActionLoading(true)
+    try {
+      await deleteClimbOfflinePack(climbId)
+      await refreshOfflineStatus()
+      setOfflineDialogOpen(false)
+      setToast('Offline pack removed')
+      setTimeout(() => setToast(null), 2500)
+    } catch (removeError) {
+      console.error('Offline pack removal failed:', removeError)
+      setToast('Failed to remove offline pack')
+      setTimeout(() => setToast(null), 2500)
+    } finally {
+      setOfflineActionLoading(false)
+    }
+  }
 
   const routeSchema = {
     '@context': 'https://schema.org',
@@ -2072,6 +2007,13 @@ export default function ClimbPage() {
                 </Link>
               )}
               <button
+                onClick={() => setOfflineDialogOpen(true)}
+                disabled={!offlinePack}
+                className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isOfflineSaved ? 'Saved offline' : 'Save offline'}
+              </button>
+              <button
                 onClick={handleOpenFlagModal}
                 disabled={!selectedClimb}
                 className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -2317,6 +2259,68 @@ export default function ClimbPage() {
             <Button variant="ghost" onClick={() => setShareModalOpen(false)} className="w-full">
               Close
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={offlineDialogOpen} onOpenChange={setOfflineDialogOpen}>
+        <DialogContent className="border-gray-200 bg-white text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white">
+          <DialogHeader>
+            <DialogTitle>{isOfflineSaved ? 'Offline pack saved' : 'Save climb offline'}</DialogTitle>
+            <DialogDescription className="text-gray-500 dark:text-gray-400">
+              {isOfflineSaved
+                ? 'This climb pack stores topo photos and core climb data on this device.'
+                : 'This saves topo photos and core climb data for offline viewing.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 text-sm">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/60">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-500 dark:text-gray-400">Climb</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{displayClimb?.name || climbPackData?.climb?.name || 'This climb'}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span className="text-gray-500 dark:text-gray-400">Photos</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{offlinePack?.mediaCount || 0}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span className="text-gray-500 dark:text-gray-400">Estimated size</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePack?.estimatedBytes || 0)}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <span className="text-gray-500 dark:text-gray-400">Storage used</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlineUsageBytes)} of {formatBytes(offlineBudgetBytes)}</span>
+              </div>
+            </div>
+
+            {offlineSaveWouldExceedBudget && !isOfflineSaved && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                This pack exceeds your offline storage budget. Remove another saved climb first.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            {isOfflineSaved ? (
+              <>
+                <Button variant="outline" onClick={() => setOfflineDialogOpen(false)} disabled={offlineActionLoading}>
+                  Close
+                </Button>
+                <Button variant="ghost" onClick={handleRemoveOfflinePack} disabled={offlineActionLoading} className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
+                  {offlineActionLoading ? 'Removing...' : 'Remove offline pack'}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setOfflineDialogOpen(false)} disabled={offlineActionLoading}>
+                  Cancel
+                </Button>
+                <Button onClick={handleConfirmOfflineSave} disabled={offlineActionLoading || !offlinePack || offlineSaveWouldExceedBudget}>
+                  {offlineActionLoading ? 'Saving...' : 'Save offline'}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
