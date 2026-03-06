@@ -5,6 +5,7 @@ interface SubmissionImageRow {
   url: string
   created_at: string
   moderation_status?: string | null
+  is_anonymous_submission: boolean | null
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
   crags: { name?: string } | Array<{ name?: string }> | null
@@ -24,6 +25,7 @@ interface SubmissionGroupAggregate {
   updated_at: string
   crag_name: string | null
   route_lines_count: number
+  is_anonymous_submission: boolean
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
   image_ids: string[]
@@ -98,6 +100,7 @@ export function groupSubmittedImages(
         updated_at: row.created_at,
         crag_name: cragName,
         route_lines_count: routeLinesCount,
+        is_anonymous_submission: row.is_anonymous_submission === true,
         contribution_credit_platform: row.contribution_credit_platform || null,
         contribution_credit_handle: row.contribution_credit_handle || null,
         image_ids: [row.id],
@@ -113,6 +116,9 @@ export function groupSubmittedImages(
     existing.route_lines_count += routeLinesCount
     if (!existing.crag_name && cragName) {
       existing.crag_name = cragName
+    }
+    if (row.is_anonymous_submission === true) {
+      existing.is_anonymous_submission = true
     }
     if (!existing.contribution_credit_handle && row.contribution_credit_handle) {
       existing.contribution_credit_handle = row.contribution_credit_handle
@@ -136,6 +142,7 @@ export function groupSubmittedImages(
       updated_at: group.updated_at,
       crag_name: group.crag_name,
       route_lines_count: group.route_lines_count,
+      is_anonymous_submission: group.is_anonymous_submission,
       contribution_credit_platform: group.contribution_credit_platform,
       contribution_credit_handle: group.contribution_credit_handle,
       image_ids: group.image_ids,

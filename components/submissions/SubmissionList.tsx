@@ -21,6 +21,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
     <div className="space-y-0">
       {submissions.map((submission) => {
         const formattedHandle = formatSubmissionCreditHandle(submission.contribution_credit_handle)
+        const visibilityLabel = submission.is_anonymous_submission ? 'Anonymous' : formattedHandle
         const draftHref = `/logbook/drafts/${submission.id}/edit`
         const isOptimisticPublishing = submission.is_optimistic && submission.status === 'pending_review'
         const isDraftActionsVisible = submission.kind === 'draft' && submission.status === 'draft' && !isOptimisticPublishing
@@ -66,7 +67,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                   : ''}
                 {' • '}
                 {new Date(submission.updated_at).toLocaleDateString()}
-                {formattedHandle ? ` • ${formattedHandle}` : ''}
+                {visibilityLabel ? ` • ${visibilityLabel}` : ''}
               </p>
             </div>
           </>

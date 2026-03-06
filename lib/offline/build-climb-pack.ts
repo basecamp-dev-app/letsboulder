@@ -13,6 +13,7 @@ interface ImageInfoRow {
   natural_width: number | null
   natural_height: number | null
   created_by: string | null
+  is_anonymous_submission: boolean | null
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
   face_directions: string[] | null
@@ -230,6 +231,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
         natural_width: null,
         natural_height: null,
         created_by: null,
+        is_anonymous_submission: false,
         contribution_credit_platform: null,
         contribution_credit_handle: null,
         face_directions: null,
@@ -365,7 +367,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
   const crag = ('data' in cragResult ? cragResult.data : null) as CragRow | null
   const canonical = resolveCanonicalPaths(crag, context.climb, climbId)
   const profileData = ('data' in profileResult ? profileResult.data : null) as ProfileRow | null
-  const publicSubmitter = profileData?.is_public
+  const publicSubmitter = !primaryImage.is_anonymous_submission && profileData?.is_public
     ? {
         id: profileData.id,
         displayName: `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim() || profileData.display_name || profileData.username || 'Climber',

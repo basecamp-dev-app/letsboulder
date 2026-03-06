@@ -103,6 +103,7 @@ export async function fetchOwnSubmissions(
       id: draft.id,
       kind: 'draft',
       status: 'draft',
+      is_anonymous_submission: false,
       url: previewUrl,
       created_at: draft.created_at,
       updated_at: draft.updated_at,

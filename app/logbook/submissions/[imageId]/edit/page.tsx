@@ -89,6 +89,7 @@ interface EditableImageQuery {
   url: string
   created_by: string | null
   crag_id: string | null
+  is_anonymous_submission: boolean | null
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
   latitude: number | null
@@ -259,6 +260,8 @@ export default function EditSubmittedRoutesPage() {
   const [latestInviteUrl, setLatestInviteUrl] = useState<string | null>(null)
   const [creditPlatform, setCreditPlatform] = useState<SubmissionCreditPlatform>('instagram')
   const [creditHandle, setCreditHandle] = useState('')
+  const [isAnonymousSubmission, setIsAnonymousSubmission] = useState(false)
+  const [initialIsAnonymousSubmission, setInitialIsAnonymousSubmission] = useState(false)
   const [initialCreditPlatform, setInitialCreditPlatform] = useState<SubmissionCreditPlatform | null>(null)
   const [initialCreditHandle, setInitialCreditHandle] = useState('')
   const [savingAllChanges, setSavingAllChanges] = useState(false)
@@ -303,6 +306,7 @@ export default function EditSubmittedRoutesPage() {
           url,
           created_by,
           crag_id,
+          is_anonymous_submission,
           contribution_credit_platform,
           contribution_credit_handle,
           latitude,
@@ -405,8 +409,10 @@ export default function EditSubmittedRoutesPage() {
       const normalizedCreditPlatform = normalizeSubmissionCreditPlatform(submission.contribution_credit_platform)
       setCreditPlatform(normalizedCreditPlatform || 'instagram')
       setCreditHandle(submission.contribution_credit_handle || '')
+      setIsAnonymousSubmission(submission.is_anonymous_submission === true)
       setInitialCreditPlatform(normalizedCreditPlatform)
       setInitialCreditHandle(submission.contribution_credit_handle || '')
+      setInitialIsAnonymousSubmission(submission.is_anonymous_submission === true)
       setExistingRouteLines(mappedRouteLines)
       setInitialEditedRoutes(mappedEditableRoutes)
       setEditedRoutes(mappedEditableRoutes)
@@ -533,6 +539,11 @@ export default function EditSubmittedRoutesPage() {
     return initialNormalizedHandle !== currentNormalizedHandle || initialNormalizedPlatform !== currentNormalizedPlatform
   }, [canEditContributionCredit, initialCreditHandle, creditHandle, initialCreditPlatform, creditPlatform])
 
+  const anonymityDirty = useMemo(() => {
+    if (!canEditContributionCredit) return false
+    return initialIsAnonymousSubmission !== isAnonymousSubmission
+  }, [canEditContributionCredit, initialIsAnonymousSubmission, isAnonymousSubmission])
+
   const routeEditsDirty = useMemo(() => {
     if (initialEditedRoutes.length === 0 && editedRoutes.length === 0) return false
 
@@ -563,7 +574,7 @@ export default function EditSubmittedRoutesPage() {
       .map((item) => ({ routeLineId: item.routeLineId, grade: item.grade }))
   }, [initialEditedRoutes, editedRoutes])
 
-  const hasPendingChanges = imageMetadataDirty || cragMetadataDirty || routeEditsDirty || changedRouteGradeVotes.length > 0 || creditDirty
+  const hasPendingChanges = imageMetadataDirty || cragMetadataDirty || routeEditsDirty || changedRouteGradeVotes.length > 0 || creditDirty || anonymityDirty
 
   const routesToPersist = useMemo(() => {
     const initialById = new Map(initialEditedRoutes.map((route) => [route.id, route]))
@@ -981,6 +992,26 @@ export default function EditSubmittedRoutesPage() {
     return true
   }, [imageId, canEditContributionCredit, creditDirty, creditHandle, creditPlatform])
 
+  const saveAnonymousSubmission = useCallback(async () => {
+    if (!imageId || !canEditContributionCredit || !anonymityDirty) return false
+
+    const response = await csrfFetch(`/api/submissions/${imageId}/anonymous`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isAnonymousSubmission }),
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Failed to update submission anonymity')
+    }
+
+    const updatedAnonymousSubmission = payload?.submission?.isAnonymousSubmission === true
+    setIsAnonymousSubmission(updatedAnonymousSubmission)
+    setInitialIsAnonymousSubmission(updatedAnonymousSubmission)
+    return true
+  }, [imageId, canEditContributionCredit, anonymityDirty, isAnonymousSubmission])
+
   const saveRouteGradeVotes = useCallback(async () => {
     if (!imageId || changedRouteGradeVotes.length === 0) return false
 
@@ -1036,6 +1067,11 @@ export default function EditSubmittedRoutesPage() {
         savedLabels.push('routes')
       }
 
+      if (anonymityDirty) {
+        await saveAnonymousSubmission()
+        savedLabels.push('submission visibility')
+      }
+
       if (creditDirty) {
         await saveContributionCredit()
         savedLabels.push('contribution credit')
@@ -1058,6 +1094,8 @@ export default function EditSubmittedRoutesPage() {
     saveRouteGradeVotes,
     routeEditsDirty,
     saveRouteEdits,
+    anonymityDirty,
+    saveAnonymousSubmission,
     creditDirty,
     saveContributionCredit,
   ])
@@ -1388,12 +1426,27 @@ export default function EditSubmittedRoutesPage() {
 
           {canEditContributionCredit ? (
             <>
+              <label className="mb-3 flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-200">
+                <input
+                  type="checkbox"
+                  checked={isAnonymousSubmission}
+                  onChange={(event) => setIsAnonymousSubmission(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
+                />
+                <span>
+                  <span className="block font-medium text-gray-900 dark:text-gray-100">Keep this submission anonymous</span>
+                  <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                    This removes the upload from your public profile and hides your submitter name and credit link on the climb page.
+                  </span>
+                </span>
+              </label>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <label className="text-xs text-gray-600 dark:text-gray-300">
                   Platform
                   <select
                     value={creditPlatform}
                     onChange={(event) => setCreditPlatform(event.target.value as SubmissionCreditPlatform)}
+                    disabled={isAnonymousSubmission}
                     className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                   >
                     {CREDIT_PLATFORM_OPTIONS.map((option) => (
@@ -1407,12 +1460,15 @@ export default function EditSubmittedRoutesPage() {
                     value={creditHandle}
                     onChange={(event) => setCreditHandle(event.target.value)}
                     placeholder="handle"
+                    disabled={isAnonymousSubmission}
                     className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                   />
                 </label>
               </div>
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                Shown publicly as @{normalizeSubmissionCreditHandle(creditHandle) || 'handle'}
+                {isAnonymousSubmission
+                  ? 'Credit is hidden while anonymous mode is on.'
+                  : `Shown publicly as @${normalizeSubmissionCreditHandle(creditHandle) || 'handle'}`}
               </p>
             </>
           ) : (

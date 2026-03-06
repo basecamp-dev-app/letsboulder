@@ -42,6 +42,7 @@ interface ImageInfo {
   natural_width: number | null
   natural_height: number | null
   created_by: string | null
+  is_anonymous_submission: boolean | null
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
   face_directions: string[] | null
@@ -706,6 +707,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
                 natural_width: face.metadata?.width ?? primaryBaseImage.natural_width ?? null,
                 natural_height: face.metadata?.height ?? primaryBaseImage.natural_height ?? null,
                 created_by: primaryBaseImage.created_by || null,
+                is_anonymous_submission: primaryBaseImage.is_anonymous_submission || null,
                 contribution_credit_platform: primaryBaseImage.contribution_credit_platform || null,
                 contribution_credit_handle: primaryBaseImage.contribution_credit_handle || null,
                 face_directions: face.face_directions ?? null,
@@ -719,6 +721,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
                 natural_width: face.metadata?.width ?? baseImage?.natural_width ?? null,
                 natural_height: face.metadata?.height ?? baseImage?.natural_height ?? null,
                 created_by: primaryBaseImage.created_by || baseImage?.created_by || null,
+                is_anonymous_submission: primaryBaseImage.is_anonymous_submission || baseImage?.is_anonymous_submission || null,
                 contribution_credit_platform: primaryBaseImage.contribution_credit_platform || baseImage?.contribution_credit_platform || null,
                 contribution_credit_handle: primaryBaseImage.contribution_credit_handle || baseImage?.contribution_credit_handle || null,
                 face_directions: face.face_directions ?? null,
