@@ -26,6 +26,7 @@ export interface ClimbPackImageInfo {
   natural_width: number | null
   natural_height: number | null
   created_by: string | null
+  is_anonymous_submission: boolean | null
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
   face_directions: string[] | null

@@ -3,6 +3,7 @@ export interface Submission {
   kind: 'submitted' | 'draft'
   status: 'draft' | 'pending_review' | 'published'
   is_optimistic?: boolean
+  is_anonymous_submission?: boolean
   url: string
   created_at: string
   updated_at: string

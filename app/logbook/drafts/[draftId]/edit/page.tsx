@@ -264,6 +264,7 @@ export default function EditDraftPage() {
   const [routeType, setRouteType] = useState<string>('sport')
   const [creditPlatform, setCreditPlatform] = useState<SubmissionCreditPlatform>('instagram')
   const [creditHandle, setCreditHandle] = useState('')
+  const [isAnonymousSubmission, setIsAnonymousSubmission] = useState(false)
   const [latitude, setLatitude] = useState('')
   const [longitude, setLongitude] = useState('')
   const [cragId, setCragId] = useState<string | null>(null)
@@ -373,6 +374,7 @@ export default function EditDraftPage() {
       const normalizedCreditHandle = typeof (metadata as { contributionCreditHandle?: unknown }).contributionCreditHandle === 'string'
         ? String((metadata as { contributionCreditHandle?: unknown }).contributionCreditHandle)
         : ''
+      const normalizedAnonymousSubmission = (metadata as { isAnonymousSubmission?: unknown }).isAnonymousSubmission === true
       const metadataLocation = (metadata as { location?: unknown }).location
       const metadataLatitude = metadataLocation && typeof metadataLocation === 'object' && typeof (metadataLocation as { latitude?: unknown }).latitude === 'number'
         ? (metadataLocation as { latitude: number }).latitude
@@ -416,6 +418,7 @@ export default function EditDraftPage() {
       setRouteType(normalizedRouteType)
       setCreditPlatform(normalizedCreditPlatform || 'instagram')
       setCreditHandle(normalizedCreditHandle)
+      setIsAnonymousSubmission(normalizedAnonymousSubmission)
       setLatitude(typeof metadataLatitude === 'number' ? metadataLatitude.toString() : '')
       setLongitude(typeof metadataLongitude === 'number' ? metadataLongitude.toString() : '')
       setCragId(nextDraft.crag_id)
@@ -978,6 +981,7 @@ export default function EditDraftPage() {
             latitude: markerPosition ? markerPosition[0] : null,
             longitude: markerPosition ? markerPosition[1] : null,
           },
+          isAnonymousSubmission,
           contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
           contributionCreditHandle: normalizedHandle,
         },
@@ -1042,6 +1046,7 @@ export default function EditDraftPage() {
           primaryIndex,
           faceDirectionsByImage,
           routeType,
+          isAnonymousSubmission,
           contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
           contributionCreditHandle: normalizedHandle,
         },
@@ -1070,7 +1075,7 @@ export default function EditDraftPage() {
     } finally {
       setSavingDraft(false)
     }
-  }, [draft, draftUpdatedAt, routesByImageId, routeType, creditHandle, creditPlatform, cragId, markerPosition, primaryIndex, faceDirectionsByImage, currentUserId])
+  }, [draft, draftUpdatedAt, routesByImageId, routeType, creditHandle, creditPlatform, cragId, markerPosition, primaryIndex, faceDirectionsByImage, currentUserId, isAnonymousSubmission])
 
   const handleManualSave = useCallback(() => {
     if (autosaveTimeoutRef.current) {
@@ -1618,12 +1623,27 @@ export default function EditDraftPage() {
           <div className="mb-3 flex items-center gap-2">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Contribution credit</h2>
           </div>
+          <label className="mb-3 flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-200">
+            <input
+              type="checkbox"
+              checked={isAnonymousSubmission}
+              onChange={(event) => setIsAnonymousSubmission(event.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
+            />
+            <span>
+              <span className="block font-medium text-gray-900 dark:text-gray-100">Publish anonymously</span>
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                Your upload stays editable in your logbook, but your public profile, submitter name, and credit link stay hidden.
+              </span>
+            </span>
+          </label>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <label className="text-xs text-gray-600 dark:text-gray-300">
               Platform
               <select
                 value={creditPlatform}
                 onChange={(event) => setCreditPlatform(event.target.value as SubmissionCreditPlatform)}
+                disabled={isAnonymousSubmission}
                 className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               >
                 {CREDIT_PLATFORM_OPTIONS.map((option) => (
@@ -1637,12 +1657,15 @@ export default function EditDraftPage() {
                 value={creditHandle}
                 onChange={(event) => setCreditHandle(event.target.value)}
                 placeholder="handle"
+                disabled={isAnonymousSubmission}
                 className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               />
             </label>
           </div>
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            Shown publicly as @{normalizeSubmissionCreditHandle(creditHandle) || 'handle'} after publish.
+            {isAnonymousSubmission
+              ? 'Credit is hidden while anonymous publishing is on.'
+              : `Shown publicly as @${normalizeSubmissionCreditHandle(creditHandle) || 'handle'} after publish.`}
           </p>
         </div>
 
