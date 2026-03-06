@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -18,6 +19,7 @@ import { formatGradeForDisplay } from '@/lib/grade-display'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import SubmissionList from '@/components/submissions/SubmissionList'
 import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
+import { ownLogbookQueryKey, type OwnLogbookData } from '@/lib/logbook/queries'
 import type { Submission } from '@/types/submissions'
 
 const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
@@ -69,6 +71,7 @@ type OwnerSubmissionsTab = 'all' | 'drafts' | 'pending-review' | 'published'
 export default function LogbookView({ userId, isOwnProfile, initialLogs = [], profile, initialSubmissions = [] }: LogbookViewProps) {
   const gradeSystem = useGradeSystem()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [logs, setLogs] = useState<Climb[]>(initialLogs)
   const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -85,6 +88,15 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
 
   const recentLogs = useMemo(() => logs.slice(0, 20), [logs])
 
+  const syncOwnLogbookCache = (updater: (current: OwnLogbookData) => OwnLogbookData) => {
+    if (!isOwnProfile) return
+
+    queryClient.setQueryData<OwnLogbookData>(ownLogbookQueryKey, (current) => {
+      if (!current) return current
+      return updater(current)
+    })
+  }
+
   const handleDeleteLog = async (logId: string) => {
     setDeletingId(logId)
     try {
@@ -93,6 +105,10 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
 
       const updatedLogs = logs.filter(log => log.id !== logId)
       setLogs(updatedLogs)
+      syncOwnLogbookCache((current) => ({
+        ...current,
+        logs: current.logs.filter((log) => log.id !== logId),
+      }))
       addToast('Climb removed from logbook', 'success')
     } catch {
       addToast('Failed to remove climb', 'error')
@@ -108,6 +124,10 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
       if (!response.ok) throw new Error()
 
       setSubmissions((previous) => previous.filter((submission) => submission.id !== draftId))
+      syncOwnLogbookCache((current) => ({
+        ...current,
+        submissions: current.submissions.filter((submission) => submission.id !== draftId),
+      }))
       addToast('Draft deleted', 'success')
     } catch {
       addToast('Failed to delete draft', 'error')
@@ -132,6 +152,10 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
       const supabase = createClient()
       const refreshed = await fetchOwnSubmissions(supabase, userId, csrfFetch, 24)
       setSubmissions(refreshed)
+      syncOwnLogbookCache((current) => ({
+        ...current,
+        submissions: refreshed,
+      }))
 
       const imageId = payload.published?.imageId
       const imageCount = Array.isArray(payload.published?.imageIds)

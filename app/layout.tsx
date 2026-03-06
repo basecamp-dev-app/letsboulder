@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import AppLayout from '@/components/AppLayout'
+import Providers from '@/components/providers'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import {
   BRAND_NAME,
@@ -197,9 +198,11 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
-        <ServiceWorkerRegistration />
-        <AppLayout>{children}</AppLayout>
-        <Analytics />
+        <Providers>
+          <ServiceWorkerRegistration />
+          <AppLayout>{children}</AppLayout>
+          <Analytics />
+        </Providers>
       </body>
     </html>
   )

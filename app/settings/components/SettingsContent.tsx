@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { User } from '@supabase/supabase-js'
 import { Loader2, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,7 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { updateGradeSystemPreference } from '@/hooks/useGradeSystem'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { GradeSystem } from '@/lib/grade-display'
+import { fetchSettings, settingsQueryKey, type SettingsPayload } from '@/lib/settings/queries'
 import { normalizeSubmissionCreditHandle, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 
 interface SettingsContentProps {
@@ -68,6 +70,8 @@ const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: s
 ]
 
 export default function SettingsContent({ user }: SettingsContentProps) {
+  const queryClient = useQueryClient()
+  const hasHydratedFormRef = useRef(false)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('profile')
 
@@ -99,6 +103,15 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [deleteSent, setDeleteSent] = useState(false)
+  const { data, isLoading, error } = useQuery({
+    queryKey: settingsQueryKey,
+    queryFn: fetchSettings,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    meta: {
+      persist: true,
+    },
+  })
 
   useOverlayHistory({
     open: deleteModalOpen,
@@ -110,42 +123,62 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   })
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch('/api/settings')
-        const data = await response.json()
+    if (error) {
+      console.error('Error fetching settings:', error)
+    }
+  }, [error])
 
-        if (data.settings) {
-          setFormData({
-            firstName: data.settings.firstName || '',
-            lastName: data.settings.lastName || '',
-            gender: data.settings.gender || 'prefer_not_to_say',
-            heightCm: data.settings.heightCm === null || data.settings.heightCm === undefined ? '' : String(data.settings.heightCm),
-            reachCm: data.settings.reachCm === null || data.settings.reachCm === undefined ? '' : String(data.settings.reachCm),
-            bio: data.settings.bio || '',
-            contributionCreditPlatform: data.settings.contributionCreditPlatform || 'instagram',
-            contributionCreditHandle: data.settings.contributionCreditHandle || '',
-          })
-            setIsPublic(data.settings.isPublic !== false)
-            setThemePreference(data.settings.themePreference || 'system')
-            setUnits(data.settings.units || 'metric')
-            setBoulderSystem(data.settings.boulderSystem || 'v_scale')
-            setRouteSystem(data.settings.routeSystem || 'yds_equivalent')
-            setTradSystem(data.settings.tradSystem || 'yds_equivalent')
-            updateGradeSystemPreference(data.settings.boulderSystem || 'v_scale')
-          }
-         if (data.imageCount !== undefined) {
-           setImageCount(data.imageCount)
-        }
-      } catch (error) {
-        console.error('Error fetching settings:', error)
-      } finally {
-        setLoading(false)
-      }
+  useEffect(() => {
+    if (!data?.settings) {
+      setLoading(isLoading)
+      return
     }
 
-    fetchData()
-  }, [])
+    if (hasHydratedFormRef.current && isDirty) {
+      setLoading(isLoading)
+      return
+    }
+
+    setFormData({
+      firstName: data.settings.firstName || '',
+      lastName: data.settings.lastName || '',
+      gender: data.settings.gender || 'prefer_not_to_say',
+      heightCm: data.settings.heightCm === null || data.settings.heightCm === undefined ? '' : String(data.settings.heightCm),
+      reachCm: data.settings.reachCm === null || data.settings.reachCm === undefined ? '' : String(data.settings.reachCm),
+      bio: data.settings.bio || '',
+      contributionCreditPlatform: (data.settings.contributionCreditPlatform || 'instagram') as SubmissionCreditPlatform,
+      contributionCreditHandle: data.settings.contributionCreditHandle || '',
+    })
+    setIsPublic(data.settings.isPublic !== false)
+    setThemePreference(data.settings.themePreference || 'system')
+    setUnits((data.settings.units || 'metric') as 'metric' | 'imperial')
+    setBoulderSystem((data.settings.boulderSystem || 'v_scale') as GradeSystem)
+    setRouteSystem((data.settings.routeSystem || 'yds_equivalent') as GradeSystem)
+    setTradSystem((data.settings.tradSystem || 'yds_equivalent') as GradeSystem)
+    setImageCount(data.imageCount || 0)
+    updateGradeSystemPreference((data.settings.boulderSystem || 'v_scale') as GradeSystem)
+    hasHydratedFormRef.current = true
+    setLoading(isLoading)
+  }, [data, isDirty, isLoading])
+
+  const syncSettingsCache = (nextSettings: SettingsPayload['settings']) => {
+    queryClient.setQueryData<SettingsPayload>(settingsQueryKey, (current) => {
+      if (!current) {
+        return {
+          settings: nextSettings,
+          imageCount,
+        }
+      }
+
+      return {
+        ...current,
+        settings: {
+          ...current.settings,
+          ...nextSettings,
+        },
+      }
+    })
+  }
 
   const handleFormChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -178,16 +211,46 @@ export default function SettingsContent({ user }: SettingsContentProps) {
         })
       })
 
+      const payload = await response.json().catch(() => ({} as { error?: string; warning?: string }))
+
       if (!response.ok) {
-        const data = await response.json()
-        if (data.error) {
-          setToast(data.error)
+        if (payload.error) {
+          setToast(payload.error)
           return
         }
         throw new Error('Failed to save')
       }
+
+      syncSettingsCache({
+        ...(data?.settings || {
+          username: '',
+          avatarUrl: '',
+          defaultLocation: '',
+          defaultLocationName: '',
+          defaultLocationLat: null,
+          defaultLocationLng: null,
+          defaultLocationZoom: null,
+        }),
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        gender: formData.gender,
+        heightCm: formData.heightCm === '' ? null : Number(formData.heightCm),
+        reachCm: formData.reachCm === '' ? null : Number(formData.reachCm),
+        bio: formData.bio,
+        boulderSystem,
+        routeSystem,
+        tradSystem,
+        units,
+        isPublic,
+        themePreference,
+        contributionCreditPlatform: formData.contributionCreditHandle.trim()
+          ? formData.contributionCreditPlatform
+          : '',
+        contributionCreditHandle: normalizeSubmissionCreditHandle(formData.contributionCreditHandle) || '',
+      })
+
       setIsDirty(false)
-      setToast('Saved')
+      setToast(payload.warning || 'Saved')
     } catch {
       setToast('Failed to save')
     } finally {
