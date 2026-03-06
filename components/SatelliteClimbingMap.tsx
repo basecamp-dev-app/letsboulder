@@ -508,7 +508,7 @@ export default function SatelliteClimbingMap() {
                 eventHandlers={{
                   click: () => {
                     if (isGym && place.slug) {
-                      router.push(`/community/places/${place.slug}`)
+                      router.push(`/gyms/${place.slug}`)
                       return
                     }
 

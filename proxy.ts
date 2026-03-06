@@ -8,7 +8,6 @@ const ALLOWED_REDIRECT_PATHS = [
   '/',
   '/map',
   '/logbook',
-  '/community',
   '/gym-admin',
   '/settings',
   '/submit',

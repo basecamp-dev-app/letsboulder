@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 import { Download, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
-import PlaceCommunityClient from '@/app/community/components/PlaceCommunityClient'
+import PlaceCommunityClient from '@/features/community/components/PlaceCommunityClient'
 import { GRADES, normalizeGrade } from '@/lib/grades'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
@@ -35,8 +35,8 @@ const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapCo
 const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
-const TopThisPlacePanel = dynamic(() => import('@/app/community/components/TopThisPlacePanel'))
-const PlaceRankingsPanel = dynamic(() => import('@/app/community/components/PlaceRankingsPanel'))
+const TopThisPlacePanel = dynamic(() => import('@/features/community/components/TopThisPlacePanel'))
+const PlaceRankingsPanel = dynamic(() => import('@/features/community/components/PlaceRankingsPanel'))
 
 interface LeafletIconDefault {
   prototype: {

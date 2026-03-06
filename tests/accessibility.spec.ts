@@ -31,13 +31,6 @@ test.describe('Accessibility', () => {
     await expect(html).toHaveAttribute('lang', /en/i)
   })
 
-  test('@full community page has accessible heading structure', async ({ page }) => {
-    await page.goto('/community')
-    
-    const h1 = page.locator('h1')
-    await expect(h1).toBeVisible()
-  })
-
   test('@full form inputs have labels', async ({ page }) => {
     await page.goto('/auth')
 
