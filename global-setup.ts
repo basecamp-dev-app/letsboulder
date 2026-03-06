@@ -55,6 +55,16 @@ async function globalSetup() {
   const baseURL = process.env.PLAYWRIGHT_BASE_URL
     || (process.env.CI ? 'https://dev.letsboulder.com' : 'http://localhost:3000')
   
+  console.log('=== Global Setup Debug ===')
+  console.log('PLAYWRIGHT_BASE_URL:', process.env.PLAYWRIGHT_BASE_URL)
+  console.log('TEST_API_KEY present:', !!process.env.TEST_API_KEY, 'length:', process.env.TEST_API_KEY?.length)
+  console.log('TEST_USER_ID present:', !!process.env.TEST_USER_ID)
+  console.log('TEST_USER_PASSWORD present:', !!process.env.TEST_USER_PASSWORD)
+  console.log('INTERNAL_TEST_KEY present:', !!process.env.INTERNAL_TEST_KEY)
+  console.log('CF_ACCESS_CLIENT_ID present:', !!process.env.CF_ACCESS_CLIENT_ID, 'length:', process.env.CF_ACCESS_CLIENT_ID?.length)
+  console.log('CF_ACCESS_CLIENT_SECRET present:', !!process.env.CF_ACCESS_CLIENT_SECRET, 'length:', process.env.CF_ACCESS_CLIENT_SECRET?.length)
+  console.log('=========================')
+
   const testApiKey = process.env.TEST_API_KEY?.trim()
   const testUserId = process.env.TEST_USER_ID?.trim()
   const testUserPassword = process.env.TEST_USER_PASSWORD?.trim()
@@ -85,8 +95,11 @@ async function globalSetup() {
     }
 
     if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
+      console.log('Adding CF Access headers to request')
       requestOptions.headers['CF-Access-Client-Id'] = process.env.CF_ACCESS_CLIENT_ID
       requestOptions.headers['CF-Access-Client-Secret'] = process.env.CF_ACCESS_CLIENT_SECRET
+    } else {
+      console.log('CF Access headers NOT added - vars missing or empty')
     }
     requestOptions.headers['x-test-auth'] = '1'
 
