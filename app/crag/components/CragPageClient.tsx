@@ -102,19 +102,19 @@ interface OfflineHydratedCragData {
   cragCenter: [number, number] | null
 }
 
-interface OfflineCragClimbSummary {
+interface OfflineCragRouteSummary {
+  routeId: string
   climbId: string
   name: string
   grade: string
   routeType: string | null
-  href: string
 }
 
 interface OfflineCragFaceSummary {
   id: string
   imageUrl: string
   faceDirections: string[]
-  climbs: OfflineCragClimbSummary[]
+  routes: OfflineCragRouteSummary[]
 }
 
 interface OfflineFaceSource {
@@ -124,10 +124,11 @@ interface OfflineFaceSource {
   linked_image_id?: string | null
   crag_image_id?: string | null
   face_directions?: string[] | null
-  routes?: Array<{
-    climb_id: string
-    name: string
-    grade: string
+      routes?: Array<{
+        id: string
+        climb_id: string
+        name: string
+        grade: string
     route_type: string | null
   }>
 }
@@ -297,12 +298,12 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
       }),
     })
 
-    const fallbackClimbSummary: OfflineCragClimbSummary = {
+    const fallbackRouteSummary: OfflineCragRouteSummary = {
+      routeId: payload.primary_route_lines?.[0]?.id || `fallback-route:${climb.id}`,
       climbId: climb.id,
       name: climb.name || 'Unnamed climb',
       grade: normalizeGrade(climb.grade) || 'Unknown',
       routeType: climb.route_type,
-      href: `/climb/${climb.id}`,
     }
 
     const faces: OfflineFaceSource[] = payload.faces && payload.faces.length > 0
@@ -317,9 +318,9 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
           routes: payload.primary_route_lines?.map((line) => ({
             id: line.id,
             climb_id: line.climb_id,
-            name: line.climb?.name || fallbackClimbSummary.name,
-            grade: line.climb?.grade || fallbackClimbSummary.grade,
-            route_type: line.climb?.route_type || fallbackClimbSummary.routeType,
+            name: line.climb?.name || fallbackRouteSummary.name,
+            grade: line.climb?.grade || fallbackRouteSummary.grade,
+            route_type: line.climb?.route_type || fallbackRouteSummary.routeType,
             description: line.climb?.description || null,
             color: line.color,
             points: line.points,
@@ -333,31 +334,35 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
       if (!face.url) continue
       const faceId = String(face.image_id || face.linked_image_id || face.crag_image_id || face.id)
       const existingFace = faceMap.get(faceId)
-      const nextClimbs = new Map<string, OfflineCragClimbSummary>()
+      const nextRoutes = new Map<string, OfflineCragRouteSummary>()
 
-      for (const existingClimb of existingFace?.climbs || []) {
-        nextClimbs.set(existingClimb.climbId, existingClimb)
+      for (const existingRoute of existingFace?.routes || []) {
+        nextRoutes.set(existingRoute.routeId, existingRoute)
       }
 
-      const routeSummaries = Array.isArray(face.routes) && face.routes.length > 0
+      const routeSummaries: OfflineCragRouteSummary[] = Array.isArray(face.routes) && face.routes.length > 0
         ? face.routes.map((route) => ({
+            routeId: route.id,
             climbId: route.climb_id,
-            name: route.name || fallbackClimbSummary.name,
-            grade: normalizeGrade(route.grade) || fallbackClimbSummary.grade,
+            name: route.name || fallbackRouteSummary.name,
+            grade: normalizeGrade(route.grade) || fallbackRouteSummary.grade,
             routeType: route.route_type,
-            href: `/climb/${route.climb_id}`,
           }))
-        : [fallbackClimbSummary]
+        : [fallbackRouteSummary]
 
       for (const routeSummary of routeSummaries) {
-        nextClimbs.set(routeSummary.climbId, routeSummary)
+        nextRoutes.set(routeSummary.routeId, routeSummary)
       }
 
       faceMap.set(faceId, {
         id: faceId,
         imageUrl: face.url,
         faceDirections: Array.isArray(face.face_directions) ? face.face_directions : [],
-        climbs: Array.from(nextClimbs.values()).sort((a, b) => a.name.localeCompare(b.name)),
+        routes: Array.from(nextRoutes.values()).sort((a, b) => {
+          const gradeCompare = a.grade.localeCompare(b.grade)
+          if (gradeCompare !== 0) return gradeCompare
+          return a.name.localeCompare(b.name)
+        }),
       })
     }
   }
@@ -1309,19 +1314,19 @@ export default function CragPageClient({
                         </div>
                         <div className="space-y-3 p-3">
                           <div className="flex items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
-                            <span>{face.climbs.length} climb{face.climbs.length === 1 ? '' : 's'}</span>
-                            <span>Saved face</span>
+                            <span>{face.routes.length} route{face.routes.length === 1 ? '' : 's'}</span>
+                            {face.faceDirections.length > 0 ? <span>{face.faceDirections.join(' ')}</span> : null}
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            {face.climbs.map((climb: OfflineCragClimbSummary) => (
+                            {face.routes.map((route: OfflineCragRouteSummary) => (
                               <button
-                                key={`${face.id}-${climb.climbId}`}
+                                key={`${face.id}-${route.routeId}`}
                                 type="button"
-                                onClick={() => window.location.assign(`/climb/${climb.climbId}`)}
+                                onClick={() => window.location.assign(`/climb/${route.climbId}?route=${route.routeId}`)}
                                 className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-left text-xs font-medium text-gray-900 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800"
                               >
-                                <span>{climb.name}</span>
-                                <span className="text-gray-500 dark:text-gray-400">{formatGradeForDisplay(climb.grade, gradeSystem)}</span>
+                                <span>{route.name}</span>
+                                <span className="text-gray-500 dark:text-gray-400">{formatGradeForDisplay(route.grade, gradeSystem)}</span>
                               </button>
                             ))}
                           </div>
@@ -1412,7 +1417,9 @@ export default function CragPageClient({
                 </span>
               )}
               <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 tabular-nums">
-                {isOfflineCragMode ? offlineCragFaces.length : totalRoutes} {isOfflineCragMode ? `face${offlineCragFaces.length === 1 ? '' : 's'}` : 'routes'}
+                {isOfflineCragMode
+                  ? `${offlineCragFaces.length} face${offlineCragFaces.length === 1 ? '' : 's'}`
+                  : `${totalRoutes} routes`}
               </span>
             </div>
 

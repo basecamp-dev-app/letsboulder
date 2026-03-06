@@ -768,6 +768,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     const canonicalPath = climbPackData?.offline_pack?.canonicalPath
     if (!canonicalPath || canonicalPath === `/climb/${climbId}`) return
     if (selectedRouteParam || routeParamOverride || hasNonRouteSearchParams) return
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return
 
     if (enableCanonicalRedirect && pathname !== canonicalPath) {
       router.replace(canonicalPath, { scroll: false })

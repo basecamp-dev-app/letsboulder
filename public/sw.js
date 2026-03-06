@@ -64,6 +64,19 @@ async function removeUrls(cacheName, urls) {
   await Promise.all(urls.map((url) => cache.delete(new Request(url, { credentials: 'same-origin' }))))
 }
 
+async function matchCachedRequest(cache, request) {
+  const directMatch = await cache.match(request)
+  if (directMatch) return directMatch
+
+  if (request.mode === 'navigate') {
+    const url = new URL(request.url)
+    const normalized = new Request(`${url.origin}${url.pathname}`, { credentials: 'same-origin' })
+    return cache.match(normalized)
+  }
+
+  return undefined
+}
+
 self.addEventListener('message', (event) => {
   const reply = event.ports && event.ports[0]
   const message = event.data || {}
@@ -222,7 +235,7 @@ self.addEventListener('fetch', (event) => {
   if (isOfflineLaunch || isPackRequest || isClimbPage || isCragPage) {
     event.respondWith((async () => {
       const cache = await caches.open(PACK_CACHE)
-      const cached = await cache.match(request)
+      const cached = await matchCachedRequest(cache, request)
       if (cached) return cached
 
       try {
@@ -232,7 +245,8 @@ self.addEventListener('fetch', (event) => {
         }
         return response
       } catch (error) {
-        if (cached) return cached
+        const fallbackCached = await matchCachedRequest(cache, request)
+        if (fallbackCached) return fallbackCached
 
         if (request.mode === 'navigate') {
           const offlineFallback = await cache.match(new Request(OFFLINE_LAUNCH_URL, { credentials: 'same-origin' }))
@@ -251,6 +265,8 @@ self.addEventListener('fetch', (event) => {
         return await fetch(request)
       } catch (error) {
         const cache = await caches.open(PACK_CACHE)
+        const cached = await matchCachedRequest(cache, request)
+        if (cached) return cached
         const offlineFallback = await cache.match(new Request(OFFLINE_LAUNCH_URL, { credentials: 'same-origin' }))
         if (offlineFallback) return offlineFallback
         throw error
