@@ -148,7 +148,6 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
     <CragPageClient
       id={id}
       initialCrag={initialCrag}
-      canonicalPath={`/crag/${id}`}
       communityPlaceId={communityData.placeId}
       communityPlaceSlug={communityData.placeSlug}
       initialSessionPosts={communityData.sessionPosts}
