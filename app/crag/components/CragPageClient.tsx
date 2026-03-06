@@ -354,6 +354,7 @@ export default function CragPageClient({
   const [toast, setToast] = useState<string | null>(null)
   const [offlineDialogOpen, setOfflineDialogOpen] = useState(false)
   const [offlineDialogLoading, setOfflineDialogLoading] = useState(false)
+  const [offlinePreviewLoading, setOfflinePreviewLoading] = useState(false)
   const [offlineError, setOfflineError] = useState<string | null>(null)
   const [offlinePreview, setOfflinePreview] = useState<Awaited<ReturnType<typeof getCragOfflinePreview>> | null>(null)
   const [offlineProgress, setOfflineProgress] = useState<OfflineJobProgressEvent | null>(null)
@@ -369,6 +370,7 @@ export default function CragPageClient({
   }, [])
 
   const refreshCragOfflinePreview = useCallback(async () => {
+    setOfflinePreviewLoading(true)
     try {
       const preview = await getCragOfflinePreview(id)
       setOfflinePreview(preview)
@@ -376,6 +378,9 @@ export default function CragPageClient({
     } catch (error) {
       console.error('Failed to load crag offline preview:', error)
       setOfflineError('Offline pack preview is unavailable right now.')
+      setOfflinePreview(null)
+    } finally {
+      setOfflinePreviewLoading(false)
     }
   }, [id])
 
@@ -951,7 +956,7 @@ export default function CragPageClient({
     : offlinePreview.isUpToDate
       ? 'Saved Offline'
       : 'Update Offline Pack'
-  const canDownloadCrag = !!offlinePreview
+  const canDownloadCrag = !offlineDialogLoading
   const projectedUsage = offlinePreview
     ? offlinePreview.usageBytes - (offlinePreview.existingPack?.estimatedBytes || 0) + (offlinePreview.deltaBytes || 0)
     : 0
@@ -959,11 +964,14 @@ export default function CragPageClient({
 
   const handleOpenOfflineDialog = async () => {
     setOfflineDialogOpen(true)
-    await refreshCragOfflinePreview()
+    void refreshCragOfflinePreview()
   }
 
   const handleSaveCragOffline = async () => {
-    if (!offlinePreview) return
+    if (!offlinePreview) {
+      await refreshCragOfflinePreview()
+      return
+    }
     setOfflineDialogLoading(true)
     setOfflineProgress(null)
 
@@ -1109,8 +1117,8 @@ export default function CragPageClient({
 
         <div className="absolute bottom-4 left-4 z-[1000] max-w-[calc(100%-2rem)] rounded-xl border border-white/60 bg-white/92 px-3 py-3 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-900/92">
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={handleOpenOfflineDialog} disabled={!canDownloadCrag || offlineDialogLoading} className="gap-2 bg-emerald-600 text-white hover:bg-emerald-500">
-              {offlineDialogLoading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+            <Button size="sm" onClick={handleOpenOfflineDialog} disabled={!canDownloadCrag} className="gap-2 bg-emerald-600 text-white hover:bg-emerald-500">
+              {offlineDialogLoading || offlinePreviewLoading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
               {cragOfflineLabel}
             </Button>
             {offlinePreview && (
@@ -1501,6 +1509,12 @@ export default function CragPageClient({
             </DialogDescription>
           </DialogHeader>
 
+          {offlinePreviewLoading && !offlinePreview && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-950/70 dark:text-gray-300">
+              Preparing offline pack details...
+            </div>
+          )}
+
           {offlinePreview && (
             <div className="space-y-3 text-sm">
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/70">
@@ -1525,6 +1539,12 @@ export default function CragPageClient({
                   <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePreview.usageBytes)} of {formatBytes(offlinePreview.budgetBytes)}</span>
                 </div>
               </div>
+
+              {offlinePreview.warning && (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                  {offlinePreview.warning}
+                </p>
+              )}
 
               {offlineProgress && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
@@ -1561,7 +1581,12 @@ export default function CragPageClient({
               </Button>
             )}
             <Button variant="outline" onClick={() => setOfflineDialogOpen(false)} disabled={offlineDialogLoading}>Close</Button>
-            <Button onClick={handleSaveCragOffline} disabled={offlineDialogLoading || !offlinePreview || overOfflineBudget || offlinePreview.isUpToDate}>
+            {offlineError && !offlinePreview && (
+              <Button variant="outline" onClick={() => void refreshCragOfflinePreview()} disabled={offlinePreviewLoading || offlineDialogLoading}>
+                {offlinePreviewLoading ? 'Retrying...' : 'Retry'}
+              </Button>
+            )}
+            <Button onClick={handleSaveCragOffline} disabled={offlineDialogLoading || offlinePreviewLoading || !offlinePreview || overOfflineBudget || offlinePreview.isUpToDate}>
               {offlineDialogLoading ? 'Syncing...' : offlinePreview?.existingPack ? 'Update offline pack' : 'Download crag'}
             </Button>
           </DialogFooter>
