@@ -1575,11 +1575,13 @@ export default function ClimbPage() {
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
 
-  if (isClimbPackLoading || isApplyingClimbPack) {
+  const isWaitingForClimbHydration = !!climbPackData && !image && !error && !climbPackError
+
+  if (isClimbPackLoading || isApplyingClimbPack || isWaitingForClimbHydration) {
     return <ClimbPageSkeleton />
   }
 
-  if (error || !image) {
+  if (error || climbPackError || !image) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center">
