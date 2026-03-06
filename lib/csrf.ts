@@ -2,21 +2,24 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
-const csrfSecretValue = process.env.CSRF_SECRET?.trim()
-
-if (!csrfSecretValue && process.env.NODE_ENV === 'production') {
-  throw new Error('FATAL: CSRF_SECRET missing')
-}
-
-const CSRF_SECRET = new TextEncoder().encode(csrfSecretValue || `dev-csrf-${process.pid}`)
 const CSRF_COOKIE_NAME = 'csrf_token'
+
+function getCsrfSecret(): Uint8Array {
+  const csrfSecretValue = process.env.CSRF_SECRET?.trim()
+
+  if (!csrfSecretValue && process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: CSRF_SECRET missing')
+  }
+
+  return new TextEncoder().encode(csrfSecretValue || `dev-csrf-${process.pid}`)
+}
 
 export async function generateCsrfToken(): Promise<string> {
   return new SignJWT({ action: 'csrf' })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('2h')
-    .sign(CSRF_SECRET)
+    .sign(getCsrfSecret())
 }
 
 export async function getCsrfToken(): Promise<string | undefined> {
@@ -43,7 +46,7 @@ export async function validateCsrfToken(request: NextRequest): Promise<boolean> 
   if (token !== cookieToken) return false
 
   try {
-    const { payload } = await jwtVerify(token, CSRF_SECRET)
+    const { payload } = await jwtVerify(token, getCsrfSecret())
     return payload.action === 'csrf'
   } catch {
     return false

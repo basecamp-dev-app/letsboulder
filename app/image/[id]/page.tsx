@@ -6,6 +6,10 @@ import { createClient } from '@/lib/supabase'
 
 type PollState = 'checking' | 'polling' | 'timeout' | 'error'
 
+interface RelatedFaceRow {
+  linked_image_id: string | null
+}
+
 const POLL_INTERVAL_MS = 1500
 const MAX_WAIT_MS = 15000
 
@@ -62,8 +66,8 @@ export default function ImageRedirectPage() {
       }
 
       const relatedImageIds = (relatedFaces || [])
-        .map((face) => face.linked_image_id)
-        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+        .map((face: RelatedFaceRow) => face.linked_image_id)
+        .filter((id: string | null): id is string => typeof id === 'string' && id.length > 0)
 
       const imageIds = Array.from(new Set([imageId, ...relatedImageIds]))
 
