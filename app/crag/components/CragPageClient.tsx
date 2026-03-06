@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Download, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import SessionComposer from '@/app/community/components/SessionComposer'
@@ -21,6 +22,10 @@ import { formatGradeForDisplay } from '@/lib/grade-display'
 import CragPageSkeleton from '@/app/crag/components/CragPageSkeleton'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
+import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -203,6 +208,12 @@ function toRad(deg: number) {
   return (deg * Math.PI) / 180
 }
 
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB'
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function bearingDegrees(from: [number, number], to: [number, number]) {
   const [lat1, lon1] = from.map(toRad)
   const [lat2, lon2] = to.map(toRad)
@@ -261,6 +272,11 @@ export default function CragPageClient({
   const [isAdmin, setIsAdmin] = useState(false)
   const [isFlagging, setIsFlagging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [offlineDialogOpen, setOfflineDialogOpen] = useState(false)
+  const [offlineDialogLoading, setOfflineDialogLoading] = useState(false)
+  const [offlineError, setOfflineError] = useState<string | null>(null)
+  const [offlinePreview, setOfflinePreview] = useState<Awaited<ReturnType<typeof getCragOfflinePreview>> | null>(null)
+  const [offlineProgress, setOfflineProgress] = useState<OfflineJobProgressEvent | null>(null)
   const [highlightedImageId, setHighlightedImageId] = useState<string | null>(null)
   const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>({})
   const mapRef = useRef<L.Map | null>(null)
@@ -271,6 +287,21 @@ export default function CragPageClient({
   useEffect(() => {
     setupLeafletIcons()
   }, [])
+
+  const refreshCragOfflinePreview = useCallback(async () => {
+    try {
+      const preview = await getCragOfflinePreview(id)
+      setOfflinePreview(preview)
+      setOfflineError(null)
+    } catch (error) {
+      console.error('Failed to load crag offline preview:', error)
+      setOfflineError('Offline pack preview is unavailable right now.')
+    }
+  }, [id])
+
+  useEffect(() => {
+    void refreshCragOfflinePreview()
+  }, [refreshCragOfflinePreview])
 
   useEffect(() => {
     let ignore = false
@@ -767,6 +798,66 @@ export default function CragPageClient({
   }
 
   const resolvedCommunityPlaceId = communityPlaceId || crag.id
+  const cragOfflineLabel = !offlinePreview?.existingPack
+    ? 'Download Crag'
+    : offlinePreview.isUpToDate
+      ? 'Saved Offline'
+      : 'Update Offline Pack'
+  const canDownloadCrag = !!offlinePreview
+  const projectedUsage = offlinePreview
+    ? offlinePreview.usageBytes - (offlinePreview.existingPack?.estimatedBytes || 0) + (offlinePreview.deltaBytes || 0)
+    : 0
+  const overOfflineBudget = !!offlinePreview && projectedUsage > offlinePreview.budgetBytes
+
+  const handleOpenOfflineDialog = async () => {
+    setOfflineDialogOpen(true)
+    await refreshCragOfflinePreview()
+  }
+
+  const handleSaveCragOffline = async () => {
+    if (!offlinePreview) return
+    setOfflineDialogLoading(true)
+    setOfflineProgress(null)
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.storage?.persist) {
+        await navigator.storage.persist().catch(() => false)
+      }
+
+      const result = await saveCragOffline(id, (event) => {
+        setOfflineProgress(event)
+      })
+      await result.completed
+      await refreshCragOfflinePreview()
+      setToast(offlinePreview.existingPack ? 'Offline crag pack updated' : 'Crag saved for offline use')
+      setTimeout(() => setToast(null), 2500)
+    } catch (error) {
+      console.error('Failed to save crag offline pack:', error)
+      setToast(error instanceof Error ? error.message : 'Failed to save crag offline pack')
+      setTimeout(() => setToast(null), 3000)
+    } finally {
+      setOfflineDialogLoading(false)
+      setOfflineProgress(null)
+    }
+  }
+
+  const handleRemoveCragOffline = async () => {
+    setOfflineDialogLoading(true)
+    try {
+      await removeCragOffline(id)
+      await refreshCragOfflinePreview()
+      setOfflineDialogOpen(false)
+      setToast('Offline crag pack removed')
+      setTimeout(() => setToast(null), 2500)
+    } catch (error) {
+      console.error('Failed to remove crag pack:', error)
+      setToast('Failed to remove offline crag pack')
+      setTimeout(() => setToast(null), 2500)
+    } finally {
+      setOfflineDialogLoading(false)
+      setOfflineProgress(null)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -866,6 +957,22 @@ export default function CragPageClient({
 
         <div className="absolute top-4 left-4 z-[1000] bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 dark:text-gray-100 shadow-md backdrop-blur">
           {crag.name}
+        </div>
+
+        <div className="absolute bottom-4 left-4 z-[1000] max-w-[calc(100%-2rem)] rounded-xl border border-white/60 bg-white/92 px-3 py-3 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-900/92">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={handleOpenOfflineDialog} disabled={!canDownloadCrag || offlineDialogLoading} className="gap-2 bg-emerald-600 text-white hover:bg-emerald-500">
+              {offlineDialogLoading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              {cragOfflineLabel}
+            </Button>
+            {offlinePreview && (
+              <span className="text-xs text-gray-600 dark:text-gray-300">
+                {offlinePreview.changedClimbs > 0 && offlinePreview.existingPack
+                  ? `${offlinePreview.changedClimbs} climbs changed · ${formatBytes(offlinePreview.deltaBytes)} delta`
+                  : `${offlinePreview.manifest.climbCount} climbs · ${formatBytes(offlinePreview.totalBytes)}`}
+              </span>
+            )}
+          </div>
         </div>
 
         {isAdmin && (
@@ -1236,6 +1343,82 @@ export default function CragPageClient({
           </div>
         )}
       </div>
+
+      <Dialog open={offlineDialogOpen} onOpenChange={setOfflineDialogOpen}>
+        <DialogContent className="border-gray-200 bg-white text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white">
+          <DialogHeader>
+            <DialogTitle>{offlinePreview?.existingPack ? 'Update offline crag pack' : 'Download crag offline'}</DialogTitle>
+            <DialogDescription className="text-gray-500 dark:text-gray-400">
+              Save this crag and its climb topos for offline viewing. Individually saved climbs stay pinned if you remove the crag pack later.
+            </DialogDescription>
+          </DialogHeader>
+
+          {offlinePreview && (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/70">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-gray-500 dark:text-gray-400">Climbs</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{offlinePreview.manifest.climbCount}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-4">
+                  <span className="text-gray-500 dark:text-gray-400">Changed climbs</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{offlinePreview.changedClimbs}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-4">
+                  <span className="text-gray-500 dark:text-gray-400">Total size</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePreview.totalBytes)}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-4">
+                  <span className="text-gray-500 dark:text-gray-400">Delta size</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePreview.deltaBytes)}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-4">
+                  <span className="text-gray-500 dark:text-gray-400">Storage used</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePreview.usageBytes)} of {formatBytes(offlinePreview.budgetBytes)}</span>
+                </div>
+              </div>
+
+              {offlineProgress && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
+                  <p className="font-medium">{offlineProgress.completedClimbs} / {offlineProgress.totalClimbs} climbs synced</p>
+                  <p className="mt-1 text-sm">{formatBytes(offlineProgress.completedBytes)} / {formatBytes(offlineProgress.totalBytes)} cached</p>
+                  <p className="mt-1 text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{offlineProgress.phase}{offlineProgress.currentClimbName ? ` · ${offlineProgress.currentClimbName}` : ''}</p>
+                </div>
+              )}
+
+              {offlinePreview.isUpToDate && !offlineProgress && (
+                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
+                  This crag pack is already up to date.
+                </p>
+              )}
+
+              {overOfflineBudget && (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                  This update would exceed your 250 MB offline storage budget. Remove another pack first.
+                </p>
+              )}
+
+              {offlineError && (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">
+                  {offlineError}
+                </p>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            {offlinePreview?.existingPack && (
+              <Button variant="ghost" onClick={handleRemoveCragOffline} disabled={offlineDialogLoading} className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
+                {offlineDialogLoading ? 'Removing...' : 'Remove offline pack'}
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setOfflineDialogOpen(false)} disabled={offlineDialogLoading}>Close</Button>
+            <Button onClick={handleSaveCragOffline} disabled={offlineDialogLoading || !offlinePreview || overOfflineBudget || offlinePreview.isUpToDate}>
+              {offlineDialogLoading ? 'Syncing...' : offlinePreview?.existingPack ? 'Update offline pack' : 'Download crag'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

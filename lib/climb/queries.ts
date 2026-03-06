@@ -80,6 +80,7 @@ export interface ClimbPackFaceItem {
 
 export interface ClimbOfflinePackManifest {
   packId: string
+  type?: 'climb'
   climbId: string
   climbName: string
   version: string
@@ -88,6 +89,33 @@ export interface ClimbOfflinePackManifest {
   mediaUrls: string[]
   mediaCount: number
   estimatedBytes: number
+  canonicalPath?: string
+  cragId?: string | null
+}
+
+export interface CragOfflinePackClimbSummary {
+  climbId: string
+  climbName: string
+  canonicalPath: string
+  manifestUrl: string
+  versionHash: string
+  estimatedBytes: number
+  mediaCount: number
+}
+
+export interface CragOfflinePackManifest {
+  packId: string
+  type: 'crag'
+  cragId: string
+  cragName: string
+  canonicalPath: string
+  manifestUrl: string
+  cragVersionHash: string
+  estimatedBytes: number
+  climbCount: number
+  mediaCount: number
+  climbs: CragOfflinePackClimbSummary[]
+  removedClimbIds: string[]
 }
 
 export interface ClimbPackResponse {
@@ -117,4 +145,17 @@ export async function fetchClimbOfflinePack(climbId: string): Promise<ClimbPackR
   }
 
   return response.json() as Promise<ClimbPackResponse>
+}
+
+export async function fetchCragOfflinePack(cragId: string): Promise<CragOfflinePackManifest> {
+  const response = await fetch(`/api/offline-packs/crags/${cragId}`, {
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({} as { error?: string }))
+    throw new Error(payload.error || 'Failed to load crag offline pack')
+  }
+
+  return response.json() as Promise<CragOfflinePackManifest>
 }

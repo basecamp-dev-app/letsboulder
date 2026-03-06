@@ -1653,7 +1653,11 @@ export default function ClimbPage() {
         return
       }
 
-      await saveClimbOfflinePack(offlinePack)
+      if (!climbPackData) {
+        throw new Error('Climb data unavailable for offline save')
+      }
+
+      await saveClimbOfflinePack(climbPackData)
       await refreshOfflineStatus()
       setOfflineDialogOpen(false)
       setToast('Climb saved for offline viewing')

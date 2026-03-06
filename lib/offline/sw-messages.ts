@@ -8,6 +8,21 @@ interface ServiceWorkerResponse {
   error?: string
 }
 
+export interface OfflineJobProgressEvent {
+  type: 'OFFLINE_JOB_PROGRESS'
+  jobId: string
+  phase: 'fetch-manifests' | 'cache-pages' | 'cache-media' | 'cleanup' | 'done' | 'error'
+  completedClimbs: number
+  totalClimbs: number
+  completedBytes: number
+  totalBytes: number
+  currentClimbId?: string
+  currentClimbName?: string
+  error?: string
+}
+
+const OFFLINE_JOB_CHANNEL = 'offline-pack-jobs'
+
 async function waitForController() {
   if (!('serviceWorker' in navigator)) {
     throw new Error('Service worker is not supported')
@@ -40,4 +55,20 @@ export async function sendServiceWorkerMessage<TPayload>(message: ServiceWorkerM
       reject(error)
     }
   })
+}
+
+export function subscribeToOfflineJobProgress(jobId: string, callback: (event: OfflineJobProgressEvent) => void) {
+  if (typeof window === 'undefined' || !('BroadcastChannel' in window)) {
+    return () => {}
+  }
+
+  const channel = new BroadcastChannel(OFFLINE_JOB_CHANNEL)
+  channel.onmessage = (event: MessageEvent<OfflineJobProgressEvent>) => {
+    if (!event.data || event.data.jobId !== jobId) return
+    callback(event.data)
+  }
+
+  return () => {
+    channel.close()
+  }
 }
