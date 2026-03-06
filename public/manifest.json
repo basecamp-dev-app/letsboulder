@@ -2,7 +2,7 @@
   "name": "letsboulder - Bouldering Topos & Climbing Logbook",
   "short_name": "letsboulder",
   "description": "Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.",
-  "start_url": "/",
+  "start_url": "/offline",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
@@ -25,6 +25,13 @@
   "categories": ["sports", "navigation", "lifestyle"],
   "screenshots": [],
   "shortcuts": [
+    {
+      "name": "Offline Climbs",
+      "short_name": "Offline",
+      "description": "Open climbs saved for offline viewing",
+      "url": "/offline",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
     {
       "name": "View Map",
       "short_name": "Map",

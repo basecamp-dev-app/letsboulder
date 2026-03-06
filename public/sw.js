@@ -3,9 +3,14 @@ self.__WB_DISABLE_DEV_LOGS = true
 const PACK_CACHE = 'offline-climb-packs-v1'
 const MEDIA_CACHE = 'offline-media-v1'
 const TRANSIENT_CACHE = 'runtime-transient-v1'
+const OFFLINE_LAUNCH_URL = '/offline'
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(self.skipWaiting())
+  event.waitUntil((async () => {
+    const cache = await caches.open(PACK_CACHE)
+    await cache.add(new Request(OFFLINE_LAUNCH_URL, { credentials: 'same-origin' }))
+    await self.skipWaiting()
+  })())
 })
 
 self.addEventListener('activate', (event) => {
@@ -46,7 +51,7 @@ self.addEventListener('message', (event) => {
       if (message.type === 'SAVE_CLIMB_PACK') {
         const pack = message.payload || {}
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []
-        const packUrls = [pack.pageUrl, pack.manifestUrl].filter(Boolean)
+        const packUrls = [OFFLINE_LAUNCH_URL, pack.pageUrl, pack.manifestUrl].filter(Boolean)
         await cacheUrls(PACK_CACHE, packUrls)
         await cacheUrls(MEDIA_CACHE, mediaUrls)
         respond({ ok: true })
@@ -78,6 +83,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url)
   const isMediaRequest = url.pathname.startsWith('/api/media/')
   const isPackRequest = url.pathname.startsWith('/api/offline-packs/climbs/')
+  const isOfflineLaunch = request.mode === 'navigate' && url.pathname === OFFLINE_LAUNCH_URL
   const isClimbPage = request.mode === 'navigate' && url.pathname.startsWith('/climb/')
 
   if (isMediaRequest) {
@@ -95,7 +101,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  if (isPackRequest || isClimbPage) {
+  if (isOfflineLaunch || isPackRequest || isClimbPage) {
     event.respondWith((async () => {
       const cache = await caches.open(PACK_CACHE)
       const cached = await cache.match(request)
