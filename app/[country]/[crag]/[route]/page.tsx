@@ -221,7 +221,7 @@ export default async function RoutePage({ params }: { params: Promise<RouteParam
                 alt={`${routeName} topo photo`}
                 width={1600}
                 height={1200}
-                unoptimized
+                sizes="(max-width: 768px) 100vw, 960px"
                 className="w-full max-h-[60vh] object-contain"
                 loading="lazy"
               />

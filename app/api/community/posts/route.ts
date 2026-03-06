@@ -20,6 +20,13 @@ interface CreateSessionPostBody {
   end_at?: string | null
 }
 
+interface ProfileRow {
+  id: string
+  username: string | null
+  display_name: string | null
+  avatar_url: string | null
+}
+
 function parseDate(value: string | null | undefined): string | null {
   if (!value) return null
   const date = new Date(value)
@@ -131,7 +138,16 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(error, 'Error creating community post')
     }
 
-    return NextResponse.json(data, { status: 201 })
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    return NextResponse.json({
+      ...data,
+      author: (profile as ProfileRow | null) || null,
+    }, { status: 201 })
   } catch (error) {
     return createErrorResponse(error, 'Error creating community post')
   }

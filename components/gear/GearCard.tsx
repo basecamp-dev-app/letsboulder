@@ -62,7 +62,7 @@ export default function GearCard({ product }: GearCardProps) {
             alt={product.name}
             fill
             className="object-contain"
-            sizes="(max-width: 768px) 21vw: (max-width: 1024px) 33vw: 16vw"
+            sizes="(max-width: 768px) 21vw, (max-width: 1024px) 33vw, 16vw"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">

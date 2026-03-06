@@ -1,0 +1,304 @@
+'use client'
+
+import Link from 'next/link'
+import { Flag, Share2, Star } from 'lucide-react'
+import { formatGradeForDisplay } from '@/lib/grade-display'
+import type { GradeOpinion } from '@/lib/grade-feedback'
+import type { GradeSystem } from '@/lib/grades'
+
+interface SubmitterInfo {
+  id: string
+  displayName: string
+}
+
+interface RatingSummary {
+  rating_avg: number | null
+  rating_count: number
+}
+
+interface LoggedClimbInfo {
+  gradeOpinion: GradeOpinion | null
+  starRating: number | null
+}
+
+interface SelectedClimbInfo {
+  id: string
+  name: string
+  grade: string
+  route_type: string | null
+  description: string | null
+}
+
+interface ClimbInfoPanelProps {
+  selectedClimb: SelectedClimbInfo | null
+  selectedRouteExists: boolean
+  totalRoutesCombined: number
+  totalFaces: number
+  isFacesLoading: boolean
+  cragPath: string | null
+  isOfflineSaved: boolean
+  offlinePackAvailable: boolean
+  publicSubmitter: SubmitterInfo | null
+  formattedContributionHandle: string | null
+  contributionCreditUrl: string | null
+  selectedClimbLogged: boolean
+  selectedClimbLog: LoggedClimbInfo | null
+  selectedClimbHasSavedFeedback: boolean
+  selectedClimbFeedbackCollapsed: boolean
+  selectedClimbRatingSummary: RatingSummary | null
+  selectedClimbAverageRating: number | null
+  selectedClimbRoundedStars: number
+  pendingGradeOpinion: GradeOpinion | null
+  pendingStarRating: number | null
+  savingFeedback: boolean
+  logging: boolean
+  userPresent: boolean
+  gradeSystem: GradeSystem
+  gradeOpinionLabels: Record<GradeOpinion, string>
+  formatRouteTypeLabel: (value: string) => string
+  onOpenOffline: () => void
+  onOpenFlag: () => void
+  onShare: () => void
+  onGoToAuth: () => void
+  onLog: (style: 'flash' | 'top' | 'try') => void
+  onSetFeedbackCollapsed: (collapsed: boolean) => void
+  onSetPendingGradeOpinion: (value: GradeOpinion) => void
+  onSetPendingStarRating: (value: number | null) => void
+  onSaveFeedback: () => void
+  onGoToLogbook: () => void
+  deferredSections: React.ReactNode
+}
+
+export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
+  const {
+    selectedClimb,
+    selectedRouteExists,
+    totalRoutesCombined,
+    totalFaces,
+    isFacesLoading,
+    cragPath,
+    isOfflineSaved,
+    offlinePackAvailable,
+    publicSubmitter,
+    formattedContributionHandle,
+    contributionCreditUrl,
+    selectedClimbLogged,
+    selectedClimbLog,
+    selectedClimbHasSavedFeedback,
+    selectedClimbFeedbackCollapsed,
+    selectedClimbRatingSummary,
+    selectedClimbAverageRating,
+    selectedClimbRoundedStars,
+    pendingGradeOpinion,
+    pendingStarRating,
+    savingFeedback,
+    logging,
+    userPresent,
+    gradeSystem,
+    gradeOpinionLabels,
+    formatRouteTypeLabel,
+    onOpenOffline,
+    onOpenFlag,
+    onShare,
+    onGoToAuth,
+    onLog,
+    onSetFeedbackCollapsed,
+    onSetPendingGradeOpinion,
+    onSetPendingStarRating,
+    onSaveFeedback,
+    onGoToLogbook,
+    deferredSections,
+  } = props
+
+  return (
+    <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
+      <div className="max-w-md mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+              {selectedClimb ? selectedClimb.name : 'Select a route'}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              {selectedClimb
+                ? `Grade: ${formatGradeForDisplay(selectedClimb.grade, gradeSystem)}`
+                : 'Tap a route on the image to select it'}
+            </p>
+            {selectedClimb?.route_type ? (
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Type: {formatRouteTypeLabel(selectedClimb.route_type)}
+              </p>
+            ) : null}
+            <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
+              {isFacesLoading ? 'Loading routes...' : `${totalRoutesCombined} route${totalRoutesCombined === 1 ? '' : 's'}`}
+              {totalFaces > 1 ? ` across ${totalFaces} faces` : ''}
+            </p>
+            {selectedClimb ? (
+              <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {selectedClimbRatingSummary
+                  ? selectedClimbRatingSummary.rating_count > 0
+                    ? (
+                        <div className="flex items-center gap-2">
+                          <span>{selectedClimbAverageRating?.toFixed(1) || '0.0'}</span>
+                          <div className="flex items-center gap-0.5" aria-label="Community star rating">
+                            {[1, 2, 3, 4, 5].map((value) => {
+                              const active = value <= selectedClimbRoundedStars
+                              return <Star key={value} className={`w-4 h-4 ${active ? 'fill-amber-400 text-amber-500' : 'text-gray-300 dark:text-gray-600'}`} />
+                            })}
+                          </div>
+                          <span>({selectedClimbRatingSummary.rating_count})</span>
+                        </div>
+                      )
+                    : 'Community rating: No ratings yet'
+                  : 'Community rating: Loading...'}
+              </div>
+            ) : null}
+            {selectedClimb?.description ? <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedClimb.description}</p> : null}
+            {publicSubmitter ? (
+              <>
+                {formattedContributionHandle ? (
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Credit to{' '}
+                    {contributionCreditUrl ? (
+                      <a href={contributionCreditUrl} target="_blank" rel="noopener noreferrer" className="underline decoration-gray-400 underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200">
+                        {formattedContributionHandle}
+                      </a>
+                    ) : (
+                      <span>{formattedContributionHandle}</span>
+                    )}
+                  </p>
+                ) : null}
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Submitted by{' '}
+                  <Link href={`/logbook/${publicSubmitter.id}`} prefetch={false} className="underline decoration-gray-400 underline-offset-2 hover:text-gray-700 dark:hover:text-gray-200">
+                    {publicSubmitter.displayName}
+                  </Link>
+                </p>
+              </>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-2">
+            {cragPath ? (
+              <Link href={cragPath} className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors">
+                View crag
+              </Link>
+            ) : null}
+            <button onClick={onOpenOffline} disabled={!offlinePackAvailable} className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              {isOfflineSaved ? 'Saved offline' : 'Save offline'}
+            </button>
+            <button onClick={onOpenFlag} disabled={!selectedClimb} className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed" aria-label="Report incorrect route info" title={selectedClimb ? 'Report incorrect route info' : 'Select a route to report'}>
+              <Flag className="w-5 h-5" />
+            </button>
+            <button onClick={onShare} className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors" aria-label="Share climb">
+              <Share2 className="w-5 h-5" />
+            </button>
+            {selectedClimbLogged ? <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 rounded-full text-sm font-medium">Logged</span> : null}
+          </div>
+        </div>
+
+        {!selectedClimbLogged ? (
+          <div className="space-y-3">
+            {!userPresent ? (
+              <button onClick={onGoToAuth} className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
+                Sign in to Log This Climb
+              </button>
+            ) : (
+              <>
+                <p className="text-gray-400 text-sm">
+                  {selectedRouteExists ? 'Route selected - choose an option below' : 'Tap a route to select it'}
+                </p>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button onClick={() => onLog('flash')} disabled={logging || !selectedClimb} className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+                    Flash
+                  </button>
+                  <button onClick={() => onLog('top')} disabled={logging || !selectedClimb} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+                    Send
+                  </button>
+                  <button onClick={() => onLog('try')} disabled={logging || !selectedClimb} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+                    Try
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        ) : null}
+
+        {selectedClimbLogged && selectedClimb ? (
+          <div className="space-y-3">
+            {selectedClimbFeedbackCollapsed ? (
+              <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-green-700 dark:text-green-400">Saved</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Grade feel: {selectedClimbLog?.gradeOpinion ? gradeOpinionLabels[selectedClimbLog.gradeOpinion] : 'Not set'}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => onSetFeedbackCollapsed(false)} className="text-xs font-medium px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    Edit
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1 mt-3">
+                  {[1, 2, 3, 4, 5].map((value) => {
+                    const active = (selectedClimbLog?.starRating ?? 0) >= value
+                    return <Star key={value} className={`w-4 h-4 ${active ? 'fill-amber-400 text-amber-500' : 'text-gray-300 dark:text-gray-600'}`} />
+                  })}
+                  {!selectedClimbLog?.starRating ? <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">No star rating yet</span> : null}
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">How did the grade feel?</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Current grade: {formatGradeForDisplay(selectedClimb.grade, gradeSystem)}</p>
+                <div className="grid grid-cols-3 gap-2 mt-3">
+                  {([
+                    { value: 'soft', label: 'Soft' },
+                    { value: 'agree', label: 'Agree' },
+                    { value: 'hard', label: 'Hard' },
+                  ] as Array<{ value: GradeOpinion; label: string }>).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => onSetPendingGradeOpinion(option.value)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${pendingGradeOpinion === option.value ? 'border-gray-900 dark:border-gray-100 bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mt-4">Rate the climb</p>
+                <div className="flex items-center gap-1 mt-2">
+                  {[1, 2, 3, 4, 5].map((value) => {
+                    const active = (pendingStarRating ?? 0) >= value
+                    return (
+                      <button key={value} type="button" onClick={() => onSetPendingStarRating(value)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" aria-label={`Rate ${value} star${value > 1 ? 's' : ''}`}>
+                        <Star className={`w-5 h-5 ${active ? 'fill-amber-400 text-amber-500' : 'text-gray-300 dark:text-gray-600'}`} />
+                      </button>
+                    )
+                  })}
+                  {pendingStarRating ? (
+                    <button type="button" onClick={() => onSetPendingStarRating(null)} className="ml-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
+
+                <button onClick={onSaveFeedback} disabled={savingFeedback || (!pendingGradeOpinion && !pendingStarRating)} className="mt-4 w-full px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+                  {savingFeedback ? 'Saving...' : selectedClimbHasSavedFeedback ? 'Update Feedback' : 'Save Feedback'}
+                </button>
+              </div>
+            )}
+
+            <button onClick={onGoToLogbook} className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors">
+              View Logbook
+            </button>
+          </div>
+        ) : null}
+
+        {deferredSections}
+      </div>
+    </div>
+  )
+}

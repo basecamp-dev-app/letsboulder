@@ -2,6 +2,7 @@ export interface Submission {
   id: string
   kind: 'submitted' | 'draft'
   status: 'draft' | 'pending_review' | 'published'
+  is_optimistic?: boolean
   url: string
   created_at: string
   updated_at: string

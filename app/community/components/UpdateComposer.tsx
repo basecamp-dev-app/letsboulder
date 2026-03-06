@@ -1,17 +1,19 @@
 'use client'
 
 import { FormEvent, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { csrfFetch } from '@/hooks/useCsrf'
+import type { CommunityUpdatePost } from '@/types/community'
 
 interface UpdateComposerProps {
   placeId: string
+  onOptimisticCreate?: (post: CommunityUpdatePost) => void
+  onCreateSuccess?: (tempId: string, post: CommunityUpdatePost) => void
+  onCreateError?: (tempId: string) => void
 }
 
 type UpdatePostType = 'update' | 'conditions' | 'question'
 
-export default function UpdateComposer({ placeId }: UpdateComposerProps) {
-  const router = useRouter()
+export default function UpdateComposer({ placeId, onOptimisticCreate, onCreateSuccess, onCreateError }: UpdateComposerProps) {
   const [type, setType] = useState<UpdatePostType>('update')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -35,6 +37,23 @@ export default function UpdateComposer({ placeId }: UpdateComposerProps) {
     }
 
     setIsSubmitting(true)
+    const optimisticId = `temp-update-${Date.now()}`
+    const optimisticPost: CommunityUpdatePost = {
+      id: optimisticId,
+      author_id: 'pending',
+      place_id: placeId,
+      type,
+      title: trimmedTitle || null,
+      body: trimmedBody,
+      discipline: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      author: null,
+      is_pending: true,
+    }
+
+    onOptimisticCreate?.(optimisticPost)
+
     try {
       const response = await csrfFetch('/api/community/posts', {
         method: 'POST',
@@ -51,15 +70,24 @@ export default function UpdateComposer({ placeId }: UpdateComposerProps) {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({} as { error?: string }))
+        onCreateError?.(optimisticId)
         setError(payload.error || 'Failed to publish update.')
+        return
+      }
+
+      const createdPost = await response.json().catch(() => null as CommunityUpdatePost | null)
+      if (!createdPost) {
+        onCreateError?.(optimisticId)
+        setError('Failed to publish update.')
         return
       }
 
       setBody('')
       setTitle('')
       setType('update')
-      router.refresh()
+      onCreateSuccess?.(optimisticId, createdPost)
     } catch {
+      onCreateError?.(optimisticId)
       setError('Could not publish update right now.')
     } finally {
       setIsSubmitting(false)

@@ -148,7 +148,6 @@ export default function AdminFlagsPage() {
                       src={flag.image.url}
                       alt="Flagged content"
                       fill
-                      unoptimized
                       sizes="192px"
                       className="object-cover"
                     />

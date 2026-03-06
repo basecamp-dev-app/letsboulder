@@ -1,11 +1,14 @@
 'use client'
 
 import { FormEvent, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { csrfFetch } from '@/hooks/useCsrf'
+import type { CommunitySessionPost } from '@/types/community'
 
 interface SessionComposerProps {
   placeId: string
+  onOptimisticCreate?: (post: CommunitySessionPost) => void
+  onCreateSuccess?: (tempId: string, post: CommunitySessionPost) => void
+  onCreateError?: (tempId: string) => void
 }
 
 const DISCIPLINE_OPTIONS = [
@@ -30,8 +33,7 @@ function toIsoFromDateAndTime(dateValue: string, timeValue: string): string | nu
   return toIsoDateTime(localValue)
 }
 
-export default function SessionComposer({ placeId }: SessionComposerProps) {
-  const router = useRouter()
+export default function SessionComposer({ placeId, onOptimisticCreate, onCreateSuccess, onCreateError }: SessionComposerProps) {
   const [startDate, setStartDate] = useState('')
   const [startTime, setStartTime] = useState('18:00')
   const [endAt, setEndAt] = useState('')
@@ -64,6 +66,27 @@ export default function SessionComposer({ placeId }: SessionComposerProps) {
     }
 
     setIsSubmitting(true)
+    const optimisticId = `temp-session-${Date.now()}`
+    const optimisticPost: CommunitySessionPost = {
+      id: optimisticId,
+      author_id: 'pending',
+      place_id: placeId,
+      type: 'session',
+      title: null,
+      body: body.trim(),
+      discipline: discipline || null,
+      grade_min: gradeMin.trim() || null,
+      grade_max: gradeMax.trim() || null,
+      start_at: startIso,
+      end_at: endIso,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      author: null,
+      is_pending: true,
+    }
+
+    onOptimisticCreate?.(optimisticPost)
+
     try {
       const response = await csrfFetch('/api/community/posts', {
         method: 'POST',
@@ -84,7 +107,15 @@ export default function SessionComposer({ placeId }: SessionComposerProps) {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({} as { error?: string }))
+        onCreateError?.(optimisticId)
         setError(payload.error || 'Failed to create session post.')
+        return
+      }
+
+      const createdPost = await response.json().catch(() => null as CommunitySessionPost | null)
+      if (!createdPost) {
+        onCreateError?.(optimisticId)
+        setError('Failed to create session post.')
         return
       }
 
@@ -95,8 +126,9 @@ export default function SessionComposer({ placeId }: SessionComposerProps) {
       setStartDate('')
       setStartTime('18:00')
       setEndAt('')
-      router.refresh()
+      onCreateSuccess?.(optimisticId, createdPost)
     } catch {
+      onCreateError?.(optimisticId)
       setError('Could not publish your session right now.')
     } finally {
       setIsSubmitting(false)
