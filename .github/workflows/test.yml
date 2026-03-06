@@ -139,7 +139,7 @@ jobs:
 
       - name: Validate Playwright env
         run: |
-          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_PASSWORD INTERNAL_TEST_KEY)
+          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_PASSWORD INTERNAL_TEST_KEY CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET)
           for var in "${required_vars[@]}"; do
             if [ -z "${!var}" ]; then
               echo "Missing required environment variable: $var"
@@ -154,6 +154,8 @@ jobs:
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
       - name: Run Playwright smoke suite
         run: npx playwright test --project=public --project=authenticated --grep @smoke
@@ -165,6 +167,8 @@ jobs:
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
           CI: true
 
@@ -217,7 +221,7 @@ jobs:
 
       - name: Validate Playwright env
         run: |
-          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_PASSWORD INTERNAL_TEST_KEY)
+          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_PASSWORD INTERNAL_TEST_KEY CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET)
           for var in "${required_vars[@]}"; do
             if [ -z "${!var}" ]; then
               echo "Missing required environment variable: $var"
@@ -232,6 +236,8 @@ jobs:
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
       - name: Run Playwright full suite
         run: npx playwright test --grep @full
@@ -243,6 +249,8 @@ jobs:
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
           CI: true
 

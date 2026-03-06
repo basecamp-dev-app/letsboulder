@@ -98,8 +98,16 @@ async function globalSetup() {
     const response = await context.request.get(authUrl.toString(), requestOptions)
     
     if (!response.ok()) {
+      const contentType = response.headers()['content-type'] || 'unknown'
+      if (contentType.includes('text/html')) {
+        throw new Error(
+          `Auth failed: ${response.status()} HTML response from /api/test/auth (likely Cloudflare challenge). ` +
+          'Ensure CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET are present in Playwright job env.'
+        )
+      }
+
       const errorText = await response.text()
-      throw new Error(`Auth failed: ${response.status()} - ${errorText}`)
+      throw new Error(`Auth failed: ${response.status()} - ${errorText.slice(0, 400)}`)
     }
 
     const data = await response.json()
