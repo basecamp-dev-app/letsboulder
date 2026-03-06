@@ -86,10 +86,6 @@ export async function primeCsrfToken(): Promise<string> {
   return fetchAndStoreCsrfToken(false)
 }
 
-export async function refreshCsrfToken(): Promise<string> {
-  return fetchAndStoreCsrfToken(true)
-}
-
 function isStateChangingMethod(method: string): boolean {
   const m = method.toUpperCase()
   return m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS'

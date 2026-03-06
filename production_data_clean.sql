@@ -1,6 +1,0 @@
--- Sanitized placeholder.
---
--- This repository must not store production data dumps.
--- Keep only synthetic/anonymized fixtures in version control.
---
--- If you need local data, export it to a local ignored path and never commit it.
