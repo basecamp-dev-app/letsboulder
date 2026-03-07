@@ -8,6 +8,7 @@ import {
   getStoredClimbManifest,
   getStoredCragManifest,
   listOfflinePackRecords,
+  listStoredCragManifests,
   listStoredClimbManifests,
   removePackRecord,
   removeStoredClimbManifest,
@@ -60,6 +61,9 @@ function buildPackRecord(input: {
   versionHash: string
   estimatedBytes: number
   mediaCount: number
+  coverImageUrl?: string | null
+  tileCount?: number
+  childClimbCount?: number
 }): OfflinePackRecord {
   const now = new Date().toISOString()
   return {
@@ -120,6 +124,9 @@ async function persistStandaloneClimbPack(payload: ClimbPackResponse) {
       versionHash: manifest.version,
       estimatedBytes: manifest.estimatedBytes,
       mediaCount: manifest.mediaCount,
+      coverImageUrl: manifest.coverImageUrl || null,
+      tileCount: manifest.tileCount || 0,
+      childClimbCount: 0,
     })),
     upsertStoredClimbManifest({
       climbId: manifest.climbId,
@@ -170,9 +177,26 @@ export async function deleteClimbOfflinePack(climbId: string) {
     return
   }
 
+  const [allClimbs, allCrags] = await Promise.all([listStoredClimbManifests(), listStoredCragManifests()])
+  const retainedTileUrls = new Set<string>()
+  for (const climb of allClimbs) {
+    if (climb.climbId === climbId) continue
+    for (const tileUrl of climb.manifest.tileUrls || []) {
+      retainedTileUrls.add(tileUrl)
+    }
+  }
+  for (const crag of allCrags) {
+    for (const tileUrl of crag.manifest.tileManifest?.tileUrls || []) {
+      retainedTileUrls.add(tileUrl)
+    }
+  }
+
   const response = await sendServiceWorkerMessage({
     type: 'REMOVE_CLIMB_PACK',
-    payload: existing.manifest,
+    payload: {
+      ...existing.manifest,
+      tileUrls: (existing.manifest.tileUrls || []).filter((url) => !retainedTileUrls.has(url)),
+    },
   })
 
   if (!response.ok) {
@@ -256,6 +280,7 @@ export async function saveCragOffline(
       packId: latestManifest.packId,
       canonicalPath: latestManifest.canonicalPath,
       manifestUrl: latestManifest.manifestUrl,
+      tileUrls: latestManifest.tileManifest?.tileUrls || [],
       removedClimbIds,
       totalBytes,
       climbs: fetchedPayloads.map((payload) => payload.offline_pack),
@@ -311,6 +336,9 @@ export async function saveCragOffline(
           versionHash: latestManifest.cragVersionHash,
           estimatedBytes: latestManifest.estimatedBytes,
           mediaCount: latestManifest.mediaCount,
+          coverImageUrl: latestManifest.savedPins?.[0]?.coverImageUrl || null,
+          tileCount: latestManifest.tileManifest?.tileCount || 0,
+          childClimbCount: latestManifest.climbCount,
         })),
         upsertStoredCragManifest({
           cragId,
@@ -340,9 +368,10 @@ export async function removeCragOffline(cragId: string) {
   const existingCrag = await getStoredCragManifest(cragId)
   if (!existingCrag) return
 
-  const allClimbManifests = await listStoredClimbManifests()
+  const [allClimbManifests, allCragManifests] = await Promise.all([listStoredClimbManifests(), listStoredCragManifests()])
   const orphanClimbs: ClimbOfflinePackManifest[] = []
   const retainedMediaUrls = new Set<string>()
+  const retainedTileUrls = new Set<string>()
 
   for (const climb of allClimbManifests) {
     if (climb.ownerPackIds.includes(existingCrag.manifest.packId) && !climb.pinnedStandalone && climb.ownerPackIds.length === 1) {
@@ -353,11 +382,23 @@ export async function removeCragOffline(cragId: string) {
     for (const mediaUrl of climb.manifest.mediaUrls) {
       retainedMediaUrls.add(mediaUrl)
     }
+
+    for (const tileUrl of climb.manifest.tileUrls || []) {
+      retainedTileUrls.add(tileUrl)
+    }
+  }
+
+  for (const crag of allCragManifests) {
+    if (crag.cragId === cragId) continue
+    for (const tileUrl of crag.manifest.tileManifest?.tileUrls || []) {
+      retainedTileUrls.add(tileUrl)
+    }
   }
 
   const orphanPayload = orphanClimbs.map((manifest) => ({
     ...manifest,
     mediaUrls: manifest.mediaUrls.filter((url) => !retainedMediaUrls.has(url)),
+    tileUrls: (manifest.tileUrls || []).filter((url) => !retainedTileUrls.has(url)),
   }))
 
   const response = await sendServiceWorkerMessage({
@@ -366,6 +407,7 @@ export async function removeCragOffline(cragId: string) {
       packId: existingCrag.manifest.packId,
       canonicalPath: existingCrag.manifest.canonicalPath,
       manifestUrl: existingCrag.manifest.manifestUrl,
+      tileUrls: (existingCrag.manifest.tileManifest?.tileUrls || []).filter((url) => !retainedTileUrls.has(url)),
       climbs: orphanPayload,
     },
   })
@@ -399,12 +441,12 @@ export async function listOfflinePacksForLaunch() {
   const [records, climbs, crags] = await Promise.all([
     listOfflinePackRecords(),
     listStoredClimbManifests(),
-    Promise.all((await listOfflinePackRecords()).filter((record) => record.type === 'crag').map((record) => getStoredCragManifest(record.entityId))),
+    listStoredCragManifests(),
   ])
 
   return {
     records,
     climbs,
-    crags: crags.filter((value): value is NonNullable<typeof value> => value !== null),
+    crags,
   }
 }
