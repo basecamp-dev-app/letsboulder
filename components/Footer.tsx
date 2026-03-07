@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { SUPPORT_URL } from '@/lib/site'
 import MobileNavSheet from './MobileNavSheet'
 
 export default function Footer() {
@@ -20,6 +21,14 @@ export default function Footer() {
             © {new Date().getFullYear()} letsboulder
           </p>
           <nav className="flex gap-6 text-sm items-center">
+            <a
+              href={SUPPORT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center rounded-full bg-emerald-600 px-3 py-1.5 font-medium text-white transition-colors hover:bg-emerald-700"
+            >
+              Support
+            </a>
             <Link href="/privacy" className="mt-1 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100">
               Privacy
             </Link>
