@@ -1,1 +1,0 @@
-SELECT * FROM auth.sessions WHERE user_id = '18120770-d15a-4aeb-8edf-83f0bea17db2';
