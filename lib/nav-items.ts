@@ -2,6 +2,7 @@ export const DESKTOP_MORE_MENU_ITEMS = [
   { label: 'Gear', href: '/gear' },
   { label: 'Impact', href: '/impact' },
   { label: 'About', href: '/about' },
+  { label: 'Support', href: '/about#support' },
   { label: 'Settings', href: '/settings' },
 ]
 
@@ -10,5 +11,6 @@ export const MOBILE_MORE_MENU_ITEMS = [
   { label: 'Gear', href: '/gear' },
   { label: 'Impact', href: '/impact' },
   { label: 'About', href: '/about' },
+  { label: 'Support', href: '/about#support' },
   { label: 'Settings', href: '/settings' },
 ]
