@@ -361,6 +361,8 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   const [loadedFaceVersion, setLoadedFaceVersion] = useState(0)
   const [activeCanvasImageId, setActiveCanvasImageId] = useState<string | null>(null)
   const [routeLinesImageId, setRouteLinesImageId] = useState<string | null>(null)
+  const [activeFaceLoadError, setActiveFaceLoadError] = useState<string | null>(null)
+  const [activeFaceRetryNonce, setActiveFaceRetryNonce] = useState(0)
   const [canvasFadeOut, setCanvasFadeOut] = useState(false)
   const [transitionBuffer, setTransitionBuffer] = useState<TransitionBuffer | null>(null)
   const [savedOfflinePackVersion, setSavedOfflinePackVersion] = useState<string | null>(null)
@@ -423,13 +425,19 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   }, [faceGallery, image])
 
   const markFaceLoaded = useCallback((faceId: string) => {
+    setActiveFaceLoadError((current) => (current === faceId ? null : current))
     if (loadedFaceIdsRef.current.has(faceId)) return
     loadedFaceIdsRef.current.add(faceId)
     setLoadedFaceVersion((value) => value + 1)
   }, [])
 
+  const markFaceErrored = useCallback((faceId: string) => {
+    setActiveFaceLoadError(faceId)
+  }, [])
+
   const prefetchFaceImage = useCallback((face: FaceGalleryItem | undefined) => {
     if (!face?.url || typeof window === 'undefined') return
+    if (navigator.onLine === false) return
     if (prefetchedFaceUrlsRef.current.has(face.url)) return
     prefetchedFaceUrlsRef.current.add(face.url)
     const img = new window.Image()
@@ -593,6 +601,8 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
       setActiveCanvasImageId(null)
       setRouteLinesImageId(null)
       setRouteParamOverride(null)
+      setActiveFaceLoadError(null)
+      setActiveFaceRetryNonce(0)
       resetZoomPan()
       loadedFaceIdsRef.current.clear()
       clearSelection()
@@ -841,6 +851,10 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
       window.cancelAnimationFrame(rafId)
     }
   }, [emblaApi, emblaDragEnabled, updateEmblaControls])
+
+  useEffect(() => {
+    setActiveFaceLoadError(null)
+  }, [activeFaceIndex, image?.url])
 
   useEffect(() => {
     if (prevActiveFaceIndexRef.current === activeFaceIndex) {
@@ -1350,7 +1364,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     [zoom, pan]
   )
 
-  const viewerReadyState = !isFaceTransitioning && routeLines.length > 0 ? 'idle' : 'busy'
+  const viewerReadyState = !isFaceTransitioning && routeLines.length > 0 && !activeFaceLoadError ? 'idle' : 'busy'
 
   const getAuthRedirectPath = useCallback(() => {
     return selectedRoute
@@ -1725,6 +1739,8 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         transitionBufferLoading={!!transitionBuffer?.isLoading}
         displayClimbName={displayClimb?.name || 'Climbing routes'}
         viewerReadyState={viewerReadyState}
+        activeFaceLoadError={activeFaceLoadError}
+        activeFaceRetryNonce={activeFaceRetryNonce}
         displayRouteTapPoint={displayRouteTapPoint}
         emblaRef={emblaRef}
         viewerTransformRef={viewerTransformRef}
@@ -1735,6 +1751,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         onTouchEnd={handleViewerTouchEnd}
         onCanvasClick={handleCanvasClick}
         onFaceLoad={markFaceLoaded}
+        onFaceError={markFaceErrored}
         onScrollPrev={() => emblaApi?.scrollPrev()}
         onScrollNext={() => emblaApi?.scrollNext()}
         onScrollTo={(index) => emblaApi?.scrollTo(index)}
@@ -1766,12 +1783,6 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         cragPath={cragPath}
         isOfflineSaved={isOfflineSaved}
         offlinePackAvailable={!!offlinePack}
-        offlineMapPin={offlinePack?.primaryPin ? {
-          id: offlinePack.primaryPin.climbId,
-          label: offlinePack.primaryPin.climbName,
-          latitude: offlinePack.primaryPin.latitude,
-          longitude: offlinePack.primaryPin.longitude,
-        } : null}
         publicSubmitter={publicSubmitter ? { id: publicSubmitter.id, displayName: publicSubmitter.displayName } : null}
         formattedContributionHandle={formattedContributionHandle}
         contributionCreditUrl={contributionCreditUrl}
@@ -1812,6 +1823,35 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
           </>
         }
       />
+
+      {activeFaceLoadError ? (
+        <div className="border-t border-gray-200 bg-amber-50 px-4 py-4 text-sm text-amber-900 dark:border-gray-800 dark:bg-amber-950/30 dark:text-amber-100">
+          <div className="mx-auto flex max-w-md flex-wrap items-center justify-between gap-3">
+            <p>Topo image failed to load offline. Retry the saved image or go back to the crag.</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveFaceLoadError(null)
+                  setActiveFaceRetryNonce((value) => value + 1)
+                }}
+                className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-amber-500"
+              >
+                Retry image
+              </button>
+              {cragPath ? (
+                <button
+                  type="button"
+                  onClick={() => router.push(cragPath)}
+                  className="rounded-lg border border-amber-700/30 px-3 py-2 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 dark:border-amber-300/20 dark:text-amber-100 dark:hover:bg-amber-900/40"
+                >
+                  Back to crag
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {shareModalOpen ? (
         <ClimbShareDialog

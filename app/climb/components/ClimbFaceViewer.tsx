@@ -1,7 +1,6 @@
 'use client'
 
 import type { MouseEventHandler, RefObject, TouchEventHandler } from 'react'
-import Image from 'next/image'
 import { ChevronLeft, ChevronRight, Layers } from 'lucide-react'
 
 interface FaceViewerPoint {
@@ -33,6 +32,8 @@ interface ClimbFaceViewerProps {
   transitionBufferLoading: boolean
   displayClimbName: string
   viewerReadyState: 'idle' | 'busy'
+  activeFaceLoadError: string | null
+  activeFaceRetryNonce: number
   displayRouteTapPoint: FaceViewerPoint | null
   emblaRef: (instance: HTMLDivElement | null) => void
   viewerTransformRef: RefObject<HTMLDivElement | null>
@@ -43,6 +44,7 @@ interface ClimbFaceViewerProps {
   onTouchEnd: TouchEventHandler<HTMLDivElement>
   onCanvasClick: MouseEventHandler<HTMLCanvasElement>
   onFaceLoad: (faceId: string) => void
+  onFaceError: (faceId: string) => void
   onScrollPrev: () => void
   onScrollNext: () => void
   onScrollTo: (index: number) => void
@@ -63,6 +65,8 @@ export default function ClimbFaceViewer({
   transitionBufferLoading,
   displayClimbName,
   viewerReadyState,
+  activeFaceLoadError,
+  activeFaceRetryNonce,
   displayRouteTapPoint,
   emblaRef,
   viewerTransformRef,
@@ -73,6 +77,7 @@ export default function ClimbFaceViewer({
   onTouchEnd,
   onCanvasClick,
   onFaceLoad,
+  onFaceError,
   onScrollPrev,
   onScrollNext,
   onScrollTo,
@@ -106,22 +111,20 @@ export default function ClimbFaceViewer({
                 onTouchEnd={index === activeFaceIndex ? onTouchEnd : undefined}
                 onTouchCancel={index === activeFaceIndex ? onTouchEnd : undefined}
               >
-                <Image
+                <img
+                  key={index === activeFaceIndex ? `${face.id}-${activeFaceRetryNonce}` : face.id}
                   ref={index === activeFaceIndex ? imageRef : undefined}
                   src={face.url}
                   alt={displayClimbName}
-                  width={1600}
-                  height={1200}
-                  sizes="(max-width: 768px) 100vw, 1200px"
-                  fetchPriority={index === activeFaceIndex ? 'high' : undefined}
-                  unoptimized
+                  loading={index === activeFaceIndex ? 'eager' : 'lazy'}
                   onLoad={() => onFaceLoad(face.id)}
+                  onError={() => onFaceError(face.id)}
                   className={`max-w-full max-h-[60vh] object-contain transition-opacity duration-200 ${index === activeFaceIndex ? 'opacity-100' : 'opacity-90'}`}
                 />
                 {index === activeFaceIndex ? (
                   <canvas
                     ref={canvasRef}
-                    className={`absolute inset-0 cursor-pointer transition-opacity duration-150 ${canvasFadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                    className={`absolute inset-0 cursor-pointer transition-opacity duration-150 ${canvasFadeOut || !!activeFaceLoadError ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                     onClick={onCanvasClick}
                     data-ready-state={viewerReadyState}
                     data-route-target-x={displayRouteTapPoint ? String(displayRouteTapPoint.x) : undefined}

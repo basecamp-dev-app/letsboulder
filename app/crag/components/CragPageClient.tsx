@@ -18,7 +18,7 @@ import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import OfflineCragMapSnippet, { type OfflineCragMapPin } from '@/components/OfflineCragMapSnippet'
+import type { OfflineCragMapPin } from '@/components/OfflineCragMapSnippet'
 import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
 import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
@@ -446,7 +446,6 @@ export default function CragPageClient({
   const [offlinePreview, setOfflinePreview] = useState<Awaited<ReturnType<typeof getCragOfflinePreview>> | null>(null)
   const [offlineProgress, setOfflineProgress] = useState<OfflineJobProgressEvent | null>(null)
   const [offlineCragImageCards, setOfflineCragImageCards] = useState<OfflineCragImageCard[]>([])
-  const [offlineMapPins, setOfflineMapPins] = useState<OfflineCragMapPin[]>([])
   const [isOfflineCragMode, setIsOfflineCragMode] = useState(false)
   const [highlightedImageId, setHighlightedImageId] = useState<string | null>(null)
   const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>({})
@@ -505,7 +504,6 @@ export default function CragPageClient({
           setImages(hydrated.images)
           setRoutes(hydrated.routes)
           setOfflineCragImageCards(hydrated.imageCards)
-          setOfflineMapPins(hydrated.pins)
           setIsOfflineCragMode(true)
           setRoutesLoadState('loaded')
           setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
@@ -562,7 +560,6 @@ export default function CragPageClient({
           setImages(hydrated.images)
           setRoutes(hydrated.routes)
           setOfflineCragImageCards(hydrated.imageCards)
-          setOfflineMapPins(hydrated.pins)
           setIsOfflineCragMode(true)
           setRoutesLoadState('loaded')
           setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
@@ -668,7 +665,6 @@ export default function CragPageClient({
 
       setIsOfflineCragMode(false)
       setOfflineCragImageCards([])
-      setOfflineMapPins([])
       setCrag(cragData)
       setImages(formattedImages)
       setDefaultRouteTargetByImageId(nextDefaultRouteTargetByImageId)
@@ -746,7 +742,6 @@ export default function CragPageClient({
           const hydrated = hydrateOfflineCragData(offlinePayloads)
           setRoutes(hydrated.routes)
           setOfflineCragImageCards(hydrated.imageCards)
-          setOfflineMapPins(hydrated.pins)
           setIsOfflineCragMode(true)
           setRoutesLoadState('loaded')
           return
@@ -783,7 +778,6 @@ export default function CragPageClient({
           const hydrated = hydrateOfflineCragData(offlinePayloads)
           setRoutes(hydrated.routes)
           setOfflineCragImageCards(hydrated.imageCards)
-          setOfflineMapPins(hydrated.pins)
           setIsOfflineCragMode(true)
           setRoutesLoadState('loaded')
           return
@@ -978,6 +972,7 @@ export default function CragPageClient({
   }, [defaultRouteTargetByImageId, routeHrefBase])
 
   const prefetchImageDestination = useCallback((imageId: string) => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return
     const destination = getImageDestination(imageId)
     if (prefetchedPathsRef.current.has(destination)) return
     prefetchedPathsRef.current.add(destination)
@@ -1155,26 +1150,17 @@ export default function CragPageClient({
                     navigateToImageDestination(image.id)
                   }}
                 >
-                  <div className="relative h-24 w-full mb-2 rounded overflow-hidden">
-                    <Image
-                      src={image.url}
-                      alt={`${crag.name} topo preview ${imageIndexById.get(image.id) ?? ''}`.trim()}
-                      fill
-                      className="object-cover"
-                      sizes="160px"
-                    />
-                    {image.supplementary_faces_count > 0 && (
-                      <div className="absolute bottom-1 left-1 rounded-full bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
-                        {1 + image.supplementary_faces_count} faces
-                      </div>
-                    )}
-                  </div>
                   <p className="font-semibold text-sm text-gray-900">
                     Image {imageIndexById.get(image.id) ?? ''}
                   </p>
                   <p className="text-xs text-gray-600">
                     {image.route_lines_count} route{image.route_lines_count !== 1 ? 's' : ''}
                   </p>
+                  {image.supplementary_faces_count > 0 ? (
+                    <p className="text-xs text-gray-600">
+                      {1 + image.supplementary_faces_count} faces
+                    </p>
+                  ) : null}
                   <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
                     {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
                   </p>
@@ -1285,19 +1271,7 @@ export default function CragPageClient({
                 offlineCragImageCards.length === 0 ? (
                   <p className="text-gray-500 dark:text-gray-400">No saved topo images found in this crag pack.</p>
                 ) : (
-                  <div className="space-y-5">
-                    <OfflineCragMapSnippet
-                      pins={offlineMapPins}
-                      highlightedPinId={highlightedImageId}
-                      onSelectPin={(pinId) => {
-                        const imageCard = offlineCragImageCards.find((entry) => entry.imageId === pinId)
-                        if (!imageCard) return
-                        setHighlightedImageId(imageCard.imageId)
-                        const element = document.getElementById(`offline-image-card-${imageCard.imageId}`)
-                        element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                      }}
-                    />
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {offlineCragImageCards.map((imageCard) => (
                         <Link
                           key={imageCard.imageId}
@@ -1306,8 +1280,6 @@ export default function CragPageClient({
                           className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700 ${
                             highlightedImageId === imageCard.imageId ? 'ring-2 ring-blue-400' : ''
                           }`}
-                          onMouseEnter={() => router.prefetch(imageCard.href)}
-                          onTouchStart={() => router.prefetch(imageCard.href)}
                           onClick={() => setHighlightedImageId(imageCard.imageId)}
                         >
                           <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
@@ -1348,7 +1320,6 @@ export default function CragPageClient({
                           </div>
                         </Link>
                       ))}
-                    </div>
                   </div>
                 )
               ) : orderedImages.length === 0 ? (
