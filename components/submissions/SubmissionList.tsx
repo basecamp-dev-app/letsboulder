@@ -1,8 +1,18 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Loader2, Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import { formatSubmissionCreditHandle } from '@/lib/submission-credit'
 import type { Submission } from '@/types/submissions'
@@ -16,10 +26,43 @@ interface SubmissionListProps {
   onPublishDraft: (draftId: string) => void
 }
 
+interface PendingAction {
+  draftId: string
+  type: 'publish' | 'delete'
+}
+
 export default function SubmissionList({ submissions, isOwnProfile, deletingDraftId, publishingDraftId, onDeleteDraft, onPublishDraft }: SubmissionListProps) {
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
+
+  const pendingSubmission = useMemo(
+    () => submissions.find((submission) => submission.id === pendingAction?.draftId) ?? null,
+    [pendingAction, submissions]
+  )
+
+  const isConfirmLoading = pendingAction?.type === 'publish'
+    ? publishingDraftId === pendingAction.draftId
+    : pendingAction?.type === 'delete'
+      ? deletingDraftId === pendingAction.draftId
+      : false
+
+  const handleConfirmAction = () => {
+    if (!pendingAction) return
+
+    const action = pendingAction
+    setPendingAction(null)
+
+    if (action.type === 'publish') {
+      onPublishDraft(action.draftId)
+      return
+    }
+
+    onDeleteDraft(action.draftId)
+  }
+
   return (
-    <div className="space-y-0">
-      {submissions.map((submission) => {
+    <>
+      <div className="space-y-0">
+        {submissions.map((submission) => {
         const formattedHandle = formatSubmissionCreditHandle(submission.contribution_credit_handle)
         const visibilityLabel = submission.is_anonymous_submission ? 'Anonymous' : formattedHandle
         const draftHref = `/logbook/drafts/${submission.id}/edit`
@@ -73,78 +116,119 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
           </>
         )
 
-        return (
-          <div
-            key={submission.id}
-            className="py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
-          >
-            <div className="flex items-center gap-3">
-              {isOptimisticPublishing ? (
-                <div className="flex min-w-0 flex-1 items-center gap-3 rounded-sm opacity-80">
-                  {content}
-                </div>
-              ) : (
-                <Link
-                  href={destinationHref}
-                  className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
-                >
-                  {content}
-                </Link>
-              )}
+          return (
+            <div
+              key={submission.id}
+              className="py-3 border-b border-gray-100 dark:border-gray-800 last:border-0"
+            >
+              <div className="flex items-center gap-3">
+                {isOptimisticPublishing ? (
+                  <div className="flex min-w-0 flex-1 items-center gap-3 rounded-sm opacity-80">
+                    {content}
+                  </div>
+                ) : (
+                  <Link
+                    href={destinationHref}
+                    className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
+                  >
+                    {content}
+                  </Link>
+                )}
 
-              {isOwnProfile && (
-                <div className="shrink-0 flex flex-col items-end gap-1">
-                  {isDraftActionsVisible ? (
-                    <>
+                {isOwnProfile && (
+                  <div className="shrink-0 flex flex-col items-end gap-1">
+                    {isDraftActionsVisible ? (
+                      <>
+                        <Link
+                          href={draftHref}
+                          className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                        >
+                          Edit draft
+                        </Link>
+                        {publishingDraftId === submission.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setPendingAction({ draftId: submission.id, type: 'publish' })}
+                            className="text-xs font-medium text-green-700 hover:text-green-800 dark:text-green-300 dark:hover:text-green-200"
+                          >
+                            Publish
+                          </button>
+                        )}
+                        {deletingDraftId === submission.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setPendingAction({ draftId: submission.id, type: 'delete' })}
+                            className="text-gray-400 hover:text-red-500 p-1 transition-colors"
+                            title="Delete draft"
+                            aria-label="Delete draft"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </>
+                    ) : isOptimisticPublishing ? (
+                      <div className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Publishing...
+                      </div>
+                    ) : (
                       <Link
-                        href={draftHref}
+                        href={`/logbook/submissions/${submission.id}/edit`}
                         className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
                       >
-                        Edit draft
+                        Manage
                       </Link>
-                      {publishingDraftId === submission.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => onPublishDraft(submission.id)}
-                          className="text-xs font-medium text-green-700 hover:text-green-800 dark:text-green-300 dark:hover:text-green-200"
-                        >
-                          Publish
-                        </button>
-                      )}
-                      {deletingDraftId === submission.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => onDeleteDraft(submission.id)}
-                          className="text-gray-400 hover:text-red-500 p-1 transition-colors"
-                          title="Delete draft"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </>
-                  ) : isOptimisticPublishing ? (
-                    <div className="flex items-center gap-1 text-xs font-medium text-blue-700 dark:text-blue-300">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Publishing...
-                    </div>
-                  ) : (
-                    <Link
-                      href={`/logbook/submissions/${submission.id}/edit`}
-                      className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                    >
-                      Manage
-                    </Link>
-                  )}
-                </div>
-              )}
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )
-      })}
-    </div>
+          )
+        })}
+      </div>
+
+      <Dialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingAction(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {pendingAction?.type === 'publish' ? 'Publish this draft?' : 'Delete this draft?'}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingAction?.type === 'publish'
+                ? `This will submit ${pendingSubmission?.crag_name || 'this draft'} for review and move it out of drafts.`
+                : `This will permanently remove ${pendingSubmission?.crag_name || 'this draft'} from your drafts.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingAction(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant={pendingAction?.type === 'delete' ? 'destructive' : 'default'}
+              onClick={handleConfirmAction}
+              disabled={!pendingAction || isConfirmLoading}
+            >
+              {pendingAction?.type === 'publish' ? 'Confirm publish' : 'Confirm delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
