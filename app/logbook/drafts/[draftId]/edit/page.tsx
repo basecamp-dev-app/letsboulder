@@ -1213,7 +1213,8 @@ export default function EditDraftPage() {
     <div className="min-h-screen bg-white dark:bg-gray-950">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div className="mx-auto max-w-6xl px-4 py-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="sticky top-0 z-30 -mx-4 mb-3 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:border-gray-800 dark:bg-gray-950/95 dark:supports-[backdrop-filter]:bg-gray-950/80 md:static md:mx-0 md:border-b-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none">
+          <div className="flex items-center justify-between gap-3">
           <Link
             href="/logbook"
             className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
@@ -1255,6 +1256,7 @@ export default function EditDraftPage() {
                 Waiting for owner to publish
               </span>
             )}
+          </div>
           </div>
         </div>
 
