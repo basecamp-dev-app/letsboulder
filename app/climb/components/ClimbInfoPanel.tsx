@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { Flag, Share2, Star } from 'lucide-react'
-import OfflineCragMapSnippet from '@/components/OfflineCragMapSnippet'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import type { GradeSystem } from '@/lib/grades'
@@ -39,12 +38,6 @@ interface ClimbInfoPanelProps {
   cragPath: string | null
   isOfflineSaved: boolean
   offlinePackAvailable: boolean
-  offlineMapPin: {
-    id: string
-    label: string
-    latitude: number
-    longitude: number
-  } | null
   publicSubmitter: SubmitterInfo | null
   formattedContributionHandle: string | null
   contributionCreditUrl: string | null
@@ -86,7 +79,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     cragPath,
     isOfflineSaved,
     offlinePackAvailable,
-    offlineMapPin,
     publicSubmitter,
     formattedContributionHandle,
     contributionCreditUrl,
@@ -304,17 +296,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
             </button>
           </div>
         ) : null}
-
-        {offlineMapPin ? (
-          <div className="mt-6 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">Approach</p>
-            <OfflineCragMapSnippet
-              pins={[offlineMapPin]}
-              className="rounded-2xl"
-            />
-          </div>
-        ) : null}
-
         {deferredSections}
       </div>
     </div>
