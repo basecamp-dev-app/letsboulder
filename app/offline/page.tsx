@@ -20,6 +20,13 @@ const offlinePageScript = `
   const retryEl = document.getElementById('offline-retry');
   const onlineActionEl = document.getElementById('offline-online-action');
   const cragListEl = document.getElementById('offline-crag-list');
+  const loadingEl = document.getElementById('offline-loading');
+  const contentEl = document.getElementById('offline-content');
+
+  function showContent() {
+    if (loadingEl) loadingEl.hidden = true;
+    if (contentEl) contentEl.hidden = false;
+  }
 
   function formatBytes(bytes) {
     if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
@@ -47,6 +54,7 @@ const offlinePageScript = `
   }
 
   function renderEmptyState() {
+    showContent();
     if (emptyEl) emptyEl.hidden = false;
     if (cragListEl) cragListEl.innerHTML = '';
   }
@@ -65,6 +73,7 @@ const offlinePageScript = `
       return;
     }
 
+    showContent();
     if (emptyEl) emptyEl.hidden = true;
 
     if (cragListEl) {
@@ -127,6 +136,7 @@ const offlinePageScript = `
   }
 
   if (navigator.onLine) {
+    showContent();
     if (subtitleEl) subtitleEl.textContent = 'You are back online. Opening the map...';
     if (onlineActionEl) {
       onlineActionEl.hidden = false;
@@ -138,7 +148,9 @@ const offlinePageScript = `
 
   if (retryEl) {
     retryEl.addEventListener('click', function () {
-      if (subtitleEl) subtitleEl.textContent = 'Loading saved climbs on this device...';
+      if (loadingEl) loadingEl.hidden = false;
+      if (contentEl) contentEl.hidden = true;
+      if (subtitleEl) subtitleEl.textContent = 'Loading saved crags on this device...';
       loadPacks();
     });
   }
@@ -152,11 +164,23 @@ export default function OfflinePage() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef2f7_100%)] px-4 py-10 text-gray-900 dark:bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.15),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#111827_100%)] dark:text-gray-100">
       <div className="mx-auto max-w-5xl">
         <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-xl shadow-emerald-950/5 backdrop-blur dark:border-white/10 dark:bg-gray-950/80 dark:shadow-black/30">
+          <div id="offline-loading" className="py-16">
+            <div className="mx-auto flex max-w-sm flex-col items-center justify-center gap-4 text-center">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600 dark:border-emerald-950 dark:border-t-emerald-400" />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-300">Offline</p>
+                <h1 className="mt-3 text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">Opening saved crags</h1>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Checking this device for saved crag packs...</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="offline-content" hidden>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-300">Offline</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-950 dark:text-white">Offline library</h1>
-              <p id="offline-subtitle" className="mt-2 text-sm text-gray-600 dark:text-gray-300">Loading saved climbs on this device...</p>
+              <p id="offline-subtitle" className="mt-2 text-sm text-gray-600 dark:text-gray-300">Saved crags ready to open.</p>
             </div>
             <div className="flex gap-3">
               <button id="offline-online-action" hidden className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Open map</button>
@@ -182,6 +206,7 @@ export default function OfflinePage() {
             </div>
             <div id="offline-crag-list" className="grid gap-5 lg:grid-cols-2"></div>
           </section>
+          </div>
         </div>
       </div>
 
