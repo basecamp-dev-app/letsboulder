@@ -1173,7 +1173,7 @@ export default function EditSubmittedRoutesPage() {
           </div>
         )}
 
-        {(facesLoading || manageFaces.length > 1) && (
+        {manageFaces.length > 0 && (
           <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-2 flex items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Manage all images</h2>
