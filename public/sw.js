@@ -1,9 +1,9 @@
 self.__WB_DISABLE_DEV_LOGS = true
 
-const PACK_CACHE = 'offline-climb-packs-v1'
-const MEDIA_CACHE = 'offline-media-v1'
-const TILE_CACHE = 'offline-tiles-v1'
-const TRANSIENT_CACHE = 'runtime-transient-v1'
+const PACK_CACHE = 'offline-climb-packs-v2'
+const MEDIA_CACHE = 'offline-media-v2'
+const TILE_CACHE = 'offline-tiles-v2'
+const TRANSIENT_CACHE = 'runtime-transient-v2'
 const OFFLINE_LAUNCH_URL = '/offline'
 const OFFLINE_JOB_CHANNEL = 'offline-pack-jobs'
 const ACTIVE_CACHES = [PACK_CACHE, MEDIA_CACHE, TILE_CACHE, TRANSIENT_CACHE]
