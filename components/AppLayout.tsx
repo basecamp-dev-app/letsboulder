@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
@@ -10,14 +10,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isSubmitPage = pathname === '/submit'
   const isImmersiveMobilePage = /^\/logbook\/(drafts|submissions)\/[^/]+\/edit$/.test(pathname)
+  const isOfflineLaunchPage = pathname === '/offline'
+  const [isOffline, setIsOffline] = useState(false)
+  const isOfflineFieldPage = isOffline && (/^\/climb\//.test(pathname) || /^\/crag\//.test(pathname) || /^\/[a-z]{2}\//.test(pathname))
+  const hideFooter = isSubmitPage || isImmersiveMobilePage || isOfflineLaunchPage || isOfflineFieldPage
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--app-mobile-footer-offset', isImmersiveMobilePage ? '0px' : '4rem')
+    if (typeof window === 'undefined') return
+
+    const updateOnlineStatus = () => setIsOffline(window.navigator.onLine === false)
+    updateOnlineStatus()
+
+    window.addEventListener('online', updateOnlineStatus)
+    window.addEventListener('offline', updateOnlineStatus)
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus)
+      window.removeEventListener('offline', updateOnlineStatus)
+    }
+  }, [])
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--app-mobile-footer-offset', hideFooter ? '0px' : '4rem')
 
     return () => {
       document.documentElement.style.setProperty('--app-mobile-footer-offset', '4rem')
     }
-  }, [isImmersiveMobilePage])
+  }, [hideFooter])
 
   return (
     <SubmitProvider>
@@ -25,7 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <main id="main-content" className="min-h-screen">
         {children}
       </main>
-      {!isSubmitPage && !isImmersiveMobilePage && <Footer />}
+      {!hideFooter && <Footer />}
     </SubmitProvider>
   )
 }
