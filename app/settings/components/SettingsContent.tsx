@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { User } from '@supabase/supabase-js'
 import { Loader2, AlertTriangle } from 'lucide-react'
+import SupportCard from '@/components/SupportCard'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -727,6 +728,10 @@ export default function SettingsContent({ user }: SettingsContentProps) {
                 </div>
               </div>
             )}
+
+            <div className="mt-10 max-w-xl border-t border-gray-200 pt-8 dark:border-gray-700">
+              <SupportCard compact />
+            </div>
           </div>
 
           <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-end">
