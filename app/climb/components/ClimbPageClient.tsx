@@ -1766,6 +1766,12 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         cragPath={cragPath}
         isOfflineSaved={isOfflineSaved}
         offlinePackAvailable={!!offlinePack}
+        offlineMapPin={offlinePack?.primaryPin ? {
+          id: offlinePack.primaryPin.climbId,
+          label: offlinePack.primaryPin.climbName,
+          latitude: offlinePack.primaryPin.latitude,
+          longitude: offlinePack.primaryPin.longitude,
+        } : null}
         publicSubmitter={publicSubmitter ? { id: publicSubmitter.id, displayName: publicSubmitter.displayName } : null}
         formattedContributionHandle={formattedContributionHandle}
         contributionCreditUrl={contributionCreditUrl}

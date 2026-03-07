@@ -15,6 +15,9 @@ export interface OfflinePackRecord {
   versionHash: string
   estimatedBytes: number
   mediaCount: number
+  coverImageUrl?: string | null
+  tileCount?: number
+  childClimbCount?: number
   savedAt: string
   lastSyncedAt: string
   syncState: 'idle' | 'syncing' | 'error'
@@ -71,9 +74,12 @@ async function migrateLegacyClimbPacks() {
       displayName: pack.climbName,
       canonicalPath: pack.canonicalPath || pack.pageUrl,
       versionHash: pack.version,
-      estimatedBytes: pack.estimatedBytes,
-      mediaCount: pack.mediaCount,
-      savedAt: now,
+        estimatedBytes: pack.estimatedBytes,
+        mediaCount: pack.mediaCount,
+        coverImageUrl: pack.coverImageUrl || null,
+        tileCount: pack.tileCount || 0,
+        childClimbCount: 0,
+        savedAt: now,
       lastSyncedAt: now,
       syncState: 'idle',
     }
@@ -165,6 +171,12 @@ export async function upsertStoredCragManifest(entry: StoredCragManifest) {
   const manifests = await readMap<StoredCragManifest>(CRAG_MANIFESTS_KEY)
   manifests[entry.cragId] = entry
   await writeMap(CRAG_MANIFESTS_KEY, manifests)
+}
+
+export async function listStoredCragManifests(): Promise<StoredCragManifest[]> {
+  await ensureOfflineStorageReady()
+  const manifests = await readMap<StoredCragManifest>(CRAG_MANIFESTS_KEY)
+  return Object.values(manifests)
 }
 
 export async function removeStoredCragManifest(cragId: string) {
