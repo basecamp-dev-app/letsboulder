@@ -21,6 +21,8 @@ export interface ClimbPackImageInfo {
   id: string
   url: string
   crag_id: string | null
+  latitude: number | null
+  longitude: number | null
   width: number | null
   height: number | null
   natural_width: number | null
@@ -92,6 +94,26 @@ export interface ClimbOfflinePackManifest {
   estimatedBytes: number
   canonicalPath?: string
   cragId?: string | null
+  coverImageUrl?: string | null
+  primaryPin?: OfflineMapPin | null
+  tileUrls?: string[]
+  tileCount?: number
+}
+
+export interface OfflineMapPin {
+  climbId: string
+  climbName: string
+  canonicalPath: string
+  coverImageUrl: string | null
+  latitude: number
+  longitude: number
+}
+
+export interface OfflineTileManifest {
+  minZoom: number
+  maxZoom: number
+  tileCount: number
+  tileUrls: string[]
 }
 
 export interface CragOfflinePackClimbSummary {
@@ -102,6 +124,8 @@ export interface CragOfflinePackClimbSummary {
   versionHash: string
   estimatedBytes: number
   mediaCount: number
+  coverImageUrl?: string | null
+  primaryPin?: OfflineMapPin | null
 }
 
 export interface CragOfflinePackManifest {
@@ -116,6 +140,8 @@ export interface CragOfflinePackManifest {
   climbCount: number
   mediaCount: number
   climbs: CragOfflinePackClimbSummary[]
+  savedPins?: OfflineMapPin[]
+  tileManifest?: OfflineTileManifest | null
   removedClimbIds: string[]
   failedClimbIds?: string[]
   warning?: string | null

@@ -2,12 +2,15 @@ import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { RoutePoint } from '@/lib/useRouteSelection'
 import { buildMediaProxyUrl, estimateCompressedImageBytes, parsePrivateMediaRef } from '@/lib/media-proxy'
-import type { ClimbPackResponse } from '@/lib/climb/queries'
+import type { ClimbPackResponse, OfflineMapPin } from '@/lib/climb/queries'
+import { buildTileManifestForPins } from '@/lib/offline/tiles'
 
 interface ImageInfoRow {
   id: string
   url: string
   crag_id: string | null
+  latitude: number | null
+  longitude: number | null
   width: number | null
   height: number | null
   natural_width: number | null
@@ -180,6 +183,28 @@ function resolveCanonicalPaths(crag: CragRow | null, climb: ClimbInfo | null, cl
   }
 }
 
+function buildPrimaryPin(input: {
+  climbId: string
+  climbName: string
+  canonicalPath: string
+  coverImageUrl: string | null
+  latitude: number | null
+  longitude: number | null
+}): OfflineMapPin | null {
+  if (typeof input.latitude !== 'number' || typeof input.longitude !== 'number') {
+    return null
+  }
+
+  return {
+    climbId: input.climbId,
+    climbName: input.climbName,
+    canonicalPath: input.canonicalPath,
+    coverImageUrl: input.coverImageUrl,
+    latitude: input.latitude,
+    longitude: input.longitude,
+  }
+}
+
 export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackResponse> {
   const supabase = getAdminClient()
   const { data: fullContext, error: fullContextError } = await supabase
@@ -226,6 +251,8 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
         id: `legacy-${legacy.id}`,
         url: legacyMedia.url,
         crag_id: legacy.crag_id || null,
+        latitude: null,
+        longitude: null,
         width: null,
         height: null,
         natural_width: null,
@@ -286,12 +313,16 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
         mediaCount: 1,
         estimatedBytes,
         cragId: legacy.crag_id || null,
+        coverImageUrl: legacyMedia.url,
+        primaryPin: null,
+        tileUrls: [],
+        tileCount: 0,
       },
     }
   }
 
   const primaryImage = context.primary_image
-  const [completeSummaryResult, cragResult, profileResult] = await Promise.all([
+  const [completeSummaryResult, cragResult, profileResult, primaryImageGeoResult] = await Promise.all([
     supabase.rpc('get_crag_faces_complete_summary', { p_image_id: primaryImage.id }),
     primaryImage.crag_id
       ? supabase.from('crags').select('id, country_code, slug, name').eq('id', primaryImage.crag_id).maybeSingle()
@@ -303,11 +334,17 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
           .eq('id', primaryImage.created_by)
           .single()
       : Promise.resolve({ data: null, error: null }),
+    supabase
+      .from('images')
+      .select('latitude, longitude')
+      .eq('id', primaryImage.id)
+      .maybeSingle(),
   ])
 
   const completeSummary = (!completeSummaryResult.error && completeSummaryResult.data)
     ? completeSummaryResult.data as CompleteSummaryPayload
     : null
+  const primaryImageGeo = ('data' in primaryImageGeoResult ? primaryImageGeoResult.data : null) as { latitude: number | null; longitude: number | null } | null
 
   const facesSource = Array.isArray(completeSummary?.faces) && completeSummary.faces.length > 0
     ? completeSummary.faces
@@ -379,6 +416,15 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
     : null
 
   const mediaUrls = Array.from(new Set([decoratedPrimary.url, ...faces.map((face) => face.url)].filter(Boolean)))
+  const primaryPin = buildPrimaryPin({
+    climbId,
+    climbName: context.climb.name,
+    canonicalPath: canonical.climbPath,
+    coverImageUrl: decoratedPrimary.url,
+    latitude: primaryImageGeo?.latitude ?? null,
+    longitude: primaryImageGeo?.longitude ?? null,
+  })
+  const tileManifest = primaryPin ? buildTileManifestForPins([primaryPin]) : null
   const version = hashValue({
     climb: context.climb,
     canonicalPath: canonical.climbPath,
@@ -401,6 +447,8 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
     primary_image: {
       ...primaryImage,
       url: decoratedPrimary.url,
+      latitude: primaryImageGeo?.latitude ?? null,
+      longitude: primaryImageGeo?.longitude ?? null,
       media_ref: decoratedPrimary.media_ref,
       cache_key: decoratedPrimary.cache_key,
       version: decoratedPrimary.version,
@@ -431,6 +479,10 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
       mediaCount: mediaUrls.length,
       estimatedBytes,
       cragId: primaryImage.crag_id || null,
+      coverImageUrl: decoratedPrimary.url,
+      primaryPin,
+      tileUrls: tileManifest?.tileUrls || [],
+      tileCount: tileManifest?.tileCount || 0,
     },
   }
 }

@@ -2,9 +2,11 @@ self.__WB_DISABLE_DEV_LOGS = true
 
 const PACK_CACHE = 'offline-climb-packs-v1'
 const MEDIA_CACHE = 'offline-media-v1'
+const TILE_CACHE = 'offline-tiles-v1'
 const TRANSIENT_CACHE = 'runtime-transient-v1'
 const OFFLINE_LAUNCH_URL = '/offline'
 const OFFLINE_JOB_CHANNEL = 'offline-pack-jobs'
+const ACTIVE_CACHES = [PACK_CACHE, MEDIA_CACHE, TILE_CACHE, TRANSIENT_CACHE]
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -15,7 +17,11 @@ self.addEventListener('install', (event) => {
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
+  event.waitUntil((async () => {
+    const cacheNames = await caches.keys()
+    await Promise.all(cacheNames.filter((cacheName) => !ACTIVE_CACHES.includes(cacheName)).map((cacheName) => caches.delete(cacheName)))
+    await self.clients.claim()
+  })())
 })
 
 function broadcastProgress(payload) {
@@ -90,9 +96,11 @@ self.addEventListener('message', (event) => {
       if (message.type === 'SAVE_CLIMB_PACK') {
         const pack = message.payload || {}
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []
+        const tileUrls = Array.isArray(pack.tileUrls) ? pack.tileUrls : []
         const packUrls = [OFFLINE_LAUNCH_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
         await cacheUrls(PACK_CACHE, packUrls)
         await cacheUrls(MEDIA_CACHE, mediaUrls)
+        await cacheUrls(TILE_CACHE, tileUrls)
         respond({ ok: true })
         return
       }
@@ -100,9 +108,11 @@ self.addEventListener('message', (event) => {
       if (message.type === 'REMOVE_CLIMB_PACK') {
         const pack = message.payload || {}
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []
+        const tileUrls = Array.isArray(pack.tileUrls) ? pack.tileUrls : []
         const packUrls = [`/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
         await removeUrls(PACK_CACHE, packUrls)
         await removeUrls(MEDIA_CACHE, mediaUrls)
+        await removeUrls(TILE_CACHE, tileUrls)
         respond({ ok: true })
         return
       }
@@ -110,6 +120,7 @@ self.addEventListener('message', (event) => {
       if (message.type === 'SAVE_CRAG_PACK') {
         const payload = message.payload || {}
         const climbs = Array.isArray(payload.climbs) ? payload.climbs : []
+        const tileUrls = Array.isArray(payload.tileUrls) ? payload.tileUrls : []
         const totalClimbs = climbs.length
         const totalBytes = Number(payload.totalBytes || 0)
         let completedClimbs = 0
@@ -126,9 +137,11 @@ self.addEventListener('message', (event) => {
         })
 
         await cacheUrls(PACK_CACHE, [OFFLINE_LAUNCH_URL, payload.canonicalPath, payload.manifestUrl].filter(Boolean))
+        await cacheUrls(TILE_CACHE, tileUrls, { concurrency: 4 })
 
         for (const climb of climbs) {
           await cacheUrls(PACK_CACHE, [`/climb/${climb.climbId}`, climb.pageUrl, climb.manifestUrl].filter(Boolean))
+          await cacheUrls(TILE_CACHE, Array.isArray(climb.tileUrls) ? climb.tileUrls : [], { concurrency: 4 })
 
           broadcastProgress({
             type: 'OFFLINE_JOB_PROGRESS',
@@ -178,10 +191,13 @@ self.addEventListener('message', (event) => {
       if (message.type === 'REMOVE_CRAG_PACK') {
         const payload = message.payload || {}
         const climbs = Array.isArray(payload.climbs) ? payload.climbs : []
+        const tileUrls = Array.isArray(payload.tileUrls) ? payload.tileUrls : []
         await removeUrls(PACK_CACHE, [payload.canonicalPath, payload.manifestUrl].filter(Boolean))
+        await removeUrls(TILE_CACHE, tileUrls)
         for (const climb of climbs) {
           await removeUrls(PACK_CACHE, [`/climb/${climb.climbId}`, climb.pageUrl, climb.manifestUrl].filter(Boolean))
           await removeUrls(MEDIA_CACHE, Array.isArray(climb.mediaUrls) ? climb.mediaUrls : [])
+          await removeUrls(TILE_CACHE, Array.isArray(climb.tileUrls) ? climb.tileUrls : [])
         }
         respond({ ok: true })
         return
@@ -212,6 +228,7 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url)
   const isMediaRequest = url.pathname.startsWith('/api/media/')
+  const isOfflineTileRequest = url.pathname.startsWith('/api/offline-tiles/')
   const isPackRequest = url.pathname.startsWith('/api/offline-packs/climbs/') || url.pathname.startsWith('/api/offline-packs/crags/')
   const isOfflineLaunch = request.mode === 'navigate' && url.pathname === OFFLINE_LAUNCH_URL
   const isClimbPage = request.mode === 'navigate' && url.pathname.startsWith('/climb/')
@@ -220,6 +237,21 @@ self.addEventListener('fetch', (event) => {
   if (isMediaRequest) {
     event.respondWith((async () => {
       const cache = await caches.open(MEDIA_CACHE)
+      const cached = await cache.match(request)
+      if (cached) return cached
+
+      const response = await fetch(request)
+      if (response.ok) {
+        await cache.put(request, response.clone())
+      }
+      return response
+    })())
+    return
+  }
+
+  if (isOfflineTileRequest) {
+    event.respondWith((async () => {
+      const cache = await caches.open(TILE_CACHE)
       const cached = await cache.match(request)
       if (cached) return cached
 

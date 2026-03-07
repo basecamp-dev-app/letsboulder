@@ -18,6 +18,7 @@ import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import OfflineCragMapSnippet, { type OfflineCragMapPin } from '@/components/OfflineCragMapSnippet'
 import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
 import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
@@ -97,7 +98,8 @@ interface ImageData {
 interface OfflineHydratedCragData {
   images: ImageData[]
   routes: CragRoute[]
-  faces: OfflineCragFaceSummary[]
+  thumbnails: OfflineCragThumbnail[]
+  pins: OfflineCragMapPin[]
   defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
   cragCenter: [number, number] | null
 }
@@ -110,27 +112,17 @@ interface OfflineCragRouteSummary {
   routeType: string | null
 }
 
-interface OfflineCragFaceSummary {
-  id: string
+interface OfflineCragThumbnail {
+  climbId: string
+  routeId: string
+  name: string
+  grade: string
+  routeType: string | null
+  imageId: string
   imageUrl: string
-  faceDirections: string[]
-  routes: OfflineCragRouteSummary[]
-}
-
-interface OfflineFaceSource {
-  id: string
-  url: string
-  image_id?: string | null
-  linked_image_id?: string | null
-  crag_image_id?: string | null
-  face_directions?: string[] | null
-      routes?: Array<{
-        id: string
-        climb_id: string
-        name: string
-        grade: string
-    route_type: string | null
-  }>
+  href: string
+  latitude: number | null
+  longitude: number | null
 }
 
 interface RouteLineTargetRow {
@@ -238,7 +230,8 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
   const imageMap = new Map<string, ImageData>()
   const defaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
   const routeMap = new Map<string, CragRoute>()
-  const faceMap = new Map<string, OfflineCragFaceSummary>()
+  const thumbnailMap = new Map<string, OfflineCragThumbnail>()
+  const pinMap = new Map<string, OfflineCragMapPin>()
 
   const getOfflineSlug = (canonicalPath: string | undefined, climbId: string) => {
     if (!canonicalPath || canonicalPath === `/climb/${climbId}`) return null
@@ -258,8 +251,8 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
     imageMap.set(primaryImage.id, {
       id: primaryImage.id,
       url: primaryImage.url,
-      latitude: existingImage?.latitude ?? null,
-      longitude: existingImage?.longitude ?? null,
+      latitude: existingImage?.latitude ?? primaryImage.latitude ?? null,
+      longitude: existingImage?.longitude ?? primaryImage.longitude ?? null,
       route_lines_count: (existingImage?.route_lines_count || 0) + primaryRouteCount,
       is_verified: existingImage?.is_verified || false,
       verification_count: existingImage?.verification_count || 0,
@@ -306,73 +299,42 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
       routeType: climb.route_type,
     }
 
-    const faces: OfflineFaceSource[] = payload.faces && payload.faces.length > 0
-      ? payload.faces
-      : [{
-          id: `fallback-${primaryImage.id}`,
-          url: primaryImage.url,
-          face_directions: primaryImage.face_directions,
-          image_id: primaryImage.id,
-          linked_image_id: primaryImage.id,
-          crag_image_id: null,
-          routes: payload.primary_route_lines?.map((line) => ({
-            id: line.id,
-            climb_id: line.climb_id,
-            name: line.climb?.name || fallbackRouteSummary.name,
-            grade: line.climb?.grade || fallbackRouteSummary.grade,
-            route_type: line.climb?.route_type || fallbackRouteSummary.routeType,
-            description: line.climb?.description || null,
-            color: line.color,
-            points: line.points,
-            image_width: line.image_width,
-            image_height: line.image_height,
-            sequence_order: null,
-          })) || [],
-        }]
+    const href = payload.offline_pack.canonicalPath || payload.offline_pack.pageUrl || `/climb/${climb.id}`
+    thumbnailMap.set(climb.id, {
+      climbId: climb.id,
+      routeId: fallbackRouteSummary.routeId,
+      name: climb.name || 'Unnamed climb',
+      grade: normalizeGrade(climb.grade) || 'Unknown',
+      routeType: climb.route_type,
+      imageId: primaryImage.id,
+      imageUrl: primaryImage.url,
+      href,
+      latitude: primaryImage.latitude ?? null,
+      longitude: primaryImage.longitude ?? null,
+    })
 
-    for (const face of faces) {
-      if (!face.url) continue
-      const faceId = String(face.image_id || face.linked_image_id || face.crag_image_id || face.id)
-      const existingFace = faceMap.get(faceId)
-      const nextRoutes = new Map<string, OfflineCragRouteSummary>()
-
-      for (const existingRoute of existingFace?.routes || []) {
-        nextRoutes.set(existingRoute.routeId, existingRoute)
-      }
-
-      const routeSummaries: OfflineCragRouteSummary[] = Array.isArray(face.routes) && face.routes.length > 0
-        ? face.routes.map((route) => ({
-            routeId: route.id,
-            climbId: route.climb_id,
-            name: route.name || fallbackRouteSummary.name,
-            grade: normalizeGrade(route.grade) || fallbackRouteSummary.grade,
-            routeType: route.route_type,
-          }))
-        : [fallbackRouteSummary]
-
-      for (const routeSummary of routeSummaries) {
-        nextRoutes.set(routeSummary.routeId, routeSummary)
-      }
-
-      faceMap.set(faceId, {
-        id: faceId,
-        imageUrl: face.url,
-        faceDirections: Array.isArray(face.face_directions) ? face.face_directions : [],
-        routes: Array.from(nextRoutes.values()).sort((a, b) => {
-          const gradeCompare = a.grade.localeCompare(b.grade)
-          if (gradeCompare !== 0) return gradeCompare
-          return a.name.localeCompare(b.name)
-        }),
+    if (typeof primaryImage.latitude === 'number' && typeof primaryImage.longitude === 'number') {
+      pinMap.set(climb.id, {
+        id: climb.id,
+        label: climb.name || 'Unnamed climb',
+        latitude: primaryImage.latitude,
+        longitude: primaryImage.longitude,
       })
     }
   }
 
+  const pins = Array.from(pinMap.values())
+  const cragCenter = pins.length > 0
+    ? getAverageCoordinates(pins.map((pin) => ({ latitude: pin.latitude, longitude: pin.longitude })))
+    : null
+
   return {
     images: Array.from(imageMap.values()),
     routes: Array.from(routeMap.values()),
-    faces: Array.from(faceMap.values()),
+    thumbnails: Array.from(thumbnailMap.values()).sort((a, b) => a.name.localeCompare(b.name)),
+    pins,
     defaultRouteTargetByImageId,
-    cragCenter: null,
+    cragCenter,
   }
 }
 
@@ -460,7 +422,8 @@ export default function CragPageClient({
   const [offlineError, setOfflineError] = useState<string | null>(null)
   const [offlinePreview, setOfflinePreview] = useState<Awaited<ReturnType<typeof getCragOfflinePreview>> | null>(null)
   const [offlineProgress, setOfflineProgress] = useState<OfflineJobProgressEvent | null>(null)
-  const [offlineCragFaces, setOfflineCragFaces] = useState<OfflineCragFaceSummary[]>([])
+  const [offlineCragThumbnails, setOfflineCragThumbnails] = useState<OfflineCragThumbnail[]>([])
+  const [offlineMapPins, setOfflineMapPins] = useState<OfflineCragMapPin[]>([])
   const [isOfflineCragMode, setIsOfflineCragMode] = useState(false)
   const [highlightedImageId, setHighlightedImageId] = useState<string | null>(null)
   const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>({})
@@ -518,7 +481,8 @@ export default function CragPageClient({
           const hydrated = hydrateOfflineCragData(offlinePayloads)
           setImages(hydrated.images)
           setRoutes(hydrated.routes)
-          setOfflineCragFaces(hydrated.faces)
+          setOfflineCragThumbnails(hydrated.thumbnails)
+          setOfflineMapPins(hydrated.pins)
           setIsOfflineCragMode(true)
           setRoutesLoadState('loaded')
           setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
@@ -574,7 +538,8 @@ export default function CragPageClient({
           const hydrated = hydrateOfflineCragData(offlinePayloads)
           setImages(hydrated.images)
           setRoutes(hydrated.routes)
-          setOfflineCragFaces(hydrated.faces)
+          setOfflineCragThumbnails(hydrated.thumbnails)
+          setOfflineMapPins(hydrated.pins)
           setIsOfflineCragMode(true)
           setRoutesLoadState('loaded')
           setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
@@ -679,7 +644,8 @@ export default function CragPageClient({
       if (ignore) return
 
       setIsOfflineCragMode(false)
-      setOfflineCragFaces([])
+      setOfflineCragThumbnails([])
+      setOfflineMapPins([])
       setCrag(cragData)
       setImages(formattedImages)
       setDefaultRouteTargetByImageId(nextDefaultRouteTargetByImageId)
@@ -756,7 +722,8 @@ export default function CragPageClient({
         if (!ignore && offlinePayloads.length > 0) {
           const hydrated = hydrateOfflineCragData(offlinePayloads)
           setRoutes(hydrated.routes)
-          setOfflineCragFaces(hydrated.faces)
+          setOfflineCragThumbnails(hydrated.thumbnails)
+          setOfflineMapPins(hydrated.pins)
           setIsOfflineCragMode(true)
           setRoutesLoadState('loaded')
           return
@@ -792,7 +759,8 @@ export default function CragPageClient({
         if (!ignore && offlinePayloads.length > 0) {
           const hydrated = hydrateOfflineCragData(offlinePayloads)
           setRoutes(hydrated.routes)
-          setOfflineCragFaces(hydrated.faces)
+          setOfflineCragThumbnails(hydrated.thumbnails)
+          setOfflineMapPins(hydrated.pins)
           setIsOfflineCragMode(true)
           setRoutesLoadState('loaded')
           return
@@ -1291,48 +1259,66 @@ export default function CragPageClient({
           <>
             <div>
               {isOfflineCragMode ? (
-                offlineCragFaces.length === 0 ? (
-                  <p className="text-gray-500 dark:text-gray-400">No saved faces found in this crag pack.</p>
+                offlineCragThumbnails.length === 0 ? (
+                  <p className="text-gray-500 dark:text-gray-400">No saved climb thumbnails found in this crag pack.</p>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {offlineCragFaces.map((face) => (
-                      <div key={face.id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                        <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
-                          <Image
-                            src={face.imageUrl}
-                            alt={`${crag.name} saved face`}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 768px) 100vw, 33vw"
-                            unoptimized
-                          />
-                          {face.faceDirections.length > 0 ? (
-                            <div className="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm">
-                              {face.faceDirections.join(' ')}
+                  <div className="space-y-5">
+                    <OfflineCragMapSnippet
+                      pins={offlineMapPins}
+                      highlightedPinId={highlightedImageId}
+                      onSelectPin={(pinId) => {
+                        const thumbnail = offlineCragThumbnails.find((entry) => entry.climbId === pinId)
+                        if (!thumbnail) return
+                        setHighlightedImageId(thumbnail.climbId)
+                        const element = document.getElementById(`offline-thumbnail-${thumbnail.climbId}`)
+                        element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      }}
+                    />
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {offlineCragThumbnails.map((thumbnail) => (
+                        <Link
+                          key={thumbnail.climbId}
+                          href={thumbnail.href}
+                          id={`offline-thumbnail-${thumbnail.climbId}`}
+                          className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700 ${
+                            highlightedImageId === thumbnail.climbId ? 'ring-2 ring-blue-400' : ''
+                          }`}
+                          onMouseEnter={() => router.prefetch(thumbnail.href)}
+                          onTouchStart={() => router.prefetch(thumbnail.href)}
+                          onClick={() => setHighlightedImageId(thumbnail.climbId)}
+                        >
+                          <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
+                            <Image
+                              src={thumbnail.imageUrl}
+                              alt={`${thumbnail.name} topo thumbnail`}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 768px) 100vw, 33vw"
+                              unoptimized
+                            />
+                            <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-gray-900 shadow-sm">
+                              {formatGradeForDisplay(thumbnail.grade, gradeSystem)}
                             </div>
-                          ) : null}
-                        </div>
-                        <div className="space-y-3 p-3">
-                          <div className="flex items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
-                            <span>{face.routes.length} route{face.routes.length === 1 ? '' : 's'}</span>
-                            {face.faceDirections.length > 0 ? <span>{face.faceDirections.join(' ')}</span> : null}
+                            {typeof thumbnail.latitude === 'number' && typeof thumbnail.longitude === 'number' ? (
+                              <div className="absolute right-2 top-2 rounded-full bg-emerald-600/90 px-2 py-1 text-[10px] font-semibold text-white shadow-sm">
+                                Pin
+                              </div>
+                            ) : null}
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            {face.routes.map((route: OfflineCragRouteSummary) => (
-                              <button
-                                key={`${face.id}-${route.routeId}`}
-                                type="button"
-                                onClick={() => window.location.assign(`/climb/${route.climbId}?route=${route.routeId}`)}
-                                className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-left text-xs font-medium text-gray-900 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800"
-                              >
-                                <span>{route.name}</span>
-                                <span className="text-gray-500 dark:text-gray-400">{formatGradeForDisplay(route.grade, gradeSystem)}</span>
-                              </button>
-                            ))}
+                          <div className="space-y-2 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{thumbnail.name}</p>
+                              {thumbnail.routeType ? (
+                                <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                                  {formatRouteTypeLabel(thumbnail.routeType)}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Open climb page and select routes offline.</p>
                           </div>
-                        </div>
-                      </div>
-                    ))}
+                        </Link>
+                      ))}
+                    </div>
                   </div>
                 )
               ) : orderedImages.length === 0 ? (
@@ -1418,7 +1404,7 @@ export default function CragPageClient({
               )}
               <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 tabular-nums">
                 {isOfflineCragMode
-                  ? `${offlineCragFaces.length} face${offlineCragFaces.length === 1 ? '' : 's'}`
+                  ? `${offlineCragThumbnails.length} saved climb${offlineCragThumbnails.length === 1 ? '' : 's'}`
                   : `${totalRoutes} routes`}
               </span>
             </div>
