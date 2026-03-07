@@ -190,7 +190,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased pt-[calc(var(--app-header-offset)+env(safe-area-inset-top,0px))] md:pb-16 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased pt-[calc(var(--app-header-offset)+env(safe-area-inset-top,0px))] md:pb-16 pb-[calc(var(--app-mobile-footer-offset,4rem)+env(safe-area-inset-bottom,0px))] bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-300`}
       >
         <a
           href="#main-content"
