@@ -13,6 +13,7 @@ const offlinePageScript = `
 (function () {
   const DB_NAME = 'keyval-store';
   const STORE_NAME = 'keyval';
+  const CLIMB_MANIFESTS_KEY = 'offline-climb-manifests';
   const CRAG_MANIFESTS_KEY = 'offline-crag-manifests';
 
   const subtitleEl = document.getElementById('offline-subtitle');
@@ -20,6 +21,8 @@ const offlinePageScript = `
   const retryEl = document.getElementById('offline-retry');
   const onlineActionEl = document.getElementById('offline-online-action');
   const cragListEl = document.getElementById('offline-crag-list');
+  const climbSectionEl = document.getElementById('offline-climb-section');
+  const climbListEl = document.getElementById('offline-climb-list');
   const loadingEl = document.getElementById('offline-loading');
   const contentEl = document.getElementById('offline-content');
 
@@ -57,15 +60,18 @@ const offlinePageScript = `
     showContent();
     if (emptyEl) emptyEl.hidden = false;
     if (cragListEl) cragListEl.innerHTML = '';
+    if (climbListEl) climbListEl.innerHTML = '';
+    if (climbSectionEl) climbSectionEl.hidden = true;
   }
 
-  function renderLibrary(crags) {
-    const savedCount = crags.length;
+  function renderLibrary(crags, climbs) {
+    const standaloneClimbs = climbs.filter(function (entry) { return !!entry.pinnedStandalone; });
+    const savedCount = crags.length + standaloneClimbs.length;
 
     if (subtitleEl) {
       subtitleEl.textContent = savedCount === 0
         ? 'No saved offline packs found on this device yet.'
-        : savedCount + ' saved crag pack' + (savedCount === 1 ? '' : 's') + ' ready to open.';
+        : savedCount + ' saved offline pack' + (savedCount === 1 ? '' : 's') + ' ready to open.';
     }
 
     if (savedCount === 0) {
@@ -100,6 +106,30 @@ const offlinePageScript = `
         ].join('');
       }).join('');
     }
+
+    if (climbSectionEl) {
+      climbSectionEl.hidden = standaloneClimbs.length === 0;
+    }
+
+    if (climbListEl) {
+      climbListEl.innerHTML = standaloneClimbs.map(function (climb) {
+        const href = climb.manifest.canonicalPath || climb.manifest.pageUrl;
+        return [
+          '<a href="' + escapeHtml(href) + '" class="group overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">',
+          '<div class="aspect-[4/3] bg-gray-200 dark:bg-gray-800">',
+          climb.manifest.coverImageUrl
+            ? '<img src="' + escapeHtml(climb.manifest.coverImageUrl) + '" alt="' + escapeHtml(climb.manifest.climbName) + '" class="h-full w-full object-cover" />'
+            : '<div class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">Saved climb</div>',
+          '</div>',
+          '<div class="space-y-2 p-4">',
+          '<p class="text-base font-semibold text-gray-900 dark:text-gray-100">' + escapeHtml(climb.manifest.climbName) + '</p>',
+          '<p class="text-sm text-gray-500 dark:text-gray-400">' + Number(climb.manifest.mediaCount || 0) + ' photo' + (Number(climb.manifest.mediaCount || 0) === 1 ? '' : 's') + ' · ' + formatBytes(Number(climb.manifest.estimatedBytes || 0)) + '</p>',
+          '<p class="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Standalone climb</p>',
+          '</div>',
+          '</a>'
+        ].join('');
+      }).join('');
+    }
   }
 
   async function loadPacks() {
@@ -118,13 +148,15 @@ const offlinePageScript = `
     request.onsuccess = async function () {
       const db = request.result;
       try {
-        const [cragRaw] = await Promise.all([
+        const [cragRaw, climbRaw] = await Promise.all([
           readKey(db, CRAG_MANIFESTS_KEY),
+          readKey(db, CLIMB_MANIFESTS_KEY),
         ]);
 
         const crags = cragRaw && typeof cragRaw === 'object' ? Object.values(cragRaw) : [];
+        const climbs = climbRaw && typeof climbRaw === 'object' ? Object.values(climbRaw) : [];
 
-        renderLibrary(crags);
+        renderLibrary(crags, climbs);
       } catch (error) {
         console.error('Failed to load offline library:', error);
         if (subtitleEl) subtitleEl.textContent = 'Unable to load saved offline packs right now.';
@@ -205,6 +237,14 @@ export default function OfflinePage() {
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Open a saved crag and use the topo thumbnails to jump straight to the climb page.</p>
             </div>
             <div id="offline-crag-list" className="grid gap-5 lg:grid-cols-2"></div>
+          </section>
+
+          <section id="offline-climb-section" className="mt-8 space-y-4" hidden>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-500 dark:text-gray-400">Standalone climbs</p>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Saved climb packs that can open directly without a crag pack.</p>
+            </div>
+            <div id="offline-climb-list" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
           </section>
           </div>
         </div>
