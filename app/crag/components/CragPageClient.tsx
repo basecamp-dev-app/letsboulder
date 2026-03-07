@@ -1641,6 +1641,10 @@ export default function CragPageClient({
                   <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePreview.totalBytes)}</span>
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-4">
+                  <span className="text-gray-500 dark:text-gray-400">Cached tiles</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{offlinePreview.tileCount}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-4">
                   <span className="text-gray-500 dark:text-gray-400">Delta size</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePreview.deltaBytes)}</span>
                 </div>
@@ -1660,7 +1664,7 @@ export default function CragPageClient({
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
                   <p className="font-medium">{offlineProgress.completedClimbs} / {offlineProgress.totalClimbs} climbs synced</p>
                   <p className="mt-1 text-sm">{formatBytes(offlineProgress.completedBytes)} / {formatBytes(offlineProgress.totalBytes)} cached</p>
-                  <p className="mt-1 text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{offlineProgress.phase}{offlineProgress.currentClimbName ? ` · ${offlineProgress.currentClimbName}` : ''}</p>
+                  <p className="mt-1 text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{offlineProgress.phase}{offlineProgress.currentClimbName ? ` · ${offlineProgress.currentClimbName}` : ''}{offlinePreview.tileCount > 0 ? ` · ${offlinePreview.tileCount} tiles` : ''}</p>
                 </div>
               )}
 
