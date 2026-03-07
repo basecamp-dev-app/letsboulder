@@ -5,6 +5,7 @@ const MEDIA_CACHE = 'offline-media-v2'
 const TILE_CACHE = 'offline-tiles-v2'
 const TRANSIENT_CACHE = 'runtime-transient-v2'
 const OFFLINE_LAUNCH_URL = '/offline'
+const HOME_URL = '/'
 const OFFLINE_JOB_CHANNEL = 'offline-pack-jobs'
 const ACTIVE_CACHES = [PACK_CACHE, MEDIA_CACHE, TILE_CACHE, TRANSIENT_CACHE]
 
@@ -12,6 +13,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(PACK_CACHE)
     await cache.add(new Request(OFFLINE_LAUNCH_URL, { credentials: 'same-origin' }))
+    await cache.add(new Request(HOME_URL, { credentials: 'same-origin' }))
     await self.skipWaiting()
   })())
 })
@@ -103,7 +105,7 @@ self.addEventListener('message', (event) => {
         const pack = message.payload || {}
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []
         const tileUrls = Array.isArray(pack.tileUrls) ? pack.tileUrls : []
-        const packUrls = [OFFLINE_LAUNCH_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
+        const packUrls = [OFFLINE_LAUNCH_URL, HOME_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
         await cacheUrls(PACK_CACHE, packUrls)
         await cacheUrls(MEDIA_CACHE, mediaUrls)
         await cacheUrls(TILE_CACHE, tileUrls)
@@ -142,7 +144,7 @@ self.addEventListener('message', (event) => {
           totalBytes,
         })
 
-        await cacheUrls(PACK_CACHE, [OFFLINE_LAUNCH_URL, payload.canonicalPath, payload.manifestUrl].filter(Boolean))
+        await cacheUrls(PACK_CACHE, [OFFLINE_LAUNCH_URL, HOME_URL, payload.canonicalPath, payload.manifestUrl].filter(Boolean))
         await cacheUrls(TILE_CACHE, tileUrls, { concurrency: 4 })
 
         for (const climb of climbs) {
