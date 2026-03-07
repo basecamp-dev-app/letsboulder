@@ -167,15 +167,17 @@ const offlinePageScript = `
     };
   }
 
-  if (navigator.onLine) {
-    showContent();
-    if (subtitleEl) subtitleEl.textContent = 'You are back online. Opening the map...';
-    if (onlineActionEl) {
-      onlineActionEl.hidden = false;
-      onlineActionEl.addEventListener('click', function () { window.location.replace('/'); });
-    }
+  if (onlineActionEl) {
+    onlineActionEl.hidden = navigator.onLine === false;
+    onlineActionEl.addEventListener('click', function () { window.location.replace('/'); });
+  }
     window.setTimeout(function () { window.location.replace('/'); }, 350);
     return;
+=======
+  if (onlineActionEl) {
+    onlineActionEl.hidden = navigator.onLine === false;
+    onlineActionEl.addEventListener('click', function () { window.location.replace('/'); });
+>>>>>>> main
   }
 
   if (retryEl) {
