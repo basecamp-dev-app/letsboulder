@@ -962,6 +962,13 @@ export default function CragPageClient({
     const target = defaultRouteTargetByImageId[imageId]
     if (!target) return `/image/${imageId}`
 
+    const offlineOnly = typeof navigator !== 'undefined' && navigator.onLine === false
+    if (offlineOnly) {
+      const next = new URLSearchParams()
+      next.set('route', target.routeId)
+      return `/climb/${target.climbId}?${next.toString()}`
+    }
+
     if (target.climbSlug && routeHrefBase) {
       return `${routeHrefBase}/${target.climbSlug}`
     }
