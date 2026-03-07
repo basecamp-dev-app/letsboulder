@@ -46,3 +46,5 @@ Copy `.env.example` to `.env`:
 **App**: Vercel auto-deploys on push to `dev` and `main` branches
 
 **Database**: Run `supabase db push` after linking to the respective project
+
+<!-- test commit -->
