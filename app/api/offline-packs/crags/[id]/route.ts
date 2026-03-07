@@ -3,7 +3,8 @@ import pLimit from 'p-limit'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { buildClimbOfflinePack } from '@/lib/offline/build-climb-pack'
-import type { CragOfflinePackManifest } from '@/lib/climb/queries'
+import type { CragOfflinePackManifest, OfflineMapPin } from '@/lib/climb/queries'
+import { buildTileManifestForPins } from '@/lib/offline/tiles'
 
 interface ClimbRow {
   id: string
@@ -84,6 +85,8 @@ export async function GET(
             versionHash: pack.offline_pack.version,
             estimatedBytes: pack.offline_pack.estimatedBytes,
             mediaCount: pack.offline_pack.mediaCount,
+            coverImageUrl: pack.offline_pack.coverImageUrl || null,
+            primaryPin: pack.offline_pack.primaryPin || null,
           }
         } catch (error) {
           console.error('Failed to build climb summary for crag offline pack:', { cragId, climbId: climb.id, error })
@@ -104,9 +107,15 @@ export async function GET(
 
     const estimatedBytes = climbSummaries.reduce((sum, climb) => sum + climb.estimatedBytes, 0)
     const mediaCount = climbSummaries.reduce((sum, climb) => sum + climb.mediaCount, 0)
+    const savedPins = climbSummaries
+      .map((climb) => climb.primaryPin)
+      .filter((pin): pin is OfflineMapPin => pin !== null)
+    const tileManifest = buildTileManifestForPins(savedPins)
     const cragVersionHash = hashParts({
       crag: { id: crag.id, name: crag.name, canonicalPath },
       climbs: climbSummaries.map((climb) => ({ climbId: climb.climbId, versionHash: climb.versionHash })),
+      savedPins,
+      tileCount: tileManifest?.tileCount || 0,
     })
 
     const payload: CragOfflinePackManifest = {
@@ -121,6 +130,8 @@ export async function GET(
       climbCount: climbSummaries.length,
       mediaCount,
       climbs: climbSummaries,
+      savedPins,
+      tileManifest,
       removedClimbIds: [],
       failedClimbIds: failedClimbIds.map((item) => item.climbId),
       warning: failedClimbIds.length > 0
