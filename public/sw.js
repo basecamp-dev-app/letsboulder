@@ -93,6 +93,12 @@ self.addEventListener('message', (event) => {
 
   event.waitUntil((async () => {
     try {
+      if (message.type === 'SKIP_WAITING') {
+        await self.skipWaiting()
+        respond({ ok: true })
+        return
+      }
+
       if (message.type === 'SAVE_CLIMB_PACK') {
         const pack = message.payload || {}
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []

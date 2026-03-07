@@ -40,6 +40,7 @@ export interface CragOfflinePreview {
   changedClimbs: number
   deltaBytes: number
   totalBytes: number
+  tileCount: number
   usageBytes: number
   budgetBytes: number
   isUpToDate: boolean
@@ -229,6 +230,7 @@ export async function getCragOfflinePreview(cragId: string): Promise<CragOffline
     changedClimbs,
     deltaBytes,
     totalBytes: manifest.estimatedBytes,
+    tileCount: manifest.tileManifest?.tileCount || 0,
     usageBytes,
     budgetBytes: OFFLINE_PACK_BUDGET_BYTES,
     isUpToDate: !!existingPack && existingPack.cragVersionHash === manifest.cragVersionHash,

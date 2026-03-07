@@ -22,11 +22,55 @@ export interface OfflineJobProgressEvent {
 }
 
 const OFFLINE_JOB_CHANNEL = 'offline-pack-jobs'
+const SERVICE_WORKER_URL = '/sw.js'
 
-async function waitForController() {
+async function waitForServiceWorkerActivation(registration: ServiceWorkerRegistration) {
+  const candidate = registration.installing || registration.waiting
+  if (!candidate) return
+
+  await new Promise<void>((resolve) => {
+    let settled = false
+
+    const finish = () => {
+      if (settled) return
+      settled = true
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange)
+      candidate.removeEventListener('statechange', handleStateChange)
+      window.clearTimeout(timeoutId)
+      resolve()
+    }
+
+    const handleControllerChange = () => finish()
+    const handleStateChange = () => {
+      if (candidate.state === 'activated' || candidate.state === 'redundant') {
+        finish()
+      }
+    }
+
+    const timeoutId = window.setTimeout(finish, 5000)
+
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange)
+    candidate.addEventListener('statechange', handleStateChange)
+
+    if (registration.waiting) {
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+    }
+  })
+}
+
+async function ensureServiceWorkerIsCurrent() {
   if (!('serviceWorker' in navigator)) {
     throw new Error('Service worker is not supported')
   }
+
+  const registration = await navigator.serviceWorker.register(SERVICE_WORKER_URL, { scope: '/' })
+  await registration.update().catch(() => undefined)
+  await waitForServiceWorkerActivation(registration)
+  await navigator.serviceWorker.ready
+}
+
+async function waitForController() {
+  await ensureServiceWorkerIsCurrent()
 
   const registration = await navigator.serviceWorker.ready
   if (navigator.serviceWorker.controller) {
