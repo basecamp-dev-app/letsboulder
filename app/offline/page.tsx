@@ -171,14 +171,6 @@ const offlinePageScript = `
     onlineActionEl.hidden = navigator.onLine === false;
     onlineActionEl.addEventListener('click', function () { window.location.replace('/'); });
   }
-    window.setTimeout(function () { window.location.replace('/'); }, 350);
-    return;
-=======
-  if (onlineActionEl) {
-    onlineActionEl.hidden = navigator.onLine === false;
-    onlineActionEl.addEventListener('click', function () { window.location.replace('/'); });
->>>>>>> main
-  }
 
   if (retryEl) {
     retryEl.addEventListener('click', function () {
