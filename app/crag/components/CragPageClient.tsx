@@ -987,7 +987,12 @@ export default function CragPageClient({
   }, [getImageDestination, router])
 
   const navigateToImageDestination = useCallback((imageId: string) => {
-    router.push(getImageDestination(imageId))
+    const destination = getImageDestination(imageId)
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      window.location.assign(destination)
+      return
+    }
+    router.push(destination)
   }, [getImageDestination, router])
 
   useEffect(() => {
