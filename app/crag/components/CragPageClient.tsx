@@ -170,6 +170,10 @@ interface CragRoute {
   directions: string[]
 }
 
+function isOfflineDocumentNavigationPreferred() {
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
 const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
 const faceDirectionIndex = new Map(FACE_DIRECTIONS.map((direction, index) => [direction, index]))
 const gradeOrderIndex = new Map(GRADES.map((grade, index) => [grade, index]))
@@ -454,8 +458,6 @@ export default function CragPageClient({
   const [highlightedImageId, setHighlightedImageId] = useState<string | null>(null)
   const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>({})
   const mapRef = useRef<L.Map | null>(null)
-  const prefetchedPathsRef = useRef(new Set<string>())
-
   const imageCardRefs = useRef(new Map<string, HTMLDivElement>())
 
   useEffect(() => {
@@ -706,6 +708,8 @@ export default function CragPageClient({
     let ignore = false
 
     async function loadAdminStatus() {
+      if (isOfflineDocumentNavigationPreferred()) return
+
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || ignore) return
@@ -715,17 +719,22 @@ export default function CragPageClient({
         return
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', user.id)
-        .single()
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', user.id)
+          .single()
 
-      if (ignore) return
-      setIsAdmin(profile?.is_admin === true)
+        if (ignore) return
+        setIsAdmin(profile?.is_admin === true)
+      } catch {
+        if (ignore) return
+        setIsAdmin(false)
+      }
     }
 
-    loadAdminStatus()
+    void loadAdminStatus()
 
     return () => {
       ignore = true
@@ -985,22 +994,26 @@ export default function CragPageClient({
     return `/climb/${target.climbId}?${next.toString()}`
   }, [defaultRouteTargetByImageId, routeHrefBase])
 
+  const getRouteDestination = useCallback((route: CragRoute) => {
+    if (isOfflineDocumentNavigationPreferred()) {
+      return `/climb/${route.id}`
+    }
+
+    if (route.slug && routeHrefBase) {
+      return `${routeHrefBase}/${route.slug}`
+    }
+
+    return `/climb/${route.id}`
+  }, [routeHrefBase])
+
   const prefetchImageDestination = useCallback((imageId: string) => {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return
-    const destination = getImageDestination(imageId)
-    if (prefetchedPathsRef.current.has(destination)) return
-    prefetchedPathsRef.current.add(destination)
-    router.prefetch(destination)
-  }, [getImageDestination, router])
+    if (!imageId) return
+  }, [])
 
   const navigateToImageDestination = useCallback((imageId: string) => {
     const destination = getImageDestination(imageId)
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      window.location.assign(destination)
-      return
-    }
-    router.push(destination)
-  }, [getImageDestination, router])
+    window.location.assign(destination)
+  }, [getImageDestination])
 
   useEffect(() => {
     if (orderedImages.length === 0) return
@@ -1576,11 +1589,11 @@ export default function CragPageClient({
                     {filteredRoutes.map((route) => (
                       <tr key={route.id} className="border-b border-gray-100 last:border-0 dark:border-gray-800/70">
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                          {route.slug && routeHrefBase ? (
-                            <a href={`${routeHrefBase}/${route.slug}`} className="font-medium text-gray-900 hover:underline dark:text-gray-100">
-                              {route.name}
-                            </a>
-                          ) : (
+                           {route.slug || isOfflineDocumentNavigationPreferred() ? (
+                             <a href={getRouteDestination(route)} className="font-medium text-gray-900 hover:underline dark:text-gray-100">
+                               {route.name}
+                             </a>
+                           ) : (
                             <span className="font-medium">{route.name}</span>
                           )}
                         </td>
@@ -1595,11 +1608,11 @@ export default function CragPageClient({
                   {filteredRoutes.map((route) => (
                     <div key={route.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
                       <div className="flex items-baseline justify-between gap-3">
-                        {route.slug && routeHrefBase ? (
-                            <a href={`${routeHrefBase}/${route.slug}`} className="text-sm font-semibold text-gray-900 hover:underline dark:text-gray-100">
-                              {route.name}
-                            </a>
-                        ) : (
+                         {route.slug || isOfflineDocumentNavigationPreferred() ? (
+                             <a href={getRouteDestination(route)} className="text-sm font-semibold text-gray-900 hover:underline dark:text-gray-100">
+                               {route.name}
+                             </a>
+                         ) : (
                           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{route.name}</p>
                         )}
                         <span className="text-sm tabular-nums text-gray-600 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</span>
