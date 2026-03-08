@@ -1,3 +1,4 @@
+const SHELL_CACHE = 'offline-shell-v1'
 self.__WB_DISABLE_DEV_LOGS = true
 
 const PACK_CACHE = 'offline-climb-packs-v2'
@@ -6,14 +7,67 @@ const TILE_CACHE = 'offline-tiles-v2'
 const TRANSIENT_CACHE = 'runtime-transient-v2'
 const OFFLINE_LAUNCH_URL = '/offline'
 const HOME_URL = '/'
+const MANIFEST_URL = '/manifest.json'
+const LOGO_URL = '/logo.png'
 const OFFLINE_JOB_CHANNEL = 'offline-pack-jobs'
-const ACTIVE_CACHES = [PACK_CACHE, MEDIA_CACHE, TILE_CACHE, TRANSIENT_CACHE]
+const ACTIVE_CACHES = [SHELL_CACHE, PACK_CACHE, MEDIA_CACHE, TILE_CACHE, TRANSIENT_CACHE]
+const SHELL_ROUTES = [HOME_URL, OFFLINE_LAUNCH_URL, MANIFEST_URL, LOGO_URL]
+
+function toSameOriginRequest(url) {
+  return new Request(url, { credentials: 'same-origin' })
+}
+
+async function cacheRequests(cacheName, requests) {
+  const cache = await caches.open(cacheName)
+  await Promise.all(requests.map(async (request) => {
+    try {
+      const response = await fetch(request)
+      if (response.ok) {
+        await cache.put(request, response.clone())
+      }
+    } catch {
+      // Ignore install-time shell misses and keep the worker alive.
+    }
+  }))
+}
+
+async function collectShellAssetRequests() {
+  const requests = new Map()
+  const shellPages = [HOME_URL, OFFLINE_LAUNCH_URL]
+
+  for (const pageUrl of shellPages) {
+    try {
+      const response = await fetch(toSameOriginRequest(pageUrl))
+      if (!response.ok) continue
+
+      const html = await response.text()
+      const assetMatches = html.matchAll(/(?:href|src)="(\/_next\/static\/[^\"]+\.(?:css|js))"/g)
+
+      for (const match of assetMatches) {
+        const assetUrl = match[1]
+        if (!assetUrl) continue
+        requests.set(assetUrl, toSameOriginRequest(assetUrl))
+      }
+    } catch {
+      // Ignore transient HTML fetch failures during install.
+    }
+  }
+
+  return Array.from(requests.values())
+}
+
+async function installShell() {
+  const shellRequests = SHELL_ROUTES.map((url) => toSameOriginRequest(url))
+  const shellAssetRequests = await collectShellAssetRequests()
+  await cacheRequests(SHELL_CACHE, [...shellRequests, ...shellAssetRequests])
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
+    await installShell()
     const cache = await caches.open(PACK_CACHE)
-    await cache.add(new Request(OFFLINE_LAUNCH_URL, { credentials: 'same-origin' }))
-    await cache.add(new Request(HOME_URL, { credentials: 'same-origin' }))
+    await cache.add(toSameOriginRequest(OFFLINE_LAUNCH_URL))
+    await cache.add(toSameOriginRequest(HOME_URL))
     await self.skipWaiting()
   })())
 })
@@ -69,7 +123,7 @@ async function cacheUrls(cacheName, urls, options = {}) {
 
 async function removeUrls(cacheName, urls) {
   const cache = await caches.open(cacheName)
-  await Promise.all(urls.map((url) => cache.delete(new Request(url, { credentials: 'same-origin' }))))
+  await Promise.all(urls.map((url) => cache.delete(toSameOriginRequest(url))))
 }
 
 async function matchCachedRequest(cache, request) {
@@ -78,11 +132,46 @@ async function matchCachedRequest(cache, request) {
 
   if (request.mode === 'navigate') {
     const url = new URL(request.url)
-    const normalized = new Request(`${url.origin}${url.pathname}`, { credentials: 'same-origin' })
+    const normalized = toSameOriginRequest(`${url.origin}${url.pathname}`)
     return cache.match(normalized)
   }
 
   return undefined
+}
+
+async function matchShellRequest(request) {
+  const shellCache = await caches.open(SHELL_CACHE)
+  const directMatch = await shellCache.match(request, { ignoreSearch: true })
+  if (directMatch) return directMatch
+
+  if (request.mode === 'navigate') {
+    const url = new URL(request.url)
+    const normalized = await shellCache.match(toSameOriginRequest(`${url.origin}${url.pathname}`), { ignoreSearch: true })
+    if (normalized) return normalized
+  }
+
+  return undefined
+}
+
+async function handleShellFetch(request) {
+  const cached = await matchShellRequest(request)
+  if (cached) return cached
+
+  try {
+    const response = await fetch(request)
+    if (response.ok) {
+      const shellCache = await caches.open(SHELL_CACHE)
+      await shellCache.put(request, response.clone())
+    }
+    return response
+  } catch (error) {
+    if (request.mode === 'navigate') {
+      const fallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LAUNCH_URL))
+      if (fallback) return fallback
+    }
+
+    throw error
+  }
 }
 
 self.addEventListener('message', (event) => {
@@ -241,6 +330,7 @@ self.addEventListener('fetch', (event) => {
   const isOfflineLaunch = request.mode === 'navigate' && url.pathname === OFFLINE_LAUNCH_URL
   const isClimbPage = request.mode === 'navigate' && url.pathname.startsWith('/climb/')
   const isCragPage = request.mode === 'navigate' && (url.pathname.startsWith('/crag/') || /^\/[a-z]{2}\//.test(url.pathname))
+  const isShellAsset = url.pathname === MANIFEST_URL || url.pathname === LOGO_URL || url.pathname.startsWith('/_next/static/')
 
   if (isMediaRequest) {
     event.respondWith((async () => {
@@ -289,7 +379,7 @@ self.addEventListener('fetch', (event) => {
         if (fallbackCached) return fallbackCached
 
         if (request.mode === 'navigate') {
-          const offlineFallback = await cache.match(new Request(OFFLINE_LAUNCH_URL, { credentials: 'same-origin' }))
+          const offlineFallback = await cache.match(toSameOriginRequest(OFFLINE_LAUNCH_URL))
           if (offlineFallback) return offlineFallback
         }
 
@@ -299,33 +389,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  if (request.mode === 'navigate') {
-    event.respondWith((async () => {
-      try {
-        return await fetch(request)
-      } catch (error) {
-        const cache = await caches.open(PACK_CACHE)
-        const cached = await matchCachedRequest(cache, request)
-        if (cached) return cached
-        const offlineFallback = await cache.match(new Request(OFFLINE_LAUNCH_URL, { credentials: 'same-origin' }))
-        if (offlineFallback) return offlineFallback
-        throw error
-      }
-    })())
-    return
-  }
-
-  if (url.pathname.startsWith('/_next/static/')) {
-    event.respondWith((async () => {
-      const cache = await caches.open(TRANSIENT_CACHE)
-      const cached = await cache.match(request)
-      if (cached) return cached
-
-      const response = await fetch(request)
-      if (response.ok) {
-        await cache.put(request, response.clone())
-      }
-      return response
-    })())
+  if (request.mode === 'navigate' || isShellAsset) {
+    event.respondWith(handleShellFetch(request))
   }
 })
