@@ -764,7 +764,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         }
 
         const resolvedInitialImageId = (() => {
-          if (initialImageParam && nextCache[initialImageParam]) {
+          if (initialImageParam && nextCache[initialImageParam]?.routeLines.length) {
             return initialImageParam
           }
 
@@ -951,6 +951,17 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   useEffect(() => {
     setActiveFaceLoadError(null)
   }, [activeFaceIndex, image?.url])
+
+  useEffect(() => {
+    const handlePageShow = () => {
+      resetZoomPan()
+    }
+
+    window.addEventListener('pageshow', handlePageShow)
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow)
+    }
+  }, [resetZoomPan])
 
   useEffect(() => {
     if (prevActiveFaceIndexRef.current === activeFaceIndex) {

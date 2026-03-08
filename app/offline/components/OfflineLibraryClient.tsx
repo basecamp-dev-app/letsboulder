@@ -6,17 +6,6 @@ import type { StoredClimbManifest, StoredCragManifest } from '@/lib/offline/stor
 import { listOfflinePacksForLaunch } from '@/lib/offline/packs'
 
 function getOfflineClimbLaunchHref(climb: StoredClimbManifest) {
-  const payload = climb.payload
-  const primaryImageId = payload?.primary_image?.id
-  const primaryRouteId = payload?.primary_route_lines?.[0]?.id
-
-  if (primaryImageId && primaryRouteId) {
-    const next = new URLSearchParams()
-    next.set('route', primaryRouteId)
-    next.set('image', primaryImageId)
-    return `/climb/${climb.climbId}?${next.toString()}`
-  }
-
   return climb.manifest.canonicalPath || climb.manifest.pageUrl
 }
 

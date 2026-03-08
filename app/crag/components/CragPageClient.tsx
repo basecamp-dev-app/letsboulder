@@ -312,7 +312,6 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
 
     const firstRoute = routeSummaries[0] || fallbackRouteSummary
     const next = new URLSearchParams()
-    next.set('route', firstRoute.routeId)
     next.set('image', primaryImage.id)
     const href = `/climb/${firstRoute.climbId}?${next.toString()}`
     const existingCard = imageCardMap.get(primaryImage.id)
