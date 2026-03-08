@@ -18,6 +18,7 @@ import {
   upsertStoredCragManifest,
   type OfflinePackRecord,
 } from '@/lib/offline/storage'
+import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import { sendServiceWorkerMessage, subscribeToOfflineJobProgress, type OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 
 export const OFFLINE_PACK_BUDGET_BYTES = 250 * 1024 * 1024
@@ -80,6 +81,39 @@ function getClimbPackManifest(packOrPayload: ClimbOfflinePackManifest | ClimbPac
   return 'offline_pack' in packOrPayload ? packOrPayload.offline_pack : packOrPayload
 }
 
+function normalizeClimbManifest(manifest: ClimbOfflinePackManifest): ClimbOfflinePackManifest {
+  return {
+    ...manifest,
+    coverImageUrl: resolveRouteImageUrl(manifest.coverImageUrl),
+    primaryPin: manifest.primaryPin
+      ? {
+          ...manifest.primaryPin,
+          coverImageUrl: resolveRouteImageUrl(manifest.primaryPin.coverImageUrl),
+        }
+      : manifest.primaryPin,
+  }
+}
+
+function normalizeCragManifest(manifest: CragOfflinePackManifest): CragOfflinePackManifest {
+  return {
+    ...manifest,
+    climbs: manifest.climbs.map((climb) => ({
+      ...climb,
+      coverImageUrl: resolveRouteImageUrl(climb.coverImageUrl),
+      primaryPin: climb.primaryPin
+        ? {
+            ...climb.primaryPin,
+            coverImageUrl: resolveRouteImageUrl(climb.primaryPin.coverImageUrl),
+          }
+        : climb.primaryPin,
+    })),
+    savedPins: manifest.savedPins?.map((pin) => ({
+      ...pin,
+      coverImageUrl: resolveRouteImageUrl(pin.coverImageUrl),
+    })),
+  }
+}
+
 export async function getOfflinePackStatus(climbId: string): Promise<OfflinePackStatus> {
   const [pack, usageBytes] = await Promise.all([
     getOfflineClimbPack(climbId),
@@ -107,10 +141,10 @@ export async function getCragOfflineStatus(cragId: string): Promise<CragOfflineS
 }
 
 async function persistStandaloneClimbPack(payload: ClimbPackResponse) {
-  const manifest = {
+  const manifest = normalizeClimbManifest({
     ...payload.offline_pack,
     type: 'climb' as const,
-  }
+  })
   const existing = await getStoredClimbManifest(manifest.climbId)
   const owners = new Set(existing?.ownerPackIds || [])
   owners.add(manifest.packId)
@@ -248,7 +282,7 @@ export async function saveCragOffline(
 ): Promise<SaveCragOfflineResult> {
   const preview = await getCragOfflinePreview(cragId)
   const existingPack = await getStoredCragManifest(cragId)
-  const latestManifest = preview.manifest
+  const latestManifest = normalizeCragManifest(preview.manifest)
 
   if (preview.deltaBytes > 0 && (preview.usageBytes - (existingPack?.manifest.estimatedBytes || 0) + preview.deltaBytes) > preview.budgetBytes) {
     throw new Error('Not enough offline storage budget. Remove another pack first.')
@@ -302,7 +336,7 @@ export async function saveCragOffline(
   const completed = (async () => {
     try {
       for (const payload of fetchedPayloads) {
-        const manifest = { ...payload.offline_pack, type: 'climb' as const }
+        const manifest = normalizeClimbManifest({ ...payload.offline_pack, type: 'climb' as const })
         const existing = await getStoredClimbManifest(manifest.climbId)
         const owners = new Set(existing?.ownerPackIds || [])
         owners.add(latestManifest.packId)
