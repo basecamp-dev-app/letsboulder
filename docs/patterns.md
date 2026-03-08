@@ -280,12 +280,13 @@ export function DownloadOfflineButton({ cragId, bounds }: { cragId: string, boun
 ### Known Edge Cases
 - **Storage quota:** Warn user before download; estimate tile count (~100 tiles per crag)
 - **Update detection:** Check last_modified to prompt for re-download
-- **Cache invalidation:** Use version hashes in pack manifests alongside versioned cache names; clean old cache entries on update.
-- **Network-first vs Cache-first:** Routes = network-first, media = cache-first, downloaded tiles = cache-only
-- **Offline scope:** Keep offline support limited to saved `crag -> climb` flows. Use document navigations for offline entry/open actions instead of relying on App Router client transitions.
-- **Storage quota failures:** Handle `QuotaExceededError`; prompt user to clear offline data when a saved-pack download cannot complete.
-- **Offline launcher:** Keep `/offline` as a simple chooser page and move saved-pack hydration into `/offline/library` so storage reads cannot trap users behind a preload spinner.
-- **Critical vs optional cache:** Face images, route-line payloads, and offline pack pages are required for a successful save. Crag map tiles are best-effort and should warn rather than fail the pack.
+- **Cache invalidation:** Use versioned cache names plus pack manifest versions so route assets and saved pages can be refreshed without leaving stale offline entries behind.
+- **Media URL consistency:** Persist and render saved media with the same proxied `/api/media/...` URLs. If the UI renders proxied media but the pack cached raw Supabase URLs, offline thumbnails will 504.
+- **Network-first vs Cache-first:** Routes and unsaved pages stay network-first; saved media is cache-first; downloaded tiles are cache-only/best-effort.
+- **Offline scope:** Keep offline support limited to saved `crag -> climb` flows. Use full document navigations for offline entry/open/back actions instead of relying on App Router client transitions.
+- **Offline launcher:** Keep `/offline` as a simple chooser page, hydrate saved packs in `/offline/library`, and fall back to `/offline/library` for uncached offline navigations.
+- **Critical vs optional cache:** Saved crag/climb documents, route assets, face images, and route-line payloads are required for a successful pack. Crag map tiles are optional and should warn rather than fail the pack.
+- **Storage failures:** Handle `QuotaExceededError` and partial tile/media failures with a clear warning so the saved pack remains usable for core image/route navigation.
 - **OSM Compliance:** Browser fetch cannot reliably override `User-Agent`; handle provider compliance server-side and consider a self-hosted tile server for production scale
 
 ---
