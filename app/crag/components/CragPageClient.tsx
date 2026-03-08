@@ -4,7 +4,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Download, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
@@ -1285,7 +1284,7 @@ export default function CragPageClient({
                 ) : (
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {offlineCragImageCards.map((imageCard) => (
-                        <Link
+                        <a
                           key={imageCard.imageId}
                           href={imageCard.href}
                           id={`offline-image-card-${imageCard.imageId}`}
@@ -1330,7 +1329,7 @@ export default function CragPageClient({
                             </div>
                             <p className="text-xs text-gray-500 dark:text-gray-400">Open one topo image with all saved route lines available offline.</p>
                           </div>
-                        </Link>
+                        </a>
                       ))}
                   </div>
                 )
@@ -1549,9 +1548,9 @@ export default function CragPageClient({
                       <tr key={route.id} className="border-b border-gray-100 last:border-0 dark:border-gray-800/70">
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
                           {route.slug && routeHrefBase ? (
-                            <Link href={`${routeHrefBase}/${route.slug}`} className="font-medium text-gray-900 hover:underline dark:text-gray-100">
+                            <a href={`${routeHrefBase}/${route.slug}`} className="font-medium text-gray-900 hover:underline dark:text-gray-100">
                               {route.name}
-                            </Link>
+                            </a>
                           ) : (
                             <span className="font-medium">{route.name}</span>
                           )}
@@ -1568,9 +1567,9 @@ export default function CragPageClient({
                     <div key={route.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
                       <div className="flex items-baseline justify-between gap-3">
                         {route.slug && routeHrefBase ? (
-                          <Link href={`${routeHrefBase}/${route.slug}`} className="text-sm font-semibold text-gray-900 hover:underline dark:text-gray-100">
-                            {route.name}
-                          </Link>
+                            <a href={`${routeHrefBase}/${route.slug}`} className="text-sm font-semibold text-gray-900 hover:underline dark:text-gray-100">
+                              {route.name}
+                            </a>
                         ) : (
                           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{route.name}</p>
                         )}

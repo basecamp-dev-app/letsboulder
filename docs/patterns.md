@@ -122,9 +122,13 @@ const french = getGradeDisplay(5, 'french_equivalent') // → '7a'
 ```
 
 ### Known Edge Cases
+- **Storage quota:** Warn user before download; estimate tile count (~100 tiles per crag)
+- **Update detection:** Check last_modified to prompt for re-download
 - **Cache invalidation:** Use version hashes in manifest; invalidate old caches on update
-- **Network-first vs Cache-first:** Routes = network-first, media = cache-first, map tiles = cache-only
-- **Storage quota:** Handle `QuotaExceededError`; prompt user to clear offline data
+- **Network-first vs Cache-first:** Routes = network-first, media = cache-first, downloaded tiles = cache-only
+- **Offline scope:** Keep offline support limited to saved `crag -> climb` flows. Use document navigations for offline entry/open actions instead of relying on App Router client transitions.
+- **Storage quota failures:** Handle `QuotaExceededError`; prompt user to clear offline data when a saved-pack download cannot complete.
+- **OSM Compliance:** Browser fetch cannot reliably override `User-Agent`; handle provider compliance server-side and consider a self-hosted tile server for production scale
 
 ---
 
