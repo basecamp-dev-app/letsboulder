@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Download, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
@@ -427,6 +427,7 @@ export default function CragPageClient({
   initialUpdatePosts = [],
 }: CragPageClientProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const gradeSystem = useGradeSystem()
   const [crag, setCrag] = useState<Crag | null>(initialCrag)
   const [images, setImages] = useState<ImageData[]>([])
@@ -1024,6 +1025,10 @@ export default function CragPageClient({
     }
   }, [orderedImages, prefetchImageDestination])
 
+  const redirectToAuth = useCallback(() => {
+    router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/crag/${id}`)}`)
+  }, [id, pathname, router])
+
   if (loading) {
     return <CragPageSkeleton />
   }
@@ -1055,6 +1060,16 @@ export default function CragPageClient({
   }
 
   const handleSaveCragOffline = async () => {
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      redirectToAuth()
+      return
+    }
+
     setOfflineDialogLoading(true)
     setOfflineProgress(null)
 
@@ -1081,6 +1096,16 @@ export default function CragPageClient({
   }
 
   const handleRemoveCragOffline = async () => {
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      redirectToAuth()
+      return
+    }
+
     setOfflineDialogLoading(true)
     try {
       await removeCragOffline(id)
