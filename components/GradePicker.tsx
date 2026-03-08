@@ -4,10 +4,9 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay, toWholeVGrade } from '@/lib/grade-display'
-import { GRADES } from '@/lib/grades'
+import { PUBLIC_GRADES } from '@/lib/grades'
 
-const MIN_GRADE = '4A'
-const FRENCH_GRADES = GRADES.slice(Math.max(0, GRADES.indexOf(MIN_GRADE)))
+const FRENCH_GRADES = PUBLIC_GRADES
 
 interface GradePickerProps {
   isOpen: boolean

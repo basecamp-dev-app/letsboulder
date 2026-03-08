@@ -4,15 +4,7 @@ import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-
-const VALID_GRADES = [
-  '4A', '4A+', '4B', '4B+', '4C', '4C+',
-  '5A', '5A+', '5B', '5B+', '5C', '5C+',
-  '6A', '6A+', '6B', '6B+', '6C', '6C+',
-  '7A', '7A+', '7B', '7B+', '7C', '7C+',
-  '8A', '8A+', '8B', '8B+', '8C', '8C+',
-  '9A', '9A+', '9B', '9B+', '9C', '9C+'
-]
+import { isValidGrade } from '@/lib/grade-constants'
 
 export async function POST(
   request: NextRequest,
@@ -53,7 +45,7 @@ export async function POST(
     const body = await request.json()
     const { grade } = body
 
-    if (!grade || !VALID_GRADES.includes(grade)) {
+    if (typeof grade !== 'string' || !isValidGrade(grade)) {
       return NextResponse.json(
         { error: 'Invalid grade' },
         { status: 400 }

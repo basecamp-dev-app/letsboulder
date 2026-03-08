@@ -1,4 +1,4 @@
-# Database Schema - LetsBoulder.com
+# Database Schema - letsboulder.com
 
 ## 1. Grade System (The "4A Floor")
 

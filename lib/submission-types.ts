@@ -1,13 +1,7 @@
-export const VALID_GRADES = [
-  '4A', '4A+', '4B', '4B+', '4C', '4C+',
-  '5A', '5A+', '5B', '5B+', '5C', '5C+',
-  '6A', '6A+', '6B', '6B+', '6C', '6C+',
-  '7A', '7A+', '7B', '7B+', '7C', '7C+',
-  '8A', '8A+', '8B', '8B+', '8C', '8C+',
-  '9A', '9A+', '9B', '9B+', '9C', '9C+'
-] as const
+import { VALID_GRADES, isValidGrade } from '@/lib/grade-constants'
 
-export type Grade = typeof VALID_GRADES[number]
+export { VALID_GRADES }
+export type { Grade } from '@/lib/grade-constants'
 
 export interface Region {
   id: string
@@ -169,9 +163,7 @@ export type SubmissionStep =
   | { step: 'success'; climbsCreated: number; imageId?: string; climbId?: string; routeId?: string }
   | { step: 'error'; message: string }
 
-export function isValidGrade(grade: string): grade is Grade {
-  return VALID_GRADES.includes(grade as Grade)
-}
+export { isValidGrade }
 
 export function generateRouteId(): string {
   return `route-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`

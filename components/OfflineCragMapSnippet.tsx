@@ -82,6 +82,7 @@ export default function OfflineCragMapSnippet({ pins, highlightedPinId = null, o
           center={center}
           zoom={16}
           style={{ height: '260px', width: '100%' }}
+          preferCanvas={true}
           scrollWheelZoom={false}
           zoomControl={false}
           whenReady={() => setMapReady(true)}
