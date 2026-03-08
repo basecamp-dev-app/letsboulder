@@ -1,4 +1,4 @@
-# AGENTS.md - LetsBoulder.com
+# AGENTS.md - letsboulder.com
 
 <environment>
   DIR: /home/hadow
@@ -13,12 +13,22 @@
 
 <forbidden_actions>
   - DO NOT use relative imports. ALWAYS use `@/`.
-  - DO NOT use `any`. Use `unknown` + Type Guard.
+  - Prioritize Database['public']['Tables'][...] types from supabase gen types. 
+  - DO NOT use `any`. Use `unknown` + Type Guard for non-DB payloads.
   - DO NOT commit `console.log`.
-  - DO NOT bypass CSRF for mutations (POST/PUT/DELETE). Use `csrfFetch`.
-  - DO NOT use rounded corners on mobile cards (`rounded-none` only).
+  - Prefer Server Actions for app-owned UI mutations. Use Route Handlers for public API, offline/service worker, webhook, or integration flows; use `csrfFetch` only with those Route Handlers.
+  - DO NOT access `window` or `document` outside of `useEffect` or 'use client'.
   - DO NOT assume cascade delete behavior. Check @docs/db/schema.md.
 </forbidden_actions>
+
+<component_governance>
+  - SHADCN: We own the source in `@/components/ui`. 
+  - CUSTOMIZATION: Modify UI components directly to fit the 'letsboulder' aesthetic.
+  - ACCESSIBILITY: Never remove Radix primitives (e.g., `DialogTitle`) when refactoring.
+  - VISUAL_LANGUAGE: Preserve the existing rounded letsboulder visual system. Do not assume a global hard-edge or zero-radius style.
+</component_governance>
+
+- NEVER skip 'supabase gen types' after schema changes; the agent must verify types against the new schema before writing UI code.
 
 ## Build Commands
 
@@ -27,16 +37,6 @@ npm run dev     # Development
 npm run build   # Production
 npm run lint    # Lint
 npm run supabase:doctor  # Verify Supabase CLI
-```
-
-## CSRF Protection
-
-All mutations MUST use `csrfFetch` from `@hooks/useCsrf`:
-
-```typescript
-import { csrfFetch } from '@/hooks/useCsrf'
-
-await csrfFetch('/api/endpoint', { method: 'POST', body: JSON.stringify(data) })
 ```
 
 ## Code Style
@@ -52,6 +52,6 @@ await csrfFetch('/api/endpoint', { method: 'POST', body: JSON.stringify(data) })
 - **Patterns:** @docs/patterns.md (canvas, maps, GPS, HEIC)
 
 <next_steps>
-  - Review AGENTS.md every 60 days
   - Keep schema.md and patterns.md in sync with code changes
+  - Prioritize Supabase-generated type migration in `types/database.ts`, `lib/submission-types.ts`, and ranking/community query surfaces.
 </next_steps>

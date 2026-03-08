@@ -5,21 +5,13 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewSubmission } from '@/lib/discord'
 import { makeUniqueSlug } from '@/lib/slug'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { isValidGrade } from '@/lib/grade-constants'
 import { revalidatePath } from 'next/cache'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const INTERNAL_MODERATION_SECRET = process.env.INTERNAL_MODERATION_SECRET
 
 const MAX_ROUTES_PER_DAY = 5
-
-const VALID_GRADES = [
-  '4A', '4A+', '4B', '4B+', '4C', '4C+',
-  '5A', '5A+', '5B', '5B+', '5C', '5C+',
-  '6A', '6A+', '6B', '6B+', '6C', '6C+',
-  '7A', '7A+', '7B', '7B+', '7C', '7C+',
-  '8A', '8A+', '8B', '8B+', '8C', '8C+',
-  '9A', '9A+', '9B', '9B+', '9C', '9C+'
-] as const
 
 const VALID_ROUTE_TYPES = ['sport', 'boulder', 'trad', 'deep-water-solo'] as const
 const VALID_FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
@@ -324,7 +316,7 @@ export async function POST(request: NextRequest) {
         return response
       }
 
-      if (!VALID_GRADES.includes(route.grade as typeof VALID_GRADES[number])) {
+      if (!isValidGrade(route.grade)) {
         response = NextResponse.json({ error: `Invalid grade: ${route.grade}` }, { status: 400 })
         return response
       }

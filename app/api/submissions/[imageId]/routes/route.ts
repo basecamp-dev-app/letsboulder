@@ -5,6 +5,7 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { makeUniqueSlug } from '@/lib/slug'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { isValidGrade } from '@/lib/grade-constants'
 import { revalidatePath } from 'next/cache'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -44,14 +45,6 @@ interface TransferTargetCandidate {
   grade: string | null
 }
 
-const VALID_GRADES = [
-  '4A', '4A+', '4B', '4B+', '4C', '4C+',
-  '5A', '5A+', '5B', '5B+', '5C', '5C+',
-  '6A', '6A+', '6B', '6B+', '6C', '6C+',
-  '7A', '7A+', '7B', '7B+', '7C', '7C+',
-  '8A', '8A+', '8B', '8B+', '8C', '8C+',
-  '9A', '9A+', '9B', '9B+', '9C', '9C+'
-] as const
 const VALID_ROUTE_TYPES = ['sport', 'boulder', 'trad', 'deep-water-solo'] as const
 
 const MAX_ROUTES_PER_REQUEST = 40
@@ -235,7 +228,7 @@ export async function POST(
       if (!route.name.trim()) {
         return NextResponse.json({ error: 'Route name is required' }, { status: 400 })
       }
-      if (!VALID_GRADES.includes(route.grade as (typeof VALID_GRADES)[number])) {
+      if (!isValidGrade(route.grade)) {
         return NextResponse.json({ error: 'Invalid route grade' }, { status: 400 })
       }
       if (route.name.trim().length > 200) {
