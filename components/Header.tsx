@@ -248,6 +248,7 @@ export default function Header() {
               src="/logo-light.png"
               alt="letsboulder"
               fill
+              sizes="80px"
               className="object-contain dark:hidden"
               priority
             />
@@ -255,6 +256,7 @@ export default function Header() {
               src="/logo-dark.png"
               alt="letsboulder"
               fill
+              sizes="80px"
               className="object-contain hidden dark:block"
               priority
             />

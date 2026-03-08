@@ -3,6 +3,17 @@ import type { OfflineMapPin, OfflineTileManifest } from '@/lib/climb/queries'
 const TILE_MIN_ZOOM = 15
 const TILE_MAX_ZOOM = 17
 const TILE_PADDING = 1
+const MAX_TILES_PER_ZOOM = 4096
+const MAX_TOTAL_TILES = 8192
+
+function isValidPinCoordinate(value: number, min: number, max: number) {
+  return Number.isFinite(value) && value >= min && value <= max
+}
+
+function isValidOfflineMapPin(pin: OfflineMapPin) {
+  return isValidPinCoordinate(pin.latitude, -85.05112878, 85.05112878)
+    && isValidPinCoordinate(pin.longitude, -180, 180)
+}
 
 function clampLatitude(latitude: number) {
   return Math.min(85.05112878, Math.max(-85.05112878, latitude))
@@ -30,18 +41,28 @@ export function buildOfflineTileUrl(z: number, x: number, y: number) {
 }
 
 export function buildTileManifestForPins(pins: OfflineMapPin[]): OfflineTileManifest | null {
-  if (pins.length === 0) return null
+  const validPins = pins.filter(isValidOfflineMapPin)
+  if (validPins.length === 0) return null
 
   const tileUrls = new Set<string>()
 
   for (let zoom = TILE_MIN_ZOOM; zoom <= TILE_MAX_ZOOM; zoom += 1) {
-    const xValues = pins.map((pin) => longitudeToTileX(pin.longitude, zoom))
-    const yValues = pins.map((pin) => latitudeToTileY(pin.latitude, zoom))
+    const xValues = validPins.map((pin) => longitudeToTileX(pin.longitude, zoom))
+    const yValues = validPins.map((pin) => latitudeToTileY(pin.latitude, zoom))
 
     const minX = normalizeTileIndex(Math.min(...xValues) - TILE_PADDING, zoom)
     const maxX = normalizeTileIndex(Math.max(...xValues) + TILE_PADDING, zoom)
     const minY = normalizeTileIndex(Math.min(...yValues) - TILE_PADDING, zoom)
     const maxY = normalizeTileIndex(Math.max(...yValues) + TILE_PADDING, zoom)
+
+    const tileCountForZoom = (maxX - minX + 1) * (maxY - minY + 1)
+    if (!Number.isFinite(tileCountForZoom) || tileCountForZoom <= 0 || tileCountForZoom > MAX_TILES_PER_ZOOM) {
+      return null
+    }
+
+    if (tileUrls.size + tileCountForZoom > MAX_TOTAL_TILES) {
+      return null
+    }
 
     for (let x = minX; x <= maxX; x += 1) {
       for (let y = minY; y <= maxY; y += 1) {
