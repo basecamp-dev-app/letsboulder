@@ -1,60 +1,95 @@
-import { Metadata } from 'next'
+import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Cookie Policy',
-  description: 'Learn how letsboulder uses cookies and similar technologies to improve your experience.',
-  keywords: ['cookie policy', 'cookies', 'tracking', 'privacy'],
+  description: 'Learn how letsboulder uses cookies, local storage, and similar technologies for authentication, security, preferences, and analytics.',
+  keywords: ['cookie policy', 'cookies', 'local storage', 'tracking'],
 }
 
 export default function CookiePage() {
   return (
-    <div className="max-w-3xl mx-auto px-4 py-12">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+    <div className="mx-auto max-w-3xl px-4 py-12">
+      <h1 className="mb-6 text-3xl font-bold text-gray-900 dark:text-gray-100">
         Cookie Policy
       </h1>
-      
-      <div className="prose dark:prose-invert max-w-none">
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          This Cookie Policy explains how letsboulder uses cookies and similar technologies to recognize you when you visit our app.
+
+      <div className="prose max-w-none dark:prose-invert">
+        <p className="mb-6 text-gray-600 dark:text-gray-400">
+          <strong>Last Updated:</strong> March 2026
         </p>
 
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mt-8 mb-4">
-          What Are Cookies
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          Cookies are small text files that are placed on your device when you visit our app. They help the app function properly and provide analytics to help us improve your experience.
-        </p>
+        <section className="mb-8 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900/50">
+          <h2 className="mt-0 text-xl font-semibold text-gray-900 dark:text-gray-100">
+            Plain-Language Summary
+          </h2>
+          <ul className="mb-0 list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li>letsboulder uses cookies and similar technologies to keep you signed in, protect the app, remember settings, and understand product performance.</li>
+            <li>We also use local storage and browser storage for app preferences, CSRF handling, and offline features.</li>
+            <li>You can control many cookies through your browser settings.</li>
+          </ul>
+        </section>
 
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mt-8 mb-4">
-          How We Use Cookies
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-4">
-          We use cookies for the following purposes:
-        </p>
-        <ul className="list-disc pl-6 mb-6 text-gray-600 dark:text-gray-400 space-y-2">
-          <li><strong>Authentication:</strong> Cookies help us verify your identity when you sign in</li>
-          <li><strong>Preferences:</strong> Remember your settings and preferences</li>
-          <li><strong>Analytics:</strong> We may collect anonymous usage metrics to understand how users interact with our app</li>
-          <li><strong>Security:</strong> Help protect your account and detect suspicious activity</li>
-        </ul>
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">1. What This Policy Covers</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            This Cookie Policy explains how letsboulder uses cookies, local storage, and similar client-side technologies when you visit or use the app.
+          </p>
+        </section>
 
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mt-8 mb-4">
-          Managing Cookies
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          Most browsers allow you to control cookies through their settings. You can typically choose to block all cookies, accept all cookies, or receive a notification when a cookie is set. Please note that blocking cookies may affect your ability to use certain features of our app.
-        </p>
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">2. What We Use</h2>
+          <p className="text-gray-700 dark:text-gray-300">We currently use a mix of:</p>
+          <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li><strong>Cookies</strong> for authentication, session continuity, CSRF protection, and redirect handling.</li>
+            <li><strong>Local storage</strong> for app preferences and client-side security helpers.</li>
+            <li><strong>Offline/browser storage</strong> for cached app data and offline functionality.</li>
+            <li><strong>Analytics technologies</strong> to help us understand service performance and usage patterns.</li>
+          </ul>
+        </section>
 
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mt-8 mb-4">
-          Contact Us
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          If you have questions about our use of cookies, please contact us through our support channels.
-        </p>
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">3. Categories of Technologies</h2>
 
-        <p className="text-gray-600 dark:text-gray-400 text-sm mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-          Last updated: January 2025
-        </p>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">3.1 Strictly Necessary</h3>
+          <p className="text-gray-700 dark:text-gray-300">
+            These technologies are used to sign you in, keep sessions working, secure requests, and operate the app.
+          </p>
+
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">3.2 Preferences and Functionality</h3>
+          <p className="text-gray-700 dark:text-gray-300">
+            These technologies remember settings such as theme, app preferences, and other choices that improve the user experience.
+          </p>
+
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">3.3 Performance and Analytics</h3>
+          <p className="text-gray-700 dark:text-gray-300">
+            We use limited analytics tools, including Vercel Analytics, to understand usage patterns and improve reliability and performance.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">4. Examples Currently Used by letsboulder</h2>
+          <ul className="list-disc space-y-2 pl-5 text-gray-700 dark:text-gray-300">
+            <li><strong>Supabase auth session storage:</strong> used to persist sign-in state.</li>
+            <li><strong>CSRF cookie and mirrored client token metadata:</strong> used to protect state-changing requests.</li>
+            <li><strong>Redirect cookie:</strong> used briefly during some authentication flows.</li>
+            <li><strong>Theme and preference storage:</strong> used to remember display and app preferences.</li>
+            <li><strong>Offline cache storage:</strong> used to support cached content and offline packs.</li>
+          </ul>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">5. Managing Cookies and Storage</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            Most browsers let you block or delete cookies and clear site storage. Blocking essential technologies may stop parts of letsboulder from working correctly, including sign-in, account settings, and other app features.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">6. More Information</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            For questions about our use of cookies or similar technologies, contact <a href="mailto:hello@letsboulder.com" className="underline">hello@letsboulder.com</a>.
+          </p>
+        </section>
       </div>
     </div>
   )
