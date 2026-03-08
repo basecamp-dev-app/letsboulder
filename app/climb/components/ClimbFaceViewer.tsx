@@ -1,7 +1,6 @@
 'use client'
 
 import type { MouseEventHandler, RefObject, TouchEventHandler } from 'react'
-import Image from 'next/image'
 import { ChevronLeft, ChevronRight, Layers } from 'lucide-react'
 
 interface FaceViewerPoint {
@@ -114,16 +113,15 @@ export default function ClimbFaceViewer({
                 onTouchEnd={index === activeFaceIndex ? onTouchEnd : undefined}
                 onTouchCancel={index === activeFaceIndex ? onTouchEnd : undefined}
               >
-                <Image
+                <img
                   key={index === activeFaceIndex ? `${face.id}-${activeFaceRetryNonce}` : face.id}
                   ref={index === activeFaceIndex ? imageRef : undefined}
                   src={face.url}
                   alt={displayClimbName}
                   width={Math.max(1, face.width || 1600)}
                   height={Math.max(1, face.height || 1200)}
-                  sizes="100vw"
-                  priority={index === activeFaceIndex}
-                  unoptimized
+                  loading={index === activeFaceIndex ? 'eager' : 'lazy'}
+                  draggable={false}
                   onLoad={() => onFaceLoad(face.id)}
                   onError={() => onFaceError(face.id)}
                   className={`h-auto max-h-[70vh] w-auto max-w-full object-contain transition-opacity duration-200 ${index === activeFaceIndex ? 'opacity-100' : 'opacity-90'}`}
