@@ -1,18 +1,21 @@
-const SHELL_CACHE = 'offline-shell-v1'
+const SHELL_CACHE = 'offline-shell-v2'
 self.__WB_DISABLE_DEV_LOGS = true
 
 const PACK_CACHE = 'offline-climb-packs-v2'
 const MEDIA_CACHE = 'offline-media-v2'
 const TILE_CACHE = 'offline-tiles-v2'
+const ROUTE_ASSET_CACHE = 'offline-route-assets-v1'
 const TRANSIENT_CACHE = 'runtime-transient-v2'
 const OFFLINE_LAUNCH_URL = '/offline'
 const OFFLINE_LIBRARY_URL = '/offline/library'
 const HOME_URL = '/'
 const MANIFEST_URL = '/manifest.json'
 const LOGO_URL = '/logo.png'
+const LOGO_LIGHT_URL = '/logo-light.png'
+const LOGO_DARK_URL = '/logo-dark.png'
 const OFFLINE_JOB_CHANNEL = 'offline-pack-jobs'
-const ACTIVE_CACHES = [SHELL_CACHE, PACK_CACHE, MEDIA_CACHE, TILE_CACHE, TRANSIENT_CACHE]
-const SHELL_ROUTES = [HOME_URL, OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, MANIFEST_URL, LOGO_URL]
+const ACTIVE_CACHES = [SHELL_CACHE, PACK_CACHE, MEDIA_CACHE, TILE_CACHE, ROUTE_ASSET_CACHE, TRANSIENT_CACHE]
+const SHELL_ROUTES = [HOME_URL, OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, MANIFEST_URL, LOGO_URL, LOGO_LIGHT_URL, LOGO_DARK_URL]
 
 function toSameOriginRequest(url) {
   return new Request(url, { credentials: 'same-origin' })
@@ -57,10 +60,42 @@ async function collectShellAssetRequests() {
   return Array.from(requests.values())
 }
 
+async function collectPageAssetRequests(pageUrls) {
+  const requests = new Map()
+
+  for (const pageUrl of pageUrls) {
+    if (!pageUrl || pageUrl.startsWith('/api/')) continue
+
+    try {
+      const response = await fetch(toSameOriginRequest(pageUrl))
+      if (!response.ok) continue
+
+      const html = await response.text()
+      const assetMatches = html.matchAll(/(?:href|src)="(\/_next\/(?:static\/[^"]+\.(?:css|js)|image\?[^\"]+))"/g)
+
+      for (const match of assetMatches) {
+        const assetUrl = match[1]
+        if (!assetUrl) continue
+        requests.set(assetUrl, toSameOriginRequest(assetUrl))
+      }
+    } catch {
+      // Ignore transient page asset discovery failures.
+    }
+  }
+
+  return Array.from(requests.values())
+}
+
 async function installShell() {
   const shellRequests = SHELL_ROUTES.map((url) => toSameOriginRequest(url))
   const shellAssetRequests = await collectShellAssetRequests()
   await cacheRequests(SHELL_CACHE, [...shellRequests, ...shellAssetRequests])
+}
+
+async function cachePageAssets(pageUrls) {
+  const assetRequests = await collectPageAssetRequests(pageUrls)
+  if (assetRequests.length === 0) return
+  await cacheRequests(ROUTE_ASSET_CACHE, assetRequests)
 }
 
 self.addEventListener('install', (event) => {
@@ -166,6 +201,15 @@ async function matchShellRequest(request) {
   return undefined
 }
 
+async function matchRouteAssetRequest(request) {
+  const routeAssetCache = await caches.open(ROUTE_ASSET_CACHE)
+  const directMatch = await routeAssetCache.match(request, { ignoreSearch: true })
+  if (directMatch) return directMatch
+
+  const shellCache = await caches.open(SHELL_CACHE)
+  return shellCache.match(request, { ignoreSearch: true })
+}
+
 async function handleShellFetch(request) {
   const cached = await matchShellRequest(request)
   if (cached) return cached
@@ -186,6 +230,24 @@ async function handleShellFetch(request) {
     }
 
     throw error
+  }
+}
+
+async function handleRouteAssetFetch(request) {
+  const cached = await matchRouteAssetRequest(request)
+  if (cached) return cached
+
+  try {
+    const response = await fetch(request)
+    if (response.ok) {
+      const routeAssetCache = await caches.open(ROUTE_ASSET_CACHE)
+      await routeAssetCache.put(request, response.clone())
+    }
+    return response
+  } catch {
+    const fallback = await matchRouteAssetRequest(request)
+    if (fallback) return fallback
+    return Response.error()
   }
 }
 
@@ -211,6 +273,7 @@ self.addEventListener('message', (event) => {
         const tileUrls = Array.isArray(pack.tileUrls) ? pack.tileUrls : []
         const packUrls = [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
         await cacheUrls(PACK_CACHE, packUrls)
+        await cachePageAssets(packUrls)
         await cacheUrls(MEDIA_CACHE, mediaUrls)
         const tileFailures = await cacheUrls(TILE_CACHE, tileUrls, { strict: false })
         respond({
@@ -255,11 +318,13 @@ self.addEventListener('message', (event) => {
         })
 
         await cacheUrls(PACK_CACHE, [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, ...cragEntryUrls])
+        await cachePageAssets([OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, ...cragEntryUrls])
         const rootTileFailures = await cacheUrls(TILE_CACHE, tileUrls, { concurrency: 4, strict: false })
         failedTileUrls.push(...rootTileFailures.map((failure) => failure.url))
 
         for (const climb of climbs) {
           await cacheUrls(PACK_CACHE, [`/climb/${climb.climbId}`, climb.pageUrl, climb.manifestUrl].filter(Boolean))
+          await cachePageAssets([`/climb/${climb.climbId}`, climb.pageUrl])
           const climbTileFailures = await cacheUrls(TILE_CACHE, Array.isArray(climb.tileUrls) ? climb.tileUrls : [], {
             concurrency: 4,
             strict: false,
@@ -362,6 +427,7 @@ self.addEventListener('fetch', (event) => {
   const isClimbPage = request.mode === 'navigate' && url.pathname.startsWith('/climb/')
   const isCragPage = request.mode === 'navigate' && (url.pathname.startsWith('/crag/') || /^\/[a-z]{2}\//.test(url.pathname))
   const isShellAsset = url.pathname === MANIFEST_URL || url.pathname === LOGO_URL || url.pathname.startsWith('/_next/static/')
+  const isRouteAsset = url.pathname.startsWith('/_next/static/') || url.pathname === LOGO_LIGHT_URL || url.pathname === LOGO_DARK_URL || url.pathname === LOGO_URL || url.pathname === MANIFEST_URL || url.pathname === '/_next/image'
 
   if (isMediaRequest) {
     event.respondWith((async () => {
@@ -398,6 +464,11 @@ self.addEventListener('fetch', (event) => {
         return new Response('', { status: 504, statusText: 'Offline tile unavailable' })
       }
     })())
+    return
+  }
+
+  if (isRouteAsset) {
+    event.respondWith(handleRouteAssetFetch(request))
     return
   }
 

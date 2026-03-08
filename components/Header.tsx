@@ -249,6 +249,7 @@ export default function Header() {
               alt="letsboulder"
               fill
               sizes="80px"
+              unoptimized
               className="object-contain dark:hidden"
               priority
             />
@@ -257,6 +258,7 @@ export default function Header() {
               alt="letsboulder"
               fill
               sizes="80px"
+              unoptimized
               className="object-contain hidden dark:block"
               priority
             />
