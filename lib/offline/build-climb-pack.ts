@@ -191,7 +191,16 @@ function buildPrimaryPin(input: {
   latitude: number | null
   longitude: number | null
 }): OfflineMapPin | null {
-  if (typeof input.latitude !== 'number' || typeof input.longitude !== 'number') {
+  if (
+    typeof input.latitude !== 'number'
+    || typeof input.longitude !== 'number'
+    || !Number.isFinite(input.latitude)
+    || !Number.isFinite(input.longitude)
+    || input.latitude < -85.05112878
+    || input.latitude > 85.05112878
+    || input.longitude < -180
+    || input.longitude > 180
+  ) {
     return null
   }
 

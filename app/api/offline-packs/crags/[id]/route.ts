@@ -110,7 +110,12 @@ export async function GET(
     const savedPins = climbSummaries
       .map((climb) => climb.primaryPin)
       .filter((pin): pin is OfflineMapPin => pin !== null)
-    const tileManifest = buildTileManifestForPins(savedPins)
+    let tileManifest: CragOfflinePackManifest['tileManifest'] = null
+    try {
+      tileManifest = buildTileManifestForPins(savedPins)
+    } catch (tileError) {
+      console.error('Failed to build crag offline tile manifest:', { cragId, tileError })
+    }
     const cragVersionHash = hashParts({
       crag: { id: crag.id, name: crag.name, canonicalPath },
       climbs: climbSummaries.map((climb) => ({ climbId: climb.climbId, versionHash: climb.versionHash })),
