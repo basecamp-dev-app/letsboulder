@@ -4,6 +4,7 @@ import type { RoutePoint } from '@/lib/useRouteSelection'
 import { buildMediaProxyUrl, estimateCompressedImageBytes, parsePrivateMediaRef } from '@/lib/media-proxy'
 import type { ClimbPackResponse, OfflineMapPin } from '@/lib/climb/queries'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
+import { resolveRouteImageUrl } from '@/lib/route-image-url'
 
 interface ImageInfoRow {
   id: string
@@ -151,11 +152,12 @@ function decorateMedia(rawUrl: string | null | undefined, versionSeed: string | 
 
   const parsed = parsePrivateMediaRef(rawUrl)
   if (!parsed) {
+    const normalizedUrl = resolveRouteImageUrl(rawUrl)
     return {
-      url: rawUrl,
+      url: normalizedUrl,
       media_ref: null,
-      cache_key: rawUrl,
-      version: versionSeed || rawUrl,
+      cache_key: normalizedUrl,
+      version: versionSeed || normalizedUrl,
     }
   }
 
