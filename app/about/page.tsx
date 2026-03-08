@@ -45,20 +45,6 @@ export default function AboutPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Why it stays free</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
-            <p>
-              The goal is simple: make a climbing tool people actually want to come back to, without locking basic features behind a paywall.
-            </p>
-            <p>
-              If letsboulder helps you discover climbs, log sessions, or share knowledge with other climbers, you can support the project voluntarily. If not, keep using it anyway.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle>Community Features</CardTitle>
           </CardHeader>
           <CardContent>
