@@ -51,6 +51,7 @@ interface SaveCragOfflineResult {
   preview: CragOfflinePreview
   unsubscribe: () => void
   completed: Promise<void>
+  warning?: string
 }
 
 function buildPackRecord(input: {
@@ -157,6 +158,9 @@ export async function saveClimbOfflinePack(packOrPayload: ClimbOfflinePackManife
   }
 
   await persistStandaloneClimbPack(payload)
+  return {
+    warning: response.warning,
+  }
 }
 
 export async function deleteClimbOfflinePack(climbId: string) {
@@ -285,6 +289,7 @@ export async function saveCragOffline(
       tileUrls: latestManifest.tileManifest?.tileUrls || [],
       removedClimbIds,
       totalBytes,
+      fallbackPath: `/crag/${cragId}`,
       climbs: fetchedPayloads.map((payload) => payload.offline_pack),
     },
   })
@@ -363,6 +368,7 @@ export async function saveCragOffline(
     },
     unsubscribe,
     completed,
+    warning: swResponse.warning,
   }
 }
 
@@ -408,6 +414,7 @@ export async function removeCragOffline(cragId: string) {
     payload: {
       packId: existingCrag.manifest.packId,
       canonicalPath: existingCrag.manifest.canonicalPath,
+      fallbackPath: `/crag/${cragId}`,
       manifestUrl: existingCrag.manifest.manifestUrl,
       tileUrls: (existingCrag.manifest.tileManifest?.tileUrls || []).filter((url) => !retainedTileUrls.has(url)),
       climbs: orphanPayload,

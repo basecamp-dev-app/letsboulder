@@ -94,7 +94,9 @@ async function cacheUrls(cacheName, urls, options = {}) {
   const {
     concurrency = 3,
     onProgress,
+    strict = true,
   } = options
+  const failures = []
 
   let index = 0
   const workers = Array.from({ length: Math.min(concurrency, Math.max(urls.length, 1)) }, async () => {
@@ -110,17 +112,26 @@ async function cacheUrls(cacheName, urls, options = {}) {
         continue
       }
 
-      const response = await fetch(request)
-      if (!response.ok) {
-        throw new Error(`Failed to cache ${url}`)
-      }
+      try {
+        const response = await fetch(request)
+        if (!response.ok) {
+          throw new Error(`Failed to cache ${url}`)
+        }
 
-      await cache.put(request, response.clone())
-      if (onProgress) onProgress(url, false)
+        await cache.put(request, response.clone())
+        if (onProgress) onProgress(url, false)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : `Failed to cache ${url}`
+        failures.push({ url, error: message })
+        if (strict) {
+          throw new Error(message)
+        }
+      }
     }
   })
 
   await Promise.all(workers)
+  return failures
 }
 
 async function removeUrls(cacheName, urls) {
@@ -201,8 +212,12 @@ self.addEventListener('message', (event) => {
         const packUrls = [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
         await cacheUrls(PACK_CACHE, packUrls)
         await cacheUrls(MEDIA_CACHE, mediaUrls)
-        await cacheUrls(TILE_CACHE, tileUrls)
-        respond({ ok: true })
+        const tileFailures = await cacheUrls(TILE_CACHE, tileUrls, { strict: false })
+        respond({
+          ok: true,
+          warning: tileFailures.length > 0 ? 'Saved core offline content, but some map tiles could not be cached.' : undefined,
+          failedTileUrls: tileFailures.map((failure) => failure.url),
+        })
         return
       }
 
@@ -222,10 +237,12 @@ self.addEventListener('message', (event) => {
         const payload = message.payload || {}
         const climbs = Array.isArray(payload.climbs) ? payload.climbs : []
         const tileUrls = Array.isArray(payload.tileUrls) ? payload.tileUrls : []
+        const cragEntryUrls = [payload.canonicalPath, payload.fallbackPath, payload.manifestUrl].filter(Boolean)
         const totalClimbs = climbs.length
         const totalBytes = Number(payload.totalBytes || 0)
         let completedClimbs = 0
         let completedBytes = 0
+        const failedTileUrls = []
 
         broadcastProgress({
           type: 'OFFLINE_JOB_PROGRESS',
@@ -237,12 +254,17 @@ self.addEventListener('message', (event) => {
           totalBytes,
         })
 
-        await cacheUrls(PACK_CACHE, [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, payload.canonicalPath, payload.manifestUrl].filter(Boolean))
-        await cacheUrls(TILE_CACHE, tileUrls, { concurrency: 4 })
+        await cacheUrls(PACK_CACHE, [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, ...cragEntryUrls])
+        const rootTileFailures = await cacheUrls(TILE_CACHE, tileUrls, { concurrency: 4, strict: false })
+        failedTileUrls.push(...rootTileFailures.map((failure) => failure.url))
 
         for (const climb of climbs) {
           await cacheUrls(PACK_CACHE, [`/climb/${climb.climbId}`, climb.pageUrl, climb.manifestUrl].filter(Boolean))
-          await cacheUrls(TILE_CACHE, Array.isArray(climb.tileUrls) ? climb.tileUrls : [], { concurrency: 4 })
+          const climbTileFailures = await cacheUrls(TILE_CACHE, Array.isArray(climb.tileUrls) ? climb.tileUrls : [], {
+            concurrency: 4,
+            strict: false,
+          })
+          failedTileUrls.push(...climbTileFailures.map((failure) => failure.url))
 
           broadcastProgress({
             type: 'OFFLINE_JOB_PROGRESS',
@@ -285,7 +307,11 @@ self.addEventListener('message', (event) => {
           totalBytes,
         })
 
-        respond({ ok: true })
+        respond({
+          ok: true,
+          warning: failedTileUrls.length > 0 ? 'Saved core offline content, but some map tiles could not be cached.' : undefined,
+          failedTileUrls,
+        })
         return
       }
 
@@ -293,7 +319,7 @@ self.addEventListener('message', (event) => {
         const payload = message.payload || {}
         const climbs = Array.isArray(payload.climbs) ? payload.climbs : []
         const tileUrls = Array.isArray(payload.tileUrls) ? payload.tileUrls : []
-        await removeUrls(PACK_CACHE, [payload.canonicalPath, payload.manifestUrl].filter(Boolean))
+        await removeUrls(PACK_CACHE, [payload.canonicalPath, payload.fallbackPath, payload.manifestUrl].filter(Boolean))
         await removeUrls(TILE_CACHE, tileUrls)
         for (const climb of climbs) {
           await removeUrls(PACK_CACHE, [`/climb/${climb.climbId}`, climb.pageUrl, climb.manifestUrl].filter(Boolean))
