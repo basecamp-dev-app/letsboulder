@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
     ]
   },
   images: {
+    localPatterns: [
+      {
+        pathname: '/api/media/**',
+      },
+    ],
     remotePatterns: [
       {
         protocol: 'https',
@@ -42,6 +47,6 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts', 'leaflet'],
   },
-};
+}
 
-export default nextConfig;
+export default nextConfig

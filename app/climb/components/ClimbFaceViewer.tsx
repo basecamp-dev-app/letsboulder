@@ -13,6 +13,8 @@ interface FaceViewerFace {
   id: string
   url: string
   face_directions: string[] | null
+  width?: number | null
+  height?: number | null
 }
 
 interface FaceViewerPan {
@@ -99,7 +101,7 @@ export default function ClimbFaceViewer({
             <div key={face.id} className="relative min-w-0 shrink-0 grow-0 basis-full flex items-center justify-center">
               <div
                 ref={index === activeFaceIndex ? viewerTransformRef : undefined}
-                className="relative"
+                className="relative inline-flex max-h-[70vh] max-w-full items-center justify-center overflow-hidden"
                 style={index === activeFaceIndex
                   ? {
                       transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
@@ -117,12 +119,14 @@ export default function ClimbFaceViewer({
                   ref={index === activeFaceIndex ? imageRef : undefined}
                   src={face.url}
                   alt={displayClimbName}
-                  fill
+                  width={Math.max(1, face.width || 1600)}
+                  height={Math.max(1, face.height || 1200)}
                   sizes="100vw"
                   priority={index === activeFaceIndex}
+                  unoptimized
                   onLoad={() => onFaceLoad(face.id)}
                   onError={() => onFaceError(face.id)}
-                  className={`max-w-full max-h-[60vh] object-contain transition-opacity duration-200 ${index === activeFaceIndex ? 'opacity-100' : 'opacity-90'}`}
+                  className={`h-auto max-h-[70vh] w-auto max-w-full object-contain transition-opacity duration-200 ${index === activeFaceIndex ? 'opacity-100' : 'opacity-90'}`}
                 />
                 {index === activeFaceIndex ? (
                   <canvas
