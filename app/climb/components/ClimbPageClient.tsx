@@ -398,6 +398,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   const { selectedIds, selectRoute, clearSelection } = useRouteSelection()
 
   const selectedRouteParam = searchParams.get('route')
+  const selectedImageParam = searchParams.get('image')
   const [routeParamOverride, setRouteParamOverride] = useState<string | null>(null)
   const effectiveRouteParam = routeParamOverride ?? selectedRouteParam
   const hasNonRouteSearchParams = useMemo(() => {
@@ -681,16 +682,6 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
           face_directions: primaryImageData.face_directions ?? null,
         }
 
-        if (cancelled) return
-        setImage(primaryImage)
-        setPrimaryImageId(primaryImage.id)
-        setActiveCanvasImageId(primaryImage.id)
-        setRouteLinesImageId(primaryImage.id)
-        setActiveFaceIndex(0)
-        setSettledFaceIndex(0)
-        setRouteLines(mappedLines)
-        initialRouteCountRef.current = mappedLines.length
-
         const nextCache: Record<string, { image: ImageInfo; routeLines: DisplayRouteLine[] }> = {
           [primaryImage.id]: {
             image: primaryImage,
@@ -743,6 +734,42 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
           }
         }
 
+        const resolvedInitialImageId = (() => {
+          if (selectedImageParam && nextCache[selectedImageParam]) {
+            return selectedImageParam
+          }
+
+          if (effectiveRouteParam) {
+            const matchingEntry = Object.entries(nextCache).find(([, entry]) =>
+              entry.routeLines.some((route) => route.id === effectiveRouteParam)
+            )
+            if (matchingEntry) {
+              return matchingEntry[0]
+            }
+          }
+
+          const firstRouteEntry = Object.entries(nextCache).find(([, entry]) => entry.routeLines.length > 0)
+          return firstRouteEntry?.[0] || primaryImage.id
+        })()
+
+        const initialFaceIndex = Math.max(
+          0,
+          faces.findIndex((face) => {
+            const resolvedImageId = face.image_id || face.linked_image_id || (face.is_primary ? primaryImage.id : null)
+            return resolvedImageId === resolvedInitialImageId
+          })
+        )
+        const initialEntry = nextCache[resolvedInitialImageId] || nextCache[primaryImage.id]
+
+        if (cancelled || !initialEntry) return
+        setImage(initialEntry.image)
+        setPrimaryImageId(primaryImage.id)
+        setActiveCanvasImageId(resolvedInitialImageId)
+        setRouteLinesImageId(resolvedInitialImageId)
+        setActiveFaceIndex(initialFaceIndex)
+        setSettledFaceIndex(initialFaceIndex)
+        setRouteLines(initialEntry.routeLines)
+        initialRouteCountRef.current = initialEntry.routeLines.length
         faceRouteCacheRef.current = nextCache
         setFaceGallery(faces)
         setTotalFaces(typeof climbPackData.summary?.total_faces === 'number' ? Math.max(1, climbPackData.summary.total_faces) : Math.max(1, faces.length || 1))
@@ -766,7 +793,18 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     return () => {
       cancelled = true
     }
-  }, [climbId, climbPackData, clearSelection, resetZoomPan])
+  }, [climbId, climbPackData, clearSelection, effectiveRouteParam, resetZoomPan, selectedImageParam])
+
+  useEffect(() => {
+    if (!emblaApi || visibleFaces.length === 0) return
+    const targetIndex = Math.min(activeFaceIndex, visibleFaces.length - 1)
+    const rafId = window.requestAnimationFrame(() => {
+      emblaApi.scrollTo(targetIndex, true)
+    })
+    return () => {
+      window.cancelAnimationFrame(rafId)
+    }
+  }, [activeFaceIndex, emblaApi, visibleFaces.length])
 
   useEffect(() => {
     if (!climbPackError) return
