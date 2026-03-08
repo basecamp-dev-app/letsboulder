@@ -1749,6 +1749,16 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   const handleConfirmOfflineSave = async () => {
     if (!offlinePack) return
 
+    const supabase = createClient()
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser()
+
+    if (!currentUser) {
+      router.push(`/auth?redirect_to=${encodeURIComponent(getAuthRedirectPath())}`)
+      return
+    }
+
     setOfflineActionLoading(true)
     try {
       if (typeof navigator !== 'undefined' && navigator.storage?.persist) {
@@ -1782,6 +1792,16 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   }
 
   const handleRemoveOfflinePack = async () => {
+    const supabase = createClient()
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser()
+
+    if (!currentUser) {
+      router.push(`/auth?redirect_to=${encodeURIComponent(getAuthRedirectPath())}`)
+      return
+    }
+
     setOfflineActionLoading(true)
     try {
       await deleteClimbOfflinePack(climbId)
