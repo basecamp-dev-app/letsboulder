@@ -282,6 +282,7 @@ export function DownloadOfflineButton({ cragId, bounds }: { cragId: string, boun
 - **Update detection:** Check last_modified to prompt for re-download
 - **Cache invalidation:** Use versioned cache names; clean old versions on update
 - **Network-first vs Cache-first:** Routes = network-first, media = cache-first, downloaded tiles = cache-only
+- **Offline scope:** Keep offline support limited to saved `crag -> climb` flows. Use document navigations for offline entry/open actions instead of relying on App Router client transitions.
 - **OSM Compliance:** Browser fetch cannot reliably override `User-Agent`; handle provider compliance server-side and consider a self-hosted tile server for production scale
 
 ---
