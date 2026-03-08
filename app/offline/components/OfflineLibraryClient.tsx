@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import type { StoredClimbManifest, StoredCragManifest } from '@/lib/offline/storage'
 import { listOfflinePacksForLaunch } from '@/lib/offline/packs'
+import { resolveRouteImageUrl } from '@/lib/route-image-url'
 
 function getOfflineClimbLaunchHref(climb: StoredClimbManifest) {
   return `/climb/${climb.climbId}`
@@ -22,6 +23,10 @@ function formatBytes(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB'
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function getOfflineThumbnailUrl(url: string | null | undefined) {
+  return resolveRouteImageUrl(url)
 }
 
 export default function OfflineLibraryClient() {
@@ -141,7 +146,7 @@ export default function OfflineLibraryClient() {
               <div className="grid gap-5 lg:grid-cols-2">
                 {state.crags.map((crag) => {
                   const childClimbs = nestedCragClimbs.get(crag.cragId) || []
-                  const coverImageUrl = crag.manifest.savedPins?.[0]?.coverImageUrl || null
+                  const coverImageUrl = getOfflineThumbnailUrl(crag.manifest.savedPins?.[0]?.coverImageUrl || null)
                   const launchHref = getOfflineCragLaunchHref(crag)
                   return (
                     <article key={crag.cragId} className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -169,8 +174,8 @@ export default function OfflineLibraryClient() {
                               className="group overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 text-left transition hover:border-gray-300 hover:bg-white dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700 dark:hover:bg-gray-900"
                             >
                               <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
-                                {climb.manifest.coverImageUrl ? (
-                                  <Image src={climb.manifest.coverImageUrl} alt={climb.manifest.climbName} fill className="object-cover transition duration-200 group-hover:scale-[1.02]" sizes="(max-width: 768px) 50vw, 20vw" unoptimized />
+                                {getOfflineThumbnailUrl(climb.manifest.coverImageUrl) ? (
+                                  <Image src={getOfflineThumbnailUrl(climb.manifest.coverImageUrl)} alt={climb.manifest.climbName} fill className="object-cover transition duration-200 group-hover:scale-[1.02]" sizes="(max-width: 768px) 50vw, 20vw" unoptimized />
                                 ) : null}
                               </div>
                               <div className="p-3">
@@ -203,8 +208,8 @@ export default function OfflineLibraryClient() {
                       className="group overflow-hidden rounded-3xl border border-gray-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700"
                     >
                       <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
-                        {climb.manifest.coverImageUrl ? (
-                          <Image src={climb.manifest.coverImageUrl} alt={climb.manifest.climbName} fill className="object-cover transition duration-200 group-hover:scale-[1.02]" sizes="(max-width: 768px) 100vw, 33vw" unoptimized />
+                        {getOfflineThumbnailUrl(climb.manifest.coverImageUrl) ? (
+                          <Image src={getOfflineThumbnailUrl(climb.manifest.coverImageUrl)} alt={climb.manifest.climbName} fill className="object-cover transition duration-200 group-hover:scale-[1.02]" sizes="(max-width: 768px) 100vw, 33vw" unoptimized />
                         ) : null}
                       </div>
                       <div className="space-y-2 p-4">
