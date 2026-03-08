@@ -21,7 +21,7 @@ export default function PrivacyPage() {
 
         <section className="mb-8 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900/50">
           <h2 className="mt-0 text-xl font-semibold text-gray-900 dark:text-gray-100">
-            Plain-Language Summary
+            Summary
           </h2>
           <ul className="mb-0 list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
             <li>letsboulder helps climbers log ascents, upload climbing photos, discover routes, and use community features.</li>
