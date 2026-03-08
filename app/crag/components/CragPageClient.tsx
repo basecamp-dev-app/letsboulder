@@ -134,6 +134,7 @@ interface ImageRouteTarget {
   climbId: string
   routeId: string
   climbSlug: string | null
+  imageId: string
 }
 
 interface CachedCragImageData {
@@ -259,6 +260,7 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
         climbId: firstPrimaryRoute.climb_id,
         routeId: firstPrimaryRoute.id,
         climbSlug: getOfflineSlug(payload.offline_pack.canonicalPath, climb.id),
+        imageId: primaryImage.id,
       }
     }
 
@@ -309,7 +311,10 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
     })
 
     const firstRoute = routeSummaries[0] || fallbackRouteSummary
-    const href = `/climb/${firstRoute.climbId}?route=${firstRoute.routeId}`
+    const next = new URLSearchParams()
+    next.set('route', firstRoute.routeId)
+    next.set('image', primaryImage.id)
+    const href = `/climb/${firstRoute.climbId}?${next.toString()}`
     const existingCard = imageCardMap.get(primaryImage.id)
     const nextRoutes = new Map<string, OfflineCragRouteSummary>()
 
@@ -654,6 +659,7 @@ export default function CragPageClient({
               climbId: row.climb_id,
               routeId: row.id,
               climbSlug: climb?.slug || null,
+              imageId: row.image_id,
             }
           }
         }
@@ -964,6 +970,7 @@ export default function CragPageClient({
     if (offlineOnly) {
       const next = new URLSearchParams()
       next.set('route', target.routeId)
+      next.set('image', target.imageId)
       return `/climb/${target.climbId}?${next.toString()}`
     }
 
@@ -973,6 +980,7 @@ export default function CragPageClient({
 
     const next = new URLSearchParams()
     next.set('route', target.routeId)
+    next.set('image', target.imageId)
     return `/climb/${target.climbId}?${next.toString()}`
   }, [defaultRouteTargetByImageId, routeHrefBase])
 
