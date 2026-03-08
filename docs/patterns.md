@@ -129,6 +129,7 @@ const french = getGradeDisplay(5, 'french_equivalent') // → '7a'
 - **Offline scope:** Keep offline support limited to saved `crag -> climb` flows. Use document navigations for offline entry/open actions instead of relying on App Router client transitions.
 - **Storage quota failures:** Handle `QuotaExceededError`; prompt user to clear offline data when a saved-pack download cannot complete.
 - **Offline launcher:** Keep `/offline` as a simple chooser page and move saved-pack hydration into `/offline/library` so storage reads cannot trap users behind a preload spinner.
+- **Critical vs optional cache:** Face images, route-line payloads, and offline pack pages are required for a successful save. Crag map tiles are best-effort and should warn rather than fail the pack.
 - **OSM Compliance:** Browser fetch cannot reliably override `User-Agent`; handle provider compliance server-side and consider a self-hosted tile server for production scale
 
 ---

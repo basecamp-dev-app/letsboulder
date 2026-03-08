@@ -1661,15 +1661,15 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         throw new Error('Climb data unavailable for offline save')
       }
 
-      await saveClimbOfflinePack(climbPackData)
+      const result = await saveClimbOfflinePack(climbPackData)
       await refreshOfflineStatus()
       setOfflineDialogOpen(false)
-      setToast('Climb saved for offline viewing')
+      setToast(result.warning || 'Climb saved for offline viewing')
       setTimeout(() => setToast(null), 2500)
     } catch (saveError) {
       console.error('Offline save failed:', saveError)
-      setToast('Failed to save offline pack')
-      setTimeout(() => setToast(null), 2500)
+      setToast(saveError instanceof Error ? saveError.message : 'Failed to save offline pack')
+      setTimeout(() => setToast(null), 3000)
     } finally {
       setOfflineActionLoading(false)
     }
