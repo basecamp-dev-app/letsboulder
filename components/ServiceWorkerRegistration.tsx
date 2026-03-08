@@ -1,14 +1,22 @@
 'use client'
 
 import { useEffect } from 'react'
+import {
+  clearRegisteredServiceWorkers,
+  SERVICE_WORKER_URL,
+  shouldEnableServiceWorker,
+} from '@/lib/offline/service-worker-client'
 
 export default function ServiceWorkerRegistration() {
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !window.isSecureContext) return
+    if (!shouldEnableServiceWorker()) {
+      void clearRegisteredServiceWorkers()
+      return
+    }
 
     const registerServiceWorker = async () => {
       try {
-        await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        await navigator.serviceWorker.register(SERVICE_WORKER_URL, { scope: '/' })
       } catch (error) {
         console.error('Service worker registration failed:', error)
       }

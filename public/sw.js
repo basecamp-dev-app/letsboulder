@@ -179,13 +179,21 @@ async function handleShellFetch(request) {
       await shellCache.put(request, response.clone())
     }
     return response
-  } catch (error) {
+  } catch {
+    const fallbackCached = await matchShellRequest(request)
+    if (fallbackCached) return fallbackCached
+
     if (request.mode === 'navigate' && url.pathname === OFFLINE_LAUNCH_URL) {
       const fallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LAUNCH_URL))
       if (fallback) return fallback
     }
 
-    throw error
+    if (request.mode === 'navigate') {
+      const homeFallback = await matchShellRequest(toSameOriginRequest(HOME_URL))
+      if (homeFallback) return homeFallback
+    }
+
+    return Response.error()
   }
 }
 
