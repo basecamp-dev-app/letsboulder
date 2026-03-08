@@ -1,3 +1,5 @@
+import { SERVICE_WORKER_URL, getServiceWorkerDisabledReason } from '@/lib/offline/service-worker-client'
+
 interface ServiceWorkerMessage<TPayload> {
   type: string
   payload: TPayload
@@ -24,7 +26,6 @@ export interface OfflineJobProgressEvent {
 }
 
 const OFFLINE_JOB_CHANNEL = 'offline-pack-jobs'
-const SERVICE_WORKER_URL = '/sw.js'
 
 async function waitForServiceWorkerActivation(registration: ServiceWorkerRegistration) {
   const candidate = registration.installing || registration.waiting
@@ -61,8 +62,9 @@ async function waitForServiceWorkerActivation(registration: ServiceWorkerRegistr
 }
 
 async function ensureServiceWorkerIsCurrent() {
-  if (!('serviceWorker' in navigator)) {
-    throw new Error('Service worker is not supported')
+  const disabledReason = getServiceWorkerDisabledReason()
+  if (disabledReason) {
+    throw new Error(disabledReason)
   }
 
   const registration = await navigator.serviceWorker.register(SERVICE_WORKER_URL, { scope: '/' })

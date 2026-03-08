@@ -459,6 +459,7 @@ export default function SatelliteClimbingMap() {
         maxZoom={19}
         maxBounds={[[-90, -180], [90, 180]]}
         style={{ height: '100%', width: '100%' }}
+        preferCanvas={true}
         zoomControl={false}
         scrollWheelZoom={true}
         worldCopyJump={false}

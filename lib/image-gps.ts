@@ -9,11 +9,11 @@ type DmsValue = number | RationalLike | [number, number]
 
 const MAX_GPS_SEARCH_DEPTH = 5
 const MAX_GPS_VISITED_OBJECTS = 500
-const ENABLE_GPS_DEBUG = process.env.NODE_ENV === 'development'
 
 function gpsDebug(step: string, payload: unknown) {
-  if (!ENABLE_GPS_DEBUG) return
-  console.log('[gps-extract]', step, payload)
+  void step
+  void payload
+  return
 }
 
 function summarizeMetadata(value: unknown): unknown {

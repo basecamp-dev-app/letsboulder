@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import AppLayout from '@/components/AppLayout'
+import ChunkLoadRecovery from '@/components/ChunkLoadRecovery'
 import Providers from '@/components/providers'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import {
@@ -199,6 +200,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <Providers>
+          <ChunkLoadRecovery />
           <ServiceWorkerRegistration />
           <AppLayout>{children}</AppLayout>
           <Analytics />

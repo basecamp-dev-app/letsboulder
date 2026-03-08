@@ -1,31 +1,41 @@
 import { RoutePoint } from './useRouteSelection'
 
+export function createSmoothCurvePath(points: RoutePoint[]): Path2D | null {
+  if (typeof Path2D === 'undefined' || points.length < 2) return null
+
+  const path = new Path2D()
+  path.moveTo(points[0].x, points[0].y)
+
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const xc = (points[i].x + points[i + 1].x) / 2
+    const yc = (points[i].y + points[i + 1].y) / 2
+    path.quadraticCurveTo(points[i].x, points[i].y, xc, yc)
+  }
+
+  path.lineTo(points[points.length - 1].x, points[points.length - 1].y)
+
+  return path
+}
+
 export function drawSmoothCurve(
   ctx: CanvasRenderingContext2D,
-  points: RoutePoint[],
+  pointsOrPath: RoutePoint[] | Path2D,
   color: string,
   width: number,
   dash?: number[]
 ): void {
-  if (points.length < 2) return
+  const path = pointsOrPath instanceof Path2D
+    ? pointsOrPath
+    : createSmoothCurvePath(pointsOrPath)
+
+  if (!path) return
 
   ctx.strokeStyle = color
   ctx.lineWidth = width
   if (dash) ctx.setLineDash(dash)
   else ctx.setLineDash([])
 
-  ctx.beginPath()
-  ctx.moveTo(points[0].x, points[0].y)
-
-  for (let i = 1; i < points.length - 1; i++) {
-    const xc = (points[i].x + points[i + 1].x) / 2
-    const yc = (points[i].y + points[i + 1].y) / 2
-    ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc)
-  }
-
-  ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y)
-
-  ctx.stroke()
+  ctx.stroke(path)
   ctx.setLineDash([])
 }
 

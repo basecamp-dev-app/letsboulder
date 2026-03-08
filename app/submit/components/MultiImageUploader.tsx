@@ -6,6 +6,9 @@ import NextImage from 'next/image'
 import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { convertHeicToJpegBlob } from '@/lib/heic-converter'
+import { stripExifMetadataFromFile } from '@/lib/image-metadata'
+import { isHeicFile } from '@/lib/image-utils'
 import type { NewImageSelection, NewUploadedImage, GpsData } from '@/lib/submission-types'
 import { createClient } from '@/lib/supabase'
 import { extractGpsFromFile } from '@/lib/image-gps'
@@ -100,12 +103,22 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
   }, [])
 
   const compressImage = useCallback(async (file: File): Promise<File> => {
-    return imageCompression(file, {
+    const sourceFile = isHeicFile(file)
+      ? new File([
+        await convertHeicToJpegBlob(file),
+      ], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+        type: 'image/jpeg',
+        lastModified: Date.now(),
+      })
+      : file
+
+    const compressed = await imageCompression(sourceFile, {
       maxWidthOrHeight: 1600,
       initialQuality: 0.75,
       fileType: 'image/jpeg',
       useWebWorker: true,
     })
+    return stripExifMetadataFromFile(compressed)
   }, [])
 
   const addFiles = useCallback(async (files: FileList | null) => {
