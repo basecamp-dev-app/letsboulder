@@ -31,6 +31,13 @@ const offlinePageScript = `
     if (contentEl) contentEl.hidden = false;
   }
 
+  function syncOnlineAction() {
+    if (!onlineActionEl) return;
+    const isOffline = navigator.onLine === false;
+    onlineActionEl.hidden = isOffline;
+    onlineActionEl.textContent = isOffline ? 'Saved packs only' : 'Open live map';
+  }
+
   function formatBytes(bytes) {
     if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
     if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
@@ -168,9 +175,12 @@ const offlinePageScript = `
   }
 
   if (onlineActionEl) {
-    onlineActionEl.hidden = navigator.onLine === false;
+    syncOnlineAction();
     onlineActionEl.addEventListener('click', function () { window.location.replace('/'); });
   }
+
+  window.addEventListener('online', syncOnlineAction);
+  window.addEventListener('offline', syncOnlineAction);
 
   if (retryEl) {
     retryEl.addEventListener('click', function () {

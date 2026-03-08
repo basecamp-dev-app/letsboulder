@@ -1,7 +1,6 @@
 'use client'
 
 import Image from 'next/image'
-import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import type { StoredClimbManifest, StoredCragManifest } from '@/lib/offline/storage'
 import { listOfflinePacksForLaunch } from '@/lib/offline/packs'
@@ -81,9 +80,13 @@ export default function OfflineLibraryClient() {
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{status}</p>
             </div>
             <div className="flex gap-3">
-              <Link href="/" className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+              <button
+                type="button"
+                onClick={() => window.location.assign('/')}
+                className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
                 Open map
-              </Link>
+              </button>
             </div>
           </div>
 
@@ -122,7 +125,7 @@ export default function OfflineLibraryClient() {
                   const coverImageUrl = crag.manifest.savedPins?.[0]?.coverImageUrl || null
                   return (
                     <article key={crag.cragId} className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                      <Link href={crag.manifest.canonicalPath} className="block">
+                      <a href={crag.manifest.canonicalPath} className="block">
                         <div className="relative aspect-[16/8] bg-gray-200 dark:bg-gray-800">
                           {coverImageUrl ? (
                             <Image src={coverImageUrl} alt={`${crag.manifest.cragName} cover`} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 50vw" unoptimized />
@@ -134,12 +137,12 @@ export default function OfflineLibraryClient() {
                             <p className="mt-1 text-xs text-white/80">{childClimbs.length} saved climb{childClimbs.length === 1 ? '' : 's'} · {formatBytes(crag.manifest.estimatedBytes)}</p>
                           </div>
                         </div>
-                      </Link>
+                      </a>
 
                       <div className="space-y-3 p-4">
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                           {childClimbs.map((climb) => (
-                            <Link key={climb.climbId} href={climb.manifest.canonicalPath || climb.manifest.pageUrl} className="group overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 transition hover:border-gray-300 hover:bg-white dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700 dark:hover:bg-gray-900">
+                            <a key={climb.climbId} href={climb.manifest.canonicalPath || climb.manifest.pageUrl} className="group overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 transition hover:border-gray-300 hover:bg-white dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700 dark:hover:bg-gray-900">
                               <div className="aspect-[4/3] bg-gray-200 dark:bg-gray-800">
                                 {climb.manifest.coverImageUrl ? (
                                   <Image src={climb.manifest.coverImageUrl} alt={climb.manifest.climbName} fill className="object-cover transition duration-200 group-hover:scale-[1.02]" sizes="(max-width: 768px) 50vw, 20vw" unoptimized />
@@ -148,7 +151,7 @@ export default function OfflineLibraryClient() {
                               <div className="p-3">
                                 <p className="line-clamp-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{climb.manifest.climbName}</p>
                               </div>
-                            </Link>
+                            </a>
                           ))}
                         </div>
                       </div>
@@ -168,7 +171,7 @@ export default function OfflineLibraryClient() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {standaloneClimbs.map((climb) => {
                   return (
-                    <Link key={climb.climbId} href={climb.manifest.canonicalPath || climb.manifest.pageUrl} className="group overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
+                    <a key={climb.climbId} href={climb.manifest.canonicalPath || climb.manifest.pageUrl} className="group overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
                       <div className="aspect-[4/3] bg-gray-200 dark:bg-gray-800">
                         {climb.manifest.coverImageUrl ? (
                           <Image src={climb.manifest.coverImageUrl} alt={climb.manifest.climbName} fill className="object-cover transition duration-200 group-hover:scale-[1.02]" sizes="(max-width: 768px) 100vw, 33vw" unoptimized />
@@ -179,7 +182,7 @@ export default function OfflineLibraryClient() {
                         <p className="text-sm text-gray-500 dark:text-gray-400">{climb.manifest.mediaCount} photo{climb.manifest.mediaCount === 1 ? '' : 's'} · {formatBytes(climb.manifest.estimatedBytes)}</p>
                         <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{climb.ownerPackIds.length > 1 ? 'Shared across packs' : 'Saved directly'}</p>
                       </div>
-                    </Link>
+                    </a>
                   )
                 })}
               </div>
