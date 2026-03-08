@@ -6,7 +6,11 @@ import type { StoredClimbManifest, StoredCragManifest } from '@/lib/offline/stor
 import { listOfflinePacksForLaunch } from '@/lib/offline/packs'
 
 function getOfflineClimbLaunchHref(climb: StoredClimbManifest) {
-  return climb.manifest.canonicalPath || climb.manifest.pageUrl
+  return `/climb/${climb.climbId}`
+}
+
+function getOfflineCragLaunchHref(crag: StoredCragManifest) {
+  return `/crag/${crag.cragId}`
 }
 
 interface OfflineLibraryState {
@@ -73,6 +77,10 @@ export default function OfflineLibraryClient() {
     return grouped
   }, [state.climbs, state.crags])
 
+  const openOfflineHref = (href: string) => {
+    window.location.assign(href)
+  }
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef2f7_100%)] px-4 py-10 text-gray-900 dark:bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.15),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#111827_100%)] dark:text-gray-100">
       <div className="mx-auto max-w-5xl">
@@ -134,9 +142,10 @@ export default function OfflineLibraryClient() {
                 {state.crags.map((crag) => {
                   const childClimbs = nestedCragClimbs.get(crag.cragId) || []
                   const coverImageUrl = crag.manifest.savedPins?.[0]?.coverImageUrl || null
+                  const launchHref = getOfflineCragLaunchHref(crag)
                   return (
                     <article key={crag.cragId} className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                      <a href={crag.manifest.canonicalPath} className="block">
+                      <button type="button" onClick={() => openOfflineHref(launchHref)} className="block w-full text-left">
                         <div className="relative aspect-[16/8] bg-gray-200 dark:bg-gray-800">
                           {coverImageUrl ? (
                             <Image src={coverImageUrl} alt={`${crag.manifest.cragName} cover`} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 50vw" unoptimized />
@@ -148,7 +157,7 @@ export default function OfflineLibraryClient() {
                             <p className="mt-1 text-xs text-white/80">{childClimbs.length} saved climb{childClimbs.length === 1 ? '' : 's'} · {formatBytes(crag.manifest.estimatedBytes)}</p>
                           </div>
                         </div>
-                      </a>
+                      </button>
 
                       <div className="space-y-3 p-4">
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
