@@ -488,6 +488,22 @@ export default function CragPageClient({
 
     async function loadCrag() {
       const offlineOnly = typeof navigator !== 'undefined' && navigator.onLine === false
+      const offlinePayloads = await getStoredCragClimbPayloads(id)
+      const applyOfflineHydratedState = () => {
+        if (ignore || offlinePayloads.length === 0) return false
+        const hydrated = hydrateOfflineCragData(offlinePayloads)
+        setImages(hydrated.images)
+        setRoutes(hydrated.routes)
+        setOfflineCragImageCards(hydrated.imageCards)
+        setIsOfflineCragMode(true)
+        setRoutesLoadState('loaded')
+        setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
+        setCrag(initialCrag)
+        setCragCenter(hydrated.cragCenter)
+        setLoading(false)
+        return true
+      }
+
       const cached = cragImageCache.get(id)
       if (cached && Date.now() - cached.cachedAt <= CRAG_IMAGE_CACHE_TTL_MS) {
         setCrag(cached.crag)
@@ -502,22 +518,8 @@ export default function CragPageClient({
       setRoutes([])
       setRoutesLoadState('idle')
 
-      if (offlineOnly) {
-        const offlinePayloads = await getStoredCragClimbPayloads(id)
-        if (offlinePayloads.length > 0) {
-          if (ignore) return
-          const hydrated = hydrateOfflineCragData(offlinePayloads)
-          setImages(hydrated.images)
-          setRoutes(hydrated.routes)
-          setOfflineCragImageCards(hydrated.imageCards)
-          setIsOfflineCragMode(true)
-          setRoutesLoadState('loaded')
-          setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
-          setCrag(initialCrag)
-          setCragCenter(hydrated.cragCenter)
-          setLoading(false)
-          return
-        }
+      if (offlineOnly && applyOfflineHydratedState()) {
+        return
       }
 
       const supabase = createClient()
@@ -559,19 +561,7 @@ export default function CragPageClient({
           { data: supplementaryImageIdsData, error: supplementaryImageIdsError },
         ] = await Promise.all([cragPromise, imagesPromise, supplementaryImageIdsPromise])
       } catch (error) {
-        const offlinePayloads = await getStoredCragClimbPayloads(id)
-        if (offlinePayloads.length > 0) {
-          if (ignore) return
-          const hydrated = hydrateOfflineCragData(offlinePayloads)
-          setImages(hydrated.images)
-          setRoutes(hydrated.routes)
-          setOfflineCragImageCards(hydrated.imageCards)
-          setIsOfflineCragMode(true)
-          setRoutesLoadState('loaded')
-          setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
-          setCrag(initialCrag)
-          setCragCenter(hydrated.cragCenter)
-          setLoading(false)
+        if (applyOfflineHydratedState()) {
           return
         }
 
@@ -579,6 +569,7 @@ export default function CragPageClient({
       }
 
       if (cragError || !cragData) {
+        if (applyOfflineHydratedState()) return
         if (ignore) return
         console.error('Error fetching crag:', cragError)
         setLoading(false)
@@ -615,6 +606,10 @@ export default function CragPageClient({
       const primaryImagesData = (imagesData || []).filter(
         (img: { id: string; url: string }) => !supplementaryImageIds.has(img.id) && !supplementaryImageUrls.has(img.url)
       )
+
+      if ((imagesError || supplementaryImageIdsError || primaryImagesData.length === 0) && applyOfflineHydratedState()) {
+        return
+      }
 
       const formattedImages: ImageData[] = primaryImagesData.map((img: {
         id: string
@@ -748,18 +743,21 @@ export default function CragPageClient({
 
     async function loadRoutesForFilters() {
       const offlineOnly = typeof navigator !== 'undefined' && navigator.onLine === false
+      const offlinePayloads = await getStoredCragClimbPayloads(id)
+      const applyOfflineRoutes = () => {
+        if (ignore || offlinePayloads.length === 0) return false
+        const hydrated = hydrateOfflineCragData(offlinePayloads)
+        setRoutes(hydrated.routes)
+        setOfflineCragImageCards(hydrated.imageCards)
+        setIsOfflineCragMode(true)
+        setRoutesLoadState('loaded')
+        return true
+      }
+
       setRoutesLoadState('loading')
 
-      if (offlineOnly) {
-        const offlinePayloads = await getStoredCragClimbPayloads(id)
-        if (!ignore && offlinePayloads.length > 0) {
-          const hydrated = hydrateOfflineCragData(offlinePayloads)
-          setRoutes(hydrated.routes)
-          setOfflineCragImageCards(hydrated.imageCards)
-          setIsOfflineCragMode(true)
-          setRoutesLoadState('loaded')
-          return
-        }
+      if (offlineOnly && applyOfflineRoutes()) {
+        return
       }
 
       const supabase = createClient()
@@ -787,13 +785,7 @@ export default function CragPageClient({
         climbsData = response.data
         climbsError = response.error
       } catch (error) {
-        const offlinePayloads = await getStoredCragClimbPayloads(id)
-        if (!ignore && offlinePayloads.length > 0) {
-          const hydrated = hydrateOfflineCragData(offlinePayloads)
-          setRoutes(hydrated.routes)
-          setOfflineCragImageCards(hydrated.imageCards)
-          setIsOfflineCragMode(true)
-          setRoutesLoadState('loaded')
+        if (applyOfflineRoutes()) {
           return
         }
         throw error
@@ -802,8 +794,13 @@ export default function CragPageClient({
       if (ignore) return
 
       if (climbsError) {
+        if (applyOfflineRoutes()) return
         console.error('Error fetching climbs:', climbsError)
         setRoutesLoadState('error')
+        return
+      }
+
+      if ((!climbsData || climbsData.length === 0) && applyOfflineRoutes()) {
         return
       }
 
