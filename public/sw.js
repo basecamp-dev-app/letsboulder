@@ -223,13 +223,21 @@ async function handleShellFetch(request) {
       await shellCache.put(request, response.clone())
     }
     return response
-  } catch (error) {
+  } catch {
     if (request.mode === 'navigate' && url.pathname === OFFLINE_LAUNCH_URL) {
       const fallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LAUNCH_URL))
       if (fallback) return fallback
     }
 
-    throw error
+    if (request.mode === 'navigate') {
+      const offlineLibraryFallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LIBRARY_URL))
+      if (offlineLibraryFallback) return offlineLibraryFallback
+
+      const homeFallback = await matchShellRequest(toSameOriginRequest(HOME_URL))
+      if (homeFallback) return homeFallback
+    }
+
+    return Response.error()
   }
 }
 

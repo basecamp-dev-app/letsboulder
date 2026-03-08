@@ -504,6 +504,14 @@ export default function CragPageClient({
         return true
       }
 
+      setImages([])
+      setRoutes([])
+      setOfflineCragImageCards([])
+      setIsOfflineCragMode(false)
+      setDefaultRouteTargetByImageId({})
+      setHighlightedImageId(null)
+      setCragCenter(null)
+
       const cached = cragImageCache.get(id)
       if (cached && Date.now() - cached.cachedAt <= CRAG_IMAGE_CACHE_TTL_MS) {
         setCrag(cached.crag)
@@ -515,7 +523,6 @@ export default function CragPageClient({
         setLoading(true)
       }
 
-      setRoutes([])
       setRoutesLoadState('idle')
 
       if (offlineOnly && applyOfflineHydratedState()) {
