@@ -1842,7 +1842,13 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
               {cragPath ? (
                 <button
                   type="button"
-                  onClick={() => router.push(cragPath)}
+                  onClick={() => {
+                    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                      window.location.assign(cragPath)
+                      return
+                    }
+                    router.push(cragPath)
+                  }}
                   className="rounded-lg border border-amber-700/30 px-3 py-2 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 dark:border-amber-300/20 dark:text-amber-100 dark:hover:bg-amber-900/40"
                 >
                   Back to crag

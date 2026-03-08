@@ -178,9 +178,9 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
           </div>
           <div className="flex items-center gap-2">
             {cragPath ? (
-              <Link href={cragPath} className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors">
+              <a href={cragPath} className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors">
                 View crag
-              </Link>
+              </a>
             ) : null}
             <button onClick={onOpenOffline} disabled={!offlinePackAvailable} className="px-3 py-1.5 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
               {isOfflineSaved ? 'Saved offline' : 'Save offline'}

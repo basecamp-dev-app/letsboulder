@@ -157,6 +157,8 @@ async function handleShellFetch(request) {
   const cached = await matchShellRequest(request)
   if (cached) return cached
 
+  const url = new URL(request.url)
+
   try {
     const response = await fetch(request)
     if (response.ok) {
@@ -165,7 +167,7 @@ async function handleShellFetch(request) {
     }
     return response
   } catch (error) {
-    if (request.mode === 'navigate') {
+    if (request.mode === 'navigate' && url.pathname === OFFLINE_LAUNCH_URL) {
       const fallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LAUNCH_URL))
       if (fallback) return fallback
     }
@@ -338,11 +340,15 @@ self.addEventListener('fetch', (event) => {
       const cached = await cache.match(request)
       if (cached) return cached
 
-      const response = await fetch(request)
-      if (response.ok) {
-        await cache.put(request, response.clone())
+      try {
+        const response = await fetch(request)
+        if (response.ok) {
+          await cache.put(request, response.clone())
+        }
+        return response
+      } catch {
+        return new Response('', { status: 504, statusText: 'Offline media unavailable' })
       }
-      return response
     })())
     return
   }
@@ -353,11 +359,15 @@ self.addEventListener('fetch', (event) => {
       const cached = await cache.match(request)
       if (cached) return cached
 
-      const response = await fetch(request)
-      if (response.ok) {
-        await cache.put(request, response.clone())
+      try {
+        const response = await fetch(request)
+        if (response.ok) {
+          await cache.put(request, response.clone())
+        }
+        return response
+      } catch {
+        return new Response('', { status: 504, statusText: 'Offline tile unavailable' })
       }
-      return response
     })())
     return
   }
