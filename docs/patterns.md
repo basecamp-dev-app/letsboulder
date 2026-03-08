@@ -32,8 +32,9 @@ export default function RouteCanvas() {
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
 
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.scale(dpr, dpr)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
     if (pathRef.current) {
       ctx.stroke(pathRef.current)
@@ -112,16 +113,25 @@ interface ExtractResult {
   gps: GPSData | null
 }
 
-async function extractAndStripGPS(file: File): Promise<ExtractResult> {
+async function extractAndStripGPS(file: File, uploadJpeg: File): Promise<ExtractResult> {
   const data = await exifr.parse(file, { gps: true })
   const gps = data?.latitude && data?.longitude
     ? { lat: data.latitude, lng: data.longitude }
     : null
 
-  const buffer = await file.arrayBuffer()
-  const stripped = piexif.remove(new TextDecoder().decode(buffer))
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => typeof reader.result === 'string'
+      ? resolve(reader.result)
+      : reject(new Error('Failed to read upload image'))
+    reader.onerror = () => reject(new Error('Failed to read upload image'))
+    reader.readAsDataURL(uploadJpeg)
+  })
 
-  return { blob: new Blob([stripped], { type: file.type }), gps }
+  const stripped = piexif.remove(dataUrl)
+  const blob = await fetch(stripped).then((response) => response.blob())
+
+  return { blob, gps }
 }
 ```
 
@@ -148,34 +158,23 @@ self.onmessage = async (e: MessageEvent<File>) => {
 
 // lib/heic-converter.ts
 'use client'
-import { useRef, useEffect } from 'react'
+export async function convertHeicToJpegBlob(file: Blob): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL('../workers/heic.worker.ts', import.meta.url))
 
-export function useHeicConverter() {
-  const workerRef = useRef<Worker | null>(null)
+    worker.onmessage = (event: MessageEvent<{ ok: boolean; blob?: Blob; error?: string }>) => {
+      worker.terminate()
+      if (event.data.ok && event.data.blob) resolve(event.data.blob)
+      else reject(new Error(event.data.error || 'HEIC conversion failed'))
+    }
 
-  useEffect(() => {
-    workerRef.current = new Worker(
-      new URL('./heic.worker.ts', import.meta.url)
-    )
-    return () => workerRef.current?.terminate()
-  }, [])
+    worker.onerror = () => {
+      worker.terminate()
+      reject(new Error('HEIC worker failed'))
+    }
 
-  async function convertHEIC(file: File): Promise<Blob> {
-    return new Promise((resolve, reject) => {
-      if (!workerRef.current) {
-        reject(new Error('Worker not initialized'))
-        return
-      }
-
-      workerRef.current.onmessage = (e: MessageEvent<Blob>) => {
-        resolve(e.data)
-      }
-      workerRef.current.onerror = (e) => reject(e)
-      workerRef.current.postMessage(file)
-    })
-  }
-
-  return { convertHEIC }
+    worker.postMessage(file)
+  })
 }
 ```
 
@@ -225,7 +224,7 @@ const french = getGradeDisplay(5, 'french_equivalent') // → '7a'
 ### Known Edge Cases
 - **Range grades:** Use `gradeMappings` from `@/lib/grades` as single source of truth for V ↔ Font ↔ YDS ↔ French ↔ British
 - **Nuance handling:** Normalize inputs: V4/5 → V4, V5+ → V5, V5- → V4, V5? → V5 (project)
-- **Out of range:** Grades outside 4A-9C+ return null; handle gracefully
+- **Public boundaries:** Use `@/lib/grade-constants` for user-facing valid/selectable grades (`4A-9C+`); `@/lib/grades` may still contain broader internal mappings
 
 ---
 
@@ -242,9 +241,7 @@ async function downloadCragTiles(urls: string[], cragId: string, concurrency = 5
     while (queue.length) {
       const url = queue.shift()!
       try {
-        const res = await fetch(url, {
-          headers: { 'User-Agent': 'letsboulder.com (contact@letsboulder.com)' }
-        })
+        const res = await fetch(url)
         if (res.ok) await cache.put(url, res)
       } catch {}
     }
@@ -285,7 +282,7 @@ export function DownloadOfflineButton({ cragId, bounds }: { cragId: string, boun
 - **Update detection:** Check last_modified to prompt for re-download
 - **Cache invalidation:** Use versioned cache names; clean old versions on update
 - **Network-first vs Cache-first:** Routes = network-first, media = cache-first, downloaded tiles = cache-only
-- **OSM Compliance:** Always include contact email in User-Agent header. For production, consider self-hosted tile server to avoid violating OSM Tile Usage Policy
+- **OSM Compliance:** Browser fetch cannot reliably override `User-Agent`; handle provider compliance server-side and consider a self-hosted tile server for production scale
 
 ---
 

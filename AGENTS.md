@@ -7,13 +7,13 @@
 </environment>
 
 <constraint>
-  Use 'SEARCH/REPLACE' blocks for file edits.
+  Prefer targeted minimal patches/search-replace style edits over broad rewrites.
   Do not output more than 10 lines of unchanged code surrounding a fix.
 </constraint>
 
 <forbidden_actions>
   - DO NOT use relative imports. ALWAYS use `@/`.
-  - Prioritize Database['public']['Tables'][...] types from supabase gen types. 
+  - Prioritize Database['public']['Tables'][...] types from supabase gen types for DB rows and query surfaces; app-level mapped view models are acceptable when they improve readability.
   - DO NOT use `any`. Use `unknown` + Type Guard for non-DB payloads.
   - DO NOT commit `console.log`.
   - Prefer Server Actions for app-owned UI mutations. Use Route Handlers for public API, offline/service worker, webhook, or integration flows; use `csrfFetch` only with those Route Handlers.
@@ -28,7 +28,7 @@
   - VISUAL_LANGUAGE: Preserve the existing rounded letsboulder visual system. Do not assume a global hard-edge or zero-radius style.
 </component_governance>
 
-- NEVER skip 'supabase gen types' after schema changes; the agent must verify types against the new schema before writing UI code.
+- NEVER skip 'supabase gen types' after schema changes; update `types/database.ts` and verify affected app types against the new schema before writing UI code.
 
 ## Build Commands
 
