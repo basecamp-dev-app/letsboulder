@@ -370,6 +370,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   const [offlineBudgetBytes, setOfflineBudgetBytes] = useState(250 * 1024 * 1024)
   const [zoom, setZoom] = useState(MIN_VIEWER_ZOOM)
   const [pan, setPan] = useState<PanOffset>({ x: 0, y: 0 })
+  const [hasMounted, setHasMounted] = useState(false)
   const emblaDragEnabled = zoom <= MIN_VIEWER_ZOOM
   const [emblaRef, emblaApi] = useEmblaCarousel({
     axis: 'x',
@@ -560,6 +561,10 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
       block: 'nearest',
       inline: 'center',
     })
+  }, [])
+
+  useEffect(() => {
+    setHasMounted(true)
   }, [])
 
   useEffect(() => {
@@ -1650,8 +1655,9 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   }
 
   const isWaitingForClimbHydration = !!climbPackData && !image && !error && !climbPackError
+  const isWaitingForInitialClientMount = !hasMounted && !image && !error && !climbPackError
 
-  if (isClimbPackLoading || isApplyingClimbPack || isWaitingForClimbHydration) {
+  if (isClimbPackLoading || isApplyingClimbPack || isWaitingForClimbHydration || isWaitingForInitialClientMount) {
     return <ClimbPageSkeleton />
   }
 
