@@ -1,10 +1,11 @@
 'use client'
 
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import Image from 'next/image'
-import { useRouteSelection, RoutePoint, generateRouteId, findRouteAtPoint } from '@/lib/useRouteSelection'
+import { useRouteSelection, RoutePoint, generateRouteId } from '@/lib/useRouteSelection'
 import { 
-  drawSmoothCurve, 
+  createSmoothCurvePath,
+  drawSmoothCurve,
   drawRoundedLabel,
   getTruncatedText,
   getGradeLabelPosition,
@@ -162,6 +163,7 @@ export default function RouteCanvas({
         grade: rl.climb?.grade || '6A',
         name: rl.climb?.name || `Route ${index + 1}`,
         description: rl.climb?.description || undefined,
+        climbType: rl.climb?.route_type || undefined,
         image_width: rl.image_width,
         image_height: rl.image_height,
       }))
@@ -206,6 +208,16 @@ export default function RouteCanvas({
     ? existingRoutes.find(route => route.id === selectedIds[0]) ?? null
     : null
   const editableRoute = isEditExistingMode ? (selectedExistingRoute || selectedNewRoute) : selectedNewRoute
+  const existingRoutePaths = useMemo(() => new Map(
+    existingRoutes.map((route) => [route.id, createSmoothCurvePath(route.points)])
+  ), [existingRoutes])
+  const completedRoutePaths = useMemo(() => new Map(
+    completedRoutes.map((route) => [route.id, createSmoothCurvePath(route.points)])
+  ), [completedRoutes])
+  const currentRoutePath = useMemo(
+    () => createSmoothCurvePath(currentPoints),
+    [currentPoints]
+  )
 
   const updateSelectedNewRoute = useCallback((updates: Partial<ExistingRoute>) => {
     if (!selectedNewRoute) return
@@ -263,6 +275,44 @@ export default function RouteCanvas({
     }
   }, [zoom, pan])
 
+  const getCanvasDisplaySize = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+
+    const width = canvas.clientWidth
+    const height = canvas.clientHeight
+
+    if (width === 0 || height === 0) return null
+
+    return { width, height }
+  }, [])
+
+  const getRouteAtPoint = useCallback((point: RoutePoint) => {
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx) return null
+
+    const routeGroups = [
+      [...completedRoutes].reverse().map((route) => ({ route, path: completedRoutePaths.get(route.id) ?? null, hitWidth: 20 })),
+      [...existingRoutes].reverse().map((route) => ({ route, path: existingRoutePaths.get(route.id) ?? null, hitWidth: 20 })),
+    ]
+
+    for (const group of routeGroups) {
+      for (const entry of group) {
+        if (!entry.path) continue
+        ctx.save()
+        ctx.lineWidth = entry.hitWidth
+        const isHit = ctx.isPointInStroke(entry.path, point.x, point.y)
+        ctx.restore()
+        if (isHit) {
+          return entry.route
+        }
+      }
+    }
+
+    return null
+  }, [completedRoutes, completedRoutePaths, existingRoutes, existingRoutePaths])
+
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       setIsPanning(true)
@@ -284,8 +334,7 @@ export default function RouteCanvas({
         return
       }
 
-      const allRoutes = [...existingRoutes, ...completedRoutes]
-      const clickedRoute = findRouteAtPoint(allRoutes, pos, 20)
+      const clickedRoute = getRouteAtPoint(pos)
 
       if (clickedRoute) {
         const routeId = clickedRoute.id
@@ -305,7 +354,7 @@ export default function RouteCanvas({
         setCurrentPoints(prev => [...prev, pos])
       }
     }
-  }, [getMousePos, isDrawingInProgress, getDragHandleIndex, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, existingRoutes, completedRoutes, selectRoute, clearSelection])
+  }, [getMousePos, isDrawingInProgress, getDragHandleIndex, getRouteAtPoint, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, selectRoute, clearSelection])
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
@@ -353,7 +402,7 @@ export default function RouteCanvas({
 
     const touch = e.changedTouches[0]
     const canvas = canvasRef.current
-    if (!canvas || canvas.width === 0 || canvas.height === 0 || !touch) return
+    if (!canvas || canvas.clientWidth === 0 || canvas.clientHeight === 0 || !touch) return
 
     const rect = canvas.getBoundingClientRect()
     const canvasX = (touch.clientX - rect.left - pan.x) / zoom
@@ -364,8 +413,7 @@ export default function RouteCanvas({
       return
     }
 
-    const allRoutes = [...existingRoutes, ...completedRoutes]
-    const clickedRoute = findRouteAtPoint(allRoutes, { x: canvasX, y: canvasY }, 20)
+    const clickedRoute = getRouteAtPoint({ x: canvasX, y: canvasY })
 
     if (clickedRoute) {
       const routeId = clickedRoute.id
@@ -384,7 +432,7 @@ export default function RouteCanvas({
     } else {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
     }
-  }, [canvasReady, zoom, pan, pinchStartZoom, draggingPointIndex, isDrawingInProgress, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, existingRoutes, completedRoutes, selectRoute, clearSelection])
+  }, [canvasReady, zoom, pan, pinchStartZoom, draggingPointIndex, isDrawingInProgress, getRouteAtPoint, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, selectRoute, clearSelection])
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
@@ -509,7 +557,8 @@ export default function RouteCanvas({
       points: currentPoints,
       name: routeName,
       grade: currentGrade,
-      description: trimmedDescription || undefined
+      description: trimmedDescription || undefined,
+      climbType: currentClimbType,
     }
 
     setCompletedRoutes(prev => [...prev, route])
@@ -518,7 +567,7 @@ export default function RouteCanvas({
     setCurrentGrade('6A')
     setCurrentDescription('')
     selectRoute(routeId)
-  }, [currentPoints, currentName, currentGrade, currentDescription, completedRoutes, selectRoute])
+  }, [currentPoints, currentName, currentGrade, currentClimbType, currentDescription, completedRoutes, selectRoute])
 
   const handleDeleteSelected = useCallback(() => {
     setCompletedRoutes(prev => prev.filter(route => !selectedIds.includes(route.id)))
@@ -530,16 +579,23 @@ export default function RouteCanvas({
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
 
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
     existingRoutes.forEach(route => {
       const isSelected = selectedIds.includes(route.id)
       const lineColor = isEditExistingMode ? (isSelected ? '#fbbf24' : '#ef4444') : (isSelected ? '#fbbf24' : '#9ca3af')
       const lineWidth = isEditExistingMode ? (isSelected ? 4 : 3) : (isSelected ? 3 : 2)
+      const routePath = existingRoutePaths.get(route.id) ?? null
 
       ctx.shadowColor = isSelected ? '#fbbf24' : '#6b7280'
       ctx.shadowBlur = isSelected ? 8 : 2
-      drawSmoothCurve(ctx, route.points, lineColor, lineWidth, isEditExistingMode ? [8, 4] : [4, 4])
+      if (routePath) {
+        drawSmoothCurve(ctx, routePath, lineColor, lineWidth, isEditExistingMode ? [8, 4] : [4, 4])
+      }
       ctx.shadowBlur = 0
 
       if (route.points.length > 1 && isSelected) {
@@ -567,15 +623,18 @@ export default function RouteCanvas({
 
     completedRoutes.forEach(route => {
       const isSelected = selectedIds.includes(route.id)
+      const routePath = completedRoutePaths.get(route.id) ?? null
 
-      if (isSelected) {
+      if (isSelected && routePath) {
         ctx.shadowColor = '#fbbf24'
         ctx.shadowBlur = 10
-        drawSmoothCurve(ctx, route.points, '#fbbf24', 4)
+        drawSmoothCurve(ctx, routePath, '#fbbf24', 4)
         ctx.shadowBlur = 0
       }
 
-      drawSmoothCurve(ctx, route.points, '#dc2626', isSelected ? 4 : 3, [8, 4])
+      if (routePath) {
+        drawSmoothCurve(ctx, routePath, '#dc2626', isSelected ? 4 : 3, [8, 4])
+      }
 
       if (isSelected) {
         route.points.forEach((point, index) => {
@@ -609,11 +668,13 @@ export default function RouteCanvas({
       })
 
       if (currentPoints.length > 1) {
-        drawSmoothCurve(ctx, currentPoints, '#3b82f6', 2, [5, 5])
+        if (currentRoutePath) {
+          drawSmoothCurve(ctx, currentRoutePath, '#3b82f6', 2, [5, 5])
+        }
       }
 
-      if (currentPoints.length > 1 && currentGrade && currentName) {
-        drawSmoothCurve(ctx, currentPoints, '#3b82f6', 3, [8, 4])
+      if (currentPoints.length > 1 && currentGrade && currentName && currentRoutePath) {
+        drawSmoothCurve(ctx, currentRoutePath, '#3b82f6', 3, [8, 4])
 
         const gradePos = getGradeLabelPosition(currentPoints)
         drawRoundedLabel(ctx, getGradeDisplay(currentGrade, currentClimbType), gradePos.x, gradePos.y, 'rgba(59, 130, 246, 0.95)', 'bold 14px Arial')
@@ -623,7 +684,7 @@ export default function RouteCanvas({
         drawRoundedLabel(ctx, truncatedName, namePos.x, namePos.y, 'rgba(59, 130, 246, 0.95)', '12px Arial')
       }
     }
-  }, [completedRoutes, currentPoints, currentGrade, currentName, currentClimbType, existingRoutes, selectedIds, isEditExistingMode, getGradeDisplay])
+  }, [completedRoutePaths, completedRoutes, currentPoints, currentGrade, currentName, currentClimbType, currentRoutePath, existingRoutePaths, existingRoutes, selectedIds, isEditExistingMode, getGradeDisplay])
 
   useEffect(() => {
     if (imageLoaded) {
@@ -632,14 +693,14 @@ export default function RouteCanvas({
   }, [imageLoaded, redraw])
 
   const normalizeCanvasPoints = useCallback((points: RoutePoint[]) => {
-    const canvas = canvasRef.current
-    if (!canvas || canvas.width === 0 || canvas.height === 0) return points
+    const canvasDisplaySize = getCanvasDisplaySize()
+    if (!canvasDisplaySize) return points
 
     return points.map((point) => ({
-      x: Math.min(1, Math.max(0, point.x / canvas.width)),
-      y: Math.min(1, Math.max(0, point.y / canvas.height)),
+      x: Math.min(1, Math.max(0, point.x / canvasDisplaySize.width)),
+      y: Math.min(1, Math.max(0, point.y / canvasDisplaySize.height)),
     }))
-  }, [])
+  }, [getCanvasDisplaySize])
 
   const getNormalizedCompletedRoutes = useCallback((): NewRouteData[] => {
     if (!imageDimensions) return []
@@ -675,7 +736,7 @@ export default function RouteCanvas({
     if (!isEditExistingMode || !imageDimensions || !onEditRoutesUpdate || !canvasReady) return
 
     const canvas = canvasRef.current
-    if (!canvas || canvas.width < 32 || canvas.height < 32) return
+    if (!canvas || canvas.clientWidth < 32 || canvas.clientHeight < 32) return
 
     onEditRoutesUpdate(existingRoutes.map((route) => ({
       id: route.id,
@@ -703,6 +764,7 @@ export default function RouteCanvas({
       imageHeight: imageDimensions.naturalHeight,
       imageNaturalWidth: imageDimensions.naturalWidth,
       imageNaturalHeight: imageDimensions.naturalHeight,
+      climbType: currentClimbType as ClimbType,
     }])
 
     setCurrentPoints([])
@@ -710,7 +772,7 @@ export default function RouteCanvas({
     setCurrentGrade('6A')
     setCurrentDescription('')
     clearSelection()
-  }, [canCreateRoutesInEditMode, onSaveNewRoutes, imageDimensions, currentPoints, currentDescription, currentName, existingRoutes.length, currentGrade, normalizeCanvasPoints, clearSelection])
+  }, [canCreateRoutesInEditMode, onSaveNewRoutes, imageDimensions, currentPoints, currentDescription, currentName, existingRoutes.length, currentGrade, currentClimbType, normalizeCanvasPoints, clearSelection])
 
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -772,12 +834,20 @@ export default function RouteCanvas({
 
     previousCanvasSizeRef.current = { width: displayedWidth, height: displayedHeight }
 
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+
     canvas.style.left = offsetX + 'px'
     canvas.style.top = offsetY + 'px'
-    canvas.width = displayedWidth
-    canvas.height = displayedHeight
+    canvas.width = Math.round(displayedWidth * dpr)
+    canvas.height = Math.round(displayedHeight * dpr)
     canvas.style.width = displayedWidth + 'px'
     canvas.style.height = displayedHeight + 'px'
+
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    }
+
     setCanvasReady(true)
     redraw()
   }, [redraw, zoom])
@@ -801,6 +871,20 @@ export default function RouteCanvas({
     window.addEventListener('resize', setupCanvas)
     return () => window.removeEventListener('resize', setupCanvas)
   }, [setupCanvas])
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        redraw()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [redraw])
 
   useEffect(() => {
     if (!imageLoaded || typeof ResizeObserver === 'undefined') return
