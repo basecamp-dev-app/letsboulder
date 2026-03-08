@@ -124,36 +124,6 @@ export async function POST(request: NextRequest) {
               <p style="margin:0 0 32px; color:#52525b; line-height:1.6; font-size:15px;">
                 Whether you're here to track your progress, discover new routes, or contribute to our growing database, we're excited to have you join us.
               </p>
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom:24px;">
-                <tr>
-                  <td style="background-color:#f4f4f5; border-radius:8px; padding:20px;">
-                    <p style="margin:0 0 8px; font-size:14px; font-weight:600; color:#18181b;">Upload Routes</p>
-                    <p style="margin:0 0 12px; color:#52525b; line-height:1.5; font-size:13px;">
-                      Share new climbs by uploading GPS-enabled photos. Your routes will be visible on the map after submission, and once they receive 3 community verifications, they'll be marked as verified.
-                    </p>
-                    <p style="margin:0; color:#52525b; line-height:1.5; font-size:13px;">
-                      Head to <a href="${appUrl}/submit" style="color:#2563eb; text-decoration:underline;">${appUrl}/submit</a> to get started.
-                    </p>
-                  </td>
-                </tr>
-              </table>
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom:24px;">
-                <tr>
-                  <td style="background-color:#f4f4f5; border-radius:8px; padding:20px;">
-                    <p style="margin:0 0 8px; font-size:14px; font-weight:600; color:#18181b;">Join Our Community</p>
-                    <p style="margin:0 0 12px; color:#52525b; line-height:1.5; font-size:13px;">
-                      Connect with fellow climbers, share your discoveries, and help grow the community.
-                    </p>
-                    <table role="presentation" border="0" cellspacing="0" cellpadding="0">
-                      <tr>
-                        <td style="border-radius:6px; background-color:#5865F2;">
-                          <a href="https://discord.gg/vzAEMr2qrY" style="display:block; padding:12px 24px; color:#ffffff; text-decoration:none; font-weight:500; font-size:14px;">Join Discord</a>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
               <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin-bottom:24px;">
                 <tr>
                   <td style="border-radius:6px; background-color:#18181b;">
@@ -171,8 +141,7 @@ export async function POST(request: NextRequest) {
             <td style="background-color:#f4f4f5; padding:20px 32px; text-align:center; border-top:1px solid:#e4e4e7;">
               <p style="margin:0 0 8px; color:#71717a; font-size:12px;">
                 <a href="${appUrl}/about" style="color:#71717a; text-decoration:underline;">About</a> &nbsp;|&nbsp; 
-                <a href="${appUrl}/map" style="color:#71717a; text-decoration:underline;">Map</a> &nbsp;|&nbsp; 
-                <a href="https://discord.gg/vzAEMr2qrY" style="color:#71717a; text-decoration:underline;">Discord</a>
+                <a href="${appUrl}/map" style="color:#71717a; text-decoration:underline;">Map</a>
               </p>
               <p style="margin:0; color:#a1a1aa; font-size:11px;">letsboulder - Built by climbers, for climbers</p>
             </td>
