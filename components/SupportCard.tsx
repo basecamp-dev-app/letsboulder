@@ -30,17 +30,6 @@ export default function SupportCard({ compact = false }: SupportCardProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className={compact ? 'space-y-4' : 'space-y-5'}>
-        <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-          <p>
-            letsboulder is free to use and will stay that way. If it helps you find climbs, log sends, or give back to the community, you can chip in if you want to.
-          </p>
-          {!compact && (
-            <p className="text-gray-600 dark:text-gray-400">
-              No paywall. No ads. No pressure. Just a simple way to help cover hosting, storage, maps, and ongoing development.
-            </p>
-          )}
-        </div>
-
         <div className="rounded-xl border border-emerald-100 bg-white/80 p-4 shadow-sm dark:border-emerald-900/50 dark:bg-gray-950/50">
           <div className="mb-2 flex items-center justify-between gap-3 text-sm">
             <span className="font-medium text-gray-900 dark:text-gray-100">Monthly server costs</span>
