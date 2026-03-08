@@ -82,6 +82,13 @@ export default function OfflineLibraryClient() {
             <div className="flex gap-3">
               <button
                 type="button"
+                onClick={() => window.location.assign('/offline')}
+                className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Back
+              </button>
+              <button
+                type="button"
                 onClick={() => window.location.assign('/')}
                 className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
               >
