@@ -1,360 +1,212 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
-  description: 'Learn how letsboulder collects, uses, and protects your personal information. Our privacy policy covers data collection, cookies, analytics, and your privacy rights.',
-  keywords: ['privacy policy', 'data protection', 'GDPR', 'cookie policy', 'personal data'],
+  description: 'Learn how letsboulder collects, uses, stores, and shares personal data, including account, location, image, and community activity information.',
+  keywords: ['privacy policy', 'data protection', 'GDPR', 'CCPA', 'cookies'],
 }
 
 export default function PrivacyPage() {
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100">
+    <div className="container mx-auto max-w-3xl px-4 py-8">
+      <h1 className="mb-8 text-3xl font-bold text-gray-900 dark:text-gray-100">
         Privacy Policy
       </h1>
 
-      <div className="prose dark:prose-invert max-w-none">
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          <strong>Last Updated:</strong> January 2026
+      <div className="prose max-w-none dark:prose-invert">
+        <p className="mb-6 text-gray-600 dark:text-gray-400">
+          <strong>Last Updated:</strong> March 2026
         </p>
 
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            1. Introduction
+        <section className="mb-8 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900/50">
+          <h2 className="mt-0 text-xl font-semibold text-gray-900 dark:text-gray-100">
+            Plain-Language Summary
           </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            Welcome to letsboulder. We are a bouldering logbook web application that helps climbers track their ascents, discover new climbs, and compete on leaderboards.
-          </p>
-          <p className="text-gray-700 dark:text-gray-300 mt-2">
-            This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our website and services.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            2. Information We Collect
-          </h2>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            2.1 Information You Provide Directly
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-2">
-            <strong>Account Information:</strong> Email address, username, profile picture, first/last name (optional), gender (optional)
-          </p>
-          <p className="text-gray-700 dark:text-gray-300">
-            <strong>Climbing Data:</strong> Climbs you log (grade, status, date, location), photos you upload, crag information you add
-          </p>
-
-          <h3 className="text-lg font-medium mt-4 mb-2 text-gray-900 dark:text-gray-100">
-            2.2 Information Collected Automatically
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300">
-            Usage data, IP address, browser type, operating system, cookies, and similar tracking technologies. We may collect anonymous usage metrics to help us understand how users interact with our app.
-          </p>
-
-          <h3 className="text-lg font-medium mt-4 mb-2 text-gray-900 dark:text-gray-100">
-            2.3 Location Data
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-2">
-            We collect location information for climbing routes and crags:
-          </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
-            <li>GPS coordinates from uploaded photos (extracted from EXIF metadata)</li>
-            <li>Crag locations you add or verify</li>
-            <li>Your default location preference (stored in account settings)</li>
-            <li>Map interaction data for route discovery</li>
-          </ul>
-          <p className="text-gray-700 dark:text-gray-300">
-            Location data is displayed publicly on our interactive map and is essential
-            to the core functionality of letsboulder.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            3. How We Use Your Information
-          </h2>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 space-y-1">
-            <li>Create and manage your account</li>
-            <li>Record and display your climbing logbook</li>
-            <li>Show your climbing statistics and progress</li>
-            <li>Display your profile on leaderboards</li>
-            <li>Allow you to search and discover climbs on the map</li>
-            <li>Enable you to contribute new climbs and crag information</li>
-            <li>Improve our services and analyze usage patterns</li>
-            <li>Comply with legal obligations</li>
+          <ul className="mb-0 list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li>letsboulder helps climbers log ascents, upload climbing photos, discover routes, and use community features.</li>
+            <li>We collect account details, profile details, climbing activity, uploaded media, location-related data, and limited technical usage data.</li>
+            <li>Some content is public by design, including route submissions, map data, public profiles, and community posts.</li>
+            <li>You can ask us to access, correct, delete, or export your personal data by emailing hello@letsboulder.com.</li>
+            <li>letsboulder is operated by Patrick William Hadow trading as letsboulder, an individual / sole trader based in the United Kingdom.</li>
           </ul>
         </section>
 
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            4. Information Sharing
-          </h2>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            4.1 Public Information
-          </h3>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">1. Who We Are</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            Your username, profile picture (if uploaded), and climbing statistics are displayed publicly on leaderboards.
+            letsboulder is operated by Patrick William Hadow trading as letsboulder, an individual / sole trader based in the United Kingdom.
           </p>
-
-          <h3 className="text-lg font-medium mt-4 mb-2 text-gray-900 dark:text-gray-100">
-            4.2 Service Providers
-          </h3>
           <p className="text-gray-700 dark:text-gray-300">
-            We use Supabase for authentication/database and Vercel for hosting. These services have access to information necessary to perform their functions.
-          </p>
-
-          <h3 className="text-lg font-medium mt-4 mb-2 text-gray-900 dark:text-gray-100">
-            4.3 Legal Requirements
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300">
-            We may disclose information if required by law or to protect our rights and safety.
+            If you have privacy questions or want to exercise your rights, contact <a href="mailto:hello@letsboulder.com" className="underline">hello@letsboulder.com</a>.
           </p>
         </section>
 
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            5. Data Security
-          </h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">2. Scope</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            We implement appropriate technical and organizational measures to protect your information. However, no method of transmission over the Internet is 100% secure.
+            This Privacy Policy applies to letsboulder.com, our web app, account services, map features, route submissions, community features, transactional emails, and related support interactions.
           </p>
         </section>
 
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            6. Data Retention
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            We retain your information for as long as your account is active. You may delete your logged climbs at any time. After account deletion, your data is removed within 30 days.
-          </p>
-        </section>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">3. Personal Data We Collect</h2>
 
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            7. Your Rights
-          </h2>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 space-y-1">
-            <li>Access and correct your personal information</li>
-            <li>Request deletion of your account and data</li>
-            <li>Download a copy of your data at any time through your account settings</li>
-            <li>Opt out of leaderboard display (leave username blank)</li>
-          </ul>
-          <p className="text-gray-700 dark:text-gray-300 mt-4">
-            Your data will be permanently removed within 30 days of account deletion.
-          </p>
-
-          <h3 className="text-lg font-medium mt-6 mb-2 text-gray-900 dark:text-gray-100">
-            7.1 Additional Rights (GDPR - EU/EEA Users)
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            If you are located in the European Union or European Economic Area, you
-            have additional rights under the General Data Protection Regulation (GDPR):
-          </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
-            <li><strong>Right of Access:</strong> You can request a copy of all personal
-              data we hold about you</li>
-            <li><strong>Right to Rectification:</strong> You can request correction of
-              inaccurate or incomplete personal data</li>
-            <li><strong>Right to Erasure:</strong> You can request deletion of your
-              account and all associated data</li>
-            <li><strong>Right to Restriction of Processing:</strong> You can request
-              that we limit how we use your data</li>
-            <li><strong>Right to Data Portability:</strong> You can request a copy of
-              your data in a machine-readable format</li>
-            <li><strong>Right to Object:</strong> You can object to processing based
-              on legitimate interests or direct marketing</li>
-          </ul>
-          <p className="text-gray-700 dark:text-gray-300">
-            To exercise any of these rights, contact us at <a href="mailto:hello@letsboulder.com" className="underline">hello@letsboulder.com</a>. We will respond within 30 days.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            8. Cookies
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            We use cookies for authentication and preferences. You can control cookies through your browser settings.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            9. Analytics
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            We may collect anonymous usage metrics to understand how users interact with our application. This helps us improve our services by showing us aggregate usage patterns.
-          </p>
-          <p className="text-gray-700 dark:text-gray-300 mt-2">
-            You can opt out of analytics tracking by contacting us at <a href="mailto:hello@letsboulder.com" className="underline">hello@letsboulder.com</a>.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            10. Children&apos;s Privacy
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            letsboulder is not intended for children under 13. We do not knowingly collect information from children under 13.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            11. Changes to This Policy
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            We may update this policy from time to time. We will notify you of material changes by posting the new policy on this page.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            12. Contact Us
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300 mb-2">
-            letsboulder is operated by:
-          </p>
-          <p className="text-gray-700 dark:text-gray-300 font-medium mb-4">
-            letsboulder<br />
-            United Kingdom
-          </p>
-          <p className="text-gray-700 dark:text-gray-300">
-            If you have questions about this Privacy Policy or your data, please contact us at{' '}
-            <a href="mailto:hello@letsboulder.com" className="underline">
-              hello@letsboulder.com
-            </a>
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            13. International Data Transfers
-          </h2>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            13.1 Data Storage Location
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            Your personal data is primarily stored and processed in the European Union
-            through Supabase&apos;s EU-based infrastructure.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            13.2 Analytics Transfers
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            If we use third-party analytics vendors, some analytics data may be processed
-            outside the EU/UK under appropriate safeguards.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            13.3 UK Adequacy
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            For users in the United Kingdom, data transfers comply with UK data
-            protection laws and UK adequacy decisions for EU/US data transfers.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            13.4 Data Protection
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300">
-            We ensure adequate protections are in place when transferring data outside
-            the EU/UK, including SCCs and other appropriate safeguards as required
-            by applicable data protection laws.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            14. California Privacy Rights
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            If you are a California resident, you have specific rights under the
-            California Consumer Privacy Act (CCPA):
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            14.1 Information We Collect
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            We collect the following categories of personal information:
-          </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
-            <li>Identifiers (username, email, IP address)</li>
-            <li>Geolocation data (GPS coordinates from uploads)</li>
-            <li>Activity data (climbs logged, routes submitted)</li>
-            <li>Profile information</li>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">3.1 Data You Provide Directly</h3>
+          <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li>Account data such as email address, sign-in method, username, and avatar.</li>
+            <li>Profile data such as first name, last name, bio, gender, height, reach, grade preferences, units, theme preference, and contribution credit handles.</li>
+            <li>Climbing data such as ascents, grades, votes, verifications, corrections, route submissions, comments, community posts, RSVPs, reports, and flags.</li>
+            <li>Uploaded content such as photos, route images, and related text.</li>
           </ul>
 
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            14.2 Your Rights
-          </h3>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
-            <li>Right to know what personal information we collect</li>
-            <li>Right to request deletion of your personal information</li>
-            <li>Right to opt-out of sale of personal information (we do not sell data)</li>
-            <li>Right to non-discrimination for exercising your rights</li>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">3.2 Location and Image Metadata</h3>
+          <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li>GPS coordinates extracted from image metadata where present.</li>
+            <li>Crag and route coordinates that you submit, edit, or verify.</li>
+            <li>Default map location preferences saved in your account.</li>
           </ul>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            14.3 Do Not Sell
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            letsboulder does not sell your personal information to third parties.
+          <p className="text-gray-700 dark:text-gray-300">
+            Location information is core to how letsboulder works. If you upload an image with location metadata, that metadata may be used to help place climbing content on the map before metadata is stripped from the stored file.
           </p>
 
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            14.4 Exercise Your Rights
-          </h3>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">3.3 Data Collected Automatically</h3>
+          <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li>IP address, browser type, operating system, referral information, timestamps, and request logs.</li>
+            <li>Session identifiers, cookies, CSRF/security tokens, local storage values, and limited offline cache data.</li>
+            <li>Limited product analytics and performance data.</li>
+          </ul>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">4. How We Use Personal Data</h2>
+          <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li>To create and secure accounts.</li>
+            <li>To run maps, route discovery, logbooks, rankings, and community features.</li>
+            <li>To process, display, moderate, and store uploaded climbing content.</li>
+            <li>To detect abuse, spam, fraud, unsafe uploads, and policy violations.</li>
+            <li>To send transactional emails such as sign-in, welcome, and account deletion confirmations.</li>
+            <li>To improve product reliability, performance, and usability.</li>
+            <li>To comply with legal obligations and resolve disputes.</li>
+          </ul>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">5. Lawful Bases (GDPR / UK GDPR)</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            To submit a request, email hello@letsboulder.com with &quot;CCPA Request&quot; in
-            the subject line. We will verify your identity before processing.
+            We rely on the following lawful bases where applicable:
+          </p>
+          <ul className="list-disc space-y-2 pl-5 text-gray-700 dark:text-gray-300">
+            <li><strong>Contract:</strong> to provide the letsboulder services you request, including account access, climbing logs, route submissions, and community features.</li>
+            <li><strong>Legitimate interests:</strong> to keep letsboulder secure, moderate unsafe or abusive content, maintain route quality, prevent fraud, improve reliability, and maintain important operational audit trails.</li>
+            <li><strong>Consent:</strong> where consent is required by law for specific processing activities.</li>
+            <li><strong>Legal obligation:</strong> where we must retain or disclose data to comply with law, regulation, or legal claims.</li>
+          </ul>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">6. Public Information</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            letsboulder includes public and community-facing features. Depending on your settings and actions, other users or the public may see your username, avatar, public profile details, route submissions, climbing content, comments, community posts, and map-related climbing data.
           </p>
         </section>
 
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            15. Image Retention After Deletion
-          </h2>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            15.1 Deletion Options
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            When you delete your account, you may choose:
-          </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
-            <li>Delete my account and all my image uploads</li>
-            <li>Delete my account but keep my image uploads (attributed to &quot;[anonymous]&quot;)</li>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">7. Sharing and Third Parties</h2>
+          <p className="text-gray-700 dark:text-gray-300">We use third-party providers to operate letsboulder, including:</p>
+          <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li><strong>Supabase</strong> for authentication, database services, and storage.</li>
+            <li><strong>Vercel</strong> for hosting and infrastructure.</li>
+            <li><strong>Vercel Analytics</strong> for limited analytics.</li>
+            <li><strong>Resend</strong> for transactional email delivery.</li>
+            <li><strong>AWS Rekognition</strong> for image moderation and safety checks.</li>
           </ul>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            15.2 Third-Party Content
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            If you have shared images from letsboulder to social media or other platforms:
-          </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
-            <li>We cannot remove images from those platforms</li>
-            <li>We cannot delete cached copies or reposts</li>
-            <li>You are responsible for contacting those platforms directly</li>
-          </ul>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            15.3 Retention Period
-          </h3>
           <p className="text-gray-700 dark:text-gray-300">
-            Images retained on letsboulder after account deletion remain visible until:
+            We may also disclose information where required by law, to respond to legal process, or to protect rights, safety, and the integrity of the service.
           </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1">
-            <li>You subsequently request their removal</li>
-            <li>Content is removed for policy violations</li>
-            <li>letsboulder ceases operations</li>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">8. Cookies, Local Storage, and Similar Technologies</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            We use cookies and similar technologies for authentication, session continuity, security, storing preferences, and limited analytics. We also use local storage and offline/browser storage for app state, CSRF handling, and product features.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            For more detail, see our <Link href="/cookies" className="underline">Cookie Policy</Link>. You can also control many cookies through your browser settings.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">9. International Transfers</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            Your data may be processed in the United Kingdom, European Economic Area, United States, or other countries where our providers operate. Where required, we rely on appropriate safeguards for international transfers.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">10. Data Retention</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            We keep personal data only for as long as reasonably necessary for the purposes described in this policy. Account and profile data are generally kept while your account is active. Uploaded files, submissions, and community content may be deleted, anonymized, or retained depending on the feature and the deletion option you select.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            We may retain limited records of completed deletions, security events, moderation decisions, or legal requests where reasonably necessary for compliance, fraud prevention, or dispute handling.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">11. Your Privacy Rights</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            Depending on your location, you may have rights to access, correct, delete, restrict, object to certain processing, withdraw consent, and request a portable copy of your personal data.
+          </p>
+          <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li><strong>Right to be forgotten:</strong> you can request deletion of your account and associated personal data, subject to lawful exceptions.</li>
+            <li><strong>Data portability:</strong> you can request a copy of your personal data in a structured, commonly used, machine-readable format by emailing us.</li>
+            <li><strong>Correction:</strong> you can update some profile details in settings and contact us to correct other data.</li>
           </ul>
+          <p className="text-gray-700 dark:text-gray-300">
+            To exercise your rights, email <a href="mailto:hello@letsboulder.com" className="underline">hello@letsboulder.com</a>. We may need to verify your identity before completing some requests.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">12. Account Deletion</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            letsboulder provides an account deletion flow. When you delete your account, we may delete your profile, avatar, account access, and related user records. For route uploads, you may be offered a choice to delete the uploads or keep some content on letsboulder without personal attribution.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            We may keep limited deletion audit records and other information that must be retained for security, fraud prevention, legal compliance, or dispute resolution.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">13. California Privacy Rights</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            If you are a California resident, you may have rights to know, access, correct, delete, and receive information about the categories of personal information we collect, the sources of that information, the purposes for collection, and the categories of recipients.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            We do not sell personal information for money. To submit a California privacy request, email <a href="mailto:hello@letsboulder.com" className="underline">hello@letsboulder.com</a> with the subject line &quot;California Privacy Request&quot;.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">14. Children&apos;s Privacy</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            letsboulder is not directed to children under 13, and we do not knowingly collect personal information from children under 13. If you believe a child has provided personal data to us in violation of this policy, contact us and we will investigate and, where appropriate, delete the data.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">15. Security</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            We use reasonable technical and organizational safeguards to protect personal data. No system is completely secure, and we cannot guarantee absolute security.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">16. Changes to This Policy</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            We may update this Privacy Policy from time to time. If changes are material, we may post notice in the app or request renewed acceptance before continued use of certain features.
+          </p>
         </section>
       </div>
     </div>

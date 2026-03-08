@@ -2,380 +2,179 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Terms of Service',
-  description: 'Terms of Service for letsboulder. Read our terms governing the use of our bouldering logbook platform, including user conduct, content policies, and liability disclaimers.',
+  description: 'Terms of Service for letsboulder covering user accounts, community content, climbing risk, safety disclaimers, and legal responsibilities.',
   keywords: ['terms of service', 'terms and conditions', 'user agreement', 'climbing safety'],
 }
 
 export default function TermsPage() {
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100">
+    <div className="container mx-auto max-w-3xl px-4 py-8">
+      <h1 className="mb-8 text-3xl font-bold text-gray-900 dark:text-gray-100">
         Terms of Service
       </h1>
 
-      <div className="prose dark:prose-invert max-w-none">
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          <strong>Last Updated:</strong> January 2026
+      <div className="prose max-w-none dark:prose-invert">
+        <p className="mb-6 text-gray-600 dark:text-gray-400">
+          <strong>Last Updated:</strong> March 2026
         </p>
 
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            1. Acceptance of Terms
+        <section className="mb-8 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900/50">
+          <h2 className="mt-0 text-xl font-semibold text-gray-900 dark:text-gray-100">
+            Plain-Language Summary
           </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            By accessing or using letsboulder, you agree to be bound by these Terms of Service and all applicable laws and regulations. If you do not agree with any part of these terms, you may not use our service.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            2. Description of Service
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            letsboulder is a bouldering logbook web application that allows users to track their climbing ascents, discover new climbs on a map, contribute climb information, and view climbing leaderboards.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            3. User Accounts
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            To use certain features of letsboulder, you must create an account. You are responsible for:
-          </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1">
-            <li>Maintaining the confidentiality of your account credentials</li>
-            <li>All activities that occur under your account</li>
-            <li>Providing accurate and complete information when creating your account</li>
-            <li>Notifying us immediately of any unauthorized use of your account</li>
+          <ul className="mb-0 list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li>letsboulder is a climbing map, logbook, route submission, and community platform.</li>
+            <li>Climbing is inherently dangerous, and information on letsboulder may be incomplete, inaccurate, or out of date.</li>
+            <li>You are responsible for your own safety, access checks, partners, equipment, and decisions.</li>
+            <li>You keep ownership of content you upload, but you give letsboulder permission to host and display it to operate the service.</li>
+            <li>We may remove content, suspend accounts, or restrict access to protect users, landowners, and the platform.</li>
           </ul>
         </section>
 
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            4. User Conduct
-          </h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">1. Operator</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            When using letsboulder, you agree NOT to:
+            These Terms are a legal agreement between you and Patrick William Hadow trading as letsboulder, an individual / sole trader based in the United Kingdom.
           </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1">
-            <li>Upload false or inaccurate climb information</li>
-            <li>Impersonate any person or entity</li>
-            <li>Harass, abuse, or harm other users</li>
-            <li>Upload viruses or malicious code</li>
-            <li>Attempt to gain unauthorized access to our systems</li>
-            <li>Use the service for any illegal or unauthorized purpose</li>
-            <li>Disrupt or interfere with the normal operation of the service</li>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">2. Acceptance and Eligibility</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            By accessing or using letsboulder, you agree to these Terms. If you do not agree, do not use the service.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            letsboulder is not intended for children under 13. If local law requires a higher digital consent age, you must meet that age or use the service only with valid parent or guardian authorization.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">3. The Service</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            letsboulder provides climbing maps, route beta, logbooks, rankings, route submissions, images, and community features for climbers.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">4. Accounts</h2>
+          <p className="text-gray-700 dark:text-gray-300">You are responsible for:</p>
+          <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li>keeping your login details secure;</li>
+            <li>ensuring your account information is accurate;</li>
+            <li>activity that occurs under your account; and</li>
+            <li>promptly telling us about suspected unauthorized access.</li>
           </ul>
         </section>
 
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            5. User-Generated Content
-          </h2>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            5.1 Ownership
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            You retain full ownership of all images and content you upload to letsboulder.
-            By uploading, you confirm you have the right to share and license these images
-            as described below.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            5.2 letsboulder Display Rights
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            You grant letsboulder a non-exclusive, worldwide, royalty-free
-            license to display, host, and showcase your images in connection with the
-            service, including on the public map, in other users&apos; logbooks, and across
-            the platform.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            5.4 Image Removal
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-2">
-            You may request removal of your images from letsboulder at any time.
-          </p>
-          <p className="text-gray-700 dark:text-gray-300">
-            You are responsible for contacting third-party platforms directly if you
-            have shared content from letsboulder to those platforms.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            5.5 Account Deletion and Image Options
-          </h3>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
-            <li>You may request removal of your images from letsboulder at any time</li>
-            <li>Once images are shared to social media by other users, we cannot remove
-              them from those platforms or any third-party sites</li>
-            <li>You are responsible for contacting third-party platforms directly to
-              request removal of shared content</li>
-          </ul>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            5.5 Account Deletion and Image Options
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-2">
-            When deleting your account, you may choose:
-          </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1">
-            <li>Delete my account and all my image uploads</li>
-            <li>Delete my account but keep my image uploads (attribution preserved as
-              &quot;[anonymous]&quot;)</li>
-          </ul>
-
-          <p className="text-gray-700 dark:text-gray-300 mt-4">
-            You are solely responsible for the content you submit and must have the
-            right to share it.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            6. Leaderboards and Rankings
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            Leaderboards display user statistics based on logged climbs. We calculate rankings based on the data provided by users. We reserve the right to modify, remove, or reset any leaderboard data that appears to be inaccurate or fraudulent.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            7. Intellectual Property
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            All content and materials on letsboulder, including but not limited to logos, graphics, code, and design, are the property of letsboulder or its licensors and are protected by copyright and other intellectual property laws.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            8. Disclaimer of Warranties
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            letsboulder is provided &quot;as is&quot; and &quot;as available&quot; without any warranties of any kind, express or implied. We do not warrant that the service will be uninterrupted, timely, secure, or error-free.
-          </p>
-          <p className="text-gray-700 dark:text-gray-300 mt-2 mb-2">
-            <strong>Climbing is inherently dangerous.</strong>
-          </p>
-          <p className="text-gray-700 dark:text-gray-300">
-            Route information on letsboulder may be incomplete, inaccurate, or outdated.
-            You are responsible for assessing conditions, verifying anchors and equipment,
-            and prioritizing your own safety. We are not responsible for any injuries,
-            accidents, or damages that may occur while using climb information from our service.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            10. Limitation of Liability
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            To the maximum extent permitted by law, letsboulder shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly, or any loss of data, use, goodwill, or other intangible losses resulting from your use of the service.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            11. Termination
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            We may terminate or suspend your account and access to the service at our sole discretion, without prior notice, for conduct that we believe violates these Terms of Service or is harmful to other users, us, or third parties.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            12. Changes to Terms
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">
-            We reserve the right to modify or replace these Terms at any time. If a revision is material, we will provide notice prior to any new terms taking effect. Your continued use of the service after any changes constitutes acceptance of the new terms.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            14. Contact Information
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300 mb-2">
-            letsboulder is operated by:
-          </p>
-          <p className="text-gray-700 dark:text-gray-300 font-medium mb-4">
-            letsboulder<br />
-            United Kingdom
-          </p>
-          <p className="text-gray-700 dark:text-gray-300">
-            If you have any questions about these Terms, please contact us at <a href="mailto:hello@letsboulder.com" className="underline">hello@letsboulder.com</a>.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            15. Age Restrictions
-          </h2>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            15.1 Minimum Age
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            letsboulder is not intended for users under 13 years of age. By using our
-            service, you confirm you are at least 13 years old.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            15.2 EU/EEA Users
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            For users in the European Union/European Economic Area, you must be at least
-            16 years old, or the age of digital consent in your country, with parental
-            or guardian consent if required.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            15.3 Parental Notice
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300">
-            If you are a parent or guardian of a child under the minimum age, please
-            contact us at hello@letsboulder.com to request deletion of any account created
-            in violation of these age restrictions.
-          </p>
-        </section>
-
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            16. Indemnification
-          </h2>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            16.1 Climbing Risks
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            Climbing is an inherently dangerous activity. By using letsboulder, you
-            acknowledge that:
-          </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
-            <li>Outdoor climbing involves risks including falls, equipment failure,
-              weather conditions, and other hazards</li>
-            <li>Route information on letsboulder may be incomplete, inaccurate, or outdated</li>
-            <li>You are responsible for assessing conditions and your own safety</li>
-          </ul>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            16.2 User Responsibility
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            You agree to:
-          </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1 mb-4">
-            <li>Use good judgment and prioritize your safety</li>
-            <li>Verify route conditions, anchor points, and safety equipment</li>
-            <li>Never climb beyond your ability</li>
-            <li>Obtain proper instruction and training</li>
-          </ul>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            16.3 Limitation of Liability
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            To the maximum extent permitted by applicable law, letsboulder shall not
-            be liable for any injury, death, property damage, or other harm arising
-            from your use of climbing information from our service.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            16.4 Indemnification
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-2">
-            You agree to indemnify, defend, and hold harmless letsboulder, its operators,
-            directors, employees, and agents from any claims, damages, losses, or
-            expenses (including reasonable legal fees) arising from:
-          </p>
-          <ul className="list-disc pl-5 text-gray-700 dark:text-gray-300 mt-2 space-y-1">
-            <li>Your climbing activities</li>
-            <li>Your violation of these Terms of Service</li>
-            <li>Your violation of any third-party rights</li>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">5. Community Rules</h2>
+          <p className="text-gray-700 dark:text-gray-300">You must not:</p>
+          <ul className="list-disc space-y-1 pl-5 text-gray-700 dark:text-gray-300">
+            <li>upload false, dangerous, misleading, or intentionally unsafe climbing information;</li>
+            <li>impersonate another person or entity;</li>
+            <li>harass, abuse, threaten, stalk, or discriminate against others;</li>
+            <li>upload content you do not own or have permission to share;</li>
+            <li>upload malicious code or attempt unauthorized access;</li>
+            <li>post illegal, hateful, sexually explicit, or violent content; or</li>
+            <li>interfere with the normal operation of the service.</li>
           </ul>
         </section>
 
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            17. Third-Party Services
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            letsboulder uses the following third-party services to operate our platform:
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            17.1 Supabase (supabase.com)
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            Authentication and user management, database hosting and data storage.
-            Privacy Policy: https://supabase.com/privacy
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            17.2 Vercel (vercel.com)
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            Web hosting and infrastructure.
-            Privacy Policy: https://vercel.com/legal/privacy-policy
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            17.3 Resend (resend.com)
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            Email delivery services.
-            Privacy Policy: https://resend.com/privacy
-          </p>
-
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">6. User Content</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            These services have access to data necessary to perform their functions
-            and are bound by their own privacy policies and data processing agreements.
+            You keep ownership of the content you upload. By uploading content, you grant letsboulder a non-exclusive, worldwide, royalty-free license to host, store, reproduce, adapt for technical delivery, display, and distribute that content as needed to operate, improve, and promote the service.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            You represent that you have the rights and permissions needed to upload the content and that sharing it does not violate the rights of others.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            If you delete your account, some uploaded route content may be deleted or may remain on letsboulder without personal attribution depending on the deletion option available at the time.
           </p>
         </section>
 
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            18. Dispute Resolution
-          </h2>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            18.1 Governing Law
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            These Terms shall be governed by and construed in accordance with the laws
-            of England and Wales, without regard to conflict of law principles.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            18.2 Jurisdiction
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            Any disputes arising from these Terms or your use of letsboulder shall be
-            subject to the exclusive jurisdiction of the courts of England and Wales.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            18.3 Arbitration
-          </h3>
-          <p className="text-gray-700 dark:text-gray-300 mb-4">
-            If you are located outside the United Kingdom, any dispute, controversy, or claim
-            arising out of or relating to these Terms shall be settled by binding arbitration
-            in accordance with the rules of a mutually agreed arbitration institution.
-            The seat of arbitration shall be London, England, and the language of the
-            arbitration shall be English.
-          </p>
-
-          <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">
-            18.4 Injunctive Relief
-          </h3>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">7. Moderation and Removal</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            Notwithstanding the above, we reserve the right to seek injunctive relief
-            in any competent court to prevent irreparable harm.
+            We may review, moderate, reject, remove, anonymize, preserve, or restrict content or accounts where reasonably necessary to enforce these Terms, respond to complaints, address safety concerns, protect landowners or access arrangements, or protect the service and its users.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">8. Climbing Safety and Assumption of Risk</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            Climbing, bouldering, spotting, route development, and visiting outdoor climbing areas are inherently dangerous activities that can cause serious injury, permanent disability, or death.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            By using letsboulder, you acknowledge and agree that route descriptions, grades, names, access details, approach information, photo topos, and conditions may be incomplete, inaccurate, outdated, or wrong. Natural rock, anchors, pads, landings, weather, tides, vegetation, erosion, and human changes can change without notice.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            You are solely responsible for assessing risks, checking land access permissions, evaluating conditions, choosing partners, selecting and inspecting equipment, obtaining instruction where needed, and deciding whether to climb or travel.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            letsboulder does not provide professional guiding, rescue, engineering, land-access, or safety advice. You assume all risks arising from your use of the service and from any decisions you make in reliance on user-submitted information.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">9. No Warranty</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            letsboulder is provided &quot;as is&quot; and &quot;as available&quot; without warranties of any kind, to the fullest extent permitted by law. We do not guarantee that the service will always be available, secure, accurate, or error-free.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">10. Limitation of Liability</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            To the fullest extent permitted by law, letsboulder and its operator will not be liable for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for injury, death, property damage, lost profits, lost data, business interruption, or similar losses arising out of or related to your use of the service, your climbing or travel activities, your reliance on route or map information, user content, or third-party conduct.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            Nothing in these Terms excludes liability that cannot lawfully be excluded.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">11. Indemnity</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            You agree to indemnify and hold harmless letsboulder and its operator from claims, losses, liabilities, damages, and expenses, including reasonable legal fees, arising from your use of the service, your content, your climbing or access-related conduct, or your violation of these Terms or third-party rights.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">12. Third-Party Services</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            letsboulder relies on third-party services including Supabase, Vercel, Vercel Analytics, Resend, and AWS Rekognition. Their services are subject to their own terms and privacy practices.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">13. Suspension and Termination</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            We may suspend, restrict, or terminate your account or access to content if we reasonably believe you violated these Terms, created safety risk, exposed us to legal risk, or harmed the community or the service.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">14. Changes to the Service and Terms</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            We may change or discontinue features at any time. We may also update these Terms from time to time. If changes are material, we may provide notice in the app or request renewed acceptance before continued use of certain features.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">15. Governing Law and Disputes</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            These Terms are governed by the laws of England and Wales, unless mandatory consumer protection law requires otherwise. Courts of England and Wales will have jurisdiction, except where mandatory law gives you the right to bring claims elsewhere.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">16. Contact</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            If you have questions about these Terms, contact <a href="mailto:hello@letsboulder.com" className="underline">hello@letsboulder.com</a>.
+          </p>
+          <p className="text-gray-700 dark:text-gray-300">
+            letsboulder is operated by Patrick William Hadow trading as letsboulder, an individual / sole trader based in the United Kingdom.
           </p>
         </section>
       </div>
