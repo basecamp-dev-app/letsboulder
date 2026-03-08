@@ -162,8 +162,13 @@ export default function OfflineLibraryClient() {
                       <div className="space-y-3 p-4">
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                           {childClimbs.map((climb) => (
-                            <a key={climb.climbId} href={getOfflineClimbLaunchHref(climb)} className="group overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 transition hover:border-gray-300 hover:bg-white dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700 dark:hover:bg-gray-900">
-                              <div className="aspect-[4/3] bg-gray-200 dark:bg-gray-800">
+                            <button
+                              key={climb.climbId}
+                              type="button"
+                              onClick={() => openOfflineHref(getOfflineClimbLaunchHref(climb))}
+                              className="group overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 text-left transition hover:border-gray-300 hover:bg-white dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700 dark:hover:bg-gray-900"
+                            >
+                              <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
                                 {climb.manifest.coverImageUrl ? (
                                   <Image src={climb.manifest.coverImageUrl} alt={climb.manifest.climbName} fill className="object-cover transition duration-200 group-hover:scale-[1.02]" sizes="(max-width: 768px) 50vw, 20vw" unoptimized />
                                 ) : null}
@@ -171,7 +176,7 @@ export default function OfflineLibraryClient() {
                               <div className="p-3">
                                 <p className="line-clamp-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{climb.manifest.climbName}</p>
                               </div>
-                            </a>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -191,8 +196,13 @@ export default function OfflineLibraryClient() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {standaloneClimbs.map((climb) => {
                   return (
-                    <a key={climb.climbId} href={getOfflineClimbLaunchHref(climb)} className="group overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
-                      <div className="aspect-[4/3] bg-gray-200 dark:bg-gray-800">
+                    <button
+                      key={climb.climbId}
+                      type="button"
+                      onClick={() => openOfflineHref(getOfflineClimbLaunchHref(climb))}
+                      className="group overflow-hidden rounded-3xl border border-gray-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700"
+                    >
+                      <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
                         {climb.manifest.coverImageUrl ? (
                           <Image src={climb.manifest.coverImageUrl} alt={climb.manifest.climbName} fill className="object-cover transition duration-200 group-hover:scale-[1.02]" sizes="(max-width: 768px) 100vw, 33vw" unoptimized />
                         ) : null}
@@ -202,7 +212,7 @@ export default function OfflineLibraryClient() {
                         <p className="text-sm text-gray-500 dark:text-gray-400">{climb.manifest.mediaCount} photo{climb.manifest.mediaCount === 1 ? '' : 's'} · {formatBytes(climb.manifest.estimatedBytes)}</p>
                         <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{climb.ownerPackIds.length > 1 ? 'Shared across packs' : 'Saved directly'}</p>
                       </div>
-                    </a>
+                    </button>
                   )
                 })}
               </div>

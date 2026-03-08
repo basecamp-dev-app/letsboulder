@@ -233,6 +233,9 @@ async function handleShellFetch(request) {
     }
 
     if (request.mode === 'navigate') {
+      const offlineLibraryFallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LIBRARY_URL))
+      if (offlineLibraryFallback) return offlineLibraryFallback
+
       const homeFallback = await matchShellRequest(toSameOriginRequest(HOME_URL))
       if (homeFallback) return homeFallback
     }
