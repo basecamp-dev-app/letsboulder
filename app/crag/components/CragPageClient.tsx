@@ -1039,6 +1039,7 @@ export default function CragPageClient({
     ? offlinePreview.usageBytes - (offlinePreview.existingPack?.estimatedBytes || 0) + (offlinePreview.deltaBytes || 0)
     : 0
   const overOfflineBudget = !!offlinePreview && projectedUsage > offlinePreview.budgetBytes
+  const canSaveCragOffline = !offlineDialogLoading && !offlinePreviewLoading && !overOfflineBudget && !offlinePreview?.isUpToDate
 
   const handleOpenOfflineDialog = async () => {
     setOfflineDialogOpen(true)
@@ -1046,10 +1047,6 @@ export default function CragPageClient({
   }
 
   const handleSaveCragOffline = async () => {
-    if (!offlinePreview) {
-      await refreshCragOfflinePreview()
-      return
-    }
     setOfflineDialogLoading(true)
     setOfflineProgress(null)
 
@@ -1063,8 +1060,8 @@ export default function CragPageClient({
       })
       await result.completed
       await refreshCragOfflinePreview()
-      setToast(offlinePreview.existingPack ? 'Offline crag pack updated' : 'Crag saved for offline use')
-      setTimeout(() => setToast(null), 2500)
+      setToast(result.warning || (offlinePreview?.existingPack ? 'Offline crag pack updated' : 'Crag saved for offline use'))
+      setTimeout(() => setToast(null), 3000)
     } catch (error) {
       console.error('Failed to save crag offline pack:', error)
       setToast(error instanceof Error ? error.message : 'Failed to save crag offline pack')
@@ -1712,7 +1709,7 @@ export default function CragPageClient({
                 {offlinePreviewLoading ? 'Retrying...' : 'Retry'}
               </Button>
             )}
-            <Button onClick={handleSaveCragOffline} disabled={offlineDialogLoading || offlinePreviewLoading || !offlinePreview || overOfflineBudget || offlinePreview.isUpToDate}>
+            <Button onClick={handleSaveCragOffline} disabled={!canSaveCragOffline}>
               {offlineDialogLoading ? 'Syncing...' : offlinePreview?.existingPack ? 'Update offline pack' : 'Download crag'}
             </Button>
           </DialogFooter>
