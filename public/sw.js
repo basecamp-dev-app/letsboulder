@@ -6,12 +6,13 @@ const MEDIA_CACHE = 'offline-media-v2'
 const TILE_CACHE = 'offline-tiles-v2'
 const TRANSIENT_CACHE = 'runtime-transient-v2'
 const OFFLINE_LAUNCH_URL = '/offline'
+const OFFLINE_LIBRARY_URL = '/offline/library'
 const HOME_URL = '/'
 const MANIFEST_URL = '/manifest.json'
 const LOGO_URL = '/logo.png'
 const OFFLINE_JOB_CHANNEL = 'offline-pack-jobs'
 const ACTIVE_CACHES = [SHELL_CACHE, PACK_CACHE, MEDIA_CACHE, TILE_CACHE, TRANSIENT_CACHE]
-const SHELL_ROUTES = [HOME_URL, OFFLINE_LAUNCH_URL, MANIFEST_URL, LOGO_URL]
+const SHELL_ROUTES = [HOME_URL, OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, MANIFEST_URL, LOGO_URL]
 
 function toSameOriginRequest(url) {
   return new Request(url, { credentials: 'same-origin' })
@@ -33,7 +34,7 @@ async function cacheRequests(cacheName, requests) {
 
 async function collectShellAssetRequests() {
   const requests = new Map()
-  const shellPages = [HOME_URL, OFFLINE_LAUNCH_URL]
+  const shellPages = [HOME_URL, OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL]
 
   for (const pageUrl of shellPages) {
     try {
@@ -67,6 +68,7 @@ self.addEventListener('install', (event) => {
     await installShell()
     const cache = await caches.open(PACK_CACHE)
     await cache.add(toSameOriginRequest(OFFLINE_LAUNCH_URL))
+    await cache.add(toSameOriginRequest(OFFLINE_LIBRARY_URL))
     await cache.add(toSameOriginRequest(HOME_URL))
     await self.skipWaiting()
   })())
@@ -196,7 +198,7 @@ self.addEventListener('message', (event) => {
         const pack = message.payload || {}
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []
         const tileUrls = Array.isArray(pack.tileUrls) ? pack.tileUrls : []
-        const packUrls = [OFFLINE_LAUNCH_URL, HOME_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
+        const packUrls = [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
         await cacheUrls(PACK_CACHE, packUrls)
         await cacheUrls(MEDIA_CACHE, mediaUrls)
         await cacheUrls(TILE_CACHE, tileUrls)
@@ -235,7 +237,7 @@ self.addEventListener('message', (event) => {
           totalBytes,
         })
 
-        await cacheUrls(PACK_CACHE, [OFFLINE_LAUNCH_URL, HOME_URL, payload.canonicalPath, payload.manifestUrl].filter(Boolean))
+        await cacheUrls(PACK_CACHE, [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, payload.canonicalPath, payload.manifestUrl].filter(Boolean))
         await cacheUrls(TILE_CACHE, tileUrls, { concurrency: 4 })
 
         for (const climb of climbs) {
@@ -330,6 +332,7 @@ self.addEventListener('fetch', (event) => {
   const isOfflineTileRequest = url.pathname.startsWith('/api/offline-tiles/')
   const isPackRequest = url.pathname.startsWith('/api/offline-packs/climbs/') || url.pathname.startsWith('/api/offline-packs/crags/')
   const isOfflineLaunch = request.mode === 'navigate' && url.pathname === OFFLINE_LAUNCH_URL
+  const isOfflineLibrary = request.mode === 'navigate' && url.pathname === OFFLINE_LIBRARY_URL
   const isClimbPage = request.mode === 'navigate' && url.pathname.startsWith('/climb/')
   const isCragPage = request.mode === 'navigate' && (url.pathname.startsWith('/crag/') || /^\/[a-z]{2}\//.test(url.pathname))
   const isShellAsset = url.pathname === MANIFEST_URL || url.pathname === LOGO_URL || url.pathname.startsWith('/_next/static/')
@@ -372,7 +375,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  if (isOfflineLaunch || isPackRequest || isClimbPage || isCragPage) {
+  if (isOfflineLaunch || isOfflineLibrary || isPackRequest || isClimbPage || isCragPage) {
     event.respondWith((async () => {
       const cache = await caches.open(PACK_CACHE)
       const cached = await matchCachedRequest(cache, request)
@@ -387,11 +390,6 @@ self.addEventListener('fetch', (event) => {
       } catch (error) {
         const fallbackCached = await matchCachedRequest(cache, request)
         if (fallbackCached) return fallbackCached
-
-        if (request.mode === 'navigate') {
-          const offlineFallback = await cache.match(toSameOriginRequest(OFFLINE_LAUNCH_URL))
-          if (offlineFallback) return offlineFallback
-        }
 
         throw error
       }
