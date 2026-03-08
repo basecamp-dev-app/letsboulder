@@ -1,3 +1,5 @@
+import { isValidGrade, MIN_SELECTABLE_GRADE, type Grade } from '@/lib/grade-constants'
+
 export const FLASH_BONUS = 10
 
 export const GRADE_SYSTEMS = ['v_scale', 'font_scale', 'yds_equivalent', 'french_equivalent', 'british_equivalent'] as const
@@ -116,6 +118,21 @@ export function normalizeGrade(grade: string | null | undefined): string | null 
   return grade.trim().toUpperCase()
 }
 
+export function clampGradeToPublicRange(grade: string | null | undefined): Grade | null {
+  const normalized = normalizeGrade(grade)
+  if (!normalized) return null
+  if (isValidGrade(normalized)) return normalized
+
+  const gradeIndex = GRADES.indexOf(normalized)
+  const minimumPublicIndex = GRADES.indexOf(MIN_SELECTABLE_GRADE)
+
+  if (gradeIndex !== -1 && gradeIndex < minimumPublicIndex) {
+    return MIN_SELECTABLE_GRADE
+  }
+
+  return null
+}
+
 export function getGradePoints(grade: string | null | undefined): number {
   const normalized = normalizeGrade(grade)
   return normalized ? (gradeToPointsMap[normalized] || 0) : 0
@@ -126,6 +143,8 @@ export const gradePoints: Record<string, number> = gradeToPointsMap
 export const GRADES = Object.keys(gradeToPointsMap).sort((a, b) => 
   gradeToPointsMap[a] - gradeToPointsMap[b]
 )
+
+export const PUBLIC_GRADES = GRADES.filter((grade): grade is Grade => isValidGrade(grade))
 
 export function getGradeFromPoints(points: number): string {
   let closest = '6A'

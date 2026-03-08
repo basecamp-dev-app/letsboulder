@@ -224,6 +224,12 @@ async function handleShellFetch(request) {
     }
     return response
   } catch {
+<<<<<<< HEAD
+=======
+    const fallbackCached = await matchShellRequest(request)
+    if (fallbackCached) return fallbackCached
+
+>>>>>>> dev
     if (request.mode === 'navigate' && url.pathname === OFFLINE_LAUNCH_URL) {
       const fallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LAUNCH_URL))
       if (fallback) return fallback

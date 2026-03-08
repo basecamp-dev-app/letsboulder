@@ -1,12 +1,7 @@
-import { gradeMappings, getGradeMapping, type GradeSystem, type GradeMapping } from '@/lib/grades'
+import { type Grade } from '@/lib/grade-constants'
+import { clampGradeToPublicRange, getGradeDisplay, getGradeIndex, getGradeMapping, gradeMappings, type GradeMapping, type GradeSystem } from '@/lib/grades'
 
-const FRENCH_TO_V_DISPLAY: Record<string, string> = {
-  '3A': 'V-easy',
-  '3A+': 'V-easy',
-  '3B': 'V-easy',
-  '3B+': 'V-easy',
-  '3C': 'V-easy',
-  '3C+': 'V-easy',
+const V_SCALE_DISPLAY_BY_GRADE: Record<Grade, string> = {
   '4A': 'V0-',
   '4A+': 'V0',
   '4B': 'V0+',
@@ -45,15 +40,25 @@ const FRENCH_TO_V_DISPLAY: Record<string, string> = {
   '9C+': 'V19+',
 }
 
-function toVGrade(grade: string): string {
-  return FRENCH_TO_V_DISPLAY[grade] || grade
+function toDisplayGrade(grade: string | null | undefined): string | null {
+  return clampGradeToPublicRange(grade) ?? grade?.trim().toUpperCase() ?? null
+}
+
+function toVGrade(grade: string | null | undefined): string | null {
+  const displayGrade = toDisplayGrade(grade)
+  if (!displayGrade) return null
+
+  const displayLabel = V_SCALE_DISPLAY_BY_GRADE[displayGrade as Grade]
+  if (displayLabel) return displayLabel
+
+  const gradeIndex = getGradeIndex(displayGrade)
+  return getGradeDisplay(gradeIndex, 'v_scale') ?? displayGrade
 }
 
 export function toWholeVGrade(grade: string | null | undefined): string | null {
-  const normalized = grade?.trim().toUpperCase()
-  if (!normalized) return null
+  const display = toVGrade(grade)
+  if (!display) return null
 
-  const display = toVGrade(normalized)
   const match = /^V(\d+)/i.exec(display)
   if (!match) return null
 
@@ -61,12 +66,19 @@ export function toWholeVGrade(grade: string | null | undefined): string | null {
 }
 
 export function formatGradeForDisplay(grade: string | null | undefined, gradeSystem: GradeSystem): string {
-  const normalized = grade?.trim().toUpperCase()
-  if (!normalized) return '—'
+  const displayGrade = toDisplayGrade(grade)
+  if (!displayGrade) return '—'
+
   if (gradeSystem === 'v_scale') {
-    return toVGrade(normalized)
+    return toVGrade(displayGrade) ?? displayGrade
   }
-  return normalized
+
+  if (gradeSystem === 'font_scale') {
+    return displayGrade
+  }
+
+  const gradeIndex = getGradeIndex(displayGrade)
+  return getGradeDisplay(gradeIndex, gradeSystem) ?? displayGrade
 }
 
 export function formatGradeForDisplayWithIndex(

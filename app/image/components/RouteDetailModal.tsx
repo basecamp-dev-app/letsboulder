@@ -5,7 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { HelpCircle, Loader2, X } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { SELECTABLE_GRADES, VALID_GRADES } from '@/lib/verification-types'
+import { GRADE_ORDER_INDEX, SELECTABLE_GRADES } from '@/lib/grade-constants'
 import type { ClimbStatusResponse, GradeVoteDistribution } from '@/lib/verification-types'
 import RoutePreviewThumb from '@/app/image/components/RoutePreviewThumb'
 import type { RoutePoint } from '@/lib/useRouteSelection'
@@ -59,18 +59,10 @@ interface RouteDetailModalProps {
   redirectTo: string
 }
 
-function buildVoteOrderIndex(): Map<string, number> {
-  const m = new Map<string, number>()
-  VALID_GRADES.forEach((g, idx) => m.set(g, idx))
-  return m
-}
-
-const VOTE_ORDER_INDEX = buildVoteOrderIndex()
-
 const GRADE_OPTIONS = SELECTABLE_GRADES as readonly string[]
 
 function sortVotesByGradeOrder(votes: GradeVoteDistribution[]): GradeVoteDistribution[] {
-  return [...votes].sort((a, b) => (VOTE_ORDER_INDEX.get(a.grade) ?? 1e9) - (VOTE_ORDER_INDEX.get(b.grade) ?? 1e9))
+  return [...votes].sort((a, b) => (GRADE_ORDER_INDEX.get(a.grade) ?? 1e9) - (GRADE_ORDER_INDEX.get(b.grade) ?? 1e9))
 }
 
 function deriveUniqueMode(votes: GradeVoteDistribution[]): { grade: string | null; tied: boolean } {

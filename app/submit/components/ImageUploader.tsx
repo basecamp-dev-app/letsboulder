@@ -3,6 +3,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import NextImage from 'next/image'
 import type { NewImageSelection, GpsData } from '@/lib/submission-types'
+import { convertHeicToJpegBlob } from '@/lib/heic-converter'
+import { stripExifMetadataFromFile } from '@/lib/image-metadata'
 import { blobToDataURL, isHeicFile, isSupportedImageFile } from '@/lib/image-utils'
 
 const ROUTE_UPLOADS_BUCKET = 'route-uploads'
@@ -22,11 +24,10 @@ type DmsValue = number | RationalLike | [number, number]
 
 const MAX_GPS_SEARCH_DEPTH = 5
 const MAX_GPS_VISITED_OBJECTS = 500
-const ENABLE_GPS_DEBUG = process.env.NODE_ENV === 'development'
 
 function gpsDebug(step: string, payload: unknown) {
-  if (!ENABLE_GPS_DEBUG) return
-  console.log('[gps-extract]', step, payload)
+  void step
+  void payload
 }
 
 function summarizeMetadata(value: unknown): unknown {
@@ -708,7 +709,7 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
       sourceData = await blobToDataURL(previewBlob)
     } else {
       try {
-        const jpegBlob = await heicToJpegBlob(file)
+        const jpegBlob = await convertHeicToJpegBlob(file)
         sourceData = await blobToDataURL(jpegBlob)
       } catch {
         throw new Error('Failed to convert HEIC image. Please try a different file.')
@@ -800,13 +801,6 @@ async function compressImageNative(file: File, maxSizeMB: number, maxWidthOrHeig
       reader.readAsDataURL(file)
     }
   })
-}
-
-async function heicToJpegBlob(file: File): Promise<Blob> {
-  const heic2any = (await import('heic2any')).default
-  const blob = file instanceof Blob ? file : new Blob([file], { type: 'image/heic' })
-  const jpegBlob = await heic2any({ blob, toType: 'image/jpeg', quality: 0.9 })
-  return Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob
 }
 
 async function getImageDimensions(url: string): Promise<{ width: number; height: number }> {
@@ -901,7 +895,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       if (isHeicFile(selectedFile)) {
         try {
           onUploading(true, 15, 'Loading HEIC preview...')
-          previewBlob = await heicToJpegBlob(selectedFile)
+          previewBlob = await convertHeicToJpegBlob(selectedFile)
 
           if (!gpsFromFile) {
             try {
@@ -920,7 +914,9 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
 
           updateDetectedGps(gpsFromFile)
           setGpsDetectionComplete(true)
-          setPreviewObjectUrl(previewBlob)
+          if (previewBlob) {
+            setPreviewObjectUrl(previewBlob)
+          }
           onUploading(true, 20, 'Compressing HEIC...')
         } catch {
           onError('Failed to process HEIC image. Please convert to JPEG first.')
@@ -950,8 +946,9 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
       onUploading(true, 20, 'Compressing image...')
 
       const compressed = await compressImageNative(originalFile, 0.3, 1200, previewBlob)
+      const sanitized = await stripExifMetadataFromFile(compressed)
 
-      setCompressedFile(compressed)
+      setCompressedFile(sanitized)
       onUploading(false, 0, '')
 
     } catch {
@@ -994,8 +991,7 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
   }, [])
 
   const handleConfirm = async () => {
-    const fileToUpload = compressedFile || file
-    if (!fileToUpload) {
+    if (!compressedFile) {
       onError('No image selected. Please upload an image first.')
       return
     }
@@ -1019,12 +1015,12 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
         return
       }
 
-      const fileName = `${user.id}/${Date.now()}-${fileToUpload.name}`
+      const fileName = `${user.id}/${Date.now()}-${compressedFile.name}`
       onUploading(true, 20, 'Uploading image...')
 
       const { data, error: uploadError } = await supabase.storage
         .from(ROUTE_UPLOADS_BUCKET)
-        .upload(fileName, fileToUpload)
+        .upload(fileName, compressedFile)
 
       if (uploadError) {
         if (uploadError.message?.includes('size')) {

@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { isValidGrade } from '@/lib/grade-constants'
 
 const MAX_ROUTES_PER_DAY = 5
 
@@ -37,15 +38,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const validGrades = [
-      '5A', '5A+', '5B', '5B+', '5C', '5C+',
-      '6A', '6A+', '6B', '6B+', '6C', '6C+',
-      '7A', '7A+', '7B', '7B+', '7C', '7C+',
-      '8A', '8A+', '8B', '8B+', '8C', '8C+',
-      '9A', '9A+', '9B', '9B+', '9C', '9C+'
-    ]
-
-    if (!validGrades.includes(grade)) {
+    if (typeof grade !== 'string' || !isValidGrade(grade)) {
       return NextResponse.json({ error: 'Invalid grade' }, { status: 400 })
     }
 

@@ -4,7 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { VALID_GRADES } from '@/lib/submission-types'
+import { isValidGrade } from '@/lib/grade-constants'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -65,7 +65,7 @@ function normalizePayload(value: unknown): GradeVotePayloadItem[] | null {
       ? (item as { grade: string }).grade
       : ''
 
-    if (!routeLineId || !VALID_GRADES.includes(grade as (typeof VALID_GRADES)[number])) {
+    if (!routeLineId || !isValidGrade(grade)) {
       return null
     }
 

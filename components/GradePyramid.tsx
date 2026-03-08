@@ -1,6 +1,6 @@
 'use client'
 
-import { GRADES } from '@/lib/grades'
+import { PUBLIC_GRADES, clampGradeToPublicRange } from '@/lib/grades'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 
@@ -11,8 +11,9 @@ interface GradePyramidProps {
 
 export default function GradePyramid({ pyramid, lowestGrade }: GradePyramidProps) {
   const gradeSystem = useGradeSystem()
-  const displayGrades = GRADES
-    .slice(Math.max(GRADES.indexOf(lowestGrade), 0))
+  const minimumDisplayGrade = clampGradeToPublicRange(lowestGrade) ?? PUBLIC_GRADES[0]
+  const displayGrades = PUBLIC_GRADES
+    .slice(Math.max(PUBLIC_GRADES.indexOf(minimumDisplayGrade), 0))
     .filter(g => (pyramid[g] || 0) > 0)
 
   if (displayGrades.length === 0) {

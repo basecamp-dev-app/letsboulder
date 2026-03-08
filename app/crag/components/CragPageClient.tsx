@@ -9,7 +9,7 @@ import { Download, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import PlaceCommunityClient from '@/features/community/components/PlaceCommunityClient'
-import { GRADES, normalizeGrade } from '@/lib/grades'
+import { GRADES, PUBLIC_GRADES, normalizeGrade } from '@/lib/grades'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import CragPageSkeleton from '@/app/crag/components/CragPageSkeleton'
@@ -177,8 +177,7 @@ function isOfflineDocumentNavigationPreferred() {
 const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
 const faceDirectionIndex = new Map(FACE_DIRECTIONS.map((direction, index) => [direction, index]))
 const gradeOrderIndex = new Map(GRADES.map((grade, index) => [grade, index]))
-const MIN_FILTER_GRADE = '3A'
-const FILTER_GRADES = GRADES.slice(Math.max(0, GRADES.indexOf(MIN_FILTER_GRADE)))
+const FILTER_GRADES = PUBLIC_GRADES
 
 function extractDirections(routeLines: RawRouteLine[] | null | undefined): string[] {
   if (!routeLines || routeLines.length === 0) return []
@@ -1153,6 +1152,7 @@ export default function CragPageClient({
           center={cragCenter || [crag.latitude || 0, crag.longitude || 0]}
           zoom={15}
           style={{ height: '100%', width: '100%' }}
+          preferCanvas={true}
           zoomControl={false}
           scrollWheelZoom={true}
           whenReady={() => setMapReady(true)}

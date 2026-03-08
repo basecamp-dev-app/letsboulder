@@ -4,6 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { GRADE_ORDER_INDEX, isValidGrade } from '@/lib/grade-constants'
 
 export async function GET(
   request: NextRequest,
@@ -63,15 +64,7 @@ export async function GET(
     const gradeDistribution = Object.entries(gradeCounts)
       .map(([grade, count]) => ({ grade, count }))
       .sort((a, b) => {
-        const gradeOrder = [
-          '4A', '4A+', '4B', '4B+', '4C', '4C+',
-          '5A', '5A+', '5B', '5B+', '5C', '5C+',
-          '6A', '6A+', '6B', '6B+', '6C', '6C+',
-          '7A', '7A+', '7B', '7B+', '7C', '7C+',
-          '8A', '8A+', '8B', '8B+', '8C', '8C+',
-          '9A', '9A+', '9B', '9B+', '9C', '9C+'
-        ]
-        return gradeOrder.indexOf(a.grade) - gradeOrder.indexOf(b.grade)
+        return (GRADE_ORDER_INDEX.get(a.grade) ?? 1e9) - (GRADE_ORDER_INDEX.get(b.grade) ?? 1e9)
       })
     
     return NextResponse.json({
@@ -126,16 +119,7 @@ export async function POST(
       return NextResponse.json({ error: 'Grade is required' }, { status: 400 })
     }
     
-    const validGrades = [
-      '4A', '4A+', '4B', '4B+', '4C', '4C+',
-      '5A', '5A+', '5B', '5B+', '5C', '5C+',
-      '6A', '6A+', '6B', '6B+', '6C', '6C+',
-      '7A', '7A+', '7B', '7B+', '7C', '7C+',
-      '8A', '8A+', '8B', '8B+', '8C', '8C+',
-      '9A', '9A+', '9B', '9B+', '9C', '9C+'
-    ]
-    
-    if (!validGrades.includes(grade)) {
+    if (typeof grade !== 'string' || !isValidGrade(grade)) {
       return NextResponse.json({ error: 'Invalid grade' }, { status: 400 })
     }
     
