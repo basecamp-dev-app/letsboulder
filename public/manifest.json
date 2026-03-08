@@ -1,13 +1,13 @@
 {
-  "name": "letsboulder - Bouldering Topos & Climbing Logbook",
+  "name": "letsboulder",
   "short_name": "letsboulder",
-  "description": "Discover bouldering and climbing routes worldwide. Interactive map, GPS-enabled photo topos, community verification, and a personal logbook.",
+  "description": "Offline climbing maps, topos, and saved climbs.",
+  "id": "/",
   "start_url": "/offline",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
-  "orientation": "any",
-  "scope": "/",
   "icons": [
     {
       "src": "/icon-192-maskable.png",
@@ -20,38 +20,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
-    }
-  ],
-  "categories": ["sports", "navigation", "lifestyle"],
-  "screenshots": [],
-  "shortcuts": [
-    {
-      "name": "Offline Climbs",
-      "short_name": "Offline",
-      "description": "Open climbs saved for offline viewing",
-      "url": "/offline",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "View Map",
-      "short_name": "Map",
-      "description": "Open the interactive climbing map",
-      "url": "/",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "My Logbook",
-      "short_name": "Logbook",
-      "description": "View your climbing logbook",
-      "url": "/logbook",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Add Climb",
-      "short_name": "Add",
-      "description": "Upload a new climb",
-      "url": "/submit",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

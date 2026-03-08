@@ -14,7 +14,20 @@ export default function ServiceWorkerRegistration() {
       }
     }
 
-    registerServiceWorker()
+    if (document.readyState === 'complete') {
+      void registerServiceWorker()
+      return
+    }
+
+    const handleLoad = () => {
+      void registerServiceWorker()
+    }
+
+    window.addEventListener('load', handleLoad, { once: true })
+
+    return () => {
+      window.removeEventListener('load', handleLoad)
+    }
   }, [])
 
   return null
