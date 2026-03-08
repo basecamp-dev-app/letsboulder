@@ -5,10 +5,13 @@
 ### Floor Grade
 - **User-facing minimum:** `4A`
 - **User-facing maximum:** `9C+`
-- **Reference:** `@lib/verification-types.ts:161-168` (VALID_GRADES)
+- **Public source of truth:** `@/lib/grade-constants.ts`
 
 ### Conversion Engine
-The `gradeMappings` table in `@lib/grades.ts:18-37` is the **single source of truth** for bidirectional conversion:
+`@/lib/grade-constants.ts` defines the public valid/selectable grade range.
+`@/lib/grades.ts` defines cross-system mappings and internal grade utilities.
+
+The `gradeMappings` table in `@/lib/grades.ts` is the source of truth for cross-system conversion:
 
 | grade_index | V-Scale | Font | YDS | French | British |
 |------------|---------|------|-----|--------|---------|
@@ -17,7 +20,8 @@ The `gradeMappings` table in `@lib/grades.ts:18-37` is the **single source of tr
 | ... | ... | ... | ... | ... | ... |
 | 17 | V16 | 8C+ | 5.16a | 9b | E11 |
 
-**Agent rule:** Always use `gradeMappings` for any V ↔ Font ↔ YDS ↔ French ↔ British conversions. Never hallucinate grades outside 4A-9C+.
+**Agent rule:** Always use `gradeMappings` for V ↔ Font ↔ YDS ↔ French ↔ British conversions.
+**Boundary rule:** User-facing validation and selection must stay within `4A-9C+`, even though internal helpers may still model lower grades.
 
 ---
 
