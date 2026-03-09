@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { ImageSelection, NewImageSelection, GpsData } from '@/lib/submission-types'
 import MultiImageUploader from './MultiImageUploader'
 
@@ -16,7 +16,7 @@ export default function ImagePicker({ onSelect, onUploadingStateChange }: ImageP
   const [currentStep, setCurrentStep] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const handleUploadComplete = (result: NewImageSelection) => {
+  const handleUploadComplete = useCallback((result: NewImageSelection) => {
     setUploading(false)
     setProgress(0)
     setCurrentStep('')
@@ -24,28 +24,28 @@ export default function ImagePicker({ onSelect, onUploadingStateChange }: ImageP
     onUploadingStateChange?.(false)
     const primaryImage = result.images[result.primaryIndex]
     onSelect(result, primaryImage?.gpsData || null)
-  }
+  }, [onSelect, onUploadingStateChange])
 
-  const handleUploadError = (err: string) => {
+  const handleUploadError = useCallback((err: string) => {
     setError(err)
     setUploading(false)
     setProgress(0)
     setCurrentStep('')
     onUploadingStateChange?.(false)
-  }
+  }, [onUploadingStateChange])
 
-  const handleUploadState = (uploadingState: boolean, progressValue: number, step: string) => {
+  const handleUploadState = useCallback((uploadingState: boolean, progressValue: number, step: string) => {
     setUploading(uploadingState)
     setProgress(progressValue)
     setCurrentStep(step)
     onUploadingStateChange?.(uploadingState)
-  }
+  }, [onUploadingStateChange])
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     setError(null)
     onUploadingStateChange?.(false)
     onSelect(null, null)
-  }
+  }, [onSelect, onUploadingStateChange])
 
   return (
     <div className="image-picker">

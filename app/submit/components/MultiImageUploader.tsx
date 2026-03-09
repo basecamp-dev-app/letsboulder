@@ -76,6 +76,7 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
   const [isDragging, setIsDragging] = useState(false)
   const [removingImageId, setRemovingImageId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const previousImageCountRef = useRef(0)
   const maxFiles = 8
 
   const sensors = useSensors(
@@ -87,7 +88,10 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
 
   useEffect(() => {
     if (images.length === 0) {
-      onClear()
+      if (previousImageCountRef.current > 0) {
+        onClear()
+      }
+      previousImageCountRef.current = 0
       return
     }
 
@@ -106,6 +110,7 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
       })),
       primaryIndex: 0,
     })
+    previousImageCountRef.current = images.length
   }, [images, onClear, onComplete])
 
   const getDimensions = useCallback(async (url: string): Promise<{ width: number; height: number }> => {
