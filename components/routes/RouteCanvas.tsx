@@ -252,10 +252,10 @@ export default function RouteCanvas({
     const rect = canvas.getBoundingClientRect()
 
     return {
-      x: (touch.clientX - rect.left - pan.x) / zoom,
-      y: (touch.clientY - rect.top - pan.y) / zoom,
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top,
     }
-  }, [zoom, pan])
+  }, [])
 
   const getDragHandleIndex = useCallback((point: RoutePoint, threshold: number = 14) => {
     if (!editableRoute) return null
@@ -277,10 +277,10 @@ export default function RouteCanvas({
 
     const rect = canvas.getBoundingClientRect()
     return {
-      x: (e.clientX - rect.left - pan.x) / zoom,
-      y: (e.clientY - rect.top - pan.y) / zoom
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
     }
-  }, [zoom, pan])
+  }, [])
 
   const getCanvasDisplaySize = useCallback(() => {
     const canvas = canvasRef.current
@@ -321,53 +321,53 @@ export default function RouteCanvas({
   }, [completedRoutes, completedRoutePaths, existingRoutes, existingRoutePaths])
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (e.button === 1 || (e.button === 0 && e.altKey)) {
-        setIsPanning(true)
-        setLastPanPoint({ x: e.clientX, y: e.clientY })
-        hasMousePanMovedRef.current = false
+    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+      setIsPanning(true)
+      setLastPanPoint({ x: e.clientX, y: e.clientY })
+      hasMousePanMovedRef.current = false
+      return
+    }
+
+    if (e.button === 0 && !e.altKey) {
+      const pos = getMousePos(e)
+
+      if (isDrawMode && isDrawingInProgress) {
+        setCurrentPoints(prev => [...prev, pos])
         return
       }
 
-      if (e.button === 0 && !e.altKey) {
-        const pos = getMousePos(e)
-
-        if (isDrawMode && isDrawingInProgress) {
-          setCurrentPoints(prev => [...prev, pos])
-          return
-        }
-
       const dragHandleIndex = getDragHandleIndex(pos)
-        if (dragHandleIndex !== null) {
-          setDraggingPointIndex(dragHandleIndex)
-          return
-        }
-
-        if (!isDrawMode) {
-          hasMousePanMovedRef.current = false
-          setIsPanning(true)
-          setLastPanPoint({ x: e.clientX, y: e.clientY })
-          return
-        }
-
-        const clickedRoute = getRouteAtPoint(pos)
-        if (clickedRoute) {
-          selectRoute(clickedRoute.id)
-          return
-        }
-
-        clearSelection()
-
-        if (isEditExistingMode && !canCreateRoutesInEditMode) {
-          return
-        }
-
-        if (currentPoints.length === 0) {
-          setCurrentPoints([pos])
-        } else {
-          setCurrentPoints(prev => [...prev, pos])
-        }
+      if (dragHandleIndex !== null) {
+        setDraggingPointIndex(dragHandleIndex)
+        return
       }
-    }, [getMousePos, isDrawMode, isDrawingInProgress, getDragHandleIndex, getRouteAtPoint, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, selectRoute, clearSelection])
+
+      if (!isDrawMode) {
+        hasMousePanMovedRef.current = false
+        setIsPanning(true)
+        setLastPanPoint({ x: e.clientX, y: e.clientY })
+        return
+      }
+
+      const clickedRoute = getRouteAtPoint(pos)
+      if (clickedRoute) {
+        selectRoute(clickedRoute.id)
+        return
+      }
+
+      clearSelection()
+
+      if (isEditExistingMode && !canCreateRoutesInEditMode) {
+        return
+      }
+
+      if (currentPoints.length === 0) {
+        setCurrentPoints([pos])
+      } else {
+        setCurrentPoints(prev => [...prev, pos])
+      }
+    }
+  }, [getMousePos, isDrawMode, isDrawingInProgress, getDragHandleIndex, getRouteAtPoint, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, selectRoute, clearSelection])
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
