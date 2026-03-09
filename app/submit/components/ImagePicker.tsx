@@ -5,11 +5,12 @@ import type { ImageSelection, NewImageSelection, GpsData } from '@/lib/submissio
 import MultiImageUploader from './MultiImageUploader'
 
 interface ImagePickerProps {
-  onSelect: (selection: ImageSelection, gpsData: GpsData | null) => void
+  onSelect: (selection: ImageSelection | null, gpsData: GpsData | null) => void
+  onUploadingStateChange?: (uploading: boolean) => void
   showBackButton?: boolean
 }
 
-export default function ImagePicker({ onSelect }: ImagePickerProps) {
+export default function ImagePicker({ onSelect, onUploadingStateChange }: ImagePickerProps) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [currentStep, setCurrentStep] = useState('')
@@ -19,6 +20,8 @@ export default function ImagePicker({ onSelect }: ImagePickerProps) {
     setUploading(false)
     setProgress(0)
     setCurrentStep('')
+    setError(null)
+    onUploadingStateChange?.(false)
     const primaryImage = result.images[result.primaryIndex]
     onSelect(result, primaryImage?.gpsData || null)
   }
@@ -26,12 +29,22 @@ export default function ImagePicker({ onSelect }: ImagePickerProps) {
   const handleUploadError = (err: string) => {
     setError(err)
     setUploading(false)
+    setProgress(0)
+    setCurrentStep('')
+    onUploadingStateChange?.(false)
   }
 
   const handleUploadState = (uploadingState: boolean, progressValue: number, step: string) => {
     setUploading(uploadingState)
     setProgress(progressValue)
     setCurrentStep(step)
+    onUploadingStateChange?.(uploadingState)
+  }
+
+  const handleClear = () => {
+    setError(null)
+    onUploadingStateChange?.(false)
+    onSelect(null, null)
   }
 
   return (
@@ -44,6 +57,7 @@ export default function ImagePicker({ onSelect }: ImagePickerProps) {
 
       <MultiImageUploader
         onComplete={handleUploadComplete}
+        onClear={handleClear}
         onError={handleUploadError}
         onUploading={handleUploadState}
       />
