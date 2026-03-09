@@ -264,6 +264,7 @@ export default function RouteCanvas({
 
   const handleSelectRouteFromList = useCallback((routeId: string) => {
     selectRoute(routeId)
+    setInteractionMode('browse')
     setIsDetailsExpanded(true)
   }, [selectRoute])
 
@@ -583,6 +584,7 @@ export default function RouteCanvas({
 
   const cancelCurrentDrawing = useCallback(() => {
     setCurrentPoints([])
+    setInteractionMode('browse')
   }, [])
 
   const undoLastPoint = useCallback(() => {
@@ -630,6 +632,7 @@ export default function RouteCanvas({
     setCurrentName('')
     setCurrentGrade('6A')
     setCurrentDescription('')
+    setInteractionMode('browse')
     selectRoute(routeId)
   }, [currentPoints, currentName, currentGrade, currentClimbType, currentDescription, completedRoutes, selectRoute])
 
@@ -835,6 +838,7 @@ export default function RouteCanvas({
     setCurrentName('')
     setCurrentGrade('6A')
     setCurrentDescription('')
+    setInteractionMode('browse')
     clearSelection()
   }, [canCreateRoutesInEditMode, onSaveNewRoutes, imageDimensions, currentPoints, currentDescription, currentName, existingRoutes.length, currentGrade, currentClimbType, normalizeCanvasPoints, clearSelection])
 
@@ -1085,21 +1089,14 @@ export default function RouteCanvas({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setInteractionMode('browse')}
-                  className={`flex-1 rounded-md px-2 py-2 text-xs font-semibold ${interactionMode === 'browse' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'}`}
+                  onClick={() => setInteractionMode((current) => current === 'draw' ? 'browse' : 'draw')}
+                  className={`w-full rounded-md px-2 py-2 text-xs font-semibold ${interactionMode === 'draw' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'}`}
                 >
-                  Select
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInteractionMode('draw')}
-                  className={`flex-1 rounded-md px-2 py-2 text-xs font-semibold ${interactionMode === 'draw' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'}`}
-                >
-                  Draw
+                  {interactionMode === 'draw' ? 'Stop drawing' : 'Draw'}
                 </button>
               </div>
               <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                Select to choose routes. Switch to Draw to place points.
+                Use the route list below to select routes. Turn on Draw to place points.
               </p>
             </div>
             {selectableRoutes.length > 0 ? (
