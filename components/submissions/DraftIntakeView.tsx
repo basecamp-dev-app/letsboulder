@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import ImagePicker from '@/app/submit/components/ImagePicker'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { csrfFetch } from '@/hooks/useCsrf'
-import type { ImageSelection } from '@/lib/submission-types'
+import type { GpsData, ImageSelection } from '@/lib/submission-types'
 
 interface DraftCreateResponse {
   draft?: {
@@ -26,6 +26,7 @@ export default function DraftIntakeView() {
   const router = useRouter()
   const { toasts, addToast, removeToast } = useToast()
   const [selectedImages, setSelectedImages] = useState<UploadedImagePayload[]>([])
+  const [selectedGps, setSelectedGps] = useState<GpsData | null>(null)
   const [uploadsInFlight, setUploadsInFlight] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,9 +38,10 @@ export default function DraftIntakeView() {
     return `${selectedImages.length} photo${selectedImages.length === 1 ? '' : 's'} uploaded`
   }, [selectedImages.length, uploadsInFlight])
 
-  const handleImageSelect = useCallback((selection: ImageSelection | null) => {
+  const handleImageSelect = useCallback((selection: ImageSelection | null, gpsData: GpsData | null) => {
     if (!selection) {
       setSelectedImages([])
+      setSelectedGps(null)
       setError(null)
       return
     }
@@ -57,6 +59,7 @@ export default function DraftIntakeView() {
     }))
 
     setSelectedImages(images)
+    setSelectedGps(gpsData)
     setError(null)
   }, [])
 
@@ -73,6 +76,10 @@ export default function DraftIntakeView() {
           images: selectedImages,
           metadata: {
             primaryIndex: 0,
+            location: selectedGps ? {
+              latitude: selectedGps.latitude,
+              longitude: selectedGps.longitude,
+            } : null,
             intake: {
               source: '/submit',
               createdAt: new Date().toISOString(),
@@ -101,7 +108,7 @@ export default function DraftIntakeView() {
     } finally {
       setSubmitting(false)
     }
-  }, [addToast, canCreateDraft, router, selectedImages])
+  }, [addToast, canCreateDraft, router, selectedGps, selectedImages])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -127,6 +134,11 @@ export default function DraftIntakeView() {
           <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Upload photos</h2>
           <ImagePicker onSelect={handleImageSelect} onUploadingStateChange={setUploadsInFlight} />
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{selectedLabel}</p>
+          {selectedGps ? (
+            <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
+              Location loaded from photo GPS and shared across all uploaded faces.
+            </p>
+          ) : null}
         </div>
 
         {error ? (

@@ -23,7 +23,8 @@ export default function ImagePicker({ onSelect, onUploadingStateChange }: ImageP
     setError(null)
     onUploadingStateChange?.(false)
     const primaryImage = result.images[result.primaryIndex]
-    onSelect(result, primaryImage?.gpsData || null)
+    const sharedGps = primaryImage?.gpsData || result.images.find((image) => image.gpsData)?.gpsData || null
+    onSelect(result, sharedGps)
   }, [onSelect, onUploadingStateChange])
 
   const handleUploadError = useCallback((err: string) => {
