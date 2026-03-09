@@ -86,8 +86,14 @@ export default function DraftIntakeView() {
         throw new Error(payload.error || 'Failed to create draft')
       }
 
+      const draftHref = `/logbook/drafts/${payload.draft.id}/edit`
       addToast('Draft created. Continue editing in Draft Editor.', 'success')
-      router.push(`/logbook/drafts/${payload.draft.id}/edit`)
+      router.push(draftHref)
+      window.setTimeout(() => {
+        if (window.location.pathname === '/submit') {
+          window.location.assign(draftHref)
+        }
+      }, 150)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create draft'
       setError(message)

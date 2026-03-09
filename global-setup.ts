@@ -26,15 +26,32 @@ async function ensureSeedData() {
 
   const seededPlaces: Array<{ id: string; slug: string; name: string }> = []
   for (const seed of seeds) {
-    const { data, error } = await supabaseAdmin
+    const { data: existingPlace, error: existingPlaceError } = await supabaseAdmin
       .from('places')
-      .upsert({
-        slug: seed.slug,
+      .select('id, slug, name')
+      .eq('country_code', 'GB')
+      .eq('slug', seed.slug)
+      .maybeSingle()
+
+    if (existingPlaceError) {
+      throw new Error(`Failed to look up seeded place ${seed.slug}: ${existingPlaceError.message}`)
+    }
+
+    if (existingPlace?.id) {
+      seededPlaces.push(existingPlace)
+      continue
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('crags')
+      .insert({
         name: seed.name,
-        type: 'crag',
+        latitude: null,
+        longitude: null,
+        type: 'boulder',
         country_code: 'GB',
-        primary_discipline: 'boulder',
-      }, { onConflict: 'slug' })
+        slug: seed.slug,
+      })
       .select('id, slug, name')
       .single()
 
