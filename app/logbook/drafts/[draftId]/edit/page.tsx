@@ -294,7 +294,6 @@ export default function EditDraftPage() {
   const publishRequirementsRef = useRef<HTMLDivElement | null>(null)
   const cragSectionRef = useRef<HTMLDivElement | null>(null)
   const locationSectionRef = useRef<HTMLDivElement | null>(null)
-  const faceDirectionsSectionRef = useRef<HTMLDivElement | null>(null)
   const hasShownCollabToastRef = useRef(false)
   const autosaveTimeoutRef = useRef<number | null>(null)
   const hasLoadedRoutesRef = useRef(false)
@@ -565,12 +564,6 @@ export default function EditDraftPage() {
     return routesByImageId[primaryFace.imageId] || []
   }, [primaryFace, routesByImageId])
 
-  const facesMissingDirections = useMemo(() => {
-    return manageFaces
-      .filter((face) => (faceDirectionsByImage[face.index] || []).length === 0)
-      .map((face) => face.label)
-  }, [faceDirectionsByImage, manageFaces])
-
   const publishValidationMessage = useMemo(() => {
     const missingItems: string[] = []
 
@@ -586,18 +579,10 @@ export default function EditDraftPage() {
       missingItems.push(`draw at least one route on ${primaryFace?.label || 'the primary face'}`)
     }
 
-    if (facesMissingDirections.length > 0) {
-      missingItems.push(
-        facesMissingDirections.length === 1
-          ? `choose a face direction for ${facesMissingDirections[0]}`
-          : `choose face directions for ${facesMissingDirections.join(', ')}`
-      )
-    }
-
     return missingItems.length > 0
       ? `Before publishing, ${missingItems.join(', ')}.`
       : null
-  }, [cragId, facesMissingDirections, hasValidLocation, primaryFace, primaryFaceRoutes.length])
+  }, [cragId, hasValidLocation, primaryFace, primaryFaceRoutes.length])
 
   const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
     if (!activeFaceId) return
@@ -1203,13 +1188,7 @@ export default function EditDraftPage() {
         return
       }
 
-      if (facesMissingDirections.length > 0) {
-        const firstMissingFace = manageFaces.find((face) => face.label === facesMissingDirections[0])
-        if (firstMissingFace) {
-          setActiveImageId(firstMissingFace.imageId)
-        }
-        faceDirectionsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      } else if (!primaryFace || primaryFaceRoutes.length === 0) {
+      if (!primaryFace || primaryFaceRoutes.length === 0) {
         if (primaryFace) {
           setActiveImageId(primaryFace.imageId)
         }
@@ -1260,7 +1239,7 @@ export default function EditDraftPage() {
     } finally {
       setPublishingDraft(false)
     }
-  }, [draft, isOwner, publishValidationMessage, cragId, hasValidLocation, facesMissingDirections, manageFaces, primaryFace, primaryFaceRoutes.length, saveDraft, router, addToast])
+  }, [draft, isOwner, publishValidationMessage, cragId, hasValidLocation, primaryFace, primaryFaceRoutes.length, saveDraft, router, addToast])
 
   const handleReloadLatestDraft = useCallback(async () => {
     setConflict(null)
@@ -1640,8 +1619,9 @@ export default function EditDraftPage() {
           </div>
         </div>
 
-        <div ref={faceDirectionsSectionRef} className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+        <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Face directions</h2>
+          <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Optional metadata for each face. All faces in this draft share the same climb location and pin.</p>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
             {FACE_DIRECTIONS.map((direction) => {
               const selected = activeFace ? (faceDirectionsByImage[activeFace.index] || []).includes(direction) : false

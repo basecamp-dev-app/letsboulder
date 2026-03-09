@@ -1065,7 +1065,7 @@ export default function RouteCanvas({
               >
                 {getGradeDisplay(activeGrade, activeClimbType)}
               </button>
-              {gradePickerOpen && !isEditingExistingRoute && (!isEditExistingMode || Boolean(selectedExistingRoute)) && (
+              {gradePickerOpen && !isEditingExistingRoute && (
                 <GradePicker
                   isOpen={gradePickerOpen}
                   currentGrade={activeGrade}
