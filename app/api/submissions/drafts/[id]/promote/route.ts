@@ -6,6 +6,8 @@ import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export const runtime = 'nodejs'
 
+const INTERNAL_MODERATION_SECRET = process.env.INTERNAL_MODERATION_SECRET
+
 interface PromoteResult {
   success?: boolean
   status?: string
@@ -129,6 +131,44 @@ export async function POST(
     const result = (Array.isArray(data) ? data[0] : data) as PromoteResult | null
     if (!result?.success || !result.image_id) {
       return NextResponse.json({ error: 'Failed to publish draft' }, { status: 500 })
+    }
+
+    if (INTERNAL_MODERATION_SECRET) {
+      const csrfToken = request.headers.get('x-csrf-token')
+      const cookieHeader = request.headers.get('cookie')
+      const moderationHeaders: Record<string, string> = {
+        'content-type': 'application/json',
+        'x-internal-secret': INTERNAL_MODERATION_SECRET,
+      }
+
+      if (csrfToken) {
+        moderationHeaders['x-csrf-token'] = csrfToken
+      }
+
+      if (cookieHeader) {
+        moderationHeaders.cookie = cookieHeader
+      }
+
+      fetch(new URL('/api/moderation/check', request.url), {
+        method: 'POST',
+        headers: moderationHeaders,
+        body: JSON.stringify({ imageId: result.image_id }),
+      })
+        .then(async (res) => {
+          if (res.ok) return
+          const text = await res.text().catch(() => '')
+          console.error('Failed to queue moderation for published draft:', {
+            draftId: id,
+            imageId: result.image_id,
+            status: res.status,
+            body: text.slice(0, 500),
+          })
+        })
+        .catch((queueError) => console.error('Failed to queue moderation for published draft:', {
+          draftId: id,
+          imageId: result.image_id,
+          error: queueError,
+        }))
     }
 
     return NextResponse.json({
