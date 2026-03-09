@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
   try {
     const { data: crags, error } = await supabase
       .from('crags')
-      .select('id,name,latitude,longitude,rock_type,type')
+      .select('id,name,latitude,longitude,rock_type,type,country_code,region_name,sub_area')
       .gte('latitude', latitude - latRange)
       .lte('latitude', latitude + latRange)
       .gte('longitude', longitude - lngRange)
@@ -67,6 +67,10 @@ export async function GET(request: NextRequest) {
     const results = crags
       .map(crag => ({
         ...crag,
+        countryName: getCountryName(crag.country_code),
+        countryCode: crag.country_code,
+        regionName: crag.region_name,
+        subArea: crag.sub_area,
         distance: crag.latitude && crag.longitude
           ? calculateDistance(latitude, longitude, crag.latitude, crag.longitude)
           : null
@@ -85,6 +89,17 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     return createErrorResponse(error, 'Error fetching nearby crags')
+  }
+}
+
+function getCountryName(countryCode: string | null): string | null {
+  if (!countryCode) return null
+
+  try {
+    const displayNames = new Intl.DisplayNames(['en'], { type: 'region' })
+    return displayNames.of(countryCode.toUpperCase()) || null
+  } catch {
+    return countryCode.toUpperCase()
   }
 }
 
