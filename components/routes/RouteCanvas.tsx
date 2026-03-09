@@ -222,6 +222,27 @@ export default function RouteCanvas({
     () => createSmoothCurvePath(currentPoints),
     [currentPoints]
   )
+  const selectableRoutes = useMemo(() => {
+    const newRouteItems = completedRoutes.map((route, index) => ({
+      id: route.id,
+      name: route.name.trim() || `Route ${index + 1}`,
+      grade: route.grade,
+      climbType: route.climbType,
+      isDraft: true,
+    }))
+
+    const existingRouteItems = isEditExistingMode
+      ? existingRoutes.map((route, index) => ({
+          id: route.id,
+          name: route.name.trim() || `Route ${index + 1}`,
+          grade: route.grade,
+          climbType: route.climbType,
+          isDraft: false,
+        }))
+      : []
+
+    return [...newRouteItems, ...existingRouteItems]
+  }, [completedRoutes, existingRoutes, isEditExistingMode])
 
   const updateSelectedNewRoute = useCallback((updates: Partial<ExistingRoute>) => {
     if (!selectedNewRoute) return
@@ -240,6 +261,11 @@ export default function RouteCanvas({
       return { ...route, ...updates }
     }))
   }, [selectedExistingRoute])
+
+  const handleSelectRouteFromList = useCallback((routeId: string) => {
+    selectRoute(routeId)
+    setIsDetailsExpanded(true)
+  }, [selectRoute])
 
   const getTouchPos = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -1076,6 +1102,34 @@ export default function RouteCanvas({
                 Select to choose routes. Switch to Draw to place points.
               </p>
             </div>
+            {selectableRoutes.length > 0 ? (
+              <div className="border-b border-gray-200 px-2 py-2 dark:border-gray-700">
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Routes
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-1 md:flex-col md:overflow-visible">
+                  {selectableRoutes.map((route, index) => {
+                    const isSelected = selectedIds.includes(route.id)
+                    return (
+                      <button
+                        key={route.id}
+                        type="button"
+                        onClick={() => handleSelectRouteFromList(route.id)}
+                        className={`min-w-40 shrink-0 rounded-lg border px-3 py-2 text-left transition-colors md:min-w-0 ${isSelected ? 'border-blue-600 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-100' : 'border-gray-200 bg-gray-50 text-gray-800 hover:border-gray-300 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-100 dark:hover:border-gray-600 dark:hover:bg-gray-800'}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-medium">{route.name}</span>
+                          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">{getGradeDisplay(route.grade, route.climbType)}</span>
+                        </div>
+                        <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                          {route.isDraft ? `Draft route ${index + 1}` : 'Existing route'}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
             <button
               onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
               className="w-full flex items-center justify-between px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400"
