@@ -17,7 +17,11 @@ export interface Crag {
   name: string
   latitude: number
   longitude: number
+  countryCode?: string | null
+  countryName?: string | null
   region_id: string | null
+  regionName?: string | null
+  subArea?: string | null
   description: string | null
   access_notes: string | null
   rock_type: string | null

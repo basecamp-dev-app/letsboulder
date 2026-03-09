@@ -8,36 +8,33 @@ import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable 
 import { CSS } from '@dnd-kit/utilities'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { stripExifMetadataFromFile } from '@/lib/image-metadata'
-import { isHeicFile } from '@/lib/image-utils'
-import type { NewImageSelection, NewUploadedImage, GpsData } from '@/lib/submission-types'
-import { createClient } from '@/lib/supabase'
 import { extractGpsFromFile } from '@/lib/image-gps'
+import { isHeicFile } from '@/lib/image-utils'
+import type { NewImageSelection, NewUploadedImage } from '@/lib/submission-types'
+import { createClient } from '@/lib/supabase'
 
 const ROUTE_UPLOADS_BUCKET = 'route-uploads'
 
 interface MultiImageUploaderProps {
   onComplete: (result: NewImageSelection) => void
+  onClear: () => void
   onError: (error: string) => void
   onUploading: (uploading: boolean, progress: number, step: string) => void
 }
 
-interface SelectedImage {
+interface SelectedImage extends NewUploadedImage {
   id: string
-  file: File
-  previewUrl: string
-  width: number
-  height: number
-  gpsData: GpsData | null
 }
 
 interface SortableThumbProps {
   image: SelectedImage
   index: number
+  removing: boolean
   onRemove: (id: string) => void
 }
 
-function SortableThumb({ image, index, onRemove }: SortableThumbProps) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: image.id })
+function SortableThumb({ image, index, removing, onRemove }: SortableThumbProps) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: image.id, disabled: removing })
 
   return (
     <div
@@ -54,28 +51,30 @@ function SortableThumb({ image, index, onRemove }: SortableThumbProps) {
           e.stopPropagation()
           onRemove(image.id)
         }}
-        className="absolute right-1 top-1 z-20 rounded-full bg-black/70 px-1.5 py-0.5 text-xs text-white"
+        disabled={removing}
+        className="absolute right-1 top-1 z-20 rounded-full bg-black/70 px-1.5 py-0.5 text-xs text-white disabled:opacity-60"
         aria-label="Remove image"
       >
-        X
+        {removing ? '...' : 'X'}
       </button>
       {index === 0 && (
         <div className="absolute left-1 top-1 z-20 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white">
           Primary
         </div>
       )}
-      <NextImage src={image.previewUrl} alt="Selected" fill unoptimized sizes="96px" className="object-cover" />
+      <NextImage src={image.uploadedUrl} alt="Selected" fill unoptimized sizes="96px" className="object-cover" />
     </div>
   )
 }
 
-export default function MultiImageUploader({ onComplete, onError, onUploading }: MultiImageUploaderProps) {
+export default function MultiImageUploader({ onComplete, onClear, onError, onUploading }: MultiImageUploaderProps) {
   const [images, setImages] = useState<SelectedImage[]>([])
-  const [isCompressing, setIsCompressing] = useState(false)
-  const [compressProgress, setCompressProgress] = useState(0)
-  const [compressingCount, setCompressingCount] = useState(0)
-  const [compressingTotal, setCompressingTotal] = useState(0)
+  const [isBusy, setIsBusy] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [completedCount, setCompletedCount] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
+  const [removingImageId, setRemovingImageId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const maxFiles = 8
 
@@ -83,15 +82,31 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 8 } })
   )
-  const canUpload = useMemo(() => images.length > 0, [images.length])
+
+  const canAddMore = useMemo(() => images.length < maxFiles, [images.length])
 
   useEffect(() => {
-    return () => {
-      for (const image of images) {
-        URL.revokeObjectURL(image.previewUrl)
-      }
+    if (images.length === 0) {
+      onClear()
+      return
     }
-  }, [images])
+
+    onComplete({
+      mode: 'new',
+      images: images.map((image) => ({
+        uploadedBucket: image.uploadedBucket,
+        uploadedPath: image.uploadedPath,
+        uploadedUrl: image.uploadedUrl,
+        gpsData: image.gpsData,
+        captureDate: image.captureDate,
+        width: image.width,
+        height: image.height,
+        naturalWidth: image.naturalWidth,
+        naturalHeight: image.naturalHeight,
+      })),
+      primaryIndex: 0,
+    })
+  }, [images, onClear, onComplete])
 
   const getDimensions = useCallback(async (url: string): Promise<{ width: number; height: number }> => {
     return new Promise((resolve) => {
@@ -118,126 +133,82 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
       fileType: 'image/jpeg',
       useWebWorker: true,
     })
+
     return stripExifMetadataFromFile(compressed)
   }, [])
 
+  const cleanupUploadedFiles = useCallback(async (uploadedFiles: SelectedImage[]) => {
+    if (uploadedFiles.length === 0) return
+
+    const supabase = createClient()
+    const groupedPaths = new Map<string, string[]>()
+
+    for (const image of uploadedFiles) {
+      const paths = groupedPaths.get(image.uploadedBucket) || []
+      paths.push(image.uploadedPath)
+      groupedPaths.set(image.uploadedBucket, paths)
+    }
+
+    for (const [bucket, paths] of groupedPaths.entries()) {
+      const uniquePaths = Array.from(new Set(paths))
+      const { error } = await supabase.storage.from(bucket).remove(uniquePaths)
+      if (error) {
+        throw new Error(error.message || 'Failed to clean up uploaded image')
+      }
+    }
+  }, [])
+
   const addFiles = useCallback(async (files: FileList | null) => {
-    if (!files || files.length === 0) return
+    if (!files || files.length === 0 || isBusy) return
 
     const remaining = Math.max(0, maxFiles - images.length)
-    const incoming = Array.from(files).slice(0, remaining)
-    if (incoming.length === 0) return
+    const incoming = Array.from(files)
+      .filter((file) => file.type.startsWith('image/') || isHeicFile(file))
+      .slice(0, remaining)
 
-    onUploading(true, 5, 'Preparing photos...')
-    setIsCompressing(true)
-    setCompressingCount(0)
-    setCompressingTotal(incoming.length)
-    setCompressProgress(0)
+    if (incoming.length === 0) {
+      onError('Select at least one image file.')
+      return
+    }
 
-    const processed: SelectedImage[] = []
+    setIsBusy(true)
+    setCompletedCount(0)
+    setTotalCount(incoming.length)
+    setProgress(0)
+    onUploading(true, 5, incoming.length === 1 ? 'Preparing photo...' : `Preparing ${incoming.length} photos...`)
+
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setIsBusy(false)
+      setCompletedCount(0)
+      setTotalCount(0)
+      setProgress(0)
+      onError('Please log in to upload images')
+      onUploading(false, 0, '')
+      return
+    }
+
+    const uploadedThisBatch: SelectedImage[] = []
+
     try {
       for (let index = 0; index < incoming.length; index += 1) {
         const file = incoming[index]
-        if (!file.type.startsWith('image/')) {
-          const done = index + 1
-          setCompressingCount(done)
-          setCompressProgress(Math.round((done / incoming.length) * 100))
-          continue
-        }
+        onUploading(true, Math.max(5, Math.round((index / incoming.length) * 90)), `Processing photo ${index + 1}/${incoming.length}...`)
 
         const [compressed, gpsData] = await Promise.all([
           compressImage(file),
           extractGpsFromFile(file),
         ])
-        const previewUrl = URL.createObjectURL(compressed)
-        const dimensions = await getDimensions(previewUrl)
-        processed.push({
-          id: crypto.randomUUID(),
-          file: compressed,
-          previewUrl,
-          width: dimensions.width,
-          height: dimensions.height,
-          gpsData,
-        })
 
-        const done = index + 1
-        setCompressingCount(done)
-        setCompressProgress(Math.round((done / incoming.length) * 100))
-      }
-
-      setImages((prev) => [...prev, ...processed])
-    } finally {
-      setIsCompressing(false)
-      onUploading(false, 0, '')
-    }
-  }, [compressImage, getDimensions, images.length, onUploading])
-
-  const handleRemove = useCallback((id: string) => {
-    setImages((prev) => {
-      const target = prev.find((item) => item.id === id)
-      if (target) URL.revokeObjectURL(target.previewUrl)
-      return prev.filter((item) => item.id !== id)
-    })
-  }, [])
-
-  const onDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    setImages((prev) => {
-      const oldIndex = prev.findIndex((item) => item.id === active.id)
-      const newIndex = prev.findIndex((item) => item.id === over.id)
-      if (oldIndex < 0 || newIndex < 0) return prev
-      return arrayMove(prev, oldIndex, newIndex)
-    })
-  }, [])
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-  }, [])
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-    void addFiles(e.dataTransfer.files)
-  }, [addFiles])
-
-  const uploadAll = useCallback(async () => {
-    if (!canUpload) {
-      onError('Select at least one image first.')
-      return
-    }
-
-    onUploading(true, 5, 'Starting upload...')
-    try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        onError('Please log in to upload images')
-        onUploading(false, 0, '')
-        return
-      }
-
-      const uploaded: NewUploadedImage[] = []
-      const total = images.length
-
-      for (let i = 0; i < total; i += 1) {
-        const image = images[i]
-        const ext = image.file.name.split('.').pop() || 'jpg'
+        const ext = compressed.name.split('.').pop() || 'jpg'
         const path = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`
 
-        const pct = 10 + Math.round((i / total) * 70)
-        onUploading(true, pct, `Uploading image ${i + 1}/${total}...`)
+        onUploading(true, Math.max(10, Math.round(((index + 0.5) / incoming.length) * 90)), `Uploading photo ${index + 1}/${incoming.length}...`)
 
         const { data, error } = await supabase.storage
           .from(ROUTE_UPLOADS_BUCKET)
-          .upload(path, image.file, { upsert: false })
+          .upload(path, compressed, { upsert: false })
 
         if (error || !data?.path) {
           throw new Error(error?.message || 'Failed to upload image')
@@ -251,31 +222,98 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
           throw new Error('Failed to generate preview URL')
         }
 
-        uploaded.push({
+        const dimensions = await getDimensions(signedData.signedUrl)
+        const uploadedImage: SelectedImage = {
+          id: data.path,
           uploadedBucket: ROUTE_UPLOADS_BUCKET,
           uploadedPath: data.path,
           uploadedUrl: signedData.signedUrl,
-          gpsData: image.gpsData,
+          gpsData,
           captureDate: null,
-          width: image.width,
-          height: image.height,
-          naturalWidth: image.width,
-          naturalHeight: image.height,
-        })
+          width: dimensions.width,
+          height: dimensions.height,
+          naturalWidth: dimensions.width,
+          naturalHeight: dimensions.height,
+        }
+
+        uploadedThisBatch.push(uploadedImage)
+        setImages((prev) => [...prev, uploadedImage])
+        setCompletedCount(index + 1)
+        setProgress(Math.round(((index + 1) / incoming.length) * 100))
       }
 
       onUploading(false, 100, '')
-      onComplete({
-        mode: 'new',
-        images: uploaded,
-        primaryIndex: 0,
-      })
     } catch (error) {
+      setImages((prev) => prev.filter((image) => !uploadedThisBatch.some((uploaded) => uploaded.id === image.id)))
+      try {
+        await cleanupUploadedFiles(uploadedThisBatch)
+      } catch (cleanupError) {
+        const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : 'Failed to clean up uploaded images'
+        onError(cleanupMessage)
+      }
+
       const message = error instanceof Error ? error.message : 'Failed to upload images'
       onError(message)
       onUploading(false, 0, '')
+    } finally {
+      setIsBusy(false)
+      setCompletedCount(0)
+      setTotalCount(0)
+      setProgress(0)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     }
-  }, [canUpload, images, onComplete, onError, onUploading])
+  }, [cleanupUploadedFiles, compressImage, getDimensions, images.length, isBusy, onError, onUploading])
+
+  const handleRemove = useCallback(async (id: string) => {
+    const image = images.find((item) => item.id === id)
+    if (!image || removingImageId) return
+
+    setRemovingImageId(id)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.storage.from(image.uploadedBucket).remove([image.uploadedPath])
+      if (error) {
+        throw new Error(error.message || 'Failed to remove uploaded image')
+      }
+
+      setImages((prev) => prev.filter((item) => item.id !== id))
+    } catch (error) {
+      onError(error instanceof Error ? error.message : 'Failed to remove uploaded image')
+    } finally {
+      setRemovingImageId(null)
+    }
+  }, [images, onError, removingImageId])
+
+  const onDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id || isBusy || removingImageId) return
+
+    setImages((prev) => {
+      const oldIndex = prev.findIndex((item) => item.id === active.id)
+      const newIndex = prev.findIndex((item) => item.id === over.id)
+      if (oldIndex < 0 || newIndex < 0) return prev
+      return arrayMove(prev, oldIndex, newIndex)
+    })
+  }, [isBusy, removingImageId])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    if (!canAddMore || isBusy) return
+    setIsDragging(true)
+  }, [canAddMore, isBusy])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    void addFiles(e.dataTransfer.files)
+  }, [addFiles])
 
   return (
     <div className="space-y-4">
@@ -289,12 +327,17 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
       />
 
       <div
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => {
+          if (canAddMore && !isBusy) {
+            fileInputRef.current?.click()
+          }
+        }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`
-          relative cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-all duration-200
+          relative rounded-lg border-2 border-dashed p-6 text-center transition-all duration-200
+          ${canAddMore && !isBusy ? 'cursor-pointer' : 'cursor-default opacity-80'}
           ${isDragging
             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
             : images.length === 0
@@ -322,7 +365,7 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
               {isDragging ? 'Drop photos here' : 'Drop photos or click to select'}
             </p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              JPEG, PNG, HEIC, WebP, up to 8 photos
+              Photos upload automatically after selection. JPEG, PNG, HEIC, WebP, up to 8 photos.
             </p>
           </>
         ) : (
@@ -330,41 +373,41 @@ export default function MultiImageUploader({ onComplete, onError, onUploading }:
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
             </svg>
-            <span>Add more photos</span>
+            <span>{canAddMore ? 'Add more photos' : 'Photo limit reached'}</span>
           </div>
         )}
       </div>
 
-      {images.length > 0 && (
-        <button
-          type="button"
-          onClick={() => void uploadAll()}
-          disabled={!canUpload || isCompressing}
-          className="w-full rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50 hover:bg-emerald-700 transition-colors"
-        >
-          {isCompressing ? 'Processing...' : `Upload ${images.length} Photo${images.length !== 1 ? 's' : ''}`}
-        </button>
-      )}
-
-      {(images.length > 0 || isCompressing) && (
+      {(images.length > 0 || isBusy) && (
         <div className="space-y-2">
-          {isCompressing && (
+          {isBusy ? (
             <div className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
-              Compressing... {compressingCount}/{compressingTotal} ({compressProgress}%)
+              Uploading... {completedCount}/{totalCount} ({progress}%)
             </div>
-          )}
+          ) : null}
           <p className="text-xs text-gray-600 dark:text-gray-400">
-            Drag to reorder. The first image is used as the primary drawing canvas.
+            Upload multiple photos together when they belong to the same face or the same boulder area.
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            One pin equals one submission. Add multiple photos here only when they are different faces of the same climb area.
+            All photos here map to one pin. Use a separate submission for a different face, boulder, or area.
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Drag to reorder. The first image is used as the primary drawing canvas.
           </p>
           <div className="overflow-x-auto">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
               <SortableContext items={images.map((img) => img.id)} strategy={horizontalListSortingStrategy}>
                 <div className="flex gap-2 pb-1">
                   {images.map((image, index) => (
-                    <SortableThumb key={image.id} image={image} index={index} onRemove={handleRemove} />
+                    <SortableThumb
+                      key={image.id}
+                      image={image}
+                      index={index}
+                      removing={removingImageId === image.id}
+                      onRemove={(id) => {
+                        void handleRemove(id)
+                      }}
+                    />
                   ))}
                 </div>
               </SortableContext>

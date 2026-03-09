@@ -32,10 +32,7 @@ async function createDraftFromIntake(page: Page) {
   await expect(page.getByRole('heading', { name: 'Start a new draft' })).toBeVisible()
 
   await page.locator('input[type="file"]').setInputFiles(IMAGE_FIXTURES)
-  await expect(page.getByText(/Compressing/i)).not.toBeVisible({ timeout: 20000 })
-  await page.getByRole('button', { name: /^Upload\s+\d+\s+Photo/i }).click()
-
-  await expect(page.getByText(/photo(s)? selected/i)).toBeVisible({ timeout: 20000 })
+  await expect(page.getByText(/photo(s)? uploaded/i)).toBeVisible({ timeout: 30000 })
   await page.getByRole('button', { name: 'Create draft and continue' }).click()
 
   await expect(page).toHaveURL(/\/logbook\/drafts\/[0-9a-f-]+\/edit/i, { timeout: 30000 })
