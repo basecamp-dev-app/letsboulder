@@ -394,6 +394,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   const initialRouteCountRef = useRef(0)
   const prevActiveFaceIndexRef = useRef<number | null>(null)
   const pendingSelectedRouteIdRef = useRef<string | null>(null)
+  const pendingFaceIndexRef = useRef<number | null>(null)
   const routeDrivenFaceChangeRef = useRef(false)
   const gradeSystem = useGradeSystem()
   const { data: climbPackData, isLoading: isClimbPackLoading, error: climbPackError } = useQuery({
@@ -573,6 +574,31 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     },
     [pathname, searchParams, router]
   )
+
+  const handleScrollToFace = useCallback((index: number) => {
+    if (!emblaApi || visibleFaces.length === 0) return
+
+    const targetIndex = Math.max(0, Math.min(index, visibleFaces.length - 1))
+    if (targetIndex === activeFaceIndex && targetIndex === settledFaceIndex) {
+      updateEmblaControls(true)
+      return
+    }
+
+    pendingFaceIndexRef.current = targetIndex
+    routeDrivenFaceChangeRef.current = false
+    setHasUserInteractedWithSelection(true)
+    resetZoomPan()
+    setIsFaceTransitioning(true)
+    setCanvasFadeOut(true)
+    setActiveCanvasImageId(null)
+    setRouteLinesImageId(null)
+    setRouteLines([])
+    pendingSelectedRouteIdRef.current = null
+    clearSelection()
+    updateRouteParam(null)
+    setActiveFaceIndex(targetIndex)
+    emblaApi.scrollTo(targetIndex, true)
+  }, [emblaApi, visibleFaces.length, activeFaceIndex, settledFaceIndex, updateEmblaControls, resetZoomPan, clearSelection, updateRouteParam])
 
   const scrollRouteCardIntoView = useCallback((routeId: string) => {
     const node = routeCardRefs.current[routeId]
@@ -894,7 +920,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     })
 
     const handleSelect = () => {
-      const nextSnap = emblaApi.selectedScrollSnap()
+      const nextSnap = pendingFaceIndexRef.current ?? emblaApi.selectedScrollSnap()
       if (nextSnap === settledFaceIndex) {
         updateEmblaControls(false)
         return
@@ -917,11 +943,13 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     }
 
     const handleSettle = () => {
+      pendingFaceIndexRef.current = null
       setIsFaceTransitioning(false)
       updateEmblaControls(true)
     }
 
     const handleReInit = () => {
+      pendingFaceIndexRef.current = null
       setIsFaceTransitioning(false)
       updateEmblaControls(true)
     }
@@ -1889,9 +1917,9 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         onCanvasClick={handleCanvasClick}
         onFaceLoad={markFaceLoaded}
         onFaceError={markFaceErrored}
-        onScrollPrev={() => emblaApi?.scrollPrev()}
-        onScrollNext={() => emblaApi?.scrollNext()}
-        onScrollTo={(index) => emblaApi?.scrollTo(index)}
+        onScrollPrev={() => handleScrollToFace(activeFaceIndex - 1)}
+        onScrollNext={() => handleScrollToFace(activeFaceIndex + 1)}
+        onScrollTo={handleScrollToFace}
         onPrefetchFace={(face) => {
           prefetchFaceImage(face ? visibleFaces.find((item) => item.id === face.id) : undefined)
         }}
