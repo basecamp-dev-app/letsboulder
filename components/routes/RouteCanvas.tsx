@@ -183,38 +183,22 @@ export default function RouteCanvas({
   const [draggingPointIndex, setDraggingPointIndex] = useState<number | null>(null)
   const [descriptionFocused, setDescriptionFocused] = useState(false)
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true)
-  const [isCoarsePointer, setIsCoarsePointer] = useState(false)
-  const [mobileTouchMode, setMobileTouchMode] = useState<'pan' | 'draw'>('pan')
+  const [interactionMode, setInteractionMode] = useState<'browse' | 'draw'>('browse')
   const previousCanvasSizeRef = useRef<{ width: number; height: number } | null>(null)
   const hasHydratedExistingRoutesRef = useRef(false)
   const touchStartCanvasPointRef = useRef<RoutePoint | null>(null)
   const touchPanOriginRef = useRef<{ x: number; y: number } | null>(null)
+  const hasMousePanMovedRef = useRef(false)
   const isDrawingInProgress = currentPoints.length > 0
   const touchTapThreshold = 14
-  const isTouchDrawMode = isCoarsePointer && mobileTouchMode === 'draw'
+  const mousePanThreshold = 6
+  const isDrawMode = interactionMode === 'draw'
   const canDrawRoutes = !isEditExistingMode || canCreateRoutesInEditMode
 
   useEffect(() => {
     hasHydratedExistingRoutesRef.current = false
     previousCanvasSizeRef.current = null
   }, [imageUrl])
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
-
-    const mediaQuery = window.matchMedia('(pointer: coarse)')
-    const updatePointerMode = () => {
-      setIsCoarsePointer(mediaQuery.matches)
-      setMobileTouchMode((current) => (mediaQuery.matches ? current : 'pan'))
-    }
-
-    updatePointerMode()
-    mediaQuery.addEventListener('change', updatePointerMode)
-    return () => {
-      mediaQuery.removeEventListener('change', updatePointerMode)
-    }
-  }, [])
-
 
   useOverlayHistory({
     open: showSubmitConfirm,
@@ -337,47 +321,53 @@ export default function RouteCanvas({
   }, [completedRoutes, completedRoutePaths, existingRoutes, existingRoutePaths])
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
-      setIsPanning(true)
-      setLastPanPoint({ x: e.clientX, y: e.clientY })
-      return
-    }
-
-    if (e.button === 0 && !e.altKey) {
-      const pos = getMousePos(e)
-
-      if (isDrawingInProgress) {
-        setCurrentPoints(prev => [...prev, pos])
+      if (e.button === 1 || (e.button === 0 && e.altKey)) {
+        setIsPanning(true)
+        setLastPanPoint({ x: e.clientX, y: e.clientY })
+        hasMousePanMovedRef.current = false
         return
       }
+
+      if (e.button === 0 && !e.altKey) {
+        const pos = getMousePos(e)
+
+        if (isDrawMode && isDrawingInProgress) {
+          setCurrentPoints(prev => [...prev, pos])
+          return
+        }
 
       const dragHandleIndex = getDragHandleIndex(pos)
-      if (dragHandleIndex !== null) {
-        setDraggingPointIndex(dragHandleIndex)
-        return
+        if (dragHandleIndex !== null) {
+          setDraggingPointIndex(dragHandleIndex)
+          return
+        }
+
+        if (!isDrawMode) {
+          hasMousePanMovedRef.current = false
+          setIsPanning(true)
+          setLastPanPoint({ x: e.clientX, y: e.clientY })
+          return
+        }
+
+        const clickedRoute = getRouteAtPoint(pos)
+        if (clickedRoute) {
+          selectRoute(clickedRoute.id)
+          return
+        }
+
+        clearSelection()
+
+        if (isEditExistingMode && !canCreateRoutesInEditMode) {
+          return
+        }
+
+        if (currentPoints.length === 0) {
+          setCurrentPoints([pos])
+        } else {
+          setCurrentPoints(prev => [...prev, pos])
+        }
       }
-
-      const clickedRoute = getRouteAtPoint(pos)
-
-      if (clickedRoute) {
-        const routeId = clickedRoute.id
-        selectRoute(routeId)
-        return
-      }
-
-      clearSelection()
-
-      if (isEditExistingMode && !canCreateRoutesInEditMode) {
-        return
-      }
-
-      if (currentPoints.length === 0) {
-        setCurrentPoints([pos])
-      } else {
-        setCurrentPoints(prev => [...prev, pos])
-      }
-    }
-  }, [getMousePos, isDrawingInProgress, getDragHandleIndex, getRouteAtPoint, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, selectRoute, clearSelection])
+    }, [getMousePos, isDrawMode, isDrawingInProgress, getDragHandleIndex, getRouteAtPoint, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, selectRoute, clearSelection])
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
@@ -403,7 +393,7 @@ export default function RouteCanvas({
       return
     }
 
-    if (isCoarsePointer && mobileTouchMode === 'pan' && e.touches.length === 1) {
+    if (!isDrawMode && e.touches.length === 1) {
       touchPanOriginRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
       e.preventDefault()
       return
@@ -412,7 +402,7 @@ export default function RouteCanvas({
     if (canDrawRoutes && e.touches.length === 1) {
       e.preventDefault()
     }
-  }, [canvasReady, getTouchPos, getDragHandleIndex, zoom, canDrawRoutes, isCoarsePointer, mobileTouchMode])
+  }, [canvasReady, getTouchPos, getDragHandleIndex, zoom, canDrawRoutes, isDrawMode])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
@@ -445,15 +435,21 @@ export default function RouteCanvas({
     touchStartCanvasPointRef.current = null
     touchPanOriginRef.current = null
 
-    if (isCoarsePointer && mobileTouchMode === 'pan') {
-      return
-    }
-
     if (touchStartPoint) {
       const moveDistance = Math.hypot(canvasX - touchStartPoint.x, canvasY - touchStartPoint.y)
       if (moveDistance > touchTapThreshold) {
         return
       }
+    }
+
+    if (!isDrawMode) {
+      const clickedRoute = getRouteAtPoint({ x: canvasX, y: canvasY })
+      if (clickedRoute) {
+        selectRoute(clickedRoute.id)
+      } else {
+        clearSelection()
+      }
+      return
     }
 
     if (isDrawingInProgress) {
@@ -480,7 +476,7 @@ export default function RouteCanvas({
     } else {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
     }
-  }, [canvasReady, zoom, pan, pinchStartZoom, draggingPointIndex, isDrawingInProgress, getRouteAtPoint, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, selectRoute, clearSelection, isCoarsePointer, mobileTouchMode])
+  }, [canvasReady, zoom, pan, pinchStartZoom, draggingPointIndex, isDrawingInProgress, getRouteAtPoint, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, selectRoute, clearSelection, isDrawMode])
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
@@ -505,7 +501,7 @@ export default function RouteCanvas({
       return
     }
 
-    if (isCoarsePointer && mobileTouchMode === 'pan' && e.touches.length === 1 && touchPanOriginRef.current) {
+    if (!isDrawMode && e.touches.length === 1 && touchPanOriginRef.current) {
       const dx = e.touches[0].clientX - touchPanOriginRef.current.x
       const dy = e.touches[0].clientY - touchPanOriginRef.current.y
       setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }))
@@ -533,7 +529,7 @@ export default function RouteCanvas({
     }
 
     e.preventDefault()
-  }, [canvasReady, draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, pinchStartZoom, pinchStartDistance, pinchCenter, zoom, pan, canDrawRoutes, isCoarsePointer, mobileTouchMode])
+  }, [canvasReady, draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, pinchStartZoom, pinchStartDistance, pinchCenter, zoom, pan, canDrawRoutes, isDrawMode])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggingPointIndex !== null && editableRoute) {
@@ -554,12 +550,15 @@ export default function RouteCanvas({
     if (isPanning) {
       const dx = e.clientX - lastPanPoint.x
       const dy = e.clientY - lastPanPoint.y
+      if (Math.abs(dx) > mousePanThreshold || Math.abs(dy) > mousePanThreshold) {
+        hasMousePanMovedRef.current = true
+      }
       setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }))
       setLastPanPoint({ x: e.clientX, y: e.clientY })
       return
     }
 
-    if ((!isEditExistingMode || canCreateRoutesInEditMode) && e.buttons === 1 && !e.altKey && currentPoints.length > 0) {
+    if (isDrawMode && (!isEditExistingMode || canCreateRoutesInEditMode) && e.buttons === 1 && !e.altKey && currentPoints.length > 0) {
       const pos = getMousePos(e)
       const lastPoint = currentPoints[currentPoints.length - 1]
       const distance = Math.sqrt(
@@ -570,12 +569,24 @@ export default function RouteCanvas({
         setCurrentPoints(prev => [...prev, pos])
       }
     }
-  }, [draggingPointIndex, editableRoute, isEditExistingMode, canCreateRoutesInEditMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, isPanning, lastPanPoint, getMousePos, currentPoints])
+  }, [draggingPointIndex, editableRoute, isDrawMode, isEditExistingMode, canCreateRoutesInEditMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, isPanning, lastPanPoint, getMousePos, currentPoints])
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e?: React.MouseEvent<HTMLCanvasElement>) => {
     setDraggingPointIndex(null)
+
+    if (!isDrawMode && isPanning && !hasMousePanMovedRef.current && e) {
+      const pos = getMousePos(e)
+      const clickedRoute = getRouteAtPoint(pos)
+      if (clickedRoute) {
+        selectRoute(clickedRoute.id)
+      } else {
+        clearSelection()
+      }
+    }
+
     setIsPanning(false)
-  }, [])
+    hasMousePanMovedRef.current = false
+  }, [isDrawMode, isPanning, getMousePos, getRouteAtPoint, selectRoute, clearSelection])
 
   const cancelCurrentDrawing = useCallback(() => {
     setCurrentPoints([])
@@ -970,7 +981,6 @@ export default function RouteCanvas({
   const isEditingExistingRoute = !isEditExistingMode && Boolean(selectedExistingRoute)
   const disableEditInputs = isEditExistingMode ? (!canCreateRoutesInEditMode && !selectedExistingRoute) : isEditingExistingRoute
   const disableGradePicker = disableEditInputs
-  const isEditing = selectedNewRoute || selectedExistingRoute || currentPoints.length > 0
   const allRoutesValid = completedRoutes.every(route => route.name.trim().length > 0)
   return (
     <div className="h-full w-full flex flex-col md:flex-row">
@@ -1077,26 +1087,28 @@ export default function RouteCanvas({
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 md:relative md:w-64 md:shrink-0 bg-white dark:bg-gray-800 md:border-l md:border-gray-200 md:dark:border-gray-700 overflow-y-auto md:max-h-none">
-          {(isEditing || completedRoutes.length > 0 || isTouchDrawMode) && (
           <>
-            {isCoarsePointer ? (
-              <div className="flex items-center gap-2 border-b border-gray-200 px-2 py-2 dark:border-gray-700">
+            <div className="border-b border-gray-200 px-2 py-2 dark:border-gray-700">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setMobileTouchMode('pan')}
-                  className={`flex-1 rounded-md px-2 py-2 text-xs font-semibold ${mobileTouchMode === 'pan' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'}`}
+                  onClick={() => setInteractionMode('browse')}
+                  className={`flex-1 rounded-md px-2 py-2 text-xs font-semibold ${interactionMode === 'browse' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'}`}
                 >
-                  Pan image
+                  Browse
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMobileTouchMode('draw')}
-                  className={`flex-1 rounded-md px-2 py-2 text-xs font-semibold ${mobileTouchMode === 'draw' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'}`}
+                  onClick={() => setInteractionMode('draw')}
+                  className={`flex-1 rounded-md px-2 py-2 text-xs font-semibold ${interactionMode === 'draw' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'}`}
                 >
-                  Draw route
+                  Draw
                 </button>
               </div>
-            ) : null}
+              <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                Browse to pan and select routes. Switch to Draw to place points.
+              </p>
+            </div>
             <button
               onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
               className="w-full flex items-center justify-between px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400"
@@ -1216,7 +1228,7 @@ export default function RouteCanvas({
             </div>
             )}
           </>
-          )}
+          
 
           {currentPoints.length > 0 && (!isEditExistingMode || canCreateRoutesInEditMode) && (
             <div className="flex flex-wrap gap-2">
