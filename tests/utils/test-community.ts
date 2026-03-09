@@ -62,15 +62,31 @@ export async function ensureSeededPlace(seed?: { slug: string; name: string }): 
   const slug = seed?.slug || SEEDED_PLACE_SLUG
   const name = seed?.name || SEEDED_PLACE_NAME
 
-  const { data, error } = await supabaseAdmin
+  const { data: existingPlace, error: existingPlaceError } = await supabaseAdmin
     .from('places')
-    .upsert({
+    .select('id, name, slug')
+    .eq('country_code', 'GB')
+    .eq('slug', slug)
+    .maybeSingle()
+
+  if (existingPlaceError) {
+    throw new Error(`Failed to look up seeded place: ${existingPlaceError.message}`)
+  }
+
+  if (existingPlace?.id) {
+    return existingPlace
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('crags')
+    .insert({
       name,
-      slug,
-      type: 'crag',
+      latitude: null,
+      longitude: null,
+      type: 'boulder',
       country_code: 'GB',
-      primary_discipline: 'boulder',
-    }, { onConflict: 'slug' })
+      slug,
+    })
     .select('id, name, slug')
     .single()
 
