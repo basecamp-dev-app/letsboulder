@@ -95,10 +95,11 @@ export async function POST(
 
     const hasValidLocation =
       typeof latitude === 'number' && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
-      typeof longitude === 'number' && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
+      typeof longitude === 'number' && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180 &&
+      !(latitude === 0 && longitude === 0)
 
     if (!hasValidLocation) {
-      return NextResponse.json({ error: 'Set a valid location before publishing this draft' }, { status: 400 })
+      return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
     }
 
     const { data, error } = await supabase.rpc('promote_draft_to_submission', {
@@ -107,7 +108,15 @@ export async function POST(
 
     if (error) {
       if (typeof error.message === 'string' && error.message.includes('Draft location is required before publishing')) {
-        return NextResponse.json({ error: 'Set a valid location before publishing this draft' }, { status: 400 })
+        return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
+      }
+
+      if (typeof error.message === 'string' && error.message.includes('Primary face directions are required before publishing')) {
+        return NextResponse.json({ error: 'Select a face direction for each face before publishing this draft' }, { status: 400 })
+      }
+
+      if (typeof error.message === 'string' && error.message.includes('Primary draft image must contain at least one route before publishing')) {
+        return NextResponse.json({ error: 'Draw at least one route on the primary face before publishing this draft' }, { status: 400 })
       }
 
       if (isPermissionDeniedError(error)) {
