@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
 import { Bookmark } from 'lucide-react'
+import Supercluster from 'supercluster'
 import type { User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useMapEvents } from 'react-leaflet'
@@ -74,78 +75,24 @@ interface MapBounds {
   west: number
 }
 
-interface PlaceCluster {
-  id: string
-  latitude: number
-  longitude: number
-  places: PlacePin[]
-  placeCount: number
+interface ClusterProperties extends PlacePin {
+  cluster: false
+  placeCount: 1
 }
 
-function getClusterGridSize(zoom: number): number {
-  if (zoom <= 3) return 15
-  if (zoom <= 4) return 8
-  if (zoom <= 5) return 5
-  if (zoom <= 6) return 3
-  if (zoom <= 7) return 2
-  if (zoom <= 8) return 1.2
-  if (zoom <= 10) return 0.3
-  if (zoom <= 11) return 0.12
-  if (zoom <= 12) return 0.05
-  if (zoom <= 13) return 0.025
-  return 0.012
+interface ClusterPointProperties {
+  cluster: true
+  cluster_id: number
+  point_count: number
+  point_count_abbreviated: string | number
 }
 
-function mergeCloseClusters(clusters: PlaceCluster[], minDistance: number): PlaceCluster[] {
-  if (clusters.length === 0) return clusters
+type ClusterFeature = GeoJSON.Feature<GeoJSON.Point, ClusterPointProperties>
+type PinFeature = GeoJSON.Feature<GeoJSON.Point, ClusterProperties>
+type ClusterResult = ClusterFeature | PinFeature
 
-  const merged: PlaceCluster[] = []
-  const used = new Set<string>()
-
-  for (let i = 0; i < clusters.length; i++) {
-    if (used.has(clusters[i].id)) continue
-
-    const current = clusters[i]
-    const toMerge: PlaceCluster[] = [current]
-    used.add(current.id)
-
-    for (let j = i + 1; j < clusters.length; j++) {
-      if (used.has(clusters[j].id)) continue
-
-      const other = clusters[j]
-      const latDiff = Math.abs(current.latitude - other.latitude)
-      const lngDiff = Math.abs(current.longitude - other.longitude)
-
-      if (latDiff < minDistance && lngDiff < minDistance) {
-        toMerge.push(other)
-        used.add(other.id)
-      }
-    }
-
-    if (toMerge.length === 1) {
-      merged.push(current)
-    } else {
-      const allPlaces = toMerge.flatMap(c => c.places)
-      const avgLat = allPlaces.reduce((sum, p) => sum + p.latitude, 0) / allPlaces.length
-      const avgLng = allPlaces.reduce((sum, p) => sum + p.longitude, 0) / allPlaces.length
-      merged.push({
-        id: `merged-${current.id}`,
-        latitude: avgLat,
-        longitude: avgLng,
-        places: allPlaces,
-        placeCount: allPlaces.length
-      })
-    }
-  }
-
-  return merged
-}
-
-function isLngWithinBounds(lng: number, bounds: MapBounds): boolean {
-  if (bounds.west <= bounds.east) {
-    return lng >= bounds.west && lng <= bounds.east
-  }
-  return lng >= bounds.west || lng <= bounds.east
+function isClusterFeature(feature: ClusterResult): feature is ClusterFeature {
+  return feature.properties.cluster === true
 }
 
 function MapStateWatcher({
@@ -217,62 +164,53 @@ export default function SatelliteClimbingMap() {
     setMapBounds(state.bounds)
   }, [])
 
-  const clusteredPlaces = useMemo<PlaceCluster[]>(() => {
-    if (placePins.length === 0) return []
-
-    const visiblePins = mapBounds
-      ? placePins.filter((pin) => {
-          const inLat = pin.latitude >= mapBounds.south && pin.latitude <= mapBounds.north
-          const inLng = isLngWithinBounds(pin.longitude, mapBounds)
-          return inLat && inLng
-        })
-      : placePins
-
-    if (visiblePins.length === 0) return []
-
-    if (mapZoom >= 10) {
-      return visiblePins.map((pin) => ({
-        id: pin.id,
-        latitude: pin.latitude,
-        longitude: pin.longitude,
-        places: [pin],
+  const pinFeatures = useMemo<PinFeature[]>(() => {
+    return placePins.map((pin) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [pin.longitude, pin.latitude],
+      },
+      properties: {
+        ...pin,
+        cluster: false,
         placeCount: 1,
-      }))
-    }
+      },
+    }))
+  }, [placePins])
 
-    const gridSize = getClusterGridSize(mapZoom)
-    const buckets = new Map<string, PlacePin[]>()
-
-    for (const pin of visiblePins) {
-      const latBucket = Math.floor(pin.latitude / gridSize)
-      const lngBucket = Math.floor(pin.longitude / gridSize)
-      const bucketKey = `${latBucket}:${lngBucket}`
-      const bucket = buckets.get(bucketKey) || []
-      bucket.push(pin)
-      buckets.set(bucketKey, bucket)
-    }
-
-    let clusters: PlaceCluster[] = Array.from(buckets.entries()).map(([bucketKey, bucket]) => {
-      const latitude = bucket.reduce((sum, pin) => sum + pin.latitude, 0) / bucket.length
-      const longitude = bucket.reduce((sum, pin) => sum + pin.longitude, 0) / bucket.length
-
-      return {
-        id: bucketKey,
-        latitude,
-        longitude,
-        places: bucket,
-        placeCount: bucket.length
-      }
+  const clusterIndex = useMemo(() => {
+    const index = new Supercluster<ClusterProperties, ClusterPointProperties>({
+      radius: 56,
+      maxZoom: 16,
+      minZoom: 0,
+      minPoints: 2,
     })
+    index.load(pinFeatures)
+    return index
+  }, [pinFeatures])
 
-    if (mapZoom <= 5) {
-      clusters = mergeCloseClusters(clusters, 2)
-    } else if (mapZoom <= 7) {
-      clusters = mergeCloseClusters(clusters, 1)
+  const clusteredPlaces = useMemo<ClusterResult[]>(() => {
+    if (pinFeatures.length === 0) return []
+
+    const zoom = Math.max(0, Math.floor(mapZoom))
+    const worldBounds: [number, number, number, number] = [-180, -85, 180, 85]
+
+    if (!mapBounds) {
+      return clusterIndex.getClusters(worldBounds, zoom) as ClusterResult[]
     }
 
-    return clusters
-  }, [placePins, mapBounds, mapZoom])
+    const north = Math.min(85, mapBounds.north)
+    const south = Math.max(-85, mapBounds.south)
+
+    if (mapBounds.west <= mapBounds.east) {
+      return clusterIndex.getClusters([mapBounds.west, south, mapBounds.east, north], zoom) as ClusterResult[]
+    }
+
+    const westClusters = clusterIndex.getClusters([mapBounds.west, south, 180, north], zoom) as ClusterResult[]
+    const eastClusters = clusterIndex.getClusters([-180, south, mapBounds.east, north], zoom) as ClusterResult[]
+    return [...westClusters, ...eastClusters]
+  }, [clusterIndex, mapBounds, mapZoom, pinFeatures.length])
 
   useEffect(() => {
     setupLeafletIcons()
@@ -491,14 +429,16 @@ export default function SatelliteClimbingMap() {
           />
         )}
 
-        {clusteredPlaces.map((cluster) => {
-          if (cluster.placeCount === 1) {
-            const place = cluster.places[0]
+        {clusteredPlaces.map((feature) => {
+          const [longitude, latitude] = feature.geometry.coordinates
+
+          if (!isClusterFeature(feature)) {
+            const place = feature.properties
             const isGym = place.type === 'gym'
             return (
               <Marker
                 key={place.id}
-                position={[place.latitude, place.longitude]}
+                position={[latitude, longitude]}
                 icon={L.divIcon({
                   className: isGym ? 'gym-pin' : 'crag-pin',
                   html: `<div class="place-dot ${isGym ? 'gym-dot' : 'crag-dot'}"></div>`,
@@ -531,11 +471,11 @@ export default function SatelliteClimbingMap() {
 
           return (
             <Marker
-              key={cluster.id}
-              position={[cluster.latitude, cluster.longitude]}
+              key={`cluster-${feature.properties.cluster_id}`}
+              position={[latitude, longitude]}
               icon={L.divIcon({
                 className: 'crag-cluster-wrapper',
-                html: `<div class="crag-cluster-pin">${cluster.placeCount}</div>`,
+                html: `<div class="crag-cluster-pin">${feature.properties.point_count}</div>`,
                 iconSize: [36, 36],
                 iconAnchor: [18, 18]
               })}
@@ -543,9 +483,8 @@ export default function SatelliteClimbingMap() {
               eventHandlers={{
                 click: () => {
                   if (!mapRef.current) return
-                  const currentZoom = mapRef.current.getZoom()
-                  const newZoom = Math.min(currentZoom + 2, 15)
-                  mapRef.current.setView([cluster.latitude, cluster.longitude], newZoom, {
+                  const expansionZoom = Math.min(clusterIndex.getClusterExpansionZoom(feature.properties.cluster_id), 17)
+                  mapRef.current.setView([latitude, longitude], expansionZoom, {
                     animate: true,
                     duration: 0.5
                   })
