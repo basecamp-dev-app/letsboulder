@@ -45,6 +45,12 @@ export default async function ImpactPage() {
           </div>
         </div>
 
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 md:text-4xl">
+            Community Impact
+          </h1>
+        </div>
+
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <ImpactCard
             title="Routes Documented"
@@ -59,7 +65,7 @@ export default async function ImpactPage() {
             className="rounded-3xl border border-gray-200 dark:border-gray-800"
           />
           <ImpactCard
-            title="Successful Sends"
+            title="Sends Logged"
             value={totalSends}
             icon={<Trophy className="w-5 h-5" />}
             className="rounded-3xl border border-gray-200 dark:border-gray-800"
