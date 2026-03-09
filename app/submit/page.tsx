@@ -1,5 +1,14 @@
+import { redirect } from 'next/navigation'
 import DraftIntakeView from '@/components/submissions/DraftIntakeView'
+import { getServerClient } from '@/lib/supabase-server'
 
-export default function SubmitPage() {
+export default async function SubmitPage() {
+  const supabase = await getServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect(`/auth?redirect_to=${encodeURIComponent('/submit')}`)
+  }
+
   return <DraftIntakeView />
 }

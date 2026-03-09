@@ -291,6 +291,10 @@ export default function EditDraftPage() {
   const [latestInviteUrl, setLatestInviteUrl] = useState<string | null>(null)
   const [addingFaces, setAddingFaces] = useState(false)
   const addFaceInputRef = useRef<HTMLInputElement | null>(null)
+  const publishRequirementsRef = useRef<HTMLDivElement | null>(null)
+  const cragSectionRef = useRef<HTMLDivElement | null>(null)
+  const locationSectionRef = useRef<HTMLDivElement | null>(null)
+  const faceDirectionsSectionRef = useRef<HTMLDivElement | null>(null)
   const hasShownCollabToastRef = useRef(false)
   const autosaveTimeoutRef = useRef<number | null>(null)
   const hasLoadedRoutesRef = useRef(false)
@@ -303,6 +307,7 @@ export default function EditDraftPage() {
   const [searchingLocation, setSearchingLocation] = useState(false)
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
   const [mapOpen, setMapOpen] = useState(false)
+  const [publishAttempted, setPublishAttempted] = useState(false)
 
   const loadDraft = useCallback(async () => {
     if (!draftId) return
@@ -547,10 +552,52 @@ export default function EditDraftPage() {
     if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) return null
     if (parsedLatitude < -90 || parsedLatitude > 90) return null
     if (parsedLongitude < -180 || parsedLongitude > 180) return null
+    if (parsedLatitude === 0 && parsedLongitude === 0) return null
     return [parsedLatitude, parsedLongitude]
   }, [latitude, longitude])
 
   const hasValidLocation = markerPosition !== null
+  const primaryFace = useMemo(() => {
+    return manageFaces.find((face) => face.index === primaryIndex) || null
+  }, [manageFaces, primaryIndex])
+  const primaryFaceRoutes = useMemo(() => {
+    if (!primaryFace) return []
+    return routesByImageId[primaryFace.imageId] || []
+  }, [primaryFace, routesByImageId])
+
+  const facesMissingDirections = useMemo(() => {
+    return manageFaces
+      .filter((face) => (faceDirectionsByImage[face.index] || []).length === 0)
+      .map((face) => face.label)
+  }, [faceDirectionsByImage, manageFaces])
+
+  const publishValidationMessage = useMemo(() => {
+    const missingItems: string[] = []
+
+    if (!cragId) {
+      missingItems.push('select a crag')
+    }
+
+    if (!hasValidLocation) {
+      missingItems.push('add climb location')
+    }
+
+    if (!primaryFace || primaryFaceRoutes.length === 0) {
+      missingItems.push(`draw at least one route on ${primaryFace?.label || 'the primary face'}`)
+    }
+
+    if (facesMissingDirections.length > 0) {
+      missingItems.push(
+        facesMissingDirections.length === 1
+          ? `choose a face direction for ${facesMissingDirections[0]}`
+          : `choose face directions for ${facesMissingDirections.join(', ')}`
+      )
+    }
+
+    return missingItems.length > 0
+      ? `Before publishing, ${missingItems.join(', ')}.`
+      : null
+  }, [cragId, facesMissingDirections, hasValidLocation, primaryFace, primaryFaceRoutes.length])
 
   const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
     if (!activeFaceId) return
@@ -1142,6 +1189,37 @@ export default function EditDraftPage() {
   const publishDraft = useCallback(async () => {
     if (!draft || !isOwner) return
 
+    if (publishValidationMessage) {
+      setPublishAttempted(true)
+      setError(null)
+
+      if (!cragId) {
+        cragSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+
+      if (!hasValidLocation) {
+        locationSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+
+      if (facesMissingDirections.length > 0) {
+        const firstMissingFace = manageFaces.find((face) => face.label === facesMissingDirections[0])
+        if (firstMissingFace) {
+          setActiveImageId(firstMissingFace.imageId)
+        }
+        faceDirectionsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      } else if (!primaryFace || primaryFaceRoutes.length === 0) {
+        if (primaryFace) {
+          setActiveImageId(primaryFace.imageId)
+        }
+        publishRequirementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+      return
+    }
+
+    setPublishAttempted(false)
+
     if (autosaveTimeoutRef.current) {
       window.clearTimeout(autosaveTimeoutRef.current)
       autosaveTimeoutRef.current = null
@@ -1176,11 +1254,13 @@ export default function EditDraftPage() {
       })
       router.push(`/logbook/submissions/${payload.published.imageId}/edit?${query.toString()}`)
     } catch (publishError) {
-      setError(publishError instanceof Error ? publishError.message : 'Failed to publish draft')
+      const message = publishError instanceof Error ? publishError.message : 'Failed to publish draft'
+      setError(message)
+      addToast(message, 'error')
     } finally {
       setPublishingDraft(false)
     }
-  }, [draft, isOwner, saveDraft, addToast, router])
+  }, [draft, isOwner, publishValidationMessage, cragId, hasValidLocation, facesMissingDirections, manageFaces, primaryFace, primaryFaceRoutes.length, saveDraft, router, addToast])
 
   const handleReloadLatestDraft = useCallback(async () => {
     setConflict(null)
@@ -1236,7 +1316,7 @@ export default function EditDraftPage() {
                 <button
                   type="button"
                   onClick={() => { void publishDraft() }}
-                  disabled={publishingDraft || savingDraft || !cragId || !hasValidLocation || !!conflict}
+                  disabled={publishingDraft || savingDraft || !!conflict}
                   className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
                 >
                   {publishingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -1287,6 +1367,12 @@ export default function EditDraftPage() {
           </div>
         ) : null}
 
+        {publishAttempted && publishValidationMessage ? (
+          <div ref={publishRequirementsRef} className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+            {publishValidationMessage}
+          </div>
+        ) : null}
+
         {error ? (
           <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
             {error}
@@ -1299,7 +1385,7 @@ export default function EditDraftPage() {
           </div>
         ) : null}
 
-        <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+        <div ref={cragSectionRef} className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Manage all images</h2>
             <div className="flex items-center gap-2">
@@ -1363,7 +1449,7 @@ export default function EditDraftPage() {
             <MapPin className="h-4 w-4 text-gray-500" />
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Draft metadata</h2>
           </div>
-          <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/60">
+          <div ref={locationSectionRef} className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/60">
             {selectedCrag && !showCragSelector ? (
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1552,15 +1638,9 @@ export default function EditDraftPage() {
               </select>
             </label>
           </div>
-          {!cragId ? (
-            <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">Select a crag before publishing this draft.</p>
-          ) : null}
-          {!hasValidLocation ? (
-            <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">Set a valid image location before publishing this draft.</p>
-          ) : null}
         </div>
 
-        <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+        <div ref={faceDirectionsSectionRef} className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Face directions</h2>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
             {FACE_DIRECTIONS.map((direction) => {
