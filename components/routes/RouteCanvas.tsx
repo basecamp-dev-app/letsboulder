@@ -183,14 +183,37 @@ export default function RouteCanvas({
   const [draggingPointIndex, setDraggingPointIndex] = useState<number | null>(null)
   const [descriptionFocused, setDescriptionFocused] = useState(false)
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true)
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false)
+  const [mobileTouchMode, setMobileTouchMode] = useState<'pan' | 'draw'>('pan')
   const previousCanvasSizeRef = useRef<{ width: number; height: number } | null>(null)
   const hasHydratedExistingRoutesRef = useRef(false)
+  const touchStartCanvasPointRef = useRef<RoutePoint | null>(null)
+  const touchPanOriginRef = useRef<{ x: number; y: number } | null>(null)
   const isDrawingInProgress = currentPoints.length > 0
+  const touchTapThreshold = 14
+  const isTouchDrawMode = isCoarsePointer && mobileTouchMode === 'draw'
+  const canDrawRoutes = !isEditExistingMode || canCreateRoutesInEditMode
 
   useEffect(() => {
     hasHydratedExistingRoutesRef.current = false
     previousCanvasSizeRef.current = null
   }, [imageUrl])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+
+    const mediaQuery = window.matchMedia('(pointer: coarse)')
+    const updatePointerMode = () => {
+      setIsCoarsePointer(mediaQuery.matches)
+      setMobileTouchMode((current) => (mediaQuery.matches ? current : 'pan'))
+    }
+
+    updatePointerMode()
+    mediaQuery.addEventListener('change', updatePointerMode)
+    return () => {
+      mediaQuery.removeEventListener('change', updatePointerMode)
+    }
+  }, [])
 
 
   useOverlayHistory({
@@ -358,7 +381,6 @@ export default function RouteCanvas({
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
-    const canDrawRoutes = !isEditExistingMode || canCreateRoutesInEditMode
 
     if (e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX
@@ -373,6 +395,7 @@ export default function RouteCanvas({
     }
 
     const pos = getTouchPos(e)
+    touchStartCanvasPointRef.current = pos
     const dragHandleIndex = getDragHandleIndex(pos)
     if (dragHandleIndex !== null) {
       setDraggingPointIndex(dragHandleIndex)
@@ -380,10 +403,16 @@ export default function RouteCanvas({
       return
     }
 
+    if (isCoarsePointer && mobileTouchMode === 'pan' && e.touches.length === 1) {
+      touchPanOriginRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      e.preventDefault()
+      return
+    }
+
     if (canDrawRoutes && e.touches.length === 1) {
       e.preventDefault()
     }
-  }, [canvasReady, getTouchPos, getDragHandleIndex, zoom, isEditExistingMode, canCreateRoutesInEditMode])
+  }, [canvasReady, getTouchPos, getDragHandleIndex, zoom, canDrawRoutes, isCoarsePointer, mobileTouchMode])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
@@ -392,11 +421,15 @@ export default function RouteCanvas({
       setPinchStartZoom(null)
       setPinchStartDistance(null)
       setPinchCenter(null)
+      touchStartCanvasPointRef.current = null
+      touchPanOriginRef.current = null
       return
     }
 
     if (draggingPointIndex !== null) {
       setDraggingPointIndex(null)
+      touchStartCanvasPointRef.current = null
+      touchPanOriginRef.current = null
       return
     }
 
@@ -407,6 +440,21 @@ export default function RouteCanvas({
     const rect = canvas.getBoundingClientRect()
     const canvasX = (touch.clientX - rect.left - pan.x) / zoom
     const canvasY = (touch.clientY - rect.top - pan.y) / zoom
+
+    const touchStartPoint = touchStartCanvasPointRef.current
+    touchStartCanvasPointRef.current = null
+    touchPanOriginRef.current = null
+
+    if (isCoarsePointer && mobileTouchMode === 'pan') {
+      return
+    }
+
+    if (touchStartPoint) {
+      const moveDistance = Math.hypot(canvasX - touchStartPoint.x, canvasY - touchStartPoint.y)
+      if (moveDistance > touchTapThreshold) {
+        return
+      }
+    }
 
     if (isDrawingInProgress) {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
@@ -432,11 +480,10 @@ export default function RouteCanvas({
     } else {
       setCurrentPoints(prev => [...prev, { x: canvasX, y: canvasY }])
     }
-  }, [canvasReady, zoom, pan, pinchStartZoom, draggingPointIndex, isDrawingInProgress, getRouteAtPoint, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, selectRoute, clearSelection])
+  }, [canvasReady, zoom, pan, pinchStartZoom, draggingPointIndex, isDrawingInProgress, getRouteAtPoint, isEditExistingMode, canCreateRoutesInEditMode, currentPoints.length, selectRoute, clearSelection, isCoarsePointer, mobileTouchMode])
 
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
     if (!canvasReady) return
-    const canDrawRoutes = !isEditExistingMode || canCreateRoutesInEditMode
 
     if (e.touches.length === 2 && pinchStartZoom !== null && pinchStartDistance !== null && pinchCenter) {
       const dx = e.touches[0].clientX - e.touches[1].clientX
@@ -454,6 +501,15 @@ export default function RouteCanvas({
       
       setZoom(newZoom)
       setPan({ x: newPanX, y: newPanY })
+      e.preventDefault()
+      return
+    }
+
+    if (isCoarsePointer && mobileTouchMode === 'pan' && e.touches.length === 1 && touchPanOriginRef.current) {
+      const dx = e.touches[0].clientX - touchPanOriginRef.current.x
+      const dy = e.touches[0].clientY - touchPanOriginRef.current.y
+      setPan(prev => ({ x: prev.x + dx, y: prev.y + dy }))
+      touchPanOriginRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
       e.preventDefault()
       return
     }
@@ -477,7 +533,7 @@ export default function RouteCanvas({
     }
 
     e.preventDefault()
-  }, [canvasReady, draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, canCreateRoutesInEditMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, pinchStartZoom, pinchStartDistance, pinchCenter, zoom, pan])
+  }, [canvasReady, draggingPointIndex, editableRoute, getTouchPos, isEditExistingMode, selectedExistingRoute, updateSelectedExistingRoute, updateSelectedNewRoute, pinchStartZoom, pinchStartDistance, pinchCenter, zoom, pan, canDrawRoutes, isCoarsePointer, mobileTouchMode])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (draggingPointIndex !== null && editableRoute) {
@@ -523,6 +579,10 @@ export default function RouteCanvas({
 
   const cancelCurrentDrawing = useCallback(() => {
     setCurrentPoints([])
+  }, [])
+
+  const undoLastPoint = useCallback(() => {
+    setCurrentPoints((prev) => prev.slice(0, -1))
   }, [])
 
   const handleCanvasContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -995,9 +1055,9 @@ export default function RouteCanvas({
             </div>
           )}
 
-            <canvas
-              ref={canvasRef}
-              className="absolute cursor-crosshair select-none"
+              <canvas
+                ref={canvasRef}
+                className="absolute cursor-crosshair select-none"
               style={{
                 left: 0,
                 top: 0,
@@ -1017,8 +1077,26 @@ export default function RouteCanvas({
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 md:relative md:w-64 md:shrink-0 bg-white dark:bg-gray-800 md:border-l md:border-gray-200 md:dark:border-gray-700 overflow-y-auto md:max-h-none">
-          {(isEditing || completedRoutes.length > 0) && (
+          {(isEditing || completedRoutes.length > 0 || isTouchDrawMode) && (
           <>
+            {isCoarsePointer ? (
+              <div className="flex items-center gap-2 border-b border-gray-200 px-2 py-2 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setMobileTouchMode('pan')}
+                  className={`flex-1 rounded-md px-2 py-2 text-xs font-semibold ${mobileTouchMode === 'pan' ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'}`}
+                >
+                  Pan image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTouchMode('draw')}
+                  className={`flex-1 rounded-md px-2 py-2 text-xs font-semibold ${mobileTouchMode === 'draw' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'}`}
+                >
+                  Draw route
+                </button>
+              </div>
+            ) : null}
             <button
               onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
               className="w-full flex items-center justify-between px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400"
@@ -1059,29 +1137,19 @@ export default function RouteCanvas({
               />
 
               <button
-                onClick={() => !disableGradePicker && setGradePickerOpen(true)}
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  if (!disableGradePicker) {
+                    setGradePickerOpen(true)
+                  }
+                }}
                 disabled={disableGradePicker}
                 className="w-full px-2 py-1 text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
               >
                 {getGradeDisplay(activeGrade, activeClimbType)}
               </button>
-              {gradePickerOpen && !isEditingExistingRoute && (
-                <GradePicker
-                  isOpen={gradePickerOpen}
-                  currentGrade={activeGrade}
-                  onSelect={(grade) => {
-                    if (selectedNewRoute) {
-                      updateSelectedNewRoute({ grade })
-                    } else if (isEditExistingMode && selectedExistingRoute) {
-                      updateSelectedExistingRoute({ grade })
-                    } else {
-                      setCurrentGrade(grade)
-                    }
-                    setGradePickerOpen(false)
-                  }}
-                  onClose={() => setGradePickerOpen(false)}
-                />
-              )}
 
               <div className="flex items-center gap-2 mt-2">
                 <span className="text-xs text-gray-500 dark:text-gray-400">Type:</span>
@@ -1151,8 +1219,17 @@ export default function RouteCanvas({
           )}
 
           {currentPoints.length > 0 && (!isEditExistingMode || canCreateRoutesInEditMode) && (
-            <div className="flex">
+            <div className="flex flex-wrap gap-2">
               <button
+                type="button"
+                onClick={undoLastPoint}
+                disabled={currentPoints.length === 0}
+                className="flex-1 px-2 py-2 bg-amber-100 text-amber-800 text-sm disabled:opacity-60 dark:bg-amber-900/30 dark:text-amber-200"
+              >
+                Undo point
+              </button>
+              <button
+                type="button"
                 onClick={cancelCurrentDrawing}
                 className="flex-1 px-2 py-2 bg-gray-800 text-white text-sm"
               >
@@ -1160,19 +1237,21 @@ export default function RouteCanvas({
               </button>
               {!isEditExistingMode ? (
                 <button
+                  type="button"
                   onClick={handleCompleteRoute}
                   disabled={currentPoints.length < 2}
                   className="flex-1 px-2 py-2 bg-blue-600 text-white text-sm disabled:opacity-60"
                 >
-                  Save
+                  Finish route
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={handleAddNewRouteInEditMode}
                   disabled={!onSaveNewRoutes || savingNewRoutes || currentPoints.length < 2}
                   className="flex-1 px-2 py-2 bg-emerald-600 text-white text-sm disabled:opacity-60"
                 >
-                  {savingNewRoutes ? 'Adding...' : 'Add'}
+                  {savingNewRoutes ? 'Adding...' : 'Finish route'}
                 </button>
               )}
             </div>
@@ -1205,8 +1284,26 @@ export default function RouteCanvas({
             >
               {savingEdits ? 'Saving...' : 'Save Changes'}
             </button>
-            )}
+          )}
         </div>
+
+      {gradePickerOpen && !isEditingExistingRoute && (
+        <GradePicker
+          isOpen={gradePickerOpen}
+          currentGrade={activeGrade}
+          onSelect={(grade) => {
+            if (selectedNewRoute) {
+              updateSelectedNewRoute({ grade })
+            } else if (isEditExistingMode && selectedExistingRoute) {
+              updateSelectedExistingRoute({ grade })
+            } else {
+              setCurrentGrade(grade)
+            }
+            setGradePickerOpen(false)
+          }}
+          onClose={() => setGradePickerOpen(false)}
+        />
+      )}
 
       {!isEditExistingMode && showSubmitConfirm && (
         <div className="fixed inset-0 z-[2000] bg-black/50 flex items-center justify-center">

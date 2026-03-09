@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay, toWholeVGrade } from '@/lib/grade-display'
 import { PUBLIC_GRADES } from '@/lib/grades'
@@ -32,6 +31,7 @@ export default function GradePicker({
   const gradeSystem = useGradeSystem()
   const [search, setSearch] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const openedAtRef = useRef<number>(0)
 
   const gradeOptions = useMemo(() => {
     if (gradeSystem !== 'v_scale') {
@@ -79,11 +79,15 @@ export default function GradePicker({
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
+      openedAtRef.current = Date.now()
       inputRef.current.focus()
     }
   }, [isOpen])
 
-  useOverlayHistory({ open: isOpen, onClose, id: 'grade-picker' })
+  const handleBackdropClose = () => {
+    if (Date.now() - openedAtRef.current < 150) return
+    onClose()
+  }
 
   const filteredGrades = gradeOptions.filter((option) => {
     const query = search.toLowerCase().trim()
@@ -105,10 +109,10 @@ export default function GradePicker({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50" onClick={handleBackdropClose}>
       <div 
         className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-sm mx-4 overflow-hidden"
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
