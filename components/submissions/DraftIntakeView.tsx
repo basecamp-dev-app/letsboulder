@@ -4,10 +4,9 @@ import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ImagePicker from '@/app/submit/components/ImagePicker'
-import CragSelector from '@/app/submit/components/CragSelector'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { csrfFetch } from '@/hooks/useCsrf'
-import type { Crag, ImageSelection } from '@/lib/submission-types'
+import type { ImageSelection } from '@/lib/submission-types'
 
 interface DraftCreateResponse {
   draft?: {
@@ -27,20 +26,24 @@ export default function DraftIntakeView() {
   const router = useRouter()
   const { toasts, addToast, removeToast } = useToast()
   const [selectedImages, setSelectedImages] = useState<UploadedImagePayload[]>([])
-  const [imageGps, setImageGps] = useState<{ latitude: number; longitude: number } | null>(null)
-  const [selectedCrag, setSelectedCrag] = useState<Crag | null>(null)
-  const [showCragPicker, setShowCragPicker] = useState(false)
+  const [uploadsInFlight, setUploadsInFlight] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const canCreateDraft = selectedImages.length > 0 && !submitting
+  const canCreateDraft = selectedImages.length > 0 && !submitting && !uploadsInFlight
 
   const selectedLabel = useMemo(() => {
-    if (selectedImages.length === 0) return 'No photos selected yet'
-    return `${selectedImages.length} photo${selectedImages.length === 1 ? '' : 's'} selected`
-  }, [selectedImages.length])
+    if (selectedImages.length === 0) return uploadsInFlight ? 'Uploading photos...' : 'No photos uploaded yet'
+    return `${selectedImages.length} photo${selectedImages.length === 1 ? '' : 's'} uploaded`
+  }, [selectedImages.length, uploadsInFlight])
 
-  const handleImageSelect = useCallback((selection: ImageSelection, gpsData: { latitude: number; longitude: number } | null) => {
+  const handleImageSelect = useCallback((selection: ImageSelection | null) => {
+    if (!selection) {
+      setSelectedImages([])
+      setError(null)
+      return
+    }
+
     if (selection.mode !== 'new') {
       setError('Only new uploads can be used for draft intake')
       return
@@ -54,10 +57,8 @@ export default function DraftIntakeView() {
     }))
 
     setSelectedImages(images)
-    setImageGps(gpsData)
     setError(null)
-    addToast(`Ready to create draft with ${images.length} photo${images.length === 1 ? '' : 's'}`, 'success')
-  }, [addToast])
+  }, [])
 
   const createDraft = useCallback(async () => {
     if (!canCreateDraft) return
@@ -70,7 +71,6 @@ export default function DraftIntakeView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           images: selectedImages,
-          cragId: selectedCrag?.id || null,
           metadata: {
             primaryIndex: 0,
             intake: {
@@ -95,7 +95,7 @@ export default function DraftIntakeView() {
     } finally {
       setSubmitting(false)
     }
-  }, [addToast, canCreateDraft, router, selectedCrag?.id, selectedImages])
+  }, [addToast, canCreateDraft, router, selectedImages])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -110,48 +110,17 @@ export default function DraftIntakeView() {
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Start a new draft</h1>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Upload photos first, then continue in Draft Editor to draw routes, invite collaborators, and publish.
+            Upload photos first, then continue in Draft Editor to choose or create a crag, draw routes, invite collaborators, and publish.
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Crag selection is optional now. You can set it later before publishing.
+            You can upload multiple photos at once, but they will all map to one pin, so they should show the same face or boulder area. Use a separate submission for a different face or area.
           </p>
         </div>
 
         <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-          <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">1) Upload photos</h2>
-          <ImagePicker onSelect={handleImageSelect} />
+          <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Upload photos</h2>
+          <ImagePicker onSelect={handleImageSelect} onUploadingStateChange={setUploadsInFlight} />
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{selectedLabel}</p>
-        </div>
-
-        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">2) Optional crag</h2>
-            <button
-              type="button"
-              onClick={() => setShowCragPicker((prev) => !prev)}
-              className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              {showCragPicker ? 'Hide' : selectedCrag ? 'Change' : 'Select'}
-            </button>
-          </div>
-
-          {selectedCrag ? (
-            <p className="mb-2 text-sm text-gray-700 dark:text-gray-200">Selected: {selectedCrag.name}</p>
-          ) : (
-            <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">No crag selected yet</p>
-          )}
-
-          {showCragPicker ? (
-            <CragSelector
-              selectedCragId={selectedCrag?.id || null}
-              latitude={imageGps?.latitude || null}
-              longitude={imageGps?.longitude || null}
-              onSelect={(crag) => {
-                setSelectedCrag(crag)
-                setShowCragPicker(false)
-              }}
-            />
-          ) : null}
         </div>
 
         {error ? (
@@ -167,7 +136,7 @@ export default function DraftIntakeView() {
             disabled={!canCreateDraft}
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
           >
-            {submitting ? 'Creating draft...' : 'Create draft and continue'}
+            {submitting ? 'Creating draft...' : uploadsInFlight ? 'Uploading photos...' : 'Create draft and continue'}
           </button>
           <Link
             href="/logbook/submissions"

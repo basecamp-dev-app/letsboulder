@@ -9,6 +9,10 @@ interface CragSearchRow {
   name: string
   latitude: number | null
   longitude: number | null
+  country_code: string | null
+  region_name: string | null
+  sub_area: string | null
+  rock_type: string | null
 }
 
 interface RankedCragResult extends CragSearchRow {
@@ -50,7 +54,7 @@ export async function GET(request: NextRequest) {
   try {
     let nameSelect = supabase
       .from('crags')
-      .select('id,name,latitude,longitude')
+      .select('id,name,latitude,longitude,country_code,region_name,sub_area,rock_type')
 
     if (hasLocation && latitude !== null && longitude !== null) {
       const latRange = 0.1
@@ -83,7 +87,7 @@ export async function GET(request: NextRequest) {
     try {
       const { data: tagRows, error: tagError } = await supabase
         .from('crag_location_tags')
-        .select('crag_id, crags!inner(id,name,latitude,longitude), location_tags!inner(name,kind)')
+        .select('crag_id, crags!inner(id,name,latitude,longitude,country_code,region_name,sub_area,rock_type), location_tags!inner(name,kind)')
         .eq('location_tags.kind', 'region')
         .ilike('location_tags.name', `%${query}%`)
         .limit(80)
@@ -156,6 +160,11 @@ export async function GET(request: NextRequest) {
       name: row.name,
       latitude: row.latitude,
       longitude: row.longitude,
+      countryCode: row.country_code,
+      countryName: getCountryName(row.country_code),
+      regionName: row.region_name,
+      subArea: row.sub_area,
+      rock_type: row.rock_type,
       distance: row.distance ?? null,
     }))
 
@@ -166,6 +175,17 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     return createErrorResponse(error, 'Error searching crags')
+  }
+}
+
+function getCountryName(countryCode: string | null): string | null {
+  if (!countryCode) return null
+
+  try {
+    const displayNames = new Intl.DisplayNames(['en'], { type: 'region' })
+    return displayNames.of(countryCode.toUpperCase()) || null
+  } catch {
+    return countryCode.toUpperCase()
   }
 }
 

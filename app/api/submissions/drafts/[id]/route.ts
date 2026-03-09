@@ -44,6 +44,11 @@ interface ProfileRow {
   display_name: string | null
 }
 
+interface DraftStorageRow {
+  storage_bucket: string | null
+  storage_path: string | null
+}
+
 function resolveDisplayName(profile: ProfileRow | null): string | null {
   if (!profile) return null
   if (profile.display_name) return profile.display_name
@@ -416,6 +421,19 @@ export async function DELETE(
     }
   )
 
+  const storageClient = SUPABASE_SERVICE_ROLE_KEY
+    ? createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        SUPABASE_SERVICE_ROLE_KEY,
+        {
+          cookies: {
+            getAll() { return [] },
+            setAll() {},
+          },
+        }
+      )
+    : supabase
+
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
     if (authError || !userId) {
@@ -438,6 +456,33 @@ export async function DELETE(
 
     if (draft.status !== 'draft') {
       return NextResponse.json({ error: 'Only draft submissions can be deleted' }, { status: 400 })
+    }
+
+    const { data: draftImages, error: draftImagesError } = await supabase
+      .from('submission_draft_images')
+      .select('storage_bucket, storage_path')
+      .eq('draft_id', id)
+
+    if (draftImagesError) {
+      return createErrorResponse(draftImagesError, 'Failed to read draft image storage paths')
+    }
+
+    const pathsByBucket = new Map<string, string[]>()
+    for (const image of (draftImages || []) as DraftStorageRow[]) {
+      if (!image.storage_bucket || !image.storage_path) continue
+      const existingPaths = pathsByBucket.get(image.storage_bucket) || []
+      existingPaths.push(image.storage_path)
+      pathsByBucket.set(image.storage_bucket, existingPaths)
+    }
+
+    for (const [bucket, paths] of pathsByBucket.entries()) {
+      const uniquePaths = Array.from(new Set(paths))
+      if (uniquePaths.length === 0) continue
+
+      const { error: storageError } = await storageClient.storage.from(bucket).remove(uniquePaths)
+      if (storageError) {
+        return createErrorResponse(storageError, 'Failed to delete submission draft image files')
+      }
     }
 
     const { data: deletedDraft, error: deleteError } = await supabase
