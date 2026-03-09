@@ -73,7 +73,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
           : submission.status === 'draft'
           ? 'Draft'
           : submission.status === 'pending_review'
-            ? 'Pending review'
+            ? 'Processing'
             : 'Published'
         const statusClassName = isOptimisticPublishing
           ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'

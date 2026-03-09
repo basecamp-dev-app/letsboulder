@@ -1,7 +1,7 @@
 const SHELL_CACHE = 'offline-shell-v2'
 self.__WB_DISABLE_DEV_LOGS = true
 
-const PACK_CACHE = 'offline-climb-packs-v2'
+const PACK_CACHE = 'offline-climb-packs-v3'
 const MEDIA_CACHE = 'offline-media-v2'
 const TILE_CACHE = 'offline-tiles-v2'
 const ROUTE_ASSET_CACHE = 'offline-route-assets-v1'
@@ -482,11 +482,31 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  if (isOfflineLaunch || isOfflineLibrary || isPackRequest || isClimbPage || isCragPage) {
+  if (isOfflineLaunch || isOfflineLibrary || isPackRequest) {
     event.respondWith((async () => {
       const cache = await caches.open(PACK_CACHE)
       const cached = await matchCachedRequest(cache, request)
       if (cached) return cached
+
+      try {
+        const response = await fetch(request)
+        if (response.ok) {
+          await cache.put(request, response.clone())
+        }
+        return response
+      } catch (error) {
+        const fallbackCached = await matchCachedRequest(cache, request)
+        if (fallbackCached) return fallbackCached
+
+        throw error
+      }
+    })())
+    return
+  }
+
+  if (isClimbPage || isCragPage) {
+    event.respondWith((async () => {
+      const cache = await caches.open(PACK_CACHE)
 
       try {
         const response = await fetch(request)
