@@ -41,6 +41,10 @@ interface RelatedFaceRow {
   face_directions?: string[] | null
 }
 
+interface CanonicalFaceLinkRow {
+  source_image_id: string | null
+}
+
 interface CompleteSummaryRoute {
   id: string
   climb_id: string
@@ -312,12 +316,34 @@ async function fetchRelatedFaces(
   }
 }
 
+async function resolveCanonicalFaceImageId(
+  supabase: ReturnType<typeof createServerClient>,
+  imageId: string
+): Promise<string> {
+  const { data, error } = await supabase
+    .from('crag_images')
+    .select('source_image_id')
+    .eq('linked_image_id', imageId)
+    .not('source_image_id', 'is', null)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.warn('Faces canonical image lookup failed:', error)
+    return imageId
+  }
+
+  const canonicalLink = data as CanonicalFaceLinkRow | null
+  return canonicalLink?.source_image_id || imageId
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: imageId } = await params
-  if (!imageId) {
+  const { id: requestedImageId } = await params
+  if (!requestedImageId) {
     return NextResponse.json({ error: 'Image ID is required' }, { status: 400 })
   }
 
@@ -337,6 +363,7 @@ export async function GET(
     : supabase
 
   try {
+    const imageId = await resolveCanonicalFaceImageId(supabase, requestedImageId)
     const { data: completeSummaryData, error: completeSummaryError } = await supabase.rpc('get_crag_faces_complete_summary', {
       p_image_id: imageId,
     })
@@ -412,6 +439,7 @@ export async function GET(
 
     console.warn('Faces complete summary RPC unavailable, using fallback path', {
       imageId,
+      requestedImageId,
       error: completeSummaryError,
     })
 
