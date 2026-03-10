@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { createSignedObjectUrls, isR2ManagedBucket } from '@/lib/media/object-urls'
+import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { getSignedUrlBatchKey, type BatchSignedUrlResult, type SignedUrlBatchRequestObject } from '@/lib/signed-url-batch'
 
 function normalizeObjects(input: unknown): SignedUrlBatchRequestObject[] | null {
@@ -119,33 +121,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
 
-  const expectedPrefix = `${user.id}/`
+  const ownershipClient = supabase as unknown as Parameters<typeof userOwnsUploadedObject>[0]
   for (const item of objects) {
-    if (!item.path.startsWith(expectedPrefix)) {
+    if (isR2ManagedBucket(item.bucket)) {
+      if (!(await userOwnsUploadedObject(ownershipClient, user.id, item.bucket, item.path))) {
+        return NextResponse.json({ error: 'Unauthorized path' }, { status: 403 })
+      }
+      continue
+    }
+
+    if (!item.path.startsWith(`${user.id}/`)) {
       return NextResponse.json({ error: 'Unauthorized path' }, { status: 403 })
     }
   }
 
-  const pathsByBucket = new Map<string, string[]>()
-  for (const item of objects) {
-    const current = pathsByBucket.get(item.bucket) || []
-    current.push(item.path)
-    pathsByBucket.set(item.bucket, current)
-  }
-
   const signedByKey = new Map<string, string>()
 
-  for (const [bucket, paths] of pathsByBucket.entries()) {
-    const uniquePaths = Array.from(new Set(paths))
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrls(uniquePaths, 3600)
-
-    if (error) {
-      return NextResponse.json({ error: 'Failed to create signed URLs' }, { status: 500 })
-    }
-
-    for (const item of data || []) {
-      if (!item?.path || !item?.signedUrl) continue
-      signedByKey.set(getSignedUrlBatchKey(bucket, item.path), item.signedUrl)
+  const signedResults = await createSignedObjectUrls(objects, supabase)
+  for (const item of objects) {
+    const signedUrl = signedResults.get(`${item.bucket}:${item.path}`) ?? null
+    if (signedUrl) {
+      signedByKey.set(getSignedUrlBatchKey(item.bucket, item.path), signedUrl)
     }
   }
 

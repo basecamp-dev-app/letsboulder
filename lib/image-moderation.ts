@@ -1,3 +1,6 @@
+import { getMediaModerationConfig } from '@/lib/media/config'
+import type { MediaModerationProvider, MediaModerationStatus } from '@/lib/media/types'
+
 const MIN_MODERATION_CONFIDENCE = 60
 
 interface ModerationLabel {
@@ -9,7 +12,9 @@ interface ModerationResult {
   hasHumans: boolean
   humanFaceCount: number
   moderationLabels: ModerationLabel[]
-  moderationStatus: 'approved' | 'flagged' | 'rejected'
+  moderationStatus: MediaModerationStatus
+  moderationProvider: MediaModerationProvider
+  skippedReason: string | null
 }
 
 type RekognitionClientLike = {
@@ -17,6 +22,11 @@ type RekognitionClientLike = {
 }
 
 async function getRekognitionClient(): Promise<RekognitionClientLike> {
+  const moderationConfig = getMediaModerationConfig()
+  if (!moderationConfig.enabled || moderationConfig.provider === 'disabled') {
+    throw new Error('Moderation provider is disabled')
+  }
+
   const region = process.env.AWS_REGION
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
@@ -50,13 +60,38 @@ async function fetchImageBytes(imageUrl: string): Promise<Uint8Array> {
 }
 
 async function moderateImageBytes(bytes: Uint8Array): Promise<ModerationResult> {
-  const awsSdk = await eval("import('@aws-sdk/client-rekognition')").catch(() => null) as unknown
-  if (!awsSdk) {
+  const moderationConfig = getMediaModerationConfig()
+  if (!moderationConfig.enabled || moderationConfig.provider === 'disabled') {
     return {
       hasHumans: false,
       humanFaceCount: 0,
       moderationLabels: [],
-      moderationStatus: 'approved',
+      moderationStatus: 'skipped',
+      moderationProvider: 'disabled',
+      skippedReason: 'moderation_disabled',
+    }
+  }
+
+  const awsSdk = await eval("import('@aws-sdk/client-rekognition')").catch(() => null) as unknown
+  if (!awsSdk) {
+    if (moderationConfig.failOpen) {
+      return {
+        hasHumans: false,
+        humanFaceCount: 0,
+        moderationLabels: [],
+        moderationStatus: 'skipped',
+        moderationProvider: moderationConfig.provider,
+        skippedReason: 'rekognition_dependency_missing',
+      }
+    }
+
+    return {
+      hasHumans: false,
+      humanFaceCount: 0,
+      moderationLabels: [],
+      moderationStatus: 'error',
+      moderationProvider: moderationConfig.provider,
+      skippedReason: 'rekognition_dependency_missing',
     }
   }
 
@@ -64,14 +99,60 @@ async function moderateImageBytes(bytes: Uint8Array): Promise<ModerationResult> 
     DetectModerationLabelsCommand: new (args: unknown) => unknown
   }
 
-  const client = await getRekognitionClient()
+  let client: RekognitionClientLike
+  try {
+    client = await getRekognitionClient()
+  } catch (error) {
+    if (moderationConfig.failOpen) {
+      return {
+        hasHumans: false,
+        humanFaceCount: 0,
+        moderationLabels: [],
+        moderationStatus: 'skipped',
+        moderationProvider: moderationConfig.provider,
+        skippedReason: error instanceof Error ? error.message : 'moderation_client_error',
+      }
+    }
 
-  const moderationRaw = await client.send(
-    new DetectModerationLabelsCommand({
-      Image: { Bytes: bytes },
-      MinConfidence: MIN_MODERATION_CONFIDENCE,
-    })
-  )
+    return {
+      hasHumans: false,
+      humanFaceCount: 0,
+      moderationLabels: [],
+      moderationStatus: 'error',
+      moderationProvider: moderationConfig.provider,
+      skippedReason: error instanceof Error ? error.message : 'moderation_client_error',
+    }
+  }
+
+  let moderationRaw: unknown
+  try {
+    moderationRaw = await client.send(
+      new DetectModerationLabelsCommand({
+        Image: { Bytes: bytes },
+        MinConfidence: MIN_MODERATION_CONFIDENCE,
+      })
+    )
+  } catch (error) {
+    if (moderationConfig.failOpen) {
+      return {
+        hasHumans: false,
+        humanFaceCount: 0,
+        moderationLabels: [],
+        moderationStatus: 'skipped',
+        moderationProvider: moderationConfig.provider,
+        skippedReason: error instanceof Error ? error.message : 'moderation_request_failed',
+      }
+    }
+
+    return {
+      hasHumans: false,
+      humanFaceCount: 0,
+      moderationLabels: [],
+      moderationStatus: 'error',
+      moderationProvider: moderationConfig.provider,
+      skippedReason: error instanceof Error ? error.message : 'moderation_request_failed',
+    }
+  }
 
   const moderationResp = moderationRaw as { ModerationLabels?: Array<{ Name?: string | null; Confidence?: number | null } | null> }
 
@@ -93,6 +174,8 @@ async function moderateImageBytes(bytes: Uint8Array): Promise<ModerationResult> 
     humanFaceCount: 0,
     moderationLabels,
     moderationStatus,
+    moderationProvider: moderationConfig.provider,
+    skippedReason: null,
   }
 }
 

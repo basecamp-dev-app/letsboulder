@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
-import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
+import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
+import { createSignedObjectUrls } from '@/lib/media/object-urls'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -149,31 +150,20 @@ export async function GET(
       const paths = Array.from(pathSet)
       if (paths.length === 0) continue
 
-      const { data, error } = await readClient.storage.from(bucket).createSignedUrls(paths, 3600)
-      if (error) {
+      try {
+        const signed = await createSignedObjectUrls(paths.map((path) => ({ bucket, path })), readClient)
+        for (const path of paths) {
+          const signedUrl = signed.get(`${bucket}:${path}`)
+          if (!signedUrl) continue
+          signedByKey.set(getSignedUrlBatchKey(bucket, path), signedUrl)
+        }
+      } catch (error) {
         console.warn('Draft batch signed URL generation failed:', {
           draftId: id,
           bucket,
           pathCount: paths.length,
           error,
         })
-        continue
-      }
-
-      const bucketResults: NonNullable<SignedUrlBatchResponse['results']> = []
-      for (const item of data || []) {
-        if (typeof item.path !== 'string') continue
-        bucketResults.push({
-          bucket,
-          path: item.path,
-          signedUrl: item.signedUrl || null,
-        })
-      }
-      const payload: SignedUrlBatchResponse = { results: bucketResults }
-
-      for (const result of payload.results || []) {
-        if (!result.signedUrl) continue
-        signedByKey.set(getSignedUrlBatchKey(result.bucket, result.path), result.signedUrl)
       }
     }
 

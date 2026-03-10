@@ -5,9 +5,8 @@ import NextImage from 'next/image'
 import type { NewImageSelection, GpsData } from '@/lib/submission-types'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { stripExifMetadataFromFile } from '@/lib/image-metadata'
+import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { blobToDataURL, isHeicFile, isSupportedImageFile } from '@/lib/image-utils'
-
-const ROUTE_UPLOADS_BUCKET = 'route-uploads'
 
 interface ImageUploaderProps {
   onComplete: (result: NewImageSelection) => void
@@ -1005,55 +1004,39 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
     onUploading(true, 0, 'Uploading...')
 
     try {
-      const { createClient } = await import('@/lib/supabase')
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (!user) {
-        onError('Please log in to upload images')
-        onUploading(false, 0, '')
-        return
-      }
-
-      const fileName = `${user.id}/${Date.now()}-${compressedFile.name}`
       onUploading(true, 20, 'Uploading image...')
 
-      const { data, error: uploadError } = await supabase.storage
-        .from(ROUTE_UPLOADS_BUCKET)
-        .upload(fileName, compressedFile)
+      const uploadSession = await createMediaUploadSession({
+        purpose: 'submission_image',
+        contentType: compressedFile.type || 'image/jpeg',
+        fileName: compressedFile.name,
+        byteSize: compressedFile.size,
+      })
 
-      if (uploadError) {
-        if (uploadError.message?.includes('size')) {
-          onError('Image is too large. Please try a smaller image.')
-        } else {
-          onError(`Upload failed: ${uploadError.message}`)
-        }
+      try {
+        await uploadFileToMediaSession(uploadSession.uploadUrl, uploadSession.uploadHeaders, compressedFile)
+        await completeMediaUploadSession(uploadSession.imageId)
+      } catch (uploadError) {
+        await deleteMediaUploadSession(uploadSession.imageId).catch(() => null)
+        const message = uploadError instanceof Error ? uploadError.message : 'Failed to upload image'
+        onError(message.includes('size') ? 'Image is too large. Please try a smaller image.' : `Upload failed: ${message}`)
         onUploading(false, 0, '')
         return
       }
 
-      onUploading(true, 50, 'Creating secure preview...')
-
-      const { data: signedData, error: signedError } = await supabase.storage
-        .from(ROUTE_UPLOADS_BUCKET)
-        .createSignedUrl(data.path, 3600)
-
-      if (signedError || !signedData?.signedUrl) {
-        onError('Upload succeeded but preview failed. Please try again.')
-        onUploading(false, 0, '')
-        return
-      }
+      const tempPreviewUrl = previewUrl || URL.createObjectURL(compressedFile)
 
       onUploading(true, 70, 'Getting image info...')
-      const dimensions = await getImageDimensions(previewUrl || signedData.signedUrl)
+      const dimensions = await getImageDimensions(tempPreviewUrl)
 
       const result: NewImageSelection = {
         mode: 'new',
         images: [
           {
-            uploadedBucket: ROUTE_UPLOADS_BUCKET,
-            uploadedPath: data.path,
-            uploadedUrl: signedData.signedUrl,
+            uploadedImageId: uploadSession.imageId,
+            uploadedBucket: uploadSession.bucket,
+            uploadedPath: uploadSession.objectKey,
+            uploadedUrl: tempPreviewUrl,
             gpsData: finalGps,
             captureDate: null,
             width: dimensions.width,
