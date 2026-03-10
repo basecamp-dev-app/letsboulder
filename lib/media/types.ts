@@ -9,6 +9,8 @@ export type MediaVisibility = 'private' | 'public'
 
 export type MediaProcessingStatus = 'pending' | 'queued' | 'processing' | 'ready' | 'failed'
 
+export type MediaIngestTrigger = 'upload' | 'backfill'
+
 export type MediaModerationStatus = 'pending' | 'approved' | 'rejected' | 'skipped' | 'error'
 
 export type MediaModerationProvider = 'aws_rekognition' | 'disabled'
@@ -52,9 +54,10 @@ export interface MediaIngestJobPayload {
   imageId: string
   originalBucket: string
   originalKey: string
-  storageProvider: 'r2'
+  storageProvider: 'supabase' | 'r2'
   purpose: MediaUploadPurpose
   triggeredByUserId: string
+  trigger?: MediaIngestTrigger
 }
 
 export interface MediaJobRow {
