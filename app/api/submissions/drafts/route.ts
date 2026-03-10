@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
+import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 export const runtime = 'nodejs'
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
   )
 
   try {
+    const ownershipClient = supabase as unknown as Parameters<typeof userOwnsUploadedObject>[0]
     const [authResult, body] = await Promise.all([
       resolveUserIdWithFallback(request, supabase),
       request.json().catch(() => null),
@@ -73,9 +75,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'images must be a non-empty array' }, { status: 400 })
     }
 
-    const userPrefix = `${userId}/`
     for (const image of images) {
-      if (!image.uploadedPath.startsWith(userPrefix)) {
+      if (!(await userOwnsUploadedObject(ownershipClient, userId, image.uploadedBucket, image.uploadedPath))) {
         return NextResponse.json({ error: 'Invalid uploaded path owner' }, { status: 403 })
       }
     }

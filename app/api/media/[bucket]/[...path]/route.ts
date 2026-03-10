@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
+import { createR2Client } from '@/lib/media/r2'
 
 export const runtime = 'nodejs'
 
@@ -98,6 +100,19 @@ function getServiceRoleClient() {
   })
 }
 
+async function streamToBuffer(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  for await (const chunk of stream) {
+    chunks.push(Buffer.from(chunk))
+  }
+
+  return Buffer.concat(chunks)
+}
+
+function isR2ManagedBucket(bucket: string): boolean {
+  return bucket === process.env.R2_PRIVATE_BUCKET || bucket === process.env.R2_PUBLIC_BUCKET
+}
+
 async function canReadObject(bucket: string, path: string, userId: string | null) {
   const admin = getServiceRoleClient()
 
@@ -178,14 +193,29 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const admin = getServiceRoleClient()
-    const { data, error } = await admin.storage.from(bucket).download(objectPath)
-    if (error || !data) {
-      return NextResponse.json({ error: 'Failed to load media' }, { status: 404 })
+    let bytes: Buffer
+    let contentType = 'application/octet-stream'
+
+    if (isR2ManagedBucket(bucket)) {
+      const r2 = createR2Client()
+      const response = await r2.send(new GetObjectCommand({ Bucket: bucket, Key: objectPath }))
+      if (!response.Body) {
+        return NextResponse.json({ error: 'Failed to load media' }, { status: 404 })
+      }
+
+      bytes = await streamToBuffer(response.Body as AsyncIterable<Uint8Array>)
+      contentType = response.ContentType || contentType
+    } else {
+      const admin = getServiceRoleClient()
+      const { data, error } = await admin.storage.from(bucket).download(objectPath)
+      if (error || !data) {
+        return NextResponse.json({ error: 'Failed to load media' }, { status: 404 })
+      }
+
+      bytes = Buffer.from(await data.arrayBuffer())
+      contentType = data.type || contentType
     }
 
-    const bytes = Buffer.from(await data.arrayBuffer())
-    const contentType = data.type || 'application/octet-stream'
     const transformed = await transformImage(request, bytes, contentType)
     const responseBytes = transformed?.bytes || bytes
     const responseContentType = transformed?.contentType || contentType
