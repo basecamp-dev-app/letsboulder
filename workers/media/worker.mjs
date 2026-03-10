@@ -120,7 +120,16 @@ async function claimNextJob(supabase) {
     throw error
   }
 
-  return data || null
+  if (!data || typeof data !== 'object') {
+    return null
+  }
+
+  const candidate = data
+  if (!candidate.id || !candidate.image_id) {
+    return null
+  }
+
+  return candidate
 }
 
 async function loadImageRow(supabase, imageId) {
@@ -297,6 +306,10 @@ async function completeJob(supabase, jobId) {
 }
 
 async function failJob(supabase, job, errorMessage, terminal) {
+  if (!job?.id) {
+    return
+  }
+
   const runAt = new Date(Date.now() + Math.min(300000, 15000 * Math.max(1, job.attempts))).toISOString()
   const nextStatus = terminal || job.attempts >= job.max_attempts ? 'failed' : 'queued'
   const payload = {
@@ -318,6 +331,10 @@ async function failJob(supabase, job, errorMessage, terminal) {
 }
 
 async function updateImageAfterFailure(supabase, imageId, errorMessage, terminal) {
+  if (!imageId) {
+    return
+  }
+
   const { error } = await supabase
     .from('images')
     .update({
