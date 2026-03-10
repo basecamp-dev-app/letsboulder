@@ -363,6 +363,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   const [isFacesLoading, setIsFacesLoading] = useState(false)
   const [showDeferredSections, setShowDeferredSections] = useState(false)
   const [activeFaceIndex, setActiveFaceIndex] = useState(0)
+  const [requestedFaceIndex, setRequestedFaceIndex] = useState(0)
   const [settledFaceIndex, setSettledFaceIndex] = useState(0)
   const [isFaceTransitioning, setIsFaceTransitioning] = useState(false)
   const [primaryImageId, setPrimaryImageId] = useState<string | null>(null)
@@ -392,9 +393,8 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   const faceRouteCacheRef = useRef<Record<string, { image: ImageInfo; routeLines: DisplayRouteLine[] }>>({})
   const initialSelectionRef = useRef<InitialSelectionSnapshot | null>(null)
   const initialRouteCountRef = useRef(0)
-  const prevActiveFaceIndexRef = useRef<number | null>(null)
+  const prevRequestedFaceIndexRef = useRef<number | null>(null)
   const pendingSelectedRouteIdRef = useRef<string | null>(null)
-  const pendingFaceIndexRef = useRef<number | null>(null)
   const routeDrivenFaceChangeRef = useRef(false)
   const gradeSystem = useGradeSystem()
   const { data: climbPackData, isLoading: isClimbPackLoading, error: climbPackError } = useQuery({
@@ -579,26 +579,21 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     if (!emblaApi || visibleFaces.length === 0) return
 
     const targetIndex = Math.max(0, Math.min(index, visibleFaces.length - 1))
-    if (targetIndex === activeFaceIndex && targetIndex === settledFaceIndex) {
+    if (targetIndex === requestedFaceIndex && targetIndex === activeFaceIndex && targetIndex === settledFaceIndex) {
       updateEmblaControls(true)
       return
     }
 
-    pendingFaceIndexRef.current = targetIndex
     routeDrivenFaceChangeRef.current = false
     setHasUserInteractedWithSelection(true)
     resetZoomPan()
     setIsFaceTransitioning(true)
-    setCanvasFadeOut(true)
-    setActiveCanvasImageId(null)
-    setRouteLinesImageId(null)
-    setRouteLines([])
+    setCanvasFadeOut(false)
     pendingSelectedRouteIdRef.current = null
     clearSelection()
     updateRouteParam(null)
-    setActiveFaceIndex(targetIndex)
-    emblaApi.scrollTo(targetIndex, true)
-  }, [emblaApi, visibleFaces.length, activeFaceIndex, settledFaceIndex, updateEmblaControls, resetZoomPan, clearSelection, updateRouteParam])
+    setRequestedFaceIndex(targetIndex)
+  }, [emblaApi, visibleFaces.length, requestedFaceIndex, activeFaceIndex, settledFaceIndex, updateEmblaControls, resetZoomPan, clearSelection, updateRouteParam])
 
   const scrollRouteCardIntoView = useCallback((routeId: string) => {
     const node = routeCardRefs.current[routeId]
@@ -692,6 +687,9 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
           setActiveCanvasImageId(primaryImageData.id)
           setRouteLinesImageId(primaryImageData.id)
           setImage(primaryImageData)
+          setRequestedFaceIndex(0)
+          setActiveFaceIndex(0)
+          setSettledFaceIndex(0)
           setRouteLines([
             {
               id: legacyLine.id,
@@ -821,6 +819,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         setPrimaryImageId(primaryImage.id)
         setActiveCanvasImageId(resolvedInitialImageId)
         setRouteLinesImageId(resolvedInitialImageId)
+        setRequestedFaceIndex(initialFaceIndex)
         setActiveFaceIndex(initialFaceIndex)
         setSettledFaceIndex(initialFaceIndex)
         setRouteLines(initialEntry.routeLines)
@@ -860,12 +859,11 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     if (!targetImageId || !primaryImageId) return
 
     const targetFaceIndex = visibleFaces.findIndex((face) => resolveFaceImageId(face, primaryImageId) === targetImageId)
-    if (targetFaceIndex === -1 || targetFaceIndex === activeFaceIndex) return
+    if (targetFaceIndex === -1 || targetFaceIndex === requestedFaceIndex) return
 
     routeDrivenFaceChangeRef.current = true
-    setActiveFaceIndex(targetFaceIndex)
-    setSettledFaceIndex(targetFaceIndex)
-  }, [effectiveRouteParam, visibleFaces, primaryImageId, activeFaceIndex])
+    setRequestedFaceIndex(targetFaceIndex)
+  }, [effectiveRouteParam, visibleFaces, primaryImageId, requestedFaceIndex])
 
   useEffect(() => {
     if (!emblaApi || visibleFaces.length === 0) return
@@ -920,8 +918,8 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     })
 
     const handleSelect = () => {
-      const nextSnap = pendingFaceIndexRef.current ?? emblaApi.selectedScrollSnap()
-      if (nextSnap === settledFaceIndex) {
+      const nextSnap = emblaApi.selectedScrollSnap()
+      if (nextSnap === activeFaceIndex && nextSnap === requestedFaceIndex) {
         updateEmblaControls(false)
         return
       }
@@ -929,10 +927,11 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
       const isRouteDrivenFaceChange = routeDrivenFaceChangeRef.current
       resetZoomPan()
       setIsFaceTransitioning(true)
-      setCanvasFadeOut(true)
-      setActiveCanvasImageId(null)
-      setRouteLinesImageId(null)
-      setRouteLines([])
+      setCanvasFadeOut(false)
+      setRequestedFaceIndex(nextSnap)
+      if (nextSnap !== activeFaceIndex) {
+        emblaApi.scrollTo(activeFaceIndex, true)
+      }
       if (!isRouteDrivenFaceChange) {
         pendingSelectedRouteIdRef.current = null
         setHasUserInteractedWithSelection(true)
@@ -943,14 +942,16 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     }
 
     const handleSettle = () => {
-      pendingFaceIndexRef.current = null
-      setIsFaceTransitioning(false)
+      if (!transitionBuffer) {
+        setIsFaceTransitioning(false)
+      }
       updateEmblaControls(true)
     }
 
     const handleReInit = () => {
-      pendingFaceIndexRef.current = null
-      setIsFaceTransitioning(false)
+      if (!transitionBuffer) {
+        setIsFaceTransitioning(false)
+      }
       updateEmblaControls(true)
     }
 
@@ -963,7 +964,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
       emblaApi.off('reInit', handleReInit)
       emblaApi.off('settle', handleSettle)
     }
-  }, [emblaApi, updateEmblaControls, clearSelection, resetZoomPan, settledFaceIndex, updateRouteParam])
+  }, [activeFaceIndex, emblaApi, requestedFaceIndex, updateEmblaControls, clearSelection, resetZoomPan, transitionBuffer, updateRouteParam])
 
   useEffect(() => {
     if (!emblaApi) return
@@ -978,7 +979,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
 
   useEffect(() => {
     setActiveFaceLoadError(null)
-  }, [activeFaceIndex, image?.url])
+  }, [requestedFaceIndex, image?.url])
 
   useEffect(() => {
     const handlePageShow = () => {
@@ -992,22 +993,21 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   }, [resetZoomPan])
 
   useEffect(() => {
-    if (prevActiveFaceIndexRef.current === activeFaceIndex) {
+    if (prevRequestedFaceIndexRef.current === requestedFaceIndex) {
       return
     }
-    prevActiveFaceIndexRef.current = activeFaceIndex
+    prevRequestedFaceIndexRef.current = requestedFaceIndex
 
-    const activeFace = visibleFaces[activeFaceIndex]
-    if (!activeFace) return
+    const requestedFace = visibleFaces[requestedFaceIndex]
+    if (!requestedFace) return
 
-    const targetImageId = activeFace.image_id ?? activeFace.linked_image_id ?? primaryImageId
+    const targetImageId = requestedFace.image_id ?? requestedFace.linked_image_id ?? primaryImageId
     if (!targetImageId) {
-      setImage((prev) => prev ? { ...prev, url: activeFace.url } : prev)
-      setActiveCanvasImageId(null)
-      setRouteLinesImageId(null)
-      setRouteLines([])
+      setImage((prev) => prev ? { ...prev, url: requestedFace.url } : prev)
       setTransitionBuffer(null)
       setCanvasFadeOut(false)
+      setActiveFaceIndex(requestedFaceIndex)
+      setSettledFaceIndex(requestedFaceIndex)
       clearSelection()
       return
     }
@@ -1015,25 +1015,25 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     const cached = faceRouteCacheRef.current[targetImageId]
     if (cached) {
       setTransitionBuffer({
-        faceId: activeFace.id,
+        faceId: requestedFace.id,
         targetImageId,
         targetImage: cached.image,
         targetRoutes: cached.routeLines,
-        hasRoutes: activeFace.has_routes,
+        hasRoutes: requestedFace.has_routes,
         isLoading: true,
       })
       return
     }
 
     setTransitionBuffer({
-      faceId: activeFace.id,
+      faceId: requestedFace.id,
       targetImageId,
       targetImage: null,
       targetRoutes: null,
-      hasRoutes: activeFace.has_routes,
+      hasRoutes: requestedFace.has_routes,
       isLoading: true,
     })
-  }, [activeFaceIndex, visibleFaces, primaryImageId, clearSelection])
+  }, [requestedFaceIndex, visibleFaces, primaryImageId, clearSelection])
 
   useEffect(() => {
     if (!transitionBuffer) return
@@ -1057,17 +1057,12 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     if (!transitionBuffer.targetImage || !transitionBuffer.targetRoutes) return
     if (!loadedFaceIdsRef.current.has(transitionBuffer.faceId)) return
 
-    if (transitionBuffer.hasRoutes && transitionBuffer.targetRoutes.length === 0) {
-      console.log('[FaceRoutes] Atomic commit has zero routes despite has_routes=true', {
-        faceId: transitionBuffer.faceId,
-        targetImageId: transitionBuffer.targetImageId,
-      })
-    }
-
     setImage(transitionBuffer.targetImage)
     setRouteLines(transitionBuffer.targetRoutes)
     setRouteLinesImageId(transitionBuffer.targetImageId)
     setActiveCanvasImageId(transitionBuffer.targetImageId)
+    setActiveFaceIndex(requestedFaceIndex)
+    setSettledFaceIndex(requestedFaceIndex)
     const nextSelectedRouteId = pendingSelectedRouteIdRef.current
     const hasPendingSelectedRoute = nextSelectedRouteId
       ? transitionBuffer.targetRoutes.some((route) => route.id === nextSelectedRouteId)
@@ -1080,7 +1075,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     setIsFaceTransitioning(false)
     routeDrivenFaceChangeRef.current = false
     resetZoomPan()
-  }, [loadedFaceVersion, transitionBuffer, resetZoomPan, selectRoute])
+  }, [loadedFaceVersion, requestedFaceIndex, transitionBuffer, resetZoomPan, selectRoute])
 
   useEffect(() => {
     if (zoom > MIN_VIEWER_ZOOM) {
@@ -1093,6 +1088,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   useEffect(() => {
     if (visibleFaces.length === 0) {
       if (activeFaceIndex !== 0) setActiveFaceIndex(0)
+      if (requestedFaceIndex !== 0) setRequestedFaceIndex(0)
       if (settledFaceIndex !== 0) setSettledFaceIndex(0)
       return
     }
@@ -1101,19 +1097,22 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     if (activeFaceIndex > maxIndex) {
       setActiveFaceIndex(maxIndex)
     }
+    if (requestedFaceIndex > maxIndex) {
+      setRequestedFaceIndex(maxIndex)
+    }
     if (settledFaceIndex > maxIndex) {
       setSettledFaceIndex(maxIndex)
     }
-  }, [visibleFaces.length, activeFaceIndex, settledFaceIndex])
+  }, [visibleFaces.length, activeFaceIndex, requestedFaceIndex, settledFaceIndex])
 
   useEffect(() => {
-    const current = visibleFaces[activeFaceIndex]
-    const next = visibleFaces[activeFaceIndex + 1]
-    const prev = visibleFaces[activeFaceIndex - 1]
+    const current = visibleFaces[requestedFaceIndex]
+    const next = visibleFaces[requestedFaceIndex + 1]
+    const prev = visibleFaces[requestedFaceIndex - 1]
     prefetchFaceImage(current)
     prefetchFaceImage(next)
     prefetchFaceImage(prev)
-  }, [activeFaceIndex, visibleFaces, prefetchFaceImage])
+  }, [requestedFaceIndex, visibleFaces, prefetchFaceImage])
 
   useEffect(() => {
     if (!cragPath) return
