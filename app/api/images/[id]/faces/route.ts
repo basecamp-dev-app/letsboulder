@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createSignedObjectUrls } from '@/lib/media/object-urls'
 
 interface FaceItem {
   id: string
@@ -213,18 +214,18 @@ async function toViewableUrlMap(
     const paths = Array.from(pathSet)
     if (paths.length === 0) continue
 
-    const { data, error } = await signer.storage.from(bucket).createSignedUrls(paths, 3600)
-    if (error) {
+    const signedByPath = new Map<string, string | null>()
+
+    try {
+      const signed = await createSignedObjectUrls(paths.map((path) => ({ bucket, path })), signer)
+      for (const path of paths) {
+        signedByPath.set(path, signed.get(`${bucket}:${path}`) ?? null)
+      }
+    } catch {
       for (const path of paths) {
         map.set(`private://${bucket}/${path}`, null)
       }
       continue
-    }
-
-    const signedByPath = new Map<string, string>()
-    for (const item of data || []) {
-      if (!item?.path || !item?.signedUrl) continue
-      signedByPath.set(item.path, item.signedUrl)
     }
 
     for (const path of paths) {

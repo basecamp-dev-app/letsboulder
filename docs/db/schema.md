@@ -38,6 +38,13 @@ The `gradeMappings` table in `@/lib/grades.ts` is the source of truth for cross-
 
 **Agent rule:** Before any DELETE operation, check the migration files in `supabase/migrations/` to confirm ON DELETE behavior. Never assume cascade behavior.
 
+### Media Pipeline Tables
+- `images` now carries media-pipeline state in addition to legacy `url` storage fields.
+- Canonical first-sprint columns include `storage_provider`, `original_bucket`, `original_key`, `asset_version`, `variants`, `visibility`, `processing_status`, `checksum_sha256`, and `processed_at`.
+- `submission_draft_images` mirrors the provider-aware original reference with `storage_provider`, `original_bucket`, `original_key`, `preview_variants`, `processing_status`, and `processed_at`.
+- `media_jobs` is the async ingest queue table for the separate Node worker service. Service-role access only.
+- `claim_media_job(worker_name text)` atomically locks the next due queued media job for the worker.
+
 ### Auth Tables
 - **System tables:** Use RPC functions with `SECURITY DEFINER` for `auth.users` queries
 - **Reference:** `get_user_count()` function in database

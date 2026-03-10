@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewSubmission } from '@/lib/discord'
+import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { makeUniqueSlug } from '@/lib/slug'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { isValidGrade } from '@/lib/grade-constants'
@@ -191,6 +192,7 @@ export async function POST(request: NextRequest) {
   let shouldCleanupUploadedBlobs = false
 
   try {
+    const ownershipClient = supabase as unknown as Parameters<typeof userOwnsUploadedObject>[0]
     if (debugAuth) {
       const requestCookies = cookies.getAll()
       const cookieNames: string[] = []
@@ -407,7 +409,6 @@ export async function POST(request: NextRequest) {
         return response
       }
 
-      const userPathPrefix = `${userId}/`
       validatedNewImages = []
 
       for (const image of body.images) {
@@ -426,7 +427,7 @@ export async function POST(request: NextRequest) {
           return response
         }
 
-        if (!image.uploadedPath.startsWith(userPathPrefix)) {
+        if (!(await userOwnsUploadedObject(ownershipClient, userId, image.uploadedBucket, image.uploadedPath))) {
           response = NextResponse.json({ error: 'Invalid image path owner' }, { status: 403 })
           return response
         }

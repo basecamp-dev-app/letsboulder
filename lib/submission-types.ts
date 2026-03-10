@@ -111,6 +111,7 @@ export interface NewImageSelection {
 }
 
 export interface NewUploadedImage {
+  uploadedImageId?: string
   uploadedBucket: string
   uploadedPath: string
   uploadedUrl: string

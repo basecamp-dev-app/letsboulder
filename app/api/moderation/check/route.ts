@@ -69,8 +69,10 @@ export async function POST(request: NextRequest) {
       result = await moderateImageFromUrl(image.url)
     }
 
+    const autoPublish = result.moderationStatus === 'approved' || result.moderationStatus === 'skipped'
+
     let approvedUrl = image.url
-    if (result.moderationStatus === 'approved' && image.storage_bucket && image.storage_path) {
+    if (autoPublish && image.storage_bucket && image.storage_path) {
       const { data: publicUrlData } = supabase.storage
         .from(image.storage_bucket)
         .getPublicUrl(image.storage_path)
@@ -83,8 +85,10 @@ export async function POST(request: NextRequest) {
         url: approvedUrl,
         moderation_status: result.moderationStatus,
         moderation_labels: result.moderationLabels,
+        moderation_provider: result.moderationProvider,
+        moderation_error: result.skippedReason,
         moderated_at: new Date().toISOString(),
-        status: result.moderationStatus === 'approved' ? 'approved' : 'pending',
+        status: autoPublish ? 'approved' : 'pending',
       })
       .eq('id', image.id)
 
@@ -94,10 +98,10 @@ export async function POST(request: NextRequest) {
 
     if (image.created_by) {
       const moderationStatus = result.moderationStatus
-      const title = moderationStatus === 'approved' ? 'Photo approved' : 'Photo rejected'
-      const message = moderationStatus === 'approved'
-        ? 'Your photo was approved and is now visible.'
-        : 'Your photo was rejected.'
+      const title = autoPublish ? 'Photo approved' : 'Photo rejected'
+      const message = autoPublish
+        ? (moderationStatus === 'skipped' ? 'Your photo was approved because automated moderation is currently disabled.' : 'Your photo was approved and is now visible.')
+        : (moderationStatus === 'error' ? 'Your photo is awaiting manual review.' : 'Your photo was rejected.')
 
       await supabase.from('notifications').insert({
         user_id: image.created_by,
