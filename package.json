@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --turbo",
     "build": "NEXT_TELEMETRY_DISABLED=1 next build --webpack",
+    "media-backfill": "node scripts/media/backfill-images.mjs",
     "media-worker": "node workers/media/worker.mjs",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",
     "lint": "eslint",

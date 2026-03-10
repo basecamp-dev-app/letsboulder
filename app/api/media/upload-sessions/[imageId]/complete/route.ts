@@ -85,6 +85,7 @@ export async function POST(
       storageProvider: 'r2',
       purpose: 'submission_image',
       triggeredByUserId: user.id,
+      trigger: 'upload',
     })
 
     return NextResponse.json({
