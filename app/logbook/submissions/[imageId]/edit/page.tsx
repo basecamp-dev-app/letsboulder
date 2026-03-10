@@ -224,7 +224,9 @@ export default function EditSubmittedRoutesPage() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const imageId = params.imageId as string
+  const routeImageId = params.imageId as string
+  const requestedFaceImageId = searchParams.get('face')
+  const activeImageId = requestedFaceImageId || routeImageId
   const { toasts, addToast, removeToast } = useToast()
 
   const [loading, setLoading] = useState(true)
@@ -277,17 +279,30 @@ export default function EditSubmittedRoutesPage() {
   const [deletingExistingRouteId, setDeletingExistingRouteId] = useState<string | null>(null)
   const [facesLoading, setFacesLoading] = useState(false)
   const [manageFaces, setManageFaces] = useState<ManageFaceTab[]>([])
+  const [primaryManageImageId, setPrimaryManageImageId] = useState<string | null>(routeImageId)
   const [deleteTransferSourceRouteLineId, setDeleteTransferSourceRouteLineId] = useState<string | null>(null)
   const [deleteTransferSourceName, setDeleteTransferSourceName] = useState('')
   const [deleteTransferCandidates, setDeleteTransferCandidates] = useState<DeleteTransferCandidate[]>([])
   const [selectedTransferTargetRouteLineId, setSelectedTransferTargetRouteLineId] = useState<string>('')
+
+  const buildEditUrl = useCallback((baseImageId: string, nextFaceImageId?: string | null) => {
+    const nextParams = new URLSearchParams(searchParams.toString())
+    if (nextFaceImageId && nextFaceImageId !== baseImageId) {
+      nextParams.set('face', nextFaceImageId)
+    } else {
+      nextParams.delete('face')
+    }
+
+    const query = nextParams.toString()
+    return `/logbook/submissions/${baseImageId}/edit${query ? `?${query}` : ''}`
+  }, [searchParams])
 
   useEffect(() => {
     import('leaflet').then((lib) => setLeaflet(lib))
   }, [])
 
   const loadSubmission = useCallback(async () => {
-    if (!imageId) return
+    if (!activeImageId) return
 
     setLoading(true)
     setError(null)
@@ -298,7 +313,7 @@ export default function EditSubmittedRoutesPage() {
       const user = authData.user
 
       if (!user) {
-        router.push(`/auth?redirect_to=${encodeURIComponent(`/logbook/submissions/${imageId}/edit`)}`)
+        router.push(`/auth?redirect_to=${encodeURIComponent(buildEditUrl(routeImageId, activeImageId))}`)
         return
       }
       setCurrentUserId(user.id)
@@ -326,7 +341,7 @@ export default function EditSubmittedRoutesPage() {
             climbs (id, name, grade, status, route_type, description, user_id)
           )
         `)
-        .eq('id', imageId)
+        .eq('id', activeImageId)
         .single()
 
       if (imageError || !data) {
@@ -340,7 +355,7 @@ export default function EditSubmittedRoutesPage() {
         const { data: collaboratorAccess, error: collaboratorError } = await supabase
           .from('submission_collaborators')
           .select('image_id')
-          .eq('image_id', imageId)
+          .eq('image_id', activeImageId)
           .eq('user_id', user.id)
           .maybeSingle()
 
@@ -425,24 +440,28 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setLoading(false)
     }
-  }, [imageId, router])
+  }, [activeImageId, buildEditUrl, routeImageId, router])
 
   useEffect(() => {
     loadSubmission()
   }, [loadSubmission])
 
   const loadManageFaces = useCallback(async () => {
-    if (!imageId) return
+    if (!routeImageId) return
 
     setFacesLoading(true)
     try {
-      const response = await fetch(`/api/images/${imageId}/faces`, { cache: 'no-store' })
+      const response = await fetch(`/api/images/${routeImageId}/faces`, { cache: 'no-store' })
       if (!response.ok) {
+        setPrimaryManageImageId(routeImageId)
         setManageFaces([])
         return
       }
 
       const payload = await response.json() as FacesResponsePayload
+      const resolvedPrimaryImageId = typeof payload.primary_image_id === 'string' && payload.primary_image_id
+        ? payload.primary_image_id
+        : routeImageId
       const faces = Array.isArray(payload.faces) ? payload.faces : []
       const nextFaces = faces
         .filter((face): face is FaceSummaryItem & { image_id: string } => typeof face.image_id === 'string' && !!face.image_id)
@@ -465,17 +484,25 @@ export default function EditSubmittedRoutesPage() {
 
       const uniqueByImage = new Map(nextFaces.map((face) => [face.imageId, face]))
       const orderedFaces = [...uniqueByImage.values()]
-      const hasCurrentImage = orderedFaces.some((face) => face.imageId === imageId)
+      const currentManagedImageId = requestedFaceImageId || routeImageId
+      const hasCurrentImage = orderedFaces.some((face) => face.imageId === currentManagedImageId)
       if (!hasCurrentImage) {
-        orderedFaces.push({ imageId, index: orderedFaces.length, label: 'Current image', isPrimary: false, signedUrl: null })
+        orderedFaces.push({ imageId: currentManagedImageId, index: orderedFaces.length, label: 'Current image', isPrimary: false, signedUrl: null })
       }
+      setPrimaryManageImageId(resolvedPrimaryImageId)
       setManageFaces(orderedFaces)
+
+      const shouldNormalizeRoute = resolvedPrimaryImageId !== routeImageId
+      if (shouldNormalizeRoute) {
+        router.replace(buildEditUrl(resolvedPrimaryImageId, currentManagedImageId))
+      }
     } catch {
+      setPrimaryManageImageId(routeImageId)
       setManageFaces([])
     } finally {
       setFacesLoading(false)
     }
-  }, [imageId])
+  }, [buildEditUrl, requestedFaceImageId, routeImageId, router])
 
   useEffect(() => {
     void loadManageFaces()
@@ -593,11 +620,11 @@ export default function EditSubmittedRoutesPage() {
   }, [initialEditedRoutes, editedRoutes])
 
   const saveRouteEdits = useCallback(async () => {
-    if (!imageId || routesToPersist.length === 0) return false
+    if (!activeImageId || routesToPersist.length === 0) return false
 
     setSavingEdits(true)
     try {
-      const response = await csrfFetch(`/api/submissions/${imageId}/routes`, {
+      const response = await csrfFetch(`/api/submissions/${activeImageId}/routes`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ routes: routesToPersist }),
@@ -621,17 +648,17 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setSavingEdits(false)
     }
-  }, [imageId, routesToPersist])
+  }, [activeImageId, routesToPersist])
 
   const handleCreateRoutes = useCallback(async (routesToCreate: NewRouteData[]) => {
-    if (savingNewRoutes || !imageId || routesToCreate.length === 0) return
+    if (savingNewRoutes || !activeImageId || routesToCreate.length === 0) return
 
     setSavingNewRoutes(true)
     setError(null)
     setSuccess(null)
 
     try {
-      const response = await csrfFetch(`/api/submissions/${imageId}/routes`, {
+      const response = await csrfFetch(`/api/submissions/${activeImageId}/routes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ routes: routesToCreate, routeType: preferredRouteType }),
@@ -650,17 +677,17 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setSavingNewRoutes(false)
     }
-  }, [savingNewRoutes, imageId, loadSubmission, preferredRouteType])
+  }, [savingNewRoutes, activeImageId, loadSubmission, preferredRouteType])
 
   const handleDeleteExistingRoute = useCallback(async (routeLineId: string, transferTargetRouteLineId?: string) => {
-    if (!imageId || !routeLineId || deletingExistingRouteId) return
+    if (!activeImageId || !routeLineId || deletingExistingRouteId) return
 
     setDeletingExistingRouteId(routeLineId)
     setError(null)
     setSuccess(null)
 
     try {
-      const response = await csrfFetch(`/api/submissions/${imageId}/routes`, {
+      const response = await csrfFetch(`/api/submissions/${activeImageId}/routes`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -712,7 +739,7 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setDeletingExistingRouteId(null)
     }
-  }, [imageId, deletingExistingRouteId, loadSubmission])
+  }, [activeImageId, deletingExistingRouteId, loadSubmission])
 
   const toggleFaceDirection = useCallback((direction: FaceDirection) => {
     setFaceDirections((prev) => {
@@ -724,7 +751,7 @@ export default function EditSubmittedRoutesPage() {
   }, [])
 
   const saveImageMetadata = useCallback(async () => {
-    if (!imageId || !imageMetadataDirty) return false
+    if (!activeImageId || !imageMetadataDirty) return false
 
     const parsedLatitude = parseCoordinate(latitude)
     const parsedLongitude = parseCoordinate(longitude)
@@ -737,7 +764,7 @@ export default function EditSubmittedRoutesPage() {
       throw new Error('Longitude must be between -180 and 180')
     }
 
-    const response = await csrfFetch(`/api/submissions/${imageId}/image`, {
+    const response = await csrfFetch(`/api/submissions/${activeImageId}/image`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -756,10 +783,10 @@ export default function EditSubmittedRoutesPage() {
     setInitialLongitude(longitude)
     setInitialFaceDirections(faceDirections)
     return true
-  }, [imageId, imageMetadataDirty, latitude, longitude, faceDirections])
+  }, [activeImageId, imageMetadataDirty, latitude, longitude, faceDirections])
 
   const saveCragMetadata = useCallback(async () => {
-    if (!imageId || !canEditCragMetadata || !cragMetadataDirty) return false
+    if (!activeImageId || !canEditCragMetadata || !cragMetadataDirty) return false
 
     const trimmedCragName = cragName.trim()
     const trimmedRegionTag = regionTag.trim()
@@ -770,7 +797,7 @@ export default function EditSubmittedRoutesPage() {
       throw new Error('Region tag is required')
     }
 
-    const response = await csrfFetch(`/api/submissions/${imageId}/crag`, {
+    const response = await csrfFetch(`/api/submissions/${activeImageId}/crag`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -789,7 +816,7 @@ export default function EditSubmittedRoutesPage() {
     setInitialRegionTag(trimmedRegionTag)
     setInitialSubArea(subArea.trim())
     return true
-  }, [imageId, canEditCragMetadata, cragMetadataDirty, cragName, regionTag, subArea])
+  }, [activeImageId, canEditCragMetadata, cragMetadataDirty, cragName, regionTag, subArea])
 
   const updateLocation = useCallback((nextLatitude: number, nextLongitude: number) => {
     setLatitude(nextLatitude.toFixed(6))
@@ -835,11 +862,11 @@ export default function EditSubmittedRoutesPage() {
   }, [searchQuery, updateLocation])
 
   const loadCollaborators = useCallback(async () => {
-    if (!imageId) return
+    if (!activeImageId) return
 
     setLoadingCollaborators(true)
     try {
-      const response = await fetch(`/api/submissions/${imageId}/collaborators`, { cache: 'no-store' })
+      const response = await fetch(`/api/submissions/${activeImageId}/collaborators`, { cache: 'no-store' })
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
         throw new Error(data?.error || 'Failed to load collaborators')
@@ -868,15 +895,15 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setLoadingCollaborators(false)
     }
-  }, [imageId])
+  }, [activeImageId])
 
   const handleCreateInvite = useCallback(async () => {
-    if (!imageId || creatingInvite || !isOwner) return
+    if (!activeImageId || creatingInvite || !isOwner) return
 
     setCreatingInvite(true)
     setError(null)
     try {
-      const response = await csrfFetch(`/api/submissions/${imageId}/collaborators`, {
+      const response = await csrfFetch(`/api/submissions/${activeImageId}/collaborators`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ maxUses: null, expiresAt: null }),
@@ -903,7 +930,7 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setCreatingInvite(false)
     }
-  }, [imageId, creatingInvite, isOwner, loadCollaborators, addToast])
+  }, [activeImageId, creatingInvite, isOwner, loadCollaborators, addToast])
 
   const handleCopyInvite = useCallback(async (inviteUrl: string) => {
     try {
@@ -917,12 +944,12 @@ export default function EditSubmittedRoutesPage() {
   }, [addToast])
 
   const handleRevokeInvite = useCallback(async (inviteId: string) => {
-    if (!imageId || !isOwner || revokingInviteId) return
+    if (!activeImageId || !isOwner || revokingInviteId) return
 
     setRevokingInviteId(inviteId)
     setError(null)
     try {
-      const response = await csrfFetch(`/api/submissions/${imageId}/collaborators`, {
+      const response = await csrfFetch(`/api/submissions/${activeImageId}/collaborators`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ inviteId }),
@@ -940,15 +967,15 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setRevokingInviteId(null)
     }
-  }, [imageId, isOwner, revokingInviteId, loadCollaborators])
+  }, [activeImageId, isOwner, revokingInviteId, loadCollaborators])
 
   const handleRemoveCollaborator = useCallback(async (collaboratorUserId: string) => {
-    if (!imageId || !isOwner || removingCollaboratorId) return
+    if (!activeImageId || !isOwner || removingCollaboratorId) return
 
     setRemovingCollaboratorId(collaboratorUserId)
     setError(null)
     try {
-      const response = await csrfFetch(`/api/submissions/${imageId}/collaborators/${collaboratorUserId}`, {
+      const response = await csrfFetch(`/api/submissions/${activeImageId}/collaborators/${collaboratorUserId}`, {
         method: 'DELETE',
       })
 
@@ -964,17 +991,17 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setRemovingCollaboratorId(null)
     }
-  }, [imageId, isOwner, removingCollaboratorId, loadCollaborators])
+  }, [activeImageId, isOwner, removingCollaboratorId, loadCollaborators])
 
   const saveContributionCredit = useCallback(async () => {
-    if (!imageId || !canEditContributionCredit || !creditDirty) return false
+    if (!activeImageId || !canEditContributionCredit || !creditDirty) return false
 
     const normalizedHandle = normalizeSubmissionCreditHandle(creditHandle)
     if (creditHandle.trim().length > 0 && !normalizedHandle) {
       throw new Error('Invalid handle. Use letters, numbers, dots, underscores, or hyphens.')
     }
 
-    const response = await csrfFetch(`/api/submissions/${imageId}/credit`, {
+    const response = await csrfFetch(`/api/submissions/${activeImageId}/credit`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -996,12 +1023,12 @@ export default function EditSubmittedRoutesPage() {
     setInitialCreditPlatform(updatedPlatform)
     setInitialCreditHandle(updatedHandle)
     return true
-  }, [imageId, canEditContributionCredit, creditDirty, creditHandle, creditPlatform])
+  }, [activeImageId, canEditContributionCredit, creditDirty, creditHandle, creditPlatform])
 
   const saveAnonymousSubmission = useCallback(async () => {
-    if (!imageId || !canEditContributionCredit || !anonymityDirty) return false
+    if (!activeImageId || !canEditContributionCredit || !anonymityDirty) return false
 
-    const response = await csrfFetch(`/api/submissions/${imageId}/anonymous`, {
+    const response = await csrfFetch(`/api/submissions/${activeImageId}/anonymous`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isAnonymousSubmission }),
@@ -1016,12 +1043,12 @@ export default function EditSubmittedRoutesPage() {
     setIsAnonymousSubmission(updatedAnonymousSubmission)
     setInitialIsAnonymousSubmission(updatedAnonymousSubmission)
     return true
-  }, [imageId, canEditContributionCredit, anonymityDirty, isAnonymousSubmission])
+  }, [activeImageId, canEditContributionCredit, anonymityDirty, isAnonymousSubmission])
 
   const saveRouteGradeVotes = useCallback(async () => {
-    if (!imageId || changedRouteGradeVotes.length === 0) return false
+    if (!activeImageId || changedRouteGradeVotes.length === 0) return false
 
-    const response = await csrfFetch(`/api/submissions/${imageId}/grade-votes`, {
+    const response = await csrfFetch(`/api/submissions/${activeImageId}/grade-votes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ grades: changedRouteGradeVotes }),
@@ -1042,7 +1069,7 @@ export default function EditSubmittedRoutesPage() {
     }))
 
     return true
-  }, [imageId, changedRouteGradeVotes])
+  }, [activeImageId, changedRouteGradeVotes])
 
   const handleSaveAllChanges = useCallback(async () => {
     if (!hasPendingChanges || savingAllChanges) return
@@ -1189,14 +1216,14 @@ export default function EditSubmittedRoutesPage() {
             </div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {manageFaces.map((face) => {
-                const active = face.imageId === imageId
+                const active = face.imageId === activeImageId
                 return (
                   <button
                     key={face.imageId}
                     type="button"
                     onClick={() => {
                       if (active) return
-                      router.push(`/logbook/submissions/${face.imageId}/edit`)
+                      router.replace(buildEditUrl(primaryManageImageId || routeImageId, face.imageId))
                     }}
                     className={`rounded-md border p-2 text-left text-xs font-medium transition-colors ${
                       active
@@ -1409,7 +1436,7 @@ export default function EditSubmittedRoutesPage() {
         {hasReadyData && imageSelection ? (
           <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
             <RouteCanvas
-              key={canvasKey}
+              key={`${canvasKey}:${activeImageId}`}
               imageSelection={imageSelection}
               onRoutesUpdate={() => {}}
               existingRouteLines={existingRouteLines}
