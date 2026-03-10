@@ -516,6 +516,26 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     }
     suppressCanvasClickRef.current = false
   }, [])
+  const commitFaceTransition = useCallback((buffer: TransitionBuffer, nextFaceIndex: number) => {
+    setImage(buffer.targetImage)
+    setRouteLines(buffer.targetRoutes || [])
+    setRouteLinesImageId(buffer.targetImageId)
+    setActiveCanvasImageId(buffer.targetImageId)
+    setActiveFaceIndex(nextFaceIndex)
+    setSettledFaceIndex(nextFaceIndex)
+    const nextSelectedRouteId = pendingSelectedRouteIdRef.current
+    const hasPendingSelectedRoute = nextSelectedRouteId
+      ? (buffer.targetRoutes || []).some((route) => route.id === nextSelectedRouteId)
+      : false
+    if (nextSelectedRouteId && hasPendingSelectedRoute) {
+      selectRoute(nextSelectedRouteId)
+    }
+    setCanvasFadeOut(false)
+    setTransitionBuffer(null)
+    setIsFaceTransitioning(false)
+    routeDrivenFaceChangeRef.current = false
+    resetZoomPan()
+  }, [resetZoomPan, selectRoute])
   const defaultPathRoute = useMemo(
     () => routeLines.find((route) => route.climb.id === climbId) || routeLines[0] || null,
     [routeLines, climbId]
@@ -1055,27 +1075,9 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   useLayoutEffect(() => {
     if (!transitionBuffer) return
     if (!transitionBuffer.targetImage || !transitionBuffer.targetRoutes) return
-    if (!loadedFaceIdsRef.current.has(transitionBuffer.faceId)) return
 
-    setImage(transitionBuffer.targetImage)
-    setRouteLines(transitionBuffer.targetRoutes)
-    setRouteLinesImageId(transitionBuffer.targetImageId)
-    setActiveCanvasImageId(transitionBuffer.targetImageId)
-    setActiveFaceIndex(requestedFaceIndex)
-    setSettledFaceIndex(requestedFaceIndex)
-    const nextSelectedRouteId = pendingSelectedRouteIdRef.current
-    const hasPendingSelectedRoute = nextSelectedRouteId
-      ? transitionBuffer.targetRoutes.some((route) => route.id === nextSelectedRouteId)
-      : false
-    if (nextSelectedRouteId && hasPendingSelectedRoute) {
-      selectRoute(nextSelectedRouteId)
-    }
-    setCanvasFadeOut(false)
-    setTransitionBuffer(null)
-    setIsFaceTransitioning(false)
-    routeDrivenFaceChangeRef.current = false
-    resetZoomPan()
-  }, [loadedFaceVersion, requestedFaceIndex, transitionBuffer, resetZoomPan, selectRoute])
+    commitFaceTransition(transitionBuffer, requestedFaceIndex)
+  }, [commitFaceTransition, loadedFaceVersion, requestedFaceIndex, transitionBuffer])
 
   useEffect(() => {
     if (zoom > MIN_VIEWER_ZOOM) {
