@@ -414,8 +414,8 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
 
   const selectedRouteParam = searchParams.get('route')
   const selectedImageParam = searchParams.get('image')
-  const [routeParamOverride, setRouteParamOverride] = useState<string | null>(null)
-  const effectiveRouteParam = routeParamOverride ?? selectedRouteParam
+  const [routeParamOverride, setRouteParamOverride] = useState<string | null | undefined>(undefined)
+  const effectiveRouteParam = routeParamOverride === undefined ? selectedRouteParam : routeParamOverride
 
   if (initialSelectionRef.current?.climbId !== climbId) {
     initialSelectionRef.current = {
@@ -585,11 +585,6 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
       const query = next.toString()
       const relativeUrl = query ? `${pathname}?${query}` : pathname
 
-      if (typeof window !== 'undefined') {
-        window.history.replaceState(window.history.state, '', relativeUrl)
-        return
-      }
-
       router.replace(relativeUrl, { scroll: false })
     },
     [pathname, searchParams, router]
@@ -671,7 +666,12 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
       setCanvasFadeOut(false)
       setActiveCanvasImageId(null)
       setRouteLinesImageId(null)
-      setRouteParamOverride(null)
+      faceRouteCacheRef.current = {}
+      prevRequestedFaceIndexRef.current = null
+      pendingSelectedRouteIdRef.current = null
+      routeDrivenFaceChangeRef.current = false
+      setPrimaryImageId(null)
+      setRouteParamOverride(undefined)
       setActiveFaceLoadError(null)
       setActiveFaceRetryNonce(0)
       resetZoomPan()
