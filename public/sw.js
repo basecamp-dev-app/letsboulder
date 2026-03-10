@@ -203,11 +203,11 @@ async function matchShellRequest(request) {
 
 async function matchRouteAssetRequest(request) {
   const routeAssetCache = await caches.open(ROUTE_ASSET_CACHE)
-  const directMatch = await routeAssetCache.match(request, { ignoreSearch: true })
+  const directMatch = await routeAssetCache.match(request)
   if (directMatch) return directMatch
 
   const shellCache = await caches.open(SHELL_CACHE)
-  return shellCache.match(request, { ignoreSearch: true })
+  return shellCache.match(request)
 }
 
 async function handleShellFetch(request) {
@@ -437,7 +437,7 @@ self.addEventListener('fetch', (event) => {
   const isClimbPage = request.mode === 'navigate' && url.pathname.startsWith('/climb/')
   const isCragPage = request.mode === 'navigate' && (url.pathname.startsWith('/crag/') || /^\/[a-z]{2}\//.test(url.pathname))
   const isShellAsset = url.pathname === MANIFEST_URL || url.pathname === LOGO_URL || url.pathname.startsWith('/_next/static/')
-  const isRouteAsset = url.pathname.startsWith('/_next/static/') || url.pathname === LOGO_LIGHT_URL || url.pathname === LOGO_DARK_URL || url.pathname === LOGO_URL || url.pathname === MANIFEST_URL || url.pathname === '/_next/image'
+  const isRouteAsset = url.pathname.startsWith('/_next/static/') || url.pathname === LOGO_LIGHT_URL || url.pathname === LOGO_DARK_URL || url.pathname === LOGO_URL || url.pathname === MANIFEST_URL
 
   if (isMediaRequest) {
     event.respondWith((async () => {
