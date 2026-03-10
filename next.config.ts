@@ -1,5 +1,24 @@
 import type { NextConfig } from 'next'
 
+function getMediaCdnRemotePattern() {
+  const raw = process.env.MEDIA_CDN_BASE_URL?.trim()
+  if (!raw) return null
+
+  try {
+    const url = new URL(raw)
+    return {
+      protocol: url.protocol.replace(':', '') as 'http' | 'https',
+      hostname: url.hostname,
+      port: url.port || undefined,
+      pathname: '/**',
+    }
+  } catch {
+    return null
+  }
+}
+
+const mediaCdnRemotePattern = getMediaCdnRemotePattern()
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   allowedDevOrigins: [
@@ -46,6 +65,7 @@ const nextConfig: NextConfig = {
         port: '54321',
         pathname: '/storage/v1/object/public/**',
       },
+      ...(mediaCdnRemotePattern ? [mediaCdnRemotePattern] : []),
     ],
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
