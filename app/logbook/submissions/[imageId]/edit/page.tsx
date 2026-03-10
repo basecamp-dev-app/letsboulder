@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
+import NextImage from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, Link2, MapPin, Search, Trash2, Users } from 'lucide-react'
@@ -114,6 +115,7 @@ interface FaceSummaryItem {
   image_id?: string | null
   index?: number
   is_primary: boolean
+  url?: string | null
   has_routes: boolean
   face_directions?: string[] | null
 }
@@ -125,8 +127,10 @@ interface FacesResponsePayload {
 
 interface ManageFaceTab {
   imageId: string
+  index: number
   label: string
   isPrimary: boolean
+  signedUrl: string | null
 }
 
 const VALID_ROUTE_TYPES = ['sport', 'boulder', 'trad', 'deep-water-solo'] as const
@@ -452,8 +456,10 @@ export default function EditSubmittedRoutesPage() {
             : `Face ${index + 1}`
           return {
             imageId: face.image_id,
+            index,
             label: directions ? `${defaultLabel} (${directions})` : defaultLabel,
             isPrimary: face.is_primary,
+            signedUrl: typeof face.url === 'string' && face.url ? face.url : null,
           }
         })
 
@@ -461,7 +467,7 @@ export default function EditSubmittedRoutesPage() {
       const orderedFaces = [...uniqueByImage.values()]
       const hasCurrentImage = orderedFaces.some((face) => face.imageId === imageId)
       if (!hasCurrentImage) {
-        orderedFaces.push({ imageId, label: 'Current image', isPrimary: false })
+        orderedFaces.push({ imageId, index: orderedFaces.length, label: 'Current image', isPrimary: false, signedUrl: null })
       }
       setManageFaces(orderedFaces)
     } catch {
@@ -1181,7 +1187,7 @@ export default function EditSubmittedRoutesPage() {
                 <span className="text-xs text-gray-500 dark:text-gray-400">Loading faces...</span>
               ) : null}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {manageFaces.map((face) => {
                 const active = face.imageId === imageId
                 return (
@@ -1192,12 +1198,28 @@ export default function EditSubmittedRoutesPage() {
                       if (active) return
                       router.push(`/logbook/submissions/${face.imageId}/edit`)
                     }}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    className={`rounded-md border p-2 text-left text-xs font-medium transition-colors ${
                       active
-                        ? 'border-blue-600 bg-blue-600 text-white'
+                        ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-200'
                         : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
                     }`}
                   >
+                    <div className="relative mb-1 h-16 w-full overflow-hidden rounded border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
+                      {face.signedUrl ? (
+                        <NextImage
+                          src={face.signedUrl}
+                          alt={face.isPrimary ? 'Primary face' : `Face ${face.index + 1}`}
+                          fill
+                          unoptimized
+                          sizes="160px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[11px] text-gray-500 dark:text-gray-400">
+                          No preview
+                        </div>
+                      )}
+                    </div>
                     {face.label}
                   </button>
                 )
