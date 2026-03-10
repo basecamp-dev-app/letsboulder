@@ -1,3 +1,4 @@
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import sharp from 'sharp'
@@ -23,6 +24,15 @@ const formatSpecs = [
   { key: 'webp', contentType: 'image/webp', extension: 'webp' },
   { key: 'jpeg', contentType: 'image/jpeg', extension: 'jpg' },
 ]
+
+const MIME_EXTENSION_MAP = {
+  'image/avif': 'avif',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
 
 function getRequiredEnv(name) {
   const value = process.env[name]?.trim()
@@ -90,6 +100,39 @@ function createR2Client() {
   })
 }
 
+function isR2ManagedBucket(bucket) {
+  const storage = getStorageConfig()
+  return bucket === storage.privateBucket || bucket === storage.publicBucket
+}
+
+function getExtensionFromMimeType(contentType) {
+  if (!contentType) return null
+  return MIME_EXTENSION_MAP[contentType.toLowerCase()] || null
+}
+
+function inferOriginalExtension(contentType, objectKey) {
+  const fromMime = getExtensionFromMimeType(contentType)
+  if (fromMime) {
+    return fromMime
+  }
+
+  const parsed = path.extname(objectKey || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+  if (parsed) {
+    return parsed
+  }
+
+  return 'jpg'
+}
+
+function buildPrivateOriginalKey(imageId, contentType, objectKey) {
+  const extension = inferOriginalExtension(contentType, objectKey)
+  return `images/originals/${imageId}/original.${extension}`
+}
+
+function buildPrivateObjectUrl(bucket, objectKey) {
+  return `private://${bucket}/${objectKey}`
+}
+
 let rekognitionClientPromise = null
 
 async function getRekognitionClient() {
@@ -139,6 +182,8 @@ async function loadImageRow(supabase, imageId) {
       'id',
       'url',
       'created_by',
+      'storage_bucket',
+      'storage_path',
       'storage_provider',
       'original_bucket',
       'original_key',
@@ -156,6 +201,8 @@ async function loadImageRow(supabase, imageId) {
       'moderation_labels',
       'moderated_at',
       'status',
+      'width',
+      'height',
     ].join(', '))
     .eq('id', imageId)
     .single()
@@ -173,7 +220,77 @@ async function downloadOriginalBuffer(r2, bucket, key) {
     throw new Error('Original image body is empty')
   }
 
-  return streamToBuffer(response.Body)
+  return {
+    buffer: await streamToBuffer(response.Body),
+    contentType: response.ContentType || null,
+  }
+}
+
+async function downloadLegacyOriginalBuffer(supabase, bucket, key) {
+  const { data, error } = await supabase.storage.from(bucket).download(key)
+  if (error || !data) {
+    throw error || new Error('Failed to download legacy original image')
+  }
+
+  return {
+    buffer: Buffer.from(await data.arrayBuffer()),
+    contentType: data.type || null,
+  }
+}
+
+async function downloadSourceOriginal(supabase, r2, bucket, key) {
+  if (isR2ManagedBucket(bucket)) {
+    return downloadOriginalBuffer(r2, bucket, key)
+  }
+
+  return downloadLegacyOriginalBuffer(supabase, bucket, key)
+}
+
+async function uploadOriginalToPrivateBucket(r2, imageId, buffer, contentType, sourceKey) {
+  const storage = getStorageConfig()
+  const objectKey = buildPrivateOriginalKey(imageId, contentType, sourceKey)
+
+  await r2.send(new PutObjectCommand({
+    Bucket: storage.privateBucket,
+    Key: objectKey,
+    Body: buffer,
+    ContentType: contentType || 'application/octet-stream',
+  }))
+
+  return {
+    bucket: storage.privateBucket,
+    key: objectKey,
+  }
+}
+
+async function readImageMetadata(buffer) {
+  const metadata = await sharp(buffer, { failOn: 'none' }).metadata()
+
+  return {
+    width: typeof metadata.width === 'number' ? metadata.width : null,
+    height: typeof metadata.height === 'number' ? metadata.height : null,
+  }
+}
+
+function getPreservedBackfillModeration(image, trigger) {
+  if (trigger !== 'backfill') {
+    return null
+  }
+
+  if (
+    image.moderation_status !== 'approved'
+    && image.moderation_status !== 'skipped'
+    && image.moderation_status !== 'rejected'
+  ) {
+    return null
+  }
+
+  return {
+    moderationStatus: image.moderation_status,
+    moderationProvider: image.moderation_provider || 'disabled',
+    moderationLabels: Array.isArray(image.moderation_labels) ? image.moderation_labels : [],
+    moderationError: image.moderation_error || null,
+  }
 }
 
 async function moderateImage(buffer) {
@@ -351,6 +468,7 @@ async function updateImageAfterFailure(supabase, imageId, errorMessage, terminal
 async function processClaimedJob(supabase, r2, job) {
   const payload = job.payload && typeof job.payload === 'object' ? job.payload : {}
   const imageId = typeof payload.imageId === 'string' ? payload.imageId : job.image_id
+  const trigger = payload.trigger === 'backfill' ? 'backfill' : 'upload'
   if (!imageId) {
     throw new Error('Job payload is missing imageId')
   }
@@ -362,9 +480,9 @@ async function processClaimedJob(supabase, r2, job) {
     return
   }
 
-  const originalBucket = image.original_bucket || payload.originalBucket || getStorageConfig().privateBucket
-  const originalKey = image.original_key || payload.originalKey
-  if (!originalKey) {
+  const sourceBucket = image.original_bucket || payload.originalBucket || image.storage_bucket || getStorageConfig().privateBucket
+  const sourceKey = image.original_key || payload.originalKey || image.storage_path
+  if (!sourceBucket || !sourceKey) {
     throw new Error('Image original key is missing')
   }
 
@@ -379,24 +497,44 @@ async function processClaimedJob(supabase, r2, job) {
     throw processingError
   }
 
-  const originalBuffer = await downloadOriginalBuffer(r2, originalBucket, originalKey)
-  const checksum = crypto.createHash('sha256').update(originalBuffer).digest('hex')
-  const moderation = await moderateImage(originalBuffer)
-  const moderatedAt = new Date().toISOString()
+  const storage = getStorageConfig()
+  const originalAsset = await downloadSourceOriginal(supabase, r2, sourceBucket, sourceKey)
+  const checksum = crypto.createHash('sha256').update(originalAsset.buffer).digest('hex')
+  const originalMetadata = await readImageMetadata(originalAsset.buffer)
+  const copiedOriginal = sourceBucket === storage.privateBucket
+    ? { bucket: sourceBucket, key: sourceKey }
+    : await uploadOriginalToPrivateBucket(
+        r2,
+        image.id,
+        originalAsset.buffer,
+        originalAsset.contentType || image.original_mime_type,
+        sourceKey
+      )
+  const moderation = getPreservedBackfillModeration(image, trigger) || await moderateImage(originalAsset.buffer)
+  const moderatedAt = image.moderated_at || new Date().toISOString()
 
   if (moderation.moderationStatus === 'rejected') {
     const { error } = await supabase
       .from('images')
       .update({
+        url: buildPrivateObjectUrl(copiedOriginal.bucket, copiedOriginal.key),
+        storage_provider: 'r2',
         moderation_status: 'rejected',
         moderation_provider: moderation.moderationProvider,
         moderation_labels: moderation.moderationLabels,
         moderation_error: moderation.moderationError,
         moderated_at: moderatedAt,
+        original_bucket: copiedOriginal.bucket,
+        original_key: copiedOriginal.key,
+        original_mime_type: originalAsset.contentType || image.original_mime_type,
+        original_bytes: originalAsset.buffer.byteLength,
+        original_width: image.original_width || originalMetadata.width || image.width,
+        original_height: image.original_height || originalMetadata.height || image.height,
         visibility: 'private',
-        processing_status: 'failed',
+        processing_status: trigger === 'backfill' ? 'ready' : 'failed',
         status: 'rejected',
         checksum_sha256: checksum,
+        processed_at: new Date().toISOString(),
       })
       .eq('id', image.id)
 
@@ -412,18 +550,19 @@ async function processClaimedJob(supabase, r2, job) {
     throw new Error(moderation.moderationError || 'Moderation failed')
   }
 
-  const uploaded = await uploadVariants(r2, image, originalBuffer)
+  const uploaded = await uploadVariants(r2, image, originalAsset.buffer)
 
   const { error } = await supabase
     .from('images')
     .update({
       url: uploaded.publicUrl,
       storage_provider: 'r2',
-      original_bucket: originalBucket,
-      original_key: originalKey,
-      original_bytes: originalBuffer.byteLength,
-      original_width: image.original_width || uploaded.derivedWidth,
-      original_height: image.original_height || uploaded.derivedHeight,
+      original_bucket: copiedOriginal.bucket,
+      original_key: copiedOriginal.key,
+      original_mime_type: originalAsset.contentType || image.original_mime_type,
+      original_bytes: originalAsset.buffer.byteLength,
+      original_width: image.original_width || originalMetadata.width || uploaded.derivedWidth,
+      original_height: image.original_height || originalMetadata.height || uploaded.derivedHeight,
       asset_version: uploaded.assetVersion,
       variants: uploaded.manifest,
       visibility: 'public',
