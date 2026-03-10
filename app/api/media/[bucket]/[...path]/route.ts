@@ -114,13 +114,17 @@ function isR2ManagedBucket(bucket: string): boolean {
 }
 
 async function canReadObject(bucket: string, path: string, userId: string | null) {
+  if (!isR2ManagedBucket(bucket)) {
+    return false
+  }
+
   const admin = getServiceRoleClient()
 
   const { data: imageRows, error: imageError } = await admin
     .from('images')
     .select('id, created_by, moderation_status')
-    .eq('storage_bucket', bucket)
-    .eq('storage_path', path)
+    .eq('original_bucket', bucket)
+    .eq('original_key', path)
     .limit(10)
 
   if (imageError) {
@@ -193,28 +197,14 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    let bytes: Buffer
-    let contentType = 'application/octet-stream'
-
-    if (isR2ManagedBucket(bucket)) {
-      const r2 = createR2Client()
-      const response = await r2.send(new GetObjectCommand({ Bucket: bucket, Key: objectPath }))
-      if (!response.Body) {
-        return NextResponse.json({ error: 'Failed to load media' }, { status: 404 })
-      }
-
-      bytes = await streamToBuffer(response.Body as AsyncIterable<Uint8Array>)
-      contentType = response.ContentType || contentType
-    } else {
-      const admin = getServiceRoleClient()
-      const { data, error } = await admin.storage.from(bucket).download(objectPath)
-      if (error || !data) {
-        return NextResponse.json({ error: 'Failed to load media' }, { status: 404 })
-      }
-
-      bytes = Buffer.from(await data.arrayBuffer())
-      contentType = data.type || contentType
+    const r2 = createR2Client()
+    const response = await r2.send(new GetObjectCommand({ Bucket: bucket, Key: objectPath }))
+    if (!response.Body) {
+      return NextResponse.json({ error: 'Failed to load media' }, { status: 404 })
     }
+
+    const bytes = await streamToBuffer(response.Body as AsyncIterable<Uint8Array>)
+    const contentType = response.ContentType || 'application/octet-stream'
 
     const transformed = await transformImage(request, bytes, contentType)
     const responseBytes = transformed?.bytes || bytes
