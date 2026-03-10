@@ -9,11 +9,9 @@ import { CSS } from '@dnd-kit/utilities'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { stripExifMetadataFromFile } from '@/lib/image-metadata'
 import { extractGpsFromFile } from '@/lib/image-gps'
+import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { isHeicFile } from '@/lib/image-utils'
 import type { NewImageSelection, NewUploadedImage } from '@/lib/submission-types'
-import { createClient } from '@/lib/supabase'
-
-const ROUTE_UPLOADS_BUCKET = 'route-uploads'
 
 interface MultiImageUploaderProps {
   onComplete: (result: NewImageSelection) => void
@@ -98,6 +96,7 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
     onComplete({
       mode: 'new',
       images: images.map((image) => ({
+        uploadedImageId: image.uploadedImageId,
         uploadedBucket: image.uploadedBucket,
         uploadedPath: image.uploadedPath,
         uploadedUrl: image.uploadedUrl,
@@ -112,6 +111,16 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
     })
     previousImageCountRef.current = images.length
   }, [images, onClear, onComplete])
+
+  useEffect(() => {
+    return () => {
+      for (const image of images) {
+        if (image.uploadedUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(image.uploadedUrl)
+        }
+      }
+    }
+  }, [images])
 
   const getDimensions = useCallback(async (url: string): Promise<{ width: number; height: number }> => {
     return new Promise((resolve) => {
@@ -145,21 +154,9 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
   const cleanupUploadedFiles = useCallback(async (uploadedFiles: SelectedImage[]) => {
     if (uploadedFiles.length === 0) return
 
-    const supabase = createClient()
-    const groupedPaths = new Map<string, string[]>()
-
     for (const image of uploadedFiles) {
-      const paths = groupedPaths.get(image.uploadedBucket) || []
-      paths.push(image.uploadedPath)
-      groupedPaths.set(image.uploadedBucket, paths)
-    }
-
-    for (const [bucket, paths] of groupedPaths.entries()) {
-      const uniquePaths = Array.from(new Set(paths))
-      const { error } = await supabase.storage.from(bucket).remove(uniquePaths)
-      if (error) {
-        throw new Error(error.message || 'Failed to clean up uploaded image')
-      }
+      if (!image.uploadedImageId) continue
+      await deleteMediaUploadSession(image.uploadedImageId)
     }
   }, [])
 
@@ -182,18 +179,6 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
     setProgress(0)
     onUploading(true, 5, incoming.length === 1 ? 'Preparing photo...' : `Preparing ${incoming.length} photos...`)
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setIsBusy(false)
-      setCompletedCount(0)
-      setTotalCount(0)
-      setProgress(0)
-      onError('Please log in to upload images')
-      onUploading(false, 0, '')
-      return
-    }
-
     const uploadedThisBatch: SelectedImage[] = []
 
     try {
@@ -206,33 +191,30 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
           extractGpsFromFile(file),
         ])
 
-        const ext = compressed.name.split('.').pop() || 'jpg'
-        const path = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`
-
         onUploading(true, Math.max(10, Math.round(((index + 0.5) / incoming.length) * 90)), `Uploading photo ${index + 1}/${incoming.length}...`)
+        const uploadSession = await createMediaUploadSession({
+          purpose: 'submission_image',
+          contentType: compressed.type || 'image/jpeg',
+          fileName: compressed.name,
+          byteSize: compressed.size,
+        })
 
-        const { data, error } = await supabase.storage
-          .from(ROUTE_UPLOADS_BUCKET)
-          .upload(path, compressed, { upsert: false })
-
-        if (error || !data?.path) {
-          throw new Error(error?.message || 'Failed to upload image')
+        try {
+          await uploadFileToMediaSession(uploadSession.uploadUrl, uploadSession.uploadHeaders, compressed)
+          await completeMediaUploadSession(uploadSession.imageId)
+        } catch (error) {
+          await deleteMediaUploadSession(uploadSession.imageId).catch(() => null)
+          throw error
         }
 
-        const { data: signedData, error: signedError } = await supabase.storage
-          .from(ROUTE_UPLOADS_BUCKET)
-          .createSignedUrl(data.path, 3600)
-
-        if (signedError || !signedData?.signedUrl) {
-          throw new Error('Failed to generate preview URL')
-        }
-
-        const dimensions = await getDimensions(signedData.signedUrl)
+        const previewObjectUrl = URL.createObjectURL(compressed)
+        const dimensions = await getDimensions(previewObjectUrl)
         const uploadedImage: SelectedImage = {
-          id: data.path,
-          uploadedBucket: ROUTE_UPLOADS_BUCKET,
-          uploadedPath: data.path,
-          uploadedUrl: signedData.signedUrl,
+          id: uploadSession.imageId,
+          uploadedImageId: uploadSession.imageId,
+          uploadedBucket: uploadSession.bucket,
+          uploadedPath: uploadSession.objectKey,
+          uploadedUrl: previewObjectUrl,
           gpsData,
           captureDate: null,
           width: dimensions.width,
@@ -249,6 +231,12 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
 
       onUploading(false, 100, '')
     } catch (error) {
+      for (const image of uploadedThisBatch) {
+        if (image.uploadedUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(image.uploadedUrl)
+        }
+      }
+
       setImages((prev) => prev.filter((image) => !uploadedThisBatch.some((uploaded) => uploaded.id === image.id)))
       try {
         await cleanupUploadedFiles(uploadedThisBatch)
@@ -277,10 +265,12 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
 
     setRemovingImageId(id)
     try {
-      const supabase = createClient()
-      const { error } = await supabase.storage.from(image.uploadedBucket).remove([image.uploadedPath])
-      if (error) {
-        throw new Error(error.message || 'Failed to remove uploaded image')
+      if (image.uploadedImageId) {
+        await deleteMediaUploadSession(image.uploadedImageId)
+      }
+
+      if (image.uploadedUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(image.uploadedUrl)
       }
 
       setImages((prev) => prev.filter((item) => item.id !== id))

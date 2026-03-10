@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { userOwnsUploadedObject } from '@/lib/media/ownership'
 
 interface DraftAppendImageInput {
   storage_bucket: string
@@ -105,6 +106,7 @@ export async function POST(
   )
 
   try {
+    const ownershipClient = supabase as unknown as Parameters<typeof userOwnsUploadedObject>[0]
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
     if (authError || !userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -122,9 +124,8 @@ export async function POST(
       return NextResponse.json({ error: 'expected_updated_at is required and must be a valid ISO timestamp' }, { status: 400 })
     }
 
-    const userPrefix = `${userId}/`
     for (const image of images) {
-      if (!image.storage_path.startsWith(userPrefix)) {
+      if (!(await userOwnsUploadedObject(ownershipClient, userId, image.storage_bucket, image.storage_path))) {
         return NextResponse.json({ error: 'Invalid uploaded path owner' }, { status: 403 })
       }
     }

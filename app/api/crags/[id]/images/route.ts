@@ -4,7 +4,8 @@ import { fileTypeFromBuffer } from 'file-type'
 import sharp from 'sharp'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
-import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
+import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
+import { createSignedObjectUrls } from '@/lib/media/object-urls'
 
 export const runtime = 'nodejs'
 
@@ -128,34 +129,20 @@ export async function GET(
       const paths = Array.from(pathSet)
       if (paths.length === 0) continue
 
-      const { data: signedData, error: signedError } = await signingClient.storage
-        .from(bucket)
-        .createSignedUrls(paths, 3600)
-
-      if (signedError) {
+      try {
+        const signed = await createSignedObjectUrls(paths.map((path) => ({ bucket, path })), signingClient)
+        for (const path of paths) {
+          const signedUrl = signed.get(`${bucket}:${path}`)
+          if (!signedUrl) continue
+          signedByKey.set(getSignedUrlBatchKey(bucket, path), signedUrl)
+        }
+      } catch (signedError) {
         console.warn('Crag images batch signed URL generation failed:', {
           cragId,
           bucket,
           pathCount: paths.length,
           error: signedError,
         })
-        continue
-      }
-
-      const bucketResults: NonNullable<SignedUrlBatchResponse['results']> = []
-      for (const item of signedData || []) {
-        if (typeof item.path !== 'string') continue
-        bucketResults.push({
-          bucket,
-          path: item.path,
-          signedUrl: item.signedUrl || null,
-        })
-      }
-      const payload: SignedUrlBatchResponse = { results: bucketResults }
-
-      for (const result of payload.results || []) {
-        if (!result.signedUrl) continue
-        signedByKey.set(getSignedUrlBatchKey(result.bucket, result.path), result.signedUrl)
       }
     }
 

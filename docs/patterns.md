@@ -221,6 +221,27 @@ const index3 = parseVGrade('V5?') // → 5
 const french = getGradeDisplay(5, 'french_equivalent') // → '7a'
 ```
 
+---
+
+## 6. Media Ingest Pipeline
+
+### Pattern
+```typescript
+import { getMediaModerationConfig } from '@/lib/media/config'
+
+const moderation = getMediaModerationConfig()
+
+if (!moderation.enabled) {
+  // Skip moderation and continue processing.
+}
+```
+
+### Known Edge Cases
+- **Public delivery:** Serve approved immutable variants from the CDN hostname, not app-route proxies.
+- **Private originals:** Keep originals in private object storage and use short-lived signed access for draft/moderation views.
+- **Cache busting:** Use versioned object paths like `v{asset_version}` instead of query strings.
+- **Worker safety:** Async ingest jobs must be idempotent; retries should not create duplicate variants.
+
 ### Known Edge Cases
 - **Range grades:** Use `gradeMappings` from `@/lib/grades` as single source of truth for V ↔ Font ↔ YDS ↔ French ↔ British
 - **Nuance handling:** Normalize inputs: V4/5 → V4, V5+ → V5, V5- → V4, V5? → V5 (project)

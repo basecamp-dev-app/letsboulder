@@ -15,6 +15,7 @@ import CragSelector from '@/app/submit/components/CragSelector'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type NewRouteData, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { createClient } from '@/lib/supabase'
@@ -710,29 +711,29 @@ export default function EditDraftPage() {
     setSuccess(null)
 
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        throw new Error('Authentication required')
-      }
-
       const uploadedImages: Array<{ storage_bucket: string; storage_path: string; width: number; height: number; route_data: Record<string, unknown> }> = []
 
       for (const file of files) {
-        const ext = file.name.split('.').pop() || 'jpg'
-        const storagePath = `${user.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('route-uploads')
-          .upload(storagePath, file, { upsert: false })
+        const uploadSession = await createMediaUploadSession({
+          purpose: 'draft_image',
+          contentType: file.type || 'image/jpeg',
+          fileName: file.name,
+          byteSize: file.size,
+          draftId,
+        })
 
-        if (uploadError) {
-          throw new Error(uploadError.message || 'Failed to upload face image')
+        try {
+          await uploadFileToMediaSession(uploadSession.uploadUrl, uploadSession.uploadHeaders, file)
+          await completeMediaUploadSession(uploadSession.imageId)
+        } catch (uploadError) {
+          await deleteMediaUploadSession(uploadSession.imageId).catch(() => null)
+          throw uploadError instanceof Error ? uploadError : new Error('Failed to upload face image')
         }
 
         const dimensions = await getImageDimensions(file)
         uploadedImages.push({
-          storage_bucket: 'route-uploads',
-          storage_path: storagePath,
+          storage_bucket: uploadSession.bucket,
+          storage_path: uploadSession.objectKey,
           width: dimensions.width,
           height: dimensions.height,
           route_data: {},
