@@ -1,10 +1,10 @@
-const SHELL_CACHE = 'offline-shell-v2'
+const SHELL_CACHE = 'offline-shell-v3'
 self.__WB_DISABLE_DEV_LOGS = true
 
 const PACK_CACHE = 'offline-climb-packs-v3'
 const MEDIA_CACHE = 'offline-media-v2'
 const TILE_CACHE = 'offline-tiles-v2'
-const ROUTE_ASSET_CACHE = 'offline-route-assets-v1'
+const ROUTE_ASSET_CACHE = 'offline-route-assets-v2'
 const TRANSIENT_CACHE = 'runtime-transient-v2'
 const OFFLINE_LAUNCH_URL = '/offline'
 const OFFLINE_LIBRARY_URL = '/offline/library'
@@ -211,9 +211,6 @@ async function matchRouteAssetRequest(request) {
 }
 
 async function handleShellFetch(request) {
-  const cached = await matchShellRequest(request)
-  if (cached) return cached
-
   const url = new URL(request.url)
 
   try {
@@ -224,8 +221,8 @@ async function handleShellFetch(request) {
     }
     return response
   } catch {
-    const fallbackCached = await matchShellRequest(request)
-    if (fallbackCached) return fallbackCached
+    const cached = await matchShellRequest(request)
+    if (cached) return cached
     if (request.mode === 'navigate' && url.pathname === OFFLINE_LAUNCH_URL) {
       const fallback = await matchShellRequest(toSameOriginRequest(OFFLINE_LAUNCH_URL))
       if (fallback) return fallback
@@ -436,8 +433,10 @@ self.addEventListener('fetch', (event) => {
   const isOfflineLibrary = request.mode === 'navigate' && url.pathname === OFFLINE_LIBRARY_URL
   const isClimbPage = request.mode === 'navigate' && url.pathname.startsWith('/climb/')
   const isCragPage = request.mode === 'navigate' && (url.pathname.startsWith('/crag/') || /^\/[a-z]{2}\//.test(url.pathname))
-  const isShellAsset = url.pathname === MANIFEST_URL || url.pathname === LOGO_URL || url.pathname.startsWith('/_next/static/')
-  const isRouteAsset = url.pathname.startsWith('/_next/static/') || url.pathname === LOGO_LIGHT_URL || url.pathname === LOGO_DARK_URL || url.pathname === LOGO_URL || url.pathname === MANIFEST_URL
+  const isManifestRequest = url.pathname === MANIFEST_URL
+  const isStaticBuildAsset = url.pathname.startsWith('/_next/static/')
+  const isShellAsset = url.pathname === LOGO_URL
+  const isRouteAsset = isStaticBuildAsset || url.pathname === LOGO_LIGHT_URL || url.pathname === LOGO_DARK_URL || url.pathname === LOGO_URL
 
   if (isMediaRequest) {
     event.respondWith((async () => {
@@ -524,7 +523,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  if (request.mode === 'navigate' || isShellAsset) {
+  if (request.mode === 'navigate' || isManifestRequest || isShellAsset) {
     event.respondWith(handleShellFetch(request))
   }
 })
