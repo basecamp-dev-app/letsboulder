@@ -693,7 +693,7 @@ export default function CragPageClient({
     return () => {
       ignore = true
     }
-  }, [cragSwitcherQuery, initialCrag?.country_code, initialCrag?.id, initialCrag?.latitude, initialCrag?.longitude, initialCrag?.name, initialCrag?.region_name, initialCrag?.regions?.name, initialCrag?.sub_area])
+  }, [cragSwitcherQuery, initialCrag])
 
   useEffect(() => {
     let ignore = false
@@ -962,7 +962,7 @@ export default function CragPageClient({
     return () => {
       ignore = true
     }
-  }, [hasInitialRouteData, id, initialCrag, initialCragCenter])
+  }, [hasInitialRouteData, id, initialCrag, initialCragCenter, initialRoutePreviewByClimbId])
 
   useEffect(() => {
     let ignore = false
