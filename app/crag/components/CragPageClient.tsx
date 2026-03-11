@@ -712,7 +712,9 @@ export default function CragPageClient({
         setRoutePreviewByClimbId(initialRoutePreviewByClimbId)
         setLoading(false)
       } else {
+      if (!initialCrag) {
         setLoading(true)
+      }
       }
 
       if (!hasInitialRouteData) {
