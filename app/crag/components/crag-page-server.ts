@@ -4,20 +4,20 @@ import type { CragRoute, RoutePreview } from '@/app/crag/components/CragPageClie
 
 type SupabaseClientLike = {
   rpc: (fn: 'get_crag_route_intelligence', args: { p_crag_id: string }) => Promise<{ data: Database['public']['Functions']['get_crag_route_intelligence']['Returns'] | null; error: unknown }>
-  from: (table: 'images' | 'route_lines') => {
+  from: (table: 'images' | 'route_lines' | 'crag_images') => {
     select: (query: string) => {
       eq: (column: string, value: string) => {
-        order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => Promise<{ data: unknown[] | null; error: unknown }>
+        order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => OrderedQueryResult
       }
       in: (column: string, values: string[]) => {
-        order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => {
-          order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => {
-            order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => Promise<{ data: unknown[] | null; error: unknown }>
-          }
-        }
+        order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => OrderedQueryResult
       }
     }
   }
+}
+
+type OrderedQueryResult = Promise<{ data: unknown[] | null; error: unknown }> & {
+  order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => OrderedQueryResult
 }
 
 type CragRouteIntelligenceRow = Database['public']['Functions']['get_crag_route_intelligence']['Returns'][number]
@@ -27,6 +27,11 @@ interface ImageRow {
   url: string
   latitude: number | null
   longitude: number | null
+}
+
+interface CragImageLinkRow {
+  linked_image_id: string | null
+  source_image_id: string | null
 }
 
 interface RouteLineTargetRow {
@@ -99,7 +104,31 @@ export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cra
     .eq('crag_id', cragId)
     .order('created_at', { ascending: false })
 
-  const images = ((imageData || []) as ImageRow[]).map((image) => ({
+  const { data: cragImageLinkData } = await supabase
+    .from('crag_images')
+    .select('linked_image_id, source_image_id')
+    .eq('crag_id', cragId)
+    .order('created_at', { ascending: false })
+
+  const linkedImageIds = Array.from(new Set(((cragImageLinkData || []) as CragImageLinkRow[])
+    .flatMap((row) => [row.linked_image_id, row.source_image_id])
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)))
+
+  const knownImageIds = new Set(((imageData || []) as ImageRow[]).map((image) => image.id))
+  const missingLinkedImageIds = linkedImageIds.filter((imageId) => !knownImageIds.has(imageId))
+
+  let missingLinkedImages: ImageRow[] = []
+  if (missingLinkedImageIds.length > 0) {
+    const { data } = await supabase
+      .from('images')
+      .select('id, url, latitude, longitude')
+      .in('id', missingLinkedImageIds)
+      .order('created_at', { ascending: false })
+
+    missingLinkedImages = (data || []) as ImageRow[]
+  }
+
+  const images = [...((imageData || []) as ImageRow[]), ...missingLinkedImages].map((image) => ({
     ...image,
     url: resolveRouteImageUrl(image.url),
   }))

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
+import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
 
 interface RecentTopLogRow {
   user_id: string
@@ -44,12 +45,18 @@ export async function GET(
 
   try {
     const { id: climbId } = await params
+    const effectiveClimbId = await resolveEffectiveClimbId(supabase as never, climbId)
+
+    if (!effectiveClimbId) {
+      return NextResponse.json({ error: 'Climb not found' }, { status: 404 })
+    }
+
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
     const { data, error } = await supabase
       .from('user_climbs')
       .select('user_id, style, created_at')
-      .eq('climb_id', climbId)
+      .eq('climb_id', effectiveClimbId)
       .in('style', ['top', 'flash'])
       .gte('created_at', sixtyDaysAgo)
       .order('created_at', { ascending: false })

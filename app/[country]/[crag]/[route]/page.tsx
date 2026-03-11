@@ -26,6 +26,7 @@ interface CragRow {
 
 interface ClimbRow {
   id: string
+  shared_climb_id: string | null
   name: string | null
   slug: string | null
   grade: string
@@ -72,7 +73,7 @@ async function getRoutePageData(countryCode: string, cragSlug: string, routeSlug
 
   const { data: climb } = await supabase
     .from('climbs')
-    .select('id, name, slug, grade, description, crag_id, latitude, longitude')
+    .select('id, shared_climb_id, name, slug, grade, description, crag_id, latitude, longitude')
     .eq('crag_id', (crag as CragRow).id)
     .eq('slug', routeSlug)
     .in('status', ['active', 'approved'])
@@ -82,6 +83,8 @@ async function getRoutePageData(countryCode: string, cragSlug: string, routeSlug
     return { crag: crag as CragRow, climb: null, bestImage: null, logCount: 0 }
   }
 
+  const effectiveClimbId = (climb as ClimbRow).shared_climb_id || (climb as ClimbRow).id
+
   const [{ data: routeLines }, { count: logCount }] = await Promise.all([
     supabase
       .from('route_lines')
@@ -90,7 +93,7 @@ async function getRoutePageData(countryCode: string, cragSlug: string, routeSlug
     supabase
       .from('user_climbs')
       .select('id', { count: 'exact', head: true })
-      .eq('climb_id', (climb as ClimbRow).id),
+      .eq('climb_id', effectiveClimbId),
   ])
 
   const lines = (routeLines || []) as unknown as RouteLineWithImage[]

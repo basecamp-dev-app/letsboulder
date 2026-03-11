@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
 
 export async function GET(
   request: NextRequest,
@@ -23,6 +24,14 @@ export async function GET(
     const { id: climbId } = await params
 
     const { userId } = await resolveUserIdWithFallback(request, supabase)
+    const effectiveClimbId = await resolveEffectiveClimbId(supabase as never, climbId)
+
+    if (!effectiveClimbId) {
+      return NextResponse.json(
+        { error: 'Climb not found' },
+        { status: 404 }
+      )
+    }
 
     // Get climb with verification info
     const { data: climb, error: climbError } = await supabase
@@ -63,7 +72,7 @@ export async function GET(
     const { data: gradeVotes } = await supabase
       .from('grade_votes')
       .select('grade')
-      .eq('climb_id', climbId)
+      .eq('climb_id', effectiveClimbId)
 
     const gradeDistribution = gradeVotes?.reduce((acc: Record<string, number>, vote) => {
       const grade = vote.grade
@@ -81,7 +90,7 @@ export async function GET(
       const { data: userGrade } = await supabase
         .from('grade_votes')
         .select('grade')
-        .eq('climb_id', climbId)
+        .eq('climb_id', effectiveClimbId)
         .eq('user_id', userId)
         .single()
       userGradeVote = userGrade?.grade || null

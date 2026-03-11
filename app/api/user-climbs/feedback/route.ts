@@ -4,6 +4,7 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { normalizeGrade, GRADES } from '@/lib/grades'
+import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
 import {
   clampGradeIndex,
   GRADE_CONSENSUS_MIN_CONFIDENCE,
@@ -135,11 +136,17 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid star rating' }, { status: 400 })
     }
 
+    const effectiveClimbId = await resolveEffectiveClimbId(supabase as never, climbId)
+
+    if (!effectiveClimbId) {
+      return NextResponse.json({ error: 'Climb not found' }, { status: 404 })
+    }
+
     const { data: existingLog, error: existingLogError } = await supabase
       .from('user_climbs')
       .select('id')
       .eq('user_id', user.id)
-      .eq('climb_id', climbId)
+      .eq('climb_id', effectiveClimbId)
       .maybeSingle()
 
     if (existingLogError) {
@@ -153,7 +160,7 @@ export async function PUT(request: NextRequest) {
     const { data: climbRow, error: climbError } = await supabase
       .from('climbs')
       .select('grade')
-      .eq('id', climbId)
+      .eq('id', effectiveClimbId)
       .single()
 
     if (climbError || !climbRow) {
@@ -170,7 +177,7 @@ export async function PUT(request: NextRequest) {
       .from('user_climbs')
       .update(updatePayload)
       .eq('user_id', user.id)
-      .eq('climb_id', climbId)
+      .eq('climb_id', effectiveClimbId)
 
     if (updateError) {
       return createErrorResponse(updateError, 'Failed to save climb feedback')
@@ -179,7 +186,7 @@ export async function PUT(request: NextRequest) {
     const { data: allVotes, error: votesError } = await supabase
       .from('user_climbs')
       .select('grade_opinion, grade_vote_baseline')
-      .eq('climb_id', climbId)
+      .eq('climb_id', effectiveClimbId)
       .not('grade_opinion', 'is', null)
 
     if (votesError) {
@@ -200,7 +207,7 @@ export async function PUT(request: NextRequest) {
       const { error: climbUpdateError } = await supabase
         .from('climbs')
         .update({ grade: targetGrade })
-        .eq('id', climbId)
+        .eq('shared_climb_id', effectiveClimbId)
 
       if (climbUpdateError) {
         return createErrorResponse(climbUpdateError, 'Failed to update climb grade from consensus')

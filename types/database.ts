@@ -281,6 +281,7 @@ export type Database = {
           original_grade_string: string | null
           place_id: string | null
           route_type: string | null
+          shared_climb_id: string | null
           slug: string | null
           status: string | null
           total_votes: number | null
@@ -305,6 +306,7 @@ export type Database = {
           original_grade_string?: string | null
           place_id?: string | null
           route_type?: string | null
+          shared_climb_id?: string | null
           slug?: string | null
           status?: string | null
           total_votes?: number | null
@@ -329,6 +331,7 @@ export type Database = {
           original_grade_string?: string | null
           place_id?: string | null
           route_type?: string | null
+          shared_climb_id?: string | null
           slug?: string | null
           status?: string | null
           total_votes?: number | null
@@ -356,6 +359,13 @@ export type Database = {
             columns: ["place_id"]
             isOneToOne: false
             referencedRelation: "places"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "climbs_shared_climb_id_fkey"
+            columns: ["shared_climb_id"]
+            isOneToOne: false
+            referencedRelation: "climbs"
             referencedColumns: ["id"]
           },
         ]
@@ -2330,6 +2340,7 @@ export type Database = {
           weighted_rating: number | null
         }[]
       }
+      get_effective_climb_id: { Args: { p_climb_id: string }; Returns: string }
       get_star_rating_summary: {
         Args: { p_climb_id: string }
         Returns: {
