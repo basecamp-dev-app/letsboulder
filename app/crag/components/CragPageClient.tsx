@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { Download, Loader2, Star } from 'lucide-react'
+import { BarChart3, Compass, Download, Filter, Layers3, Loader2, Mountain, Star, TrendingUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import PlaceCommunityClient from '@/features/community/components/PlaceCommunityClient'
@@ -1618,33 +1618,51 @@ export default function CragPageClient({
         {routeView === 'routes' && (
           <div className="mb-6 space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Routes</p>
+              <div className="rounded-2xl border border-stone-200 bg-gradient-to-br from-white via-white to-stone-50 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Routes</p>
+                  <Mountain className="size-4 text-stone-400" />
+                </div>
                 <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.totalRoutes}</p>
                 <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeStats.topoCoverageCount} with topo coverage</p>
               </div>
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Unique Sends</p>
+              <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 via-white to-white p-4 shadow-sm dark:border-orange-900/40 dark:bg-gray-900">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Unique Sends</p>
+                  <TrendingUp className="size-4 text-orange-500" />
+                </div>
                 <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.totalSendsAcrossRoutes}</p>
                 <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">All-time logged senders across this crag</p>
               </div>
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Avg Rating</p>
+              <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white p-4 shadow-sm dark:border-amber-900/40 dark:bg-gray-900">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Avg Rating</p>
+                  <Star className="size-4 fill-amber-400 text-amber-500" />
+                </div>
                 <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.averageRating === null ? '—' : routeStats.averageRating.toFixed(1)}</p>
                 <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeStats.ratedRoutesCount} route{routeStats.ratedRoutesCount === 1 ? '' : 's'} rated</p>
               </div>
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Median Grade</p>
+              <div className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50 via-white to-white p-4 shadow-sm dark:border-teal-900/40 dark:bg-gray-900">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Median Grade</p>
+                  <BarChart3 className="size-4 text-teal-600" />
+                </div>
                 <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.medianGrade ? formatGradeForDisplay(routeStats.medianGrade, gradeSystem) : '—'}</p>
                 <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">Middle of the route pack</p>
               </div>
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Mode Grade</p>
+              <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-white p-4 shadow-sm dark:border-sky-900/40 dark:bg-gray-900">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Mode Grade</p>
+                  <Layers3 className="size-4 text-sky-600" />
+                </div>
                 <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.mostCommonGrade ? formatGradeForDisplay(routeStats.mostCommonGrade.grade, gradeSystem) : '—'}</p>
                 <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeStats.mostCommonGrade?.count || 0} route{routeStats.mostCommonGrade?.count === 1 ? '' : 's'}</p>
               </div>
-              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Route Mix</p>
+              <div className="rounded-2xl border border-stone-200 bg-gradient-to-br from-stone-100 via-white to-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Route Mix</p>
+                  <Compass className="size-4 text-stone-500" />
+                </div>
                 <p className="mt-2 text-lg font-semibold text-stone-900 dark:text-gray-100">
                   {routeStats.routeTypeMix[0] ? formatRouteTypeLabel(routeStats.routeTypeMix[0].routeType) : 'Unclassified'}
                 </p>
@@ -1654,12 +1672,16 @@ export default function CragPageClient({
 
             {routeStats.gradeDistribution.length > 0 && <CragRouteCharts gradeDistribution={routeStats.gradeDistribution} sendsByGrade={routeStats.sendsByGrade} />}
 
-            <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-              <div className="border-b border-stone-200 p-4 dark:border-gray-800">
+            <div className="overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <div className="border-b border-stone-200 bg-gradient-to-br from-stone-50 via-white to-orange-50/40 p-4 dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.22em] text-stone-500 dark:text-gray-400">Route Intelligence</p>
-                    <h2 className="mt-1 text-lg font-semibold text-stone-900 dark:text-gray-100">Sort for quality, popularity, or grade.</h2>
+                    <div className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-stone-600 shadow-sm dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-300">
+                      <Filter className="size-3.5" />
+                      Route Intelligence
+                    </div>
+                    <h2 className="mt-3 text-lg font-semibold text-stone-900 dark:text-gray-100">Sort for quality, popularity, or grade.</h2>
+                    <p className="mt-1 max-w-2xl text-sm text-stone-600 dark:text-gray-300">Use sends to find the classics, weighted rating to surface crowd favorites, and topo coverage to zero in on routes you can actually jump onto.</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     <label className="text-sm text-stone-700 dark:text-gray-300">
@@ -1692,7 +1714,7 @@ export default function CragPageClient({
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <label className="text-sm text-stone-700 dark:text-gray-300">
                     <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Min grade</span>
                     <select
@@ -1739,7 +1761,7 @@ export default function CragPageClient({
                       ))}
                     </select>
                   </label>
-                  <div className="rounded-xl border border-stone-200 px-3 py-2 dark:border-gray-700">
+                  <div className="rounded-xl border border-stone-200 bg-white/80 px-3 py-2 shadow-sm dark:border-gray-700 dark:bg-gray-900/70">
                     <p className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Topo filter</p>
                     <label className="mt-2 flex items-center gap-2 text-sm text-stone-700 dark:text-gray-300">
                       <Checkbox checked={topoOnly} onCheckedChange={(checked) => setTopoOnly(checked === true)} />
@@ -1760,7 +1782,7 @@ export default function CragPageClient({
                         setSelectedRouteTypes([])
                         setTopoOnly(false)
                       }}
-                      className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                      className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                     >
                       Reset all
                     </button>
@@ -1781,7 +1803,7 @@ export default function CragPageClient({
                             onClick={() => {
                               setSelectedDirections((prev) => prev.includes(direction) ? prev.filter((item) => item !== direction) : [...prev, direction])
                             }}
-                            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            className={`rounded-full border px-3 py-1 text-xs font-medium shadow-sm transition-colors ${
                               selected
                                 ? 'border-stone-900 bg-stone-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
                                 : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
@@ -1807,7 +1829,7 @@ export default function CragPageClient({
                             onClick={() => {
                               setSelectedRouteTypes((prev) => prev.includes(routeType) ? prev.filter((item) => item !== routeType) : [...prev, routeType])
                             }}
-                            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                            className={`rounded-full border px-3 py-1 text-xs font-medium shadow-sm transition-colors ${
                               selected
                                 ? 'border-orange-600 bg-orange-600 text-white'
                                 : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
@@ -1824,7 +1846,7 @@ export default function CragPageClient({
                 {activeRouteFilterChips.length > 0 ? (
                   <div className="mt-4 flex flex-wrap gap-2">
                     {activeRouteFilterChips.map((chip) => (
-                      <button key={chip.key} type="button" onClick={chip.onRemove} className="rounded-full border border-stone-300 bg-stone-50 px-3 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                      <button key={chip.key} type="button" onClick={chip.onRemove} className="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-400 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                         {chip.label} ×
                       </button>
                     ))}
@@ -1859,7 +1881,7 @@ export default function CragPageClient({
                     </thead>
                     <tbody>
                       {filteredRoutes.map((route) => (
-                        <tr key={route.id} className="border-b border-stone-100 last:border-0 dark:border-gray-800/70">
+                        <tr key={route.id} className="border-b border-stone-100 transition-colors hover:bg-stone-50/70 last:border-0 dark:border-gray-800/70 dark:hover:bg-gray-800/40">
                           <td className="px-4 py-3 text-sm text-stone-900 dark:text-gray-100">
                             {route.slug || isOfflineDocumentNavigationPreferred() ? (
                               <a href={getRouteDestination(route)} className="font-medium text-stone-900 hover:underline dark:text-gray-100">
@@ -1879,8 +1901,8 @@ export default function CragPageClient({
                           </td>
                           <td className="px-4 py-3 text-sm tabular-nums text-stone-700 dark:text-gray-300">{route.sendCount}</td>
                           <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">{route.directions.length > 0 ? route.directions.join(', ') : 'Unknown'}</td>
-                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">{route.routeType ? formatRouteTypeLabel(route.routeType) : '—'}</td>
-                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">{route.hasTopo ? `${route.topoImageCount} image${route.topoImageCount === 1 ? '' : 's'}` : 'No topo'}</td>
+                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">{route.routeType ? <span className="rounded-full bg-stone-100 px-2 py-1 text-xs font-medium text-stone-700 dark:bg-gray-800 dark:text-gray-200">{formatRouteTypeLabel(route.routeType)}</span> : '—'}</td>
+                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">{route.hasTopo ? <span className="rounded-full bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700 dark:bg-teal-950/40 dark:text-teal-200">{route.topoImageCount} image{route.topoImageCount === 1 ? '' : 's'}</span> : 'No topo'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1888,7 +1910,7 @@ export default function CragPageClient({
 
                   <div className="space-y-3 p-3 md:hidden">
                     {filteredRoutes.map((route) => (
-                      <div key={route.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-gray-700 dark:bg-gray-800">
+                      <div key={route.id} className="rounded-2xl border border-stone-200 bg-gradient-to-br from-stone-50 to-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             {route.slug || isOfflineDocumentNavigationPreferred() ? (
