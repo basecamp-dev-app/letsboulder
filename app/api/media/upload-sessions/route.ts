@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
-import { getMediaStorageConfig } from '@/lib/media/config'
+import { getMediaModerationConfig, getMediaStorageConfig } from '@/lib/media/config'
 import { createPrivateUploadUrl } from '@/lib/media/r2'
 import { buildOriginalObjectKey, normalizeUploadSessionRequest } from '@/lib/media/upload-session'
 import type { MediaUploadSessionResponse } from '@/lib/media/types'
@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
     const imageId = randomUUID()
     const objectKey = buildOriginalObjectKey(imageId, payload)
     const storage = getMediaStorageConfig()
+    const moderation = getMediaModerationConfig()
+    const autoApprove = !moderation.enabled || moderation.provider === 'disabled'
     const privateUrl = `private://${storage.privateBucket}/${objectKey}`
 
     const { error: insertError } = await supabase
@@ -70,10 +72,10 @@ export async function POST(request: NextRequest) {
         original_bytes: payload.byteSize,
         original_width: payload.width,
         original_height: payload.height,
-        visibility: 'private',
-        moderation_status: 'pending',
-        processing_status: 'pending',
-        status: 'pending',
+        visibility: autoApprove ? 'public' : 'private',
+        moderation_status: autoApprove ? 'approved' : 'pending',
+        processing_status: autoApprove ? 'ready' : 'pending',
+        status: autoApprove ? 'approved' : 'pending',
       })
 
     if (insertError) {
