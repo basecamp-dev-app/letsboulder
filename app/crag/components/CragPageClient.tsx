@@ -25,6 +25,7 @@ import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib
 import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
 import type { ClimbPackResponse } from '@/lib/climb/queries'
 import { Input } from '@/components/ui/input'
+import { buildCragPinClusters, type ClusterableCragImage, type CragPinCluster } from '@/lib/crag-pin-clusters'
 import type { Database } from '@/types/database'
 
 import 'leaflet/dist/leaflet.css'
@@ -92,6 +93,7 @@ interface ImageData {
   url: string
   latitude: number | null
   longitude: number | null
+  created_at?: string | null
   route_lines_count: number
   is_verified: boolean
   verification_count: number
@@ -103,9 +105,26 @@ interface RawImageRow {
   url: string
   latitude: number | null
   longitude: number | null
+  created_at?: string | null
   is_verified: boolean | null
   verification_count: number | null
   route_lines: Array<{ count: number }>
+}
+
+interface ClusteredImageData extends ClusterableCragImage {
+  id: string
+  url: string
+  latitude: number | null
+  longitude: number | null
+  created_at?: string | null
+  route_lines_count: number
+  is_verified: boolean
+  verification_count: number
+  supplementary_faces_count: number
+}
+
+interface OrderedPinCluster extends CragPinCluster<ClusteredImageData> {
+  badgeNumber: number
 }
 
 interface OfflineHydratedCragData {
@@ -494,6 +513,31 @@ function haversineMeters(from: [number, number], to: [number, number]) {
   return R * c
 }
 
+function sortPinClusters(clusters: OrderedPinCluster[], center: [number, number] | null) {
+  const sortable = [...clusters]
+
+  sortable.sort((a, b) => {
+    if (center) {
+      const aBearing = bearingDegrees(center, [a.latitude, a.longitude])
+      const bBearing = bearingDegrees(center, [b.latitude, b.longitude])
+      if (aBearing !== bBearing) return aBearing - bBearing
+
+      const aDistance = haversineMeters(center, [a.latitude, a.longitude])
+      const bDistance = haversineMeters(center, [b.latitude, b.longitude])
+      if (aDistance !== bDistance) return aDistance - bDistance
+    }
+
+    if (a.latitude !== b.latitude) return b.latitude - a.latitude
+    if (a.longitude !== b.longitude) return a.longitude - b.longitude
+    return a.id.localeCompare(b.id)
+  })
+
+  return sortable.map((cluster, index) => ({
+    ...cluster,
+    badgeNumber: index + 1,
+  }))
+}
+
 interface CragPageClientProps {
   id: string
   initialCrag?: Crag | null
@@ -729,7 +773,7 @@ export default function CragPageClient({
 
       const imagesPromise = supabase
         .from('images')
-        .select('id, url, latitude, longitude, is_verified, verification_count, route_lines(count)')
+        .select('id, url, latitude, longitude, created_at, is_verified, verification_count, route_lines(count)')
         .eq('crag_id', id)
         .order('created_at', { ascending: false })
 
@@ -814,7 +858,7 @@ export default function CragPageClient({
       if (missingSupplementaryImageIds.length > 0) {
         const { data: extraImagesData, error: extraImagesError } = await supabase
           .from('images')
-          .select('id, url, latitude, longitude, is_verified, verification_count, route_lines(count)')
+          .select('id, url, latitude, longitude, created_at, is_verified, verification_count, route_lines(count)')
           .in('id', missingSupplementaryImageIds)
 
         if (extraImagesError) {
@@ -843,6 +887,7 @@ export default function CragPageClient({
           url: resolveRouteImageUrl(img.url),
           latitude: img.latitude,
           longitude: img.longitude,
+          created_at: img.created_at ?? null,
           is_verified: img.is_verified || false,
           verification_count: img.verification_count || 0,
           route_lines_count: routeLinesCount,
@@ -916,7 +961,7 @@ export default function CragPageClient({
 
       cragImageCache.set(id, {
         crag: cragData,
-        images: formattedImages,
+        images: previewImages,
         cragCenter: nextCenter,
         defaultRouteTargetByImageId: nextDefaultRouteTargetByImageId,
         cachedAt: Date.now(),
@@ -1130,20 +1175,53 @@ export default function CragPageClient({
     return m
   }, [orderedImages])
 
-  const mappableImages = useMemo(() => {
-    return orderedImages.filter(
-      (image): image is ImageData & { latitude: number; longitude: number } =>
-        image.latitude !== null && image.longitude !== null
-    )
+  const imageById = useMemo(() => {
+    return new Map(orderedImages.map((image) => [image.id, image as ClusteredImageData]))
   }, [orderedImages])
+
+  const clusteredPins = useMemo(() => {
+    return buildCragPinClusters(orderedImages as ClusteredImageData[], 10)
+  }, [orderedImages])
+
+  const orderedPinClusters = useMemo(() => {
+    return sortPinClusters(
+      clusteredPins.clusters.map((cluster) => ({ ...cluster, badgeNumber: 0 })),
+      viewCenter
+    )
+  }, [clusteredPins.clusters, viewCenter])
+
+  const clusterById = useMemo(() => {
+    return new Map(orderedPinClusters.map((cluster) => [cluster.id, cluster]))
+  }, [orderedPinClusters])
 
   const pinNumberByImageId = useMemo(() => {
     const mapping = new Map<string, number>()
-    mappableImages.forEach((image, index) => {
-      mapping.set(image.id, index + 1)
+    orderedPinClusters.forEach((cluster) => {
+      cluster.images.forEach((image) => {
+        mapping.set(image.id, cluster.badgeNumber)
+      })
     })
     return mapping
-  }, [mappableImages])
+  }, [orderedPinClusters])
+
+  const routePreviewDisplayByClimbId = useMemo(() => {
+    const nextPreviews: Record<string, RoutePreview> = {}
+
+    for (const [climbId, preview] of Object.entries(routePreviewByClimbId)) {
+      const clusterId = clusteredPins.clusterIdByImageId.get(preview.imageId)
+      const cluster = clusterId ? clusterById.get(clusterId) : null
+      const imageId = cluster?.representativeImageId || preview.imageId
+      const image = imageById.get(imageId)
+      if (!image) continue
+
+      nextPreviews[climbId] = {
+        imageId: image.id,
+        imageUrl: image.url,
+      }
+    }
+
+    return nextPreviews
+  }, [clusterById, clusteredPins.clusterIdByImageId, imageById, routePreviewByClimbId])
 
   const routeTypeChips = useMemo(() => {
     const uniqueTypes = new Set<string>()
@@ -1569,14 +1647,21 @@ export default function CragPageClient({
                 maxZoom={19}
               />
 
-          {mappableImages.map((image) => (
+          {orderedPinClusters.map((cluster) => {
+            const representativeImage = imageById.get(cluster.representativeImageId)
+            if (!representativeImage) return null
+
+            const clusterFaceLabel = `${cluster.faceCount} face${cluster.faceCount === 1 ? '' : 's'} here`
+            const representativeRouteLabel = `${representativeImage.route_lines_count} route${representativeImage.route_lines_count === 1 ? '' : 's'} on this face`
+
+            return (
             <Marker
-              key={image.id}
-              position={[image.latitude, image.longitude]}
+              key={cluster.id}
+              position={[cluster.latitude, cluster.longitude]}
               icon={L?.divIcon({
                 className: 'image-marker',
                 html: `<div style="
-                  background: ${image.is_verified ? '#22c55e' : '#eab308'};
+                  background: ${representativeImage.is_verified ? '#22c55e' : '#eab308'};
                   width: 24px;
                   height: 24px;
                   border-radius: 50%;
@@ -1588,14 +1673,14 @@ export default function CragPageClient({
                   font-weight: bold;
                   border: 2px solid white;
                   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                ">${pinNumberByImageId.get(image.id) ?? ''}</div>`,
+                ">${cluster.badgeNumber}</div>`,
                 iconSize: [24, 24],
                 iconAnchor: [12, 12]
               })}
               eventHandlers={{
                 click: (e: L.LeafletMouseEvent) => {
                   e.originalEvent.stopPropagation()
-                  highlightImageCard(image.id)
+                  highlightImageCard(representativeImage.id)
                 },
               }}
             >
@@ -1605,44 +1690,44 @@ export default function CragPageClient({
               >
                 <div
                   className="w-40 cursor-pointer"
-                  onMouseEnter={() => prefetchImageDestination(image.id)}
-                  onTouchStart={() => prefetchImageDestination(image.id)}
+                  onMouseEnter={() => prefetchImageDestination(representativeImage.id)}
+                  onTouchStart={() => prefetchImageDestination(representativeImage.id)}
                   onClick={() => {
-                    navigateToImageDestination(image.id)
+                    navigateToImageDestination(representativeImage.id)
                   }}
                 >
                   <div className="relative h-24 w-full overflow-hidden rounded-md bg-gray-200 dark:bg-gray-700">
                     <Image
-                      src={image.url}
-                      alt={`${crag.name} topo image ${pinNumberByImageId.get(image.id) ?? imageIndexById.get(image.id) ?? ''}`.trim()}
+                      src={representativeImage.url}
+                      alt={`${crag.name} topo image ${cluster.badgeNumber}`.trim()}
                       fill
                       className="object-cover"
                       sizes="160px"
                       unoptimized
                     />
-                    {image.supplementary_faces_count > 0 && (
-                      <div className="absolute bottom-2 left-2 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
-                        {1 + image.supplementary_faces_count} faces
-                      </div>
-                    )}
                     <div className="absolute top-2 left-2 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-gray-900 shadow-sm">
-                      {pinNumberByImageId.get(image.id) ?? ''}
+                      {cluster.badgeNumber}
                     </div>
                     <div className="absolute bottom-2 right-2 rounded-full bg-gray-900/80 px-2 py-1 text-xs text-white">
-                      {image.route_lines_count} routes
+                      {representativeImage.route_lines_count} routes
                     </div>
                     <div className={`absolute top-2 right-2 rounded px-1.5 py-0.5 text-xs font-medium ${
-                      image.is_verified
+                      representativeImage.is_verified
                         ? 'bg-green-500 text-white'
                         : 'bg-yellow-500 text-white'
                     }`}>
-                      {image.is_verified ? '✓' : `${image.verification_count}/3`}
+                      {representativeImage.is_verified ? '✓' : `${representativeImage.verification_count}/3`}
                     </div>
+                  </div>
+                  <div className="space-y-1 px-1 pb-1 pt-2 text-left">
+                    <div className="text-xs font-semibold text-stone-900 dark:text-stone-100">{clusterFaceLabel}</div>
+                    <div className="text-[11px] text-stone-600 dark:text-stone-300">{representativeRouteLabel}</div>
                   </div>
                 </div>
               </Popup>
             </Marker>
-          ))}
+            )
+          })}
           </>
           )}
         </MapContainer>
@@ -1733,12 +1818,12 @@ export default function CragPageClient({
                 <div className="divide-y divide-stone-100 dark:divide-gray-800">
                   {filteredRoutes.map((route) => (
                     <a key={route.id} href={getRouteDestination(route)} className="flex items-center gap-3 px-4 py-3 transition hover:bg-stone-50 dark:hover:bg-gray-800/50">
-                      {routePreviewByClimbId[route.id] ? (
+                      {routePreviewDisplayByClimbId[route.id] ? (
                         <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                          <Image src={routePreviewByClimbId[route.id].imageUrl} alt={`${route.name} topo preview`} fill className="object-cover" sizes="64px" unoptimized />
-                          {pinNumberByImageId.get(routePreviewByClimbId[route.id].imageId) ? (
+                          <Image src={routePreviewDisplayByClimbId[route.id].imageUrl} alt={`${route.name} topo preview`} fill className="object-cover" sizes="64px" unoptimized />
+                          {pinNumberByImageId.get(routePreviewDisplayByClimbId[route.id].imageId) ? (
                             <div className="absolute left-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-white/95 text-[10px] font-semibold text-stone-900 shadow-sm dark:bg-gray-900/95 dark:text-gray-100">
-                              {pinNumberByImageId.get(routePreviewByClimbId[route.id].imageId)}
+                              {pinNumberByImageId.get(routePreviewDisplayByClimbId[route.id].imageId)}
                             </div>
                           ) : null}
                         </div>
@@ -1794,8 +1879,8 @@ export default function CragPageClient({
                     imageCardRefs.current.set(image.id, el)
                   }} className={`block cursor-pointer overflow-hidden rounded-lg bg-white shadow-sm ring-2 ring-transparent transition-shadow hover:shadow-md dark:bg-gray-800 ${highlightedImageId === image.id ? 'ring-blue-400' : ''}`} onMouseEnter={() => prefetchImageDestination(image.id)} onTouchStart={() => prefetchImageDestination(image.id)} onClick={() => { navigateToImageDestination(image.id) }}>
                     <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
-                      <Image src={image.url} alt={`${crag.name} topo image ${imageIndexById.get(image.id) ?? ''}`.trim()} fill className="object-cover" sizes="(max-width: 768px) 33vw, 25vw" />
-                      <div className="absolute top-2 left-2 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-gray-900 shadow-sm">{imageIndexById.get(image.id) ?? ''}</div>
+                      <Image src={image.url} alt={`${crag.name} topo image ${pinNumberByImageId.get(image.id) ?? imageIndexById.get(image.id) ?? ''}`.trim()} fill className="object-cover" sizes="(max-width: 768px) 33vw, 25vw" />
+                      <div className="absolute top-2 left-2 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-gray-900 shadow-sm">{pinNumberByImageId.get(image.id) ?? imageIndexById.get(image.id) ?? ''}</div>
                       <div className="absolute bottom-2 right-2 rounded-full bg-gray-900/80 px-2 py-1 text-xs text-white">{image.route_lines_count} routes</div>
                     </div>
                   </div>
