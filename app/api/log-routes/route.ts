@@ -4,6 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
 
 export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
@@ -47,7 +48,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid style' }, { status: 400 })
     }
 
-    const logs = climbIds.map(climbId => ({
+    const effectiveClimbIds = Array.from(new Set((await Promise.all(
+      climbIds.map((climbId: string) => resolveEffectiveClimbId(supabase as never, climbId))
+    )).filter((climbId): climbId is string => typeof climbId === 'string')))
+
+    if (effectiveClimbIds.length === 0) {
+      return NextResponse.json({ error: 'No valid climbs found' }, { status: 404 })
+    }
+
+    const logs = effectiveClimbIds.map(climbId => ({
       user_id: userId,
       climb_id: climbId,
       style,
@@ -65,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      logged: climbIds.length,
+      logged: effectiveClimbIds.length,
       style
     })
 

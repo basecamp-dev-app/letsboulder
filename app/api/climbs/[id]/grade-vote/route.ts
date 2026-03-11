@@ -5,6 +5,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { isValidGrade } from '@/lib/grade-constants'
+import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
 
 export async function POST(
   request: NextRequest,
@@ -55,7 +56,7 @@ export async function POST(
     // Check if climb exists
     const { data: climb, error: climbError } = await supabase
       .from('climbs')
-      .select('id')
+      .select('id, shared_climb_id')
       .eq('id', climbId)
       .single()
 
@@ -67,10 +68,18 @@ export async function POST(
     }
 
     // Upsert grade vote (insert or update)
+    const effectiveClimbId = await resolveEffectiveClimbId(supabase as never, climbId)
+    if (!effectiveClimbId) {
+      return NextResponse.json(
+        { error: 'Climb not found' },
+        { status: 404 }
+      )
+    }
+
     const { error: upsertError } = await supabase
       .from('grade_votes')
       .upsert({
-        climb_id: climbId,
+        climb_id: effectiveClimbId,
         user_id: userId,
         grade: grade
       }, {
@@ -85,7 +94,7 @@ export async function POST(
     const { data: gradeVotes } = await supabase
       .from('grade_votes')
       .select('grade')
-      .eq('climb_id', climbId)
+      .eq('climb_id', effectiveClimbId)
 
     const gradeDistribution = gradeVotes?.reduce((acc: Record<string, number>, vote) => {
       const g = vote.grade
@@ -150,10 +159,18 @@ export async function DELETE(
     const { id: climbId } = await params
 
     // Remove grade vote
+    const effectiveClimbId = await resolveEffectiveClimbId(supabase as never, climbId)
+    if (!effectiveClimbId) {
+      return NextResponse.json(
+        { error: 'Climb not found' },
+        { status: 404 }
+      )
+    }
+
     const { error: deleteError } = await supabase
       .from('grade_votes')
       .delete()
-      .eq('climb_id', climbId)
+      .eq('climb_id', effectiveClimbId)
       .eq('user_id', userId)
 
     if (deleteError) {

@@ -98,6 +98,16 @@ interface ImageData {
   supplementary_faces_count: number
 }
 
+interface RawImageRow {
+  id: string
+  url: string
+  latitude: number | null
+  longitude: number | null
+  is_verified: boolean | null
+  verification_count: number | null
+  route_lines: Array<{ count: number }>
+}
+
 interface OfflineHydratedCragData {
   images: ImageData[]
   routes: CragRoute[]
@@ -720,9 +730,9 @@ export default function CragPageClient({
         console.error('Error fetching supplementary image IDs:', supplementaryImageIdsError)
       }
 
-      const supplementaryImageIds = new Set(
+      const supplementaryImageIds = new Set<string>(
         (supplementaryImageIdsData || [])
-          .map((row: { linked_image_id: string | null }) => row.linked_image_id)
+          .flatMap((row: { linked_image_id: string | null; source_image_id?: string | null }) => [row.linked_image_id, row.source_image_id || null])
           .filter((value: string | null): value is string => typeof value === 'string' && value.length > 0)
       )
 
@@ -739,7 +749,27 @@ export default function CragPageClient({
         supplementaryCountByPrimaryId[row.source_image_id] = (supplementaryCountByPrimaryId[row.source_image_id] || 0) + 1
       }
 
-      const primaryImagesData = (imagesData || []).filter(
+      const allImagesData = (imagesData || []) as RawImageRow[]
+      const knownImageIds = new Set(allImagesData.map((image) => image.id))
+      const missingSupplementaryImageIds = Array.from(supplementaryImageIds).filter((imageId) => !knownImageIds.has(imageId))
+
+      let supplementaryImagesData: RawImageRow[] = []
+      if (missingSupplementaryImageIds.length > 0) {
+        const { data: extraImagesData, error: extraImagesError } = await supabase
+          .from('images')
+          .select('id, url, latitude, longitude, is_verified, verification_count, route_lines(count)')
+          .in('id', missingSupplementaryImageIds)
+
+        if (extraImagesError) {
+          console.error('Error fetching supplementary images:', extraImagesError)
+        } else {
+          supplementaryImagesData = (extraImagesData || []) as RawImageRow[]
+        }
+      }
+
+      const mergedImagesData = [...allImagesData, ...supplementaryImagesData]
+
+      const primaryImagesData = mergedImagesData.filter(
         (img: { id: string; url: string }) => !supplementaryImageIds.has(img.id) && !supplementaryImageUrls.has(img.url)
       )
 
@@ -747,15 +777,7 @@ export default function CragPageClient({
         return
       }
 
-      const formattedImages: ImageData[] = primaryImagesData.map((img: {
-        id: string
-        url: string
-        latitude: number | null
-        longitude: number | null
-        is_verified: boolean | null
-        verification_count: number | null
-        route_lines: Array<{ count: number }>
-      }) => {
+      const formatImageRow = (img: RawImageRow): ImageData => {
         const routeLinesCount = Array.isArray(img.route_lines) && img.route_lines[0]
           ? img.route_lines[0].count
           : 0
@@ -769,11 +791,14 @@ export default function CragPageClient({
           route_lines_count: routeLinesCount,
           supplementary_faces_count: supplementaryCountByPrimaryId[img.id] || 0,
         }
-      })
+      }
 
-      const imageIds = formattedImages.map((image) => image.id)
+      const formattedImages: ImageData[] = primaryImagesData.map(formatImageRow)
+      const previewImages = mergedImagesData.map(formatImageRow)
+
+      const imageIds = previewImages.map((image) => image.id)
       const nextDefaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
-      const imageById = new Map(formattedImages.map((image) => [image.id, image]))
+      const imageById = new Map(previewImages.map((image) => [image.id, image]))
       const nextRoutePreviewByClimbId: Record<string, RoutePreview> = {}
 
       if (imageIds.length > 0) {
