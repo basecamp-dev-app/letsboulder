@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { enqueueImageIngestJob } from '@/lib/media/jobs'
+import { getMediaModerationConfig } from '@/lib/media/config'
 import { ensurePrivateObjectExists } from '@/lib/media/r2'
 
 function createAuthedClient(request: NextRequest) {
@@ -65,6 +66,32 @@ export async function POST(
     }
 
     await ensurePrivateObjectExists(image.original_key)
+
+    const moderation = getMediaModerationConfig()
+    const autoApprove = !moderation.enabled || moderation.provider === 'disabled'
+
+    if (autoApprove) {
+      const { error: approveError } = await supabase
+        .from('images')
+        .update({
+          visibility: 'public',
+          moderation_status: 'approved',
+          processing_status: 'ready',
+          status: 'approved',
+        })
+        .eq('id', image.id)
+        .eq('created_by', user.id)
+
+      if (approveError) {
+        return createErrorResponse(approveError, 'Failed to auto-approve upload')
+      }
+
+      return NextResponse.json({
+        success: true,
+        imageId: image.id,
+        status: 'approved',
+      })
+    }
 
     const { error: updateError } = await supabase
       .from('images')
