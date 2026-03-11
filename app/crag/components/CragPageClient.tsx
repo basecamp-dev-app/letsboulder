@@ -1079,7 +1079,7 @@ export default function CragPageClient({
   }, [orderedImages])
 
   const clusteredPins = useMemo(() => {
-    return buildCragPinClusters(orderedImages as ClusteredImageData[], 10)
+    return buildCragPinClusters(orderedImages as ClusteredImageData[], 6)
   }, [orderedImages])
 
   const orderedPinClusters = useMemo(() => {
