@@ -1182,6 +1182,16 @@ export default function CragPageClient({
                     navigateToImageDestination(image.id)
                   }}
                 >
+                  <div className="relative mb-2 h-24 w-full overflow-hidden rounded">
+                    <Image
+                      src={image.url}
+                      alt={`${crag.name} topo image ${imageIndexById.get(image.id) ?? ''}`.trim()}
+                      fill
+                      className="object-cover"
+                      sizes="160px"
+                      unoptimized
+                    />
+                  </div>
                   <p className="font-semibold text-sm text-gray-900">
                     Image {imageIndexById.get(image.id) ?? ''}
                   </p>
