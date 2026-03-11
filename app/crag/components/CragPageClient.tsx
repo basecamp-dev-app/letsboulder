@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { BarChart3, Compass, Download, Filter, Layers3, Loader2, Mountain, Star, TrendingUp } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, Filter, Loader2, Search, ArrowUpDown, X } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import PlaceCommunityClient from '@/features/community/components/PlaceCommunityClient'
@@ -16,16 +17,14 @@ import CragPageSkeleton from '@/app/crag/components/CragPageSkeleton'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { OfflineCragMapPin } from '@/components/OfflineCragMapSnippet'
 import { buildCragImageDestination, type ImageRouteTarget } from '@/app/crag/components/crag-image-destination'
 import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
 import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
 import type { ClimbPackResponse } from '@/lib/climb/queries'
-import CragRouteCharts from '@/app/crag/components/CragRouteCharts'
 import { Input } from '@/components/ui/input'
-import { Checkbox } from '@/components/ui/checkbox'
 import type { Database } from '@/types/database'
 
 import 'leaflet/dist/leaflet.css'
@@ -159,6 +158,19 @@ interface CragRoute {
   weightedRating: number | null
   sendCount: number
   recentSendCount60d: number
+}
+
+interface RoutePreview {
+  imageId: string
+  imageUrl: string
+}
+
+interface CragSwitcherOption {
+  id: string
+  name: string
+  regionName: string | null
+  subArea: string | null
+  countryCode: string | null
 }
 
 function isOfflineDocumentNavigationPreferred() {
@@ -372,11 +384,18 @@ function formatRatingValue(value: number | null) {
   return value === null ? 'Unrated' : value.toFixed(1)
 }
 
-function formatStatValue(value: number | string | null, state: 'idle' | 'loading' | 'loaded' | 'error') {
-  if (state === 'error') return '—'
-  if (state === 'idle' || state === 'loading') return '...'
-  if (value === null) return '—'
-  return value
+async function getStoredCragClimbPayloadsSafely(cragId: string): Promise<ClimbPackResponse[]> {
+  try {
+    return await Promise.race([
+      getStoredCragClimbPayloads(cragId),
+      new Promise<ClimbPackResponse[]>((resolve) => {
+        setTimeout(() => resolve([]), 1500)
+      }),
+    ])
+  } catch (error) {
+    console.warn('Failed to read stored crag climb payloads:', { cragId, error })
+    return []
+  }
 }
 
 function toRad(deg: number) {
@@ -435,8 +454,8 @@ export default function CragPageClient({
   const [crag, setCrag] = useState<Crag | null>(initialCrag)
   const [images, setImages] = useState<ImageData[]>([])
   const [routes, setRoutes] = useState<CragRoute[]>([])
+  const [routePreviewByClimbId, setRoutePreviewByClimbId] = useState<Record<string, RoutePreview>>({})
   const [routesLoadState, setRoutesLoadState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
-  const [routeView, setRouteView] = useState<'images' | 'routes' | 'upcoming' | 'updates' | 'rankings'>('routes')
   const [routeSort, setRouteSort] = useState<'sends' | 'rating' | 'grade' | 'name'>('sends')
   const [minGrade, setMinGrade] = useState<string>('')
   const [maxGrade, setMaxGrade] = useState<string>('')
@@ -446,6 +465,12 @@ export default function CragPageClient({
   const [selectedDirections, setSelectedDirections] = useState<string[]>([])
   const [selectedRouteTypes, setSelectedRouteTypes] = useState<string[]>([])
   const [topoOnly, setTopoOnly] = useState(false)
+  const [searchModalOpen, setSearchModalOpen] = useState(false)
+  const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [sortModalOpen, setSortModalOpen] = useState(false)
+  const [cragSwitcherOpen, setCragSwitcherOpen] = useState(false)
+  const [cragSwitcherQuery, setCragSwitcherQuery] = useState('')
+  const [cragSwitcherOptions, setCragSwitcherOptions] = useState<CragSwitcherOption[]>([])
   const [cragCenter, setCragCenter] = useState<[number, number] | null>(null)
   const [loading, setLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
@@ -491,9 +516,79 @@ export default function CragPageClient({
   useEffect(() => {
     let ignore = false
 
+    async function loadCragSwitcherOptions() {
+      if (!initialCrag) return
+      const sourceCrag = initialCrag
+      const fallbackOption: CragSwitcherOption = {
+        id: sourceCrag.id,
+        name: sourceCrag.name,
+        regionName: sourceCrag.region_name || sourceCrag.regions?.name || null,
+        subArea: sourceCrag.sub_area || null,
+        countryCode: sourceCrag.country_code || null,
+      }
+
+      if (cragSwitcherQuery.trim().length >= 2) {
+        try {
+          const response = await fetch(`/api/crags/search?q=${encodeURIComponent(cragSwitcherQuery.trim())}`)
+          const payload = await response.json() as Array<{ id: string; name: string; regionName?: string | null; subArea?: string | null; countryCode?: string | null }>
+          if (ignore) return
+          const next = payload.map((item) => ({
+            id: item.id,
+            name: item.name,
+            regionName: item.regionName || null,
+            subArea: item.subArea || null,
+            countryCode: item.countryCode || null,
+          }))
+          if (!next.some((item) => item.id === fallbackOption.id)) {
+            next.unshift(fallbackOption)
+          }
+          setCragSwitcherOptions(next)
+          return
+        } catch {
+          if (ignore) return
+        }
+      }
+
+      if (typeof sourceCrag.latitude === 'number' && typeof sourceCrag.longitude === 'number') {
+        try {
+          const response = await fetch(`/api/crags/nearby?lat=${sourceCrag.latitude}&lng=${sourceCrag.longitude}`)
+          const payload = await response.json() as Array<{ id: string; name: string; regionName?: string | null; subArea?: string | null; countryCode?: string | null }>
+          if (ignore) return
+          const next = payload.map((item) => ({
+            id: item.id,
+            name: item.name,
+            regionName: item.regionName || null,
+            subArea: item.subArea || null,
+            countryCode: item.countryCode || null,
+          }))
+          if (!next.some((item) => item.id === fallbackOption.id)) {
+            next.unshift(fallbackOption)
+          }
+          setCragSwitcherOptions(next)
+          return
+        } catch {
+          if (ignore) return
+        }
+      }
+
+      if (!ignore) {
+        setCragSwitcherOptions([fallbackOption])
+      }
+    }
+
+    void loadCragSwitcherOptions()
+
+    return () => {
+      ignore = true
+    }
+  }, [cragSwitcherQuery, initialCrag?.country_code, initialCrag?.id, initialCrag?.latitude, initialCrag?.longitude, initialCrag?.name, initialCrag?.region_name, initialCrag?.regions?.name, initialCrag?.sub_area])
+
+  useEffect(() => {
+    let ignore = false
+
     async function loadCrag() {
       const offlineOnly = typeof navigator !== 'undefined' && navigator.onLine === false
-      const offlinePayloads = await getStoredCragClimbPayloads(id)
+      const offlinePayloads = await getStoredCragClimbPayloadsSafely(id)
       const applyOfflineHydratedState = () => {
         if (ignore || offlinePayloads.length === 0) return false
         const hydrated = hydrateOfflineCragData(offlinePayloads)
@@ -502,6 +597,18 @@ export default function CragPageClient({
         setOfflineCragImageCards(hydrated.imageCards)
         setIsOfflineCragMode(true)
         setRoutesLoadState('loaded')
+        const nextRoutePreviewByClimbId: Record<string, RoutePreview> = {}
+        for (const imageCard of hydrated.imageCards) {
+          for (const route of imageCard.routes) {
+            if (!nextRoutePreviewByClimbId[route.climbId]) {
+              nextRoutePreviewByClimbId[route.climbId] = {
+                imageId: imageCard.imageId,
+                imageUrl: imageCard.imageUrl,
+              }
+            }
+          }
+        }
+        setRoutePreviewByClimbId(nextRoutePreviewByClimbId)
         setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
         setCrag(initialCrag)
         setCragCenter(hydrated.cragCenter)
@@ -514,6 +621,7 @@ export default function CragPageClient({
       setOfflineCragImageCards([])
       setIsOfflineCragMode(false)
       setDefaultRouteTargetByImageId({})
+      setRoutePreviewByClimbId({})
       setHighlightedImageId(null)
       setCragCenter(null)
 
@@ -523,6 +631,7 @@ export default function CragPageClient({
         setImages(cached.images)
         setCragCenter(cached.cragCenter)
         setDefaultRouteTargetByImageId(cached.defaultRouteTargetByImageId)
+        setRoutePreviewByClimbId({})
         setLoading(false)
       } else {
         setLoading(true)
@@ -649,6 +758,8 @@ export default function CragPageClient({
 
       const imageIds = formattedImages.map((image) => image.id)
       const nextDefaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
+      const imageById = new Map(formattedImages.map((image) => [image.id, image]))
+      const nextRoutePreviewByClimbId: Record<string, RoutePreview> = {}
 
       if (imageIds.length > 0) {
         const { data: routeTargetsData, error: routeTargetsError } = await supabase
@@ -672,6 +783,16 @@ export default function CragPageClient({
               imageId: row.image_id,
             }
           }
+
+          for (const row of (routeTargetsData || []) as RouteLineTargetRow[]) {
+            if (nextRoutePreviewByClimbId[row.climb_id]) continue
+            const image = imageById.get(row.image_id)
+            if (!image) continue
+            nextRoutePreviewByClimbId[row.climb_id] = {
+              imageId: row.image_id,
+              imageUrl: image.url,
+            }
+          }
         }
       }
 
@@ -682,14 +803,15 @@ export default function CragPageClient({
       setCrag(cragData)
       setImages(formattedImages)
       setDefaultRouteTargetByImageId(nextDefaultRouteTargetByImageId)
+      setRoutePreviewByClimbId(nextRoutePreviewByClimbId)
       const withCoords = formattedImages.filter(
         (img): img is ImageData & { latitude: number; longitude: number } => img.latitude !== null && img.longitude !== null
       )
       let nextCenter: [number, number] | null = null
-      if (withCoords.length > 0) {
+      if (typeof cragData.latitude === 'number' && typeof cragData.longitude === 'number') {
+        nextCenter = [cragData.latitude, cragData.longitude]
+      } else if (withCoords.length > 0) {
         nextCenter = getAverageCoordinates(withCoords)
-      } else {
-        nextCenter = cragData.latitude && cragData.longitude ? [cragData.latitude, cragData.longitude] : null
       }
 
       setCragCenter(nextCenter)
@@ -749,14 +871,14 @@ export default function CragPageClient({
   }, [])
 
   useEffect(() => {
-    if (routeView !== 'routes' || routesLoadState !== 'idle') return
+    if (routesLoadState !== 'idle') return
 
     let ignore = false
 
     async function loadRoutesForFilters() {
       const offlineOnly = typeof navigator !== 'undefined' && navigator.onLine === false
-      const offlinePayloads = await getStoredCragClimbPayloads(id)
-      const applyOfflineRoutes = () => {
+      const offlinePayloadsPromise = getStoredCragClimbPayloadsSafely(id)
+      const applyOfflineRoutes = (offlinePayloads: ClimbPackResponse[]) => {
         if (ignore || offlinePayloads.length === 0) return false
         const hydrated = hydrateOfflineCragData(offlinePayloads)
         setRoutes(hydrated.routes)
@@ -768,7 +890,14 @@ export default function CragPageClient({
 
       setRoutesLoadState('loading')
 
-      if (offlineOnly && applyOfflineRoutes()) {
+      if (offlineOnly) {
+        const offlinePayloads = await offlinePayloadsPromise
+        if (applyOfflineRoutes(offlinePayloads)) {
+          return
+        }
+        if (!ignore) {
+          setRoutesLoadState('error')
+        }
         return
       }
 
@@ -781,7 +910,8 @@ export default function CragPageClient({
         routeMetricsData = response.data
         routeMetricsError = response.error
       } catch (error) {
-        if (applyOfflineRoutes()) {
+        const offlinePayloads = await offlinePayloadsPromise
+        if (applyOfflineRoutes(offlinePayloads)) {
           return
         }
         throw error
@@ -790,14 +920,18 @@ export default function CragPageClient({
       if (ignore) return
 
       if (routeMetricsError) {
-        if (applyOfflineRoutes()) return
+        const offlinePayloads = await offlinePayloadsPromise
+        if (applyOfflineRoutes(offlinePayloads)) return
         console.error('Error fetching crag route intelligence:', routeMetricsError)
         setRoutesLoadState('error')
         return
       }
 
-      if ((!routeMetricsData || routeMetricsData.length === 0) && applyOfflineRoutes()) {
-        return
+      if (!routeMetricsData || routeMetricsData.length === 0) {
+        const offlinePayloads = await offlinePayloadsPromise
+        if (applyOfflineRoutes(offlinePayloads)) {
+          return
+        }
       }
 
       setRoutes(formatCragRoutes(routeMetricsData as CragRouteIntelligenceRow[] | null | undefined))
@@ -809,7 +943,7 @@ export default function CragPageClient({
     return () => {
       ignore = true
     }
-  }, [id, routeView, routesLoadState])
+  }, [id, routesLoadState])
 
   useEffect(() => {
     if (!mapRef.current || !cragCenter) return
@@ -882,10 +1016,6 @@ export default function CragPageClient({
         image.latitude !== null && image.longitude !== null
     )
   }, [orderedImages])
-
-  const totalRoutes = useMemo(() => {
-    return images.reduce((sum, img) => sum + img.route_lines_count, 0)
-  }, [images])
 
   const routeTypeChips = useMemo(() => {
     const uniqueTypes = new Set<string>()
@@ -1051,14 +1181,18 @@ export default function CragPageClient({
     }
   }, [routes])
 
-  const routeInsightsState = routeView === 'routes'
-    ? routesLoadState
-    : routes.length > 0
-      ? 'loaded'
-      : 'idle'
+  const routeInsightsState = routesLoadState
 
   const routeInsightsUnavailable = routeInsightsState === 'error'
-  const routeInsightsLoading = routeInsightsState === 'idle' || routeInsightsState === 'loading'
+  const routeLocationLabel = crag?.sub_area || crag?.region_name || crag?.regions?.name || 'Area details pending'
+
+  const searchModalResults = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return [] as CragRoute[]
+    return routes
+      .filter((route) => `${route.name} ${route.grade} ${route.routeType || ''}`.toLowerCase().includes(query))
+      .slice(0, 12)
+  }, [routes, searchQuery])
 
   const activeRouteFilterChips = useMemo(() => {
     const chips: Array<{ key: string; label: string; onRemove: () => void }> = []
@@ -1205,11 +1339,6 @@ export default function CragPageClient({
   }
 
   const resolvedCommunityPlaceId = communityPlaceId || crag.id
-  const cragOfflineLabel = !offlinePreview?.existingPack
-    ? 'Download Crag'
-    : offlinePreview.isUpToDate
-      ? 'Saved Offline'
-      : 'Update Offline Pack'
   const canDownloadCrag = !offlineDialogLoading
   const projectedUsage = offlinePreview
     ? offlinePreview.usageBytes - (offlinePreview.existingPack?.estimatedBytes || 0) + (offlinePreview.deltaBytes || 0)
@@ -1293,7 +1422,7 @@ export default function CragPageClient({
           {toast}
         </div>
       )}
-      <div className="relative h-[26vh] md:h-[50vh] bg-gray-200 dark:bg-gray-800">
+      <div className="relative h-[34vh] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
         <MapContainer
           ref={mapRef as React.RefObject<L.Map | null>}
           center={cragCenter || [crag.latitude || 0, crag.longitude || 0]}
@@ -1394,22 +1523,6 @@ export default function CragPageClient({
           {crag.name}
         </div>
 
-        <div className="absolute bottom-4 left-4 z-[1000] max-w-[calc(100%-2rem)] rounded-xl border border-white/60 bg-white/92 px-3 py-3 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-900/92">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={handleOpenOfflineDialog} disabled={!canDownloadCrag} className="gap-2 bg-emerald-600 text-white hover:bg-emerald-500">
-              {offlineDialogLoading || offlinePreviewLoading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-              {cragOfflineLabel}
-            </Button>
-            {offlinePreview && (
-              <span className="text-xs text-gray-600 dark:text-gray-300">
-                {offlinePreview.changedClimbs > 0 && offlinePreview.existingPack
-                  ? `${offlinePreview.changedClimbs} climbs changed · ${formatBytes(offlinePreview.deltaBytes)} delta`
-                  : `${offlinePreview.manifest.climbCount} climbs · ${formatBytes(offlinePreview.totalBytes)}`}
-              </span>
-            )}
-          </div>
-        </div>
-
         {isAdmin && (
           <button
             onClick={() => handleFlagCrag(crag.id)}
@@ -1421,547 +1534,146 @@ export default function CragPageClient({
         )}
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="sticky top-[calc(var(--app-header-offset)+0.25rem)] z-[1200] mb-5 border-b border-gray-200 bg-gray-50/95 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
-          <nav className="flex flex-wrap gap-x-1 -mb-px">
-            <button
-              type="button"
-              onClick={() => setRouteView('images')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                routeView === 'images'
-                  ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-              }`}
-            >
-              Images
-            </button>
-            <button
-              type="button"
-              onClick={() => setRouteView('routes')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                routeView === 'routes'
-                  ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-              }`}
-            >
-              Routes
-            </button>
-            <button
-              type="button"
-              onClick={() => setRouteView('upcoming')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                routeView === 'upcoming'
-                  ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-              }`}
-            >
-              Session planner
-            </button>
-            <button
-              type="button"
-              onClick={() => setRouteView('updates')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                routeView === 'updates'
-                  ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-              }`}
-            >
-              Updates
-            </button>
-            <button
-              type="button"
-              onClick={() => setRouteView('rankings')}
-              className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                routeView === 'rankings'
-                  ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-              }`}
-            >
-              Rankings
-            </button>
-          </nav>
-        </div>
-
-        {routeView === 'images' && (
-          <>
-            <div>
-              {isOfflineCragMode ? (
-                offlineCragImageCards.length === 0 ? (
-                  <p className="text-gray-500 dark:text-gray-400">No saved topo images found in this crag pack.</p>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {offlineCragImageCards.map((imageCard) => (
-                        <a
-                          key={imageCard.imageId}
-                          href={imageCard.href}
-                          id={`offline-image-card-${imageCard.imageId}`}
-                          className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700 ${
-                            highlightedImageId === imageCard.imageId ? 'ring-2 ring-blue-400' : ''
-                          }`}
-                          onClick={() => setHighlightedImageId(imageCard.imageId)}
-                        >
-                          <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
-                            <Image
-                              src={imageCard.imageUrl}
-                              alt={`${crag.name} topo image`}
-                              fill
-                              className="object-cover"
-                              sizes="(max-width: 768px) 100vw, 33vw"
-                              unoptimized
-                            />
-                            <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-gray-900 shadow-sm">
-                              {imageCard.routes.length} route{imageCard.routes.length === 1 ? '' : 's'}
-                            </div>
-                            {typeof imageCard.latitude === 'number' && typeof imageCard.longitude === 'number' ? (
-                              <div className="absolute right-2 top-2 rounded-full bg-emerald-600/90 px-2 py-1 text-[10px] font-semibold text-white shadow-sm">
-                                Pin
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="space-y-2 p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Topo image</p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {imageCard.routes.slice(0, 4).map((route) => (
-                                <span key={`${imageCard.imageId}-${route.routeId}`} className="rounded-full bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                                  {route.name} {formatGradeForDisplay(route.grade, gradeSystem)}
-                                </span>
-                              ))}
-                              {imageCard.routes.length > 4 ? (
-                                <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-200">
-                                  +{imageCard.routes.length - 4} more
-                                </span>
-                              ) : null}
-                            </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Open one topo image with all saved route lines available offline.</p>
-                          </div>
-                        </a>
-                      ))}
-                  </div>
-                )
-              ) : orderedImages.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400">No route images yet</p>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {orderedImages.map((image) => (
-                    <div
-                      key={image.id}
-                      id={`crag-image-${image.id}`}
-                      ref={(el) => {
-                        if (!el) return
-                        imageCardRefs.current.set(image.id, el)
-                      }}
-                      className={`block bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer ring-2 ring-transparent ${
-                        highlightedImageId === image.id ? 'ring-blue-400' : ''
-                      }`}
-                      onMouseEnter={() => prefetchImageDestination(image.id)}
-                      onTouchStart={() => prefetchImageDestination(image.id)}
-                      onClick={() => {
-                        navigateToImageDestination(image.id)
-                      }}
-                    >
-                      <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
-                        <Image
-                          src={image.url}
-                          alt={`${crag.name} topo image ${imageIndexById.get(image.id) ?? ''}`.trim()}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 33vw, 25vw"
-                        />
-                        {image.supplementary_faces_count > 0 && (
-                          <div className="absolute bottom-2 left-2 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
-                            {1 + image.supplementary_faces_count} faces
-                          </div>
-                        )}
-                        <div className="absolute top-2 left-2 bg-white/90 text-gray-900 text-xs px-2 py-1 rounded-full font-semibold shadow-sm">
-                          {imageIndexById.get(image.id) ?? ''}
-                        </div>
-                        <div className="absolute bottom-2 right-2 bg-gray-900/80 text-white text-xs px-2 py-1 rounded-full">
-                          {image.route_lines_count} routes
-                        </div>
-                        <div className={`absolute top-2 right-2 px-1.5 py-0.5 rounded text-xs font-medium ${
-                          image.is_verified
-                            ? 'bg-green-500 text-white'
-                            : 'bg-yellow-500 text-white'
-                        }`}>
-                          {image.is_verified ? '✓' : `${image.verification_count}/3`}
-                        </div>
-                      </div>
+      <div className="max-w-5xl mx-auto px-4 py-4 space-y-6">
+        <section className="space-y-3">
+          <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1 max-w-sm">
+                <button type="button" onClick={() => setCragSwitcherOpen((prev) => !prev)} className="flex w-full items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-left text-sm text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                  <span className="truncate font-medium">{crag.name}</span>
+                  <ChevronDown className="size-4 shrink-0" />
+                </button>
+                {cragSwitcherOpen ? (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[1300] rounded-2xl border border-stone-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                    <Input value={cragSwitcherQuery} onChange={(event) => setCragSwitcherQuery(event.target.value)} placeholder="Search another crag" className="border-stone-300 bg-white dark:border-gray-700 dark:bg-gray-800" />
+                    <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
+                      {cragSwitcherOptions.map((option) => {
+                        const href = option.countryCode ? `/${option.countryCode.toLowerCase()}/${option.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}` : `/crag/${option.id}`
+                        return (
+                          <a key={option.id} href={option.id === crag.id ? `/crag/${option.id}` : href} className={`block rounded-xl px-3 py-2 text-sm transition hover:bg-stone-50 dark:hover:bg-gray-800 ${option.id === crag.id ? 'bg-stone-100 font-medium text-stone-900 dark:bg-gray-800 dark:text-gray-100' : 'text-stone-700 dark:text-gray-200'}`} onClick={() => setCragSwitcherOpen(false)}>
+                            <div>{option.name}</div>
+                            <div className="text-xs text-stone-500 dark:text-gray-400">{option.subArea || option.regionName || 'Crag'}</div>
+                          </a>
+                        )
+                      })}
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ) : null}
+              </div>
+              <button type="button" onClick={handleOpenOfflineDialog} disabled={!canDownloadCrag} className="rounded-full border border-stone-200 bg-white p-2.5 text-stone-700 shadow-sm transition hover:bg-stone-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
+                {offlineDialogLoading || offlinePreviewLoading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              </button>
+              <button type="button" onClick={() => setSearchModalOpen(true)} className="rounded-full border border-stone-200 bg-stone-50 p-2 text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                <Search className="size-4" />
+              </button>
+              <button type="button" onClick={() => setFilterModalOpen(true)} className="rounded-full border border-stone-200 bg-stone-50 p-2 text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                <Filter className="size-4" />
+              </button>
+              <button type="button" onClick={() => setSortModalOpen(true)} className="rounded-full border border-stone-200 bg-stone-50 p-2 text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                <ArrowUpDown className="size-4" />
+              </button>
+              <div className="ml-auto text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">{filteredRoutes.length} routes</div>
             </div>
+          </div>
 
-            <div className="flex flex-wrap gap-2 mt-6 mb-6">
-              {routeTypeChips.length > 0
-                ? routeTypeChips.map((routeType) => (
-                    <span key={routeType} className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
-                      {formatRouteTypeLabel(routeType)}
-                    </span>
-                  ))
-                : crag.type && (
-                    <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
-                      {formatRouteTypeLabel(crag.type)}
-                    </span>
-                  )}
-              {crag.rock_type && (
-                <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 capitalize">
-                  {crag.rock_type}
-                </span>
-              )}
-              {crag.region_name && (
-                <span className="px-3 py-1 rounded-full text-sm bg-blue-600 text-white border border-blue-600">
-                  Region: {crag.region_name}
-                </span>
-              )}
-              {crag.sub_area && (
-                <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
-                  Sub-area: {crag.sub_area}
-                </span>
-              )}
-              <span className="px-3 py-1 rounded-full text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 tabular-nums">
-                {isOfflineCragMode
-                  ? `${offlineCragImageCards.length} topo image${offlineCragImageCards.length === 1 ? '' : 's'}`
-                  : `${totalRoutes} routes`}
-              </span>
-            </div>
-
-          </>
-        )}
-
-        {routeView === 'routes' && (
-          <div className="mb-6 space-y-4">
+          <div className="space-y-4">
             {routeInsightsUnavailable ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
                 Route intelligence is unavailable right now. Crag stats and sorting signals will appear again once the route metrics query is reachable.
               </div>
             ) : null}
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-              <div className="rounded-2xl border border-stone-200 bg-gradient-to-br from-white via-white to-stone-50 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Routes</p>
-                  <Mountain className="size-4 text-stone-400" />
-                </div>
-                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{formatStatValue(routeStats.totalRoutes, routeInsightsState)}</p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading route count...' : routeInsightsUnavailable ? 'Waiting on route intelligence' : `${routeStats.topoCoverageCount} with topo coverage`}</p>
+            {activeRouteFilterChips.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {activeRouteFilterChips.map((chip) => (
+                  <button key={chip.key} type="button" onClick={chip.onRemove} className="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-400 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                    {chip.label} ×
+                  </button>
+                ))}
               </div>
-              <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 via-white to-white p-4 shadow-sm dark:border-orange-900/40 dark:bg-gray-900">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Unique Sends</p>
-                  <TrendingUp className="size-4 text-orange-500" />
-                </div>
-                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{formatStatValue(routeStats.totalSendsAcrossRoutes, routeInsightsState)}</p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading send history...' : routeInsightsUnavailable ? 'Send data unavailable' : 'All-time logged senders across this crag'}</p>
-              </div>
-              <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white p-4 shadow-sm dark:border-amber-900/40 dark:bg-gray-900">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Avg Rating</p>
-                  <Star className="size-4 fill-amber-400 text-amber-500" />
-                </div>
-                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{formatStatValue(routeStats.averageRating === null ? null : routeStats.averageRating.toFixed(1), routeInsightsState)}</p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading community ratings...' : routeInsightsUnavailable ? 'Rating data unavailable' : `${routeStats.ratedRoutesCount} route${routeStats.ratedRoutesCount === 1 ? '' : 's'} rated`}</p>
-              </div>
-              <div className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50 via-white to-white p-4 shadow-sm dark:border-teal-900/40 dark:bg-gray-900">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Median Grade</p>
-                  <BarChart3 className="size-4 text-teal-600" />
-                </div>
-                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{formatStatValue(routeStats.medianGrade ? formatGradeForDisplay(routeStats.medianGrade, gradeSystem) : null, routeInsightsState)}</p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading grade spread...' : routeInsightsUnavailable ? 'Grade summary unavailable' : 'Middle of the route pack'}</p>
-              </div>
-              <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-white p-4 shadow-sm dark:border-sky-900/40 dark:bg-gray-900">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Mode Grade</p>
-                  <Layers3 className="size-4 text-sky-600" />
-                </div>
-                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{formatStatValue(routeStats.mostCommonGrade ? formatGradeForDisplay(routeStats.mostCommonGrade.grade, gradeSystem) : null, routeInsightsState)}</p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading route mix...' : routeInsightsUnavailable ? 'Mode unavailable' : `${routeStats.mostCommonGrade?.count || 0} route${routeStats.mostCommonGrade?.count === 1 ? '' : 's'}`}</p>
-              </div>
-              <div className="rounded-2xl border border-stone-200 bg-gradient-to-br from-stone-100 via-white to-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Route Mix</p>
-                  <Compass className="size-4 text-stone-500" />
-                </div>
-                <p className="mt-2 text-lg font-semibold text-stone-900 dark:text-gray-100">
-                  {formatStatValue(routeStats.routeTypeMix[0] ? formatRouteTypeLabel(routeStats.routeTypeMix[0].routeType) : 'Unclassified', routeInsightsState)}
-                </p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading style mix...' : routeInsightsUnavailable ? 'Style mix unavailable' : 'Most common style here'}</p>
-              </div>
-            </div>
-
-            {!routeInsightsLoading && !routeInsightsUnavailable && routeStats.gradeDistribution.length > 0 && <CragRouteCharts gradeDistribution={routeStats.gradeDistribution} sendsByGrade={routeStats.sendsByGrade} />}
+            ) : null}
 
             <div className="overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-              <div className="border-b border-stone-200 bg-gradient-to-br from-stone-50 via-white to-orange-50/40 p-4 dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                  <div>
-                    <div className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white/90 px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-stone-600 shadow-sm dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-300">
-                      <Filter className="size-3.5" />
-                      Route Intelligence
-                    </div>
-                    <h2 className="mt-3 text-lg font-semibold text-stone-900 dark:text-gray-100">Sort for quality, popularity, or grade.</h2>
-                    <p className="mt-1 max-w-2xl text-sm text-stone-600 dark:text-gray-300">Use sends to find the classics, weighted rating to surface crowd favorites, and topo coverage to zero in on routes you can actually jump onto.</p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <label className="text-sm text-stone-700 dark:text-gray-300">
-                      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Search</span>
-                      <Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Route name or style" className="border-stone-300 bg-white dark:border-gray-700 dark:bg-gray-800" />
-                    </label>
-                    <label className="text-sm text-stone-700 dark:text-gray-300">
-                      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Sort by</span>
-                      <select value={routeSort} onChange={(event) => setRouteSort(event.target.value as 'sends' | 'rating' | 'grade' | 'name')} className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
-                        <option value="sends">Most sent</option>
-                        <option value="rating">Highest rated</option>
-                        <option value="grade">Grade</option>
-                        <option value="name">Name</option>
-                      </select>
-                    </label>
-                    <label className="text-sm text-stone-700 dark:text-gray-300">
-                      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Min rating</span>
-                      <select value={minRating} onChange={(event) => setMinRating(event.target.value)} className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
-                        <option value="">Any</option>
-                        <option value="3">3.0+</option>
-                        <option value="3.5">3.5+</option>
-                        <option value="4">4.0+</option>
-                        <option value="4.5">4.5+</option>
-                      </select>
-                    </label>
-                    <label className="text-sm text-stone-700 dark:text-gray-300">
-                      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Min sends</span>
-                      <Input type="number" min="0" step="1" inputMode="numeric" value={minSends} onChange={(event) => setMinSends(event.target.value)} placeholder="0" className="border-stone-300 bg-white dark:border-gray-700 dark:bg-gray-800" />
-                    </label>
-                  </div>
-                </div>
-
-                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <label className="text-sm text-stone-700 dark:text-gray-300">
-                    <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Min grade</span>
-                    <select
-                      value={minGrade}
-                      onChange={(event) => {
-                        const value = event.target.value
-                        setMinGrade(value)
-                        if (value && maxGrade) {
-                          const nextMin = getGradeIndex(value)
-                          const nextMax = getGradeIndex(maxGrade)
-                          if (nextMin !== undefined && nextMax !== undefined && nextMin > nextMax) {
-                            setMaxGrade(value)
-                          }
-                        }
-                      }}
-                      className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                    >
-                      <option value="">Any</option>
-                      {FILTER_GRADES.map((grade) => (
-                        <option key={`min-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-sm text-stone-700 dark:text-gray-300">
-                    <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Max grade</span>
-                    <select
-                      value={maxGrade}
-                      onChange={(event) => {
-                        const value = event.target.value
-                        setMaxGrade(value)
-                        if (value && minGrade) {
-                          const nextMax = getGradeIndex(value)
-                          const nextMin = getGradeIndex(minGrade)
-                          if (nextMax !== undefined && nextMin !== undefined && nextMax < nextMin) {
-                            setMinGrade(value)
-                          }
-                        }
-                      }}
-                      className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                    >
-                      <option value="">Any</option>
-                      {FILTER_GRADES.map((grade) => (
-                        <option key={`max-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="rounded-xl border border-stone-200 bg-white/80 px-3 py-2 shadow-sm dark:border-gray-700 dark:bg-gray-900/70">
-                    <p className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Topo filter</p>
-                    <label className="mt-2 flex items-center gap-2 text-sm text-stone-700 dark:text-gray-300">
-                      <Checkbox checked={topoOnly} onCheckedChange={(checked) => setTopoOnly(checked === true)} />
-                      Topo only
-                    </label>
-                  </div>
-                  <div className="flex items-end">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRouteSort('sends')
-                        setMinGrade('')
-                        setMaxGrade('')
-                        setMinRating('')
-                        setMinSends('')
-                        setSearchQuery('')
-                        setSelectedDirections([])
-                        setSelectedRouteTypes([])
-                        setTopoOnly(false)
-                      }}
-                      className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                    >
-                      Reset all
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                  <div>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Face direction</p>
-                    <div className="flex flex-wrap gap-2">
-                      {availableDirections.length === 0 && <span className="text-sm text-stone-500 dark:text-gray-400">No face direction data yet.</span>}
-                      {availableDirections.map((direction) => {
-                        const selected = selectedDirections.includes(direction)
-                        return (
-                          <button
-                            key={direction}
-                            type="button"
-                            onClick={() => {
-                              setSelectedDirections((prev) => prev.includes(direction) ? prev.filter((item) => item !== direction) : [...prev, direction])
-                            }}
-                            className={`rounded-full border px-3 py-1 text-xs font-medium shadow-sm transition-colors ${
-                              selected
-                                ? 'border-stone-900 bg-stone-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
-                                : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
-                            }`}
-                          >
-                            {direction}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Route type</p>
-                    <div className="flex flex-wrap gap-2">
-                      {routeTypeChips.length === 0 && <span className="text-sm text-stone-500 dark:text-gray-400">No route type data yet.</span>}
-                      {routeTypeChips.map((routeType) => {
-                        const selected = selectedRouteTypes.includes(routeType)
-                        return (
-                          <button
-                            key={routeType}
-                            type="button"
-                            onClick={() => {
-                              setSelectedRouteTypes((prev) => prev.includes(routeType) ? prev.filter((item) => item !== routeType) : [...prev, routeType])
-                            }}
-                            className={`rounded-full border px-3 py-1 text-xs font-medium shadow-sm transition-colors ${
-                              selected
-                                ? 'border-orange-600 bg-orange-600 text-white'
-                                : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
-                            }`}
-                          >
-                            {formatRouteTypeLabel(routeType)}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {activeRouteFilterChips.length > 0 ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {activeRouteFilterChips.map((chip) => (
-                      <button key={chip.key} type="button" onClick={chip.onRemove} className="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-400 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
-                        {chip.label} ×
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-stone-600 dark:text-gray-300">
-                  <p><span className="font-semibold tabular-nums text-stone-900 dark:text-gray-100">{filteredRoutes.length}</span> route{filteredRoutes.length === 1 ? '' : 's'} match your current view</p>
-                  <p>Sorted by <span className="font-medium text-stone-900 dark:text-gray-100">{routeSort === 'sends' ? 'Most sent' : routeSort === 'rating' ? 'Highest rated' : routeSort === 'grade' ? 'Grade' : 'Name'}</span></p>
-                </div>
-              </div>
-
               {routesLoadState === 'loading' ? (
-                <p className="px-4 py-4 text-sm text-stone-500 dark:text-gray-400">Loading crag route intelligence...</p>
+                <div className="px-4 py-6">
+                  <div className="h-16 animate-pulse rounded-2xl bg-stone-100 dark:bg-gray-800" />
+                </div>
               ) : routesLoadState === 'error' ? (
                 <p className="px-4 py-4 text-sm text-stone-500 dark:text-gray-400">Route intelligence is unavailable right now.</p>
               ) : filteredRoutes.length === 0 ? (
                 <p className="px-4 py-4 text-sm text-stone-500 dark:text-gray-400">No routes match this filter combination.</p>
               ) : (
-                <>
-                  <table className="hidden w-full md:table">
-                    <thead>
-                      <tr className="border-b border-stone-200 bg-stone-50 dark:border-gray-800 dark:bg-gray-950">
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Route</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Grade</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Rating</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Sends</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Face</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Topo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredRoutes.map((route) => (
-                        <tr key={route.id} className="border-b border-stone-100 transition-colors hover:bg-stone-50/70 last:border-0 dark:border-gray-800/70 dark:hover:bg-gray-800/40">
-                          <td className="px-4 py-3 text-sm text-stone-900 dark:text-gray-100">
-                            {route.slug || isOfflineDocumentNavigationPreferred() ? (
-                              <a href={getRouteDestination(route)} className="font-medium text-stone-900 hover:underline dark:text-gray-100">
-                                {route.name}
-                              </a>
-                            ) : (
-                              <span className="font-medium">{route.name}</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-sm tabular-nums text-stone-700 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</td>
-                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">
-                            <div className="flex items-center gap-1.5">
-                              <Star className={`size-3.5 ${route.weightedRating === null ? 'text-stone-300 dark:text-gray-600' : 'fill-amber-400 text-amber-500'}`} />
-                              <span className="tabular-nums">{formatRatingValue(route.weightedRating)}</span>
-                              <span className="text-xs text-stone-500 dark:text-gray-400">({route.ratingCount})</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm tabular-nums text-stone-700 dark:text-gray-300">{route.sendCount}</td>
-                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">{route.directions.length > 0 ? route.directions.join(', ') : 'Unknown'}</td>
-                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">{route.routeType ? <span className="rounded-full bg-stone-100 px-2 py-1 text-xs font-medium text-stone-700 dark:bg-gray-800 dark:text-gray-200">{formatRouteTypeLabel(route.routeType)}</span> : '—'}</td>
-                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">{route.hasTopo ? <span className="rounded-full bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700 dark:bg-teal-950/40 dark:text-teal-200">{route.topoImageCount} image{route.topoImageCount === 1 ? '' : 's'}</span> : 'No topo'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  <div className="space-y-3 p-3 md:hidden">
-                    {filteredRoutes.map((route) => (
-                      <div key={route.id} className="rounded-2xl border border-stone-200 bg-gradient-to-br from-stone-50 to-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            {route.slug || isOfflineDocumentNavigationPreferred() ? (
-                              <a href={getRouteDestination(route)} className="text-sm font-semibold text-stone-900 hover:underline dark:text-gray-100">
-                                {route.name}
-                              </a>
-                            ) : (
-                              <p className="text-sm font-semibold text-stone-900 dark:text-gray-100">{route.name}</p>
-                            )}
-                            <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{route.routeType ? formatRouteTypeLabel(route.routeType) : 'Route type unknown'}</p>
-                          </div>
-                          <span className="text-sm tabular-nums text-stone-600 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</span>
+                <div className="divide-y divide-stone-100 dark:divide-gray-800">
+                  {filteredRoutes.map((route) => (
+                    <a key={route.id} href={getRouteDestination(route)} className="flex items-center gap-3 px-4 py-3 transition hover:bg-stone-50 dark:hover:bg-gray-800/50">
+                      {routePreviewByClimbId[route.id] ? (
+                        <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                          <Image src={routePreviewByClimbId[route.id].imageUrl} alt={`${route.name} topo preview`} fill className="object-cover" sizes="64px" unoptimized />
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-600 dark:text-gray-300">
-                          <span className="rounded-full bg-white px-2 py-1 dark:bg-gray-900">{route.sendCount} send{route.sendCount === 1 ? '' : 's'}</span>
-                          <span className="rounded-full bg-white px-2 py-1 dark:bg-gray-900">{formatRatingValue(route.weightedRating)}{route.ratingCount > 0 ? ` (${route.ratingCount})` : ''}</span>
-                          <span className="rounded-full bg-white px-2 py-1 dark:bg-gray-900">{route.hasTopo ? `${route.topoImageCount} topo` : 'No topo'}</span>
+                      ) : (
+                        <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 text-[10px] font-medium uppercase tracking-wide text-stone-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">No topo</div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                          <span className="truncate text-sm font-semibold text-stone-900 dark:text-gray-100">{route.name}</span>
+                          <span className="text-sm font-medium text-stone-600 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</span>
                         </div>
-                        <p className="mt-2 text-xs text-stone-500 dark:text-gray-400">Faces: {route.directions.length > 0 ? route.directions.join(', ') : 'Unknown'}</p>
+                        <p className="mt-1 truncate text-xs text-stone-500 dark:text-gray-400">{routeLocationLabel}</p>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-600 dark:text-gray-300">
+                          <span>{formatRatingValue(route.weightedRating)}{route.ratingCount > 0 ? ` (${route.ratingCount})` : ''}</span>
+                          <span>{route.sendCount} ascents</span>
+                          {route.routeType ? <span>{formatRouteTypeLabel(route.routeType)}</span> : null}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                </>
+                      <ChevronRight className="size-4 shrink-0 text-stone-400" />
+                    </a>
+                  ))}
+                </div>
               )}
             </div>
           </div>
-        )}
+        </section>
 
-        {routeView === 'upcoming' && (
+        {(isOfflineCragMode ? offlineCragImageCards.length > 0 : orderedImages.length > 0) ? (
+          <section className="space-y-4">
+            <div>
+            {isOfflineCragMode ? (
+              offlineCragImageCards.length === 0 ? (
+                null
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {offlineCragImageCards.map((imageCard) => (
+                    <a key={imageCard.imageId} href={imageCard.href} id={`offline-image-card-${imageCard.imageId}`} className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700 ${highlightedImageId === imageCard.imageId ? 'ring-2 ring-blue-400' : ''}`} onClick={() => setHighlightedImageId(imageCard.imageId)}>
+                      <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
+                        <Image src={imageCard.imageUrl} alt={`${crag.name} topo image`} fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" unoptimized />
+                        <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-gray-900 shadow-sm">{imageCard.routes.length} route{imageCard.routes.length === 1 ? '' : 's'}</div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )
+            ) : orderedImages.length === 0 ? (
+              null
+            ) : (
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                {orderedImages.map((image) => (
+                  <div key={image.id} id={`crag-image-${image.id}`} ref={(el) => {
+                    if (!el) return
+                    imageCardRefs.current.set(image.id, el)
+                  }} className={`block cursor-pointer overflow-hidden rounded-lg bg-white shadow-sm ring-2 ring-transparent transition-shadow hover:shadow-md dark:bg-gray-800 ${highlightedImageId === image.id ? 'ring-blue-400' : ''}`} onMouseEnter={() => prefetchImageDestination(image.id)} onTouchStart={() => prefetchImageDestination(image.id)} onClick={() => { navigateToImageDestination(image.id) }}>
+                    <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
+                      <Image src={image.url} alt={`${crag.name} topo image ${imageIndexById.get(image.id) ?? ''}`.trim()} fill className="object-cover" sizes="(max-width: 768px) 33vw, 25vw" />
+                      <div className="absolute top-2 left-2 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-gray-900 shadow-sm">{imageIndexById.get(image.id) ?? ''}</div>
+                      <div className="absolute bottom-2 right-2 rounded-full bg-gray-900/80 px-2 py-1 text-xs text-white">{image.route_lines_count} routes</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="space-y-4">
           <div className="mb-6 space-y-4">
             <PlaceCommunityClient
               activeTab="upcoming"
@@ -1970,9 +1682,6 @@ export default function CragPageClient({
               updatePosts={initialUpdatePosts}
             />
           </div>
-        )}
-
-        {routeView === 'updates' && (
           <div className="mb-6 space-y-4">
             <PlaceCommunityClient
               activeTab="updates"
@@ -1981,9 +1690,6 @@ export default function CragPageClient({
               updatePosts={initialUpdatePosts}
             />
           </div>
-        )}
-
-        {routeView === 'rankings' && (
           <div className="mb-6 space-y-4">
             {communityPlaceSlug ? (
               <>
@@ -1996,8 +1702,132 @@ export default function CragPageClient({
               </div>
             )}
           </div>
-        )}
+        </section>
       </div>
+
+      <Dialog open={searchModalOpen} onOpenChange={setSearchModalOpen}>
+        <DialogContent showCloseButton={false} className="max-w-2xl rounded-[28px] border-stone-200 bg-white p-0 dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3 dark:border-gray-800">
+            <DialogClose className="rounded-full border border-stone-200 p-2 text-stone-600 dark:border-gray-700 dark:text-gray-300"><X className="size-4" /></DialogClose>
+            <DialogTitle className="text-base">Search climbs, areas, subareas</DialogTitle>
+            <div className="size-9" />
+          </div>
+          <div className="p-4">
+            <Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search climbs here" className="border-stone-300 bg-white dark:border-gray-700 dark:bg-gray-800" />
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Climbs</p>
+                <div className="space-y-2">
+                  {searchModalResults.length === 0 ? <p className="text-sm text-stone-500 dark:text-gray-400">No climbs match yet.</p> : searchModalResults.map((route) => (
+                    <a key={route.id} href={getRouteDestination(route)} className="flex items-center justify-between rounded-xl border border-stone-200 px-3 py-2 text-sm hover:bg-stone-50 dark:border-gray-700 dark:hover:bg-gray-800">
+                      <span>{route.name} <span className="text-stone-500">{formatGradeForDisplay(route.grade, gradeSystem)}</span></span>
+                      <ChevronRight className="size-4 text-stone-400" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Area</p>
+                <p className="rounded-xl border border-stone-200 px-3 py-2 text-sm text-stone-700 dark:border-gray-700 dark:text-gray-300">{routeLocationLabel}</p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
+        <DialogContent showCloseButton={false} className="max-w-2xl rounded-[28px] border-stone-200 bg-white p-0 dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3 dark:border-gray-800">
+            <DialogClose className="rounded-full border border-stone-200 p-2 text-stone-600 dark:border-gray-700 dark:text-gray-300"><X className="size-4" /></DialogClose>
+            <DialogTitle className="text-base">Filter climbs</DialogTitle>
+            <div className="size-9" />
+          </div>
+          <div className="max-h-[75vh] overflow-y-auto p-4 pb-24">
+            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-semibold text-stone-900 dark:text-gray-100">Grade distribution</p>
+                <span className="text-xs text-stone-500 dark:text-gray-400">Median {routeStats.medianGrade ? formatGradeForDisplay(routeStats.medianGrade, gradeSystem) : '—'}</span>
+              </div>
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={routeStats.gradeDistribution}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e5e4" />
+                    <XAxis dataKey="grade" tickFormatter={(value: string) => formatGradeForDisplay(value, gradeSystem)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip labelFormatter={(value) => typeof value === 'string' ? formatGradeForDisplay(value, gradeSystem) : ''} formatter={(value) => {
+                      const count = typeof value === 'number' ? value : Number(value || 0)
+                      return [`${count} climbs`, 'Climbs']
+                    }} />
+                    <Bar dataKey="count" fill="#0f766e" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <label className="text-sm text-stone-700 dark:text-gray-300">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Min grade</span>
+                <select value={minGrade} onChange={(event) => setMinGrade(event.target.value)} className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800">
+                  <option value="">Any</option>
+                  {FILTER_GRADES.map((grade) => <option key={`modal-min-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>)}
+                </select>
+              </label>
+              <label className="text-sm text-stone-700 dark:text-gray-300">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Max grade</span>
+                <select value={maxGrade} onChange={(event) => setMaxGrade(event.target.value)} className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800">
+                  <option value="">Any</option>
+                  {FILTER_GRADES.map((grade) => <option key={`modal-max-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Climb type</p>
+              <div className="flex flex-wrap gap-2">
+                {routeTypeChips.map((routeType) => (
+                  <button key={routeType} type="button" onClick={() => setSelectedRouteTypes((prev) => prev.includes(routeType) ? prev.filter((item) => item !== routeType) : [...prev, routeType])} className={`rounded-full border px-3 py-1 text-xs font-medium ${selectedRouteTypes.includes(routeType) ? 'border-orange-600 bg-orange-600 text-white' : 'border-stone-300 bg-white text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>
+                    {formatRouteTypeLabel(routeType)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Face direction</p>
+              <div className="flex flex-wrap gap-2">
+                {availableDirections.map((direction) => (
+                  <button key={direction} type="button" onClick={() => setSelectedDirections((prev) => prev.includes(direction) ? prev.filter((item) => item !== direction) : [...prev, direction])} className={`rounded-full border px-3 py-1 text-xs font-medium ${selectedDirections.includes(direction) ? 'border-stone-900 bg-stone-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900' : 'border-stone-300 bg-white text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>
+                    {direction}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="sticky bottom-0 border-t border-stone-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <Button className="w-full" onClick={() => setFilterModalOpen(false)}>Show results</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={sortModalOpen} onOpenChange={setSortModalOpen}>
+        <DialogContent showCloseButton={false} className="max-w-sm rounded-[28px] border-stone-200 bg-white p-0 dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3 dark:border-gray-800">
+            <DialogClose className="rounded-full border border-stone-200 p-2 text-stone-600 dark:border-gray-700 dark:text-gray-300"><X className="size-4" /></DialogClose>
+            <DialogTitle className="text-base">Sort climbs</DialogTitle>
+            <div className="size-9" />
+          </div>
+          <div className="p-4 space-y-2">
+            <button type="button" onClick={() => { setRouteSort('sends'); setSortModalOpen(false) }} className={`flex w-full items-center justify-between rounded-xl border px-3 py-3 text-sm ${routeSort === 'sends' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>
+              <span>Ascents</span>
+              <ChevronRight className="size-4" />
+            </button>
+            <button type="button" onClick={() => { setRouteSort('grade'); setSortModalOpen(false) }} className={`flex w-full items-center justify-between rounded-xl border px-3 py-3 text-sm ${routeSort === 'grade' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>
+              <span>Grade</span>
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={offlineDialogOpen} onOpenChange={setOfflineDialogOpen}>
         <DialogContent className="border-gray-200 bg-white text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white">
