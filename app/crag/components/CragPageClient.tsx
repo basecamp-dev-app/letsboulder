@@ -599,12 +599,8 @@ export default function CragPageClient({
   const [offlineError, setOfflineError] = useState<string | null>(null)
   const [offlinePreview, setOfflinePreview] = useState<Awaited<ReturnType<typeof getCragOfflinePreview>> | null>(null)
   const [offlineProgress, setOfflineProgress] = useState<OfflineJobProgressEvent | null>(null)
-  const [offlineCragImageCards, setOfflineCragImageCards] = useState<OfflineCragImageCard[]>([])
-  const [isOfflineCragMode, setIsOfflineCragMode] = useState(false)
-  const [highlightedImageId, setHighlightedImageId] = useState<string | null>(null)
   const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>({})
   const mapRef = useRef<L.Map | null>(null)
-  const imageCardRefs = useRef(new Map<string, HTMLDivElement>())
 
   useEffect(() => {
     setupLeafletIcons()
@@ -710,8 +706,6 @@ export default function CragPageClient({
         const hydrated = hydrateOfflineCragData(offlinePayloads)
         setImages(hydrated.images)
         setRoutes(hydrated.routes)
-        setOfflineCragImageCards(hydrated.imageCards)
-        setIsOfflineCragMode(true)
         setRoutesLoadState('loaded')
         const nextRoutePreviewByClimbId: Record<string, RoutePreview> = {}
         for (const imageCard of hydrated.imageCards) {
@@ -736,13 +730,10 @@ export default function CragPageClient({
       if (!hasInitialRouteData) {
         setRoutes([])
       }
-      setOfflineCragImageCards([])
-      setIsOfflineCragMode(false)
       setDefaultRouteTargetByImageId({})
       if (!hasInitialRouteData) {
         setRoutePreviewByClimbId({})
       }
-      setHighlightedImageId(null)
       if (!initialCragCenter) {
         setCragCenter(null)
       }
@@ -940,8 +931,6 @@ export default function CragPageClient({
 
       if (ignore) return
 
-      setIsOfflineCragMode(false)
-      setOfflineCragImageCards([])
       setCrag(cragData)
       setImages(previewImages)
       setDefaultRouteTargetByImageId(nextDefaultRouteTargetByImageId)
@@ -1024,8 +1013,6 @@ export default function CragPageClient({
         if (ignore || offlinePayloads.length === 0) return false
         const hydrated = hydrateOfflineCragData(offlinePayloads)
         setRoutes(hydrated.routes)
-        setOfflineCragImageCards(hydrated.imageCards)
-        setIsOfflineCragMode(true)
         setRoutesLoadState('loaded')
         return true
       }
@@ -1168,12 +1155,6 @@ export default function CragPageClient({
     const missing = images.filter((img) => img.latitude == null || img.longitude == null)
     return [...sorted, ...missing]
   }, [images, viewCenter])
-
-  const imageIndexById = useMemo(() => {
-    const m = new Map<string, number>()
-    orderedImages.forEach((img, idx) => m.set(img.id, idx + 1))
-    return m
-  }, [orderedImages])
 
   const imageById = useMemo(() => {
     return new Map(orderedImages.map((image) => [image.id, image as ClusteredImageData]))
@@ -1470,11 +1451,6 @@ export default function CragPageClient({
     return chips
   }, [gradeSystem, maxGrade, minGrade, minRating, minSends, searchQuery, selectedDirections, selectedRouteTypes, topoOnly])
 
-  const highlightImageCard = useCallback((imageId: string) => {
-    setHighlightedImageId(imageId)
-    window.setTimeout(() => setHighlightedImageId((prev) => (prev === imageId ? null : prev)), 1400)
-  }, [])
-
   const getImageDestination = useCallback((imageId: string) => {
     return buildCragImageDestination({
       imageId,
@@ -1677,12 +1653,6 @@ export default function CragPageClient({
                 iconSize: [24, 24],
                 iconAnchor: [12, 12]
               })}
-              eventHandlers={{
-                click: (e: L.LeafletMouseEvent) => {
-                  e.originalEvent.stopPropagation()
-                  highlightImageCard(representativeImage.id)
-                },
-              }}
             >
               <Popup
                 closeButton={false}
@@ -1850,46 +1820,6 @@ export default function CragPageClient({
             </div>
           </div>
         </section>
-
-        {(isOfflineCragMode ? offlineCragImageCards.length > 0 : orderedImages.length > 0) ? (
-          <section className="space-y-4">
-            <div>
-            {isOfflineCragMode ? (
-              offlineCragImageCards.length === 0 ? (
-                null
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {offlineCragImageCards.map((imageCard) => (
-                    <a key={imageCard.imageId} href={imageCard.href} id={`offline-image-card-${imageCard.imageId}`} className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700 ${highlightedImageId === imageCard.imageId ? 'ring-2 ring-blue-400' : ''}`} onClick={() => setHighlightedImageId(imageCard.imageId)}>
-                      <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
-                        <Image src={imageCard.imageUrl} alt={`${crag.name} topo image`} fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" unoptimized />
-                        <div className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-semibold text-gray-900 shadow-sm">{imageCard.routes.length} route{imageCard.routes.length === 1 ? '' : 's'}</div>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              )
-            ) : orderedImages.length === 0 ? (
-              null
-            ) : (
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-                {orderedImages.map((image) => (
-                  <div key={image.id} id={`crag-image-${image.id}`} ref={(el) => {
-                    if (!el) return
-                    imageCardRefs.current.set(image.id, el)
-                  }} className={`block cursor-pointer overflow-hidden rounded-lg bg-white shadow-sm ring-2 ring-transparent transition-shadow hover:shadow-md dark:bg-gray-800 ${highlightedImageId === image.id ? 'ring-blue-400' : ''}`} onMouseEnter={() => prefetchImageDestination(image.id)} onTouchStart={() => prefetchImageDestination(image.id)} onClick={() => { navigateToImageDestination(image.id) }}>
-                    <div className="relative h-32 bg-gray-200 dark:bg-gray-700">
-                      <Image src={image.url} alt={`${crag.name} topo image ${pinNumberByImageId.get(image.id) ?? imageIndexById.get(image.id) ?? ''}`.trim()} fill className="object-cover" sizes="(max-width: 768px) 33vw, 25vw" />
-                      <div className="absolute top-2 left-2 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-gray-900 shadow-sm">{pinNumberByImageId.get(image.id) ?? imageIndexById.get(image.id) ?? ''}</div>
-                      <div className="absolute bottom-2 right-2 rounded-full bg-gray-900/80 px-2 py-1 text-xs text-white">{image.route_lines_count} routes</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            </div>
-          </section>
-        ) : null}
 
         <section className="space-y-4">
           <div className="mb-6 space-y-4">
