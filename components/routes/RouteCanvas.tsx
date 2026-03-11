@@ -184,6 +184,8 @@ export default function RouteCanvas({
   const [descriptionFocused, setDescriptionFocused] = useState(false)
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true)
   const [interactionMode, setInteractionMode] = useState<'browse' | 'draw'>('browse')
+  const [isDesktopAutoDrawCapable, setIsDesktopAutoDrawCapable] = useState(false)
+  const [autoDrawEnabled, setAutoDrawEnabled] = useState(false)
   const previousCanvasSizeRef = useRef<{ width: number; height: number } | null>(null)
   const hasHydratedExistingRoutesRef = useRef(false)
   const touchStartCanvasPointRef = useRef<RoutePoint | null>(null)
@@ -191,11 +193,37 @@ export default function RouteCanvas({
   const touchTapThreshold = 14
   const isDrawMode = interactionMode === 'draw'
   const canDrawRoutes = !isEditExistingMode || canCreateRoutesInEditMode
+  const shouldAutoDrawAfterFinish = isDesktopAutoDrawCapable && autoDrawEnabled
 
   useEffect(() => {
     hasHydratedExistingRoutesRef.current = false
     previousCanvasSizeRef.current = null
   }, [imageUrl])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const mediaQuery = window.matchMedia('(min-width: 768px) and (pointer: fine)')
+
+    const syncAutoDrawCapability = (matches: boolean) => {
+      setIsDesktopAutoDrawCapable(matches)
+      setAutoDrawEnabled(matches)
+      if (!matches) {
+        setInteractionMode((current) => current === 'draw' ? 'browse' : current)
+      }
+    }
+
+    syncAutoDrawCapability(mediaQuery.matches)
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      syncAutoDrawCapability(event.matches)
+    }
+
+    mediaQuery.addEventListener('change', handleChange)
+    return () => {
+      mediaQuery.removeEventListener('change', handleChange)
+    }
+  }, [])
 
   useOverlayHistory({
     open: showSubmitConfirm,
@@ -598,19 +626,22 @@ export default function RouteCanvas({
   }, [isDrawingInProgress, cancelCurrentDrawing])
 
   useEffect(() => {
-    if (!isDrawingInProgress) return
+    if (!isDrawingInProgress && !isDrawMode && !autoDrawEnabled) return
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       event.preventDefault()
-      cancelCurrentDrawing()
+      setCurrentPoints([])
+      setInteractionMode('browse')
+      setAutoDrawEnabled(false)
+      clearSelection()
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isDrawingInProgress, cancelCurrentDrawing])
+  }, [isDrawingInProgress, isDrawMode, autoDrawEnabled, clearSelection])
 
   const handleCompleteRoute = useCallback(() => {
     if (currentPoints.length < 2) return
@@ -630,11 +661,18 @@ export default function RouteCanvas({
     setCompletedRoutes(prev => [...prev, route])
     setCurrentPoints([])
     setCurrentName('')
-    setCurrentGrade('6A')
     setCurrentDescription('')
+    clearSelection()
+
+    if (shouldAutoDrawAfterFinish) {
+      setInteractionMode('draw')
+      return
+    }
+
+    setCurrentGrade('6A')
     setInteractionMode('browse')
     selectRoute(routeId)
-  }, [currentPoints, currentName, currentGrade, currentClimbType, currentDescription, completedRoutes, selectRoute])
+  }, [currentPoints, currentName, currentGrade, currentClimbType, currentDescription, completedRoutes, clearSelection, selectRoute, shouldAutoDrawAfterFinish])
 
   const handleDeleteSelected = useCallback(() => {
     setCompletedRoutes(prev => prev.filter(route => !selectedIds.includes(route.id)))
@@ -836,11 +874,17 @@ export default function RouteCanvas({
 
     setCurrentPoints([])
     setCurrentName('')
-    setCurrentGrade('6A')
     setCurrentDescription('')
-    setInteractionMode('browse')
     clearSelection()
-  }, [canCreateRoutesInEditMode, onSaveNewRoutes, imageDimensions, currentPoints, currentDescription, currentName, existingRoutes.length, currentGrade, currentClimbType, normalizeCanvasPoints, clearSelection])
+
+    if (shouldAutoDrawAfterFinish) {
+      setInteractionMode('draw')
+      return
+    }
+
+    setCurrentGrade('6A')
+    setInteractionMode('browse')
+  }, [canCreateRoutesInEditMode, onSaveNewRoutes, imageDimensions, currentPoints, currentDescription, currentName, existingRoutes.length, currentGrade, currentClimbType, normalizeCanvasPoints, clearSelection, shouldAutoDrawAfterFinish])
 
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -1094,10 +1138,24 @@ export default function RouteCanvas({
                 >
                   {interactionMode === 'draw' ? 'Stop drawing' : 'Draw'}
                 </button>
+                {isDesktopAutoDrawCapable ? (
+                  <button
+                    type="button"
+                    onClick={() => setAutoDrawEnabled((current) => !current)}
+                    className={`shrink-0 rounded-md border px-2 py-2 text-[11px] font-semibold ${autoDrawEnabled ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300' : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}
+                  >
+                    Auto-draw {autoDrawEnabled ? 'on' : 'off'}
+                  </button>
+                ) : null}
               </div>
               <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
                 Use the route list below to select routes. Turn on Draw to place points.
               </p>
+              {isDesktopAutoDrawCapable && autoDrawEnabled ? (
+                <p className="mt-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                  Auto-draw on. Press Esc to exit.
+                </p>
+              ) : null}
             </div>
             {selectableRoutes.length > 0 ? (
               <div className="border-b border-gray-200 px-2 py-2 dark:border-gray-700">
