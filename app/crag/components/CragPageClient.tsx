@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { Download, Loader2 } from 'lucide-react'
+import { Download, Loader2, Star } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import PlaceCommunityClient from '@/features/community/components/PlaceCommunityClient'
@@ -23,6 +23,10 @@ import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
 import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
 import type { ClimbPackResponse } from '@/lib/climb/queries'
+import CragRouteCharts from '@/app/crag/components/CragRouteCharts'
+import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import type { Database } from '@/types/database'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -139,21 +143,7 @@ interface CachedCragImageData {
   cachedAt: number
 }
 
-interface RawRouteLine {
-  images:
-    | { face_direction: string | null; face_directions: string[] | null }
-    | Array<{ face_direction: string | null; face_directions: string[] | null }>
-    | null
-}
-
-interface RawClimb {
-  id: string
-  name: string | null
-  grade: string
-  slug: string | null
-  route_type: string | null
-  route_lines: RawRouteLine[] | null
-}
+type CragRouteIntelligenceRow = Database['public']['Functions']['get_crag_route_intelligence']['Returns'][number]
 
 interface CragRoute {
   id: string
@@ -162,6 +152,13 @@ interface CragRoute {
   slug: string | null
   routeType: string | null
   directions: string[]
+  hasTopo: boolean
+  topoImageCount: number
+  ratingAvg: number | null
+  ratingCount: number
+  weightedRating: number | null
+  sendCount: number
+  recentSendCount60d: number
 }
 
 function isOfflineDocumentNavigationPreferred() {
@@ -173,30 +170,8 @@ const faceDirectionIndex = new Map(FACE_DIRECTIONS.map((direction, index) => [di
 const gradeOrderIndex = new Map(GRADES.map((grade, index) => [grade, index]))
 const FILTER_GRADES = PUBLIC_GRADES
 
-function extractDirections(routeLines: RawRouteLine[] | null | undefined): string[] {
-  if (!routeLines || routeLines.length === 0) return []
-
-  const uniqueDirections = new Set<string>()
-
-  for (const routeLine of routeLines) {
-    const imageData = routeLine.images
-    if (!imageData) continue
-
-    const images = Array.isArray(imageData) ? imageData : [imageData]
-
-    for (const image of images) {
-      const multipleDirections = image.face_directions || []
-      for (const direction of multipleDirections) {
-        if (direction) uniqueDirections.add(direction)
-      }
-
-      if (image.face_direction) {
-        uniqueDirections.add(image.face_direction)
-      }
-    }
-  }
-
-  return [...uniqueDirections].sort((a, b) => {
+function sortDirections(directions: string[]) {
+  return [...new Set(directions.filter(Boolean))].sort((a, b) => {
     const aIndex = faceDirectionIndex.get(a as typeof FACE_DIRECTIONS[number])
     const bIndex = faceDirectionIndex.get(b as typeof FACE_DIRECTIONS[number])
     if (aIndex === undefined && bIndex === undefined) return a.localeCompare(b)
@@ -206,16 +181,23 @@ function extractDirections(routeLines: RawRouteLine[] | null | undefined): strin
   })
 }
 
-function formatCragRoutes(climbs: RawClimb[] | null | undefined): CragRoute[] {
-  if (!climbs || climbs.length === 0) return []
+function formatCragRoutes(rows: CragRouteIntelligenceRow[] | null | undefined): CragRoute[] {
+  if (!rows || rows.length === 0) return []
 
-  return climbs.map((climb) => ({
-    id: climb.id,
-    name: (climb.name || '').trim() || 'Unnamed route',
-    grade: normalizeGrade(climb.grade) || 'Unknown',
-    slug: climb.slug,
-    routeType: climb.route_type,
-    directions: extractDirections(climb.route_lines),
+  return rows.map((route) => ({
+    id: route.id,
+    name: (route.name || '').trim() || 'Unnamed route',
+    grade: normalizeGrade(route.grade) || 'Unknown',
+    slug: route.slug,
+    routeType: route.route_type,
+    directions: sortDirections(route.directions || []),
+    hasTopo: Boolean(route.has_topo),
+    topoImageCount: typeof route.topo_image_count === 'number' ? route.topo_image_count : 0,
+    ratingAvg: typeof route.rating_avg === 'number' ? route.rating_avg : null,
+    ratingCount: typeof route.rating_count === 'number' ? route.rating_count : 0,
+    weightedRating: typeof route.weighted_rating === 'number' ? route.weighted_rating : null,
+    sendCount: typeof route.send_count === 'number' ? route.send_count : 0,
+    recentSendCount60d: typeof route.recent_send_count_60d === 'number' ? route.recent_send_count_60d : 0,
   }))
 }
 
@@ -275,14 +257,14 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
       grade: normalizeGrade(climb.grade) || 'Unknown',
       slug: getOfflineSlug(payload.offline_pack.canonicalPath, climb.id),
       routeType: climb.route_type,
-      directions: Array.from(directions).sort((a, b) => {
-        const aIndex = faceDirectionIndex.get(a as typeof FACE_DIRECTIONS[number])
-        const bIndex = faceDirectionIndex.get(b as typeof FACE_DIRECTIONS[number])
-        if (aIndex === undefined && bIndex === undefined) return a.localeCompare(b)
-        if (aIndex === undefined) return 1
-        if (bIndex === undefined) return -1
-        return aIndex - bIndex
-      }),
+      directions: sortDirections(Array.from(directions)),
+      hasTopo: true,
+      topoImageCount: 1,
+      ratingAvg: null,
+      ratingCount: 0,
+      weightedRating: null,
+      sendCount: 0,
+      recentSendCount60d: 0,
     })
 
     const fallbackRouteSummary: OfflineCragRouteSummary = {
@@ -373,6 +355,23 @@ function formatRouteTypeLabel(value: string): string {
     .join(' ')
 }
 
+function getGradeIndex(grade: string) {
+  return gradeOrderIndex.get(grade)
+}
+
+function compareGrades(a: string, b: string) {
+  const aIndex = getGradeIndex(a)
+  const bIndex = getGradeIndex(b)
+  if (aIndex === undefined && bIndex === undefined) return a.localeCompare(b)
+  if (aIndex === undefined) return 1
+  if (bIndex === undefined) return -1
+  return aIndex - bIndex
+}
+
+function formatRatingValue(value: number | null) {
+  return value === null ? 'Unrated' : value.toFixed(1)
+}
+
 function toRad(deg: number) {
   return (deg * Math.PI) / 180
 }
@@ -430,10 +429,16 @@ export default function CragPageClient({
   const [images, setImages] = useState<ImageData[]>([])
   const [routes, setRoutes] = useState<CragRoute[]>([])
   const [routesLoadState, setRoutesLoadState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
-  const [routeView, setRouteView] = useState<'images' | 'filters' | 'upcoming' | 'updates' | 'rankings'>('images')
+  const [routeView, setRouteView] = useState<'images' | 'routes' | 'upcoming' | 'updates' | 'rankings'>('routes')
+  const [routeSort, setRouteSort] = useState<'sends' | 'rating' | 'grade' | 'name'>('sends')
   const [minGrade, setMinGrade] = useState<string>('')
   const [maxGrade, setMaxGrade] = useState<string>('')
+  const [minRating, setMinRating] = useState<string>('')
+  const [minSends, setMinSends] = useState<string>('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedDirections, setSelectedDirections] = useState<string[]>([])
+  const [selectedRouteTypes, setSelectedRouteTypes] = useState<string[]>([])
+  const [topoOnly, setTopoOnly] = useState(false)
   const [cragCenter, setCragCenter] = useState<[number, number] | null>(null)
   const [loading, setLoading] = useState(true)
   const [mapReady, setMapReady] = useState(false)
@@ -737,7 +742,7 @@ export default function CragPageClient({
   }, [])
 
   useEffect(() => {
-    if (routeView !== 'filters' || routesLoadState !== 'idle') return
+    if (routeView !== 'routes' || routesLoadState !== 'idle') return
 
     let ignore = false
 
@@ -762,28 +767,12 @@ export default function CragPageClient({
 
       const supabase = createClient()
 
-      let climbsData
-      let climbsError
+      let routeMetricsData
+      let routeMetricsError
       try {
-        const response = await supabase
-          .from('climbs')
-          .select(`
-            id,
-            name,
-            grade,
-            slug,
-            route_type,
-            route_lines (
-              images (
-                face_direction,
-                face_directions
-              )
-            )
-          `)
-          .eq('crag_id', id)
-          .in('status', ['active', 'approved'])
-        climbsData = response.data
-        climbsError = response.error
+        const response = await supabase.rpc('get_crag_route_intelligence', { p_crag_id: id })
+        routeMetricsData = response.data
+        routeMetricsError = response.error
       } catch (error) {
         if (applyOfflineRoutes()) {
           return
@@ -793,18 +782,18 @@ export default function CragPageClient({
 
       if (ignore) return
 
-      if (climbsError) {
+      if (routeMetricsError) {
         if (applyOfflineRoutes()) return
-        console.error('Error fetching climbs:', climbsError)
+        console.error('Error fetching crag route intelligence:', routeMetricsError)
         setRoutesLoadState('error')
         return
       }
 
-      if ((!climbsData || climbsData.length === 0) && applyOfflineRoutes()) {
+      if ((!routeMetricsData || routeMetricsData.length === 0) && applyOfflineRoutes()) {
         return
       }
 
-      setRoutes(formatCragRoutes((climbsData || []) as unknown as RawClimb[]))
+      setRoutes(formatCragRoutes(routeMetricsData as CragRouteIntelligenceRow[] | null | undefined))
       setRoutesLoadState('loaded')
     }
 
@@ -930,12 +919,15 @@ export default function CragPageClient({
   }, [routes])
 
   const filteredRoutes = useMemo(() => {
-    const minIndex = minGrade ? gradeOrderIndex.get(minGrade) : undefined
-    const maxIndex = maxGrade ? gradeOrderIndex.get(maxGrade) : undefined
+    const minIndex = minGrade ? getGradeIndex(minGrade) : undefined
+    const maxIndex = maxGrade ? getGradeIndex(maxGrade) : undefined
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+    const minimumRating = minRating ? Number(minRating) : null
+    const minimumSends = minSends ? Number(minSends) : null
 
     return routes
       .filter((route) => {
-        const routeGradeIndex = gradeOrderIndex.get(route.grade)
+        const routeGradeIndex = getGradeIndex(route.grade)
         if (minIndex !== undefined) {
           if (routeGradeIndex === undefined || routeGradeIndex < minIndex) return false
         }
@@ -943,20 +935,184 @@ export default function CragPageClient({
           if (routeGradeIndex === undefined || routeGradeIndex > maxIndex) return false
         }
 
-        if (selectedDirections.length === 0) return true
-        const routeDirections = route.directions.length > 0 ? route.directions : ['Unknown']
-        return routeDirections.some((direction) => selectedDirections.includes(direction))
+        if (selectedDirections.length > 0) {
+          const routeDirections = route.directions.length > 0 ? route.directions : ['Unknown']
+          if (!routeDirections.some((direction) => selectedDirections.includes(direction))) return false
+        }
+
+        if (selectedRouteTypes.length > 0) {
+          const normalizedRouteType = route.routeType ? normalizeRouteType(route.routeType) : ''
+          if (!normalizedRouteType || !selectedRouteTypes.includes(normalizedRouteType)) return false
+        }
+
+        if (topoOnly && !route.hasTopo) return false
+        if (minimumRating !== null && (route.weightedRating === null || route.weightedRating < minimumRating)) return false
+        if (minimumSends !== null && route.sendCount < minimumSends) return false
+
+        if (normalizedSearchQuery.length > 0) {
+          const searchable = `${route.name} ${route.grade} ${route.routeType || ''}`.toLowerCase()
+          if (!searchable.includes(normalizedSearchQuery)) return false
+        }
+
+        return true
       })
       .sort((a, b) => {
-        const aGradeIndex = gradeOrderIndex.get(a.grade)
-        const bGradeIndex = gradeOrderIndex.get(b.grade)
-        if (aGradeIndex === undefined && bGradeIndex === undefined) return a.name.localeCompare(b.name)
-        if (aGradeIndex === undefined) return 1
-        if (bGradeIndex === undefined) return -1
-        if (aGradeIndex !== bGradeIndex) return aGradeIndex - bGradeIndex
+        if (routeSort === 'sends') {
+          if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
+          if ((a.weightedRating ?? -1) !== (b.weightedRating ?? -1)) return (b.weightedRating ?? -1) - (a.weightedRating ?? -1)
+          const gradeCompare = compareGrades(a.grade, b.grade)
+          if (gradeCompare !== 0) return gradeCompare
+          return a.name.localeCompare(b.name)
+        }
+
+        if (routeSort === 'rating') {
+          if (a.weightedRating === null && b.weightedRating !== null) return 1
+          if (a.weightedRating !== null && b.weightedRating === null) return -1
+          if (a.weightedRating !== null && b.weightedRating !== null && a.weightedRating !== b.weightedRating) {
+            return b.weightedRating - a.weightedRating
+          }
+          if (a.ratingCount !== b.ratingCount) return b.ratingCount - a.ratingCount
+          if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
+          return a.name.localeCompare(b.name)
+        }
+
+        if (routeSort === 'name') {
+          return a.name.localeCompare(b.name)
+        }
+
+        const gradeCompare = compareGrades(a.grade, b.grade)
+        if (gradeCompare !== 0) return gradeCompare
+        if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
         return a.name.localeCompare(b.name)
       })
-  }, [maxGrade, minGrade, routes, selectedDirections])
+  }, [maxGrade, minGrade, minRating, minSends, routeSort, routes, searchQuery, selectedDirections, selectedRouteTypes, topoOnly])
+
+  const routeStats = useMemo(() => {
+    const gradeCounts = new Map<string, number>()
+    const sendsByGradeMap = new Map<string, number>()
+    const routeTypeCounts = new Map<string, number>()
+    let totalSendsAcrossRoutes = 0
+    let ratingsWeightedTotal = 0
+    let ratingsCountTotal = 0
+
+    for (const route of routes) {
+      gradeCounts.set(route.grade, (gradeCounts.get(route.grade) || 0) + 1)
+      sendsByGradeMap.set(route.grade, (sendsByGradeMap.get(route.grade) || 0) + route.sendCount)
+      totalSendsAcrossRoutes += route.sendCount
+
+      if (route.routeType) {
+        const normalizedRouteType = normalizeRouteType(route.routeType)
+        routeTypeCounts.set(normalizedRouteType, (routeTypeCounts.get(normalizedRouteType) || 0) + 1)
+      }
+
+      if (route.ratingAvg !== null && route.ratingCount > 0) {
+        ratingsWeightedTotal += route.ratingAvg * route.ratingCount
+        ratingsCountTotal += route.ratingCount
+      }
+    }
+
+    const gradeDistribution = Array.from(gradeCounts.entries())
+      .map(([grade, count]) => ({ grade, count }))
+      .sort((a, b) => compareGrades(a.grade, b.grade))
+
+    const sendsByGrade = Array.from(sendsByGradeMap.entries())
+      .map(([grade, sends]) => ({ grade, sends }))
+      .sort((a, b) => compareGrades(a.grade, b.grade))
+
+    const sortedByGrade = [...routes].sort((a, b) => compareGrades(a.grade, b.grade))
+    const medianRoute = sortedByGrade.length > 0 ? sortedByGrade[Math.floor((sortedByGrade.length - 1) / 2)] : null
+    const mostCommonGrade = gradeDistribution.reduce<{ grade: string; count: number } | null>((best, current) => {
+      if (!best || current.count > best.count) return current
+      return best
+    }, null)
+
+    const routeTypeMix = Array.from(routeTypeCounts.entries())
+      .map(([routeType, count]) => ({ routeType, count }))
+      .sort((a, b) => b.count - a.count || a.routeType.localeCompare(b.routeType))
+
+    return {
+      totalRoutes: routes.length,
+      totalSendsAcrossRoutes,
+      averageRating: ratingsCountTotal > 0 ? ratingsWeightedTotal / ratingsCountTotal : null,
+      mostCommonGrade,
+      medianGrade: medianRoute?.grade || null,
+      routeTypeMix,
+      gradeDistribution,
+      sendsByGrade,
+      topoCoverageCount: routes.filter((route) => route.hasTopo).length,
+      ratedRoutesCount: routes.filter((route) => route.ratingCount > 0).length,
+    }
+  }, [routes])
+
+  const activeRouteFilterChips = useMemo(() => {
+    const chips: Array<{ key: string; label: string; onRemove: () => void }> = []
+
+    if (minGrade) {
+      chips.push({
+        key: 'min-grade',
+        label: `Min ${formatGradeForDisplay(minGrade, gradeSystem)}`,
+        onRemove: () => setMinGrade(''),
+      })
+    }
+
+    if (maxGrade) {
+      chips.push({
+        key: 'max-grade',
+        label: `Max ${formatGradeForDisplay(maxGrade, gradeSystem)}`,
+        onRemove: () => setMaxGrade(''),
+      })
+    }
+
+    if (minRating) {
+      chips.push({
+        key: 'min-rating',
+        label: `${minRating}+ stars`,
+        onRemove: () => setMinRating(''),
+      })
+    }
+
+    if (minSends) {
+      chips.push({
+        key: 'min-sends',
+        label: `${minSends}+ sends`,
+        onRemove: () => setMinSends(''),
+      })
+    }
+
+    if (searchQuery.trim()) {
+      chips.push({
+        key: 'search',
+        label: `Search: ${searchQuery.trim()}`,
+        onRemove: () => setSearchQuery(''),
+      })
+    }
+
+    if (topoOnly) {
+      chips.push({
+        key: 'topo-only',
+        label: 'Topo only',
+        onRemove: () => setTopoOnly(false),
+      })
+    }
+
+    for (const direction of selectedDirections) {
+      chips.push({
+        key: `direction-${direction}`,
+        label: `Face ${direction}`,
+        onRemove: () => setSelectedDirections((prev) => prev.filter((item) => item !== direction)),
+      })
+    }
+
+    for (const routeType of selectedRouteTypes) {
+      chips.push({
+        key: `route-type-${routeType}`,
+        label: formatRouteTypeLabel(routeType),
+        onRemove: () => setSelectedRouteTypes((prev) => prev.filter((item) => item !== routeType)),
+      })
+    }
+
+    return chips
+  }, [gradeSystem, maxGrade, minGrade, minRating, minSends, searchQuery, selectedDirections, selectedRouteTypes, topoOnly])
 
   const highlightImageCard = useCallback((imageId: string) => {
     setHighlightedImageId(imageId)
@@ -1175,14 +1331,14 @@ export default function CragPageClient({
                 className="image-popup"
               >
                 <div
-                  className="w-40 cursor-pointer pt-1"
+                  className="w-40 cursor-pointer"
                   onMouseEnter={() => prefetchImageDestination(image.id)}
                   onTouchStart={() => prefetchImageDestination(image.id)}
                   onClick={() => {
                     navigateToImageDestination(image.id)
                   }}
                 >
-                  <div className="relative mb-2 h-24 w-full overflow-hidden rounded">
+                  <div className="relative h-24 w-full overflow-hidden rounded-md bg-gray-200 dark:bg-gray-700">
                     <Image
                       src={image.url}
                       alt={`${crag.name} topo image ${imageIndexById.get(image.id) ?? ''}`.trim()}
@@ -1191,21 +1347,25 @@ export default function CragPageClient({
                       sizes="160px"
                       unoptimized
                     />
+                    {image.supplementary_faces_count > 0 && (
+                      <div className="absolute bottom-2 left-2 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+                        {1 + image.supplementary_faces_count} faces
+                      </div>
+                    )}
+                    <div className="absolute top-2 left-2 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-gray-900 shadow-sm">
+                      {imageIndexById.get(image.id) ?? ''}
+                    </div>
+                    <div className="absolute bottom-2 right-2 rounded-full bg-gray-900/80 px-2 py-1 text-xs text-white">
+                      {image.route_lines_count} routes
+                    </div>
+                    <div className={`absolute top-2 right-2 rounded px-1.5 py-0.5 text-xs font-medium ${
+                      image.is_verified
+                        ? 'bg-green-500 text-white'
+                        : 'bg-yellow-500 text-white'
+                    }`}>
+                      {image.is_verified ? '✓' : `${image.verification_count}/3`}
+                    </div>
                   </div>
-                  <p className="font-semibold text-sm text-gray-900">
-                    Image {imageIndexById.get(image.id) ?? ''}
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    {image.route_lines_count} route{image.route_lines_count !== 1 ? 's' : ''}
-                  </p>
-                  {image.supplementary_faces_count > 0 ? (
-                    <p className="text-xs text-gray-600">
-                      {1 + image.supplementary_faces_count} faces
-                    </p>
-                  ) : null}
-                  <p className={`text-xs ${image.is_verified ? 'text-green-600' : 'text-yellow-600'}`}>
-                    {image.is_verified ? '✓ Verified' : `○ ${image.verification_count}/3 verified`}
-                  </p>
                 </div>
               </Popup>
             </Marker>
