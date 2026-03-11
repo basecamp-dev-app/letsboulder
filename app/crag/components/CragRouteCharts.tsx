@@ -33,7 +33,7 @@ export default function CragRouteCharts({ gradeDistribution, sendsByGrade }: Cra
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <section className="rounded-[28px] border border-teal-200 bg-gradient-to-br from-teal-50/80 via-white to-white p-4 shadow-sm dark:border-teal-900/40 dark:bg-gray-900">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-stone-900 dark:text-gray-100">Grade spread</h3>
@@ -69,7 +69,7 @@ export default function CragRouteCharts({ gradeDistribution, sendsByGrade }: Cra
         </div>
       </section>
 
-      <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <section className="rounded-[28px] border border-orange-200 bg-gradient-to-br from-orange-50/80 via-white to-white p-4 shadow-sm dark:border-orange-900/40 dark:bg-gray-900">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-stone-900 dark:text-gray-100">Sends by grade</h3>
