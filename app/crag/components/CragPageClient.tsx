@@ -144,7 +144,7 @@ interface CachedCragImageData {
 
 type CragRouteIntelligenceRow = Database['public']['Functions']['get_crag_route_intelligence']['Returns'][number]
 
-interface CragRoute {
+export interface CragRoute {
   id: string
   name: string
   grade: string
@@ -160,7 +160,7 @@ interface CragRoute {
   recentSendCount60d: number
 }
 
-interface RoutePreview {
+export interface RoutePreview {
   imageId: string
   imageUrl: string
 }
@@ -434,6 +434,9 @@ function haversineMeters(from: [number, number], to: [number, number]) {
 interface CragPageClientProps {
   id: string
   initialCrag?: Crag | null
+  initialRoutes?: CragRoute[] | null
+  initialRoutePreviewByClimbId?: Record<string, RoutePreview>
+  initialCragCenter?: [number, number] | null
   communityPlaceId?: string | null
   communityPlaceSlug?: string | null
   initialSessionPosts?: CommunitySessionPost[]
@@ -443,6 +446,9 @@ interface CragPageClientProps {
 export default function CragPageClient({
   id,
   initialCrag = null,
+  initialRoutes = null,
+  initialRoutePreviewByClimbId = {},
+  initialCragCenter = null,
   communityPlaceId,
   communityPlaceSlug,
   initialSessionPosts = [],
@@ -452,10 +458,11 @@ export default function CragPageClient({
   const pathname = usePathname()
   const gradeSystem = useGradeSystem()
   const [crag, setCrag] = useState<Crag | null>(initialCrag)
+  const hasInitialRouteData = initialRoutes !== null
   const [images, setImages] = useState<ImageData[]>([])
-  const [routes, setRoutes] = useState<CragRoute[]>([])
-  const [routePreviewByClimbId, setRoutePreviewByClimbId] = useState<Record<string, RoutePreview>>({})
-  const [routesLoadState, setRoutesLoadState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
+  const [routes, setRoutes] = useState<CragRoute[]>(initialRoutes || [])
+  const [routePreviewByClimbId, setRoutePreviewByClimbId] = useState<Record<string, RoutePreview>>(initialRoutePreviewByClimbId)
+  const [routesLoadState, setRoutesLoadState] = useState<'idle' | 'loading' | 'loaded' | 'error'>(hasInitialRouteData ? 'loaded' : 'idle')
   const [routeSort, setRouteSort] = useState<'sends' | 'rating' | 'grade' | 'name'>('sends')
   const [minGrade, setMinGrade] = useState<string>('')
   const [maxGrade, setMaxGrade] = useState<string>('')
@@ -471,8 +478,8 @@ export default function CragPageClient({
   const [cragSwitcherOpen, setCragSwitcherOpen] = useState(false)
   const [cragSwitcherQuery, setCragSwitcherQuery] = useState('')
   const [cragSwitcherOptions, setCragSwitcherOptions] = useState<CragSwitcherOption[]>([])
-  const [cragCenter, setCragCenter] = useState<[number, number] | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [cragCenter, setCragCenter] = useState<[number, number] | null>(initialCragCenter)
+  const [loading, setLoading] = useState(!initialCrag)
   const [mapReady, setMapReady] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isFlagging, setIsFlagging] = useState(false)
@@ -617,13 +624,19 @@ export default function CragPageClient({
       }
 
       setImages([])
-      setRoutes([])
+      if (!hasInitialRouteData) {
+        setRoutes([])
+      }
       setOfflineCragImageCards([])
       setIsOfflineCragMode(false)
       setDefaultRouteTargetByImageId({})
-      setRoutePreviewByClimbId({})
+      if (!hasInitialRouteData) {
+        setRoutePreviewByClimbId({})
+      }
       setHighlightedImageId(null)
-      setCragCenter(null)
+      if (!initialCragCenter) {
+        setCragCenter(null)
+      }
 
       const cached = cragImageCache.get(id)
       if (cached && Date.now() - cached.cachedAt <= CRAG_IMAGE_CACHE_TTL_MS) {
@@ -637,7 +650,9 @@ export default function CragPageClient({
         setLoading(true)
       }
 
-      setRoutesLoadState('idle')
+      if (!hasInitialRouteData) {
+        setRoutesLoadState('idle')
+      }
 
       if (offlineOnly && applyOfflineHydratedState()) {
         return
@@ -831,7 +846,7 @@ export default function CragPageClient({
     return () => {
       ignore = true
     }
-  }, [id, initialCrag])
+  }, [hasInitialRouteData, id, initialCrag, initialCragCenter])
 
   useEffect(() => {
     let ignore = false
@@ -1422,7 +1437,7 @@ export default function CragPageClient({
           {toast}
         </div>
       )}
-      <div className="relative h-[34vh] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
+      <div className="relative z-0 h-[34vh] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
         <MapContainer
           ref={mapRef as React.RefObject<L.Map | null>}
           center={cragCenter || [crag.latitude || 0, crag.longitude || 0]}
@@ -1534,7 +1549,7 @@ export default function CragPageClient({
         )}
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-4 space-y-6">
+      <div className="relative z-[1400] max-w-5xl mx-auto px-4 py-4 space-y-6">
         <section className="space-y-3">
           <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div className="flex items-center gap-2">

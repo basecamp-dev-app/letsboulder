@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import CragPageClient from '@/app/crag/components/CragPageClient'
+import { loadInitialCragRouteData } from '@/app/crag/components/crag-page-server'
 import type { Crag } from '@/app/crag/components/CragPageClient'
 import CragStructuredData from '@/app/crag/components/CragStructuredData'
 import type { BreadcrumbItem } from '@/app/crag/components/crag-page-types'
@@ -137,6 +138,10 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
     { label: crag.name },
   ]
   const communityData = await loadPlaceCommunityData(supabase, crag.id)
+  const initialRouteData = await loadInitialCragRouteData(supabase as never, crag.id, {
+    latitude: initialCrag.latitude,
+    longitude: initialCrag.longitude,
+  })
 
   return (
     <>
@@ -148,6 +153,9 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
       <CragPageClient
         id={crag.id}
         initialCrag={initialCrag}
+        initialRoutes={initialRouteData.initialRoutes}
+        initialRoutePreviewByClimbId={initialRouteData.initialRoutePreviewByClimbId}
+        initialCragCenter={initialRouteData.initialCragCenter}
         communityPlaceId={communityData.placeId}
         communityPlaceSlug={communityData.placeSlug}
         initialSessionPosts={communityData.sessionPosts}
