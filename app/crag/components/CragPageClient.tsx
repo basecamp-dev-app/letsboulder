@@ -1522,7 +1522,7 @@ export default function CragPageClient({
           {toast}
         </div>
       )}
-      <div className="relative z-0 h-[34vh] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
+      <div className="relative z-[1500] h-[34vh] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
         <MapContainer
           ref={mapRef as React.RefObject<L.Map | null>}
           center={cragCenter || [crag.latitude || 0, crag.longitude || 0]}
@@ -1635,7 +1635,7 @@ export default function CragPageClient({
         )}
       </div>
 
-      <div className="relative z-[1400] max-w-5xl mx-auto px-4 py-4 space-y-6">
+      <div className="relative max-w-5xl mx-auto px-4 py-4 space-y-6">
         <section className="space-y-3">
           <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div className="flex items-center gap-2">
