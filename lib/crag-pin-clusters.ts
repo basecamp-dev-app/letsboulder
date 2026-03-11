@@ -80,7 +80,7 @@ function pickRepresentativeImage<TImage extends ClusterableCragImage>(images: TI
 
 export function buildCragPinClusters<TImage extends ClusterableCragImage>(
   images: TImage[],
-  radiusMeters = 10
+  radiusMeters = 6
 ): {
   clusters: Array<CragPinCluster<TImage>>
   clusterIdByImageId: Map<string, string>
