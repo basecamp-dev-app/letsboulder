@@ -49,6 +49,10 @@ The `gradeMappings` table in `@/lib/grades.ts` is the source of truth for cross-
 - **System tables:** Use RPC functions with `SECURITY DEFINER` for `auth.users` queries
 - **Reference:** `get_user_count()` function in database
 
+### Analytics RPCs
+- `get_star_rating_summary(p_climb_id uuid)` returns per-route average star rating and rating count.
+- `get_crag_route_intelligence(p_crag_id uuid)` returns per-route crag discovery metrics: directions, topo coverage, weighted rating, and unique sender counts.
+
 ---
 
 ## 3. Migrations (The Safety Protocol)

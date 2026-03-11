@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getGradePoints, getGradeFromPoints, FLASH_BONUS } from '@/lib/grades'
 import { createErrorResponse } from '@/lib/errors'
-import type { Profile } from '@/types/database'
 
 export const revalidate = 60
 
@@ -26,6 +25,17 @@ interface RegionRouteLine {
       }
     }
   } | null
+}
+
+interface ProfileRow {
+  id: string
+  username: string | null
+  first_name: string | null
+  last_name: string | null
+  display_name: string | null
+  avatar_url: string | null
+  gender: string | null
+  is_public: boolean | null
 }
 
 export async function GET(request: NextRequest) {
@@ -151,7 +161,7 @@ export async function GET(request: NextRequest) {
 
     const publicUserIds = userIds.filter(userId => profilesMap.has(userId))
 
-    const getUsername = (userId: string, profile: Profile | undefined): string => {
+    const getUsername = (userId: string, profile: ProfileRow | undefined): string => {
       const fullName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim()
       if (fullName) return fullName
       if (profile?.display_name) return profile.display_name

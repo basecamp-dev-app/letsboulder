@@ -1421,14 +1421,14 @@ export default function CragPageClient({
             </button>
             <button
               type="button"
-              onClick={() => setRouteView('filters')}
+              onClick={() => setRouteView('routes')}
               className={`px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                routeView === 'filters'
+                routeView === 'routes'
                   ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
                   : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
               }`}
             >
-              Filter routes
+              Routes
             </button>
             <button
               type="button"
@@ -1615,163 +1615,305 @@ export default function CragPageClient({
           </>
         )}
 
-        {routeView === 'filters' && (
-          <div className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div className="border-b border-gray-200 p-4 dark:border-gray-800">
-              <div className="grid gap-3 md:grid-cols-3">
-                <label className="text-sm text-gray-700 dark:text-gray-300">
-                  <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Min grade</span>
-                  <select
-                    value={minGrade}
-                    onChange={(event) => {
-                      const value = event.target.value
-                      setMinGrade(value)
-                      if (value && maxGrade) {
-                        const nextMin = gradeOrderIndex.get(value)
-                        const nextMax = gradeOrderIndex.get(maxGrade)
-                        if (nextMin !== undefined && nextMax !== undefined && nextMin > nextMax) {
-                          setMaxGrade(value)
-                        }
-                      }
-                    }}
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                  >
-                    <option value="">Any</option>
-                    {FILTER_GRADES.map((grade) => (
-                      <option key={`min-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-sm text-gray-700 dark:text-gray-300">
-                  <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Max grade</span>
-                  <select
-                    value={maxGrade}
-                    onChange={(event) => {
-                      const value = event.target.value
-                      setMaxGrade(value)
-                      if (value && minGrade) {
-                        const nextMax = gradeOrderIndex.get(value)
-                        const nextMin = gradeOrderIndex.get(minGrade)
-                        if (nextMax !== undefined && nextMin !== undefined && nextMax < nextMin) {
-                          setMinGrade(value)
-                        }
-                      }
-                    }}
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                  >
-                    <option value="">Any</option>
-                    {FILTER_GRADES.map((grade) => (
-                      <option key={`max-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>
-                    ))}
-                  </select>
-                </label>
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMinGrade('')
-                      setMaxGrade('')
-                      setSelectedDirections([])
-                    }}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                  >
-                    Clear filters
-                  </button>
-                </div>
+        {routeView === 'routes' && (
+          <div className="mb-6 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Routes</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.totalRoutes}</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeStats.topoCoverageCount} with topo coverage</p>
               </div>
-
-              <div className="mt-3">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Face direction</p>
-                <div className="flex flex-wrap gap-2">
-                  {availableDirections.length === 0 && (
-                    <span className="text-sm text-gray-500 dark:text-gray-400">No face direction data yet.</span>
-                  )}
-                  {availableDirections.map((direction) => {
-                    const selected = selectedDirections.includes(direction)
-                    return (
-                      <button
-                        key={direction}
-                        type="button"
-                        onClick={() => {
-                          setSelectedDirections((prev) => {
-                            if (prev.includes(direction)) {
-                              return prev.filter((item) => item !== direction)
-                            }
-                            return [...prev, direction]
-                          })
-                        }}
-                        className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                          selected
-                            ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
-                            : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        {direction}
-                      </button>
-                    )
-                  })}
-                </div>
+              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Unique Sends</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.totalSendsAcrossRoutes}</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">All-time logged senders across this crag</p>
               </div>
-
-              <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
-                <span className="font-semibold tabular-nums">{filteredRoutes.length}</span> route{filteredRoutes.length === 1 ? '' : 's'} match your filters
-              </p>
+              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Avg Rating</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.averageRating === null ? '—' : routeStats.averageRating.toFixed(1)}</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeStats.ratedRoutesCount} route{routeStats.ratedRoutesCount === 1 ? '' : 's'} rated</p>
+              </div>
+              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Median Grade</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.medianGrade ? formatGradeForDisplay(routeStats.medianGrade, gradeSystem) : '—'}</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">Middle of the route pack</p>
+              </div>
+              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Mode Grade</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.mostCommonGrade ? formatGradeForDisplay(routeStats.mostCommonGrade.grade, gradeSystem) : '—'}</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeStats.mostCommonGrade?.count || 0} route{routeStats.mostCommonGrade?.count === 1 ? '' : 's'}</p>
+              </div>
+              <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Route Mix</p>
+                <p className="mt-2 text-lg font-semibold text-stone-900 dark:text-gray-100">
+                  {routeStats.routeTypeMix[0] ? formatRouteTypeLabel(routeStats.routeTypeMix[0].routeType) : 'Unclassified'}
+                </p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">Most common style here</p>
+              </div>
             </div>
 
-            {routesLoadState === 'loading' ? (
-              <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Loading route filters...</p>
-            ) : routesLoadState === 'error' ? (
-              <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">Route filters are unavailable right now.</p>
-            ) : filteredRoutes.length === 0 ? (
-              <p className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">No routes match this filter combination.</p>
-            ) : (
-              <>
-                <table className="hidden w-full md:table">
-                  <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950">
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Route</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Grade</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Face</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRoutes.map((route) => (
-                      <tr key={route.id} className="border-b border-gray-100 last:border-0 dark:border-gray-800/70">
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
-                           {route.slug || isOfflineDocumentNavigationPreferred() ? (
-                             <a href={getRouteDestination(route)} className="font-medium text-gray-900 hover:underline dark:text-gray-100">
-                               {route.name}
-                             </a>
-                           ) : (
-                            <span className="font-medium">{route.name}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm tabular-nums text-gray-700 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{route.directions.length > 0 ? route.directions.join(', ') : 'Unknown'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {routeStats.gradeDistribution.length > 0 && <CragRouteCharts gradeDistribution={routeStats.gradeDistribution} sendsByGrade={routeStats.sendsByGrade} />}
 
-                <div className="space-y-2 p-3 md:hidden">
-                  {filteredRoutes.map((route) => (
-                    <div key={route.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
-                      <div className="flex items-baseline justify-between gap-3">
-                         {route.slug || isOfflineDocumentNavigationPreferred() ? (
-                             <a href={getRouteDestination(route)} className="text-sm font-semibold text-gray-900 hover:underline dark:text-gray-100">
-                               {route.name}
-                             </a>
-                         ) : (
-                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{route.name}</p>
-                        )}
-                        <span className="text-sm tabular-nums text-gray-600 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</span>
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Faces: {route.directions.length > 0 ? route.directions.join(', ') : 'Unknown'}</p>
-                    </div>
-                  ))}
+            <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <div className="border-b border-stone-200 p-4 dark:border-gray-800">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-[0.22em] text-stone-500 dark:text-gray-400">Route Intelligence</p>
+                    <h2 className="mt-1 text-lg font-semibold text-stone-900 dark:text-gray-100">Sort for quality, popularity, or grade.</h2>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <label className="text-sm text-stone-700 dark:text-gray-300">
+                      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Search</span>
+                      <Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Route name or style" className="border-stone-300 bg-white dark:border-gray-700 dark:bg-gray-800" />
+                    </label>
+                    <label className="text-sm text-stone-700 dark:text-gray-300">
+                      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Sort by</span>
+                      <select value={routeSort} onChange={(event) => setRouteSort(event.target.value as 'sends' | 'rating' | 'grade' | 'name')} className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
+                        <option value="sends">Most sent</option>
+                        <option value="rating">Highest rated</option>
+                        <option value="grade">Grade</option>
+                        <option value="name">Name</option>
+                      </select>
+                    </label>
+                    <label className="text-sm text-stone-700 dark:text-gray-300">
+                      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Min rating</span>
+                      <select value={minRating} onChange={(event) => setMinRating(event.target.value)} className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100">
+                        <option value="">Any</option>
+                        <option value="3">3.0+</option>
+                        <option value="3.5">3.5+</option>
+                        <option value="4">4.0+</option>
+                        <option value="4.5">4.5+</option>
+                      </select>
+                    </label>
+                    <label className="text-sm text-stone-700 dark:text-gray-300">
+                      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Min sends</span>
+                      <Input type="number" min="0" step="1" inputMode="numeric" value={minSends} onChange={(event) => setMinSends(event.target.value)} placeholder="0" className="border-stone-300 bg-white dark:border-gray-700 dark:bg-gray-800" />
+                    </label>
+                  </div>
                 </div>
-              </>
-            )}
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <label className="text-sm text-stone-700 dark:text-gray-300">
+                    <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Min grade</span>
+                    <select
+                      value={minGrade}
+                      onChange={(event) => {
+                        const value = event.target.value
+                        setMinGrade(value)
+                        if (value && maxGrade) {
+                          const nextMin = getGradeIndex(value)
+                          const nextMax = getGradeIndex(maxGrade)
+                          if (nextMin !== undefined && nextMax !== undefined && nextMin > nextMax) {
+                            setMaxGrade(value)
+                          }
+                        }
+                      }}
+                      className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                    >
+                      <option value="">Any</option>
+                      {FILTER_GRADES.map((grade) => (
+                        <option key={`min-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-sm text-stone-700 dark:text-gray-300">
+                    <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Max grade</span>
+                    <select
+                      value={maxGrade}
+                      onChange={(event) => {
+                        const value = event.target.value
+                        setMaxGrade(value)
+                        if (value && minGrade) {
+                          const nextMax = getGradeIndex(value)
+                          const nextMin = getGradeIndex(minGrade)
+                          if (nextMax !== undefined && nextMin !== undefined && nextMax < nextMin) {
+                            setMinGrade(value)
+                          }
+                        }
+                      }}
+                      className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                    >
+                      <option value="">Any</option>
+                      {FILTER_GRADES.map((grade) => (
+                        <option key={`max-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="rounded-xl border border-stone-200 px-3 py-2 dark:border-gray-700">
+                    <p className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Topo filter</p>
+                    <label className="mt-2 flex items-center gap-2 text-sm text-stone-700 dark:text-gray-300">
+                      <Checkbox checked={topoOnly} onCheckedChange={(checked) => setTopoOnly(checked === true)} />
+                      Topo only
+                    </label>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRouteSort('sends')
+                        setMinGrade('')
+                        setMaxGrade('')
+                        setMinRating('')
+                        setMinSends('')
+                        setSearchQuery('')
+                        setSelectedDirections([])
+                        setSelectedRouteTypes([])
+                        setTopoOnly(false)
+                      }}
+                      className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                      Reset all
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                  <div>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Face direction</p>
+                    <div className="flex flex-wrap gap-2">
+                      {availableDirections.length === 0 && <span className="text-sm text-stone-500 dark:text-gray-400">No face direction data yet.</span>}
+                      {availableDirections.map((direction) => {
+                        const selected = selectedDirections.includes(direction)
+                        return (
+                          <button
+                            key={direction}
+                            type="button"
+                            onClick={() => {
+                              setSelectedDirections((prev) => prev.includes(direction) ? prev.filter((item) => item !== direction) : [...prev, direction])
+                            }}
+                            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                              selected
+                                ? 'border-stone-900 bg-stone-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
+                                : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {direction}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Route type</p>
+                    <div className="flex flex-wrap gap-2">
+                      {routeTypeChips.length === 0 && <span className="text-sm text-stone-500 dark:text-gray-400">No route type data yet.</span>}
+                      {routeTypeChips.map((routeType) => {
+                        const selected = selectedRouteTypes.includes(routeType)
+                        return (
+                          <button
+                            key={routeType}
+                            type="button"
+                            onClick={() => {
+                              setSelectedRouteTypes((prev) => prev.includes(routeType) ? prev.filter((item) => item !== routeType) : [...prev, routeType])
+                            }}
+                            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                              selected
+                                ? 'border-orange-600 bg-orange-600 text-white'
+                                : 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            {formatRouteTypeLabel(routeType)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {activeRouteFilterChips.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {activeRouteFilterChips.map((chip) => (
+                      <button key={chip.key} type="button" onClick={chip.onRemove} className="rounded-full border border-stone-300 bg-stone-50 px-3 py-1 text-xs font-medium text-stone-700 transition hover:bg-stone-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                        {chip.label} ×
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-stone-600 dark:text-gray-300">
+                  <p><span className="font-semibold tabular-nums text-stone-900 dark:text-gray-100">{filteredRoutes.length}</span> route{filteredRoutes.length === 1 ? '' : 's'} match your current view</p>
+                  <p>Sorted by <span className="font-medium text-stone-900 dark:text-gray-100">{routeSort === 'sends' ? 'Most sent' : routeSort === 'rating' ? 'Highest rated' : routeSort === 'grade' ? 'Grade' : 'Name'}</span></p>
+                </div>
+              </div>
+
+              {routesLoadState === 'loading' ? (
+                <p className="px-4 py-4 text-sm text-stone-500 dark:text-gray-400">Loading crag route intelligence...</p>
+              ) : routesLoadState === 'error' ? (
+                <p className="px-4 py-4 text-sm text-stone-500 dark:text-gray-400">Route intelligence is unavailable right now.</p>
+              ) : filteredRoutes.length === 0 ? (
+                <p className="px-4 py-4 text-sm text-stone-500 dark:text-gray-400">No routes match this filter combination.</p>
+              ) : (
+                <>
+                  <table className="hidden w-full md:table">
+                    <thead>
+                      <tr className="border-b border-stone-200 bg-stone-50 dark:border-gray-800 dark:bg-gray-950">
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Route</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Grade</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Rating</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Sends</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Face</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-gray-400">Topo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRoutes.map((route) => (
+                        <tr key={route.id} className="border-b border-stone-100 last:border-0 dark:border-gray-800/70">
+                          <td className="px-4 py-3 text-sm text-stone-900 dark:text-gray-100">
+                            {route.slug || isOfflineDocumentNavigationPreferred() ? (
+                              <a href={getRouteDestination(route)} className="font-medium text-stone-900 hover:underline dark:text-gray-100">
+                                {route.name}
+                              </a>
+                            ) : (
+                              <span className="font-medium">{route.name}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm tabular-nums text-stone-700 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</td>
+                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">
+                            <div className="flex items-center gap-1.5">
+                              <Star className={`size-3.5 ${route.weightedRating === null ? 'text-stone-300 dark:text-gray-600' : 'fill-amber-400 text-amber-500'}`} />
+                              <span className="tabular-nums">{formatRatingValue(route.weightedRating)}</span>
+                              <span className="text-xs text-stone-500 dark:text-gray-400">({route.ratingCount})</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm tabular-nums text-stone-700 dark:text-gray-300">{route.sendCount}</td>
+                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">{route.directions.length > 0 ? route.directions.join(', ') : 'Unknown'}</td>
+                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">{route.routeType ? formatRouteTypeLabel(route.routeType) : '—'}</td>
+                          <td className="px-4 py-3 text-sm text-stone-700 dark:text-gray-300">{route.hasTopo ? `${route.topoImageCount} image${route.topoImageCount === 1 ? '' : 's'}` : 'No topo'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="space-y-3 p-3 md:hidden">
+                    {filteredRoutes.map((route) => (
+                      <div key={route.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3 dark:border-gray-700 dark:bg-gray-800">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            {route.slug || isOfflineDocumentNavigationPreferred() ? (
+                              <a href={getRouteDestination(route)} className="text-sm font-semibold text-stone-900 hover:underline dark:text-gray-100">
+                                {route.name}
+                              </a>
+                            ) : (
+                              <p className="text-sm font-semibold text-stone-900 dark:text-gray-100">{route.name}</p>
+                            )}
+                            <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{route.routeType ? formatRouteTypeLabel(route.routeType) : 'Route type unknown'}</p>
+                          </div>
+                          <span className="text-sm tabular-nums text-stone-600 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</span>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-600 dark:text-gray-300">
+                          <span className="rounded-full bg-white px-2 py-1 dark:bg-gray-900">{route.sendCount} send{route.sendCount === 1 ? '' : 's'}</span>
+                          <span className="rounded-full bg-white px-2 py-1 dark:bg-gray-900">{formatRatingValue(route.weightedRating)}{route.ratingCount > 0 ? ` (${route.ratingCount})` : ''}</span>
+                          <span className="rounded-full bg-white px-2 py-1 dark:bg-gray-900">{route.hasTopo ? `${route.topoImageCount} topo` : 'No topo'}</span>
+                        </div>
+                        <p className="mt-2 text-xs text-stone-500 dark:text-gray-400">Faces: {route.directions.length > 0 ? route.directions.join(', ') : 'Unknown'}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
 
