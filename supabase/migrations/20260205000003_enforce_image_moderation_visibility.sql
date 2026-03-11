@@ -25,11 +25,11 @@ BEGIN
       AND tablename = 'images'
       AND policyname = 'Public read approved images'
   ) THEN
-    EXECUTE $$
+    EXECUTE $policy$
       CREATE POLICY "Public read approved images" ON public.images
       FOR SELECT
       USING (coalesce(moderation_status, 'pending') = 'approved')
-    $$;
+    $policy$;
   END IF;
 
   -- Do not create owner/admin read policies: rejected images must not be visible
