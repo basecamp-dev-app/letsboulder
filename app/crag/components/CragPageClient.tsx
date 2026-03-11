@@ -372,6 +372,13 @@ function formatRatingValue(value: number | null) {
   return value === null ? 'Unrated' : value.toFixed(1)
 }
 
+function formatStatValue(value: number | string | null, state: 'idle' | 'loading' | 'loaded' | 'error') {
+  if (state === 'error') return '—'
+  if (state === 'idle' || state === 'loading') return '...'
+  if (value === null) return '—'
+  return value
+}
+
 function toRad(deg: number) {
   return (deg * Math.PI) / 180
 }
@@ -1044,6 +1051,15 @@ export default function CragPageClient({
     }
   }, [routes])
 
+  const routeInsightsState = routeView === 'routes'
+    ? routesLoadState
+    : routes.length > 0
+      ? 'loaded'
+      : 'idle'
+
+  const routeInsightsUnavailable = routeInsightsState === 'error'
+  const routeInsightsLoading = routeInsightsState === 'idle' || routeInsightsState === 'loading'
+
   const activeRouteFilterChips = useMemo(() => {
     const chips: Array<{ key: string; label: string; onRemove: () => void }> = []
 
@@ -1617,46 +1633,52 @@ export default function CragPageClient({
 
         {routeView === 'routes' && (
           <div className="mb-6 space-y-4">
+            {routeInsightsUnavailable ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+                Route intelligence is unavailable right now. Crag stats and sorting signals will appear again once the route metrics query is reachable.
+              </div>
+            ) : null}
+
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
               <div className="rounded-2xl border border-stone-200 bg-gradient-to-br from-white via-white to-stone-50 p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Routes</p>
                   <Mountain className="size-4 text-stone-400" />
                 </div>
-                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.totalRoutes}</p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeStats.topoCoverageCount} with topo coverage</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{formatStatValue(routeStats.totalRoutes, routeInsightsState)}</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading route count...' : routeInsightsUnavailable ? 'Waiting on route intelligence' : `${routeStats.topoCoverageCount} with topo coverage`}</p>
               </div>
               <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 via-white to-white p-4 shadow-sm dark:border-orange-900/40 dark:bg-gray-900">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Unique Sends</p>
                   <TrendingUp className="size-4 text-orange-500" />
                 </div>
-                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.totalSendsAcrossRoutes}</p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">All-time logged senders across this crag</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{formatStatValue(routeStats.totalSendsAcrossRoutes, routeInsightsState)}</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading send history...' : routeInsightsUnavailable ? 'Send data unavailable' : 'All-time logged senders across this crag'}</p>
               </div>
               <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white p-4 shadow-sm dark:border-amber-900/40 dark:bg-gray-900">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Avg Rating</p>
                   <Star className="size-4 fill-amber-400 text-amber-500" />
                 </div>
-                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.averageRating === null ? '—' : routeStats.averageRating.toFixed(1)}</p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeStats.ratedRoutesCount} route{routeStats.ratedRoutesCount === 1 ? '' : 's'} rated</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{formatStatValue(routeStats.averageRating === null ? null : routeStats.averageRating.toFixed(1), routeInsightsState)}</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading community ratings...' : routeInsightsUnavailable ? 'Rating data unavailable' : `${routeStats.ratedRoutesCount} route${routeStats.ratedRoutesCount === 1 ? '' : 's'} rated`}</p>
               </div>
               <div className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50 via-white to-white p-4 shadow-sm dark:border-teal-900/40 dark:bg-gray-900">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Median Grade</p>
                   <BarChart3 className="size-4 text-teal-600" />
                 </div>
-                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.medianGrade ? formatGradeForDisplay(routeStats.medianGrade, gradeSystem) : '—'}</p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">Middle of the route pack</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{formatStatValue(routeStats.medianGrade ? formatGradeForDisplay(routeStats.medianGrade, gradeSystem) : null, routeInsightsState)}</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading grade spread...' : routeInsightsUnavailable ? 'Grade summary unavailable' : 'Middle of the route pack'}</p>
               </div>
               <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-white p-4 shadow-sm dark:border-sky-900/40 dark:bg-gray-900">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-gray-400">Mode Grade</p>
                   <Layers3 className="size-4 text-sky-600" />
                 </div>
-                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{routeStats.mostCommonGrade ? formatGradeForDisplay(routeStats.mostCommonGrade.grade, gradeSystem) : '—'}</p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeStats.mostCommonGrade?.count || 0} route{routeStats.mostCommonGrade?.count === 1 ? '' : 's'}</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-gray-100">{formatStatValue(routeStats.mostCommonGrade ? formatGradeForDisplay(routeStats.mostCommonGrade.grade, gradeSystem) : null, routeInsightsState)}</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading route mix...' : routeInsightsUnavailable ? 'Mode unavailable' : `${routeStats.mostCommonGrade?.count || 0} route${routeStats.mostCommonGrade?.count === 1 ? '' : 's'}`}</p>
               </div>
               <div className="rounded-2xl border border-stone-200 bg-gradient-to-br from-stone-100 via-white to-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex items-center justify-between gap-3">
@@ -1664,13 +1686,13 @@ export default function CragPageClient({
                   <Compass className="size-4 text-stone-500" />
                 </div>
                 <p className="mt-2 text-lg font-semibold text-stone-900 dark:text-gray-100">
-                  {routeStats.routeTypeMix[0] ? formatRouteTypeLabel(routeStats.routeTypeMix[0].routeType) : 'Unclassified'}
+                  {formatStatValue(routeStats.routeTypeMix[0] ? formatRouteTypeLabel(routeStats.routeTypeMix[0].routeType) : 'Unclassified', routeInsightsState)}
                 </p>
-                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">Most common style here</p>
+                <p className="mt-1 text-xs text-stone-500 dark:text-gray-400">{routeInsightsLoading ? 'Loading style mix...' : routeInsightsUnavailable ? 'Style mix unavailable' : 'Most common style here'}</p>
               </div>
             </div>
 
-            {routeStats.gradeDistribution.length > 0 && <CragRouteCharts gradeDistribution={routeStats.gradeDistribution} sendsByGrade={routeStats.sendsByGrade} />}
+            {!routeInsightsLoading && !routeInsightsUnavailable && routeStats.gradeDistribution.length > 0 && <CragRouteCharts gradeDistribution={routeStats.gradeDistribution} sendsByGrade={routeStats.sendsByGrade} />}
 
             <div className="overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
               <div className="border-b border-stone-200 bg-gradient-to-br from-stone-50 via-white to-orange-50/40 p-4 dark:border-gray-800 dark:bg-gray-900">
