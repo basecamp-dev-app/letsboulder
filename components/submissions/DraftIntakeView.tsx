@@ -20,6 +20,8 @@ interface DraftCreateResponse {
 interface UploadedImagePayload {
   uploadedBucket: string
   uploadedPath: string
+  gpsData: GpsData | null
+  captureDate: string | null
   width: number
   height: number
 }
@@ -62,6 +64,8 @@ export default function DraftIntakeView() {
     const images = selection.images.map((image) => ({
       uploadedBucket: image.uploadedBucket,
       uploadedPath: image.uploadedPath,
+      gpsData: image.gpsData,
+      captureDate: image.captureDate,
       width: image.width,
       height: image.height,
     }))
