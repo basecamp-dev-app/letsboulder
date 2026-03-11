@@ -1135,6 +1135,14 @@ export default function CragPageClient({
     )
   }, [orderedImages])
 
+  const pinNumberByImageId = useMemo(() => {
+    const mapping = new Map<string, number>()
+    mappableImages.forEach((image, index) => {
+      mapping.set(image.id, index + 1)
+    })
+    return mapping
+  }, [mappableImages])
+
   const routeTypeChips = useMemo(() => {
     const uniqueTypes = new Set<string>()
     for (const route of routes) {
@@ -1578,7 +1586,7 @@ export default function CragPageClient({
                   font-weight: bold;
                   border: 2px solid white;
                   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                ">${imageIndexById.get(image.id) ?? ''}</div>`,
+                ">${pinNumberByImageId.get(image.id) ?? ''}</div>`,
                 iconSize: [24, 24],
                 iconAnchor: [12, 12]
               })}
@@ -1604,7 +1612,7 @@ export default function CragPageClient({
                   <div className="relative h-24 w-full overflow-hidden rounded-md bg-gray-200 dark:bg-gray-700">
                     <Image
                       src={image.url}
-                      alt={`${crag.name} topo image ${imageIndexById.get(image.id) ?? ''}`.trim()}
+                      alt={`${crag.name} topo image ${pinNumberByImageId.get(image.id) ?? imageIndexById.get(image.id) ?? ''}`.trim()}
                       fill
                       className="object-cover"
                       sizes="160px"
@@ -1616,7 +1624,7 @@ export default function CragPageClient({
                       </div>
                     )}
                     <div className="absolute top-2 left-2 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-gray-900 shadow-sm">
-                      {imageIndexById.get(image.id) ?? ''}
+                      {pinNumberByImageId.get(image.id) ?? ''}
                     </div>
                     <div className="absolute bottom-2 right-2 rounded-full bg-gray-900/80 px-2 py-1 text-xs text-white">
                       {image.route_lines_count} routes
@@ -1726,6 +1734,11 @@ export default function CragPageClient({
                       {routePreviewByClimbId[route.id] ? (
                         <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                           <Image src={routePreviewByClimbId[route.id].imageUrl} alt={`${route.name} topo preview`} fill className="object-cover" sizes="64px" unoptimized />
+                          {pinNumberByImageId.get(routePreviewByClimbId[route.id].imageId) ? (
+                            <div className="absolute left-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-white/95 text-[10px] font-semibold text-stone-900 shadow-sm dark:bg-gray-900/95 dark:text-gray-100">
+                              {pinNumberByImageId.get(routePreviewByClimbId[route.id].imageId)}
+                            </div>
+                          ) : null}
                         </div>
                       ) : (
                         <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 text-[10px] font-medium uppercase tracking-wide text-stone-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">No topo</div>
