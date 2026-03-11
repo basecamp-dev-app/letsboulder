@@ -10,6 +10,11 @@ export const runtime = 'nodejs'
 interface DraftCreateImageInput {
   uploadedBucket: string
   uploadedPath: string
+  gpsData?: {
+    latitude: number
+    longitude: number
+  } | null
+  captureDate?: string | null
   width?: number
   height?: number
 }
@@ -27,6 +32,13 @@ function normalizeCreateImages(value: unknown): DraftCreateImageInput[] | null {
     images.push({
       uploadedBucket: candidate.uploadedBucket,
       uploadedPath: candidate.uploadedPath,
+      gpsData: candidate.gpsData && typeof candidate.gpsData === 'object' && typeof candidate.gpsData.latitude === 'number' && typeof candidate.gpsData.longitude === 'number'
+        ? {
+            latitude: candidate.gpsData.latitude,
+            longitude: candidate.gpsData.longitude,
+          }
+        : null,
+      captureDate: typeof candidate.captureDate === 'string' && candidate.captureDate ? candidate.captureDate : null,
       width: typeof candidate.width === 'number' ? candidate.width : undefined,
       height: typeof candidate.height === 'number' ? candidate.height : undefined,
     })
@@ -138,6 +150,9 @@ export async function POST(request: NextRequest) {
       display_order: index,
       storage_bucket: image.uploadedBucket,
       storage_path: image.uploadedPath,
+      latitude: image.gpsData?.latitude ?? null,
+      longitude: image.gpsData?.longitude ?? null,
+      capture_date: image.captureDate ?? null,
       width: image.width ?? null,
       height: image.height ?? null,
       route_data: {},

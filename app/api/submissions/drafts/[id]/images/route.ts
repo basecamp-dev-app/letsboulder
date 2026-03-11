@@ -8,6 +8,11 @@ import { userOwnsUploadedObject } from '@/lib/media/ownership'
 interface DraftAppendImageInput {
   storage_bucket: string
   storage_path: string
+  gps_data?: {
+    latitude: number
+    longitude: number
+  } | null
+  capture_date?: string | null
   width?: number | null
   height?: number | null
   route_data?: Record<string, unknown>
@@ -47,12 +52,19 @@ function normalizeImages(value: unknown): DraftAppendImageInput[] | null {
     if (typeof candidate.storage_bucket !== 'string' || !candidate.storage_bucket) return null
     if (typeof candidate.storage_path !== 'string' || !candidate.storage_path) return null
 
-    normalized.push({
-      storage_bucket: candidate.storage_bucket,
-      storage_path: candidate.storage_path,
-      width: typeof candidate.width === 'number' ? candidate.width : null,
-      height: typeof candidate.height === 'number' ? candidate.height : null,
-      route_data: candidate.route_data && typeof candidate.route_data === 'object' && !Array.isArray(candidate.route_data)
+      normalized.push({
+        storage_bucket: candidate.storage_bucket,
+        storage_path: candidate.storage_path,
+        gps_data: candidate.gps_data && typeof candidate.gps_data === 'object' && typeof candidate.gps_data.latitude === 'number' && typeof candidate.gps_data.longitude === 'number'
+          ? {
+              latitude: candidate.gps_data.latitude,
+              longitude: candidate.gps_data.longitude,
+            }
+          : null,
+        capture_date: typeof candidate.capture_date === 'string' && candidate.capture_date ? candidate.capture_date : null,
+        width: typeof candidate.width === 'number' ? candidate.width : null,
+        height: typeof candidate.height === 'number' ? candidate.height : null,
+        route_data: candidate.route_data && typeof candidate.route_data === 'object' && !Array.isArray(candidate.route_data)
         ? candidate.route_data
         : {},
     })
