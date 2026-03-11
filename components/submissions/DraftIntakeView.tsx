@@ -1,12 +1,14 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ImagePicker from '@/app/submit/components/ImagePicker'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { csrfFetch } from '@/hooks/useCsrf'
-import type { GpsData, ImageSelection } from '@/lib/submission-types'
+import type { Crag, GpsData, ImageSelection } from '@/lib/submission-types'
+
+const AUTO_ASSIGN_CRAG_RADIUS_METERS = 150
 
 interface DraftCreateResponse {
   draft?: {
@@ -22,11 +24,16 @@ interface UploadedImagePayload {
   height: number
 }
 
+interface NearbyCragMatch extends Pick<Crag, 'id' | 'name'> {
+  distance?: number | null
+}
+
 export default function DraftIntakeView() {
   const router = useRouter()
   const { toasts, addToast, removeToast } = useToast()
   const [selectedImages, setSelectedImages] = useState<UploadedImagePayload[]>([])
   const [selectedGps, setSelectedGps] = useState<GpsData | null>(null)
+  const [nearbyCragMatch, setNearbyCragMatch] = useState<NearbyCragMatch | null>(null)
   const [uploadsInFlight, setUploadsInFlight] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +49,7 @@ export default function DraftIntakeView() {
     if (!selection) {
       setSelectedImages([])
       setSelectedGps(null)
+      setNearbyCragMatch(null)
       setError(null)
       return
     }
@@ -60,8 +68,51 @@ export default function DraftIntakeView() {
 
     setSelectedImages(images)
     setSelectedGps(gpsData)
+    setNearbyCragMatch(null)
     setError(null)
   }, [])
+
+  const findNearbyCragMatch = useCallback(async (gps: GpsData | null) => {
+    if (!gps) return null
+
+    const params = new URLSearchParams({
+      lat: gps.latitude.toString(),
+      lng: gps.longitude.toString(),
+    })
+    const response = await fetch(`/api/crags/nearby?${params.toString()}`)
+    if (!response.ok) return null
+
+    const payload = await response.json().catch(() => [] as NearbyCragMatch[])
+    if (!Array.isArray(payload) || payload.length === 0) return null
+
+    const nearest = payload[0]
+    if (!nearest || typeof nearest.id !== 'string' || typeof nearest.name !== 'string') return null
+    if (typeof nearest.distance !== 'number' || nearest.distance > AUTO_ASSIGN_CRAG_RADIUS_METERS) return null
+
+    return nearest
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadNearbyCragMatch() {
+      if (!selectedGps) {
+        setNearbyCragMatch(null)
+        return
+      }
+
+      const matchedCrag = await findNearbyCragMatch(selectedGps)
+      if (!cancelled) {
+        setNearbyCragMatch(matchedCrag)
+      }
+    }
+
+    void loadNearbyCragMatch()
+
+    return () => {
+      cancelled = true
+    }
+  }, [findNearbyCragMatch, selectedGps])
 
   const createDraft = useCallback(async () => {
     if (!canCreateDraft) return
@@ -69,10 +120,13 @@ export default function DraftIntakeView() {
     setSubmitting(true)
     setError(null)
     try {
+      const matchedCrag = nearbyCragMatch ?? await findNearbyCragMatch(selectedGps)
+
       const response = await csrfFetch('/api/submissions/drafts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          cragId: matchedCrag?.id ?? null,
           images: selectedImages,
           metadata: {
             primaryIndex: 0,
@@ -94,7 +148,11 @@ export default function DraftIntakeView() {
       }
 
       const draftHref = `/logbook/drafts/${payload.draft.id}/edit`
-      addToast('Draft created. Continue editing in Draft Editor.', 'success')
+      if (matchedCrag) {
+        addToast(`Draft created with nearby crag: ${matchedCrag.name}`, 'success')
+      } else {
+        addToast('Draft created. Continue editing in Draft Editor.', 'success')
+      }
       router.push(draftHref)
       window.setTimeout(() => {
         if (window.location.pathname === '/submit') {
@@ -108,7 +166,7 @@ export default function DraftIntakeView() {
     } finally {
       setSubmitting(false)
     }
-  }, [addToast, canCreateDraft, router, selectedGps, selectedImages])
+  }, [addToast, canCreateDraft, findNearbyCragMatch, nearbyCragMatch, router, selectedGps, selectedImages])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -123,10 +181,10 @@ export default function DraftIntakeView() {
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Start a new draft</h1>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Upload photos first, then continue in Draft Editor to choose or create a crag, draw routes, invite collaborators, and publish.
+            Upload photos first, then continue in Draft Editor to review the suggested crag, draw routes, invite collaborators, and publish.
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            You can upload multiple photos at once, but they will all map to one pin, so they should show the same face or boulder area. Use a separate submission for a different face or area.
+            Upload all photos for one crag in the same draft. Each photo keeps its original GPS, nearby photos can group into shared map pins, and if a photo is within 150m of an existing crag we will try to preselect it for you.
           </p>
         </div>
 
@@ -136,7 +194,12 @@ export default function DraftIntakeView() {
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{selectedLabel}</p>
           {selectedGps ? (
             <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
-              Location loaded from photo GPS and shared across all uploaded faces.
+              Location loaded from the first uploaded photo with GPS. We will use it to suggest a nearby crag if one exists.
+            </p>
+          ) : null}
+          {nearbyCragMatch ? (
+            <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+              Nearby crag ready to preselect: {nearbyCragMatch.name}
             </p>
           ) : null}
         </div>
