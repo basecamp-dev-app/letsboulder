@@ -18,7 +18,6 @@ import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import type { OfflineCragMapPin } from '@/components/OfflineCragMapSnippet'
 import { buildCragImageDestination, type ImageRouteTarget } from '@/app/crag/components/crag-image-destination'
 import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
@@ -130,27 +129,9 @@ interface OrderedPinCluster extends CragPinCluster<ClusteredImageData> {
 interface OfflineHydratedCragData {
   images: ImageData[]
   routes: CragRoute[]
-  imageCards: OfflineCragImageCard[]
-  pins: OfflineCragMapPin[]
+  routePreviewByClimbId: Record<string, RoutePreview>
   defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
   cragCenter: [number, number] | null
-}
-
-interface OfflineCragRouteSummary {
-  routeId: string
-  climbId: string
-  name: string
-  grade: string
-  routeType: string | null
-}
-
-interface OfflineCragImageCard {
-  imageId: string
-  imageUrl: string
-  href: string
-  latitude: number | null
-  longitude: number | null
-  routes: OfflineCragRouteSummary[]
 }
 
 interface RouteLineTargetRow {
@@ -297,10 +278,9 @@ function remapRoutePreviewsByEffectiveClimbId(
 
 function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedCragData {
   const imageMap = new Map<string, ImageData>()
+  const routePreviewByClimbId: Record<string, RoutePreview> = {}
   const defaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
   const routeMap = new Map<string, CragRoute>()
-  const imageCardMap = new Map<string, OfflineCragImageCard>()
-  const pinMap = new Map<string, OfflineCragMapPin>()
 
   const getOfflineSlug = (canonicalPath: string | undefined, climbId: string) => {
     if (!canonicalPath || canonicalPath === `/climb/${climbId}`) return null
@@ -361,77 +341,26 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
       recentSendCount60d: 0,
     })
 
-    const fallbackRouteSummary: OfflineCragRouteSummary = {
-      routeId: payload.primary_route_lines?.[0]?.id || `fallback-route:${climb.id}`,
-      climbId: climb.id,
-      name: climb.name || 'Unnamed climb',
-      grade: normalizeGrade(climb.grade) || 'Unknown',
-      routeType: climb.route_type,
-    }
-
-    const routeSummaries = (Array.isArray(payload.primary_route_lines) && payload.primary_route_lines.length > 0
-      ? payload.primary_route_lines.map((line) => ({
-          routeId: line.id,
-          climbId: line.climb_id,
-          name: line.climb?.name || fallbackRouteSummary.name,
-          grade: normalizeGrade(line.climb?.grade || fallbackRouteSummary.grade) || fallbackRouteSummary.grade,
-          routeType: line.climb?.route_type || fallbackRouteSummary.routeType,
-        }))
-      : [fallbackRouteSummary]
-    ).sort((a, b) => {
-      const gradeCompare = a.grade.localeCompare(b.grade)
-      if (gradeCompare !== 0) return gradeCompare
-      return a.name.localeCompare(b.name)
-    })
-
-    const firstRoute = routeSummaries[0] || fallbackRouteSummary
-    const next = new URLSearchParams()
-    next.set('image', primaryImage.id)
-    const href = `/climb/${firstRoute.climbId}?${next.toString()}`
-    const existingCard = imageCardMap.get(primaryImage.id)
-    const nextRoutes = new Map<string, OfflineCragRouteSummary>()
-
-    for (const route of existingCard?.routes || []) {
-      nextRoutes.set(route.routeId, route)
-    }
-
-    for (const route of routeSummaries) {
-      nextRoutes.set(route.routeId, route)
-    }
-
-    imageCardMap.set(primaryImage.id, {
-      imageId: primaryImage.id,
-      imageUrl: primaryImage.url,
-      href,
-      latitude: primaryImage.latitude ?? null,
-      longitude: primaryImage.longitude ?? null,
-      routes: Array.from(nextRoutes.values()).sort((a, b) => {
-        const gradeCompare = a.grade.localeCompare(b.grade)
-        if (gradeCompare !== 0) return gradeCompare
-        return a.name.localeCompare(b.name)
-      }),
-    })
-
-    if (typeof primaryImage.latitude === 'number' && typeof primaryImage.longitude === 'number') {
-      pinMap.set(primaryImage.id, {
-        id: primaryImage.id,
-        label: `${routeSummaries.length} route${routeSummaries.length === 1 ? '' : 's'}`,
-        latitude: primaryImage.latitude,
-        longitude: primaryImage.longitude,
-      })
+    for (const line of payload.primary_route_lines || []) {
+      if (routePreviewByClimbId[line.climb_id]) continue
+      routePreviewByClimbId[line.climb_id] = {
+        imageId: primaryImage.id,
+        imageUrl: primaryImage.url,
+      }
     }
   }
 
-  const pins = Array.from(pinMap.values())
-  const cragCenter = pins.length > 0
-    ? getAverageCoordinates(pins.map((pin) => ({ latitude: pin.latitude, longitude: pin.longitude })))
+  const imagesWithCoordinates = Array.from(imageMap.values()).filter(
+    (image): image is ImageData & { latitude: number; longitude: number } => typeof image.latitude === 'number' && typeof image.longitude === 'number'
+  )
+  const cragCenter = imagesWithCoordinates.length > 0
+    ? getAverageCoordinates(imagesWithCoordinates)
     : null
 
   return {
     images: Array.from(imageMap.values()),
     routes: Array.from(routeMap.values()),
-    imageCards: Array.from(imageCardMap.values()).sort((a, b) => a.imageId.localeCompare(b.imageId)),
-    pins,
+    routePreviewByClimbId,
     defaultRouteTargetByImageId,
     cragCenter,
   }
@@ -707,18 +636,7 @@ export default function CragPageClient({
         setImages(hydrated.images)
         setRoutes(hydrated.routes)
         setRoutesLoadState('loaded')
-        const nextRoutePreviewByClimbId: Record<string, RoutePreview> = {}
-        for (const imageCard of hydrated.imageCards) {
-          for (const route of imageCard.routes) {
-            if (!nextRoutePreviewByClimbId[route.climbId]) {
-              nextRoutePreviewByClimbId[route.climbId] = {
-                imageId: imageCard.imageId,
-                imageUrl: imageCard.imageUrl,
-              }
-            }
-          }
-        }
-        setRoutePreviewByClimbId(nextRoutePreviewByClimbId)
+        setRoutePreviewByClimbId(hydrated.routePreviewByClimbId)
         setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
         setCrag(initialCrag)
         setCragCenter(hydrated.cragCenter)
