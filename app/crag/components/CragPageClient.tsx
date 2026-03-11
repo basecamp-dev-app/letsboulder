@@ -18,6 +18,7 @@ import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/communit
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { OfflineCragMapPin } from '@/components/OfflineCragMapSnippet'
+import { buildCragImageDestination, type ImageRouteTarget } from '@/app/crag/components/crag-image-destination'
 import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
 import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
@@ -128,13 +129,6 @@ interface RouteLineTargetRow {
     | { slug: string | null }
     | Array<{ slug: string | null }>
     | null
-}
-
-interface ImageRouteTarget {
-  climbId: string
-  routeId: string
-  climbSlug: string | null
-  imageId: string
 }
 
 interface CachedCragImageData {
@@ -964,37 +958,18 @@ export default function CragPageClient({
       })
   }, [maxGrade, minGrade, routes, selectedDirections])
 
-  const scrollToImageCard = useMemo(() => {
-    return (imageId: string) => {
-      if (typeof document === 'undefined') return
-      const el = imageCardRefs.current.get(imageId) || document.getElementById(`crag-image-${imageId}`)
-      if (!el) return
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      setHighlightedImageId(imageId)
-      window.setTimeout(() => setHighlightedImageId((prev) => (prev === imageId ? null : prev)), 1400)
-    }
+  const highlightImageCard = useCallback((imageId: string) => {
+    setHighlightedImageId(imageId)
+    window.setTimeout(() => setHighlightedImageId((prev) => (prev === imageId ? null : prev)), 1400)
   }, [])
 
   const getImageDestination = useCallback((imageId: string) => {
-    const target = defaultRouteTargetByImageId[imageId]
-    if (!target) return `/image/${imageId}`
-
-    const offlineOnly = typeof navigator !== 'undefined' && navigator.onLine === false
-    if (offlineOnly) {
-      const next = new URLSearchParams()
-      next.set('route', target.routeId)
-      next.set('image', target.imageId)
-      return `/climb/${target.climbId}?${next.toString()}`
-    }
-
-    if (target.climbSlug && routeHrefBase) {
-      return `${routeHrefBase}/${target.climbSlug}`
-    }
-
-    const next = new URLSearchParams()
-    next.set('route', target.routeId)
-    next.set('image', target.imageId)
-    return `/climb/${target.climbId}?${next.toString()}`
+    return buildCragImageDestination({
+      imageId,
+      target: defaultRouteTargetByImageId[imageId],
+      routeHrefBase,
+      offlineOnly: typeof navigator !== 'undefined' && navigator.onLine === false,
+    })
   }, [defaultRouteTargetByImageId, routeHrefBase])
 
   const getRouteDestination = useCallback((route: CragRoute) => {
@@ -1191,7 +1166,7 @@ export default function CragPageClient({
               eventHandlers={{
                 click: (e: L.LeafletMouseEvent) => {
                   e.originalEvent.stopPropagation()
-                  scrollToImageCard(image.id)
+                  highlightImageCard(image.id)
                 },
               }}
             >
