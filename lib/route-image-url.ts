@@ -1,5 +1,11 @@
 const PRIVATE_URL_PREFIX = 'private://'
 
+function buildMediaHostUrl(path: string): string {
+  const mediaHost = process.env.NEXT_PUBLIC_MEDIA_HOST?.replace(/\/$/, '')
+  if (!mediaHost) return path
+  return `${mediaHost}${path}`
+}
+
 function buildCdnUrl(objectPath: string): string | null {
   const cdnBaseUrl = process.env.MEDIA_CDN_BASE_URL?.replace(/\/$/, '')
   if (!cdnBaseUrl || !objectPath) return null
@@ -44,6 +50,10 @@ function parseSupabasePublicUrl(url: string): { bucket: string; objectPath: stri
 
 export function resolveRouteImageUrl(url: string | null | undefined): string {
   if (!url) return ''
+
+  if (url.startsWith('/media/') || url.startsWith('/cdn-cgi/')) {
+    return buildMediaHostUrl(url)
+  }
 
   const publicUrl = parseSupabasePublicUrl(url)
   if (publicUrl) {
