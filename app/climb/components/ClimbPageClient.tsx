@@ -1363,14 +1363,18 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         }
 
         const payload = await response.json() as {
-          images?: Array<{ id?: string; routeTarget?: { climbId?: string; routeId?: string; climbSlug?: string | null; imageId?: string } | null }>
+          images?: Array<{
+            id?: string
+            display_image_id?: string
+            routeTarget?: { climbId?: string; routeId?: string; climbSlug?: string | null; imageId?: string } | null
+          }>
           crag?: { country_code?: string | null; slug?: string | null } | null
         }
 
         if (cancelled) return
 
         const imagesList = Array.isArray(payload.images) ? payload.images : []
-        const currentIndex = imagesList.findIndex((item) => item.id === image.id)
+        const currentIndex = imagesList.findIndex((item) => (item.display_image_id || item.id) === image.id)
         if (currentIndex === -1) {
           setPrevImageTarget(null)
           setNextImageTarget(null)
@@ -1403,9 +1407,10 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         }
 
         const buildImageTarget = (item: typeof nextPinImage | typeof prevPinImage): CragImageNavigationTarget | null => {
-          if (!item?.id) return null
+          const displayImageId = item?.display_image_id || item?.id
+          if (!displayImageId) return null
           return {
-            imageId: item.id,
+            imageId: displayImageId,
             target: item.routeTarget?.climbId && item.routeTarget?.routeId && item.routeTarget?.imageId
               ? {
                   climbId: item.routeTarget.climbId,
