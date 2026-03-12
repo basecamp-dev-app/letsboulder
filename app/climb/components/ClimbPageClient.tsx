@@ -144,6 +144,14 @@ interface ViewerTouchState {
   startTouch: { x: number; y: number } | null
 }
 
+interface BoundarySwipeState {
+  startX: number
+  startY: number
+  lastX: number
+  lastY: number
+  active: boolean
+}
+
 interface InitialSelectionSnapshot {
   climbId: string
   routeParam: string | null
@@ -159,7 +167,7 @@ interface ClimbNavigationTarget {
 
 const MIN_VIEWER_ZOOM = 1
 const MAX_VIEWER_ZOOM = 3
-const CLIMB_BOUNDARY_DRAG_RATIO = 0.18
+const CLIMB_BOUNDARY_DRAG_RATIO = 0.15
 const GRADE_OPINION_LABELS: Record<GradeOpinion, string> = {
   soft: 'Soft',
   agree: 'Agree',
@@ -421,6 +429,13 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   const pendingSelectedRouteIdRef = useRef<string | null>(null)
   const routeDrivenFaceChangeRef = useRef(false)
   const boundaryNavigationLockRef = useRef(false)
+  const boundarySwipeRef = useRef<BoundarySwipeState>({
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    active: false,
+  })
   const gradeSystem = useGradeSystem()
   const { data: climbPackData, isLoading: isClimbPackLoading, error: climbPackError } = useQuery({
     queryKey: climbOfflinePackQueryKey(climbId),
@@ -644,6 +659,47 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     router.push(destination)
     return true
   }, [nextClimbTarget, prevClimbTarget, router])
+
+  const resetBoundarySwipe = useCallback(() => {
+    boundarySwipeRef.current = {
+      startX: 0,
+      startY: 0,
+      lastX: 0,
+      lastY: 0,
+      active: false,
+    }
+  }, [])
+
+  const evaluateBoundarySwipe = useCallback(() => {
+    const swipe = boundarySwipeRef.current
+    if (!swipe.active || zoom > MIN_VIEWER_ZOOM) {
+      resetBoundarySwipe()
+      return
+    }
+
+    const viewerWidth = emblaApi?.rootNode().getBoundingClientRect().width ?? 0
+    const threshold = Math.max(48, Math.min(120, viewerWidth * CLIMB_BOUNDARY_DRAG_RATIO))
+    const deltaX = swipe.lastX - swipe.startX
+    const deltaY = swipe.lastY - swipe.startY
+    const absX = Math.abs(deltaX)
+    const absY = Math.abs(deltaY)
+    const isSingleFaceClimb = visibleFaces.length <= 1
+    const isAtFirstFace = activeFaceIndex <= 0
+    const isAtLastFace = activeFaceIndex >= visibleFaces.length - 1
+
+    resetBoundarySwipe()
+
+    if (absX < threshold || absX <= absY) return
+
+    if ((isSingleFaceClimb || isAtFirstFace) && deltaX > 0) {
+      navigateToAdjacentClimb('prev')
+      return
+    }
+
+    if ((isSingleFaceClimb || isAtLastFace) && deltaX < 0) {
+      navigateToAdjacentClimb('next')
+    }
+  }, [activeFaceIndex, emblaApi, navigateToAdjacentClimb, resetBoundarySwipe, visibleFaces.length, zoom])
 
   const handlePrevNavigation = useCallback(() => {
     if (activeFaceIndex > 0) {
@@ -991,6 +1047,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     if (!emblaApi) return
 
     boundaryNavigationLockRef.current = false
+    resetBoundarySwipe()
 
     const rafId = window.requestAnimationFrame(() => {
       updateEmblaControls(true)
@@ -1020,22 +1077,44 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
       updateEmblaControls(false)
     }
 
-    const handleScroll = () => {
-      if (zoom > MIN_VIEWER_ZOOM || boundaryNavigationLockRef.current || visibleFaces.length === 0) return
-
-      const progress = emblaApi.scrollProgress()
-      const maxProgress = Math.max(visibleFaces.length - 1, 0)
-      const overscrollPrev = progress < 0 ? Math.abs(progress) : 0
-      const overscrollNext = progress > maxProgress ? progress - maxProgress : 0
-
-      if (activeFaceIndex === 0 && prevClimbTarget && overscrollPrev >= CLIMB_BOUNDARY_DRAG_RATIO) {
-        navigateToAdjacentClimb('prev')
+    const handlePointerDown = () => {
+      if (zoom > MIN_VIEWER_ZOOM) {
+        resetBoundarySwipe()
         return
       }
 
-      if (activeFaceIndex === visibleFaces.length - 1 && nextClimbTarget && overscrollNext >= CLIMB_BOUNDARY_DRAG_RATIO) {
-        navigateToAdjacentClimb('next')
+      const rootRect = emblaApi.rootNode().getBoundingClientRect()
+      const translate = emblaApi.internalEngine().location.get()
+      const clientX = rootRect.left - translate
+      const clientY = rootRect.top
+
+      if (typeof clientX !== 'number' || typeof clientY !== 'number') {
+        resetBoundarySwipe()
+        return
       }
+
+      boundarySwipeRef.current = {
+        startX: clientX,
+        startY: clientY,
+        lastX: clientX,
+        lastY: clientY,
+        active: true,
+      }
+    }
+
+    const handlePointerMove = () => {
+      const swipe = boundarySwipeRef.current
+      if (!swipe.active) return
+
+      const rootRect = emblaApi.rootNode().getBoundingClientRect()
+      const translate = emblaApi.internalEngine().location.get()
+      swipe.lastX = rootRect.left - translate
+      swipe.lastY = rootRect.top
+    }
+
+    const handlePointerUp = () => {
+      handlePointerMove()
+      evaluateBoundarySwipe()
     }
 
     const handleSettle = () => {
@@ -1053,17 +1132,21 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     }
 
     emblaApi.on('select', handleSelect)
-    emblaApi.on('scroll', handleScroll)
+    emblaApi.on('pointerDown', handlePointerDown)
+    emblaApi.on('scroll', handlePointerMove)
+    emblaApi.on('pointerUp', handlePointerUp)
     emblaApi.on('reInit', handleReInit)
     emblaApi.on('settle', handleSettle)
     return () => {
       window.cancelAnimationFrame(rafId)
       emblaApi.off('select', handleSelect)
-      emblaApi.off('scroll', handleScroll)
+      emblaApi.off('pointerDown', handlePointerDown)
+      emblaApi.off('scroll', handlePointerMove)
+      emblaApi.off('pointerUp', handlePointerUp)
       emblaApi.off('reInit', handleReInit)
       emblaApi.off('settle', handleSettle)
     }
-  }, [activeFaceIndex, clearSelection, emblaApi, navigateToAdjacentClimb, nextClimbTarget, prevClimbTarget, requestedFaceIndex, resetZoomPan, transitionBuffer, updateEmblaControls, updateRouteParam, visibleFaces.length, zoom])
+  }, [activeFaceIndex, clearSelection, emblaApi, evaluateBoundarySwipe, requestedFaceIndex, resetBoundarySwipe, resetZoomPan, transitionBuffer, updateEmblaControls, updateRouteParam, zoom])
 
   useEffect(() => {
     if (!emblaApi) return
