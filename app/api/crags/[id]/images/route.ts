@@ -86,11 +86,6 @@ export async function GET(
     : null
 
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
     if (!cragId) {
       return NextResponse.json({ error: 'Crag ID is required' }, { status: 400 })
     }
@@ -205,6 +200,7 @@ export async function GET(
       },
       images: result.map((row) => ({
         ...row,
+        display_image_id: row.linked_image_id || row.id,
         routeTarget: routeTargetByImageId.get(row.linked_image_id || row.id) || null,
       })),
     })
