@@ -582,6 +582,36 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   )
   const displayRoute = selectedRoute || defaultPathRoute
   const displayClimb = displayRoute?.climb || null
+  const adjacentClimbTargets = useMemo(() => {
+    const uniqueClimbEntries = routeLines.reduce<Array<{
+      climbId: string
+      routeId: string | null
+      imageId: string | null
+      canonicalPath: string
+    }>>((entries, route) => {
+      if (entries.some((entry) => entry.climbId === route.climb.id)) {
+        return entries
+      }
+
+      entries.push({
+        climbId: route.climb.id,
+        routeId: route.id,
+        imageId: route.imageId || null,
+        canonicalPath: `/climb/${route.climb.id}`,
+      })
+      return entries
+    }, [])
+
+    const anchorClimbId = selectedRoute?.climb.id || displayRoute?.climb.id || climbId
+    const currentIndex = uniqueClimbEntries.findIndex((entry) => entry.climbId === anchorClimbId)
+
+    return {
+      prev: currentIndex > 0 ? uniqueClimbEntries[currentIndex - 1] || null : null,
+      next: currentIndex >= 0 && currentIndex < uniqueClimbEntries.length - 1
+        ? uniqueClimbEntries[currentIndex + 1] || null
+        : null,
+    }
+  }, [climbId, displayRoute, routeLines, selectedRoute])
   const displayRouteTapPoint = displayRoute && displayRoute.points.length > 0
     ? displayRoute.points[Math.floor(displayRoute.points.length / 2)]
     : null
@@ -651,14 +681,16 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   }, [emblaApi, visibleFaces.length, requestedFaceIndex, activeFaceIndex, settledFaceIndex, updateEmblaControls, resetZoomPan, clearSelection, updateRouteParam])
 
   const navigateToAdjacentClimb = useCallback((direction: 'prev' | 'next') => {
-    const target = direction === 'next' ? nextClimbTarget : prevClimbTarget
+    const routeListTarget = direction === 'next' ? adjacentClimbTargets.next : adjacentClimbTargets.prev
+    const imageListTarget = direction === 'next' ? nextClimbTarget : prevClimbTarget
+    const target = routeListTarget || imageListTarget
     if (!target || boundaryNavigationLockRef.current) return false
 
     boundaryNavigationLockRef.current = true
     const destination = buildClimbNavigationUrl(target)
     router.push(destination)
     return true
-  }, [nextClimbTarget, prevClimbTarget, router])
+  }, [adjacentClimbTargets.next, adjacentClimbTargets.prev, nextClimbTarget, prevClimbTarget, router])
 
   const resetBoundarySwipe = useCallback(() => {
     boundarySwipeRef.current = {
