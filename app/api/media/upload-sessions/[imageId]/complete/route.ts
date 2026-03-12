@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
-import { enqueueImageIngestJob } from '@/lib/media/jobs'
 import { getMediaModerationConfig } from '@/lib/media/config'
 import { ensurePrivateObjectExists } from '@/lib/media/r2'
 
@@ -28,6 +27,37 @@ interface ImageRow {
   created_by: string | null
   original_bucket: string | null
   original_key: string | null
+}
+
+async function enqueueMediaIngest(payload: {
+  imageId: string
+  originalBucket: string
+  originalKey: string
+  storageProvider: 'r2'
+  purpose: 'submission_image'
+  triggeredByUserId: string
+  trigger: 'upload'
+}) {
+  const workerUrl = process.env.CF_MEDIA_WORKER_URL?.trim()
+  const workerSecret = process.env.CF_MEDIA_WORKER_SECRET?.trim()
+
+  if (!workerUrl || !workerSecret) {
+    throw new Error('Cloudflare media worker ingress is not configured')
+  }
+
+  const response = await fetch(`${workerUrl.replace(/\/$/, '')}/enqueue`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${workerSecret}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '')
+    throw new Error(errorText || `Failed to enqueue media ingest (${response.status})`)
+  }
 }
 
 export async function POST(
@@ -105,7 +135,7 @@ export async function POST(
       return createErrorResponse(updateError, 'Failed to queue image for ingest')
     }
 
-    const job = await enqueueImageIngestJob({
+    await enqueueMediaIngest({
       imageId: image.id,
       originalBucket: image.original_bucket,
       originalKey: image.original_key,
@@ -118,7 +148,6 @@ export async function POST(
     return NextResponse.json({
       success: true,
       imageId: image.id,
-      jobId: job.id,
       status: 'queued',
     })
   } catch (error) {
