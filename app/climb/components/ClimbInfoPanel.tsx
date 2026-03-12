@@ -5,6 +5,7 @@ import { Flag, Share2, Star } from 'lucide-react'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import type { GradeSystem } from '@/lib/grades'
+import LocationMapSnippet from '@/app/climb/components/LocationMapSnippet'
 
 interface SubmitterInfo {
   id: string
@@ -41,6 +42,8 @@ interface ClimbInfoPanelProps {
   publicSubmitter: SubmitterInfo | null
   formattedContributionHandle: string | null
   contributionCreditUrl: string | null
+  imageLatitude: number | null
+  imageLongitude: number | null
   selectedClimbLogged: boolean
   selectedClimbLog: LoggedClimbInfo | null
   selectedClimbHasSavedFeedback: boolean
@@ -82,6 +85,8 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     publicSubmitter,
     formattedContributionHandle,
     contributionCreditUrl,
+    imageLatitude,
+    imageLongitude,
     selectedClimbLogged,
     selectedClimbLog,
     selectedClimbHasSavedFeedback,
@@ -295,6 +300,9 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
               View Logbook
             </button>
           </div>
+        ) : null}
+        {typeof imageLatitude === 'number' && typeof imageLongitude === 'number' ? (
+          <LocationMapSnippet latitude={imageLatitude} longitude={imageLongitude} className="mt-4" />
         ) : null}
         {deferredSections}
       </div>
