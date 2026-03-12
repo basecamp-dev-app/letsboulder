@@ -11,7 +11,6 @@
     "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --webpack",
     "build": "NEXT_TELEMETRY_DISABLED=1 next build --webpack",
     "media-backfill": "node scripts/media/backfill-images.mjs",
-    "media-worker": "node workers/media/worker.mjs",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",
     "lint": "eslint",
     "test:unit": "vitest run --config vitest.config.ts",
@@ -64,6 +63,7 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260305.0",
     "@next/bundle-analyzer": "^16.1.2",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",

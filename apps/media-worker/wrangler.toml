@@ -1,0 +1,24 @@
+name = "letsboulder-media-worker"
+main = "src/index.ts"
+compatibility_date = "2026-03-01"
+
+[vars]
+ENABLE_MODERATION = "false"
+MEDIA_MODERATION_PROVIDER = "disabled"
+MEDIA_HOST = "https://media.letsboulder.com"
+
+[[queues.producers]]
+binding = "MEDIA_QUEUE"
+queue = "media-transform-queue"
+
+[[queues.consumers]]
+queue = "media-transform-queue"
+max_batch_size = 1
+
+[[r2_buckets]]
+binding = "ORIGINALS_BUCKET"
+bucket_name = "letsboulder-originals"
+
+[[r2_buckets]]
+binding = "PUBLIC_BUCKET"
+bucket_name = "letsboulder-public"

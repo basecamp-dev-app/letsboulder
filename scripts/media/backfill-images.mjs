@@ -2,7 +2,6 @@ import { createClient } from '@supabase/supabase-js'
 
 const DEFAULT_LIMIT = 100
 const DEFAULT_PAGE_SIZE = 200
-const ACTIVE_JOB_STATUSES = ['queued', 'processing']
 
 function getRequiredEnv(name) {
   const value = process.env[name]?.trim()
@@ -72,37 +71,31 @@ function buildPayload(row) {
   }
 
   return {
-    image_id: row.id,
-    job_type: 'ingest_image',
-    status: 'queued',
-    payload: {
-      imageId: row.id,
-      originalBucket,
-      originalKey,
-      storageProvider: row.storage_provider === 'r2' ? 'r2' : 'supabase',
-      purpose: 'submission_image',
-      triggeredByUserId: row.created_by || 'system-backfill',
-      trigger: 'backfill',
-    },
+    imageId: row.id,
+    originalBucket,
+    originalKey,
+    storageProvider: row.storage_provider === 'r2' ? 'r2' : 'supabase',
+    purpose: 'submission_image',
+    triggeredByUserId: row.created_by,
+    trigger: 'backfill',
   }
 }
 
-async function fetchActiveJobIds(supabase, imageIds) {
-  if (imageIds.length === 0) {
-    return new Set()
+async function enqueuePayload(payload) {
+  const workerUrl = getRequiredEnv('CF_MEDIA_WORKER_URL').replace(/\/$/, '')
+  const workerSecret = getRequiredEnv('CF_MEDIA_WORKER_SECRET')
+  const response = await fetch(`${workerUrl}/enqueue`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${workerSecret}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to enqueue ${payload.imageId}: ${response.status} ${await response.text().catch(() => '')}`)
   }
-
-  const { data, error } = await supabase
-    .from('media_jobs')
-    .select('image_id')
-    .in('image_id', imageIds)
-    .in('status', ACTIVE_JOB_STATUSES)
-
-  if (error) {
-    throw error
-  }
-
-  return new Set((data || []).map((row) => row.image_id).filter((value) => typeof value === 'string'))
 }
 
 async function collectCandidates(supabase, options, privateBucket) {
@@ -127,19 +120,13 @@ async function collectCandidates(supabase, options, privateBucket) {
       break
     }
 
-    const activeJobIds = await fetchActiveJobIds(supabase, rows.map((row) => row.id))
-
     for (const row of rows) {
-      if (activeJobIds.has(row.id)) {
-        continue
-      }
-
       if (isImageBackfilled(row, privateBucket)) {
         continue
       }
 
       const payload = buildPayload(row)
-      if (!payload) {
+      if (!payload || typeof payload.triggeredByUserId !== 'string') {
         continue
       }
 
@@ -173,7 +160,7 @@ async function main() {
   if (options.dryRun) {
     console.log(`dry-run: found ${candidates.length} image(s) needing backfill`)
     for (const candidate of candidates.slice(0, 20)) {
-      console.log(candidate.image_id)
+      console.log(candidate.imageId)
     }
     return
   }
@@ -183,9 +170,8 @@ async function main() {
     return
   }
 
-  const { error } = await supabase.from('media_jobs').insert(candidates)
-  if (error) {
-    throw error
+  for (const candidate of candidates) {
+    await enqueuePayload(candidate)
   }
 
   console.log(`Queued ${candidates.length} backfill job(s)`)
