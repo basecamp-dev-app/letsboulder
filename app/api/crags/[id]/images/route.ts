@@ -36,6 +36,16 @@ interface CragImageRow {
   created_at: string
 }
 
+interface RouteTargetRow {
+  id: string
+  image_id: string
+  climb_id: string
+  climbs:
+    | { slug: string | null }
+    | Array<{ slug: string | null }>
+    | null
+}
+
 function parsePrivateStorageUrl(url: string): { bucket: string; path: string } | null {
   if (!url.startsWith('private://')) return null
   const withoutScheme = url.slice('private://'.length)
@@ -99,15 +109,33 @@ export async function GET(
       return NextResponse.json({ error: 'Crag not found' }, { status: 404 })
     }
 
-    const { data, error } = await supabase
+    const [{ data, error }, { data: cragData }, { data: routeTargetData, error: routeTargetError }] = await Promise.all([
+      supabase
       .from('crag_images')
       .select('id, url, width, height, linked_image_id, created_at')
       .eq('crag_id', cragId)
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(50),
+      supabase
+        .from('crags')
+        .select('country_code, slug')
+        .eq('id', cragId)
+        .maybeSingle(),
+      supabase
+        .from('route_lines')
+        .select('id, image_id, climb_id, climbs!inner(slug, crag_id)')
+        .eq('climbs.crag_id', cragId)
+        .order('image_id', { ascending: true })
+        .order('sequence_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true }),
+    ])
 
     if (error) {
       return createErrorResponse(error, 'Failed to load crag images')
+    }
+
+    if (routeTargetError) {
+      return createErrorResponse(routeTargetError, 'Failed to load route image targets')
     }
 
     const rows = (data || []) as CragImageRow[]
@@ -158,7 +186,28 @@ export async function GET(
       }
     })
 
-    return NextResponse.json({ images: result })
+    const routeTargetByImageId = new Map<string, { climbId: string; routeId: string; climbSlug: string | null; imageId: string }>()
+    for (const row of (routeTargetData || []) as RouteTargetRow[]) {
+      if (routeTargetByImageId.has(row.image_id)) continue
+      const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
+      routeTargetByImageId.set(row.image_id, {
+        climbId: row.climb_id,
+        routeId: row.id,
+        climbSlug: climb?.slug || null,
+        imageId: row.image_id,
+      })
+    }
+
+    return NextResponse.json({
+      crag: {
+        country_code: cragData?.country_code || null,
+        slug: cragData?.slug || null,
+      },
+      images: result.map((row) => ({
+        ...row,
+        routeTarget: routeTargetByImageId.get(row.linked_image_id || row.id) || null,
+      })),
+    })
   } catch (error) {
     return createErrorResponse(error, 'Failed to fetch crag images')
   }

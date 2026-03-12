@@ -131,6 +131,7 @@ interface OfflineHydratedCragData {
   routes: CragRoute[]
   routePreviewByClimbId: Record<string, RoutePreview>
   defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
+  routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
   cragCenter: [number, number] | null
 }
 
@@ -173,6 +174,11 @@ export interface CragRoute {
 export interface RoutePreview {
   imageId: string
   imageUrl: string
+}
+
+interface RouteNavigationTarget extends ImageRouteTarget {
+  displayImageId: string
+  displayImageUrl: string
 }
 
 interface CragSwitcherOption {
@@ -280,6 +286,7 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
   const imageMap = new Map<string, ImageData>()
   const routePreviewByClimbId: Record<string, RoutePreview> = {}
   const defaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
+  const routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget> = {}
   const routeMap = new Map<string, CragRoute>()
 
   const getOfflineSlug = (canonicalPath: string | undefined, climbId: string) => {
@@ -347,6 +354,14 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
         imageId: primaryImage.id,
         imageUrl: primaryImage.url,
       }
+      routeNavigationTargetByClimbId[line.climb_id] = {
+        climbId: line.climb_id,
+        routeId: line.id,
+        climbSlug: getOfflineSlug(payload.offline_pack.canonicalPath, climb.id),
+        imageId: primaryImage.id,
+        displayImageId: primaryImage.id,
+        displayImageUrl: primaryImage.url,
+      }
     }
   }
 
@@ -362,6 +377,7 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
     routes: Array.from(routeMap.values()),
     routePreviewByClimbId,
     defaultRouteTargetByImageId,
+    routeNavigationTargetByClimbId,
     cragCenter,
   }
 }
@@ -529,6 +545,7 @@ export default function CragPageClient({
   const [offlinePreview, setOfflinePreview] = useState<Awaited<ReturnType<typeof getCragOfflinePreview>> | null>(null)
   const [offlineProgress, setOfflineProgress] = useState<OfflineJobProgressEvent | null>(null)
   const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>({})
+  const [routeNavigationTargetByClimbId, setRouteNavigationTargetByClimbId] = useState<Record<string, RouteNavigationTarget>>({})
   const mapRef = useRef<L.Map | null>(null)
 
   useEffect(() => {
@@ -638,6 +655,7 @@ export default function CragPageClient({
         setRoutesLoadState('loaded')
         setRoutePreviewByClimbId(hydrated.routePreviewByClimbId)
         setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
+        setRouteNavigationTargetByClimbId(hydrated.routeNavigationTargetByClimbId)
         setCrag(initialCrag)
         setCragCenter(hydrated.cragCenter)
         setLoading(false)
@@ -649,6 +667,7 @@ export default function CragPageClient({
         setRoutes([])
       }
       setDefaultRouteTargetByImageId({})
+      setRouteNavigationTargetByClimbId({})
       if (!hasInitialRouteData) {
         setRoutePreviewByClimbId({})
       }
@@ -662,6 +681,7 @@ export default function CragPageClient({
         setImages(cached.images)
         setCragCenter(cached.cragCenter)
         setDefaultRouteTargetByImageId(cached.defaultRouteTargetByImageId)
+        setRouteNavigationTargetByClimbId({})
         setRoutePreviewByClimbId(initialRoutePreviewByClimbId)
         setLoading(false)
       } else {
@@ -811,6 +831,7 @@ export default function CragPageClient({
       const nextDefaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
       const imageById = new Map(previewImages.map((image) => [image.id, image]))
       const nextRoutePreviewByClimbId: Record<string, RoutePreview> = {}
+      const nextRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget> = {}
 
       if (imageIds.length > 0) {
         const { data: routeTargetsData, error: routeTargetsError } = await supabase
@@ -839,9 +860,18 @@ export default function CragPageClient({
             if (nextRoutePreviewByClimbId[row.climb_id]) continue
             const image = imageById.get(row.image_id)
             if (!image) continue
+            const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
             nextRoutePreviewByClimbId[row.climb_id] = {
               imageId: row.image_id,
               imageUrl: image.url,
+            }
+            nextRouteNavigationTargetByClimbId[row.climb_id] = {
+              climbId: row.climb_id,
+              routeId: row.id,
+              climbSlug: climb?.slug || null,
+              imageId: row.image_id,
+              displayImageId: row.image_id,
+              displayImageUrl: image.url,
             }
           }
         }
@@ -853,6 +883,7 @@ export default function CragPageClient({
       setImages(previewImages)
       setDefaultRouteTargetByImageId(nextDefaultRouteTargetByImageId)
       setRoutePreviewByClimbId(nextRoutePreviewByClimbId)
+      setRouteNavigationTargetByClimbId(nextRouteNavigationTargetByClimbId)
       const withCoords = formattedImages.filter(
         (img): img is ImageData & { latitude: number; longitude: number } => img.latitude !== null && img.longitude !== null
       )
@@ -1005,6 +1036,23 @@ export default function CragPageClient({
       )
       setRoutes(dedupeCragRoutes(nextRoutes, effectiveClimbIdByClimbId))
       setRoutePreviewByClimbId((prev) => remapRoutePreviewsByEffectiveClimbId(prev, effectiveClimbIdByClimbId))
+      setRouteNavigationTargetByClimbId((prev) => {
+        const nextTargets: Record<string, RouteNavigationTarget> = {}
+
+        for (const [climbId, target] of Object.entries(prev)) {
+          const effectiveClimbId = effectiveClimbIdByClimbId[climbId] || climbId
+          if (!nextTargets[effectiveClimbId]) {
+            nextTargets[effectiveClimbId] = target.climbId === effectiveClimbId
+              ? target
+              : {
+                  ...target,
+                  climbId: effectiveClimbId,
+                }
+          }
+        }
+
+        return nextTargets
+      })
       setRoutesLoadState('loaded')
     }
 
@@ -1121,6 +1169,25 @@ export default function CragPageClient({
 
     return nextPreviews
   }, [clusterById, clusteredPins.clusterIdByImageId, imageById, routePreviewByClimbId])
+
+  const routeNavigationDisplayByClimbId = useMemo(() => {
+    const nextTargets: Record<string, RouteNavigationTarget> = {}
+
+    for (const [climbId, target] of Object.entries(routeNavigationTargetByClimbId)) {
+      const clusterId = clusteredPins.clusterIdByImageId.get(target.displayImageId)
+      const cluster = clusterId ? clusterById.get(clusterId) : null
+      const displayImageId = cluster?.representativeImageId || target.displayImageId
+      const displayImage = imageById.get(displayImageId)
+
+      nextTargets[climbId] = {
+        ...target,
+        displayImageId,
+        displayImageUrl: displayImage?.url || target.displayImageUrl,
+      }
+    }
+
+    return nextTargets
+  }, [clusterById, clusteredPins.clusterIdByImageId, imageById, routeNavigationTargetByClimbId])
 
   const routeTypeChips = useMemo(() => {
     const uniqueTypes = new Set<string>()
@@ -1379,6 +1446,16 @@ export default function CragPageClient({
   }, [defaultRouteTargetByImageId, routeHrefBase])
 
   const getRouteDestination = useCallback((route: CragRoute) => {
+    const routeTarget = routeNavigationDisplayByClimbId[route.id]
+    if (routeTarget) {
+      return buildCragImageDestination({
+        imageId: routeTarget.displayImageId,
+        target: routeTarget,
+        routeHrefBase,
+        offlineOnly: isOfflineDocumentNavigationPreferred(),
+      })
+    }
+
     if (isOfflineDocumentNavigationPreferred()) {
       return `/climb/${route.id}`
     }
@@ -1388,7 +1465,7 @@ export default function CragPageClient({
     }
 
     return `/climb/${route.id}`
-  }, [routeHrefBase])
+  }, [routeHrefBase, routeNavigationDisplayByClimbId])
 
   const prefetchImageDestination = useCallback((imageId: string) => {
     if (!imageId) return
