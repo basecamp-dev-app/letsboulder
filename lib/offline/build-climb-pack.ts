@@ -464,9 +464,16 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
     ? completeSummaryResult.data as CompleteSummaryPayload
     : null
   const primaryImageGeo = ('data' in primaryImageGeoResult ? primaryImageGeoResult.data : null) as { latitude: number | null; longitude: number | null } | null
-  const canonicalRouteFaces = primaryImage.crag_id
-    ? await getCanonicalRouteFaces(supabase as never, primaryImage.crag_id, climbId)
-    : null
+  let canonicalRouteFaces: Awaited<ReturnType<typeof getCanonicalRouteFaces>> | null = null
+
+  if (primaryImage.crag_id) {
+    try {
+      canonicalRouteFaces = await getCanonicalRouteFaces(supabase as never, primaryImage.crag_id, climbId)
+    } catch (error) {
+      console.error('Canonical route face discovery failed:', error)
+      canonicalRouteFaces = null
+    }
+  }
 
   const aliasClimbIds = canonicalRouteFaces?.aliasClimbIds || [climbId]
 
@@ -563,6 +570,8 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
   }
 
   for (const preview of canonicalRouteFaces?.previewFaces || []) {
+    if (!preview.imageId || !preview.imageUrl) continue
+
     const discoveredFace: CompleteSummaryFace = {
       image_id: preview.imageId,
       index: Number.MAX_SAFE_INTEGER,
