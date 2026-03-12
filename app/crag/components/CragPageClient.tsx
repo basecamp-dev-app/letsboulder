@@ -1137,10 +1137,6 @@ export default function CragPageClient({
     )
   }, [clusteredPins.clusters, viewCenter])
 
-  const clusterById = useMemo(() => {
-    return new Map(orderedPinClusters.map((cluster) => [cluster.id, cluster]))
-  }, [orderedPinClusters])
-
   const pinNumberByImageId = useMemo(() => {
     const mapping = new Map<string, number>()
     orderedPinClusters.forEach((cluster) => {
@@ -1155,10 +1151,7 @@ export default function CragPageClient({
     const nextPreviews: Record<string, RoutePreview> = {}
 
     for (const [climbId, preview] of Object.entries(routePreviewByClimbId)) {
-      const clusterId = clusteredPins.clusterIdByImageId.get(preview.imageId)
-      const cluster = clusterId ? clusterById.get(clusterId) : null
-      const imageId = cluster?.representativeImageId || preview.imageId
-      const image = imageById.get(imageId)
+      const image = imageById.get(preview.imageId)
       if (!image) continue
 
       nextPreviews[climbId] = {
@@ -1168,26 +1161,23 @@ export default function CragPageClient({
     }
 
     return nextPreviews
-  }, [clusterById, clusteredPins.clusterIdByImageId, imageById, routePreviewByClimbId])
+  }, [imageById, routePreviewByClimbId])
 
   const routeNavigationDisplayByClimbId = useMemo(() => {
     const nextTargets: Record<string, RouteNavigationTarget> = {}
 
     for (const [climbId, target] of Object.entries(routeNavigationTargetByClimbId)) {
-      const clusterId = clusteredPins.clusterIdByImageId.get(target.displayImageId)
-      const cluster = clusterId ? clusterById.get(clusterId) : null
-      const displayImageId = cluster?.representativeImageId || target.displayImageId
-      const displayImage = imageById.get(displayImageId)
+      const displayImage = imageById.get(target.displayImageId)
 
       nextTargets[climbId] = {
         ...target,
-        displayImageId,
+        displayImageId: target.displayImageId,
         displayImageUrl: displayImage?.url || target.displayImageUrl,
       }
     }
 
     return nextTargets
-  }, [clusterById, clusteredPins.clusterIdByImageId, imageById, routeNavigationTargetByClimbId])
+  }, [imageById, routeNavigationTargetByClimbId])
 
   const routeTypeChips = useMemo(() => {
     const uniqueTypes = new Set<string>()
