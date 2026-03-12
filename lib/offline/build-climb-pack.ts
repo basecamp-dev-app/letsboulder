@@ -474,10 +474,14 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
   }
 
   const effectiveClimbId = (climbFamilyRow as ClimbFamilyRow | null)?.shared_climb_id || climbId
-  const { data: familyRows, error: familyRowsError } = await supabase
-    .from('climbs')
-    .select('id, shared_climb_id')
-    .eq('shared_climb_id', effectiveClimbId)
+  const familyClimbRowsPromise = effectiveClimbId === climbId
+    ? Promise.resolve({ data: [{ id: climbId, shared_climb_id: effectiveClimbId }], error: null })
+    : supabase
+        .from('climbs')
+        .select('id, shared_climb_id')
+        .or(`shared_climb_id.eq.${effectiveClimbId},id.eq.${effectiveClimbId}`)
+
+  const { data: familyRows, error: familyRowsError } = await familyClimbRowsPromise
 
   if (familyRowsError) {
     throw familyRowsError
