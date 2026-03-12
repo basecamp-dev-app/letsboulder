@@ -1,0 +1,248 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { withCsrfProtection } from '@/lib/csrf-server'
+import { createErrorResponse } from '@/lib/errors'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
+
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+interface DraftConflictResponse {
+  code: 'draft_conflict'
+  message: string
+  current_updated_at: string
+  current_data: {
+    updated_at: string
+    last_updated_by: string | null
+    last_updated_by_display_name: string | null
+  }
+}
+
+interface ProfileRow {
+  id: string
+  username: string | null
+  display_name: string | null
+}
+
+interface DraftImageRow {
+  id: string
+  display_order: number
+  storage_bucket: string | null
+  storage_path: string | null
+}
+
+function resolveDisplayName(profile: ProfileRow | null): string | null {
+  if (!profile) return null
+  if (profile.display_name) return profile.display_name
+  if (profile.username) return profile.username
+  return null
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; imageId: string }> }
+) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
+  const { id, imageId } = await params
+  if (!id || !imageId) {
+    return NextResponse.json({ error: 'Draft ID and image ID are required' }, { status: 400 })
+  }
+
+  const expectedUpdatedAtRaw = new URL(request.url).searchParams.get('expected_updated_at')?.trim() || ''
+  const expectedUpdatedAtDate = expectedUpdatedAtRaw ? new Date(expectedUpdatedAtRaw) : null
+  if (!expectedUpdatedAtDate || Number.isNaN(expectedUpdatedAtDate.getTime())) {
+    return NextResponse.json({ error: 'expected_updated_at is required and must be a valid ISO timestamp' }, { status: 400 })
+  }
+
+  const cookies = request.cookies
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookies.getAll() },
+        setAll() {},
+      },
+    }
+  )
+
+  const storageClient = SUPABASE_SERVICE_ROLE_KEY
+    ? createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        SUPABASE_SERVICE_ROLE_KEY,
+        { cookies: { getAll() { return [] }, setAll() {} } }
+      )
+    : supabase
+
+  try {
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
+    if (authError || !userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const { data: draft, error: draftError } = await supabase
+      .from('submission_drafts')
+      .select('id, user_id, status, updated_at, last_edited_by, metadata')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (draftError || !draft) {
+      return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+    }
+
+    const isOwner = draft.user_id === userId
+    if (!isOwner) {
+      const { data: collaboratorAccess, error: collaboratorError } = await supabase
+        .from('submission_draft_collaborators')
+        .select('draft_id')
+        .eq('draft_id', id)
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (collaboratorError || !collaboratorAccess) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
+    if (draft.status !== 'draft') {
+      return NextResponse.json({ error: 'Only draft submissions can be edited' }, { status: 400 })
+    }
+
+    const currentUpdatedAtMs = new Date(draft.updated_at).getTime()
+    const expectedUpdatedAtMs = expectedUpdatedAtDate.getTime()
+    if (!Number.isFinite(currentUpdatedAtMs) || currentUpdatedAtMs !== expectedUpdatedAtMs) {
+      let lastUpdatedByDisplayName: string | null = null
+      if (typeof draft.last_edited_by === 'string' && draft.last_edited_by) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, username, display_name')
+          .eq('id', draft.last_edited_by)
+          .maybeSingle()
+        lastUpdatedByDisplayName = resolveDisplayName((profile || null) as ProfileRow | null)
+      }
+
+      const conflictPayload: DraftConflictResponse = {
+        code: 'draft_conflict',
+        message: 'This draft was updated by another collaborator. Reload to continue editing.',
+        current_updated_at: draft.updated_at,
+        current_data: {
+          updated_at: draft.updated_at,
+          last_updated_by: draft.last_edited_by,
+          last_updated_by_display_name: lastUpdatedByDisplayName,
+        },
+      }
+      return NextResponse.json(conflictPayload, { status: 409 })
+    }
+
+    const { data: imageRows, error: imageRowsError } = await supabase
+      .from('submission_draft_images')
+      .select('id, display_order, storage_bucket, storage_path')
+      .eq('draft_id', id)
+      .order('display_order', { ascending: true })
+
+    if (imageRowsError) {
+      return createErrorResponse(imageRowsError, 'Failed to read draft images')
+    }
+
+    const draftImages = (imageRows || []) as DraftImageRow[]
+    if (draftImages.length <= 1) {
+      return NextResponse.json({ error: 'A draft must keep at least one face image' }, { status: 400 })
+    }
+
+    const imageToDelete = draftImages.find((image) => image.id === imageId) || null
+    if (!imageToDelete) {
+      return NextResponse.json({ error: 'Draft image not found' }, { status: 404 })
+    }
+
+    const { error: deleteImageError } = await supabase
+      .from('submission_draft_images')
+      .delete()
+      .eq('id', imageId)
+      .eq('draft_id', id)
+
+    if (deleteImageError) {
+      return createErrorResponse(deleteImageError, 'Failed to delete draft image')
+    }
+
+    if (imageToDelete.storage_bucket && imageToDelete.storage_path) {
+      const { error: storageError } = await storageClient.storage
+        .from(imageToDelete.storage_bucket)
+        .remove([imageToDelete.storage_path])
+      if (storageError) {
+        return createErrorResponse(storageError, 'Failed to delete draft image file')
+      }
+    }
+
+    const remainingImages = draftImages.filter((image) => image.id !== imageId)
+    for (let index = 0; index < remainingImages.length; index += 1) {
+      const image = remainingImages[index]
+      if (image.display_order === index) continue
+      const { error: reorderError } = await supabase
+        .from('submission_draft_images')
+        .update({ display_order: index })
+        .eq('id', image.id)
+        .eq('draft_id', id)
+
+      if (reorderError) {
+        return createErrorResponse(reorderError, 'Failed to reorder draft images')
+      }
+    }
+
+    const metadata = draft.metadata && typeof draft.metadata === 'object' && !Array.isArray(draft.metadata)
+      ? draft.metadata as Record<string, unknown>
+      : {}
+    const deletedIndex = draftImages.findIndex((image) => image.id === imageId)
+    const currentPrimaryIndex = typeof metadata.primaryIndex === 'number' ? metadata.primaryIndex : 0
+
+    const nextPrimaryIndex = currentPrimaryIndex > deletedIndex
+      ? currentPrimaryIndex - 1
+      : currentPrimaryIndex >= remainingImages.length
+        ? Math.max(remainingImages.length - 1, 0)
+        : currentPrimaryIndex
+
+    const faceDirectionsSource = metadata.faceDirectionsByImage
+    const nextFaceDirectionsByImage: Record<string, unknown> = {}
+    if (faceDirectionsSource && typeof faceDirectionsSource === 'object' && !Array.isArray(faceDirectionsSource)) {
+      for (const [rawKey, value] of Object.entries(faceDirectionsSource)) {
+        const numericKey = Number(rawKey)
+        if (!Number.isInteger(numericKey) || numericKey === deletedIndex) continue
+        const nextKey = numericKey > deletedIndex ? numericKey - 1 : numericKey
+        nextFaceDirectionsByImage[String(nextKey)] = value
+      }
+    }
+
+    const nextMetadata: Record<string, unknown> = {
+      ...metadata,
+      primaryIndex: nextPrimaryIndex,
+      faceDirectionsByImage: nextFaceDirectionsByImage,
+    }
+
+    const { data: updatedDraft, error: updateDraftError } = await supabase
+      .from('submission_drafts')
+      .update({
+        metadata: nextMetadata,
+        updated_at: new Date().toISOString(),
+        last_edited_by: userId,
+      })
+      .eq('id', id)
+      .eq('status', 'draft')
+      .select('updated_at, metadata')
+      .maybeSingle()
+
+    if (updateDraftError) {
+      return createErrorResponse(updateDraftError, 'Failed to update draft metadata')
+    }
+
+    return NextResponse.json({
+      success: true,
+      draft: {
+        updated_at: updatedDraft?.updated_at || new Date().toISOString(),
+        metadata: updatedDraft?.metadata || nextMetadata,
+      },
+      deleted_image_id: imageId,
+    })
+  } catch (error) {
+    return createErrorResponse(error, 'Failed to delete draft image')
+  }
+}
