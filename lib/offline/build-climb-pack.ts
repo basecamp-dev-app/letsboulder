@@ -465,54 +465,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
     : null
   const primaryImageGeo = ('data' in primaryImageGeoResult ? primaryImageGeoResult.data : null) as { latitude: number | null; longitude: number | null } | null
   let canonicalRouteFaces: Awaited<ReturnType<typeof getCanonicalRouteFaces>> | null = null
-
-  if (primaryImage.crag_id) {
-    try {
-      canonicalRouteFaces = await getCanonicalRouteFaces(supabase as never, primaryImage.crag_id, climbId)
-    } catch (error) {
-      console.error('Canonical route face discovery failed:', error)
-      canonicalRouteFaces = null
-    }
-  }
-
-  const aliasClimbIds = canonicalRouteFaces?.aliasClimbIds || [climbId]
-
-  const { data: routeFaceRowsData, error: routeFaceRowsError } = await supabase
-    .from('route_lines')
-    .select(`
-      id,
-      image_id,
-      color,
-      points,
-      image_width,
-      image_height,
-      sequence_order,
-      climb:climbs!inner(id, name, grade, route_type, description),
-      image:images!inner(id, url, width, height, face_directions),
-      crag_image:crag_images(id, url, width, height, linked_image_id)
-    `)
-    .in('climb_id', aliasClimbIds)
-    .order('sequence_order', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: true })
-
-  if (routeFaceRowsError) {
-    throw routeFaceRowsError
-  }
-
-  const routeFaceRows = Array.isArray(routeFaceRowsData)
-    ? (routeFaceRowsData as unknown as RouteFaceQueryRow[]).map((row) => ({
-        route_id: row.id,
-        image_id: row.image_id,
-        color: row.color,
-        points: row.points,
-        image_width: row.image_width,
-        image_height: row.image_height,
-        sequence_order: row.sequence_order,
-        climb: row.climb,
-        image: row.image,
-        crag_image: row.crag_image,
-      }))
-    : []
+  let routeFaceRows: RouteFaceRow[] = []
 
   const baseFacesSource = Array.isArray(completeSummary?.faces) && completeSummary.faces.length > 0
     ? completeSummary.faces
@@ -527,66 +480,118 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
   }
 
   const routeDiscoveredFaceMap = new Map<string, CompleteSummaryFace>()
-  for (const row of routeFaceRows) {
-    const climb = Array.isArray(row.climb) ? row.climb[0] : row.climb
-    const image = Array.isArray(row.image) ? row.image[0] : row.image
-    const cragImage = Array.isArray(row.crag_image) ? row.crag_image[0] : row.crag_image
-    if (!image?.id || !image.url || !climb?.id) continue
+  if (primaryImage.crag_id) {
+    try {
+      canonicalRouteFaces = await getCanonicalRouteFaces(supabase as never, primaryImage.crag_id, climbId)
 
-    const discoveredFace: CompleteSummaryFace = {
-      image_id: image.id,
-      index: Number.MAX_SAFE_INTEGER,
-      is_primary: image.id === primaryImage.id,
-      url: cragImage?.url || image.url,
-      linked_image_id: cragImage?.linked_image_id || image.id,
-      crag_image_id: cragImage?.id || null,
-      face_directions: Array.isArray(image.face_directions) ? image.face_directions : null,
-      metadata: {
-        width: cragImage?.width ?? image.width ?? null,
-        height: cragImage?.height ?? image.height ?? null,
-      },
-      routes: [{
-        id: row.route_id,
-        climb_id: climb.id,
-        name: climb.name,
-        grade: climb.grade,
-        route_type: climb.route_type,
-        description: climb.description,
-        color: row.color,
-        points: row.points,
-        image_width: row.image_width,
-        image_height: row.image_height,
-        sequence_order: row.sequence_order,
-      }],
-      has_routes: true,
+      const aliasClimbIds = canonicalRouteFaces.aliasClimbIds.length > 0
+        ? canonicalRouteFaces.aliasClimbIds
+        : [climbId]
+
+      const { data: routeFaceRowsData, error: routeFaceRowsError } = await supabase
+        .from('route_lines')
+        .select(`
+          id,
+          image_id,
+          color,
+          points,
+          image_width,
+          image_height,
+          sequence_order,
+          climb:climbs!inner(id, name, grade, route_type, description),
+          image:images!inner(id, url, width, height, face_directions),
+          crag_image:crag_images(id, url, width, height, linked_image_id)
+        `)
+        .in('climb_id', aliasClimbIds)
+        .order('sequence_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true })
+
+      if (routeFaceRowsError) {
+        throw routeFaceRowsError
+      }
+
+      routeFaceRows = Array.isArray(routeFaceRowsData)
+        ? (routeFaceRowsData as unknown as RouteFaceQueryRow[]).map((row) => ({
+            route_id: row.id,
+            image_id: row.image_id,
+            color: row.color,
+            points: row.points,
+            image_width: row.image_width,
+            image_height: row.image_height,
+            sequence_order: row.sequence_order,
+            climb: row.climb,
+            image: row.image,
+            crag_image: row.crag_image,
+          }))
+        : []
+
+      for (const row of routeFaceRows) {
+        const climb = Array.isArray(row.climb) ? row.climb[0] : row.climb
+        const image = Array.isArray(row.image) ? row.image[0] : row.image
+        const cragImage = Array.isArray(row.crag_image) ? row.crag_image[0] : row.crag_image
+        if (!image?.id || !image.url || !climb?.id) continue
+
+        const discoveredFace: CompleteSummaryFace = {
+          image_id: image.id,
+          index: Number.MAX_SAFE_INTEGER,
+          is_primary: image.id === primaryImage.id,
+          url: cragImage?.url || image.url,
+          linked_image_id: cragImage?.linked_image_id || image.id,
+          crag_image_id: cragImage?.id || null,
+          face_directions: Array.isArray(image.face_directions) ? image.face_directions : null,
+          metadata: {
+            width: cragImage?.width ?? image.width ?? null,
+            height: cragImage?.height ?? image.height ?? null,
+          },
+          routes: [{
+            id: row.route_id,
+            climb_id: climb.id,
+            name: climb.name,
+            grade: climb.grade,
+            route_type: climb.route_type,
+            description: climb.description,
+            color: row.color,
+            points: row.points,
+            image_width: row.image_width,
+            image_height: row.image_height,
+            sequence_order: row.sequence_order,
+          }],
+          has_routes: true,
+        }
+
+        const key = getFaceIdentityKey(discoveredFace)
+        routeDiscoveredFaceMap.set(key, mergeFaces(routeDiscoveredFaceMap.get(key), discoveredFace))
+      }
+
+      for (const [key, discoveredFace] of routeDiscoveredFaceMap.entries()) {
+        mergedFaceMap.set(key, mergeFaces(mergedFaceMap.get(key), discoveredFace))
+      }
+
+      for (const preview of canonicalRouteFaces.previewFaces || []) {
+        if (!preview.imageId || !preview.imageUrl) continue
+
+        const discoveredFace: CompleteSummaryFace = {
+          image_id: preview.imageId,
+          index: Number.MAX_SAFE_INTEGER,
+          is_primary: preview.imageId === primaryImage.id,
+          url: preview.imageUrl,
+          linked_image_id: preview.imageId,
+          crag_image_id: null,
+          face_directions: null,
+          metadata: null,
+          routes: [],
+          has_routes: true,
+        }
+
+        const key = getFaceIdentityKey(discoveredFace)
+        mergedFaceMap.set(key, mergeFaces(mergedFaceMap.get(key), discoveredFace))
+      }
+    } catch (error) {
+      console.error('Canonical route enrichment failed:', error)
+      canonicalRouteFaces = null
+      routeFaceRows = []
+      routeDiscoveredFaceMap.clear()
     }
-
-    const key = getFaceIdentityKey(discoveredFace)
-    routeDiscoveredFaceMap.set(key, mergeFaces(routeDiscoveredFaceMap.get(key), discoveredFace))
-  }
-
-  for (const [key, discoveredFace] of routeDiscoveredFaceMap.entries()) {
-    mergedFaceMap.set(key, mergeFaces(mergedFaceMap.get(key), discoveredFace))
-  }
-
-  for (const preview of canonicalRouteFaces?.previewFaces || []) {
-    if (!preview.imageId || !preview.imageUrl) continue
-
-    const discoveredFace: CompleteSummaryFace = {
-      image_id: preview.imageId,
-      index: Number.MAX_SAFE_INTEGER,
-      is_primary: preview.imageId === primaryImage.id,
-      url: preview.imageUrl,
-      linked_image_id: preview.imageId,
-      crag_image_id: null,
-      face_directions: null,
-      metadata: null,
-      routes: [],
-      has_routes: true,
-    }
-
-    const key = getFaceIdentityKey(discoveredFace)
-    mergedFaceMap.set(key, mergeFaces(mergedFaceMap.get(key), discoveredFace))
   }
 
   const hasPrimaryFace = Array.from(mergedFaceMap.values()).some((face) => face.image_id === primaryImage.id)
