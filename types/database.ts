@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -1187,7 +1192,6 @@ export type Database = {
           id: string
           is_anonymous_submission: boolean
           is_primary: boolean
-          is_tidal: boolean
           is_verified: boolean | null
           last_edited_by: string | null
           latitude: number | null
@@ -1213,9 +1217,6 @@ export type Database = {
           storage_bucket: string | null
           storage_path: string | null
           storage_provider: string
-          tidal_buffer_min: number
-          tidal_max_height_m: number | null
-          tidal_notes: string | null
           url: string
           variants: Json
           verification_count: number | null
@@ -1238,7 +1239,6 @@ export type Database = {
           id?: string
           is_anonymous_submission?: boolean
           is_primary?: boolean
-          is_tidal?: boolean
           is_verified?: boolean | null
           last_edited_by?: string | null
           latitude?: number | null
@@ -1264,9 +1264,6 @@ export type Database = {
           storage_bucket?: string | null
           storage_path?: string | null
           storage_provider?: string
-          tidal_buffer_min?: number
-          tidal_max_height_m?: number | null
-          tidal_notes?: string | null
           url: string
           variants?: Json
           verification_count?: number | null
@@ -1289,7 +1286,6 @@ export type Database = {
           id?: string
           is_anonymous_submission?: boolean
           is_primary?: boolean
-          is_tidal?: boolean
           is_verified?: boolean | null
           last_edited_by?: string | null
           latitude?: number | null
@@ -1315,9 +1311,6 @@ export type Database = {
           storage_bucket?: string | null
           storage_path?: string | null
           storage_provider?: string
-          tidal_buffer_min?: number
-          tidal_max_height_m?: number | null
-          tidal_notes?: string | null
           url?: string
           variants?: Json
           verification_count?: number | null
@@ -1996,14 +1989,17 @@ export type Database = {
       }
       submission_draft_images: {
         Row: {
+          capture_date: string | null
           checksum_sha256: string | null
           created_at: string
           display_order: number
           draft_id: string
           height: number | null
           id: string
+          latitude: number | null
           linked_crag_image_id: string | null
           linked_image_id: string | null
+          longitude: number | null
           original_bucket: string | null
           original_bytes: number | null
           original_key: string | null
@@ -2020,14 +2016,17 @@ export type Database = {
           width: number | null
         }
         Insert: {
+          capture_date?: string | null
           checksum_sha256?: string | null
           created_at?: string
           display_order: number
           draft_id: string
           height?: number | null
           id?: string
+          latitude?: number | null
           linked_crag_image_id?: string | null
           linked_image_id?: string | null
+          longitude?: number | null
           original_bucket?: string | null
           original_bytes?: number | null
           original_key?: string | null
@@ -2044,14 +2043,17 @@ export type Database = {
           width?: number | null
         }
         Update: {
+          capture_date?: string | null
           checksum_sha256?: string | null
           created_at?: string
           display_order?: number
           draft_id?: string
           height?: number | null
           id?: string
+          latitude?: number | null
           linked_crag_image_id?: string | null
           linked_image_id?: string | null
+          longitude?: number | null
           original_bucket?: string | null
           original_bytes?: number | null
           original_key?: string | null
@@ -2307,7 +2309,26 @@ export type Database = {
               name: string
             }[]
           }
+      get_crag_route_intelligence: {
+        Args: { p_crag_id: string }
+        Returns: {
+          directions: string[]
+          grade: string
+          has_topo: boolean
+          id: string
+          name: string
+          rating_avg: number
+          rating_count: number
+          recent_send_count_60d: number
+          route_type: string
+          send_count: number
+          slug: string
+          topo_image_count: number
+          weighted_rating: number
+        }[]
+      }
       get_crags_mapped_count: { Args: never; Returns: number }
+      get_effective_climb_id: { Args: { p_climb_id: string }; Returns: string }
       get_grade_vote_distribution: {
         Args: { climb_id: string }
         Returns: {
@@ -2322,25 +2343,6 @@ export type Database = {
           total_routes_combined: number
         }[]
       }
-      get_crag_route_intelligence: {
-        Args: { p_crag_id: string }
-        Returns: {
-          directions: string[]
-          grade: string
-          has_topo: boolean
-          id: string
-          name: string
-          rating_avg: number | null
-          rating_count: number
-          recent_send_count_60d: number
-          route_type: string | null
-          send_count: number
-          slug: string | null
-          topo_image_count: number
-          weighted_rating: number | null
-        }[]
-      }
-      get_effective_climb_id: { Args: { p_climb_id: string }; Returns: string }
       get_star_rating_summary: {
         Args: { p_climb_id: string }
         Returns: {
@@ -2436,6 +2438,15 @@ export type Database = {
       }
       update_own_profile_submission_credit: {
         Args: { p_handle: string; p_platform: string }
+        Returns: Json
+      }
+      update_own_submission: {
+        Args: {
+          p_image_id: string
+          p_image_patch?: Json
+          p_route_type?: string
+          p_routes?: Json
+        }
         Returns: Json
       }
       update_own_submission_anonymity: {
@@ -2570,101 +2581,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-      iceberg_namespaces: {
-        Row: {
-          bucket_name: string
-          catalog_id: string
-          created_at: string
-          id: string
-          metadata: Json
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          bucket_name: string
-          catalog_id: string
-          created_at?: string
-          id?: string
-          metadata?: Json
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          bucket_name?: string
-          catalog_id?: string
-          created_at?: string
-          id?: string
-          metadata?: Json
-          name?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "iceberg_namespaces_catalog_id_fkey"
-            columns: ["catalog_id"]
-            isOneToOne: false
-            referencedRelation: "buckets_analytics"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      iceberg_tables: {
-        Row: {
-          bucket_name: string
-          catalog_id: string
-          created_at: string
-          id: string
-          location: string
-          name: string
-          namespace_id: string
-          remote_table_id: string | null
-          shard_id: string | null
-          shard_key: string | null
-          updated_at: string
-        }
-        Insert: {
-          bucket_name: string
-          catalog_id: string
-          created_at?: string
-          id?: string
-          location: string
-          name: string
-          namespace_id: string
-          remote_table_id?: string | null
-          shard_id?: string | null
-          shard_key?: string | null
-          updated_at?: string
-        }
-        Update: {
-          bucket_name?: string
-          catalog_id?: string
-          created_at?: string
-          id?: string
-          location?: string
-          name?: string
-          namespace_id?: string
-          remote_table_id?: string | null
-          shard_id?: string | null
-          shard_key?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "iceberg_tables_catalog_id_fkey"
-            columns: ["catalog_id"]
-            isOneToOne: false
-            referencedRelation: "buckets_analytics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "iceberg_tables_namespace_id_fkey"
-            columns: ["namespace_id"]
-            isOneToOne: false
-            referencedRelation: "iceberg_namespaces"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       migrations: {
         Row: {
@@ -3038,8 +2954,6 @@ export type Database = {
     }
   }
 }
-
-export type Profile = Database['public']['Tables']['profiles']['Row']
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
