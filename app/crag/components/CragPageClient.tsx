@@ -1438,9 +1438,14 @@ export default function CragPageClient({
   const getRouteDestination = useCallback((route: CragRoute) => {
     const routeTarget = routeNavigationDisplayByClimbId[route.id]
     if (routeTarget) {
+      const routeClimbId = routeTarget.climbId || route.id
       return buildCragImageDestination({
         imageId: routeTarget.displayImageId,
-        target: routeTarget,
+        target: {
+          ...routeTarget,
+          climbId: routeClimbId,
+          climbSlug: route.slug || routeTarget.climbSlug,
+        },
         routeHrefBase,
         offlineOnly: isOfflineDocumentNavigationPreferred(),
       })
