@@ -1,4 +1,5 @@
 import { normalizeGrade } from '@/lib/grades'
+import { dedupeCanonicalRoutes, remapRoutePreviewsByEffectiveClimbId } from '@/lib/climb/canonical-logic'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import type { Database } from '@/types/database'
 import type { CragRoute, RoutePreview } from '@/app/crag/components/CragPageClient'
@@ -90,59 +91,6 @@ function getAverageCoordinates(images: ImageRow[]): [number, number] | null {
   return [sum.lat / images.length, sum.lng / images.length]
 }
 
-function dedupeCragRoutes(routes: CragRoute[], effectiveClimbIdByClimbId: Record<string, string>) {
-  const groupedRoutes = new Map<string, CragRoute>()
-
-  for (const route of routes) {
-    const effectiveClimbId = effectiveClimbIdByClimbId[route.id] || route.id
-    const existing = groupedRoutes.get(effectiveClimbId)
-
-    if (!existing) {
-      groupedRoutes.set(effectiveClimbId, {
-        ...route,
-        id: effectiveClimbId,
-      })
-      continue
-    }
-
-    const isCanonicalRoute = route.id === effectiveClimbId
-    groupedRoutes.set(effectiveClimbId, {
-      ...existing,
-      id: effectiveClimbId,
-      name: isCanonicalRoute ? route.name : existing.name,
-      grade: isCanonicalRoute ? route.grade : existing.grade,
-      slug: isCanonicalRoute ? route.slug : (existing.slug || route.slug),
-      routeType: existing.routeType || route.routeType,
-      directions: sortDirections([...existing.directions, ...route.directions]),
-      hasTopo: existing.hasTopo || route.hasTopo,
-      topoImageCount: Math.max(existing.topoImageCount, route.topoImageCount),
-      ratingAvg: existing.ratingAvg ?? route.ratingAvg,
-      ratingCount: Math.max(existing.ratingCount, route.ratingCount),
-      weightedRating: existing.weightedRating ?? route.weightedRating,
-      sendCount: Math.max(existing.sendCount, route.sendCount),
-      recentSendCount60d: Math.max(existing.recentSendCount60d, route.recentSendCount60d),
-    })
-  }
-
-  return [...groupedRoutes.values()]
-}
-
-function remapRoutePreviewsByEffectiveClimbId(
-  routePreviewByClimbId: Record<string, RoutePreview>,
-  effectiveClimbIdByClimbId: Record<string, string>
-) {
-  const nextPreviewByClimbId: Record<string, RoutePreview> = {}
-
-  for (const [climbId, preview] of Object.entries(routePreviewByClimbId)) {
-    const effectiveClimbId = effectiveClimbIdByClimbId[climbId] || climbId
-    if (!nextPreviewByClimbId[effectiveClimbId]) {
-      nextPreviewByClimbId[effectiveClimbId] = preview
-    }
-  }
-
-  return nextPreviewByClimbId
-}
-
 export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cragId: string, cragCoords?: { latitude: number | null; longitude: number | null }) {
   const { data: routeData } = await supabase.rpc('get_crag_route_intelligence', { p_crag_id: cragId })
   const baseRoutes = (routeData || []).map(mapRouteRow)
@@ -221,7 +169,7 @@ export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cra
     }
   }
 
-  const initialRoutes = dedupeCragRoutes(baseRoutes, effectiveClimbIdByClimbId)
+  const initialRoutes = dedupeCanonicalRoutes(baseRoutes, effectiveClimbIdByClimbId)
   const dedupedRoutePreviewByClimbId = remapRoutePreviewsByEffectiveClimbId(initialRoutePreviewByClimbId, effectiveClimbIdByClimbId)
 
   const withCoords = images.filter((image) => typeof image.latitude === 'number' && typeof image.longitude === 'number')
