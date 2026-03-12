@@ -95,6 +95,15 @@ interface DraftAppendImagesResponse {
   } | null
 }
 
+interface DraftDeleteImageResponse {
+  success: boolean
+  deleted_image_id?: string
+  draft?: {
+    updated_at?: string
+    metadata?: Record<string, unknown> | null
+  } | null
+}
+
 interface ConflictState {
   serverUpdatedAt: string
   lastEditorName: string | null
@@ -291,6 +300,7 @@ export default function EditDraftPage() {
   const [removingCollaboratorId, setRemovingCollaboratorId] = useState<string | null>(null)
   const [latestInviteUrl, setLatestInviteUrl] = useState<string | null>(null)
   const [addingFaces, setAddingFaces] = useState(false)
+  const [removingFaceId, setRemovingFaceId] = useState<string | null>(null)
   const addFaceInputRef = useRef<HTMLInputElement | null>(null)
   const publishRequirementsRef = useRef<HTMLDivElement | null>(null)
   const cragSectionRef = useRef<HTMLDivElement | null>(null)
@@ -788,6 +798,54 @@ export default function EditDraftPage() {
       }
     }
   }, [addingFaces, cragId, draftId, draftUpdatedAt, getImageDimensions, loadDraft])
+
+  const handleRemoveFace = useCallback(async (imageId: string) => {
+    if (!draft || !draftUpdatedAt || removingFaceId) return
+    if (draft.images.length <= 1) {
+      setError('A draft must keep at least one face image')
+      return
+    }
+
+    setRemovingFaceId(imageId)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/images/${imageId}?expected_updated_at=${encodeURIComponent(draftUpdatedAt)}`, {
+        method: 'DELETE',
+      })
+
+      const payload = await response.json().catch(() => ({} as DraftDeleteImageResponse & DraftConflictResponse & { error?: string }))
+
+      if (!response.ok) {
+        if (response.status === 409 && (payload as DraftConflictResponse).code === 'draft_conflict') {
+          const conflictPayload = payload as DraftConflictResponse
+          setConflict({
+            serverUpdatedAt: conflictPayload.current_updated_at,
+            lastEditorName: conflictPayload.current_data?.last_updated_by_display_name || 'Another collaborator',
+            pendingChanges: {
+              images: [],
+              metadata: {},
+              cragId,
+            },
+          })
+          return
+        }
+
+        throw new Error((payload as { error?: string }).error || 'Failed to remove face image')
+      }
+
+      await loadDraft()
+      if (payload.draft?.updated_at) {
+        setDraftUpdatedAt(payload.draft.updated_at)
+      }
+      setSuccess('Face removed from draft')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove face image')
+    } finally {
+      setRemovingFaceId(null)
+    }
+  }, [cragId, draft, draftUpdatedAt, loadDraft, removingFaceId])
 
   const handleCreateInvite = useCallback(async () => {
     if (!draftId || creatingInvite || !isOwner) return
@@ -1378,6 +1436,17 @@ export default function EditDraftPage() {
                   Set current as primary
                 </button>
               ) : null}
+              {activeFace ? (
+                <button
+                  type="button"
+                  onClick={() => { void handleRemoveFace(activeFace.imageId) }}
+                  disabled={removingFaceId === activeFace.imageId || manageFaces.length <= 1 || !!conflict}
+                  className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
+                >
+                  {removingFaceId === activeFace.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  Remove current face
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => addFaceInputRef.current?.click()}
@@ -1417,7 +1486,21 @@ export default function EditDraftPage() {
                   <div className="relative mb-1 h-16 w-full overflow-hidden rounded border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
                     <NextImage src={face.signedUrl} alt={`Face ${face.index + 1}`} fill unoptimized sizes="160px" className="object-cover" />
                   </div>
-                  {isPrimary ? `Primary (${face.index + 1})` : `Face ${face.index + 1}`}
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{isPrimary ? `Primary (${face.index + 1})` : `Face ${face.index + 1}`}</span>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void handleRemoveFace(face.imageId)
+                      }}
+                      disabled={removingFaceId !== null || manageFaces.length <= 1 || !!conflict}
+                      className="inline-flex items-center justify-center rounded p-1 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-red-300 dark:hover:bg-red-900/20"
+                      aria-label={`Remove face ${face.index + 1}`}
+                    >
+                      {removingFaceId === face.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 </button>
               )
             })}
