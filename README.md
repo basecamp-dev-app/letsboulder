@@ -64,6 +64,7 @@ Copy `.env.example` to `.env`:
 - Test locally first with `npm run dev`
 - Push `dev` when you want to verify the deployed staging environment
 - After staging looks good, merge `dev` into `main` and push `main`
+- Merge `main` back into `dev` so both branches stay aligned after each release
 - Keep `main` as production-only and avoid direct commits there
 - Keep a single local checkout in `/home/hadow/app-v2`; no separate `main` worktree is needed
 
