@@ -44,6 +44,17 @@ const PROTECTED_STATE_CHANGING_PREFIXES = [
 const LOCATION_DETECT_MAX_BODY_BYTES = 2 * 1024
 
 type UpstashRedisCtor = new (args: { url: string; token: string }) => unknown
+type RateLimitBucket =
+  | 'search'
+  | 'rankings'
+  | 'write'
+  | 'geo'
+  | 'clicks'
+  | 'upload_session_create'
+  | 'upload_session_complete'
+  | 'signed_urls'
+  | 'submissions'
+
 type UpstashRatelimitInstance = {
   limit: (key: string) => Promise<{ success: boolean; limit: number; remaining: number; reset: number }>
 }
@@ -98,7 +109,7 @@ async function getUpstashDeps(): Promise<UpstashDeps | null> {
   return upstashDepsPromise
 }
 
-function getLimiterConfig(rateLimitBucket: 'search' | 'rankings' | 'write' | 'geo' | 'clicks'): { tokens: number; window: string; prefix: string } {
+function getLimiterConfig(rateLimitBucket: RateLimitBucket): { tokens: number; window: string; prefix: string } {
   if (rateLimitBucket === 'geo') {
     return { tokens: 5, window: '1 m', prefix: 'rl:api:geo' }
   }
@@ -115,11 +126,27 @@ function getLimiterConfig(rateLimitBucket: 'search' | 'rankings' | 'write' | 'ge
     return { tokens: 120, window: '1 m', prefix: 'rl:api:rankings' }
   }
 
+  if (rateLimitBucket === 'upload_session_create') {
+    return { tokens: 12, window: '1 m', prefix: 'rl:api:upload-session-create' }
+  }
+
+  if (rateLimitBucket === 'upload_session_complete') {
+    return { tokens: 20, window: '1 m', prefix: 'rl:api:upload-session-complete' }
+  }
+
+  if (rateLimitBucket === 'signed_urls') {
+    return { tokens: 30, window: '1 m', prefix: 'rl:api:signed-urls' }
+  }
+
+  if (rateLimitBucket === 'submissions') {
+    return { tokens: 20, window: '1 m', prefix: 'rl:api:submissions' }
+  }
+
   return { tokens: 90, window: '1 m', prefix: 'rl:api:write' }
 }
 
 function getOrCreateLimiter(
-  rateLimitBucket: 'search' | 'rankings' | 'write' | 'geo' | 'clicks',
+  rateLimitBucket: RateLimitBucket,
   url: string,
   token: string,
   deps: UpstashDeps
@@ -163,7 +190,7 @@ function isStateChangingMethod(method: string): boolean {
   return normalized === 'POST' || normalized === 'PUT' || normalized === 'PATCH' || normalized === 'DELETE'
 }
 
-function getApiBucket(pathname: string, method: string): 'search' | 'rankings' | 'write' | 'geo' | 'clicks' | null {
+function getApiBucket(pathname: string, method: string): RateLimitBucket | null {
   const normalizedMethod = method.toUpperCase()
 
   if (pathname.startsWith('/api/locations/detect') && normalizedMethod === 'POST') {
@@ -172,6 +199,22 @@ function getApiBucket(pathname: string, method: string): 'search' | 'rankings' |
 
   if (pathname.startsWith('/api/gear-clicks') && normalizedMethod === 'POST') {
     return 'clicks'
+  }
+
+  if (pathname === '/api/media/upload-sessions' && normalizedMethod === 'POST') {
+    return 'upload_session_create'
+  }
+
+  if (pathname.match(/^\/api\/media\/upload-sessions\/[^/]+\/complete$/) && normalizedMethod === 'POST') {
+    return 'upload_session_complete'
+  }
+
+  if ((pathname === '/api/uploads/signed-url' || pathname === '/api/uploads/signed-urls/batch') && normalizedMethod === 'POST') {
+    return 'signed_urls'
+  }
+
+  if (pathname.startsWith('/api/submissions/') && normalizedMethod === 'POST') {
+    return 'submissions'
   }
 
   if (
