@@ -159,6 +159,7 @@ interface ClimbNavigationTarget {
 
 const MIN_VIEWER_ZOOM = 1
 const MAX_VIEWER_ZOOM = 3
+const CLIMB_BOUNDARY_DRAG_RATIO = 0.18
 const GRADE_OPINION_LABELS: Record<GradeOpinion, string> = {
   soft: 'Soft',
   agree: 'Agree',
@@ -419,12 +420,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   const prevRequestedFaceIndexRef = useRef<number | null>(null)
   const pendingSelectedRouteIdRef = useRef<string | null>(null)
   const routeDrivenFaceChangeRef = useRef(false)
-  const boundaryDragRef = useRef<{ pointerId: number | null; startX: number; deltaX: number; active: boolean }>({
-    pointerId: null,
-    startX: 0,
-    deltaX: 0,
-    active: false,
-  })
+  const boundaryNavigationLockRef = useRef(false)
   const gradeSystem = useGradeSystem()
   const { data: climbPackData, isLoading: isClimbPackLoading, error: climbPackError } = useQuery({
     queryKey: climbOfflinePackQueryKey(climbId),
@@ -641,8 +637,9 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
 
   const navigateToAdjacentClimb = useCallback((direction: 'prev' | 'next') => {
     const target = direction === 'next' ? nextClimbTarget : prevClimbTarget
-    if (!target) return false
+    if (!target || boundaryNavigationLockRef.current) return false
 
+    boundaryNavigationLockRef.current = true
     const destination = buildClimbNavigationUrl(target)
     router.push(destination)
     return true
@@ -665,57 +662,6 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
 
     navigateToAdjacentClimb('next')
   }, [activeFaceIndex, handleScrollToFace, navigateToAdjacentClimb, visibleFaces.length])
-
-  const resetBoundaryDrag = useCallback(() => {
-    boundaryDragRef.current = {
-      pointerId: null,
-      startX: 0,
-      deltaX: 0,
-      active: false,
-    }
-  }, [])
-
-  const handleBoundaryPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (zoom > MIN_VIEWER_ZOOM) return
-    if (event.pointerType === 'mouse' && event.button !== 0) return
-
-    boundaryDragRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      deltaX: 0,
-      active: true,
-    }
-  }, [zoom])
-
-  const handleBoundaryPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const state = boundaryDragRef.current
-    if (!state.active || state.pointerId !== event.pointerId) return
-
-    state.deltaX = event.clientX - state.startX
-  }, [])
-
-  const handleBoundaryPointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const state = boundaryDragRef.current
-    if (!state.active || state.pointerId !== event.pointerId) return
-
-    const deltaX = state.deltaX
-    resetBoundaryDrag()
-
-    if (zoom > MIN_VIEWER_ZOOM || visibleFaces.length <= 1) return
-
-    const isAtFirstFace = activeFaceIndex <= 0
-    const isAtLastFace = activeFaceIndex >= visibleFaces.length - 1
-    const threshold = 56
-
-    if (isAtFirstFace && deltaX > threshold) {
-      navigateToAdjacentClimb('prev')
-      return
-    }
-
-    if (isAtLastFace && deltaX < -threshold) {
-      navigateToAdjacentClimb('next')
-    }
-  }, [activeFaceIndex, navigateToAdjacentClimb, resetBoundaryDrag, visibleFaces.length, zoom])
 
   const scrollRouteCardIntoView = useCallback((routeId: string) => {
     const node = routeCardRefs.current[routeId]
@@ -1044,6 +990,8 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   useEffect(() => {
     if (!emblaApi) return
 
+    boundaryNavigationLockRef.current = false
+
     const rafId = window.requestAnimationFrame(() => {
       updateEmblaControls(true)
     })
@@ -1072,6 +1020,24 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
       updateEmblaControls(false)
     }
 
+    const handleScroll = () => {
+      if (zoom > MIN_VIEWER_ZOOM || boundaryNavigationLockRef.current || visibleFaces.length === 0) return
+
+      const progress = emblaApi.scrollProgress()
+      const maxProgress = Math.max(visibleFaces.length - 1, 0)
+      const overscrollPrev = progress < 0 ? Math.abs(progress) : 0
+      const overscrollNext = progress > maxProgress ? progress - maxProgress : 0
+
+      if (activeFaceIndex === 0 && prevClimbTarget && overscrollPrev >= CLIMB_BOUNDARY_DRAG_RATIO) {
+        navigateToAdjacentClimb('prev')
+        return
+      }
+
+      if (activeFaceIndex === visibleFaces.length - 1 && nextClimbTarget && overscrollNext >= CLIMB_BOUNDARY_DRAG_RATIO) {
+        navigateToAdjacentClimb('next')
+      }
+    }
+
     const handleSettle = () => {
       if (!transitionBuffer) {
         setIsFaceTransitioning(false)
@@ -1087,15 +1053,17 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     }
 
     emblaApi.on('select', handleSelect)
+    emblaApi.on('scroll', handleScroll)
     emblaApi.on('reInit', handleReInit)
     emblaApi.on('settle', handleSettle)
     return () => {
       window.cancelAnimationFrame(rafId)
       emblaApi.off('select', handleSelect)
+      emblaApi.off('scroll', handleScroll)
       emblaApi.off('reInit', handleReInit)
       emblaApi.off('settle', handleSettle)
     }
-  }, [activeFaceIndex, emblaApi, navigateToAdjacentClimb, requestedFaceIndex, resetZoomPan, transitionBuffer, updateEmblaControls, updateRouteParam, clearSelection, visibleFaces.length])
+  }, [activeFaceIndex, clearSelection, emblaApi, navigateToAdjacentClimb, nextClimbTarget, prevClimbTarget, requestedFaceIndex, resetZoomPan, transitionBuffer, updateEmblaControls, updateRouteParam, visibleFaces.length, zoom])
 
   useEffect(() => {
     if (!emblaApi) return
@@ -2081,6 +2049,8 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         totalFaces={totalFaces}
         canScrollPrev={canScrollPrev}
         canScrollNext={canScrollNext}
+        hasAdjacentPrevClimb={!!prevClimbTarget}
+        hasAdjacentNextClimb={!!nextClimbTarget}
         zoom={zoom}
         minViewerZoom={MIN_VIEWER_ZOOM}
         pan={pan}
@@ -2098,9 +2068,6 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         onTouchStart={handleViewerTouchStart}
         onTouchMove={handleViewerTouchMove}
         onTouchEnd={handleViewerTouchEnd}
-        onPointerDown={handleBoundaryPointerDown}
-        onPointerMove={handleBoundaryPointerMove}
-        onPointerUp={handleBoundaryPointerUp}
         onCanvasClick={handleCanvasClick}
         onFaceLoad={markFaceLoaded}
         onFaceError={markFaceErrored}
