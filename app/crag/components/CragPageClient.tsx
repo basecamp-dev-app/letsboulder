@@ -1522,7 +1522,7 @@ export default function CragPageClient({
           {toast}
         </div>
       )}
-      <div className="relative z-[1500] h-[34vh] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
+      <div className="relative z-0 h-[34vh] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
         <MapContainer
           ref={mapRef as React.RefObject<L.Map | null>}
           center={cragCenter || [crag.latitude || 0, crag.longitude || 0]}
