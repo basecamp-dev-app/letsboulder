@@ -155,17 +155,25 @@ export async function getCanonicalRouteFaces(
   cragId: string,
   climbId: string
 ) {
-  const { data: routeData } = await supabase.rpc('get_crag_route_intelligence', { p_crag_id: cragId })
+  const { data: routeData, error: routeDataError } = await supabase.rpc('get_crag_route_intelligence', { p_crag_id: cragId })
+  if (routeDataError) {
+    throw routeDataError
+  }
+
   const baseRoutes = (routeData || []).map(mapRouteRow)
   const climbIds = baseRoutes.map((route) => route.id)
   let effectiveClimbIdByClimbId: Record<string, string> = {}
 
   if (climbIds.length > 0) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('climbs')
       .select('id, shared_climb_id')
       .in('id', climbIds)
       .order('id', { ascending: true })
+
+    if (error) {
+      throw error
+    }
 
     effectiveClimbIdByClimbId = Object.fromEntries(
       ((data || []) as ClimbIdentityRow[]).map((row) => [row.id, row.shared_climb_id || row.id])
@@ -181,17 +189,25 @@ export async function getCanonicalRouteFaces(
     aliasClimbIds.push(climbId)
   }
 
-  const { data: imageData } = await supabase
+  const { data: imageData, error: imageDataError } = await supabase
     .from('images')
     .select('id, url, latitude, longitude')
     .eq('crag_id', cragId)
     .order('created_at', { ascending: false })
 
-  const { data: cragImageLinkData } = await supabase
+  if (imageDataError) {
+    throw imageDataError
+  }
+
+  const { data: cragImageLinkData, error: cragImageLinkError } = await supabase
     .from('crag_images')
     .select('linked_image_id, source_image_id')
     .eq('crag_id', cragId)
     .order('created_at', { ascending: false })
+
+  if (cragImageLinkError) {
+    throw cragImageLinkError
+  }
 
   const linkedImageIds = Array.from(new Set(((cragImageLinkData || []) as CragImageLinkRow[])
     .flatMap((row) => [row.linked_image_id, row.source_image_id])
@@ -202,26 +218,32 @@ export async function getCanonicalRouteFaces(
 
   let missingLinkedImages: CanonicalImageRow[] = []
   if (missingLinkedImageIds.length > 0) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('images')
       .select('id, url, latitude, longitude')
       .in('id', missingLinkedImageIds)
       .order('created_at', { ascending: false })
 
+    if (error) {
+      throw error
+    }
+
     missingLinkedImages = (data || []) as CanonicalImageRow[]
   }
 
-  const images = [...((imageData || []) as CanonicalImageRow[]), ...missingLinkedImages].map((image) => ({
-    ...image,
-    url: resolveRouteImageUrl(image.url),
-  }))
+  const images = [...((imageData || []) as CanonicalImageRow[]), ...missingLinkedImages]
+    .filter((image): image is CanonicalImageRow => typeof image?.id === 'string' && image.id.length > 0 && typeof image.url === 'string' && image.url.length > 0)
+    .map((image) => ({
+      ...image,
+      url: resolveRouteImageUrl(image.url),
+    }))
 
   const imageById = new Map(images.map((image) => [image.id, image]))
   const imageIds = images.map((image) => image.id)
   const routePreviewByClimbId: Record<string, CanonicalRoutePreview> = {}
 
   if (imageIds.length > 0) {
-    const { data: routeLineData } = await supabase
+    const { data: routeLineData, error: routeLineError } = await supabase
       .from('route_lines')
       .select('image_id, climb_id')
       .in('image_id', imageIds)
@@ -229,11 +251,16 @@ export async function getCanonicalRouteFaces(
       .order('sequence_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
 
+    if (routeLineError) {
+      throw routeLineError
+    }
+
     for (const row of (routeLineData || []) as RouteLineTargetRow[]) {
+      if (typeof row?.climb_id !== 'string' || typeof row?.image_id !== 'string') continue
       if (!aliasClimbIds.includes(row.climb_id)) continue
       if (routePreviewByClimbId[row.climb_id]) continue
       const image = imageById.get(row.image_id)
-      if (!image) continue
+      if (!image || !image.url) continue
       routePreviewByClimbId[row.climb_id] = {
         imageId: row.image_id,
         imageUrl: image.url,
