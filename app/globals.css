@@ -95,6 +95,11 @@
 .leaflet-popup {
   border-radius: 8px !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  z-index: 1600 !important;
+}
+
+.leaflet-popup-pane {
+  z-index: 1600 !important;
 }
 
 .leaflet-popup-content-wrapper {
