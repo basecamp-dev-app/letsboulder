@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { RoutePoint } from '@/lib/useRouteSelection'
+import { getCanonicalRouteFaces } from '@/lib/climb/canonical-logic'
 import { buildMediaProxyUrl, estimateCompressedImageBytes, parsePrivateMediaRef } from '@/lib/media-proxy'
 import type { ClimbPackResponse, OfflineMapPin } from '@/lib/climb/queries'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
@@ -144,11 +145,6 @@ interface RouteFaceQueryRow {
   climb: ClimbInfo | ClimbInfo[] | null
   image: RouteFaceRow['image']
   crag_image: RouteFaceRow['crag_image']
-}
-
-interface ClimbFamilyRow {
-  id: string
-  shared_climb_id: string | null
 }
 
 function getFaceIdentityKey(face: Pick<CompleteSummaryFace, 'image_id' | 'linked_image_id' | 'crag_image_id' | 'index'>) {
@@ -445,12 +441,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
   }
 
   const primaryImage = context.primary_image
-  const [{ data: climbFamilyRow, error: climbFamilyError }, completeSummaryResult, cragResult, profileResult, primaryImageGeoResult] = await Promise.all([
-    supabase
-      .from('climbs')
-      .select('id, shared_climb_id')
-      .eq('id', climbId)
-      .single(),
+  const [completeSummaryResult, cragResult, profileResult, primaryImageGeoResult] = await Promise.all([
     supabase.rpc('get_crag_faces_complete_summary', { p_image_id: primaryImage.id }),
     primaryImage.crag_id
       ? supabase.from('crags').select('id, country_code, slug, name').eq('id', primaryImage.crag_id).maybeSingle()
@@ -469,28 +460,15 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
       .maybeSingle(),
   ])
 
-  if (climbFamilyError) {
-    throw climbFamilyError
-  }
+  const completeSummary = (!completeSummaryResult.error && completeSummaryResult.data)
+    ? completeSummaryResult.data as CompleteSummaryPayload
+    : null
+  const primaryImageGeo = ('data' in primaryImageGeoResult ? primaryImageGeoResult.data : null) as { latitude: number | null; longitude: number | null } | null
+  const canonicalRouteFaces = primaryImage.crag_id
+    ? await getCanonicalRouteFaces(supabase as never, primaryImage.crag_id, climbId)
+    : null
 
-  const effectiveClimbId = (climbFamilyRow as ClimbFamilyRow | null)?.shared_climb_id || climbId
-  const familyClimbRowsPromise = effectiveClimbId === climbId
-    ? Promise.resolve({ data: [{ id: climbId, shared_climb_id: effectiveClimbId }], error: null })
-    : supabase
-        .from('climbs')
-        .select('id, shared_climb_id')
-        .or(`shared_climb_id.eq.${effectiveClimbId},id.eq.${effectiveClimbId}`)
-
-  const { data: familyRows, error: familyRowsError } = await familyClimbRowsPromise
-
-  if (familyRowsError) {
-    throw familyRowsError
-  }
-
-  const familyClimbIds = Array.from(new Set([
-    climbId,
-    ...((familyRows || []) as ClimbFamilyRow[]).map((row) => row.id),
-  ]))
+  const aliasClimbIds = canonicalRouteFaces?.aliasClimbIds || [climbId]
 
   const { data: routeFaceRowsData, error: routeFaceRowsError } = await supabase
     .from('route_lines')
@@ -506,7 +484,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
       image:images!inner(id, url, width, height, face_directions),
       crag_image:crag_images(id, url, width, height, linked_image_id)
     `)
-    .in('climb_id', familyClimbIds)
+    .in('climb_id', aliasClimbIds)
     .order('sequence_order', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true })
 
@@ -514,10 +492,6 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
     throw routeFaceRowsError
   }
 
-  const completeSummary = (!completeSummaryResult.error && completeSummaryResult.data)
-    ? completeSummaryResult.data as CompleteSummaryPayload
-    : null
-  const primaryImageGeo = ('data' in primaryImageGeoResult ? primaryImageGeoResult.data : null) as { latitude: number | null; longitude: number | null } | null
   const routeFaceRows = Array.isArray(routeFaceRowsData)
     ? (routeFaceRowsData as unknown as RouteFaceQueryRow[]).map((row) => ({
         route_id: row.id,
@@ -585,6 +559,24 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
   }
 
   for (const [key, discoveredFace] of routeDiscoveredFaceMap.entries()) {
+    mergedFaceMap.set(key, mergeFaces(mergedFaceMap.get(key), discoveredFace))
+  }
+
+  for (const preview of canonicalRouteFaces?.previewFaces || []) {
+    const discoveredFace: CompleteSummaryFace = {
+      image_id: preview.imageId,
+      index: Number.MAX_SAFE_INTEGER,
+      is_primary: preview.imageId === primaryImage.id,
+      url: preview.imageUrl,
+      linked_image_id: preview.imageId,
+      crag_image_id: null,
+      face_directions: null,
+      metadata: null,
+      routes: [],
+      has_routes: true,
+    }
+
+    const key = getFaceIdentityKey(discoveredFace)
     mergedFaceMap.set(key, mergeFaces(mergedFaceMap.get(key), discoveredFace))
   }
 
