@@ -150,6 +150,37 @@ npm run lint
 npm run start
 ```
 
+## Solo Git Workflow
+
+Use a simple two-branch flow:
+
+- `dev` is your working and staging branch
+- `main` is your production branch
+- do not keep a separate local `main` checkout unless you actively need it
+
+Recommended release flow:
+
+```bash
+git checkout dev
+git pull origin dev
+
+# make changes, test locally, commit
+git push origin dev
+
+# verify the dev deployment, including media flows backed by Cloudflare Worker + R2
+
+git checkout main
+git pull origin main
+git merge dev
+git push origin main
+
+git checkout dev
+git merge main
+git push origin dev
+```
+
+For this project, local app testing happens in Next.js, but media ingest and delivery also depend on the Cloudflare Worker in `apps/media-worker` and Cloudflare R2. Use the `dev` deployment as the final verification step for worker-backed media behavior before promoting to `main`.
+
 ## Troubleshooting
 
 ### "Database error finding user"
