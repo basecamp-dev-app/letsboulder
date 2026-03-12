@@ -1,4 +1,5 @@
 import { normalizeGrade } from '@/lib/grades'
+import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import type { Database } from '@/types/database'
 import type { CragRoute, RoutePreview } from '@/app/crag/components/CragPageClient'
 
@@ -87,16 +88,6 @@ function getAverageCoordinates(images: ImageRow[]): [number, number] | null {
     { lat: 0, lng: 0 }
   )
   return [sum.lat / images.length, sum.lng / images.length]
-}
-
-function resolveRouteImageUrl(url: string) {
-  if (!url.startsWith('private://')) return url
-  const [, bucketAndPath = ''] = url.split('private://')
-  const slashIndex = bucketAndPath.indexOf('/')
-  if (slashIndex === -1) return url
-  const bucket = bucketAndPath.slice(0, slashIndex)
-  const path = bucketAndPath.slice(slashIndex + 1)
-  return `/api/media/${bucket}/${path}`
 }
 
 function dedupeCragRoutes(routes: CragRoute[], effectiveClimbIdByClimbId: Record<string, string>) {
