@@ -156,6 +156,7 @@ Use a simple two-branch flow:
 
 - `dev` is your working and staging branch
 - `main` is your production branch
+- after each production release, merge `main` back into `dev` so both branches stay aligned
 - do not keep a separate local `main` checkout unless you actively need it
 
 Recommended release flow:
