@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import type { MouseEventHandler, PointerEventHandler, RefObject, TouchEventHandler } from 'react'
+import type { MouseEventHandler, RefObject, TouchEventHandler } from 'react'
 import { ChevronLeft, ChevronRight, Layers } from 'lucide-react'
 
 interface FaceViewerPoint {
@@ -28,6 +28,8 @@ interface ClimbFaceViewerProps {
   totalFaces: number
   canScrollPrev: boolean
   canScrollNext: boolean
+  hasAdjacentPrevClimb: boolean
+  hasAdjacentNextClimb: boolean
   zoom: number
   minViewerZoom: number
   pan: FaceViewerPan
@@ -45,9 +47,6 @@ interface ClimbFaceViewerProps {
   onTouchStart: TouchEventHandler<HTMLDivElement>
   onTouchMove: TouchEventHandler<HTMLDivElement>
   onTouchEnd: TouchEventHandler<HTMLDivElement>
-  onPointerDown: PointerEventHandler<HTMLDivElement>
-  onPointerMove: PointerEventHandler<HTMLDivElement>
-  onPointerUp: PointerEventHandler<HTMLDivElement>
   onCanvasClick: MouseEventHandler<HTMLCanvasElement>
   onFaceLoad: (faceId: string) => void
   onFaceError: (faceId: string) => void
@@ -64,6 +63,8 @@ export default function ClimbFaceViewer({
   totalFaces,
   canScrollPrev,
   canScrollNext,
+  hasAdjacentPrevClimb,
+  hasAdjacentNextClimb,
   zoom,
   minViewerZoom,
   pan,
@@ -81,9 +82,6 @@ export default function ClimbFaceViewer({
   onTouchStart,
   onTouchMove,
   onTouchEnd,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
   onCanvasClick,
   onFaceLoad,
   onFaceError,
@@ -93,6 +91,9 @@ export default function ClimbFaceViewer({
   onPrefetchFace,
   onResetZoomPan,
 }: ClimbFaceViewerProps) {
+  const showPrevControl = canScrollPrev || hasAdjacentPrevClimb
+  const showNextControl = canScrollNext || hasAdjacentNextClimb
+
   return (
     <div className="group flex-1 relative overflow-hidden flex items-center justify-center p-4">
       <div className="relative w-full max-w-6xl" ref={emblaRef}>
@@ -119,10 +120,6 @@ export default function ClimbFaceViewer({
                 onTouchMove={index === activeFaceIndex ? onTouchMove : undefined}
                 onTouchEnd={index === activeFaceIndex ? onTouchEnd : undefined}
                 onTouchCancel={index === activeFaceIndex ? onTouchEnd : undefined}
-                onPointerDown={index === activeFaceIndex ? onPointerDown : undefined}
-                onPointerMove={index === activeFaceIndex ? onPointerMove : undefined}
-                onPointerUp={index === activeFaceIndex ? onPointerUp : undefined}
-                onPointerCancel={index === activeFaceIndex ? onPointerUp : undefined}
               >
                 <Image
                   key={index === activeFaceIndex ? `${face.id}-${activeFaceRetryNonce}` : face.id}
@@ -155,29 +152,29 @@ export default function ClimbFaceViewer({
           ))}
         </div>
 
-        {totalFaces > 1 || canScrollPrev || canScrollNext ? (
+        {totalFaces > 1 || showPrevControl || showNextControl ? (
           <>
             <div className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
               <Layers className="h-3.5 w-3.5" />
               <span>{totalFaces}</span>
             </div>
 
-            {canScrollPrev ? (
+            {showPrevControl ? (
               <button
                 type="button"
                 onClick={onScrollPrev}
-                aria-label="Previous face"
+                aria-label={canScrollPrev ? 'Previous face' : 'Previous climb'}
                 className="absolute left-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
             ) : null}
 
-            {canScrollNext ? (
+            {showNextControl ? (
               <button
                 type="button"
                 onClick={onScrollNext}
-                aria-label="Next face"
+                aria-label={canScrollNext ? 'Next face' : 'Next climb'}
                 className="absolute right-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-white opacity-0 backdrop-blur-sm transition hover:bg-white/40 group-hover:opacity-100 md:flex"
               >
                 <ChevronRight className="h-5 w-5" />
