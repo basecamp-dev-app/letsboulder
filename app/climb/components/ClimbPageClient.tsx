@@ -148,6 +148,13 @@ interface InitialSelectionSnapshot {
   imageParam: string | null
 }
 
+interface ClimbNavigationTarget {
+  climbId: string
+  routeId: string | null
+  imageId: string | null
+  canonicalPath: string
+}
+
 const MIN_VIEWER_ZOOM = 1
 const MAX_VIEWER_ZOOM = 3
 
@@ -225,6 +232,19 @@ function formatBytes(bytes: number): string {
 
 function resolveFaceImageId(face: FaceGalleryItem, primaryImageId: string): string | null {
   return face.image_id || face.linked_image_id || (face.is_primary ? primaryImageId : null)
+}
+
+function buildClimbNavigationUrl(target: ClimbNavigationTarget) {
+  const next = new URLSearchParams()
+  if (target.imageId) {
+    next.set('image', target.imageId)
+  }
+  if (target.routeId) {
+    next.set('route', target.routeId)
+  }
+
+  const query = next.toString()
+  return query ? `${target.canonicalPath}?${query}` : target.canonicalPath
 }
 
 function normalizePoints(
@@ -382,6 +402,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   const [zoom, setZoom] = useState(MIN_VIEWER_ZOOM)
   const [pan, setPan] = useState<PanOffset>({ x: 0, y: 0 })
   const [hasMounted, setHasMounted] = useState(false)
+  const [nextClimbTarget, setNextClimbTarget] = useState<ClimbNavigationTarget | null>(null)
   const emblaDragEnabled = zoom <= MIN_VIEWER_ZOOM
   const [emblaRef, emblaApi] = useEmblaCarousel({
     axis: 'x',
@@ -396,6 +417,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   const prevRequestedFaceIndexRef = useRef<number | null>(null)
   const pendingSelectedRouteIdRef = useRef<string | null>(null)
   const routeDrivenFaceChangeRef = useRef(false)
+  const overscrollAttemptRef = useRef<{ direction: 'prev' | 'next'; at: number } | null>(null)
   const gradeSystem = useGradeSystem()
   const { data: climbPackData, isLoading: isClimbPackLoading, error: climbPackError } = useQuery({
     queryKey: climbOfflinePackQueryKey(climbId),
@@ -609,6 +631,15 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     updateRouteParam(null)
     setRequestedFaceIndex(targetIndex)
   }, [emblaApi, visibleFaces.length, requestedFaceIndex, activeFaceIndex, settledFaceIndex, updateEmblaControls, resetZoomPan, clearSelection, updateRouteParam])
+
+  const navigateToAdjacentClimb = useCallback((direction: 'prev' | 'next') => {
+    if (direction !== 'next') return false
+    if (!nextClimbTarget) return false
+
+    const destination = buildClimbNavigationUrl(nextClimbTarget)
+    router.push(destination)
+    return true
+  }, [nextClimbTarget, router])
 
   const scrollRouteCardIntoView = useCallback((routeId: string) => {
     const node = routeCardRefs.current[routeId]
@@ -939,6 +970,27 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
 
     const handleSelect = () => {
       const nextSnap = emblaApi.selectedScrollSnap()
+      const reachedBoundary = nextSnap === activeFaceIndex && nextSnap === requestedFaceIndex
+      if (reachedBoundary) {
+        const lastIndex = Math.max(visibleFaces.length - 1, 0)
+        const direction = nextSnap >= lastIndex ? 'next' : 'prev'
+        const previousAttempt = overscrollAttemptRef.current
+        const now = Date.now()
+
+        if (previousAttempt && previousAttempt.direction === direction && now - previousAttempt.at < 900) {
+          overscrollAttemptRef.current = null
+          if (navigateToAdjacentClimb(direction)) {
+            return
+          }
+        } else {
+          overscrollAttemptRef.current = { direction, at: now }
+        }
+
+        updateEmblaControls(false)
+        return
+      }
+
+      overscrollAttemptRef.current = null
       if (nextSnap === activeFaceIndex && nextSnap === requestedFaceIndex) {
         updateEmblaControls(false)
         return
@@ -984,7 +1036,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
       emblaApi.off('reInit', handleReInit)
       emblaApi.off('settle', handleSettle)
     }
-  }, [activeFaceIndex, emblaApi, requestedFaceIndex, updateEmblaControls, clearSelection, resetZoomPan, transitionBuffer, updateRouteParam])
+  }, [activeFaceIndex, emblaApi, navigateToAdjacentClimb, requestedFaceIndex, resetZoomPan, transitionBuffer, updateEmblaControls, updateRouteParam, clearSelection, visibleFaces.length])
 
   useEffect(() => {
     if (!emblaApi) return
@@ -1108,6 +1160,10 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
   }, [visibleFaces.length, activeFaceIndex, requestedFaceIndex, settledFaceIndex])
 
   useEffect(() => {
+    overscrollAttemptRef.current = null
+  }, [activeFaceIndex, climbId, nextClimbTarget?.climbId, visibleFaces.length])
+
+  useEffect(() => {
     const current = visibleFaces[requestedFaceIndex]
     const next = visibleFaces[requestedFaceIndex + 1]
     const prev = visibleFaces[requestedFaceIndex - 1]
@@ -1120,6 +1176,72 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     if (!cragPath) return
     router.prefetch(cragPath)
   }, [cragPath, router])
+
+  useEffect(() => {
+    const cragId = image?.crag_id
+    if (!cragId || !image?.id) {
+      setNextClimbTarget(null)
+      return
+    }
+
+    let cancelled = false
+
+    const loadNextClimbTarget = async () => {
+      try {
+        const response = await fetch(`/api/crags/${cragId}/images`, {
+          credentials: 'include',
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to load crag image navigation')
+        }
+
+        const payload = await response.json() as {
+          images?: Array<{ id?: string; routeTarget?: { climbId?: string; routeId?: string; climbSlug?: string | null; imageId?: string } | null }>
+          crag?: { country_code?: string | null; slug?: string | null } | null
+        }
+
+        if (cancelled) return
+
+        const imagesList = Array.isArray(payload.images) ? payload.images : []
+        const currentIndex = imagesList.findIndex((item) => item.id === image.id)
+        if (currentIndex === -1) {
+          setNextClimbTarget(null)
+          return
+        }
+
+        const nextImage = imagesList.slice(currentIndex + 1).find((item) => item.routeTarget?.climbId)
+        if (!nextImage?.routeTarget?.climbId) {
+          setNextClimbTarget(null)
+          return
+        }
+
+        const routeHrefBase = payload.crag?.country_code && payload.crag?.slug
+          ? `/${payload.crag.country_code.toLowerCase()}/${payload.crag.slug}`
+          : null
+        const canonicalPath = nextImage.routeTarget.climbSlug && routeHrefBase
+          ? `${routeHrefBase}/${nextImage.routeTarget.climbSlug}`
+          : `/climb/${nextImage.routeTarget.climbId}`
+
+        setNextClimbTarget({
+          climbId: nextImage.routeTarget.climbId,
+          routeId: nextImage.routeTarget.routeId || null,
+          imageId: nextImage.routeTarget.imageId || nextImage.id || null,
+          canonicalPath,
+        })
+      } catch {
+        if (!cancelled) {
+          setNextClimbTarget(null)
+        }
+      }
+    }
+
+    void loadNextClimbTarget()
+
+    return () => {
+      cancelled = true
+    }
+  }, [image?.crag_id, image?.id])
 
   useEffect(() => {
     const loadUserLogs = async () => {
