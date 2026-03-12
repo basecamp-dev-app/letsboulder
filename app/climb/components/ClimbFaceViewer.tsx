@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import type { MouseEventHandler, RefObject, TouchEventHandler } from 'react'
+import type { MouseEventHandler, PointerEventHandler, RefObject, TouchEventHandler } from 'react'
 import { ChevronLeft, ChevronRight, Layers } from 'lucide-react'
 
 interface FaceViewerPoint {
@@ -45,6 +45,9 @@ interface ClimbFaceViewerProps {
   onTouchStart: TouchEventHandler<HTMLDivElement>
   onTouchMove: TouchEventHandler<HTMLDivElement>
   onTouchEnd: TouchEventHandler<HTMLDivElement>
+  onPointerDown: PointerEventHandler<HTMLDivElement>
+  onPointerMove: PointerEventHandler<HTMLDivElement>
+  onPointerUp: PointerEventHandler<HTMLDivElement>
   onCanvasClick: MouseEventHandler<HTMLCanvasElement>
   onFaceLoad: (faceId: string) => void
   onFaceError: (faceId: string) => void
@@ -78,6 +81,9 @@ export default function ClimbFaceViewer({
   onTouchStart,
   onTouchMove,
   onTouchEnd,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
   onCanvasClick,
   onFaceLoad,
   onFaceError,
@@ -113,6 +119,10 @@ export default function ClimbFaceViewer({
                 onTouchMove={index === activeFaceIndex ? onTouchMove : undefined}
                 onTouchEnd={index === activeFaceIndex ? onTouchEnd : undefined}
                 onTouchCancel={index === activeFaceIndex ? onTouchEnd : undefined}
+                onPointerDown={index === activeFaceIndex ? onPointerDown : undefined}
+                onPointerMove={index === activeFaceIndex ? onPointerMove : undefined}
+                onPointerUp={index === activeFaceIndex ? onPointerUp : undefined}
+                onPointerCancel={index === activeFaceIndex ? onPointerUp : undefined}
               >
                 <Image
                   key={index === activeFaceIndex ? `${face.id}-${activeFaceRetryNonce}` : face.id}
@@ -145,7 +155,7 @@ export default function ClimbFaceViewer({
           ))}
         </div>
 
-        {totalFaces > 1 ? (
+        {totalFaces > 1 || canScrollPrev || canScrollNext ? (
           <>
             <div className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
               <Layers className="h-3.5 w-3.5" />
