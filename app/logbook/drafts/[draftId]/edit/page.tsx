@@ -1294,10 +1294,17 @@ export default function EditDraftPage() {
       })
       const payload = await response.json().catch(() => ({} as {
         error?: string
-        published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] }
+        published?: {
+          imageId?: string
+          defaultImageId?: string
+          imageIds?: string[]
+          routeLineIds?: string[]
+          canonicalPath?: string
+          defaultRouteId?: string | null
+        }
       }))
 
-      if (!response.ok || !payload.published?.imageId) {
+      if (!response.ok || !payload.published?.defaultImageId || !payload.published.canonicalPath) {
         throw new Error(payload.error || 'Failed to publish draft')
       }
 
@@ -1306,10 +1313,13 @@ export default function EditDraftPage() {
       addToast(`Success! Created ${routeCount} route${routeCount === 1 ? '' : 's'} across ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 'success')
 
       const query = new URLSearchParams({
-        publishedFaces: String(imageCount),
+        publishedImages: String(imageCount),
         publishedRoutes: String(routeCount),
       })
-      router.push(`/logbook/submissions/${payload.published.imageId}/edit?${query.toString()}`)
+      if (payload.published.defaultRouteId) {
+        query.set('route', payload.published.defaultRouteId)
+      }
+      router.push(`${payload.published.canonicalPath}?${query.toString()}`)
     } catch (publishError) {
       const message = publishError instanceof Error ? publishError.message : 'Failed to publish draft'
       setError(message)
