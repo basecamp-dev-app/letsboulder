@@ -12,6 +12,7 @@ interface PromoteResult {
   success?: boolean
   status?: string
   image_id?: string
+  default_image_id?: string
   image_ids?: string[]
   climb_ids?: string[]
   route_line_ids?: string[]
@@ -133,6 +134,35 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to publish draft' }, { status: 500 })
     }
 
+    const defaultImageId = result.default_image_id || result.image_id
+
+    const { data: canonicalImage, error: canonicalImageError } = await supabase
+      .from('images')
+      .select('id, crag_id, crags(country_code, slug), route_lines(id, climb_id, sequence_order, created_at)')
+      .eq('id', defaultImageId)
+      .maybeSingle()
+
+    if (canonicalImageError || !canonicalImage) {
+      return createErrorResponse(canonicalImageError || new Error('Failed to resolve canonical image path after publish'), 'Failed to resolve publish destination')
+    }
+
+    const crag = Array.isArray(canonicalImage.crags) ? canonicalImage.crags[0] : canonicalImage.crags
+    if (!crag?.country_code || !crag?.slug) {
+      return NextResponse.json({ error: 'Failed to resolve canonical crag path after publish' }, { status: 500 })
+    }
+
+    const routeLines = Array.isArray(canonicalImage.route_lines) ? canonicalImage.route_lines : []
+    const defaultRoute = routeLines
+      .slice()
+      .sort((left, right) => {
+        const leftSequence = typeof left.sequence_order === 'number' ? left.sequence_order : Number.MAX_SAFE_INTEGER
+        const rightSequence = typeof right.sequence_order === 'number' ? right.sequence_order : Number.MAX_SAFE_INTEGER
+        if (leftSequence !== rightSequence) return leftSequence - rightSequence
+        return String(left.created_at || '').localeCompare(String(right.created_at || ''))
+      })[0] || null
+
+    const canonicalPath = `/${crag.country_code.toLowerCase()}/${crag.slug}/i/${defaultImageId}`
+
     if (INTERNAL_MODERATION_SECRET) {
       const csrfToken = request.headers.get('x-csrf-token')
       const cookieHeader = request.headers.get('cookie')
@@ -174,13 +204,17 @@ export async function POST(
     return NextResponse.json({
       success: true,
       status: result.status || 'submitted',
-        published: {
-          defaultImageId: result.image_id,
-          imageId: result.image_id,
-          imageIds: Array.isArray(result.image_ids) ? result.image_ids : (result.image_id ? [result.image_id] : []),
+      published: {
+        defaultImageId,
+        imageId: result.image_id,
+        imageIds: Array.isArray(result.image_ids) ? result.image_ids : (result.image_id ? [result.image_id] : []),
         climbIds: Array.isArray(result.climb_ids) ? result.climb_ids : [],
         routeLineIds: Array.isArray(result.route_line_ids) ? result.route_line_ids : [],
         publishedAt: result.published_at || null,
+        canonicalPath,
+        countryCode: crag.country_code.toLowerCase(),
+        cragSlug: crag.slug,
+        defaultRouteId: defaultRoute?.id || null,
       },
     })
   } catch (error) {
