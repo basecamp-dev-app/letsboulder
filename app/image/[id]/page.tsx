@@ -39,17 +39,21 @@ export default function ImageRedirectPage() {
   const supabase = createClient()
 
   const tabParam = searchParams.get('tab')
+  const routeParam = searchParams.get('route')
+  const climbParam = searchParams.get('climb')
 
-  const navigateToClimb = useCallback((climbId: string, routeLineId: string) => {
+  const navigateToImage = useCallback((climbId: string, routeLineId: string, targetImageId: string) => {
     if (resolvedRef.current) return
     resolvedRef.current = true
 
     const next = new URLSearchParams()
+    next.set('image', targetImageId)
+    next.set('climb', climbId)
     next.set('route', routeLineId)
     if (tabParam === 'tops' || tabParam === 'climb') {
       next.set('tab', tabParam)
     }
-    router.push(`/climb/${climbId}?${next.toString()}`)
+    router.replace(`/image/${targetImageId}?${next.toString()}`)
   }, [tabParam, router])
 
   const checkForRoute = useCallback(async () => {
@@ -87,12 +91,22 @@ export default function ImageRedirectPage() {
         return null
       }
 
+      if (routeParam && climbParam) {
+        const explicitMatch = data && data.id === routeParam && data.climb_id === climbParam
+        if (explicitMatch) {
+          return {
+            ...data,
+            image_id: imageId,
+          }
+        }
+      }
+
       return data
     } catch (err) {
       console.error('Exception checking route_lines:', err)
       return null
     }
-  }, [imageId, supabase])
+  }, [climbParam, imageId, routeParam, supabase])
 
   const startPolling = useCallback(() => {
     if (!startTimeRef.current) {
@@ -116,7 +130,7 @@ export default function ImageRedirectPage() {
       if (resolvedRef.current || !mountedRef.current) return
 
       if (result?.climb_id) {
-        navigateToClimb(result.climb_id, result.id)
+        navigateToImage(result.climb_id, result.id, result.image_id || imageId)
         return
       }
 
@@ -124,7 +138,7 @@ export default function ImageRedirectPage() {
     }
 
     pollingRef.current = setTimeout(poll, POLL_INTERVAL_MS)
-  }, [checkForRoute, navigateToClimb, router])
+  }, [checkForRoute, imageId, navigateToImage, router])
 
   useEffect(() => {
     mountedRef.current = true
@@ -151,7 +165,7 @@ export default function ImageRedirectPage() {
 
       if (result?.climb_id) {
         console.log('[ImageRedirect] Found route, navigating to climb')
-        navigateToClimb(result.climb_id, result.id)
+        navigateToImage(result.climb_id, result.id, result.image_id || imageId)
         return
       }
 
@@ -167,7 +181,7 @@ export default function ImageRedirectPage() {
         clearTimeout(pollingRef.current)
       }
     }
-  }, [imageId, checkForRoute, navigateToClimb, startPolling, router])
+  }, [imageId, checkForRoute, navigateToImage, startPolling, router])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
