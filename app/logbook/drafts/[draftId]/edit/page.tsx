@@ -18,6 +18,7 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type NewRouteData, type RouteLine, type RoutePoint } from '@/lib/submission-types'
+import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirection } from '@/lib/draft-metadata'
 import { createClient } from '@/lib/supabase'
 
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
@@ -130,7 +131,7 @@ interface EditableRoute {
   points: RoutePoint[]
 }
 
-interface ManageFaceTab {
+interface ManageImageTab {
   imageId: string
   index: number
   label: string
@@ -265,10 +266,10 @@ export default function EditDraftPage() {
   const [success, setSuccess] = useState<string | null>(null)
 
   const [draft, setDraft] = useState<DraftPayload | null>(null)
-  const [manageFaces, setManageFaces] = useState<ManageFaceTab[]>([])
+  const [manageImages, setManageImages] = useState<ManageImageTab[]>([])
   const [activeImageId, setActiveImageId] = useState<string | null>(null)
-  const [primaryIndex, setPrimaryIndex] = useState(0)
-  const [faceDirectionsByImage, setFaceDirectionsByImage] = useState<Record<number, FaceDirection[]>>({})
+  const [defaultImageId, setDefaultImageId] = useState<string | null>(null)
+  const [orientationByImageId, setOrientationByImageId] = useState<Record<string, OrientationDirection[]>>({})
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, DraftRoute[]>>({})
 
   const [routeType, setRouteType] = useState<string>('sport')
@@ -341,42 +342,24 @@ export default function EditDraftPage() {
       }
 
       const metadata = nextDraft.metadata && typeof nextDraft.metadata === 'object' ? nextDraft.metadata : {}
-      const metadataPrimaryIndex = typeof metadata.primaryIndex === 'number' ? metadata.primaryIndex : 0
-      const nextPrimaryIndex = metadataPrimaryIndex >= 0 && metadataPrimaryIndex < sortedImages.length ? metadataPrimaryIndex : 0
-
-      const nextFaceDirectionsByImage: Record<number, FaceDirection[]> = {}
-      const metadataFaceDirectionsByImage = (metadata as { faceDirectionsByImage?: unknown }).faceDirectionsByImage
-      if (metadataFaceDirectionsByImage && typeof metadataFaceDirectionsByImage === 'object' && !Array.isArray(metadataFaceDirectionsByImage)) {
-        for (const [rawIndex, rawDirections] of Object.entries(metadataFaceDirectionsByImage)) {
-          const index = Number(rawIndex)
-          if (!Number.isInteger(index) || index < 0 || index >= sortedImages.length) continue
-          if (!Array.isArray(rawDirections)) continue
-          const normalized = FACE_DIRECTIONS.filter((direction) => rawDirections.includes(direction))
-          if (normalized.length > 0) {
-            nextFaceDirectionsByImage[index] = normalized
-          }
+      const normalizedMetadata = normalizeDraftMetadata(metadata, sortedImages)
+      const nextDefaultImageId = normalizedMetadata.navigation.defaultImageId || sortedImages[0]?.id || null
+      const nextOrientationByImageId = Object.values(normalizedMetadata.images).reduce<Record<string, OrientationDirection[]>>((acc, image) => {
+        if (Array.isArray(image.orientation) && image.orientation.length > 0) {
+          acc[image.imageId] = image.orientation
         }
-      }
-
-      const fallbackDirections = Array.isArray((metadata as { faceDirections?: unknown }).faceDirections)
-        ? (metadata as { faceDirections: unknown[] }).faceDirections
-        : []
-      if (Object.keys(nextFaceDirectionsByImage).length === 0 && fallbackDirections.length > 0) {
-        const normalized = FACE_DIRECTIONS.filter((direction) => fallbackDirections.includes(direction))
-        if (normalized.length > 0) {
-          nextFaceDirectionsByImage[nextPrimaryIndex] = normalized
-        }
-      }
+        return acc
+      }, {})
 
       const nextRoutesByImageId: Record<string, DraftRoute[]> = {}
-      const nextManageFaces: ManageFaceTab[] = sortedImages.map((image, index) => {
+      const nextManageImages: ManageImageTab[] = sortedImages.map((image, index) => {
         nextRoutesByImageId[image.id] = parseRoutesFromRouteData(image.route_data, image.width || 1200, image.height || 1200)
-        const directions = nextFaceDirectionsByImage[index]
+        const directions = nextOrientationByImageId[image.id]
         const directionsLabel = Array.isArray(directions) && directions.length > 0 ? ` (${directions.join('/')})` : ''
         return {
           imageId: image.id,
           index,
-          label: index === nextPrimaryIndex ? `Primary${directionsLabel}` : `Face ${index + 1}${directionsLabel}`,
+          label: image.id === nextDefaultImageId ? `Default${directionsLabel}` : `Image ${index + 1}${directionsLabel}`,
           signedUrl: image.signed_url || '',
         }
       })
@@ -411,15 +394,15 @@ export default function EditDraftPage() {
       setDraft(nextDraft)
       setDraftUpdatedAt(nextDraft.updated_at)
       setConflict(null)
-      setManageFaces(nextManageFaces)
-      setActiveImageId(nextManageFaces[nextPrimaryIndex]?.imageId || nextManageFaces[0]?.imageId || null)
-      setPrimaryIndex(nextPrimaryIndex)
-      setFaceDirectionsByImage(nextFaceDirectionsByImage)
+      setManageImages(nextManageImages)
+      setDefaultImageId(nextDefaultImageId)
+      setActiveImageId((current) => current && sortedImages.some((image) => image.id === current) ? current : nextDefaultImageId)
+      setOrientationByImageId(nextOrientationByImageId)
       setRoutesByImageId(nextRoutesByImageId)
       hasLoadedRoutesRef.current = true
       lastPersistedRoutesRef.current = JSON.stringify({
         routesByImageId: nextRoutesByImageId,
-        faceDirectionsByImage: nextFaceDirectionsByImage,
+        orientationByImageId: nextOrientationByImageId,
         latitude: typeof metadataLatitude === 'number' ? metadataLatitude : null,
         longitude: typeof metadataLongitude === 'number' ? metadataLongitude : null,
       })
@@ -513,22 +496,21 @@ export default function EditDraftPage() {
     hasShownCollabToastRef.current = true
   }, [collaborationAdded, addToast])
 
-  const activeFace = useMemo(() => {
+  const activeImageTab = useMemo(() => {
     if (!activeImageId) return null
-    return manageFaces.find((face) => face.imageId === activeImageId) || null
-  }, [activeImageId, manageFaces])
-  const activeFaceId = activeFace?.imageId || null
-  const activeFaceIndex = activeFace?.index ?? -1
+    return manageImages.find((image) => image.imageId === activeImageId) || null
+  }, [activeImageId, manageImages])
+  const activeDraftImageId = activeImageTab?.imageId || null
 
   const activeRoutes = useMemo(() => {
-    if (!activeFaceId) return []
-    return routesByImageId[activeFaceId] || []
-  }, [activeFaceId, routesByImageId])
+    if (!activeDraftImageId) return []
+    return routesByImageId[activeDraftImageId] || []
+  }, [activeDraftImageId, routesByImageId])
 
   const existingRouteLines = useMemo(() => {
     return activeRoutes.map((route) => ({
       id: route.id,
-      image_id: activeFaceId || 'draft-image',
+      image_id: activeDraftImageId || 'draft-image',
       climb_id: route.id,
       points: route.points,
       color: 'red',
@@ -545,16 +527,16 @@ export default function EditDraftPage() {
         description: route.description || null,
       },
     } as RouteLine))
-  }, [activeRoutes, activeFaceId, routeType])
+  }, [activeRoutes, activeDraftImageId, routeType])
 
   const imageSelection = useMemo<ImageSelection | null>(() => {
-    if (!activeFace) return null
+    if (!activeImageTab) return null
     return {
       mode: 'existing',
-      imageId: activeFace.imageId,
-      imageUrl: activeFace.signedUrl,
+      imageId: activeImageTab.imageId,
+      imageUrl: activeImageTab.signedUrl,
     }
-  }, [activeFace])
+  }, [activeImageTab])
 
   const markerPosition = useMemo<[number, number] | null>(() => {
     const parsedLatitude = Number(latitude)
@@ -567,13 +549,14 @@ export default function EditDraftPage() {
   }, [latitude, longitude])
 
   const hasValidLocation = markerPosition !== null
-  const primaryFace = useMemo(() => {
-    return manageFaces.find((face) => face.index === primaryIndex) || null
-  }, [manageFaces, primaryIndex])
-  const primaryFaceRoutes = useMemo(() => {
-    if (!primaryFace) return []
-    return routesByImageId[primaryFace.imageId] || []
-  }, [primaryFace, routesByImageId])
+  const defaultImageTab = useMemo(() => {
+    if (!defaultImageId) return null
+    return manageImages.find((image) => image.imageId === defaultImageId) || null
+  }, [defaultImageId, manageImages])
+  const defaultImageRoutes = useMemo(() => {
+    if (!defaultImageId) return []
+    return routesByImageId[defaultImageId] || []
+  }, [defaultImageId, routesByImageId])
 
   const publishValidationMessage = useMemo(() => {
     const missingItems: string[] = []
@@ -586,19 +569,23 @@ export default function EditDraftPage() {
       missingItems.push('add climb location')
     }
 
-    if (!primaryFace || primaryFaceRoutes.length === 0) {
-      missingItems.push(`draw at least one route on ${primaryFace?.label || 'the primary face'}`)
+    if (!defaultImageId || !orientationByImageId[defaultImageId]?.length) {
+      missingItems.push('set image orientation for the default image')
+    }
+
+    if (!defaultImageTab || defaultImageRoutes.length === 0) {
+      missingItems.push(`draw at least one route on ${defaultImageTab?.label || 'the default image'}`)
     }
 
     return missingItems.length > 0
       ? `Before publishing, ${missingItems.join(', ')}.`
       : null
-  }, [cragId, hasValidLocation, primaryFace, primaryFaceRoutes.length])
+  }, [cragId, defaultImageId, defaultImageRoutes.length, defaultImageTab, hasValidLocation, orientationByImageId])
 
   const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
-    if (!activeFaceId) return
+    if (!activeDraftImageId) return
     setRoutesByImageId((prev) => {
-      const current = prev[activeFaceId] || []
+      const current = prev[activeDraftImageId] || []
       const previousById = new Map(current.map((route) => [route.id, route]))
       const mapped = routes.map((route, index) => {
         const previous = previousById.get(route.id)
@@ -619,16 +606,16 @@ export default function EditDraftPage() {
 
       return {
         ...prev,
-        [activeFaceId]: mapped,
+        [activeDraftImageId]: mapped,
       }
     })
-  }, [activeFaceId, routeType])
+  }, [activeDraftImageId, routeType])
 
   const handleCreateRoutes = useCallback((newRoutes: NewRouteData[]) => {
-    if (!activeFaceId) return
+    if (!activeDraftImageId) return
     if (newRoutes.length === 0) return
     setRoutesByImageId((prev) => {
-      const current = prev[activeFaceId] || []
+      const current = prev[activeDraftImageId] || []
       const appended = [
         ...current,
         ...newRoutes.map((route, index) => ({
@@ -648,16 +635,16 @@ export default function EditDraftPage() {
 
       return {
         ...prev,
-        [activeFaceId]: appended,
+        [activeDraftImageId]: appended,
       }
     })
-    setSuccess(`Added ${newRoutes.length} new route${newRoutes.length === 1 ? '' : 's'} to this draft face.`)
-  }, [activeFaceId, routeType])
+    setSuccess(`Added ${newRoutes.length} new route${newRoutes.length === 1 ? '' : 's'} to this draft image.`)
+  }, [activeDraftImageId, routeType])
 
   const handleDeleteRoute = useCallback(async (routeLineId: string) => {
-    if (!activeFaceId) return
+    if (!activeDraftImageId) return
     setRoutesByImageId((prev) => {
-      const current = prev[activeFaceId] || []
+      const current = prev[activeDraftImageId] || []
       const next = current
         .filter((route) => route.id !== routeLineId)
         .map((route, index) => ({ ...route, sequenceOrder: index }))
@@ -666,30 +653,30 @@ export default function EditDraftPage() {
 
       return {
         ...prev,
-        [activeFaceId]: next,
+        [activeDraftImageId]: next,
       }
     })
-    setSuccess('Route removed from draft face.')
-  }, [activeFaceId])
+    setSuccess('Route removed from draft image.')
+  }, [activeDraftImageId])
 
-  const toggleFaceDirection = useCallback((direction: FaceDirection) => {
-    if (activeFaceIndex < 0) return
-    setFaceDirectionsByImage((prev) => {
-      const current = prev[activeFaceIndex] || []
+  const toggleImageOrientation = useCallback((direction: FaceDirection) => {
+    if (!activeDraftImageId) return
+    setOrientationByImageId((prev) => {
+      const current = prev[activeDraftImageId] || []
       const next = current.includes(direction)
         ? current.filter((value) => value !== direction)
         : [...current, direction]
       return {
         ...prev,
-        [activeFaceIndex]: sortFaceDirections(next),
+        [activeDraftImageId]: sortFaceDirections(next),
       }
     })
-  }, [activeFaceIndex])
+  }, [activeDraftImageId])
 
-  const setActiveAsPrimary = useCallback(() => {
-    if (activeFaceIndex < 0) return
-    setPrimaryIndex(activeFaceIndex)
-  }, [activeFaceIndex])
+  const setActiveAsDefault = useCallback(() => {
+    if (!activeDraftImageId) return
+    setDefaultImageId(activeDraftImageId)
+  }, [activeDraftImageId])
 
   const getImageDimensions = useCallback((file: File): Promise<{ width: number; height: number }> => {
     return new Promise((resolve) => {
@@ -707,7 +694,7 @@ export default function EditDraftPage() {
     })
   }, [])
 
-  const handleAddFaces = useCallback(async (fileList: FileList | null) => {
+  const handleAddImages = useCallback(async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0 || !draftId || !draftUpdatedAt || addingFaces) return
 
     const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'))
@@ -737,7 +724,7 @@ export default function EditDraftPage() {
           await completeMediaUploadSession(uploadSession.imageId)
         } catch (uploadError) {
           await deleteMediaUploadSession(uploadSession.imageId).catch(() => null)
-          throw uploadError instanceof Error ? uploadError : new Error('Failed to upload face image')
+          throw uploadError instanceof Error ? uploadError : new Error('Failed to upload image')
         }
 
         const dimensions = await getImageDimensions(file)
@@ -776,7 +763,7 @@ export default function EditDraftPage() {
           return
         }
 
-        throw new Error((payload as { error?: string }).error || 'Failed to add face images')
+        throw new Error((payload as { error?: string }).error || 'Failed to add images')
       }
 
       const appendedIds = payload.draft?.appended_image_ids || []
@@ -788,9 +775,9 @@ export default function EditDraftPage() {
       if (payload.draft?.updated_at) {
         setDraftUpdatedAt(payload.draft.updated_at)
       }
-      setSuccess(`Added ${files.length} face${files.length === 1 ? '' : 's'} to draft`)
+      setSuccess(`Added ${files.length} image${files.length === 1 ? '' : 's'} to draft`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add face images')
+      setError(err instanceof Error ? err.message : 'Failed to add images')
     } finally {
       setAddingFaces(false)
       if (addFaceInputRef.current) {
@@ -799,10 +786,10 @@ export default function EditDraftPage() {
     }
   }, [addingFaces, cragId, draftId, draftUpdatedAt, getImageDimensions, loadDraft])
 
-  const handleRemoveFace = useCallback(async (imageId: string) => {
+  const handleRemoveImage = useCallback(async (imageId: string) => {
     if (!draft || !draftUpdatedAt || removingFaceId) return
     if (draft.images.length <= 1) {
-      setError('A draft must keep at least one face image')
+      setError('A draft must keep at least one image')
       return
     }
 
@@ -832,20 +819,45 @@ export default function EditDraftPage() {
           return
         }
 
-        throw new Error((payload as { error?: string }).error || 'Failed to remove face image')
+        throw new Error((payload as { error?: string }).error || 'Failed to remove image')
       }
+
+      const remainingImages = draft.images
+        .slice()
+        .sort((a, b) => a.display_order - b.display_order)
+        .filter((image) => image.id !== imageId)
+      const fallbackImageId = remainingImages[0]?.id || null
+
+      if (defaultImageId === imageId) {
+        setDefaultImageId(fallbackImageId)
+      }
+
+      if (activeImageId === imageId) {
+        setActiveImageId(defaultImageId && defaultImageId !== imageId ? defaultImageId : fallbackImageId)
+      }
+
+      setOrientationByImageId((prev) => {
+        const next = { ...prev }
+        delete next[imageId]
+        return next
+      })
+      setRoutesByImageId((prev) => {
+        const next = { ...prev }
+        delete next[imageId]
+        return next
+      })
 
       await loadDraft()
       if (payload.draft?.updated_at) {
         setDraftUpdatedAt(payload.draft.updated_at)
       }
-      setSuccess('Face removed from draft')
+      setSuccess('Image removed from draft')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove face image')
+      setError(err instanceof Error ? err.message : 'Failed to remove image')
     } finally {
       setRemovingFaceId(null)
     }
-  }, [cragId, draft, draftUpdatedAt, loadDraft, removingFaceId])
+  }, [activeImageId, cragId, defaultImageId, draft, draftUpdatedAt, loadDraft, removingFaceId])
 
   const handleCreateInvite = useCallback(async () => {
     if (!draftId || creatingInvite || !isOwner) return
@@ -1060,23 +1072,36 @@ export default function EditDraftPage() {
         throw new Error('Invalid credit handle format')
       }
 
-      const savePayload: DraftSavePayload = {
-        images: imagesPayload,
-        cragId,
-        metadata: {
-          ...(draft.metadata || {}),
-          primaryIndex,
-          faceDirectionsByImage,
-          routeType,
-          location: {
-            latitude: markerPosition ? markerPosition[0] : null,
-            longitude: markerPosition ? markerPosition[1] : null,
-          },
-          isAnonymousSubmission,
-          contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
-          contributionCreditHandle: normalizedHandle,
-        },
-      }
+          const fullV2Metadata = serializeDraftMetadataV2({
+            version: 2,
+            navigation: {
+              defaultImageId,
+            },
+            images: imagesPayload.reduce<Record<string, { imageId: string; displayOrder: number; orientation?: OrientationDirection[] }>>((acc, image) => {
+              acc[image.id] = {
+                imageId: image.id,
+                displayOrder: image.display_order,
+                orientation: orientationByImageId[image.id] || [],
+              }
+              return acc
+            }, {}),
+            submission: {
+              routeType,
+              location: {
+                latitude: markerPosition ? markerPosition[0] : null,
+                longitude: markerPosition ? markerPosition[1] : null,
+              },
+              isAnonymousSubmission,
+              contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
+              contributionCreditHandle: normalizedHandle,
+            },
+          })
+
+          const savePayload: DraftSavePayload = {
+            images: imagesPayload,
+            cragId,
+            metadata: fullV2Metadata as unknown as Record<string, unknown>,
+          }
 
       const response = await csrfFetch(`/api/submissions/drafts/${draft.id}`, {
         method: 'PATCH',
@@ -1108,7 +1133,7 @@ export default function EditDraftPage() {
                 autosavePausedRef.current = true
               autosavePausedSnapshotRef.current = JSON.stringify({
                 routesByImageId,
-                faceDirectionsByImage,
+                orientationByImageId,
                 latitude: markerPosition ? markerPosition[0] : null,
                 longitude: markerPosition ? markerPosition[1] : null,
               })
@@ -1133,19 +1158,13 @@ export default function EditDraftPage() {
         updated_at: payload.draft?.updated_at || prev.updated_at,
         last_edited_by: currentUserId,
         metadata: {
-          ...(prev.metadata || {}),
-          primaryIndex,
-          faceDirectionsByImage,
-          routeType,
-          isAnonymousSubmission,
-          contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
-          contributionCreditHandle: normalizedHandle,
+          ...fullV2Metadata,
         },
       } : prev)
       setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
       lastPersistedRoutesRef.current = JSON.stringify({
         routesByImageId,
-        faceDirectionsByImage,
+        orientationByImageId,
         latitude: markerPosition ? markerPosition[0] : null,
         longitude: markerPosition ? markerPosition[1] : null,
       })
@@ -1166,7 +1185,7 @@ export default function EditDraftPage() {
     } finally {
       setSavingDraft(false)
     }
-  }, [draft, draftUpdatedAt, routesByImageId, routeType, creditHandle, creditPlatform, cragId, markerPosition, primaryIndex, faceDirectionsByImage, currentUserId, isAnonymousSubmission])
+  }, [cragId, creditHandle, creditPlatform, currentUserId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, markerPosition, orientationByImageId, routeType, routesByImageId])
 
   const handleManualSave = useCallback(() => {
     if (autosaveTimeoutRef.current) {
@@ -1183,7 +1202,7 @@ export default function EditDraftPage() {
 
     const serializedRoutes = JSON.stringify({
       routesByImageId,
-      faceDirectionsByImage,
+      orientationByImageId,
       latitude: markerPosition ? markerPosition[0] : null,
       longitude: markerPosition ? markerPosition[1] : null,
     })
@@ -1219,7 +1238,7 @@ export default function EditDraftPage() {
         autosaveTimeoutRef.current = null
       }
     }
-  }, [routesByImageId, faceDirectionsByImage, markerPosition, draft, draftUpdatedAt, loading, publishingDraft, savingDraft, conflict, autosaveState, saveDraft])
+  }, [autosaveState, conflict, draft, draftUpdatedAt, loading, markerPosition, orientationByImageId, publishingDraft, routesByImageId, saveDraft, savingDraft])
 
   useEffect(() => {
     return () => {
@@ -1247,9 +1266,9 @@ export default function EditDraftPage() {
         return
       }
 
-      if (!primaryFace || primaryFaceRoutes.length === 0) {
-        if (primaryFace) {
-          setActiveImageId(primaryFace.imageId)
+      if (!defaultImageTab || defaultImageRoutes.length === 0) {
+        if (defaultImageTab) {
+          setActiveImageId(defaultImageTab.imageId)
         }
         publishRequirementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }
@@ -1284,7 +1303,7 @@ export default function EditDraftPage() {
 
       const imageCount = Array.isArray(payload.published.imageIds) ? payload.published.imageIds.length : 1
       const routeCount = Array.isArray(payload.published.routeLineIds) ? payload.published.routeLineIds.length : 0
-      addToast(`Success! Created ${routeCount} route${routeCount === 1 ? '' : 's'} across ${imageCount} face${imageCount === 1 ? '' : 's'}.`, 'success')
+      addToast(`Success! Created ${routeCount} route${routeCount === 1 ? '' : 's'} across ${imageCount} image${imageCount === 1 ? '' : 's'}.`, 'success')
 
       const query = new URLSearchParams({
         publishedFaces: String(imageCount),
@@ -1298,7 +1317,7 @@ export default function EditDraftPage() {
     } finally {
       setPublishingDraft(false)
     }
-  }, [draft, isOwner, publishValidationMessage, cragId, hasValidLocation, primaryFace, primaryFaceRoutes.length, saveDraft, router, addToast])
+  }, [addToast, cragId, defaultImageRoutes.length, defaultImageTab, draft, hasValidLocation, isOwner, publishValidationMessage, router, saveDraft])
 
   const handleReloadLatestDraft = useCallback(async () => {
     setConflict(null)
@@ -1427,24 +1446,24 @@ export default function EditDraftPage() {
           <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Manage all images</h2>
             <div className="flex items-center gap-2">
-              {activeFace ? (
+              {activeImageTab ? (
                 <button
                   type="button"
-                  onClick={setActiveAsPrimary}
+                  onClick={setActiveAsDefault}
                   className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                 >
-                  Set current as primary
+                  Set current as default
                 </button>
               ) : null}
-              {activeFace ? (
+              {activeImageTab ? (
                 <button
                   type="button"
-                  onClick={() => { void handleRemoveFace(activeFace.imageId) }}
-                  disabled={removingFaceId === activeFace.imageId || manageFaces.length <= 1 || !!conflict}
+                  onClick={() => { void handleRemoveImage(activeImageTab.imageId) }}
+                  disabled={removingFaceId === activeImageTab.imageId || manageImages.length <= 1 || !!conflict}
                   className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
                 >
-                  {removingFaceId === activeFace.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  Remove current face
+                  {removingFaceId === activeImageTab.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  Remove current image
                 </button>
               ) : null}
               <button
@@ -1454,7 +1473,7 @@ export default function EditDraftPage() {
                 className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
               >
                 {addingFaces ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                Add face(s)
+                Add photo(s)
               </button>
             </div>
           </div>
@@ -1465,18 +1484,18 @@ export default function EditDraftPage() {
             multiple
             className="hidden"
             onChange={(event) => {
-              void handleAddFaces(event.target.files)
-            }}
-          />
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {manageFaces.map((face) => {
-              const isActive = face.imageId === activeImageId
-              const isPrimary = face.index === primaryIndex
+                void handleAddImages(event.target.files)
+              }}
+            />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {manageImages.map((image) => {
+              const isActive = image.imageId === activeImageId
+              const isDefault = image.imageId === defaultImageId
               return (
                 <button
-                  key={face.imageId}
+                  key={image.imageId}
                   type="button"
-                  onClick={() => setActiveImageId(face.imageId)}
+                  onClick={() => setActiveImageId(image.imageId)}
                   className={`rounded-md border p-2 text-left text-xs font-medium transition-colors ${
                     isActive
                       ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-200'
@@ -1484,21 +1503,21 @@ export default function EditDraftPage() {
                   }`}
                 >
                   <div className="relative mb-1 h-16 w-full overflow-hidden rounded border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
-                    <NextImage src={face.signedUrl} alt={`Face ${face.index + 1}`} fill unoptimized sizes="160px" className="object-cover" />
+                    <NextImage src={image.signedUrl} alt={`Image ${image.index + 1}`} fill unoptimized sizes="160px" className="object-cover" />
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <span>{isPrimary ? `Primary (${face.index + 1})` : `Face ${face.index + 1}`}</span>
+                    <span>{isDefault ? `Default (${image.index + 1})` : `Image ${image.index + 1}`}</span>
                     <button
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation()
-                        void handleRemoveFace(face.imageId)
+                        void handleRemoveImage(image.imageId)
                       }}
-                      disabled={removingFaceId !== null || manageFaces.length <= 1 || !!conflict}
+                      disabled={removingFaceId !== null || manageImages.length <= 1 || !!conflict}
                       className="inline-flex items-center justify-center rounded p-1 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-red-300 dark:hover:bg-red-900/20"
-                      aria-label={`Remove face ${face.index + 1}`}
+                      aria-label={`Remove image ${image.index + 1}`}
                     >
-                      {removingFaceId === face.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      {removingFaceId === image.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                     </button>
                   </div>
                 </button>
@@ -1704,16 +1723,16 @@ export default function EditDraftPage() {
         </div>
 
         <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Face directions</h2>
-          <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Optional metadata for each face. All faces in this draft share the same climb location and pin.</p>
+          <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Image orientation</h2>
+          <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Optional metadata for each image. All photos in this draft share the same climb location and nearby images can form a shared pin stack.</p>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
             {FACE_DIRECTIONS.map((direction) => {
-              const selected = activeFace ? (faceDirectionsByImage[activeFace.index] || []).includes(direction) : false
+              const selected = activeImageTab ? (orientationByImageId[activeImageTab.imageId] || []).includes(direction) : false
               return (
                 <button
                   key={direction}
                   type="button"
-                  onClick={() => toggleFaceDirection(direction)}
+                  onClick={() => toggleImageOrientation(direction)}
                   className={`rounded-md border px-2 py-2 text-xs font-semibold transition ${
                     selected
                       ? 'border-blue-600 bg-blue-600 text-white'
@@ -1725,12 +1744,13 @@ export default function EditDraftPage() {
               )
             })}
           </div>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Which way are you looking in this photo?</p>
         </div>
 
         {imageSelection ? (
           <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
             <RouteCanvas
-              key={`${activeFace?.imageId || 'draft-canvas'}:${existingRouteLines.length}`}
+              key={`${activeImageTab?.imageId || 'draft-canvas'}:${existingRouteLines.length}`}
               imageSelection={imageSelection}
               onRoutesUpdate={() => {}}
               existingRouteLines={existingRouteLines}

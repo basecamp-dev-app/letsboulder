@@ -381,13 +381,13 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
             </div>
           ) : null}
           <p className="text-xs text-gray-600 dark:text-gray-400">
-            Upload multiple photos together when they belong to the same face or the same boulder area.
+            Upload multiple photos together when they belong to the same area, boulder, or photo stack.
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            All photos here map to one pin. Use a separate submission for a different face, boulder, or area.
+            All photos here map to one pin. Use a separate submission for a different area or a boulder that is far away.
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Drag to reorder. The first image is used as the primary drawing canvas.
+            Drag to reorder. The first image is used as the default drawing canvas.
           </p>
           <div className="overflow-x-auto">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
