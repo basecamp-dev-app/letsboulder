@@ -300,9 +300,9 @@ export default function EditDraftPage() {
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null)
   const [removingCollaboratorId, setRemovingCollaboratorId] = useState<string | null>(null)
   const [latestInviteUrl, setLatestInviteUrl] = useState<string | null>(null)
-  const [addingFaces, setAddingFaces] = useState(false)
-  const [removingFaceId, setRemovingFaceId] = useState<string | null>(null)
-  const addFaceInputRef = useRef<HTMLInputElement | null>(null)
+  const [addingImages, setAddingImages] = useState(false)
+  const [removingImageId, setRemovingImageId] = useState<string | null>(null)
+  const addImageInputRef = useRef<HTMLInputElement | null>(null)
   const publishRequirementsRef = useRef<HTMLDivElement | null>(null)
   const cragSectionRef = useRef<HTMLDivElement | null>(null)
   const locationSectionRef = useRef<HTMLDivElement | null>(null)
@@ -695,7 +695,7 @@ export default function EditDraftPage() {
   }, [])
 
   const handleAddImages = useCallback(async (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0 || !draftId || !draftUpdatedAt || addingFaces) return
+    if (!fileList || fileList.length === 0 || !draftId || !draftUpdatedAt || addingImages) return
 
     const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'))
     if (files.length === 0) {
@@ -703,7 +703,7 @@ export default function EditDraftPage() {
       return
     }
 
-    setAddingFaces(true)
+    setAddingImages(true)
     setError(null)
     setSuccess(null)
 
@@ -779,21 +779,21 @@ export default function EditDraftPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add images')
     } finally {
-      setAddingFaces(false)
-      if (addFaceInputRef.current) {
-        addFaceInputRef.current.value = ''
+      setAddingImages(false)
+      if (addImageInputRef.current) {
+        addImageInputRef.current.value = ''
       }
     }
-  }, [addingFaces, cragId, draftId, draftUpdatedAt, getImageDimensions, loadDraft])
+  }, [addingImages, cragId, draftId, draftUpdatedAt, getImageDimensions, loadDraft])
 
   const handleRemoveImage = useCallback(async (imageId: string) => {
-    if (!draft || !draftUpdatedAt || removingFaceId) return
+    if (!draft || !draftUpdatedAt || removingImageId) return
     if (draft.images.length <= 1) {
       setError('A draft must keep at least one image')
       return
     }
 
-    setRemovingFaceId(imageId)
+    setRemovingImageId(imageId)
     setError(null)
     setSuccess(null)
 
@@ -855,9 +855,9 @@ export default function EditDraftPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove image')
     } finally {
-      setRemovingFaceId(null)
+      setRemovingImageId(null)
     }
-  }, [activeImageId, cragId, defaultImageId, draft, draftUpdatedAt, loadDraft, removingFaceId])
+  }, [activeImageId, cragId, defaultImageId, draft, draftUpdatedAt, loadDraft, removingImageId])
 
   const handleCreateInvite = useCallback(async () => {
     if (!draftId || creatingInvite || !isOwner) return
@@ -1459,26 +1459,26 @@ export default function EditDraftPage() {
                 <button
                   type="button"
                   onClick={() => { void handleRemoveImage(activeImageTab.imageId) }}
-                  disabled={removingFaceId === activeImageTab.imageId || manageImages.length <= 1 || !!conflict}
+                  disabled={removingImageId === activeImageTab.imageId || manageImages.length <= 1 || !!conflict}
                   className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
                 >
-                  {removingFaceId === activeImageTab.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  {removingImageId === activeImageTab.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   Remove current image
                 </button>
               ) : null}
               <button
                 type="button"
-                onClick={() => addFaceInputRef.current?.click()}
-                disabled={addingFaces || !!conflict}
+                onClick={() => addImageInputRef.current?.click()}
+                disabled={addingImages || !!conflict}
                 className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
               >
-                {addingFaces ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                {addingImages ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                 Add photo(s)
               </button>
             </div>
           </div>
           <input
-            ref={addFaceInputRef}
+            ref={addImageInputRef}
             type="file"
             accept="image/*"
             multiple
@@ -1513,11 +1513,11 @@ export default function EditDraftPage() {
                         event.stopPropagation()
                         void handleRemoveImage(image.imageId)
                       }}
-                      disabled={removingFaceId !== null || manageImages.length <= 1 || !!conflict}
+                      disabled={removingImageId !== null || manageImages.length <= 1 || !!conflict}
                       className="inline-flex items-center justify-center rounded p-1 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-red-300 dark:hover:bg-red-900/20"
                       aria-label={`Remove image ${image.index + 1}`}
                     >
-                      {removingFaceId === image.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      {removingImageId === image.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                     </button>
                   </div>
                 </button>

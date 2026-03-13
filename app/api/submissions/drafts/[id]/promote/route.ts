@@ -113,12 +113,12 @@ export async function POST(
         return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
       }
 
-      if (typeof error.message === 'string' && error.message.includes('Primary face directions are required before publishing')) {
-        return NextResponse.json({ error: 'Select a face direction for each face before publishing this draft' }, { status: 400 })
+      if (typeof error.message === 'string' && error.message.includes('Default image orientation is required before publishing')) {
+        return NextResponse.json({ error: 'Set an image orientation for the default image before publishing this draft' }, { status: 400 })
       }
 
-      if (typeof error.message === 'string' && error.message.includes('Primary draft image must contain at least one route before publishing')) {
-        return NextResponse.json({ error: 'Draw at least one route on the primary face before publishing this draft' }, { status: 400 })
+      if (typeof error.message === 'string' && error.message.includes('Default draft image must contain at least one route before publishing')) {
+        return NextResponse.json({ error: 'Draw at least one route on the default image before publishing this draft' }, { status: 400 })
       }
 
       if (isPermissionDeniedError(error)) {
@@ -174,9 +174,10 @@ export async function POST(
     return NextResponse.json({
       success: true,
       status: result.status || 'submitted',
-      published: {
-        imageId: result.image_id,
-        imageIds: Array.isArray(result.image_ids) ? result.image_ids : (result.image_id ? [result.image_id] : []),
+        published: {
+          defaultImageId: result.image_id,
+          imageId: result.image_id,
+          imageIds: Array.isArray(result.image_ids) ? result.image_ids : (result.image_id ? [result.image_id] : []),
         climbIds: Array.isArray(result.climb_ids) ? result.climb_ids : [],
         routeLineIds: Array.isArray(result.route_line_ids) ? result.route_line_ids : [],
         publishedAt: result.published_at || null,
