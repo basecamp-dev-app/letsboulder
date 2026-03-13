@@ -172,6 +172,7 @@ export default function RouteDetailModal({
 }: RouteDetailModalProps) {
   const gradeSystem = useGradeSystem()
   const climbId = route.climb?.id || ''
+  const climbHref = climbId ? `${redirectTo}${redirectTo.includes('?') ? '&' : '?'}climb=${climbId}&route=${route.id}` : redirectTo
   const routeName = (route.climb?.name || '').trim() || 'Unnamed'
   const routeGrade = (route.climb?.grade || '').trim() || '—'
   const baseFallbackGrade = routeGrade !== '—' ? routeGrade : '6A'
@@ -384,7 +385,7 @@ export default function RouteDetailModal({
               <div className="space-y-4">
                 {climbId && (
                   <Link
-                    href={`/climb/${climbId}`}
+                    href={climbHref}
                     className="block rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900 transition-colors hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200 dark:hover:bg-blue-900/40"
                   >
                     Open climb page
