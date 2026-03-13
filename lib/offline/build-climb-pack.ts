@@ -132,7 +132,7 @@ interface RouteFaceRow {
   sequence_order: number | null
   climb: ClimbInfo | ClimbInfo[] | null
   image: { id: string; url: string | null; width: number | null; height: number | null; face_directions: string[] | null } | Array<{ id: string; url: string | null; width: number | null; height: number | null; face_directions: string[] | null }> | null
-  crag_image: { id: string; url: string | null; width: number | null; height: number | null; linked_image_id: string | null } | Array<{ id: string; url: string | null; width: number | null; height: number | null; linked_image_id: string | null }> | null
+  crag_image: { id: string; url: string | null; width: number | null; height: number | null; linked_image_id: string | null } | null
 }
 
 interface RouteFaceQueryRow {
@@ -145,7 +145,6 @@ interface RouteFaceQueryRow {
   sequence_order: number | null
   climb: ClimbInfo | ClimbInfo[] | null
   image: RouteFaceRow['image']
-  crag_image: RouteFaceRow['crag_image']
 }
 
 function getFaceIdentityKey(face: Pick<CompleteSummaryFace, 'image_id' | 'linked_image_id' | 'crag_image_id' | 'index'>) {
@@ -502,8 +501,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
           image_height,
           sequence_order,
           climb:climbs!inner(id, name, grade, route_type, description),
-          image:images!inner(id, url, width, height, face_directions),
-          crag_image:crag_images(id, url, width, height, linked_image_id)
+          image:images!inner(id, url, width, height, face_directions)
         `)
         .in('climb_id', aliasClimbIds)
         .order('sequence_order', { ascending: true, nullsFirst: false })
@@ -511,6 +509,31 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
 
       if (routeFaceRowsError) {
         throw routeFaceRowsError
+      }
+
+      const routeFaceImageIds = Array.from(new Set(
+        ((routeFaceRowsData || []) as RouteFaceQueryRow[])
+          .map((row) => row.image_id)
+          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      ))
+
+      let cragImageByLinkedImageId = new Map<string, RouteFaceRow['crag_image']>()
+      if (routeFaceImageIds.length > 0) {
+        const { data: cragImageRows, error: cragImageRowsError } = await supabase
+          .from('crag_images')
+          .select('id, url, width, height, linked_image_id')
+          .in('linked_image_id', routeFaceImageIds)
+          .order('created_at', { ascending: false })
+
+        if (cragImageRowsError) {
+          throw cragImageRowsError
+        }
+
+        cragImageByLinkedImageId = new Map(
+          ((cragImageRows || []) as Array<NonNullable<RouteFaceRow['crag_image']>>)
+            .filter((row) => typeof row.linked_image_id === 'string' && row.linked_image_id.length > 0)
+            .map((row) => [row.linked_image_id as string, row])
+        )
       }
 
       routeFaceRows = Array.isArray(routeFaceRowsData)
@@ -524,14 +547,14 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
             sequence_order: row.sequence_order,
             climb: row.climb,
             image: row.image,
-            crag_image: row.crag_image,
+            crag_image: cragImageByLinkedImageId.get(row.image_id) || null,
           }))
         : []
 
       for (const row of routeFaceRows) {
         const climb = Array.isArray(row.climb) ? row.climb[0] : row.climb
         const image = Array.isArray(row.image) ? row.image[0] : row.image
-        const cragImage = Array.isArray(row.crag_image) ? row.crag_image[0] : row.crag_image
+        const cragImage = row.crag_image
         if (!image?.id || !image.url || !climb?.id) continue
 
         const discoveredFace: CompleteSummaryFace = {

@@ -150,6 +150,8 @@ interface CachedCragImageData {
   images: ImageData[]
   cragCenter: [number, number] | null
   defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
+  routePreviewByClimbId: Record<string, RoutePreview>
+  routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
   cachedAt: number
 }
 
@@ -548,6 +550,8 @@ export default function CragPageClient({
   const [routeNavigationTargetByClimbId, setRouteNavigationTargetByClimbId] = useState<Record<string, RouteNavigationTarget>>({})
   const mapRef = useRef<L.Map | null>(null)
 
+  const initialRouteSource = useMemo(() => initialRoutes || [], [initialRoutes])
+
   useEffect(() => {
     setupLeafletIcons()
   }, [])
@@ -681,8 +685,8 @@ export default function CragPageClient({
         setImages(cached.images)
         setCragCenter(cached.cragCenter)
         setDefaultRouteTargetByImageId(cached.defaultRouteTargetByImageId)
-        setRouteNavigationTargetByClimbId({})
-        setRoutePreviewByClimbId(initialRoutePreviewByClimbId)
+        setRouteNavigationTargetByClimbId(cached.routeNavigationTargetByClimbId)
+        setRoutePreviewByClimbId(cached.routePreviewByClimbId)
         setLoading(false)
       } else {
       if (!initialCrag) {
@@ -827,18 +831,19 @@ export default function CragPageClient({
       const formattedImages: ImageData[] = primaryImagesData.map(formatImageRow)
       const previewImages = mergedImagesData.map(formatImageRow)
 
-      const imageIds = previewImages.map((image) => image.id)
+      const routeSource: CragRoute[] = hasInitialRouteData ? routes : initialRouteSource
+      const routeClimbIds = Array.from(new Set(routeSource.map((route) => route.id).filter(Boolean)))
       const nextDefaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
       const imageById = new Map(previewImages.map((image) => [image.id, image]))
       const nextRoutePreviewByClimbId: Record<string, RoutePreview> = {}
       const nextRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget> = {}
 
-      if (imageIds.length > 0) {
+      if (routeClimbIds.length > 0) {
         const { data: routeTargetsData, error: routeTargetsError } = await supabase
           .from('route_lines')
           .select('id, image_id, climb_id, climbs(slug)')
-          .in('image_id', imageIds)
-          .order('image_id', { ascending: true })
+          .in('climb_id', routeClimbIds)
+          .order('climb_id', { ascending: true })
           .order('sequence_order', { ascending: true, nullsFirst: false })
           .order('created_at', { ascending: true })
 
@@ -902,6 +907,8 @@ export default function CragPageClient({
         images: previewImages,
         cragCenter: nextCenter,
         defaultRouteTargetByImageId: nextDefaultRouteTargetByImageId,
+        routePreviewByClimbId: nextRoutePreviewByClimbId,
+        routeNavigationTargetByClimbId: nextRouteNavigationTargetByClimbId,
         cachedAt: Date.now(),
       })
     }
@@ -911,7 +918,7 @@ export default function CragPageClient({
     return () => {
       ignore = true
     }
-  }, [hasInitialRouteData, id, initialCrag, initialCragCenter, initialRoutePreviewByClimbId])
+  }, [hasInitialRouteData, id, initialCrag, initialCragCenter, initialRouteSource, routes])
 
   useEffect(() => {
     let ignore = false
@@ -1179,6 +1186,79 @@ export default function CragPageClient({
     return nextTargets
   }, [imageById, routeNavigationTargetByClimbId])
 
+  const climbIdsFingerprint = useMemo(() => {
+    return Array.from(new Set(routes.map((route) => route.id)))
+      .sort((a, b) => a.localeCompare(b))
+      .join(',')
+  }, [routes])
+
+  useEffect(() => {
+    if (!climbIdsFingerprint || isOfflineDocumentNavigationPreferred()) return
+
+    let ignore = false
+
+    async function rebuildRouteTargets() {
+      const supabase = createClient()
+      const climbIds = climbIdsFingerprint.split(',').filter(Boolean)
+      if (climbIds.length === 0) return
+
+      const { data: routeTargetsData, error: routeTargetsError } = await supabase
+        .from('route_lines')
+        .select('id, image_id, climb_id, climbs(slug)')
+        .in('climb_id', climbIds)
+        .order('climb_id', { ascending: true })
+        .order('sequence_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true })
+
+      if (routeTargetsError) {
+        console.error('Error rebuilding route navigation targets:', routeTargetsError)
+        return
+      }
+
+      const nextRoutePreviewByClimbId: Record<string, RoutePreview> = {}
+      const nextRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget> = {}
+
+      for (const row of (routeTargetsData || []) as RouteLineTargetRow[]) {
+        if (nextRouteNavigationTargetByClimbId[row.climb_id]) continue
+        const image = imageById.get(row.image_id)
+        if (!image) continue
+        const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
+        nextRoutePreviewByClimbId[row.climb_id] = {
+          imageId: row.image_id,
+          imageUrl: image.url,
+        }
+        nextRouteNavigationTargetByClimbId[row.climb_id] = {
+          climbId: row.climb_id,
+          routeId: row.id,
+          climbSlug: climb?.slug || null,
+          imageId: row.image_id,
+          displayImageId: row.image_id,
+          displayImageUrl: image.url,
+        }
+      }
+
+      if (ignore) return
+
+      setRoutePreviewByClimbId((prev) => ({ ...prev, ...nextRoutePreviewByClimbId }))
+      setRouteNavigationTargetByClimbId((prev) => ({ ...prev, ...nextRouteNavigationTargetByClimbId }))
+
+      const cached = cragImageCache.get(id)
+      if (cached) {
+        cragImageCache.set(id, {
+          ...cached,
+          routePreviewByClimbId: { ...cached.routePreviewByClimbId, ...nextRoutePreviewByClimbId },
+          routeNavigationTargetByClimbId: { ...cached.routeNavigationTargetByClimbId, ...nextRouteNavigationTargetByClimbId },
+        })
+      }
+    }
+
+    void rebuildRouteTargets()
+
+    return () => {
+      ignore = true
+    }
+  }, [climbIdsFingerprint, id, imageById])
+
   const routeTypeChips = useMemo(() => {
     const uniqueTypes = new Set<string>()
     for (const route of routes) {
@@ -1436,6 +1516,7 @@ export default function CragPageClient({
   }, [defaultRouteTargetByImageId, routeHrefBase])
 
   const getRouteDestination = useCallback((route: CragRoute) => {
+    const offlineOnly = isOfflineDocumentNavigationPreferred()
     const routeTarget = routeNavigationDisplayByClimbId[route.id]
     if (routeTarget) {
       const routeClimbId = routeTarget.climbId || route.id
@@ -1447,11 +1528,37 @@ export default function CragPageClient({
           climbSlug: route.slug || routeTarget.climbSlug,
         },
         routeHrefBase,
-        offlineOnly: isOfflineDocumentNavigationPreferred(),
+        offlineOnly,
       })
     }
 
-    if (isOfflineDocumentNavigationPreferred()) {
+    const preview = routePreviewDisplayByClimbId[route.id]
+    const fallbackImageId = preview?.imageId
+    const fallbackTarget = fallbackImageId ? defaultRouteTargetByImageId[fallbackImageId] : undefined
+
+    if (fallbackImageId && fallbackTarget) {
+      return buildCragImageDestination({
+        imageId: fallbackImageId,
+        target: {
+          ...fallbackTarget,
+          climbId: fallbackTarget.climbId || route.id,
+          routeId: fallbackTarget.routeId || route.id,
+          climbSlug: route.slug || fallbackTarget.climbSlug,
+        },
+        routeHrefBase,
+        offlineOnly,
+      })
+    }
+
+    if (!offlineOnly && fallbackImageId) {
+      return buildCragImageDestination({
+        imageId: fallbackImageId,
+        routeHrefBase,
+        offlineOnly: false,
+      })
+    }
+
+    if (offlineOnly) {
       return `/climb/${route.id}`
     }
 
@@ -1460,7 +1567,7 @@ export default function CragPageClient({
     }
 
     return `/climb/${route.id}`
-  }, [routeHrefBase, routeNavigationDisplayByClimbId])
+  }, [defaultRouteTargetByImageId, routeHrefBase, routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId])
 
   const prefetchImageDestination = useCallback((imageId: string) => {
     if (!imageId) return

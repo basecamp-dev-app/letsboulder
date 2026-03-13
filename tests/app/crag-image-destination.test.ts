@@ -27,7 +27,21 @@ describe('buildCragImageDestination', () => {
         climbSlug: null,
         imageId: 'img-2',
       },
-    })).toBe('/climb/climb-2?image=img-2&route=route-2')
+    })).toBe('/image/img-2?image=img-2&route=route-2&climb=climb-2')
+  })
+
+  test('falls back to climb url offline when slug is unavailable', () => {
+    expect(buildCragImageDestination({
+      imageId: 'img-2',
+      routeHrefBase: '/pt/cccc',
+      offlineOnly: true,
+      target: {
+        climbId: 'climb-2',
+        routeId: 'route-2',
+        climbSlug: null,
+        imageId: 'img-2',
+      },
+    })).toBe('/climb/climb-2?image=img-2&route=route-2&climb=climb-2')
   })
 
   test('falls back to image page when no route target exists', () => {
