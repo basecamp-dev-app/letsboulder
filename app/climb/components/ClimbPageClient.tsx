@@ -19,6 +19,7 @@ import { runWhenIdle } from '@/lib/run-when-idle'
 import { formatSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/lib/submission-credit'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import { buildCragImageDestination, type ImageRouteTarget } from '@/app/crag/components/crag-image-destination'
+import { getDisplayImageId } from '@/lib/image-identity'
 import ClimbPageSkeleton from '@/app/climb/components/ClimbPageSkeleton'
 import ClimbFaceViewer from '@/app/climb/components/ClimbFaceViewer'
 import ClimbRouteRail from '@/app/climb/components/ClimbRouteRail'
@@ -36,6 +37,7 @@ const FlagClimbModal = dynamic(() => import('@/components/FlagClimbModal'), { ss
 
 interface ImageInfo {
   id: string
+  display_image_id?: string | null
   url: string
   crag_id: string | null
   latitude: number | null
@@ -80,6 +82,7 @@ interface FaceGalleryItem {
   id: string
   index?: number
   image_id?: string | null
+  display_image_id?: string | null
   is_primary: boolean
   url: string
   has_routes: boolean
@@ -1374,7 +1377,8 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
         if (cancelled) return
 
         const imagesList = Array.isArray(payload.images) ? payload.images : []
-        const currentIndex = imagesList.findIndex((item) => (item.display_image_id || item.id) === image.id)
+        const currentDisplayImageId = getDisplayImageId({ image_id: image.display_image_id || image.id })
+        const currentIndex = imagesList.findIndex((item) => getDisplayImageId({ image_id: item.display_image_id, id: item.id }) === currentDisplayImageId)
         if (currentIndex === -1) {
           setPrevImageTarget(null)
           setNextImageTarget(null)
@@ -1441,7 +1445,7 @@ export default function ClimbPageClient({ climbId, enableCanonicalRedirect = fal
     return () => {
       cancelled = true
     }
-  }, [image?.crag_id, image?.id])
+  }, [image?.crag_id, image?.display_image_id, image?.id])
 
   useEffect(() => {
     const loadUserLogs = async () => {
