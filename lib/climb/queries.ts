@@ -19,6 +19,7 @@ export interface ClimbPackClimbInfo {
 
 export interface ClimbPackImageInfo {
   id: string
+  display_image_id?: string | null
   url: string
   crag_id: string | null
   latitude: number | null
@@ -65,6 +66,7 @@ export interface ClimbPackFaceItem {
   id: string
   index?: number
   image_id?: string | null
+  display_image_id?: string | null
   is_primary: boolean
   url: string
   has_routes: boolean

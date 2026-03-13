@@ -4,6 +4,7 @@ import type { RoutePoint } from '@/lib/useRouteSelection'
 import { getCanonicalRouteFaces } from '@/lib/climb/canonical-logic'
 import { buildMediaProxyUrl, estimateCompressedImageBytes, parsePrivateMediaRef } from '@/lib/media-proxy'
 import type { ClimbPackResponse, OfflineMapPin } from '@/lib/climb/queries'
+import { getDisplayImageId } from '@/lib/image-identity'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
 
@@ -368,6 +369,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
       },
       primary_image: {
         id: `legacy-${legacy.id}`,
+        display_image_id: `legacy-${legacy.id}`,
         url: legacyMedia.url,
         crag_id: legacy.crag_id || null,
         latitude: null,
@@ -404,6 +406,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
         id: `legacy-${legacy.id}`,
         index: 0,
         image_id: `legacy-${legacy.id}`,
+        display_image_id: `legacy-${legacy.id}`,
         is_primary: true,
         url: legacyMedia.url,
         has_routes: true,
@@ -639,6 +642,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
         id: face.is_primary ? `image:${primaryImage.id}` : `crag-image:${face.crag_image_id || face.index}`,
         index: face.index,
         image_id: face.image_id,
+        display_image_id: getDisplayImageId({ image_id: face.image_id, linked_image_id: face.linked_image_id, id: face.crag_image_id }),
         is_primary: face.is_primary,
         url: decorated.url,
         has_routes: face.has_routes || (Array.isArray(face.routes) && face.routes.length > 0),
@@ -704,6 +708,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
     climb: context.climb,
     primary_image: {
       ...primaryImage,
+      display_image_id: getDisplayImageId({ image_id: primaryImage.id }),
       url: decoratedPrimary.url,
       latitude: primaryImageGeo?.latitude ?? null,
       longitude: primaryImageGeo?.longitude ?? null,

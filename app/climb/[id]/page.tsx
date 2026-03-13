@@ -1,10 +1,27 @@
-'use client'
+import { notFound, redirect } from 'next/navigation'
+import { buildClimbOfflinePack } from '@/lib/offline/build-climb-pack'
 
-import { useParams } from 'next/navigation'
-import ClimbPageClient from '@/app/climb/components/ClimbPageClient'
+export default async function ClimbPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
 
-export default function ClimbPage() {
-  const params = useParams<{ id: string }>()
+  try {
+    const payload = await buildClimbOfflinePack(id)
+    const cragPath = payload.crag_path
+    const displayImageId = payload.primary_image?.display_image_id || payload.primary_image?.id || null
+    const defaultRouteId = payload.primary_route_lines[0]?.id || null
 
-  return <ClimbPageClient climbId={params.id} enableCanonicalRedirect />
+    if (!cragPath || !displayImageId) {
+      notFound()
+    }
+
+    const query = new URLSearchParams()
+    query.set('climb', id)
+    if (defaultRouteId) {
+      query.set('route', defaultRouteId)
+    }
+
+    redirect(`${cragPath}/i/${displayImageId}?${query.toString()}`)
+  } catch {
+    notFound()
+  }
 }
