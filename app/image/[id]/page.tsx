@@ -1,208 +1,26 @@
-'use client'
+import { notFound, redirect } from 'next/navigation'
+import { getImageByDisplayId } from '@/app/[country]/[crag]/i/[imageId]/image-page-server'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { useParams, useSearchParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
+export default async function ImageRedirectPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ route?: string; climb?: string; tab?: string }>
+}) {
+  const { id } = await params
+  const { route, climb, tab } = await searchParams
 
-type PollState = 'checking' | 'polling' | 'timeout' | 'error'
+  const image = await getImageByDisplayId(id)
+  if (!image) {
+    notFound()
+  }
 
-interface RelatedFaceRow {
-  linked_image_id: string | null
-}
+  const next = new URLSearchParams()
+  if (route) next.set('route', route)
+  if (climb) next.set('climb', climb)
+  if (tab === 'tops' || tab === 'climb') next.set('tab', tab)
 
-const POLL_INTERVAL_MS = 1500
-const MAX_WAIT_MS = 15000
-
-function SkeletonLoader() {
-  return (
-    <div className="w-full max-w-md space-y-4 p-8">
-      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 animate-pulse" />
-      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 animate-pulse" />
-      <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-    </div>
-  )
-}
-
-export default function ImageRedirectPage() {
-  const params = useParams()
-  const searchParams = useSearchParams()
-  const router = useRouter()
-
-  const imageId = params?.id as string | undefined
-
-  const [state, setState] = useState<PollState>('checking')
-  const startTimeRef = useRef<number | null>(null)
-  const pollingRef = useRef<NodeJS.Timeout | null>(null)
-  const resolvedRef = useRef(false)
-  const mountedRef = useRef(false)
-
-  const supabase = createClient()
-
-  const tabParam = searchParams.get('tab')
-  const routeParam = searchParams.get('route')
-  const climbParam = searchParams.get('climb')
-
-  const navigateToImage = useCallback((climbId: string, routeLineId: string, targetImageId: string) => {
-    if (resolvedRef.current) return
-    resolvedRef.current = true
-
-    const next = new URLSearchParams()
-    next.set('image', targetImageId)
-    next.set('climb', climbId)
-    next.set('route', routeLineId)
-    if (tabParam === 'tops' || tabParam === 'climb') {
-      next.set('tab', tabParam)
-    }
-    router.replace(`/image/${targetImageId}?${next.toString()}`)
-  }, [tabParam, router])
-
-  const checkForRoute = useCallback(async () => {
-    if (!imageId) return null
-
-    try {
-      const { data: relatedFaces, error: relatedFacesError } = await supabase
-        .from('crag_images')
-        .select('linked_image_id')
-        .or(`source_image_id.eq.${imageId},linked_image_id.eq.${imageId}`)
-
-      if (relatedFacesError) {
-        console.error('Error checking related faces:', relatedFacesError)
-      }
-
-      const relatedImageIds = (relatedFaces || [])
-        .map((face: RelatedFaceRow) => face.linked_image_id)
-        .filter((id: string | null): id is string => typeof id === 'string' && id.length > 0)
-
-      const imageIds = Array.from(new Set([imageId, ...relatedImageIds]))
-
-      const { data, error } = await supabase
-        .from('route_lines')
-        .select('id, climb_id, image_id')
-        .in('image_id', imageIds)
-        .not('climb_id', 'is', null)
-        .order('image_id', { ascending: true })
-        .order('sequence_order', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-
-      if (error) {
-        console.error('Error checking route_lines:', error)
-        return null
-      }
-
-      if (routeParam && climbParam) {
-        const explicitMatch = data && data.id === routeParam && data.climb_id === climbParam
-        if (explicitMatch) {
-          return {
-            ...data,
-            image_id: imageId,
-          }
-        }
-      }
-
-      return data
-    } catch (err) {
-      console.error('Exception checking route_lines:', err)
-      return null
-    }
-  }, [climbParam, imageId, routeParam, supabase])
-
-  const startPolling = useCallback(() => {
-    if (!startTimeRef.current) {
-      startTimeRef.current = Date.now()
-    }
-
-    const poll = async () => {
-      if (resolvedRef.current || !mountedRef.current) return
-
-      const now = Date.now()
-      const elapsed = startTimeRef.current ? now - startTimeRef.current : 0
-
-      if (elapsed >= MAX_WAIT_MS) {
-        setState('timeout')
-        router.replace('/')
-        return
-      }
-
-      const result = await checkForRoute()
-
-      if (resolvedRef.current || !mountedRef.current) return
-
-      if (result?.climb_id) {
-        navigateToImage(result.climb_id, result.id, result.image_id || imageId)
-        return
-      }
-
-      pollingRef.current = setTimeout(poll, POLL_INTERVAL_MS)
-    }
-
-    pollingRef.current = setTimeout(poll, POLL_INTERVAL_MS)
-  }, [checkForRoute, imageId, navigateToImage, router])
-
-  useEffect(() => {
-    mountedRef.current = true
-
-    return () => {
-      mountedRef.current = false
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!imageId) {
-      console.log('[ImageRedirect] No imageId, skipping')
-      return
-    }
-
-    console.log('[ImageRedirect] Starting with imageId:', imageId)
-
-    const init = async () => {
-      console.log('[ImageRedirect] Checking for existing routes')
-      const result = await checkForRoute()
-
-      if (!mountedRef.current) return
-      console.log('[ImageRedirect] Route result:', result)
-
-      if (result?.climb_id) {
-        console.log('[ImageRedirect] Found route, navigating to climb')
-        navigateToImage(result.climb_id, result.id, result.image_id || imageId)
-        return
-      }
-
-      console.log('[ImageRedirect] No route found, starting polling')
-      setState('polling')
-      startPolling()
-    }
-
-    init()
-
-    return () => {
-      if (pollingRef.current) {
-        clearTimeout(pollingRef.current)
-      }
-    }
-  }, [imageId, checkForRoute, navigateToImage, startPolling, router])
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="text-center">
-        <SkeletonLoader />
-        {state === 'checking' && (
-          <p className="text-gray-600 dark:text-gray-400">Loading routes...</p>
-        )}
-        {state === 'polling' && (
-          <div>
-            <p className="text-gray-600 dark:text-gray-400 mb-2">Processing your routes...</p>
-            <p className="text-sm text-gray-400">This may take a few seconds</p>
-          </div>
-        )}
-        {state === 'timeout' && (
-          <p className="text-gray-600 dark:text-gray-400">Routes not ready yet</p>
-        )}
-        {state === 'error' && (
-          <p className="text-gray-600 dark:text-gray-400">Something went wrong</p>
-        )}
-      </div>
-    </div>
-  )
+  const target = `/${image.countryCode}/${image.cragSlug}/i/${image.canonicalId}`
+  redirect(next.toString() ? `${target}?${next.toString()}` : target)
 }
