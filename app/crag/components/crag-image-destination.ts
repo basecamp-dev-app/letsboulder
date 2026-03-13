@@ -35,5 +35,5 @@ export function buildCragImageDestination({
     return `/climb/${target.climbId}?${next.toString()}`
   }
 
-  return `/climb/${target.climbId}?${next.toString()}`
+  return `/image/${imageId}?${next.toString()}`
 }
