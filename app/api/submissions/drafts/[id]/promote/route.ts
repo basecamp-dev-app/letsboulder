@@ -90,9 +90,14 @@ export async function POST(
     const metadata = draft.metadata && typeof draft.metadata === 'object'
       ? draft.metadata as Record<string, unknown>
       : {}
-    const location = metadata.location && typeof metadata.location === 'object'
-      ? metadata.location as Record<string, unknown>
-      : null
+    // Support both v1 (metadata.location) and v2 (metadata.submission.location) structures
+    const location = (metadata.submission && typeof metadata.submission === 'object' && 
+                     (metadata.submission as Record<string, unknown>).location &&
+                     typeof ((metadata.submission as Record<string, unknown>).location as Record<string, unknown>) === 'object')
+      ? ((metadata.submission as Record<string, unknown>).location as Record<string, unknown>)
+      : (metadata.location && typeof metadata.location === 'object'
+          ? metadata.location as Record<string, unknown>
+          : null)
     const latitude = location && typeof location.latitude === 'number' ? location.latitude : null
     const longitude = location && typeof location.longitude === 'number' ? location.longitude : null
 

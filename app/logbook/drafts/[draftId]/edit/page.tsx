@@ -374,8 +374,8 @@ export default function EditDraftPage() {
       const normalizedCreditHandle = typeof (metadata as { contributionCreditHandle?: unknown }).contributionCreditHandle === 'string'
         ? String((metadata as { contributionCreditHandle?: unknown }).contributionCreditHandle)
         : ''
-      const normalizedAnonymousSubmission = (metadata as { isAnonymousSubmission?: unknown }).isAnonymousSubmission === true
-      const metadataLocation = (metadata as { location?: unknown }).location
+      const normalizedAnonymousSubmission = normalizedMetadata.submission.isAnonymousSubmission
+      const metadataLocation = normalizedMetadata.submission.location
       const metadataLatitude = metadataLocation && typeof metadataLocation === 'object' && typeof (metadataLocation as { latitude?: unknown }).latitude === 'number'
         ? (metadataLocation as { latitude: number }).latitude
         : null

@@ -104,6 +104,7 @@ export function normalizeDraftMetadata(
     images,
     submission: {
       routeType: legacy.routeType || 'sport',
+      // Normalize v1 location (metadata.location) to v2 structure (metadata.submission.location)
       location: legacy.location || null,
       isAnonymousSubmission: legacy.isAnonymousSubmission === true,
       contributionCreditPlatform: legacy.contributionCreditPlatform || null,
