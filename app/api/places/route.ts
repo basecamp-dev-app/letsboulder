@@ -5,6 +5,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { makeUniqueSlug } from '@/lib/slug'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 
 type PlaceType = 'crag' | 'gym'
 
@@ -18,12 +19,6 @@ interface CreatePlaceRequest {
   access_notes?: string
   primary_discipline?: string | null
   disciplines?: string[]
-}
-
-interface FindRegionResult {
-  id: string
-  name: string
-  country_code: string | null
 }
 
 const ALLOWED_DISCIPLINES = new Set(['boulder', 'sport', 'trad', 'deep_water_solo', 'mixed', 'top_rope'])
@@ -175,23 +170,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let region: FindRegionResult | null = null
-    if (latitude != null && longitude != null) {
-      const { data: regionRows } = await supabase
-        .rpc('find_region_by_location', { search_lat: latitude, search_lng: longitude })
-      if (Array.isArray(regionRows) && regionRows.length > 0) {
-        const found = regionRows[0] as unknown as FindRegionResult
-        if (found?.id) region = found
-      }
+    const result = await resolveCountryFromCoordinates(supabase, latitude, longitude)
+
+    if (type === 'gym' && !result.countryCode) {
+      return NextResponse.json(
+        { error: 'Could not resolve country from this gym location. Please ensure your pin is on land.' },
+        { status: 400 }
+      )
     }
 
-    const countryCode = region?.country_code ? String(region.country_code).toUpperCase().slice(0, 2) : null
-    const regionId = region?.id || null
-    const regionName = region?.name || null
-
-    if (type === 'gym' && !countryCode) {
-      return NextResponse.json({ error: 'Could not resolve country from this gym location. Please choose a more precise pin.' }, { status: 400 })
-    }
+    const countryCode = result.countryCode
+    const regionId = result.regionId
+    const regionName = result.regionName
 
     const usedPlaceSlugs = new Set<string>()
     if (countryCode) {

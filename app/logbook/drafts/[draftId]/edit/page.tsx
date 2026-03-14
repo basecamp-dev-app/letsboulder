@@ -32,6 +32,8 @@ interface DraftImagePayload {
   signed_url: string | null
   width: number | null
   height: number | null
+  latitude: number | null
+  longitude: number | null
 }
 
 interface DraftPayload {
