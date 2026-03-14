@@ -1504,11 +1504,18 @@ export default function EditDraftPage() {
               const isActive = image.imageId === activeImageId
               const isDefault = image.imageId === defaultImageId
               return (
-                <button
+                <div
                   key={image.imageId}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setActiveImageId(image.imageId)}
-                  className={`rounded-md border p-2 text-left text-xs font-medium transition-colors ${
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setActiveImageId(image.imageId)
+                    }
+                  }}
+                  className={`rounded-md border p-2 text-left text-xs font-medium transition-colors cursor-pointer ${
                     isActive
                       ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-200'
                       : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
@@ -1532,7 +1539,7 @@ export default function EditDraftPage() {
                       {removingImageId === image.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                     </button>
                   </div>
-                </button>
+                </div>
               )
             })}
           </div>
