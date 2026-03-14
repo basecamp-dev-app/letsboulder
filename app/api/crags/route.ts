@@ -5,6 +5,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { makeUniqueSlug } from '@/lib/slug'
 import { revalidatePath } from 'next/cache'
+import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 
 interface CreateCragRequest {
   name: string
@@ -16,12 +17,6 @@ interface CreateCragRequest {
   type?: 'sport' | 'boulder' | 'bouldering' | 'trad' | 'mixed' | 'top_rope' | 'deep_water_solo' | 'deep-water-solo'
   description?: string
   access_notes?: string
-}
-
-interface FindRegionResult {
-  id: string
-  name: string
-  country_code: string | null
 }
 
 interface LocationTagRow {
@@ -292,19 +287,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    let region: FindRegionResult | null = null
-    if (latitude != null && longitude != null) {
-      const { data: regionRows } = await supabase
-        .rpc('find_region_by_location', { search_lat: latitude, search_lng: longitude })
-      if (Array.isArray(regionRows) && regionRows.length > 0) {
-        const r = regionRows[0] as unknown as FindRegionResult
-        if (r?.id) region = r
-      }
+    const result = await resolveCountryFromCoordinates(supabase, latitude, longitude)
+
+    if (!result.countryCode) {
+      return NextResponse.json(
+        { error: 'Could not resolve country from this crag location. Please ensure your pin is on land.' },
+        { status: 400 }
+      )
     }
 
-    const countryCode = region?.country_code ? String(region.country_code).toUpperCase().slice(0, 2) : null
-    const regionId = region?.id || null
-    const regionName = trimmedRegionTag
+    const countryCode = result.countryCode
+    const regionId = result.regionId
+    const regionName = result.regionName || trimmedRegionTag
 
     let locationTagId: string | null = null
     const { data: existingTags, error: existingTagsError } = await supabase
@@ -362,18 +356,16 @@ export async function POST(request: NextRequest) {
     }
 
     const usedCragSlugs = new Set<string>()
-    if (countryCode) {
-      const { data: existingSlugs } = await supabase
-        .from('crags')
-        .select('slug')
-        .eq('country_code', countryCode)
-        .not('slug', 'is', null)
-        .limit(10000)
-      for (const row of (existingSlugs || []) as Array<{ slug: string | null }>) {
-        if (row.slug) usedCragSlugs.add(row.slug)
-      }
+    const { data: existingSlugs } = await supabase
+      .from('crags')
+      .select('slug')
+      .eq('country_code', countryCode)
+      .not('slug', 'is', null)
+      .limit(10000)
+    for (const row of (existingSlugs || []) as Array<{ slug: string | null }>) {
+      if (row.slug) usedCragSlugs.add(row.slug)
     }
-    const slug = countryCode ? makeUniqueSlug(trimmedName, usedCragSlugs) : null
+    const slug = makeUniqueSlug(trimmedName, usedCragSlugs)
 
     const { data: createdCrag, error: createError } = await supabase
       .from('crags')

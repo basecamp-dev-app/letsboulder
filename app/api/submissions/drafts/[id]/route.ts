@@ -126,7 +126,7 @@ export async function GET(
 
     const { data: images, error: imagesError } = await supabase
       .from('submission_draft_images')
-      .select('id, draft_id, display_order, storage_bucket, storage_path, width, height, route_data, created_at, updated_at')
+      .select('id, draft_id, display_order, storage_bucket, storage_path, width, height, route_data, latitude, longitude, created_at, updated_at')
       .eq('draft_id', id)
       .order('display_order', { ascending: true })
 

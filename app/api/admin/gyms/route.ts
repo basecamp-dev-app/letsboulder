@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { makeUniqueSlug } from '@/lib/slug'
+import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 
 interface CreateGymRequest {
   name?: string
@@ -12,13 +13,7 @@ interface CreateGymRequest {
   primary_discipline?: string | null
 }
 
-interface FindRegionResult {
-  id: string
-  name: string
-  country_code: string | null
-}
-
-const ALLOWED_DISCIPLINES = new Set(['boulder', 'sport', 'mixed', 'top_rope'])
+const ALLOWED_DISCIPLINES = new Set(['boulder', 'sport', 'trad', 'mixed', 'top_rope'])
 
 async function requireAdmin(request: NextRequest) {
   const cookies = request.cookies
@@ -140,19 +135,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `A gym with this name already exists: "${existingNamedGym[0].name}"` }, { status: 409 })
     }
 
-    const { data: regionRows } = await supabase
-      .rpc('find_region_by_location', { search_lat: latitude, search_lng: longitude })
+    const result = await resolveCountryFromCoordinates(supabase, latitude, longitude)
 
-    let region: FindRegionResult | null = null
-    if (Array.isArray(regionRows) && regionRows.length > 0) {
-      const found = regionRows[0] as unknown as FindRegionResult
-      if (found?.id) region = found
+    if (!result.countryCode) {
+      return NextResponse.json(
+        { error: 'Could not resolve country from this gym location. Please ensure your pin is on land.' },
+        { status: 400 }
+      )
     }
 
-    const countryCode = region?.country_code ? String(region.country_code).toUpperCase().slice(0, 2) : null
-    if (!countryCode) {
-      return NextResponse.json({ error: 'Could not resolve country from this location. Please choose a more precise pin.' }, { status: 400 })
-    }
+    const countryCode = result.countryCode
+    const regionId = result.regionId
+    const regionName = result.regionName
 
     const usedSlugs = new Set<string>()
     const { data: existingSlugs } = await supabase
@@ -176,8 +170,8 @@ export async function POST(request: NextRequest) {
         type: 'gym',
         latitude,
         longitude,
-        region_id: region?.id || null,
-        region_name: region?.name || null,
+        region_id: regionId,
+        region_name: regionName,
         country_code: countryCode,
         primary_discipline: normalizedPrimary || normalizedDisciplines[0],
         disciplines: normalizedDisciplines,
