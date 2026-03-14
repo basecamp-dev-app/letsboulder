@@ -1591,8 +1591,8 @@ export default function EditDraftPage() {
             <div className="mb-3">
               <CragSelector
                 selectedCragId={cragId}
-                latitude={selectedCrag?.latitude || null}
-                longitude={selectedCrag?.longitude || null}
+                latitude={selectedCrag ? selectedCrag.latitude : (latitude ? parseFloat(latitude) : null)}
+                longitude={selectedCrag ? selectedCrag.longitude : (longitude ? parseFloat(longitude) : null)}
                 onSelect={(crag) => {
                   setCragId(crag.id)
                   setSelectedCrag({
