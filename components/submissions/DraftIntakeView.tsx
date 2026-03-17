@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ImagePicker from '@/app/submit/components/ImagePicker'
+import { CountrySelector } from '@/app/submit/components/CountrySelector'
+import AtlasContextCard from '@/components/submissions/atlas-context-card'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
+import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
 import { csrfFetch } from '@/hooks/useCsrf'
 import type { Crag, GpsData, ImageSelection } from '@/lib/submission-types'
 
@@ -35,10 +38,12 @@ export default function DraftIntakeView() {
   const { toasts, addToast, removeToast } = useToast()
   const [selectedImages, setSelectedImages] = useState<UploadedImagePayload[]>([])
   const [selectedGps, setSelectedGps] = useState<GpsData | null>(null)
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
   const [nearbyCragMatch, setNearbyCragMatch] = useState<NearbyCragMatch | null>(null)
   const [uploadsInFlight, setUploadsInFlight] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const atlasSync = useAtlasAutoSync(selectedGps?.latitude ?? null, selectedGps?.longitude ?? null)
 
   const canCreateDraft = selectedImages.length > 0 && !submitting && !uploadsInFlight
 
@@ -97,6 +102,12 @@ export default function DraftIntakeView() {
   }, [])
 
   useEffect(() => {
+    if (atlasSync.atlas?.countryCode && selectedGps) {
+      setSelectedCountry((current) => current || atlasSync.atlas?.countryCode || null)
+    }
+  }, [atlasSync.atlas?.countryCode, selectedGps])
+
+  useEffect(() => {
     let cancelled = false
 
     async function loadNearbyCragMatch() {
@@ -121,10 +132,16 @@ export default function DraftIntakeView() {
   const createDraft = useCallback(async () => {
     if (!canCreateDraft) return
 
+    // Validate country selection if GPS is present
+    if (selectedGps && !selectedCountry) {
+      setError('Please select a country for the GPS coordinates')
+      return
+    }
+
     setSubmitting(true)
     setError(null)
     try {
-      const matchedCrag = nearbyCragMatch ?? await findNearbyCragMatch(selectedGps)
+      const matchedCrag = nearbyCragMatch ?? atlasSync.nearbyCrag ?? await findNearbyCragMatch(selectedGps)
 
       const response = await csrfFetch('/api/submissions/drafts', {
         method: 'POST',
@@ -137,6 +154,12 @@ export default function DraftIntakeView() {
             location: selectedGps ? {
               latitude: selectedGps.latitude,
               longitude: selectedGps.longitude,
+              countryId: atlasSync.atlas?.countryId ?? null,
+              countryCode: atlasSync.atlas?.countryCode ?? selectedCountry,
+              countryName: atlasSync.atlas?.countryName ?? null,
+              adminRegionName: atlasSync.atlas?.adminRegionName ?? null,
+              unRegionName: atlasSync.atlas?.unRegionName ?? null,
+              continentName: atlasSync.atlas?.continentName ?? null,
             } : null,
             intake: {
               source: '/submit',
@@ -157,12 +180,7 @@ export default function DraftIntakeView() {
       } else {
         addToast('Draft created. Continue editing in Draft Editor.', 'success')
       }
-      router.push(draftHref)
-      window.setTimeout(() => {
-        if (window.location.pathname === '/submit') {
-          window.location.assign(draftHref)
-        }
-      }, 150)
+      router.replace(draftHref)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create draft'
       setError(message)
@@ -170,7 +188,7 @@ export default function DraftIntakeView() {
     } finally {
       setSubmitting(false)
     }
-  }, [addToast, canCreateDraft, findNearbyCragMatch, nearbyCragMatch, router, selectedGps, selectedImages])
+  }, [addToast, atlasSync.atlas, atlasSync.nearbyCrag, canCreateDraft, findNearbyCragMatch, nearbyCragMatch, router, selectedGps, selectedImages, selectedCountry])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -207,6 +225,28 @@ export default function DraftIntakeView() {
             </p>
           ) : null}
         </div>
+
+        {selectedGps && (
+          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <AtlasContextCard result={atlasSync} />
+            <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Select Country</h2>
+            <p className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+              We auto-detect the administrative location from GPS. You can still confirm the country here if needed.
+            </p>
+            <div className="max-w-xs">
+              <CountrySelector
+                value={selectedCountry}
+                onChange={setSelectedCountry}
+                placeholder="Select country..."
+              />
+            </div>
+            {selectedCountry && (
+              <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+                Country selected: {selectedCountry}. GPS coordinates will be validated against {selectedCountry}&apos;s boundaries.
+              </p>
+            )}
+          </div>
+        )}
 
         {error ? (
           <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
