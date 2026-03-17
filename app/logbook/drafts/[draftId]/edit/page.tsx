@@ -10,7 +10,9 @@ import { useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import type { UserResponse } from '@supabase/supabase-js'
 import 'leaflet/dist/leaflet.css'
-import RouteCanvas from '@/components/routes/RouteCanvas'
+import { UnifiedRouteCanvas } from '@/components/UnifiedRouteCanvas'
+import { useRouteStore } from '@/store/routeStore'
+import { normalizePoints } from '@/lib/canvasMath'
 import CragSelector from '@/app/submit/components/CragSelector'
 import SectorSelector from '@/app/submit/components/SectorSelector'
 import AtlasContextCard from '@/components/submissions/atlas-context-card'
@@ -330,6 +332,8 @@ export default function EditDraftPage() {
   const [autosaveState, setAutosaveState] = useState<'idle' | 'pending' | 'saving' | 'syncing' | 'saved'>('idle')
   const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+
+  const { setRoutes, setMode, reset, addRoute, deleteRoute, updateRoute, activeRouteId, currentPoints } = useRouteStore()
   const [searchingLocation, setSearchingLocation] = useState(false)
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
   const [mapOpen, setMapOpen] = useState(false)
@@ -587,6 +591,32 @@ export default function EditDraftPage() {
       ? `Before publishing, ${missingItems.join(', ')}.`
       : null
   }, [cragId, defaultImageId, defaultImageRoutes.length, defaultImageTab, hasValidLocation, orientationByImageId])
+
+  useEffect(() => {
+    setMode('edit-existing')
+    return () => {
+      reset()
+    }
+  }, [setMode, reset])
+
+  useEffect(() => {
+    if (!activeImageId || !activeImageTab) return
+
+    const img = new window.Image()
+    img.onload = () => {
+      const normalizedRoutes = existingRouteLines.map((route) => ({
+        ...route,
+        points: normalizePoints(
+          route.points,
+          { width: img.width, height: img.height, naturalWidth: img.width, naturalHeight: img.height },
+          route.image_width,
+          route.image_height
+        ),
+      }))
+      setRoutes(normalizedRoutes)
+    }
+    img.src = activeImageTab.signedUrl
+  }, [activeImageId, activeImageTab, existingRouteLines, setRoutes])
 
   useEffect(() => {
     if (!draftId || !draftUpdatedAt || !atlasSync.atlas) return
@@ -1832,24 +1862,22 @@ export default function EditDraftPage() {
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Which way are you looking in this photo?</p>
         </div>
 
-        {imageSelection ? (
+        {imageSelection && 'imageUrl' in imageSelection ? (
           <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
-            <RouteCanvas
+            <UnifiedRouteCanvas
               key={`${activeImageTab?.imageId || 'draft-canvas'}:${existingRouteLines.length}`}
-              imageSelection={imageSelection}
-              onRoutesUpdate={() => {}}
-              existingRouteLines={existingRouteLines}
               mode="edit-existing"
-              allowCreateRoutesInEditMode
-              onEditRoutesUpdate={handleEditRoutesUpdate}
-              onSaveEdits={() => Promise.resolve()}
-              savingEdits={false}
-              showEditSaveButton={false}
-              onSaveNewRoutes={handleCreateRoutes}
-              savingNewRoutes={false}
-              onDeleteExistingRoute={handleDeleteRoute}
-              deletingExistingRouteId={null}
-              defaultClimbType={routeType === 'deep-water-solo' ? 'deep-water-solo' : routeType === 'boulder' ? 'boulder' : routeType === 'trad' ? 'trad' : 'sport'}
+              imageUrl={(imageSelection as { imageUrl: string }).imageUrl}
+              onRoutesUpdate={(routes) => {
+                const editableRoutes = routes.map((route) => ({
+                  id: route.id,
+                  name: route.climb?.name || 'Unnamed',
+                  grade: route.climb?.grade || '6A',
+                  description: route.climb?.description ?? undefined,
+                  points: route.points,
+                }))
+                handleEditRoutesUpdate(editableRoutes)
+              }}
             />
           </div>
         ) : null}

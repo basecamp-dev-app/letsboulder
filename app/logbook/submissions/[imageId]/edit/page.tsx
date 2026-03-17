@@ -9,7 +9,9 @@ import { Loader2, Link2, MapPin, Search, Trash2, Users } from 'lucide-react'
 import { useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import RouteCanvas from '@/components/routes/RouteCanvas'
+import { UnifiedRouteCanvas } from '@/components/UnifiedRouteCanvas'
+import { useRouteStore } from '@/store/routeStore'
+import { normalizePoints } from '@/lib/canvasMath'
 import AtlasContextCard from '@/components/submissions/atlas-context-card'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
@@ -280,6 +282,8 @@ export default function EditSubmittedRoutesPage() {
   const [mapOpen, setMapOpen] = useState(false)
   const parsedLatitude = useMemo(() => parseCoordinate(latitude), [latitude])
   const parsedLongitude = useMemo(() => parseCoordinate(longitude), [longitude])
+
+  const { setRoutes, setMode, reset } = useRouteStore()
   const atlasSync = useAtlasAutoSync(
     typeof parsedLatitude === 'number' && !Number.isNaN(parsedLatitude) ? parsedLatitude : null,
     typeof parsedLongitude === 'number' && !Number.isNaN(parsedLongitude) ? parsedLongitude : null,
@@ -308,6 +312,32 @@ export default function EditSubmittedRoutesPage() {
   useEffect(() => {
     import('leaflet').then((lib) => setLeaflet(lib))
   }, [])
+
+  useEffect(() => {
+    setMode('edit-existing')
+    return () => {
+      reset()
+    }
+  }, [setMode, reset])
+
+  useEffect(() => {
+    if (!activeImageId || existingRouteLines.length === 0) return
+
+    const img = new window.Image()
+    img.onload = () => {
+      const normalizedRoutes = existingRouteLines.map((route) => ({
+        ...route,
+        points: normalizePoints(
+          route.points,
+          { width: img.width, height: img.height, naturalWidth: img.width, naturalHeight: img.height },
+          route.image_width,
+          route.image_height
+        ),
+      }))
+      setRoutes(normalizedRoutes)
+    }
+    img.src = imageSelection && 'imageUrl' in imageSelection ? imageSelection.imageUrl : ''
+  }, [activeImageId, existingRouteLines, imageSelection, setRoutes])
 
   const loadSubmission = useCallback(async () => {
     if (!activeImageId) return
@@ -1442,23 +1472,22 @@ export default function EditSubmittedRoutesPage() {
 
         </div>
 
-        {hasReadyData && imageSelection ? (
+        {hasReadyData && imageSelection && 'imageUrl' in imageSelection ? (
           <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
-            <RouteCanvas
+            <UnifiedRouteCanvas
               key={`${canvasKey}:${activeImageId}`}
-              imageSelection={imageSelection}
-              onRoutesUpdate={() => {}}
-              existingRouteLines={existingRouteLines}
               mode="edit-existing"
-              allowCreateRoutesInEditMode
-              onEditRoutesUpdate={setEditedRoutes}
-              onSaveEdits={saveRouteEdits}
-              savingEdits={savingEdits}
-              showEditSaveButton={false}
-              onSaveNewRoutes={handleCreateRoutes}
-              savingNewRoutes={savingNewRoutes}
-              onDeleteExistingRoute={handleDeleteExistingRoute}
-              deletingExistingRouteId={deletingExistingRouteId}
+              imageUrl={imageSelection.imageUrl}
+              onRoutesUpdate={(routes) => {
+                const editableRoutes = routes.map((route) => ({
+                  id: route.id,
+                  name: route.climb?.name || 'Unnamed',
+                  grade: route.climb?.grade || '6A',
+                  description: route.climb?.description ?? undefined,
+                  points: route.points,
+                }))
+                setEditedRoutes(editableRoutes)
+              }}
             />
           </div>
         ) : null}
