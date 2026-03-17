@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, startTransition } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
@@ -27,45 +27,25 @@ import { Input } from '@/components/ui/input'
 import { buildCragPinClusters, type ClusterableCragImage, type CragPinCluster } from '@/lib/crag-pin-clusters'
 import type { Database } from '@/types/database'
 
-import 'leaflet/dist/leaflet.css'
-
 function getAverageCoordinates(images: { latitude: number; longitude: number }[]): [number, number] {
   const totalLat = images.reduce((sum, img) => sum + img.latitude, 0)
   const totalLng = images.reduce((sum, img) => sum + img.longitude, 0)
   return [totalLat / images.length, totalLng / images.length]
 }
 
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
-const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false })
+const CragPageMap = dynamic(() => import('./CragPageMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-full">
+      <div className="animate-pulse bg-gray-300 dark:bg-gray-600 h-32 w-32 rounded-lg"></div>
+    </div>
+  ),
+})
 const TopThisPlacePanel = dynamic(() => import('@/features/community/components/TopThisPlacePanel'))
 const PlaceRankingsPanel = dynamic(() => import('@/features/community/components/PlaceRankingsPanel'))
 
-interface LeafletIconDefault {
-  prototype: {
-    _getIconUrl?: () => void
-  }
-  mergeOptions: (options: Record<string, string>) => void
-}
-
-let L: typeof import('leaflet') | null = null
 const CRAG_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000
 const cragImageCache = new Map<string, CachedCragImageData>()
-
-async function setupLeafletIcons() {
-  if (typeof window !== 'undefined') {
-    const leaflet = await import('leaflet')
-    L = leaflet as unknown as typeof import('leaflet')
-    const iconDefault = L!.Icon.Default as unknown as LeafletIconDefault
-    delete iconDefault.prototype._getIconUrl
-    iconDefault.mergeOptions({
-      iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-    })
-  }
-}
 
 export interface Crag {
   id: string
@@ -541,7 +521,6 @@ export default function CragPageClient({
   const [cragSwitcherOptions, setCragSwitcherOptions] = useState<CragSwitcherOption[]>([])
   const [cragCenter, setCragCenter] = useState<[number, number] | null>(initialCragCenter)
   const [loading, setLoading] = useState(!initialCrag)
-  const [mapReady, setMapReady] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isFlagging, setIsFlagging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -553,14 +532,8 @@ export default function CragPageClient({
   const [offlineProgress, setOfflineProgress] = useState<OfflineJobProgressEvent | null>(null)
   const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>({})
   const [routeNavigationTargetByClimbId, setRouteNavigationTargetByClimbId] = useState<Record<string, RouteNavigationTarget>>({})
-  const mapRef = useRef<L.Map | null>(null)
-  const [leafletLoaded, setLeafletLoaded] = useState(false)
 
   const initialRouteSource = useMemo(() => initialRoutes || [], [initialRoutes])
-
-  useEffect(() => {
-    setupLeafletIcons().then(() => setLeafletLoaded(true))
-  }, [])
 
   const refreshCragOfflinePreview = useCallback(async () => {
     setOfflinePreviewLoading(true)
@@ -1075,12 +1048,6 @@ export default function CragPageClient({
       ignore = true
     }
   }, [id, routesLoadState])
-
-  useEffect(() => {
-    if (!mapRef.current || !cragCenter) return
-
-    mapRef.current.setView(cragCenter, 15)
-  }, [cragCenter])
 
   const handleFlagCrag = async (cragId: string) => {
     if (isFlagging) return
@@ -1710,108 +1677,15 @@ export default function CragPageClient({
         </div>
       )}
       <div className="relative z-0 h-[34vh] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
-        {leafletLoaded ? (
-        <MapContainer
-          ref={mapRef as React.RefObject<L.Map | null>}
-          center={cragCenter || [crag.latitude || 0, crag.longitude || 0]}
-          zoom={15}
-          style={{ height: '100%', width: '100%' }}
-          preferCanvas={true}
-          zoomControl={false}
-          scrollWheelZoom={true}
-          whenReady={() => setMapReady(true)}
-        >
-          {mapReady && (
-            <>
-              <TileLayer
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                attribution='Tiles © Esri'
-                maxZoom={19}
-              />
-
-          {orderedPinClusters.map((cluster) => {
-            const representativeImage = imageById.get(cluster.representativeImageId)
-            if (!representativeImage || !leafletLoaded) return null
-
-            const clusterFaceLabel = `${cluster.faceCount} face${cluster.faceCount === 1 ? '' : 's'} here`
-            const representativeRouteLabel = `${representativeImage.route_lines_count} route${representativeImage.route_lines_count === 1 ? '' : 's'} on this face`
-
-            return (
-            <Marker
-              key={cluster.id}
-              position={[cluster.latitude, cluster.longitude]}
-              icon={L?.divIcon ? L.divIcon({
-                className: 'image-marker',
-                html: `<div style="
-                  background: ${representativeImage.is_verified ? '#22c55e' : '#eab308'};
-                  width: 24px;
-                  height: 24px;
-                  border-radius: 50%;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  color: white;
-                  font-size: 11px;
-                  font-weight: bold;
-                  border: 2px solid white;
-                  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                ">${cluster.badgeNumber}</div>`,
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
-              }) : undefined}
-            >
-              <Popup
-                closeButton={false}
-                className="image-popup"
-              >
-                <div
-                  className="w-40 cursor-pointer"
-                  onMouseEnter={() => prefetchImageDestination(representativeImage.id)}
-                  onTouchStart={() => prefetchImageDestination(representativeImage.id)}
-                  onClick={() => {
-                    navigateToImageDestination(representativeImage.id)
-                  }}
-                >
-                  <div className="relative h-24 w-full overflow-hidden rounded-md bg-gray-200 dark:bg-gray-700">
-                    <Image
-                      src={representativeImage.url}
-                      alt={`${crag.name} topo image ${cluster.badgeNumber}`.trim()}
-                      fill
-                      className="object-cover"
-                      sizes="160px"
-                      unoptimized
-                    />
-                    <div className="absolute top-2 left-2 rounded-full bg-white/90 px-2 py-1 text-xs font-semibold text-gray-900 shadow-sm">
-                      {cluster.badgeNumber}
-                    </div>
-                    <div className="absolute bottom-2 right-2 rounded-full bg-gray-900/80 px-2 py-1 text-xs text-white">
-                      {representativeImage.route_lines_count} routes
-                    </div>
-                    <div className={`absolute top-2 right-2 rounded px-1.5 py-0.5 text-xs font-medium ${
-                      representativeImage.is_verified
-                        ? 'bg-green-500 text-white'
-                        : 'bg-yellow-500 text-white'
-                    }`}>
-                      {representativeImage.is_verified ? '✓' : `${representativeImage.verification_count}/3`}
-                    </div>
-                  </div>
-                  <div className="space-y-1 px-1 pb-1 pt-2 text-left">
-                    <div className="text-xs font-semibold text-stone-900 dark:text-stone-100">{clusterFaceLabel}</div>
-                    <div className="text-[11px] text-stone-600 dark:text-stone-300">{representativeRouteLabel}</div>
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-            )
-          })}
-          </>
-          )}
-        </MapContainer>
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="animate-pulse bg-gray-300 dark:bg-gray-600 h-32 w-32 rounded-lg"></div>
-          </div>
-        )}
+        <CragPageMap
+          cragName={crag.name}
+          cragCenter={cragCenter}
+          cragLatitude={crag.latitude}
+          cragLongitude={crag.longitude}
+          orderedPinClusters={orderedPinClusters}
+          imageById={imageById}
+          onMarkerClick={(imageId) => navigateToImageDestination(imageId)}
+        />
 
         <div className="absolute top-4 left-4 z-[1000] bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 dark:text-gray-100 shadow-md backdrop-blur">
           {crag.name}
