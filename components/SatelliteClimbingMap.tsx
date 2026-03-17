@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo, useRef, type RefObject } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, type RefObject, startTransition } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
@@ -449,16 +449,23 @@ export default function SatelliteClimbingMap() {
                 eventHandlers={{
                   click: () => {
                     if (isGym && place.slug) {
-                      router.push(`/gyms/${place.slug}`)
+                      startTransition(() => {
+                        router.push(`/gyms/${place.slug}`)
+                      })
                       return
                     }
 
                     if (place.slug && place.country_code) {
-                      router.push(`/${place.country_code.toLowerCase()}/${place.slug}`)
+                      const countryCode = place.country_code
+                      startTransition(() => {
+                        router.push(`/${countryCode.toLowerCase()}/${place.slug}`)
+                      })
                       return
                     }
 
-                    router.push(`/crag/${place.id}`)
+                    startTransition(() => {
+                      router.push(`/crag/${place.id}`)
+                    })
                   },
                 }}
               >
