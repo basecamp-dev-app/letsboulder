@@ -71,12 +71,6 @@ export function useCanvasResize(
     })
   }, [containerRef])
 
-  const handleImageLoad = useCallback(() => {
-    console.log('[DEBUG useCanvasResize] image loaded!')
-    setImageLoaded(true)
-    setupDimensions()
-  }, [setupDimensions])
-
   useEffect(() => {
     const container = containerRef.current
     if (!container || typeof ResizeObserver === 'undefined') return
@@ -93,36 +87,41 @@ export function useCanvasResize(
   }, [containerRef, setupDimensions])
 
   useEffect(() => {
-    console.log('[DEBUG useCanvasResize] useEffect triggered', { 
-      imageUrl, 
-      prevUrl: prevImageUrlRef.current,
-      shouldRun: imageUrl && imageUrl !== prevImageUrlRef.current
-    })
-    
     if (!imageUrl || imageUrl === prevImageUrlRef.current) return
     prevImageUrlRef.current = imageUrl
 
-    console.log('[DEBUG useCanvasResize] creating new Image, src:', imageUrl)
-
     const img = new window.Image()
     img.crossOrigin = 'anonymous'
-    imageRef.current = img
+
+    const handleLoad = () => {
+      console.log('[DEBUG useCanvasResize] Image onload fired!')
+      setImageLoaded(true)
+      imageRef.current = img
+      setupDimensions()
+    }
 
     const handleError = () => {
       console.log('[DEBUG useCanvasResize] image error!')
       setImageError(true)
     }
 
-    img.addEventListener('load', handleImageLoad)
+    img.addEventListener('load', handleLoad)
     img.addEventListener('error', handleError)
-    img.src = imageUrl
+    
+    // Check if image is already loaded (cached)
+    if (img.complete) {
+      console.log('[DEBUG useCanvasResize] Image already complete, triggering load manually')
+      handleLoad()
+    } else {
+      img.src = imageUrl
+    }
 
     return () => {
-      img.removeEventListener('load', handleImageLoad)
+      img.removeEventListener('load', handleLoad)
       img.removeEventListener('error', handleError)
       img.src = ''
     }
-  }, [imageUrl, handleImageLoad])
+  }, [imageUrl, setupDimensions])
 
   return {
     dimensions,
