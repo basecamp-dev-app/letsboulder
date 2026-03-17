@@ -177,7 +177,7 @@ export function UnifiedRouteCanvas({
     ctx.translate(zoomTransform.x, zoomTransform.y)
     ctx.scale(zoomTransform.scale, zoomTransform.scale)
 
-    drawRoutes(ctx, routes, activeRouteId, currentPoints, dimensions, mode)
+    drawRoutes(ctx, routes, activeRouteId, currentPoints, dimensions, mode, zoomTransform)
 
     ctx.restore()
   }, [routes, activeRouteId, currentPoints, dimensions, zoomTransform, mode])
