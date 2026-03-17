@@ -12,9 +12,12 @@ import type { UserResponse } from '@supabase/supabase-js'
 import 'leaflet/dist/leaflet.css'
 import RouteCanvas from '@/components/routes/RouteCanvas'
 import CragSelector from '@/app/submit/components/CragSelector'
+import SectorSelector from '@/app/submit/components/SectorSelector'
+import AtlasContextCard from '@/components/submissions/atlas-context-card'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type NewRouteData, type RouteLine, type RoutePoint } from '@/lib/submission-types'
@@ -280,7 +283,17 @@ export default function EditDraftPage() {
   const [isAnonymousSubmission, setIsAnonymousSubmission] = useState(false)
   const [latitude, setLatitude] = useState('')
   const [longitude, setLongitude] = useState('')
+  const markerPosition = useMemo<[number, number] | null>(() => {
+    const parsedLatitude = Number(latitude)
+    const parsedLongitude = Number(longitude)
+    if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) return null
+    if (parsedLatitude < -90 || parsedLatitude > 90) return null
+    if (parsedLongitude < -180 || parsedLongitude > 180) return null
+    if (parsedLatitude === 0 && parsedLongitude === 0) return null
+    return [parsedLatitude, parsedLongitude]
+  }, [latitude, longitude])
   const [cragId, setCragId] = useState<string | null>(null)
+  const [sectorId, setSectorId] = useState<string | null>(null)
   const [selectedCrag, setSelectedCrag] = useState<{
     id: string
     name: string
@@ -321,6 +334,7 @@ export default function EditDraftPage() {
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
   const [mapOpen, setMapOpen] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
+  const atlasSync = useAtlasAutoSync(markerPosition?.[0] ?? null, markerPosition?.[1] ?? null)
 
   const loadDraft = useCallback(async () => {
     if (!draftId) return
@@ -540,16 +554,6 @@ export default function EditDraftPage() {
     }
   }, [activeImageTab])
 
-  const markerPosition = useMemo<[number, number] | null>(() => {
-    const parsedLatitude = Number(latitude)
-    const parsedLongitude = Number(longitude)
-    if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) return null
-    if (parsedLatitude < -90 || parsedLatitude > 90) return null
-    if (parsedLongitude < -180 || parsedLongitude > 180) return null
-    if (parsedLatitude === 0 && parsedLongitude === 0) return null
-    return [parsedLatitude, parsedLongitude]
-  }, [latitude, longitude])
-
   const hasValidLocation = markerPosition !== null
   const defaultImageTab = useMemo(() => {
     if (!defaultImageId) return null
@@ -583,6 +587,51 @@ export default function EditDraftPage() {
       ? `Before publishing, ${missingItems.join(', ')}.`
       : null
   }, [cragId, defaultImageId, defaultImageRoutes.length, defaultImageTab, hasValidLocation, orientationByImageId])
+
+  useEffect(() => {
+    if (!draftId || !draftUpdatedAt || !atlasSync.atlas) return
+
+    const timer = window.setTimeout(async () => {
+      const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expected_updated_at: draftUpdatedAt,
+          metadata: {
+            submission: {
+              location: {
+                latitude: markerPosition ? markerPosition[0] : null,
+                longitude: markerPosition ? markerPosition[1] : null,
+                countryId: atlasSync.atlas.countryId,
+                countryCode: atlasSync.atlas.countryCode,
+                countryName: atlasSync.atlas.countryName,
+                adminRegionName: atlasSync.atlas.adminRegionName,
+                unRegionName: atlasSync.atlas.unRegionName,
+                continentName: atlasSync.atlas.continentName,
+              },
+            },
+          },
+          cragId: cragId ?? atlasSync.nearbyCrag?.id ?? null,
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (response.ok && payload?.draft?.updated_at) {
+        setDraftUpdatedAt(payload.draft.updated_at)
+      }
+      if (!cragId && atlasSync.nearbyCrag?.id) {
+        setCragId(atlasSync.nearbyCrag.id)
+        setSelectedCrag((current) => current || {
+          id: atlasSync.nearbyCrag?.id || '',
+          name: atlasSync.nearbyCrag?.name || 'Suggested crag',
+          latitude: markerPosition ? markerPosition[0] : 0,
+          longitude: markerPosition ? markerPosition[1] : 0,
+        })
+      }
+    }, 400)
+
+    return () => window.clearTimeout(timer)
+  }, [atlasSync.atlas, atlasSync.nearbyCrag, cragId, draftId, draftUpdatedAt, markerPosition])
 
   const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
     if (!activeDraftImageId) return
@@ -1096,6 +1145,7 @@ export default function EditDraftPage() {
               isAnonymousSubmission,
               contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
               contributionCreditHandle: normalizedHandle,
+              sectorId,
             },
           })
 
@@ -1187,7 +1237,7 @@ export default function EditDraftPage() {
     } finally {
       setSavingDraft(false)
     }
-  }, [cragId, creditHandle, creditPlatform, currentUserId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, markerPosition, orientationByImageId, routeType, routesByImageId])
+  }, [cragId, creditHandle, creditPlatform, currentUserId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId])
 
   const handleManualSave = useCallback(() => {
     if (autosaveTimeoutRef.current) {
@@ -1546,6 +1596,10 @@ export default function EditDraftPage() {
         </div>
 
         <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+          <AtlasContextCard result={atlasSync} />
+        </div>
+
+        <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-3 flex items-center gap-2">
             <MapPin className="h-4 w-4 text-gray-500" />
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Draft metadata</h2>
@@ -1607,6 +1661,18 @@ export default function EditDraftPage() {
                 onCreateNew={() => {
                   setShowCragSelector(false)
                 }}
+              />
+            </div>
+          ) : null}
+
+          {selectedCrag && !showCragSelector ? (
+            <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/60">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Sector</h3>
+              <SectorSelector
+                cragId={cragId}
+                value={sectorId}
+                onChange={setSectorId}
+                placeholder="Select sector (optional)"
               />
             </div>
           ) : null}
