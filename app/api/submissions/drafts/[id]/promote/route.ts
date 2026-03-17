@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { getMediaModerationConfig } from '@/lib/media/config'
 
 export const runtime = 'nodejs'
 
@@ -168,7 +169,8 @@ export async function POST(
 
     const canonicalPath = `/${crag.country_code.toLowerCase()}/${crag.slug}/i/${defaultImageId}`
 
-    if (INTERNAL_MODERATION_SECRET) {
+    const moderationConfig = getMediaModerationConfig()
+    if (INTERNAL_MODERATION_SECRET && moderationConfig.enabled) {
       const csrfToken = request.headers.get('x-csrf-token')
       const cookieHeader = request.headers.get('cookie')
       const moderationHeaders: Record<string, string> = {

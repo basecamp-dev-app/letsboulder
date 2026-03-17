@@ -8,6 +8,7 @@ import { makeUniqueSlug } from '@/lib/slug'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { isValidGrade } from '@/lib/grade-constants'
 import { revalidatePath } from 'next/cache'
+import { getMediaModerationConfig } from '@/lib/media/config'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const INTERNAL_MODERATION_SECRET = process.env.INTERNAL_MODERATION_SECRET
@@ -26,6 +27,7 @@ interface NewImageSubmission {
   faceDirections?: Array<(typeof VALID_FACE_DIRECTIONS)[number]>
   routes: NewRouteData[]
   routeType?: (typeof VALID_ROUTE_TYPES)[number]
+  sectorId?: string | null
 }
 
 interface NewSubmissionImage {
@@ -41,6 +43,7 @@ interface NewSubmissionImage {
     latitude: number
     longitude: number
   } | null
+  sectorId?: string | null
 }
 
 interface ExistingImageSubmission {
@@ -635,6 +638,7 @@ export async function POST(request: NextRequest) {
         natural_width: primaryNewImage.naturalWidth,
         natural_height: primaryNewImage.naturalHeight,
         face_directions: normalizedFaceDirectionsByImage[body.primaryIndex] || [],
+        sector_id: body.sectorId || null,
       }
 
       const supplementaryPayload = validatedNewImages
@@ -648,6 +652,7 @@ export async function POST(request: NextRequest) {
           width: img.width,
           height: img.height,
           face_directions: normalizedFaceDirectionsByImage[index] || [],
+          sector_id: img.sectorId || null,
         }))
 
       const { data: unifiedData, error: unifiedError } = await supabase.rpc('create_unified_submission_atomic', {
@@ -725,7 +730,8 @@ export async function POST(request: NextRequest) {
 
       await getRegionData(supabase, imageId)
 
-      if (INTERNAL_MODERATION_SECRET) {
+      const moderationConfig = getMediaModerationConfig()
+      if (INTERNAL_MODERATION_SECRET && moderationConfig.enabled) {
         const csrfToken = request.headers.get('x-csrf-token')
         const cookieHeader = request.headers.get('cookie')
         const moderationHeaders: Record<string, string> = {
@@ -869,7 +875,7 @@ async function getRegionData(supabase: ReturnType<typeof createServerClient>, im
       .from('images')
       .select(`
         crags:crag_id (
-          regions:region_id (
+          climbing_areas:region_id (
             name
           )
         )
@@ -877,8 +883,8 @@ async function getRegionData(supabase: ReturnType<typeof createServerClient>, im
       .eq('id', imageId)
       .single()
 
-    if (data?.crags?.regions) {
-      return data.crags.regions.name
+    if (data?.crags?.climbing_areas) {
+      return data.crags.climbing_areas.name
     }
     return ''
   } catch {
