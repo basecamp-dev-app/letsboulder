@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { createServerClient } from '@supabase/ssr'
 import { notFound } from 'next/navigation'
+import { cache } from 'react'
 import CragPageClient from '@/app/crag/components/CragPageClient'
 import { loadInitialCragRouteData } from '@/app/crag/components/crag-page-server'
 import type { Crag } from '@/app/crag/components/CragPageClient'
@@ -73,10 +74,9 @@ async function getSupabase() {
 }
 
 // Temporarily removed cache() to test - will add back after debugging
-const getCragByCountrySlug = async (countryCode: string, cragSlug: string): Promise<CragSlugRow | null> => {
-  console.log('[DEBUG getCragByCountrySlug] Querying with:', { countryCode, cragSlug })
+const getCragByCountrySlug = cache(async (countryCode: string, cragSlug: string): Promise<CragSlugRow | null> => {
   const supabase = await getSupabase()
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('crags')
     .select(`
       id,
@@ -108,13 +108,8 @@ const getCragByCountrySlug = async (countryCode: string, cragSlug: string): Prom
     .eq('slug', cragSlug)
     .maybeSingle()
 
-  if (error) {
-    console.error('[DEBUG getCragByCountrySlug] Error:', error)
-  }
-  console.log('[DEBUG getCragByCountrySlug] Result:', { data: data ? { id: data.id, name: data.name, slug: data.slug, country_code: data.country_code } : null, error })
-
   return (data as CragSlugRow | null) || null
-}
+})
 
 export async function generateMetadata({ params }: { params: Promise<CragSlugParams> }): Promise<Metadata> {
   const { country, crag: cragSlug } = await params
@@ -167,13 +162,9 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
   if (!country || country.length !== 2) notFound()
 
   const countryCode = country.toUpperCase()
-  console.log('[DEBUG] CragSlugPage:', { country, countryCode, cragSlug })
-  
   const crag = await getCragByCountrySlug(countryCode, cragSlug)
-  console.log('[DEBUG] getCragByCountrySlug result:', { crag: crag ? { id: crag.id, name: crag.name, slug: crag.slug, country_code: crag.country_code } : null })
   
   if (!crag) {
-    console.log('[DEBUG] Crag not found, triggering notFound()')
     notFound()
   }
 
