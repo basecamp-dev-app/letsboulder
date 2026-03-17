@@ -24,12 +24,12 @@ export async function GET(request: NextRequest) {
 
   try {
     const { data, error } = await supabase
-      .from('regions')
+      .from('climbing_areas')
       .select('id, name, country_code, center_lat, center_lon, created_at')
       .order('name', { ascending: true })
 
     if (error) {
-      return createErrorResponse(error, 'Error fetching regions')
+      return createErrorResponse(error, 'Error fetching climbing areas')
     }
 
     return NextResponse.json(data || [], {
@@ -88,13 +88,13 @@ export async function POST(request: NextRequest) {
     const trimmedName = name.trim()
 
     const { data: existing, error: checkError } = await supabase
-      .from('regions')
+      .from('climbing_areas')
       .select('id, name')
       .ilike('name', trimmedName)
       .limit(1)
 
     if (checkError) {
-      return createErrorResponse(checkError, 'Error checking existing region')
+      return createErrorResponse(checkError, 'Error checking existing climbing area')
     }
 
     if (existing && existing.length > 0) {
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: region, error: insertError } = await supabase
-      .from('regions')
+      .from('climbing_areas')
       .insert({
         name: trimmedName,
         country_code: country_code?.toUpperCase().slice(0, 2) || null
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (insertError) {
-      return createErrorResponse(insertError, 'Error creating region')
+      return createErrorResponse(insertError, 'Error creating climbing area')
     }
 
     return NextResponse.json(region, { status: 201 })

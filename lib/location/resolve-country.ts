@@ -1,19 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface CountryResolutionResult {
+  countryId: string | null
   countryCode: string | null
-  regionId: string | null
+  countryName: string | null
   regionName: string | null
-  source: 'database' | 'nominatim' | null
+  unRegionName: string | null
+  continentName: string | null
+  source: 'database' | null
 }
-
-interface FindRegionResult {
-  id: string
-  name: string
-  country_code: string | null
-}
-
-const NOMINATIM_USER_AGENT = 'LetsBoulder/1.0 (contact@letsboulder.com)'
 
 export async function resolveCountryFromCoordinates(
   supabase: SupabaseClient,
@@ -21,59 +16,36 @@ export async function resolveCountryFromCoordinates(
   longitude: number | null | undefined
 ): Promise<CountryResolutionResult> {
   if (latitude == null || longitude == null) {
-    return { countryCode: null, regionId: null, regionName: null, source: null }
+    return { countryId: null, countryCode: null, countryName: null, regionName: null, unRegionName: null, continentName: null, source: null }
   }
 
   const searchLat = latitude
   const searchLng = longitude
 
   if (!Number.isFinite(searchLat) || !Number.isFinite(searchLng)) {
-    return { countryCode: null, regionId: null, regionName: null, source: null }
+    return { countryId: null, countryCode: null, countryName: null, regionName: null, unRegionName: null, continentName: null, source: null }
   }
 
-  // Tier 1: Database lookup
-  const { data: regionRows, error: rpcError } = await supabase
-    .rpc('find_region_by_location', { search_lat: searchLat, search_lng: searchLng })
+  // Use new PostGIS RPC (no fallback)
+  const { data, error } = await supabase
+    .rpc('get_upload_context', { search_lat: searchLat, search_lng: searchLng })
 
-  if (rpcError) {
-    console.error('[resolveCountryFromCoordinates] RPC error:', rpcError)
+  if (error) {
+    console.error('[resolveCountryFromCoordinates] RPC error:', error)
+    return { countryId: null, countryCode: null, countryName: null, regionName: null, unRegionName: null, continentName: null, source: null }
   }
 
-  if (Array.isArray(regionRows) && regionRows.length > 0) {
-    const r = regionRows[0] as unknown as FindRegionResult
-    if (r?.id && r?.country_code) {
-      return {
-        countryCode: r.country_code.toUpperCase().slice(0, 2),
-        regionId: r.id,
-        regionName: r.name,
-        source: 'database'
-      }
+  if (data?.country?.id && data?.country?.iso_a2) {
+    return {
+      countryId: data.country.id,
+      countryCode: data.country.iso_a2.toUpperCase().slice(0, 2),
+      countryName: data.country.name || null,
+      regionName: data.region.name,
+      unRegionName: data.un_region?.name || null,
+      continentName: data.continent?.name || null,
+      source: 'database'
     }
   }
 
-  // Tier 2: Nominatim fallback
-  try {
-    const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${searchLat}&lon=${searchLng}&zoom=3`
-    const response = await fetch(nominatimUrl, {
-      headers: { 'User-Agent': NOMINATIM_USER_AGENT }
-    })
-
-    if (response.ok) {
-      const data = await response.json()
-      if (data?.address?.country_code) {
-        const countryCode = data.address.country_code.toUpperCase()
-        console.log(`[resolveCountryFromCoordinates] Fallback resolved: ${countryCode}`)
-        return {
-          countryCode,
-          regionId: null,
-          regionName: null,
-          source: 'nominatim'
-        }
-      }
-    }
-  } catch (err) {
-    console.error('[resolveCountryFromCoordinates] Nominatim fallback failed:', err)
-  }
-
-  return { countryCode: null, regionId: null, regionName: null, source: null }
+  return { countryId: null, countryCode: null, countryName: null, regionName: null, unRegionName: null, continentName: null, source: 'database' }
 }

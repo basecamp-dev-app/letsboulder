@@ -19,6 +19,22 @@ interface CragRow {
   name: string
   region_name: string | null
   country: string | null
+  countries:
+    | {
+        name: string
+        regions:
+          | { name: string; un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null }
+          | Array<{ name: string; un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null }>
+          | null
+      }
+    | Array<{
+        name: string
+        regions:
+          | { name: string; un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null }
+          | Array<{ name: string; un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null }>
+          | null
+      }>
+    | null
 }
 
 interface CragImageRow {
@@ -79,7 +95,7 @@ export default async function OpenGraphImage({ params }: { params: Promise<CragP
 
   const { data: crag } = await supabase
     .from('crags')
-    .select('id, name, region_name, country')
+    .select('id, name, region_name, country, countries:country_id(name, regions:region_id(name, un_regions:un_region_name(name, continent_name)))')
     .eq('country_code', country.toUpperCase())
     .eq('slug', cragSlug)
     .single()
@@ -89,7 +105,9 @@ export default async function OpenGraphImage({ params }: { params: Promise<CragP
   }
 
   const typedCrag = crag as CragRow
-  const location = [typedCrag.region_name, typedCrag.country].filter(Boolean).join(', ')
+  const countryRow = Array.isArray(typedCrag.countries) ? typedCrag.countries[0] : typedCrag.countries
+  const regionRow = Array.isArray(countryRow?.regions) ? countryRow.regions[0] : countryRow?.regions
+  const location = [typedCrag.region_name, countryRow?.name || typedCrag.country, regionRow?.name].filter(Boolean).join(', ')
 
   const { data: imageRows } = await supabase
     .from('images')

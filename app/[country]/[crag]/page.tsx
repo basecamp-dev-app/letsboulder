@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { createServerClient } from '@supabase/ssr'
 import { notFound } from 'next/navigation'
-import { cache } from 'react'
 import CragPageClient from '@/app/crag/components/CragPageClient'
 import { loadInitialCragRouteData } from '@/app/crag/components/crag-page-server'
 import type { Crag } from '@/app/crag/components/CragPageClient'
@@ -27,11 +26,42 @@ interface CragSlugRow {
   latitude: number | null
   longitude: number | null
   region_id: string | null
+  country_id: string | null
   description: string | null
   access_notes: string | null
   rock_type: string | null
   type: string | null
-  regions: { id: string; name: string } | Array<{ id: string; name: string }> | null
+  climbing_areas: { id: string; name: string } | Array<{ id: string; name: string }> | null
+  countries:
+    | {
+        id: string
+        name: string
+        regions:
+          | {
+              name: string
+              un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null
+            }
+          | Array<{
+              name: string
+              un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null
+            }>
+          | null
+      }
+    | Array<{
+        id: string
+        name: string
+        regions:
+          | {
+              name: string
+              un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null
+            }
+          | Array<{
+              name: string
+              un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null
+            }>
+          | null
+      }>
+    | null
 }
 
 async function getSupabase() {
@@ -42,9 +72,11 @@ async function getSupabase() {
   )
 }
 
-const getCragByCountrySlug = cache(async (countryCode: string, cragSlug: string): Promise<CragSlugRow | null> => {
+// Temporarily removed cache() to test - will add back after debugging
+const getCragByCountrySlug = async (countryCode: string, cragSlug: string): Promise<CragSlugRow | null> => {
+  console.log('[DEBUG getCragByCountrySlug] Querying with:', { countryCode, cragSlug })
   const supabase = await getSupabase()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('crags')
     .select(`
       id,
@@ -57,18 +89,32 @@ const getCragByCountrySlug = cache(async (countryCode: string, cragSlug: string)
       latitude,
       longitude,
       region_id,
+      country_id,
       description,
       access_notes,
       rock_type,
       type,
-      regions:region_id (id, name)
+      climbing_areas:region_id (id, name),
+      countries:country_id (
+        id,
+        name,
+        regions:region_id (
+          name,
+          un_regions:un_region_name (name, continent_name)
+        )
+      )
     `)
     .eq('country_code', countryCode)
     .eq('slug', cragSlug)
     .maybeSingle()
 
+  if (error) {
+    console.error('[DEBUG getCragByCountrySlug] Error:', error)
+  }
+  console.log('[DEBUG getCragByCountrySlug] Result:', { data: data ? { id: data.id, name: data.name, slug: data.slug, country_code: data.country_code } : null, error })
+
   return (data as CragSlugRow | null) || null
-})
+}
 
 export async function generateMetadata({ params }: { params: Promise<CragSlugParams> }): Promise<Metadata> {
   const { country, crag: cragSlug } = await params
@@ -121,20 +167,48 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
   if (!country || country.length !== 2) notFound()
 
   const countryCode = country.toUpperCase()
+  console.log('[DEBUG] CragSlugPage:', { country, countryCode, cragSlug })
+  
   const crag = await getCragByCountrySlug(countryCode, cragSlug)
-  if (!crag) notFound()
+  console.log('[DEBUG] getCragByCountrySlug result:', { crag: crag ? { id: crag.id, name: crag.name, slug: crag.slug, country_code: crag.country_code } : null })
+  
+  if (!crag) {
+    console.log('[DEBUG] Crag not found, triggering notFound()')
+    notFound()
+  }
 
   const supabase = await getSupabase()
 
   const initialCrag: Crag = {
     ...crag,
-    regions: Array.isArray(crag.regions) ? crag.regions[0] : crag.regions || undefined,
+    climbing_areas: Array.isArray(crag.climbing_areas) ? crag.climbing_areas[0] : crag.climbing_areas || undefined,
+    country_id: crag.country_id,
+    country_name: Array.isArray(crag.countries) ? crag.countries[0]?.name : crag.countries?.name,
+    admin_region_name: Array.isArray(Array.isArray(crag.countries) ? crag.countries[0]?.regions : crag.countries?.regions)
+      ? (Array.isArray(crag.countries) ? crag.countries[0]?.regions : crag.countries?.regions)?.[0]?.name
+      : (Array.isArray(crag.countries) ? crag.countries[0]?.regions : crag.countries?.regions)?.name,
+    un_region_name: (() => {
+      const countryRow = Array.isArray(crag.countries) ? crag.countries[0] : crag.countries
+      const regionRow = Array.isArray(countryRow?.regions) ? countryRow.regions[0] : countryRow?.regions
+      const unRegionRow = Array.isArray(regionRow?.un_regions) ? regionRow.un_regions[0] : regionRow?.un_regions
+      return unRegionRow?.name
+    })(),
+    continent_name: (() => {
+      const countryRow = Array.isArray(crag.countries) ? crag.countries[0] : crag.countries
+      const regionRow = Array.isArray(countryRow?.regions) ? countryRow.regions[0] : countryRow?.regions
+      const unRegionRow = Array.isArray(regionRow?.un_regions) ? regionRow.un_regions[0] : regionRow?.un_regions
+      return unRegionRow?.continent_name
+    })(),
   }
 
   const canonicalPath = `/${country.toLowerCase()}/${cragSlug}`
   const breadcrumbs: BreadcrumbItem[] = [
     { label: 'Home', href: '/' },
-    { label: countryCode },
+    ...(initialCrag.continent_name ? [{ label: initialCrag.continent_name }] : []),
+    ...(initialCrag.un_region_name ? [{ label: initialCrag.un_region_name }] : []),
+    ...(initialCrag.admin_region_name ? [{ label: initialCrag.admin_region_name }] : []),
+    ...(initialCrag.country_name || crag.country ? [{ label: initialCrag.country_name || crag.country || countryCode }] : [{ label: countryCode }]),
+    ...(initialCrag.climbing_areas?.name ? [{ label: initialCrag.climbing_areas.name }] : []),
     { label: crag.name },
   ]
   const communityData = await loadPlaceCommunityData(supabase, crag.id)

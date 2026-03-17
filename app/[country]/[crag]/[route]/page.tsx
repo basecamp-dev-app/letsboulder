@@ -20,6 +20,22 @@ interface CragRow {
   country_code: string | null
   region_name: string | null
   country: string | null
+  countries:
+    | {
+        name: string
+        regions:
+          | { name: string; un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null }
+          | Array<{ name: string; un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null }>
+          | null
+      }
+    | Array<{
+        name: string
+        regions:
+          | { name: string; un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null }
+          | Array<{ name: string; un_regions: { name: string; continent_name: string } | Array<{ name: string; continent_name: string }> | null }>
+          | null
+      }>
+    | null
   latitude: number | null
   longitude: number | null
 }
@@ -62,7 +78,7 @@ async function getRoutePageData(countryCode: string, cragSlug: string, routeSlug
 
   const { data: crag } = await supabase
     .from('crags')
-    .select('id, name, slug, country_code, region_name, country, latitude, longitude')
+    .select('id, name, slug, country_code, region_name, country, latitude, longitude, countries:country_id(name, regions:region_id(name, un_regions:un_region_name(name, continent_name)))')
     .eq('country_code', countryCode)
     .eq('slug', cragSlug)
     .single()

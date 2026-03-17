@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
     }
 
     const countryCode = result.countryCode
-    const regionId = result.regionId
+    const countryId = result.countryId
     const regionName = result.regionName
 
     const usedPlaceSlugs = new Set<string>()
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
         rock_type: rock_type || undefined,
         description: description || undefined,
         access_notes: access_notes || undefined,
-        region_id: regionId,
+        country_id: countryId,
         region_name: regionName,
         country_code: countryCode,
         primary_discipline: normalizedPrimary || normalizedDisciplines[0],

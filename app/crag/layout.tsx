@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params
   const { data: crag } = await supabase
     .from('crags')
-    .select('name, region_name, country, slug, country_code, regions(name)')
+    .select('name, region_name, country, slug, country_code, climbing_areas:region_id(name), countries:country_id(name, regions:region_id(name, un_regions:un_region_name(name, continent_name)))')
     .eq('id', id)
     .single()
 
@@ -24,8 +24,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     }
   }
 
-  const regionName = crag.regions && Array.isArray(crag.regions) && crag.regions.length > 0 ? crag.regions[0].name : null
-  const locationParts = [crag.region_name, regionName, crag.country].filter(Boolean) as string[]
+  const climbingAreaName = crag.climbing_areas && Array.isArray(crag.climbing_areas) && crag.climbing_areas.length > 0 ? crag.climbing_areas[0].name : null
+  const countryRow = crag.countries && Array.isArray(crag.countries) ? crag.countries[0] : crag.countries
+  const adminRegionSource = countryRow?.regions
+  const adminRegionRow = Array.isArray(adminRegionSource) ? adminRegionSource[0] : adminRegionSource
+  const unRegionSource = adminRegionRow?.un_regions
+  const unRegionRow = Array.isArray(unRegionSource) ? unRegionSource[0] : unRegionSource
+  const locationParts = [crag.region_name, climbingAreaName, countryRow?.name || crag.country, adminRegionRow?.name, unRegionRow?.continent_name].filter(Boolean) as string[]
   const title = locationParts.length > 0 ? `${crag.name}, ${locationParts[0]}` : `${crag.name}`
   const locationSuffix = locationParts.length > 0 ? ` in ${locationParts.join(', ')}` : ''
   const canonicalPath = crag.slug && crag.country_code

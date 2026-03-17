@@ -27,11 +27,20 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
       latitude,
       longitude,
       region_id,
+      country_id,
       description,
       access_notes,
       rock_type,
       type,
-      regions:region_id (id, name)
+      climbing_areas:region_id (id, name),
+      countries:country_id (
+        id,
+        name,
+        regions:region_id (
+          name,
+          un_regions:un_region_name (name, continent_name)
+        )
+      )
     `)
     .eq('id', id)
     .single()
@@ -44,7 +53,26 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
 
   const initialCrag: Crag = {
     ...crag,
-    regions: Array.isArray(crag.regions) ? crag.regions[0] : crag.regions,
+    climbing_areas: Array.isArray(crag.climbing_areas) ? crag.climbing_areas[0] : crag.climbing_areas,
+    country_id: crag.country_id,
+    country_name: Array.isArray(crag.countries) ? crag.countries[0]?.name : crag.countries?.name,
+    admin_region_name: (() => {
+      const countryRow = Array.isArray(crag.countries) ? crag.countries[0] : crag.countries
+      const regionRow = Array.isArray(countryRow?.regions) ? countryRow.regions[0] : countryRow?.regions
+      return regionRow?.name
+    })(),
+    un_region_name: (() => {
+      const countryRow = Array.isArray(crag.countries) ? crag.countries[0] : crag.countries
+      const regionRow = Array.isArray(countryRow?.regions) ? countryRow.regions[0] : countryRow?.regions
+      const unRegionRow = Array.isArray(regionRow?.un_regions) ? regionRow.un_regions[0] : regionRow?.un_regions
+      return unRegionRow?.name
+    })(),
+    continent_name: (() => {
+      const countryRow = Array.isArray(crag.countries) ? crag.countries[0] : crag.countries
+      const regionRow = Array.isArray(countryRow?.regions) ? countryRow.regions[0] : countryRow?.regions
+      const unRegionRow = Array.isArray(regionRow?.un_regions) ? regionRow.un_regions[0] : regionRow?.un_regions
+      return unRegionRow?.continent_name
+    })(),
   }
 
   const communityData = await loadPlaceCommunityData(supabase, id)
