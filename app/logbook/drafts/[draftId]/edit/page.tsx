@@ -329,11 +329,14 @@ export default function EditDraftPage() {
   const lastPersistedRoutesRef = useRef('')
   const autosavePausedRef = useRef(false)
   const autosavePausedSnapshotRef = useRef('')
+  const initializedImageIdRef = useRef<string | null>(null)
   const [autosaveState, setAutosaveState] = useState<'idle' | 'pending' | 'saving' | 'syncing' | 'saved'>('idle')
   const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const { setRoutes, setMode, reset, addRoute, deleteRoute, updateRoute, activeRouteId, currentPoints } = useRouteStore()
+  const { setRoutes, setMode, setInteractionTool, reset, addRoute, deleteRoute, updateRoute, activeRouteId, currentPoints, interactionTool, commitCurrentRoute, undoLastPoint } = useRouteStore()
+
+  console.log('[DEBUG DraftEditPage] currentPoints:', currentPoints.length, 'interactionTool:', interactionTool)
   const [searchingLocation, setSearchingLocation] = useState(false)
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
   const [mapOpen, setMapOpen] = useState(false)
@@ -594,16 +597,25 @@ export default function EditDraftPage() {
 
   useEffect(() => {
     setMode('edit-existing')
+    setInteractionTool('draw')
     return () => {
       reset()
     }
-  }, [setMode, reset])
+  }, [setMode, setInteractionTool, reset])
 
   useEffect(() => {
-    if (!activeImageId || !activeImageTab) return
+    if (!activeImageId || !activeImageTab || !existingRouteLines) return
 
+    // Break the loop: If we already loaded routes for this image, STOP.
+    if (initializedImageIdRef.current === activeImageId) return
+
+    let isActive = true
     const img = new window.Image()
+
     img.onload = () => {
+      // If the effect was cleaned up (user switched images), abort.
+      if (!isActive) return
+
       const normalizedRoutes = existingRouteLines.map((route) => ({
         ...route,
         points: normalizePoints(
@@ -613,9 +625,19 @@ export default function EditDraftPage() {
           route.image_height
         ),
       }))
+
       setRoutes(normalizedRoutes)
+
+      // Lock the initialization for this image ID
+      initializedImageIdRef.current = activeImageId
     }
+
     img.src = activeImageTab.signedUrl
+
+    // Cleanup function runs if dependencies change before onload fires
+    return () => {
+      isActive = false
+    }
   }, [activeImageId, activeImageTab, existingRouteLines, setRoutes])
 
   useEffect(() => {
@@ -1740,8 +1762,20 @@ export default function EditDraftPage() {
                     className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                   >
                     Done
-                  </button>
-                </div>
+              </button>
+              <button
+                type="button"
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  currentPoints.length >= 2
+                    ? 'bg-green-500 text-white hover:bg-green-600'
+                    : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                }`}
+                onClick={() => commitCurrentRoute()}
+                disabled={currentPoints.length < 2}
+              >
+                Finish Route
+              </button>
+            </div>
                 <div className="h-72 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
                   <MapContainer
                     center={markerPosition || [20, 0]}
@@ -1863,8 +1897,57 @@ export default function EditDraftPage() {
         </div>
 
         {imageSelection && 'imageUrl' in imageSelection ? (
-          <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
-            <UnifiedRouteCanvas
+          <>
+            <div className="flex gap-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+              <button
+                type="button"
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  interactionTool === 'select'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
+                }`}
+                onClick={() => setInteractionTool('select')}
+              >
+                Select/Edit
+              </button>
+              <button
+                type="button"
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  interactionTool === 'draw'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
+                }`}
+                onClick={() => setInteractionTool('draw')}
+              >
+                Draw Route
+              </button>
+              <button
+                type="button"
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  currentPoints.length > 0
+                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                    : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                }`}
+                onClick={() => undoLastPoint()}
+                disabled={currentPoints.length === 0}
+              >
+                Undo Point
+              </button>
+              <button
+                type="button"
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  currentPoints.length >= 2
+                    ? 'bg-green-500 text-white hover:bg-green-600'
+                    : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                }`}
+                onClick={() => commitCurrentRoute()}
+                disabled={currentPoints.length < 2}
+              >
+                Finish Route
+              </button>
+            </div>
+            <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
+              <UnifiedRouteCanvas
               key={`${activeImageTab?.imageId || 'draft-canvas'}:${existingRouteLines.length}`}
               mode="edit-existing"
               imageUrl={(imageSelection as { imageUrl: string }).imageUrl}
@@ -1879,7 +1962,8 @@ export default function EditDraftPage() {
                 handleEditRoutesUpdate(editableRoutes)
               }}
             />
-          </div>
+            </div>
+          </>
         ) : null}
 
         <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">

@@ -5,6 +5,7 @@ import type {
   ZoomTransform,
   CanvasMode,
   DrawingRoute,
+  InteractionTool,
 } from '@/types/domain'
 
 interface HistoryEntry {
@@ -17,6 +18,7 @@ interface RouteState {
   routes: RouteLine[]
   activeRouteId: string | null
   mode: CanvasMode
+  interactionTool: InteractionTool
   zoomTransform: ZoomTransform
   currentPoints: RoutePoint[]
   currentDrawing: DrawingRoute | null
@@ -25,6 +27,7 @@ interface RouteState {
   future: HistoryEntry[]
 
   setMode: (mode: CanvasMode) => void
+  setInteractionTool: (tool: InteractionTool) => void
   setActiveRoute: (id: string | null) => void
   updateZoomTransform: (transform: Partial<ZoomTransform>) => void
   setRoutes: (routes: RouteLine[]) => void
@@ -34,6 +37,8 @@ interface RouteState {
   setCurrentPoints: (points: RoutePoint[]) => void
   addCurrentPoint: (point: RoutePoint) => void
   clearCurrentPoints: () => void
+  undoLastPoint: () => void
+  commitCurrentRoute: () => void
   setCurrentDrawing: (drawing: DrawingRoute | null) => void
   updateCurrentDrawing: (updates: Partial<DrawingRoute>) => void
   commitToHistory: () => void
@@ -50,6 +55,7 @@ const initialState = {
   routes: [] as RouteLine[],
   activeRouteId: null as string | null,
   mode: 'browse' as CanvasMode,
+  interactionTool: 'select' as InteractionTool,
   zoomTransform: { x: 0, y: 0, scale: 1 } as ZoomTransform,
   currentPoints: [] as RoutePoint[],
   currentDrawing: null as DrawingRoute | null,
@@ -69,6 +75,8 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
   ...initialState,
 
   setMode: (mode) => set({ mode }),
+
+  setInteractionTool: (tool) => set({ interactionTool: tool }),
 
   setActiveRoute: (id) => set({ activeRouteId: id }),
 
@@ -105,6 +113,32 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
     })),
 
   clearCurrentPoints: () => set({ currentPoints: [] }),
+
+  undoLastPoint: () => {
+    set((state) => ({
+      currentPoints: state.currentPoints.slice(0, -1),
+    }))
+  },
+
+  commitCurrentRoute: () => {
+    const state = get()
+    if (state.currentPoints.length < 2) return
+
+    const newRoute: RouteLine = {
+      id: `route-${Date.now()}`,
+      image_id: '',
+      climb_id: `climb-${Date.now()}`,
+      points: [...state.currentPoints],
+      color: '#dc2626',
+      sequence_order: state.routes.length,
+      created_at: new Date().toISOString(),
+    }
+
+    set((s) => ({
+      routes: [...s.routes, newRoute],
+      currentPoints: [],
+    }))
+  },
 
   setCurrentDrawing: (drawing) => set({ currentDrawing: drawing }),
 

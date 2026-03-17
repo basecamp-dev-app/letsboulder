@@ -40,6 +40,8 @@ export interface ZoomTransform {
 
 export type CanvasMode = 'browse' | 'edit-existing' | 'submit'
 
+export type InteractionTool = 'select' | 'draw' | 'pan'
+
 export interface DrawingRoute {
   id: string
   name: string

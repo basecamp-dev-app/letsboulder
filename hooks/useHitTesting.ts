@@ -4,7 +4,7 @@ import { createRoutePath2D } from '@/lib/routeRenderer'
 import type { RoutePoint, RouteLine } from '@/types/domain'
 
 export function useHitTesting() {
-  const { routes, activeRouteId, setActiveRoute, mode } = useRouteStore()
+  const { routes, activeRouteId, setActiveRoute, interactionTool } = useRouteStore()
   const pathCache = useRef<Map<string, Path2D | null>>(new Map())
 
   const getPathForRoute = useCallback((route: RouteLine): Path2D | null => {
@@ -41,7 +41,7 @@ export function useHitTesting() {
 
   const handleRouteClick = useCallback(
     (point: RoutePoint) => {
-      if (mode !== 'browse') return
+      if (interactionTool !== 'select') return
 
       const routeId = findRouteAtPoint(point)
       if (routeId) {
@@ -50,7 +50,7 @@ export function useHitTesting() {
         setActiveRoute(null)
       }
     },
-    [mode, findRouteAtPoint, activeRouteId, setActiveRoute]
+    [interactionTool, findRouteAtPoint, activeRouteId, setActiveRoute]
   )
 
   return {

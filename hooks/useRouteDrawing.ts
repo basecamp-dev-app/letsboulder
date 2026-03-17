@@ -3,10 +3,12 @@ import { useRouteStore } from '@/store/routeStore'
 import type { RoutePoint } from '@/types/domain'
 
 export function useRouteDrawing() {
-  const { currentPoints, addCurrentPoint, setCurrentPoints, clearCurrentPoints, mode, commitToHistory } =
+  const { currentPoints, addCurrentPoint, setCurrentPoints, clearCurrentPoints, interactionTool, commitToHistory } =
     useRouteStore()
 
-  const isDrawingEnabled = mode === 'submit'
+  const isDrawingEnabled = interactionTool === 'draw'
+
+  console.log('[DEBUG useRouteDrawing] interactionTool:', interactionTool, 'isDrawingEnabled:', isDrawingEnabled, 'currentPoints:', currentPoints.length)
 
   const startDrawing = useCallback(
     (point: RoutePoint) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import Image from 'next/image'
 import { useRouteStore } from '@/store/routeStore'
 import { useCanvasResize } from '@/hooks/useCanvasResize'
@@ -8,8 +8,8 @@ import { usePanZoom } from '@/hooks/usePanZoom'
 import { useRouteDrawing } from '@/hooks/useRouteDrawing'
 import { useHitTesting } from '@/hooks/useHitTesting'
 import { drawRoutes } from '@/lib/routeRenderer'
-import { screenToCanvasCoords } from '@/lib/canvasMath'
-import type { CanvasMode, RouteLine } from '@/types/domain'
+import { screenToCanvasCoords, toNormalizedCoords } from '@/lib/canvasMath'
+import type { CanvasMode, RouteLine, CanvasDimensions } from '@/types/domain'
 
 interface UnifiedRouteCanvasProps {
   mode: CanvasMode
@@ -37,6 +37,7 @@ export function UnifiedRouteCanvas({
     activeRouteId,
     currentPoints,
     zoomTransform,
+    interactionTool,
   } = useRouteStore()
 
   const routes = propRoutes || storeRoutes
@@ -47,13 +48,23 @@ export function UnifiedRouteCanvas({
     }
   }, [propRoutes, setRoutes])
 
-  const { dimensions, imageLoaded, imageError } = useCanvasResize(containerRef, imageUrl)
-  
+  const [nextImageDimensions, setNextImageDimensions] = useState<CanvasDimensions | null>(null)
+
+  const { dimensions, imageLoaded, imageError } = useCanvasResize(containerRef, imageUrl, {
+    onDimensionsReady: (dims) => {
+      console.log('[DEBUG UnifiedRouteCanvas] onDimensionsReady from hook:', dims)
+    }
+  })
+
+  // Use dimensions from Next.js Image onLoadingComplete if available, otherwise use hook dimensions
+  const finalDimensions = nextImageDimensions || dimensions
+
   console.log('[DEBUG UnifiedRouteCanvas]', { 
     imageUrl: imageUrl?.substring(0, 50), 
-    dimensions, 
+    dimensions: finalDimensions, 
     imageLoaded, 
-    imageError 
+    imageError,
+    nextImageDimensions
   })
 
   const { isPanning, startPan, updatePan, endPan, startPinch, updatePinch, endPinch, zoomToPoint } =
@@ -66,19 +77,22 @@ export function UnifiedRouteCanvas({
   const getCanvasPoint = useCallback(
     (clientX: number, clientY: number) => {
       const canvas = canvasRef.current
-      if (!canvas) return { x: 0, y: 0 }
+      if (!canvas || !finalDimensions) return { x: 0, y: 0 }
 
       const rect = canvas.getBoundingClientRect()
       const x = clientX - rect.left
       const y = clientY - rect.top
 
-      return screenToCanvasCoords(x, y, zoomTransform)
+      console.log('[DEBUG getCanvasPoint] raw coords:', { x, y, canvasRect: { width: rect.width, height: rect.height }, finalDimensions, zoomTransform })
+
+      return toNormalizedCoords(x, y, finalDimensions.width, finalDimensions.height, zoomTransform)
     },
-    [zoomTransform]
+    [finalDimensions, zoomTransform]
   )
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
+      console.log('[DEBUG handleMouseDown] isDrawingEnabled:', isDrawingEnabled, 'button:', e.button, 'altKey:', e.altKey)
       if (e.button === 1 || (e.button === 0 && e.altKey)) {
         startPan(e.clientX, e.clientY)
         return
@@ -86,8 +100,10 @@ export function UnifiedRouteCanvas({
 
       if (e.button === 0 && !e.altKey) {
         const point = getCanvasPoint(e.clientX, e.clientY)
+        console.log('[DEBUG handleMouseDown] point:', point)
 
         if (isDrawingEnabled) {
+          console.log('[DEBUG handleMouseDown] calling addPoint')
           addPoint(point)
         } else {
           handleRouteClick(point)
@@ -168,26 +184,20 @@ export function UnifiedRouteCanvas({
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !dimensions) return
+    if (!canvas || !finalDimensions) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
-    canvas.width = dimensions.width * dpr
-    canvas.height = dimensions.height * dpr
-    canvas.style.width = `${dimensions.width}px`
-    canvas.style.height = `${dimensions.height}px`
+    canvas.width = finalDimensions.width * dpr
+    canvas.height = finalDimensions.height * dpr
+    canvas.style.width = `${finalDimensions.width}px`
+    canvas.style.height = `${finalDimensions.height}px`
     ctx.scale(dpr, dpr)
 
-    ctx.save()
-    ctx.translate(zoomTransform.x, zoomTransform.y)
-    ctx.scale(zoomTransform.scale, zoomTransform.scale)
-
-    drawRoutes(ctx, routes, activeRouteId, currentPoints, dimensions, mode, zoomTransform)
-
-    ctx.restore()
-  }, [routes, activeRouteId, currentPoints, dimensions, zoomTransform, mode])
+    drawRoutes(ctx, routes, activeRouteId, currentPoints, finalDimensions, mode, interactionTool, zoomTransform)
+  }, [routes, activeRouteId, currentPoints, finalDimensions, mode, interactionTool, zoomTransform])
 
   useEffect(() => {
     if (onRoutesUpdate) {
@@ -211,7 +221,17 @@ export function UnifiedRouteCanvas({
           fill
           unoptimized
           sizes="100vw"
-          className="absolute inset-0 w-full h-full object-contain"
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+          onLoadingComplete={(result) => {
+            const { naturalWidth, naturalHeight, width, height } = result
+            console.log('[DEBUG UnifiedRouteCanvas] onLoadingComplete:', { naturalWidth, naturalHeight, width, height })
+            setNextImageDimensions({
+              width,
+              height,
+              naturalWidth: naturalWidth || width,
+              naturalHeight: naturalHeight || height,
+            })
+          }}
         />
       )}
 

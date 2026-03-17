@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { CanvasDimensions } from '@/types/domain'
 
+interface UseCanvasResizeOptions {
+  onDimensionsReady?: (dimensions: CanvasDimensions) => void
+}
+
 export function useCanvasResize(
   containerRef: React.RefObject<HTMLDivElement | null>,
-  imageUrl: string
+  imageUrl: string,
+  options: UseCanvasResizeOptions = {}
 ) {
+  const { onDimensionsReady } = options
   const [dimensions, setDimensions] = useState<CanvasDimensions | null>(null)
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
@@ -69,7 +75,16 @@ export function useCanvasResize(
       naturalWidth,
       naturalHeight,
     })
-  }, [containerRef])
+
+    if (onDimensionsReady) {
+      onDimensionsReady({
+        width: displayedWidth,
+        height: displayedHeight,
+        naturalWidth,
+        naturalHeight,
+      })
+    }
+  }, [containerRef, onDimensionsReady])
 
   useEffect(() => {
     const container = containerRef.current
