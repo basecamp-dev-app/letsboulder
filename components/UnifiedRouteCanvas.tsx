@@ -48,6 +48,13 @@ export function UnifiedRouteCanvas({
   }, [propRoutes, setRoutes])
 
   const { dimensions, imageLoaded, imageError } = useCanvasResize(containerRef, imageUrl)
+  
+  console.log('[DEBUG UnifiedRouteCanvas]', { 
+    imageUrl: imageUrl?.substring(0, 50), 
+    dimensions, 
+    imageLoaded, 
+    imageError 
+  })
 
   const { isPanning, startPan, updatePan, endPan, startPinch, updatePinch, endPinch, zoomToPoint } =
     usePanZoom()

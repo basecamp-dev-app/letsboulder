@@ -13,15 +13,31 @@ export function useCanvasResize(
 
   const setupDimensions = useCallback(() => {
     const container = containerRef.current
+    console.log('[DEBUG useCanvasResize] setupDimensions called', { 
+      hasContainer: !!container 
+    })
     if (!container) return
 
     const containerRect = container.getBoundingClientRect()
     const containerWidth = containerRect.width
     const containerHeight = containerRect.height
 
-    if (containerWidth === 0 || containerHeight === 0) return
+    console.log('[DEBUG useCanvasResize] container dimensions:', { 
+      containerWidth, 
+      containerHeight 
+    })
+
+    if (containerWidth === 0 || containerHeight === 0) {
+      console.log('[DEBUG useCanvasResize] container has no dimensions, returning early')
+      return
+    }
 
     const img = imageRef.current
+    console.log('[DEBUG useCanvasResize] image ref:', { 
+      hasImg: !!img,
+      naturalWidth: img?.naturalWidth,
+      naturalHeight: img?.naturalHeight
+    })
     if (!img || img.naturalWidth === 0 || img.naturalHeight === 0) return
 
     const naturalWidth = img.naturalWidth
@@ -40,6 +56,13 @@ export function useCanvasResize(
       displayedWidth = containerHeight * naturalAspect
     }
 
+    console.log('[DEBUG useCanvasResize] setting dimensions:', {
+      width: displayedWidth,
+      height: displayedHeight,
+      naturalWidth,
+      naturalHeight
+    })
+
     setDimensions({
       width: displayedWidth,
       height: displayedHeight,
@@ -49,6 +72,7 @@ export function useCanvasResize(
   }, [containerRef])
 
   const handleImageLoad = useCallback(() => {
+    console.log('[DEBUG useCanvasResize] image loaded!')
     setImageLoaded(true)
     setupDimensions()
   }, [setupDimensions])
@@ -69,14 +93,23 @@ export function useCanvasResize(
   }, [containerRef, setupDimensions])
 
   useEffect(() => {
+    console.log('[DEBUG useCanvasResize] useEffect triggered', { 
+      imageUrl, 
+      prevUrl: prevImageUrlRef.current,
+      shouldRun: imageUrl && imageUrl !== prevImageUrlRef.current
+    })
+    
     if (!imageUrl || imageUrl === prevImageUrlRef.current) return
     prevImageUrlRef.current = imageUrl
+
+    console.log('[DEBUG useCanvasResize] creating new Image, src:', imageUrl)
 
     const img = new window.Image()
     img.crossOrigin = 'anonymous'
     imageRef.current = img
 
     const handleError = () => {
+      console.log('[DEBUG useCanvasResize] image error!')
       setImageError(true)
     }
 
