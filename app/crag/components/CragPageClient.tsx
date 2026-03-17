@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
@@ -554,11 +554,12 @@ export default function CragPageClient({
   const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>({})
   const [routeNavigationTargetByClimbId, setRouteNavigationTargetByClimbId] = useState<Record<string, RouteNavigationTarget>>({})
   const mapRef = useRef<L.Map | null>(null)
+  const [leafletLoaded, setLeafletLoaded] = useState(false)
 
   const initialRouteSource = useMemo(() => initialRoutes || [], [initialRoutes])
 
   useEffect(() => {
-    setupLeafletIcons()
+    setupLeafletIcons().then(() => setLeafletLoaded(true))
   }, [])
 
   const refreshCragOfflinePreview = useCallback(async () => {
@@ -1607,7 +1608,9 @@ export default function CragPageClient({
   }, [orderedImages, prefetchImageDestination])
 
   const redirectToAuth = useCallback(() => {
-    router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/crag/${id}`)}`)
+    startTransition(() => {
+      router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/crag/${id}`)}`)
+    })
   }, [id, pathname, router])
 
   if (loading) {
@@ -1707,6 +1710,7 @@ export default function CragPageClient({
         </div>
       )}
       <div className="relative z-0 h-[34vh] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
+        {leafletLoaded ? (
         <MapContainer
           ref={mapRef as React.RefObject<L.Map | null>}
           center={cragCenter || [crag.latitude || 0, crag.longitude || 0]}
@@ -1727,7 +1731,7 @@ export default function CragPageClient({
 
           {orderedPinClusters.map((cluster) => {
             const representativeImage = imageById.get(cluster.representativeImageId)
-            if (!representativeImage) return null
+            if (!representativeImage || !leafletLoaded) return null
 
             const clusterFaceLabel = `${cluster.faceCount} face${cluster.faceCount === 1 ? '' : 's'} here`
             const representativeRouteLabel = `${representativeImage.route_lines_count} route${representativeImage.route_lines_count === 1 ? '' : 's'} on this face`
@@ -1736,7 +1740,7 @@ export default function CragPageClient({
             <Marker
               key={cluster.id}
               position={[cluster.latitude, cluster.longitude]}
-              icon={L?.divIcon({
+              icon={L?.divIcon ? L.divIcon({
                 className: 'image-marker',
                 html: `<div style="
                   background: ${representativeImage.is_verified ? '#22c55e' : '#eab308'};
@@ -1754,7 +1758,7 @@ export default function CragPageClient({
                 ">${cluster.badgeNumber}</div>`,
                 iconSize: [24, 24],
                 iconAnchor: [12, 12]
-              })}
+              }) : undefined}
             >
               <Popup
                 closeButton={false}
@@ -1803,6 +1807,11 @@ export default function CragPageClient({
           </>
           )}
         </MapContainer>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-pulse bg-gray-300 dark:bg-gray-600 h-32 w-32 rounded-lg"></div>
+          </div>
+        )}
 
         <div className="absolute top-4 left-4 z-[1000] bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 dark:text-gray-100 shadow-md backdrop-blur">
           {crag.name}
