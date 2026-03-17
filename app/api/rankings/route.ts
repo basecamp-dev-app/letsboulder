@@ -20,7 +20,7 @@ interface RegionRouteLine {
   climb_id: string
   images: {
     crags: {
-      regions: {
+      climbing_areas: {
         id: string
       }
     }
@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
       if (climbIds.length > 0) {
         const { data: routeLinesData } = await supabase
           .from('route_lines')
-          .select('climb_id, images!inner(crags!inner(regions!inner(id, name))))')
+          .select('climb_id, images!inner(crags!inner(climbing_areas:region_id!inner(id, name))))')
           .in('climb_id', climbIds)
 
         const regionClimbIds = new Set<string>()
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
           for (const rl of routeLinesData) {
             if ('climb_id' in rl && 'images' in rl) {
               const routeLine = rl as unknown as RegionRouteLine
-              if (routeLine.climb_id && routeLine.images?.crags?.regions?.id === regionParam) {
+              if (routeLine.climb_id && routeLine.images?.crags?.climbing_areas?.id === regionParam) {
                 regionClimbIds.add(routeLine.climb_id)
               }
             }

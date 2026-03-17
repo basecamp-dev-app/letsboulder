@@ -6,6 +6,7 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { makeUniqueSlug } from '@/lib/slug'
 import { revalidatePath } from 'next/cache'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
+import { getBoundingBoxesForCountry, validateCoordinatesInBoundingBox } from '@/lib/geo/bounding-boxes'
 
 interface CreateCragRequest {
   name: string
@@ -13,6 +14,7 @@ interface CreateCragRequest {
   sub_area?: string
   latitude?: number | null
   longitude?: number | null
+  selected_country_code?: string | null
   rock_type?: string
   type?: 'sport' | 'boulder' | 'bouldering' | 'trad' | 'mixed' | 'top_rope' | 'deep_water_solo' | 'deep-water-solo'
   description?: string
@@ -233,7 +235,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CreateCragRequest = await request.json()
-    const { name, region_tag, sub_area, latitude, longitude, rock_type, type, description, access_notes } = body
+    const { name, region_tag, sub_area, latitude, longitude, selected_country_code, rock_type, type, description, access_notes } = body
     const normalizedCragType = normalizeRouteType(type)
     const trimmedName = name?.trim() || ''
     const trimmedRegionTag = region_tag?.trim() || ''
@@ -287,18 +289,70 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const result = await resolveCountryFromCoordinates(supabase, latitude, longitude)
+    // Validate coordinates against selected country's bounding box if provided
+    let countryCode: string | null = null
+    let countryId: string | null = null
+    let regionName: string | null = null
 
-    if (!result.countryCode) {
+    if (latitude != null && longitude != null) {
+      // Use selected country code if provided, otherwise resolve from coordinates
+      if (selected_country_code) {
+        const boundingBoxes = getBoundingBoxesForCountry(selected_country_code)
+        
+        if (!boundingBoxes || boundingBoxes.length === 0) {
+          return NextResponse.json(
+            { error: `Unknown country code: ${selected_country_code}` },
+            { status: 400 }
+          )
+        }
+        
+        const validation = validateCoordinatesInBoundingBox(latitude, longitude, boundingBoxes)
+        
+        if (!validation.isValid) {
+          return NextResponse.json(
+            { error: `Coordinates validation failed: ${validation.reason}` },
+            { status: 400 }
+          )
+        }
+        
+        countryCode = selected_country_code
+      } else {
+        const result = await resolveCountryFromCoordinates(supabase, latitude, longitude)
+
+        if (!result.countryCode) {
+          return NextResponse.json(
+            { error: 'Could not resolve country from this crag location. Please ensure your pin is on land.' },
+            { status: 400 }
+          )
+        }
+
+        countryCode = result.countryCode
+        countryId = result.countryId
+        regionName = result.regionName || trimmedRegionTag
+      }
+    }
+
+    // If coordinates not provided, region must be provided to determine country
+    if (!countryCode && trimmedRegionTag) {
+      // Try to find the country from the region tag
+      const { data: existingTags } = await supabase
+        .from('location_tags')
+        .select('id, kind, name, country_code')
+        .eq('kind', 'region')
+        .ilike('name', trimmedRegionTag)
+        .limit(1)
+      
+      if (existingTags && existingTags.length > 0) {
+        countryCode = existingTags[0].country_code || null
+      }
+    }
+
+    if (!countryCode) {
       return NextResponse.json(
-        { error: 'Could not resolve country from this crag location. Please ensure your pin is on land.' },
+        { error: 'Could not determine country. Please provide coordinates or select a valid region.' },
         { status: 400 }
       )
     }
-
-    const countryCode = result.countryCode
-    const regionId = result.regionId
-    const regionName = result.regionName || trimmedRegionTag
 
     let locationTagId: string | null = null
     const { data: existingTags, error: existingTagsError } = await supabase
@@ -377,7 +431,7 @@ export async function POST(request: NextRequest) {
         type: normalizedCragType,
         description: description || undefined,
         access_notes: access_notes || undefined,
-        region_id: regionId,
+        country_id: countryId,
         region_name: regionName,
         sub_area: trimmedSubArea || null,
         country_code: countryCode,

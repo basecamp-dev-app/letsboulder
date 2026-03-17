@@ -24,7 +24,7 @@ AS $$
   SELECT
     r.id,
     r.name,
-    r.country_code,
+    COALESCE(r.country_code, 'XX')::varchar(2) AS country_code,
     r.center_lat,
     r.center_lon,
     (

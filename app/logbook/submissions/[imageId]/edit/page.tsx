@@ -10,7 +10,9 @@ import { useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import RouteCanvas from '@/components/routes/RouteCanvas'
+import AtlasContextCard from '@/components/submissions/atlas-context-card'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
 import { createClient } from '@/lib/supabase'
 import {
@@ -276,6 +278,12 @@ export default function EditSubmittedRoutesPage() {
   const [searchingLocation, setSearchingLocation] = useState(false)
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
   const [mapOpen, setMapOpen] = useState(false)
+  const parsedLatitude = useMemo(() => parseCoordinate(latitude), [latitude])
+  const parsedLongitude = useMemo(() => parseCoordinate(longitude), [longitude])
+  const atlasSync = useAtlasAutoSync(
+    typeof parsedLatitude === 'number' && !Number.isNaN(parsedLatitude) ? parsedLatitude : null,
+    typeof parsedLongitude === 'number' && !Number.isNaN(parsedLongitude) ? parsedLongitude : null,
+  )
   const [deletingExistingRouteId, setDeletingExistingRouteId] = useState<string | null>(null)
   const [facesLoading, setFacesLoading] = useState(false)
   const [manageFaces, setManageFaces] = useState<ManageFaceTab[]>([])
@@ -1258,6 +1266,7 @@ export default function EditSubmittedRoutesPage() {
         <details className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900" open={cragMetadataDirty}>
           <summary className="cursor-pointer text-sm font-semibold text-gray-900 dark:text-gray-100">Location details</summary>
           <div className="mt-3 space-y-3">
+            <AtlasContextCard result={atlasSync} />
             {canEditCragMetadata ? (
               <>
                 <label className="text-xs text-gray-600 dark:text-gray-300">

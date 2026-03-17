@@ -71,9 +71,14 @@ export interface Crag {
   id: string
   name: string
   slug: string | null
+  country_id?: string | null
   country_code: string | null
   region_name?: string | null
   sub_area?: string | null
+  country_name?: string | null
+  admin_region_name?: string | null
+  un_region_name?: string | null
+  continent_name?: string | null
   latitude: number | null
   longitude: number | null
   region_id: string | null
@@ -81,7 +86,7 @@ export interface Crag {
   access_notes: string | null
   rock_type: string | null
   type: string | null
-  regions?: {
+  climbing_areas?: {
     id: string
     name: string
   }
@@ -584,7 +589,7 @@ export default function CragPageClient({
       const fallbackOption: CragSwitcherOption = {
         id: sourceCrag.id,
         name: sourceCrag.name,
-        regionName: sourceCrag.region_name || sourceCrag.regions?.name || null,
+        regionName: sourceCrag.region_name || sourceCrag.climbing_areas?.name || null,
         subArea: sourceCrag.sub_area || null,
         countryCode: sourceCrag.country_code || null,
       }
@@ -722,7 +727,7 @@ export default function CragPageClient({
             .from('crags')
             .select(`
               *,
-              regions:region_id (id, name)
+              climbing_areas:region_id (id, name)
             `)
             .eq('id', id)
             .single()
@@ -1426,7 +1431,7 @@ export default function CragPageClient({
   const routeInsightsState = routesLoadState
 
   const routeInsightsUnavailable = routeInsightsState === 'error'
-  const routeLocationLabel = crag?.sub_area || crag?.region_name || crag?.regions?.name || 'Area details pending'
+  const routeLocationLabel = crag?.sub_area || crag?.region_name || crag?.climbing_areas?.name || 'Area details pending'
 
   const searchModalResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()

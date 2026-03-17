@@ -47,27 +47,33 @@ export async function GET(request: NextRequest) {
     }
 
     const { data, error } = await supabase
-      .rpc('find_region_by_location', {
+      .rpc('get_upload_context', {
         search_lat: lat,
         search_lng: lng
       })
-      .select('id, name, country_code, center_lat, center_lon')
-      .limit(1)
-      .single()
 
-    if (error || !data) {
-      return NextResponse.json(null, { status: 200 })
+    if (error) {
+      return NextResponse.json({ atlas: null, nearbyCrag: null, error: 'Failed to resolve location' }, { status: 200 })
     }
 
     return NextResponse.json({
-      id: data.id,
-      name: data.name,
-      country_code: data.country_code,
-      center_lat: data.center_lat,
-      center_lon: data.center_lon
+      atlas: data?.country ? {
+        continentName: data.continent?.name ?? data.un_region?.continent_name ?? null,
+        unRegionName: data.un_region?.name ?? null,
+        adminRegionName: data.region?.name ?? null,
+        countryId: data.country?.id ?? null,
+        countryCode: data.country?.iso_a2 ?? null,
+        countryName: data.country?.name ?? null,
+      } : null,
+      nearbyCrag: data?.crag ? {
+        id: data.crag.id,
+        name: data.crag.name,
+        distanceMeters: data.crag.distance_meters ?? null,
+      } : null,
+      error: null,
     })
   } catch (error) {
     sanitizeError(error, 'Region by location error')
-    return NextResponse.json(null, { status: 200 })
+    return NextResponse.json({ atlas: null, nearbyCrag: null, error: 'Failed to resolve location' }, { status: 200 })
   }
 }

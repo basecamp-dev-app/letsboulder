@@ -12,11 +12,21 @@ export interface Region {
   created_at: string
 }
 
+export interface AtlasCountryContext {
+  countryId: string | null
+  countryCode: string | null
+  countryName: string | null
+  regionName: string | null
+  unRegionName: string | null
+  continentName: string | null
+}
+
 export interface Crag {
   id: string
   name: string
   latitude: number
   longitude: number
+  countryId?: string | null
   countryCode?: string | null
   countryName?: string | null
   region_id: string | null
@@ -121,6 +131,7 @@ export interface NewUploadedImage {
   height: number
   naturalWidth: number
   naturalHeight: number
+  sectorId?: string | null
 }
 
 export interface CragImageSelection {
@@ -153,6 +164,7 @@ export interface SubmissionContext {
   faceDirectionsByImage: FaceDirectionsByImage
   routes: NewRouteData[]
   routeType: ClimbType | null
+  sectorId: string | null
 }
 
 export type SubmissionStep =

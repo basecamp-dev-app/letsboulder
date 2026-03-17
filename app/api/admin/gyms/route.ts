@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
     }
 
     const countryCode = result.countryCode
-    const regionId = result.regionId
+    const countryId = result.countryId
     const regionName = result.regionName
 
     const usedSlugs = new Set<string>()
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
         type: 'gym',
         latitude,
         longitude,
-        region_id: regionId,
+        country_id: countryId,
         region_name: regionName,
         country_code: countryCode,
         primary_discipline: normalizedPrimary || normalizedDisciplines[0],

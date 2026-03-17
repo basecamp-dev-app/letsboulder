@@ -23,10 +23,17 @@ export interface DraftMetadataV2 {
     location: {
       latitude: number | null
       longitude: number | null
+      countryId?: string | null
+      countryCode?: string | null
+      countryName?: string | null
+      adminRegionName?: string | null
+      unRegionName?: string | null
+      continentName?: string | null
     } | null
     isAnonymousSubmission: boolean
     contributionCreditPlatform: string | null
     contributionCreditHandle: string | null
+    sectorId?: string | null
   }
 }
 
@@ -71,6 +78,7 @@ export function normalizeDraftMetadata(
         isAnonymousSubmission: metadata.submission?.isAnonymousSubmission === true,
         contributionCreditPlatform: metadata.submission?.contributionCreditPlatform || null,
         contributionCreditHandle: metadata.submission?.contributionCreditHandle || null,
+        sectorId: metadata.submission?.sectorId || null,
       },
     }
   }
@@ -126,6 +134,7 @@ export function serializeDraftMetadataV2(metadata: DraftMetadataV2): DraftMetada
       isAnonymousSubmission: metadata.submission.isAnonymousSubmission,
       contributionCreditPlatform: metadata.submission.contributionCreditPlatform,
       contributionCreditHandle: metadata.submission.contributionCreditHandle,
+      sectorId: metadata.submission.sectorId || null,
     },
   }
 }

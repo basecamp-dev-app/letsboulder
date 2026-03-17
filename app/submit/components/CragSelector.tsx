@@ -4,6 +4,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Crag } from '@/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
+import AtlasContextCard from '@/components/submissions/atlas-context-card'
 
 interface CragSelectorProps {
   latitude?: number | null
@@ -54,6 +56,7 @@ export default function CragSelector({
 
   const abortRef = useRef<AbortController | null>(null)
   const searchCacheRef = useRef(new Map<string, { ts: number; data: CragSearchResult[] }>())
+  const atlasSync = useAtlasAutoSync(latitude, longitude)
 
   const fetchNearbyCrags = useCallback(async () => {
     if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) {
@@ -219,6 +222,7 @@ export default function CragSelector({
           rock_type: newCragRockType.trim() || null,
           latitude: latitude ?? null,
           longitude: longitude ?? null,
+          country_id: atlasSync.atlas?.countryId ?? null,
         }),
       })
 
@@ -323,6 +327,8 @@ export default function CragSelector({
 
       {showCreate ? (
         <div className="space-y-3">
+          <AtlasContextCard result={atlasSync} />
+
           <input
             type="text"
             value={newCragName}
