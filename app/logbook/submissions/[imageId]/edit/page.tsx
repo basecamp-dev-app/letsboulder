@@ -283,7 +283,7 @@ export default function EditSubmittedRoutesPage() {
   const parsedLatitude = useMemo(() => parseCoordinate(latitude), [latitude])
   const parsedLongitude = useMemo(() => parseCoordinate(longitude), [longitude])
 
-  const { setRoutes, setMode, reset } = useRouteStore()
+  const { setRoutes, setMode, setInteractionTool, reset, interactionTool, commitCurrentRoute, currentPoints, undoLastPoint } = useRouteStore()
   const atlasSync = useAtlasAutoSync(
     typeof parsedLatitude === 'number' && !Number.isNaN(parsedLatitude) ? parsedLatitude : null,
     typeof parsedLongitude === 'number' && !Number.isNaN(parsedLongitude) ? parsedLongitude : null,
@@ -315,16 +315,25 @@ export default function EditSubmittedRoutesPage() {
 
   useEffect(() => {
     setMode('edit-existing')
+    setInteractionTool('draw')
     return () => {
       reset()
     }
-  }, [setMode, reset])
+  }, [setMode, setInteractionTool, reset])
 
   useEffect(() => {
-    if (!activeImageId || existingRouteLines.length === 0) return
+    if (!activeImageId || existingRouteLines.length === 0 || !imageSelection || !('imageUrl' in imageSelection)) return
 
+    // Break the loop: If we already loaded routes for this image, STOP.
+    if (initializedImageIdRef.current === activeImageId) return
+
+    let isActive = true
     const img = new window.Image()
+
     img.onload = () => {
+      // If the effect was cleaned up (user switched images), abort.
+      if (!isActive) return
+
       const normalizedRoutes = existingRouteLines.map((route) => ({
         ...route,
         points: normalizePoints(
@@ -334,9 +343,19 @@ export default function EditSubmittedRoutesPage() {
           route.image_height
         ),
       }))
+
       setRoutes(normalizedRoutes)
+
+      // Lock the initialization for this image ID
+      initializedImageIdRef.current = activeImageId
     }
-    img.src = imageSelection && 'imageUrl' in imageSelection ? imageSelection.imageUrl : ''
+
+    img.src = imageSelection.imageUrl
+
+    // Cleanup function runs if dependencies change before onload fires
+    return () => {
+      isActive = false
+    }
   }, [activeImageId, existingRouteLines, imageSelection, setRoutes])
 
   const loadSubmission = useCallback(async () => {
@@ -565,6 +584,7 @@ export default function EditSubmittedRoutesPage() {
   const publishedFacesParam = searchParams.get('publishedFaces')
   const publishedRoutesParam = searchParams.get('publishedRoutes')
   const hasShownPublishedToastRef = useRef(false)
+  const initializedImageIdRef = useRef<string | null>(null)
   const canEditContributionCredit = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId
   const canEditCragMetadata = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId && !!cragId
   const markerPosition = useMemo<[number, number] | null>(() => {
@@ -1473,8 +1493,57 @@ export default function EditSubmittedRoutesPage() {
         </div>
 
         {hasReadyData && imageSelection && 'imageUrl' in imageSelection ? (
-          <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
-            <UnifiedRouteCanvas
+          <>
+            <div className="flex gap-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+              <button
+                type="button"
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  interactionTool === 'select'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
+                }`}
+                onClick={() => setInteractionTool('select')}
+              >
+                Select/Edit
+              </button>
+              <button
+                type="button"
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  interactionTool === 'draw'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
+                }`}
+                onClick={() => setInteractionTool('draw')}
+              >
+                Draw Route
+              </button>
+              <button
+                type="button"
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  currentPoints.length > 0
+                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                    : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                }`}
+                onClick={() => undoLastPoint()}
+                disabled={currentPoints.length === 0}
+              >
+                Undo Point
+              </button>
+              <button
+                type="button"
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  currentPoints.length >= 2
+                    ? 'bg-green-500 text-white hover:bg-green-600'
+                    : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                }`}
+                onClick={() => commitCurrentRoute()}
+                disabled={currentPoints.length < 2}
+              >
+                Finish Route
+              </button>
+            </div>
+            <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
+              <UnifiedRouteCanvas
               key={`${canvasKey}:${activeImageId}`}
               mode="edit-existing"
               imageUrl={imageSelection.imageUrl}
@@ -1489,7 +1558,8 @@ export default function EditSubmittedRoutesPage() {
                 setEditedRoutes(editableRoutes)
               }}
             />
-          </div>
+            </div>
+          </>
         ) : null}
 
         <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">

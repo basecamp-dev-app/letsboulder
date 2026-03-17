@@ -5,6 +5,7 @@ import type {
   CanvasMode,
   DrawingRoute,
   ZoomTransform,
+  InteractionTool,
 } from '@/types/domain'
 import { getDynamicStrokeWidth, toScreenCoords } from '@/lib/canvasMath'
 
@@ -163,12 +164,22 @@ export function drawRoute(
 export function drawCurrentPoints(
   ctx: CanvasRenderingContext2D,
   points: RoutePoint[],
-  color: string = '#ef4444'
+  color: string = '#3b82f6'
 ): void {
-  if (points.length < 2) return
+  console.log('[DEBUG drawCurrentPoints] called with:', { pointsLength: points.length, color, points: points.slice(0, 3) })
+  
+  if (points.length < 2) {
+    console.log('[DEBUG drawCurrentPoints] returning early - less than 2 points')
+    return
+  }
 
   const path = createRoutePath2D(points)
-  if (!path) return
+  if (!path) {
+    console.log('[DEBUG drawCurrentPoints] path is null')
+    return
+  }
+
+  console.log('[DEBUG drawCurrentPoints] drawing...')
 
   ctx.strokeStyle = color
   ctx.lineWidth = 3
@@ -195,8 +206,22 @@ export function drawRoutes(
   currentPoints: RoutePoint[],
   dimensions: CanvasDimensions,
   mode: CanvasMode,
+  interactionTool: InteractionTool,
   zoomTransform: ZoomTransform = { x: 0, y: 0, scale: 1 }
 ): void {
+  console.log('[DEBUG drawRoutes] called with:', {
+    currentPointsLength: currentPoints.length,
+    interactionTool,
+    dimensions: dimensions ? { width: dimensions.width, height: dimensions.height, naturalWidth: dimensions.naturalWidth, naturalHeight: dimensions.naturalHeight } : null,
+    routesLength: routes.length,
+    zoomTransform
+  })
+
+  if (!dimensions) {
+    console.log('[DEBUG drawRoutes] dimensions is null, returning early')
+    return
+  }
+
   ctx.clearRect(0, 0, dimensions.width, dimensions.height)
 
   for (const route of routes) {
@@ -204,11 +229,15 @@ export function drawRoutes(
     drawRoute(ctx, route, isActive, dimensions, mode, zoomTransform)
   }
 
-  if (currentPoints.length > 0 && mode === 'submit') {
+  if (currentPoints.length > 0 && interactionTool === 'draw') {
+    console.log('[DEBUG drawRoutes] drawing currentPoints:', currentPoints)
     const scaledCurrentPoints = currentPoints.map((p) =>
       toScreenCoords(p.x, p.y, dimensions.width, dimensions.height, zoomTransform)
     )
+    console.log('[DEBUG drawRoutes] scaledCurrentPoints:', scaledCurrentPoints)
     drawCurrentPoints(ctx, scaledCurrentPoints)
+  } else {
+    console.log('[DEBUG drawRoutes] NOT drawing. currentPoints:', currentPoints.length, 'interactionTool:', interactionTool)
   }
 }
 
