@@ -4,8 +4,9 @@ import type {
   CanvasDimensions,
   CanvasMode,
   DrawingRoute,
+  ZoomTransform,
 } from '@/types/domain'
-import { getDynamicStrokeWidth } from '@/lib/canvasMath'
+import { getDynamicStrokeWidth, toScreenCoords } from '@/lib/canvasMath'
 
 const BASE_STROKE_WIDTH = 3
 const ACTIVE_STROKE_MULTIPLIER = 1.5
@@ -114,16 +115,20 @@ export function drawRoute(
   route: RouteLine | DrawingRoute,
   isActive: boolean,
   dimensions: CanvasDimensions,
-  mode: CanvasMode
+  mode: CanvasMode,
+  zoomTransform: ZoomTransform = { x: 0, y: 0, scale: 1 }
 ): void {
   if (route.points.length < 2) return
 
-  const scale = 1
-  const baseWidth = getDynamicStrokeWidth(BASE_STROKE_WIDTH, scale)
+  const scaledPoints = route.points.map((p) =>
+    toScreenCoords(p.x, p.y, dimensions.width, dimensions.height, zoomTransform)
+  )
+
+  const baseWidth = getDynamicStrokeWidth(BASE_STROKE_WIDTH, zoomTransform.scale)
   const strokeWidth = isActive ? baseWidth * ACTIVE_STROKE_MULTIPLIER : baseWidth
   const color = route.color || '#ef4444'
 
-  const path = createRoutePath2D(route.points)
+  const path = createRoutePath2D(scaledPoints)
   if (!path) return
 
   if (isActive) {
@@ -189,17 +194,21 @@ export function drawRoutes(
   activeRouteId: string | null,
   currentPoints: RoutePoint[],
   dimensions: CanvasDimensions,
-  mode: CanvasMode
+  mode: CanvasMode,
+  zoomTransform: ZoomTransform = { x: 0, y: 0, scale: 1 }
 ): void {
   ctx.clearRect(0, 0, dimensions.width, dimensions.height)
 
   for (const route of routes) {
     const isActive = route.id === activeRouteId
-    drawRoute(ctx, route, isActive, dimensions, mode)
+    drawRoute(ctx, route, isActive, dimensions, mode, zoomTransform)
   }
 
   if (currentPoints.length > 0 && mode === 'submit') {
-    drawCurrentPoints(ctx, currentPoints)
+    const scaledCurrentPoints = currentPoints.map((p) =>
+      toScreenCoords(p.x, p.y, dimensions.width, dimensions.height, zoomTransform)
+    )
+    drawCurrentPoints(ctx, scaledCurrentPoints)
   }
 }
 
