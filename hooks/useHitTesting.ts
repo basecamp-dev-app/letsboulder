@@ -3,8 +3,16 @@ import { useRouteStore } from '@/store/routeStore'
 import { createRoutePath2D } from '@/lib/routeRenderer'
 import type { RoutePoint, RouteLine } from '@/types/domain'
 
+const THRESHOLD_DESKTOP = 0.015
+const THRESHOLD_MOBILE = 0.03
+
+function isMobileDevice(): boolean {
+  if (typeof window === 'undefined') return false
+  return navigator.maxTouchPoints > 0
+}
+
 export function useHitTesting() {
-  const { routes, activeRouteId, setActiveRoute, interactionTool } = useRouteStore()
+  const { routes, activeRouteId, setActiveRoute, setSelectedRoute, interactionTool } = useRouteStore()
   const pathCache = useRef<Map<string, Path2D | null>>(new Map())
 
   const getPathForRoute = useCallback((route: RouteLine): Path2D | null => {
@@ -17,7 +25,8 @@ export function useHitTesting() {
   }, [])
 
   const findRouteAtPoint = useCallback(
-    (point: RoutePoint, threshold: number = 20): string | null => {
+    (point: RoutePoint): string | null => {
+      const threshold = isMobileDevice() ? THRESHOLD_MOBILE : THRESHOLD_DESKTOP
       const ctx = typeof window !== 'undefined' ? document.createElement('canvas').getContext('2d') : null
       if (!ctx) return null
 
@@ -45,12 +54,15 @@ export function useHitTesting() {
 
       const routeId = findRouteAtPoint(point)
       if (routeId) {
-        setActiveRoute(routeId === activeRouteId ? null : routeId)
+        const newRouteId = routeId === activeRouteId ? null : routeId
+        setActiveRoute(newRouteId)
+        setSelectedRoute(newRouteId)
       } else {
         setActiveRoute(null)
+        setSelectedRoute(null)
       }
     },
-    [interactionTool, findRouteAtPoint, activeRouteId, setActiveRoute]
+    [interactionTool, findRouteAtPoint, activeRouteId, setActiveRoute, setSelectedRoute]
   )
 
   return {

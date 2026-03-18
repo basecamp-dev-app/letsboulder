@@ -15,13 +15,12 @@ export const useCanvasResize = (imageUrl: string) => {
   }, []);
 
   useEffect(() => {
-    if (!imageUrl) return;
+    if (!imageUrl) return
 
-    let isActive = true;
+    let isActive = true
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setImageLoaded(false);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setImageError(false);
+    setImageLoaded(false)
+    setImageError(false)
 
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
