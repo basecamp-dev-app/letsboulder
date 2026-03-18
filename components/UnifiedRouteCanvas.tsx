@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useEffect, useCallback, useState } from 'react'
-import Image from 'next/image'
 import { useRouteStore } from '@/store/routeStore'
 import { useCanvasResize } from '@/hooks/useCanvasResize'
 import { usePanZoom } from '@/hooks/usePanZoom'
@@ -29,7 +28,6 @@ export function UnifiedRouteCanvas({
   className = '',
 }: UnifiedRouteCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   const {
     routes: storeRoutes,
@@ -48,23 +46,16 @@ export function UnifiedRouteCanvas({
     }
   }, [propRoutes, setRoutes])
 
-  const [nextImageDimensions, setNextImageDimensions] = useState<CanvasDimensions | null>(null)
+  const { containerRef, dimensions, imageElement, imageLoaded, imageError } = useCanvasResize(imageUrl)
 
-  const { dimensions, imageLoaded, imageError } = useCanvasResize(containerRef, imageUrl, {
-    onDimensionsReady: (dims) => {
-      console.log('[DEBUG UnifiedRouteCanvas] onDimensionsReady from hook:', dims)
-    }
-  })
-
-  // Use dimensions from Next.js Image onLoadingComplete if available, otherwise use hook dimensions
-  const finalDimensions = nextImageDimensions || dimensions
+  const finalDimensions = dimensions
 
   console.log('[DEBUG UnifiedRouteCanvas]', { 
     imageUrl: imageUrl?.substring(0, 50), 
     dimensions: finalDimensions, 
     imageLoaded, 
     imageError,
-    nextImageDimensions
+    imageElement: imageElement ? { naturalWidth: imageElement.naturalWidth, naturalHeight: imageElement.naturalHeight } : null
   })
 
   const { isPanning, startPan, updatePan, endPan, startPinch, updatePinch, endPinch, zoomToPoint } =
@@ -194,10 +185,40 @@ export function UnifiedRouteCanvas({
     canvas.height = finalDimensions.height * dpr
     canvas.style.width = `${finalDimensions.width}px`
     canvas.style.height = `${finalDimensions.height}px`
-    ctx.scale(dpr, dpr)
 
-    drawRoutes(ctx, routes, activeRouteId, currentPoints, finalDimensions, mode, interactionTool, zoomTransform)
-  }, [routes, activeRouteId, currentPoints, finalDimensions, mode, interactionTool, zoomTransform])
+    ctx.save()
+    ctx.scale(dpr, dpr)
+    ctx.translate(zoomTransform.x, zoomTransform.y)
+    ctx.scale(zoomTransform.scale, zoomTransform.scale)
+
+    if (imageElement && imageElement.naturalWidth > 0 && finalDimensions) {
+      const hRatio = finalDimensions.width / imageElement.naturalWidth
+      const vRatio = finalDimensions.height / imageElement.naturalHeight
+      const ratio = Math.min(hRatio, vRatio)
+      
+      const centerShift_x = (finalDimensions.width - imageElement.naturalWidth * ratio) / 2
+      const centerShift_y = (finalDimensions.height - imageElement.naturalHeight * ratio) / 2
+
+      ctx.drawImage(
+        imageElement,
+        0, 0, imageElement.naturalWidth, imageElement.naturalHeight,
+        centerShift_x, centerShift_y, imageElement.naturalWidth * ratio, imageElement.naturalHeight * ratio
+      )
+    }
+
+    const canvasDimensions = finalDimensions && imageElement ? {
+      width: finalDimensions.width,
+      height: finalDimensions.height,
+      naturalWidth: imageElement.naturalWidth,
+      naturalHeight: imageElement.naturalHeight,
+    } : null
+
+    if (canvasDimensions) {
+      drawRoutes(ctx, routes, activeRouteId, currentPoints, canvasDimensions, mode, interactionTool, zoomTransform)
+    }
+
+    ctx.restore()
+  }, [routes, activeRouteId, currentPoints, finalDimensions, mode, interactionTool, zoomTransform, imageElement])
 
   useEffect(() => {
     if (onRoutesUpdate) {
@@ -214,27 +235,6 @@ export function UnifiedRouteCanvas({
 
   return (
     <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${className}`}>
-      {imageLoaded && (
-        <Image
-          src={imageUrl}
-          alt="Route"
-          fill
-          unoptimized
-          sizes="100vw"
-          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-          onLoadingComplete={(result) => {
-            const { naturalWidth, naturalHeight, width, height } = result
-            console.log('[DEBUG UnifiedRouteCanvas] onLoadingComplete:', { naturalWidth, naturalHeight, width, height })
-            setNextImageDimensions({
-              width,
-              height,
-              naturalWidth: naturalWidth || width,
-              naturalHeight: naturalHeight || height,
-            })
-          }}
-        />
-      )}
-
       {imageError && (
         <div className="absolute inset-0 flex items-center justify-center text-red-500">
           Failed to load image
