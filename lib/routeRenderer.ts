@@ -122,7 +122,7 @@ export function drawRoute(
   if (route.points.length < 2) return
 
   const scaledPoints = route.points.map((p) =>
-    toScreenCoords(p.x, p.y, dimensions.width, dimensions.height)
+    toScreenCoords(p.x, p.y, dimensions.width, dimensions.height, dimensions.offsetX, dimensions.offsetY)
   )
 
   const baseWidth = getDynamicStrokeWidth(BASE_STROKE_WIDTH, zoomTransform.scale)
@@ -246,7 +246,7 @@ export function drawRoutes(
   if (currentPoints.length > 0 && interactionTool === 'draw') {
     console.log('[DEBUG drawRoutes] drawing currentPoints:', currentPoints)
     const scaledCurrentPoints = currentPoints.map((p) =>
-      toScreenCoords(p.x, p.y, dimensions.width, dimensions.height)
+      toScreenCoords(p.x, p.y, dimensions.width, dimensions.height, dimensions.offsetX, dimensions.offsetY)
     )
     console.log('[DEBUG drawRoutes] scaledCurrentPoints:', scaledCurrentPoints)
     drawCurrentPoints(ctx, scaledCurrentPoints, dimensions, zoomTransform)

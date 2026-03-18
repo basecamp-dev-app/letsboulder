@@ -39,6 +39,11 @@ export function UnifiedRouteCanvas({
   } = useRouteStore()
 
   const routes = propRoutes || storeRoutes
+  const zoomTransformRef = useRef(zoomTransform)
+
+  useEffect(() => {
+    zoomTransformRef.current = zoomTransform
+  }, [zoomTransform])
 
   useEffect(() => {
     if (propRoutes) {
@@ -175,50 +180,70 @@ export function UnifiedRouteCanvas({
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !finalDimensions) return
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx || !finalDimensions) return
 
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+    const dpr = window.devicePixelRatio || 1
     canvas.width = finalDimensions.width * dpr
     canvas.height = finalDimensions.height * dpr
     canvas.style.width = `${finalDimensions.width}px`
     canvas.style.height = `${finalDimensions.height}px`
 
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.save()
     ctx.scale(dpr, dpr)
-    ctx.translate(zoomTransform.x, zoomTransform.y)
-    ctx.scale(zoomTransform.scale, zoomTransform.scale)
 
-    if (imageElement && imageElement.naturalWidth > 0 && finalDimensions) {
+    ctx.translate(zoomTransformRef.current.x, zoomTransformRef.current.y)
+    ctx.scale(zoomTransformRef.current.scale, zoomTransformRef.current.scale)
+
+    let imageRenderProps = { x: 0, y: 0, width: finalDimensions.width, height: finalDimensions.height }
+
+    if (imageElement && imageElement.naturalWidth > 0) {
       const hRatio = finalDimensions.width / imageElement.naturalWidth
       const vRatio = finalDimensions.height / imageElement.naturalHeight
       const ratio = Math.min(hRatio, vRatio)
-      
-      const centerShift_x = (finalDimensions.width - imageElement.naturalWidth * ratio) / 2
-      const centerShift_y = (finalDimensions.height - imageElement.naturalHeight * ratio) / 2
 
-      ctx.drawImage(
-        imageElement,
-        0, 0, imageElement.naturalWidth, imageElement.naturalHeight,
-        centerShift_x, centerShift_y, imageElement.naturalWidth * ratio, imageElement.naturalHeight * ratio
-      )
+      const drawWidth = imageElement.naturalWidth * ratio
+      const drawHeight = imageElement.naturalHeight * ratio
+      const centerX = (finalDimensions.width - drawWidth) / 2
+      const centerY = (finalDimensions.height - drawHeight) / 2
+
+      imageRenderProps = { x: centerX, y: centerY, width: drawWidth, height: drawHeight }
+
+      ctx.drawImage(imageElement, centerX, centerY, drawWidth, drawHeight)
     }
 
-    const canvasDimensions = finalDimensions && imageElement ? {
-      width: finalDimensions.width,
-      height: finalDimensions.height,
-      naturalWidth: imageElement.naturalWidth,
-      naturalHeight: imageElement.naturalHeight,
-    } : null
-
-    if (canvasDimensions) {
-      drawRoutes(ctx, routes, activeRouteId, currentPoints, canvasDimensions, mode, interactionTool, zoomTransform)
+    const routeCanvasDimensions = {
+      width: imageRenderProps.width,
+      height: imageRenderProps.height,
+      offsetX: imageRenderProps.x,
+      offsetY: imageRenderProps.y,
     }
+
+    drawRoutes(
+      ctx,
+      routes,
+      activeRouteId,
+      currentPoints,
+      routeCanvasDimensions,
+      mode,
+      interactionTool,
+      zoomTransformRef.current
+    )
 
     ctx.restore()
-  }, [routes, activeRouteId, currentPoints, finalDimensions, mode, interactionTool, zoomTransform, imageElement])
+  }, [
+    zoomTransform.x,
+    zoomTransform.y,
+    zoomTransform.scale,
+    routes,
+    activeRouteId,
+    currentPoints,
+    finalDimensions,
+    mode,
+    interactionTool,
+    imageElement
+  ])
 
   useEffect(() => {
     if (onRoutesUpdate) {
