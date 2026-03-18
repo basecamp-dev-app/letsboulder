@@ -75,18 +75,16 @@ export function toScreenCoords(
 }
 
 export function toNormalizedCoords(
-  screenX: number,
-  screenY: number,
-  width: number,
-  height: number,
-  transform: ZoomTransform
+  logicalX: number,
+  logicalY: number,
+  imageWidth: number,
+  imageHeight: number,
+  offsetX: number = 0,
+  offsetY: number = 0
 ): RoutePoint {
-  const logicalX = (screenX - transform.x) / transform.scale
-  const logicalY = (screenY - transform.y) / transform.scale
-
   return {
-    x: Math.min(1, Math.max(0, logicalX / width)),
-    y: Math.min(1, Math.max(0, logicalY / height)),
+    x: (logicalX - offsetX) / imageWidth,
+    y: (logicalY - offsetY) / imageHeight,
   }
 }
 
