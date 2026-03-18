@@ -64,11 +64,13 @@ export function toScreenCoords(
   normX: number,
   normY: number,
   width: number,
-  height: number
+  height: number,
+  offsetX: number = 0,
+  offsetY: number = 0
 ): RoutePoint {
   return {
-    x: normX * width,
-    y: normY * height,
+    x: offsetX + (normX * width),
+    y: offsetY + (normY * height),
   }
 }
 

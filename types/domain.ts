@@ -28,8 +28,10 @@ export interface RouteLine {
 export interface CanvasDimensions {
   width: number
   height: number
-  naturalWidth: number
-  naturalHeight: number
+  naturalWidth?: number
+  naturalHeight?: number
+  offsetX?: number
+  offsetY?: number
 }
 
 export interface ZoomTransform {
