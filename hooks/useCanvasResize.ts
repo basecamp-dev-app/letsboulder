@@ -1,146 +1,65 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import type { CanvasDimensions } from '@/types/domain'
+import { useState, useEffect, useCallback } from 'react';
 
-interface UseCanvasResizeOptions {
-  onDimensionsReady?: (dimensions: CanvasDimensions) => void
-}
+export const useCanvasResize = (imageUrl: string) => {
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
-export function useCanvasResize(
-  containerRef: React.RefObject<HTMLDivElement | null>,
-  imageUrl: string,
-  options: UseCanvasResizeOptions = {}
-) {
-  const { onDimensionsReady } = options
-  const [dimensions, setDimensions] = useState<CanvasDimensions | null>(null)
-  const [imageLoaded, setImageLoaded] = useState(false)
-  const [imageError, setImageError] = useState(false)
-  const imageRef = useRef<HTMLImageElement | null>(null)
-  const prevImageUrlRef = useRef<string | null>(null)
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
 
-  const setupDimensions = useCallback(() => {
-    const container = containerRef.current
-    console.log('[DEBUG useCanvasResize] setupDimensions called', { 
-      hasContainer: !!container 
-    })
-    if (!container) return
-
-    const containerRect = container.getBoundingClientRect()
-    const containerWidth = containerRect.width
-    const containerHeight = containerRect.height
-
-    console.log('[DEBUG useCanvasResize] container dimensions:', { 
-      containerWidth, 
-      containerHeight 
-    })
-
-    if (containerWidth === 0 || containerHeight === 0) {
-      console.log('[DEBUG useCanvasResize] container has no dimensions, returning early')
-      return
+  const containerRef = useCallback((node: HTMLDivElement | null) => {
+    if (node !== null) {
+      setContainerNode(node);
     }
-
-    const img = imageRef.current
-    console.log('[DEBUG useCanvasResize] image ref:', { 
-      hasImg: !!img,
-      naturalWidth: img?.naturalWidth,
-      naturalHeight: img?.naturalHeight
-    })
-    if (!img || img.naturalWidth === 0 || img.naturalHeight === 0) return
-
-    const naturalWidth = img.naturalWidth
-    const naturalHeight = img.naturalHeight
-    const naturalAspect = naturalWidth / naturalHeight
-    const containerAspect = containerWidth / containerHeight
-
-    let displayedWidth: number
-    let displayedHeight: number
-
-    if (naturalAspect > containerAspect) {
-      displayedWidth = containerWidth
-      displayedHeight = containerWidth / naturalAspect
-    } else {
-      displayedHeight = containerHeight
-      displayedWidth = containerHeight * naturalAspect
-    }
-
-    console.log('[DEBUG useCanvasResize] setting dimensions:', {
-      width: displayedWidth,
-      height: displayedHeight,
-      naturalWidth,
-      naturalHeight
-    })
-
-    setDimensions({
-      width: displayedWidth,
-      height: displayedHeight,
-      naturalWidth,
-      naturalHeight,
-    })
-
-    if (onDimensionsReady) {
-      onDimensionsReady({
-        width: displayedWidth,
-        height: displayedHeight,
-        naturalWidth,
-        naturalHeight,
-      })
-    }
-  }, [containerRef, onDimensionsReady])
+  }, []);
 
   useEffect(() => {
-    const container = containerRef.current
-    if (!container || typeof ResizeObserver === 'undefined') return
+    if (!imageUrl) return;
 
-    const observer = new ResizeObserver(() => {
-      setupDimensions()
-    })
+    let isActive = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setImageLoaded(false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setImageError(false);
 
-    observer.observe(container)
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
 
-    return () => {
-      observer.disconnect()
-    }
-  }, [containerRef, setupDimensions])
+    img.onload = () => {
+      if (!isActive) return;
+      setImageElement(img);
+      setImageLoaded(true);
+    };
+
+    img.onerror = () => {
+      if (!isActive) return;
+      setImageError(true);
+      setImageLoaded(true);
+    };
+
+    img.src = imageUrl;
+
+    return () => { isActive = false; };
+  }, [imageUrl]);
 
   useEffect(() => {
-    if (!imageUrl || imageUrl === prevImageUrlRef.current) return
-    prevImageUrlRef.current = imageUrl
+    if (!containerNode) return;
 
-    const img = new window.Image()
-    img.crossOrigin = 'anonymous'
+    const updateDimensions = () => {
+      setDimensions({
+        width: containerNode.clientWidth,
+        height: containerNode.clientHeight,
+      });
+    };
 
-    const handleLoad = () => {
-      console.log('[DEBUG useCanvasResize] Image onload fired!')
-      setImageLoaded(true)
-      imageRef.current = img
-      setupDimensions()
-    }
+    updateDimensions();
 
-    const handleError = () => {
-      console.log('[DEBUG useCanvasResize] image error!')
-      setImageError(true)
-    }
+    const resizeObserver = new ResizeObserver(updateDimensions);
+    resizeObserver.observe(containerNode);
 
-    img.addEventListener('load', handleLoad)
-    img.addEventListener('error', handleError)
-    
-    // Check if image is already loaded (cached)
-    if (img.complete) {
-      console.log('[DEBUG useCanvasResize] Image already complete, triggering load manually')
-      handleLoad()
-    } else {
-      img.src = imageUrl
-    }
+    return () => resizeObserver.disconnect();
+  }, [containerNode]);
 
-    return () => {
-      img.removeEventListener('load', handleLoad)
-      img.removeEventListener('error', handleError)
-      img.src = ''
-    }
-  }, [imageUrl, setupDimensions])
-
-  return {
-    dimensions,
-    imageLoaded,
-    imageError,
-  }
-}
+  return { containerRef, dimensions, imageElement, imageLoaded, imageError };
+};

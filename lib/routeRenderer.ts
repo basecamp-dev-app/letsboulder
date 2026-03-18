@@ -122,7 +122,7 @@ export function drawRoute(
   if (route.points.length < 2) return
 
   const scaledPoints = route.points.map((p) =>
-    toScreenCoords(p.x, p.y, dimensions.width, dimensions.height, zoomTransform)
+    toScreenCoords(p.x, p.y, dimensions.width, dimensions.height)
   )
 
   const baseWidth = getDynamicStrokeWidth(BASE_STROKE_WIDTH, zoomTransform.scale)
@@ -164,12 +164,26 @@ export function drawRoute(
 export function drawCurrentPoints(
   ctx: CanvasRenderingContext2D,
   points: RoutePoint[],
+  dimensions: CanvasDimensions,
+  zoomTransform: ZoomTransform,
   color: string = '#3b82f6'
 ): void {
   console.log('[DEBUG drawCurrentPoints] called with:', { pointsLength: points.length, color, points: points.slice(0, 3) })
   
-  if (points.length < 2) {
-    console.log('[DEBUG drawCurrentPoints] returning early - less than 2 points')
+  if (points.length === 0) {
+    console.log('[DEBUG drawCurrentPoints] returning early - no points')
+    return
+  }
+
+  if (points.length === 1) {
+    const dotRadius = getDynamicStrokeWidth(0.015 * dimensions.width, zoomTransform.scale)
+    ctx.beginPath()
+    ctx.arc(points[0].x, points[0].y, dotRadius, 0, Math.PI * 2)
+    ctx.fillStyle = color
+    ctx.fill()
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 2
+    ctx.stroke()
     return
   }
 
@@ -232,10 +246,10 @@ export function drawRoutes(
   if (currentPoints.length > 0 && interactionTool === 'draw') {
     console.log('[DEBUG drawRoutes] drawing currentPoints:', currentPoints)
     const scaledCurrentPoints = currentPoints.map((p) =>
-      toScreenCoords(p.x, p.y, dimensions.width, dimensions.height, zoomTransform)
+      toScreenCoords(p.x, p.y, dimensions.width, dimensions.height)
     )
     console.log('[DEBUG drawRoutes] scaledCurrentPoints:', scaledCurrentPoints)
-    drawCurrentPoints(ctx, scaledCurrentPoints)
+    drawCurrentPoints(ctx, scaledCurrentPoints, dimensions, zoomTransform)
   } else {
     console.log('[DEBUG drawRoutes] NOT drawing. currentPoints:', currentPoints.length, 'interactionTool:', interactionTool)
   }

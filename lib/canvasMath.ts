@@ -64,15 +64,11 @@ export function toScreenCoords(
   normX: number,
   normY: number,
   width: number,
-  height: number,
-  transform: ZoomTransform
+  height: number
 ): RoutePoint {
-  const logicalX = normX * width
-  const logicalY = normY * height
-
   return {
-    x: logicalX * transform.scale + transform.x,
-    y: logicalY * transform.scale + transform.y,
+    x: normX * width,
+    y: normY * height,
   }
 }
 
