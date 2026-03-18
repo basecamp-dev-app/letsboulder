@@ -10,7 +10,7 @@ interface UsePanZoomOptions {
 export function usePanZoom(options: UsePanZoomOptions = {}) {
   const { minScale = 0.5, maxScale = 5 } = options
 
-  const { zoomTransform, updateZoomTransform } = useRouteStore()
+  const updateZoomTransform = useRouteStore((state) => state.updateZoomTransform)
 
   const [isPanning, setIsPanning] = useState(false)
   const lastPanPoint = useRef<RoutePoint>({ x: 0, y: 0 })
@@ -27,6 +27,7 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
     (clientX: number, clientY: number) => {
       if (!isPanning) return
 
+      const { zoomTransform } = useRouteStore.getState()
       const dx = clientX - lastPanPoint.current.x
       const dy = clientY - lastPanPoint.current.y
 
@@ -37,7 +38,7 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
 
       lastPanPoint.current = { x: clientX, y: clientY }
     },
-    [isPanning, zoomTransform, updateZoomTransform]
+    [isPanning, updateZoomTransform]
   )
 
   const endPan = useCallback(() => {
@@ -54,11 +55,12 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
       const centerX = (touches[0].clientX + touches[1].clientX) / 2
       const centerY = (touches[0].clientY + touches[1].clientY) / 2
 
+      const { zoomTransform } = useRouteStore.getState()
       pinchStartZoom.current = zoomTransform.scale
       pinchStartDistance.current = distance
       pinchCenter.current = { x: centerX, y: centerY }
     },
-    [zoomTransform.scale]
+    []
   )
 
   const updatePinch = useCallback(
@@ -71,6 +73,8 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
       ) {
         return
       }
+
+      const { zoomTransform } = useRouteStore.getState()
 
       const dx = touches[0].clientX - touches[1].clientX
       const dy = touches[0].clientY - touches[1].clientY
@@ -97,7 +101,7 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
       pinchStartDistance.current = distance
       pinchCenter.current = { x: centerX, y: centerY }
     },
-    [minScale, maxScale, zoomTransform, updateZoomTransform]
+    [minScale, maxScale, updateZoomTransform]
   )
 
   const endPinch = useCallback(() => {
@@ -108,14 +112,16 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
 
   const zoomToPoint = useCallback(
     (delta: number, pointX: number, pointY: number) => {
-      const newScale = Math.min(
-        maxScale,
-        Math.max(minScale, zoomTransform.scale * (1 - delta))
-      )
+      const { zoomTransform } = useRouteStore.getState()
 
-      const scaleDiff = newScale / zoomTransform.scale
-      const newX = pointX - (pointX - zoomTransform.x) * scaleDiff
-      const newY = pointY - (pointY - zoomTransform.y) * scaleDiff
+      const scaleFactor = Math.pow(0.999, delta)
+      const newScale = Math.min(maxScale, Math.max(minScale, zoomTransform.scale * scaleFactor))
+
+      if (newScale === zoomTransform.scale) return
+
+      const ratio = newScale / zoomTransform.scale
+      const newX = pointX - (pointX - zoomTransform.x) * ratio
+      const newY = pointY - (pointY - zoomTransform.y) * ratio
 
       updateZoomTransform({
         x: newX,
@@ -123,7 +129,7 @@ export function usePanZoom(options: UsePanZoomOptions = {}) {
         scale: newScale,
       })
     },
-    [zoomTransform, minScale, maxScale, updateZoomTransform]
+    [minScale, maxScale, updateZoomTransform]
   )
 
   const resetZoom = useCallback(() => {
