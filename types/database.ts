@@ -1,4 +1,3 @@
-Connecting to db 5432
 export type Json =
   | string
   | number
@@ -650,7 +649,15 @@ export type Database = {
           region_id?: string | null
           scale_rank?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "countries_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       crag_images: {
         Row: {
@@ -894,6 +901,13 @@ export type Database = {
             columns: ["country_id"]
             isOneToOne: false
             referencedRelation: "countries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crags_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "regions"
             referencedColumns: ["id"]
           },
         ]
@@ -4273,5 +4287,3 @@ export const Constants = {
   },
 } as const
 
-A new version of Supabase CLI is available: v2.78.1 (currently installed v2.76.15)
-We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

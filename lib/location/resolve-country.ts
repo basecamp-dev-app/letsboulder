@@ -26,7 +26,6 @@ export async function resolveCountryFromCoordinates(
     return { countryId: null, countryCode: null, countryName: null, regionName: null, unRegionName: null, continentName: null, source: null }
   }
 
-  // Use new PostGIS RPC (no fallback)
   const { data, error } = await supabase
     .rpc('get_upload_context', { search_lat: searchLat, search_lng: searchLng })
 
@@ -35,11 +34,17 @@ export async function resolveCountryFromCoordinates(
     return { countryId: null, countryCode: null, countryName: null, regionName: null, unRegionName: null, continentName: null, source: null }
   }
 
-  if (data?.country?.id && data?.country?.iso_a2) {
+  const country = data?.country?.id && data?.country?.iso_a2
+    ? data.country
+    : data?.country_intersects?.id && data?.country_intersects?.iso_a2
+    ? data.country_intersects
+    : null
+
+  if (country?.id && country?.iso_a2) {
     return {
-      countryId: data.country.id,
-      countryCode: data.country.iso_a2.toUpperCase().slice(0, 2),
-      countryName: data.country.name || null,
+      countryId: country.id,
+      countryCode: country.iso_a2.toUpperCase().slice(0, 2),
+      countryName: country.name || null,
       regionName: data.region.name,
       unRegionName: data.un_region?.name || null,
       continentName: data.continent?.name || null,
