@@ -198,8 +198,7 @@ export function UnifiedRouteCanvas({
       const pointX = e.clientX - rect.left
       const pointY = e.clientY - rect.top
 
-      const delta = e.deltaY > 0 ? 0.1 : -0.1
-      zoomToPoint(delta, pointX, pointY)
+      zoomToPoint(e.deltaY, pointX, pointY)
     },
     [zoomToPoint]
   )
