@@ -17,6 +17,7 @@ interface HistoryEntry {
 interface RouteState {
   routes: RouteLine[]
   activeRouteId: string | null
+  selectedRouteId: string | null
   mode: CanvasMode
   interactionTool: InteractionTool
   zoomTransform: ZoomTransform
@@ -29,6 +30,7 @@ interface RouteState {
   setMode: (mode: CanvasMode) => void
   setInteractionTool: (tool: InteractionTool) => void
   setActiveRoute: (id: string | null) => void
+  setSelectedRoute: (id: string | null) => void
   updateZoomTransform: (transform: Partial<ZoomTransform>) => void
   setRoutes: (routes: RouteLine[]) => void
   addRoute: (route: RouteLine) => void
@@ -54,6 +56,7 @@ const MAX_HISTORY = 50
 const initialState = {
   routes: [] as RouteLine[],
   activeRouteId: null as string | null,
+  selectedRouteId: null as string | null,
   mode: 'browse' as CanvasMode,
   interactionTool: 'select' as InteractionTool,
   zoomTransform: { x: 0, y: 0, scale: 1 } as ZoomTransform,
@@ -80,6 +83,8 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
 
   setActiveRoute: (id) => set({ activeRouteId: id }),
 
+  setSelectedRoute: (id) => set({ selectedRouteId: id }),
+
   updateZoomTransform: (transform) =>
     set((state) => ({
       zoomTransform: { ...state.zoomTransform, ...transform },
@@ -103,6 +108,7 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
     set((state) => ({
       routes: state.routes.filter((r) => r.id !== id),
       activeRouteId: state.activeRouteId === id ? null : state.activeRouteId,
+      selectedRouteId: state.selectedRouteId === id ? null : state.selectedRouteId,
     })),
 
   setCurrentPoints: (points) => set({ currentPoints: points }),

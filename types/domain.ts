@@ -30,8 +30,8 @@ export interface CanvasDimensions {
   height: number
   naturalWidth?: number
   naturalHeight?: number
-  offsetX?: number
-  offsetY?: number
+  centerX?: number
+  centerY?: number
 }
 
 export interface ZoomTransform {

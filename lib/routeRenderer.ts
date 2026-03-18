@@ -4,16 +4,19 @@ import type {
   CanvasDimensions,
   CanvasMode,
   DrawingRoute,
-  ZoomTransform,
   InteractionTool,
 } from '@/types/domain'
-import { getDynamicStrokeWidth, toScreenCoords } from '@/lib/canvasMath'
+import { toScreenCoords } from '@/lib/canvasMath'
 
 const BASE_STROKE_WIDTH = 3
 const ACTIVE_STROKE_MULTIPLIER = 1.5
 const LABEL_OFFSET_Y = -15
 const NAME_LABEL_OFFSET_X = 10
 const NAME_LABEL_OFFSET_Y = 12
+
+const COLOR_STANDARD = '#dc2626'
+const COLOR_ACTIVE = '#FFFF00'
+const COLOR_SELECTED = '#00FFFF'
 
 export function createRoutePath2D(points: RoutePoint[]): Path2D | null {
   if (typeof Path2D === 'undefined' || points.length < 2) return null
@@ -115,24 +118,29 @@ export function drawRoute(
   ctx: CanvasRenderingContext2D,
   route: RouteLine | DrawingRoute,
   isActive: boolean,
+  isSelected: boolean,
   dimensions: CanvasDimensions,
-  mode: CanvasMode,
-  zoomTransform: ZoomTransform = { x: 0, y: 0, scale: 1 }
+  mode: CanvasMode
 ): void {
   if (route.points.length < 2) return
 
   const scaledPoints = route.points.map((p) =>
-    toScreenCoords(p.x, p.y, dimensions.width, dimensions.height, dimensions.offsetX, dimensions.offsetY)
+    toScreenCoords(p.x, p.y, dimensions.width, dimensions.height, dimensions.centerX || 0, dimensions.centerY || 0)
   )
 
-  const baseWidth = getDynamicStrokeWidth(BASE_STROKE_WIDTH, zoomTransform.scale)
-  const strokeWidth = isActive ? baseWidth * ACTIVE_STROKE_MULTIPLIER : baseWidth
-  const color = route.color || '#ef4444'
+  const strokeWidth = isActive ? BASE_STROKE_WIDTH * ACTIVE_STROKE_MULTIPLIER : BASE_STROKE_WIDTH
+
+  let color = route.color || COLOR_STANDARD
+  if (isActive) {
+    color = COLOR_ACTIVE
+  } else if (isSelected) {
+    color = COLOR_SELECTED
+  }
 
   const path = createRoutePath2D(scaledPoints)
   if (!path) return
 
-  if (isActive) {
+  if (isActive || isSelected) {
     ctx.save()
     ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
     ctx.shadowBlur = 8
@@ -152,12 +160,14 @@ export function drawRoute(
 
   if (isEditMode(mode) && 'grade' in route) {
     const gradePos = getGradeLabelPosition(route.points)
-    drawLabel(ctx, route.grade, gradePos.x, gradePos.y, color)
+    const scaledGradePos = toScreenCoords(gradePos.x, gradePos.y, dimensions.width, dimensions.height, dimensions.centerX || 0, dimensions.centerY || 0)
+    drawLabel(ctx, route.grade, scaledGradePos.x, scaledGradePos.y, color)
   }
 
   if (isEditMode(mode) && 'name' in route && route.name) {
     const namePos = getNameLabelPosition(route.points)
-    drawLabel(ctx, route.name, namePos.x, namePos.y, '#1f2937')
+    const scaledNamePos = toScreenCoords(namePos.x, namePos.y, dimensions.width, dimensions.height, dimensions.centerX || 0, dimensions.centerY || 0)
+    drawLabel(ctx, route.name, scaledNamePos.x, scaledNamePos.y, '#1f2937')
   }
 }
 
@@ -165,20 +175,19 @@ export function drawCurrentPoints(
   ctx: CanvasRenderingContext2D,
   points: RoutePoint[],
   dimensions: CanvasDimensions,
-  zoomTransform: ZoomTransform,
-  color: string = '#3b82f6'
+  color: string = COLOR_ACTIVE
 ): void {
-  console.log('[DEBUG drawCurrentPoints] called with:', { pointsLength: points.length, color, points: points.slice(0, 3) })
-  
   if (points.length === 0) {
-    console.log('[DEBUG drawCurrentPoints] returning early - no points')
     return
   }
 
+  const scaledPoints = points.map((p) =>
+    toScreenCoords(p.x, p.y, dimensions.width, dimensions.height, dimensions.centerX || 0, dimensions.centerY || 0)
+  )
+
   if (points.length === 1) {
-    const dotRadius = getDynamicStrokeWidth(0.015 * dimensions.width, zoomTransform.scale)
     ctx.beginPath()
-    ctx.arc(points[0].x, points[0].y, dotRadius, 0, Math.PI * 2)
+    ctx.arc(scaledPoints[0].x, scaledPoints[0].y, BASE_STROKE_WIDTH * 2, 0, Math.PI * 2)
     ctx.fillStyle = color
     ctx.fill()
     ctx.strokeStyle = '#ffffff'
@@ -187,24 +196,21 @@ export function drawCurrentPoints(
     return
   }
 
-  const path = createRoutePath2D(points)
+  const path = createRoutePath2D(scaledPoints)
   if (!path) {
-    console.log('[DEBUG drawCurrentPoints] path is null')
     return
   }
 
-  console.log('[DEBUG drawCurrentPoints] drawing...')
-
   ctx.strokeStyle = color
-  ctx.lineWidth = 3
+  ctx.lineWidth = BASE_STROKE_WIDTH
   ctx.setLineDash([5, 5])
   ctx.stroke(path)
   ctx.setLineDash([])
 
-  for (let i = 0; i < points.length; i += 1) {
-    const point = points[i]
+  for (let i = 0; i < scaledPoints.length; i += 1) {
+    const point = scaledPoints[i]
     ctx.beginPath()
-    ctx.arc(point.x, point.y, 5, 0, Math.PI * 2)
+    ctx.arc(point.x, point.y, BASE_STROKE_WIDTH, 0, Math.PI * 2)
     ctx.fillStyle = i === 0 ? '#22c55e' : color
     ctx.fill()
     ctx.strokeStyle = '#ffffff'
@@ -220,38 +226,20 @@ export function drawRoutes(
   currentPoints: RoutePoint[],
   dimensions: CanvasDimensions,
   mode: CanvasMode,
-  interactionTool: InteractionTool,
-  zoomTransform: ZoomTransform = { x: 0, y: 0, scale: 1 }
+  interactionTool: InteractionTool
 ): void {
-  console.log('[DEBUG drawRoutes] called with:', {
-    currentPointsLength: currentPoints.length,
-    interactionTool,
-    dimensions: dimensions ? { width: dimensions.width, height: dimensions.height, naturalWidth: dimensions.naturalWidth, naturalHeight: dimensions.naturalHeight } : null,
-    routesLength: routes.length,
-    zoomTransform
-  })
-
-  if (!dimensions) {
-    console.log('[DEBUG drawRoutes] dimensions is null, returning early')
+  if (!dimensions || dimensions.width === 0) {
     return
   }
 
-  ctx.clearRect(0, 0, dimensions.width, dimensions.height)
-
   for (const route of routes) {
-    const isActive = route.id === activeRouteId
-    drawRoute(ctx, route, isActive, dimensions, mode, zoomTransform)
+    const isActive = route.id === activeRouteId && interactionTool === 'draw'
+    const isSelected = route.id === activeRouteId && interactionTool === 'select'
+    drawRoute(ctx, route, isActive, isSelected, dimensions, mode)
   }
 
   if (currentPoints.length > 0 && interactionTool === 'draw') {
-    console.log('[DEBUG drawRoutes] drawing currentPoints:', currentPoints)
-    const scaledCurrentPoints = currentPoints.map((p) =>
-      toScreenCoords(p.x, p.y, dimensions.width, dimensions.height, dimensions.offsetX, dimensions.offsetY)
-    )
-    console.log('[DEBUG drawRoutes] scaledCurrentPoints:', scaledCurrentPoints)
-    drawCurrentPoints(ctx, scaledCurrentPoints, dimensions, zoomTransform)
-  } else {
-    console.log('[DEBUG drawRoutes] NOT drawing. currentPoints:', currentPoints.length, 'interactionTool:', interactionTool)
+    drawCurrentPoints(ctx, currentPoints, dimensions)
   }
 }
 

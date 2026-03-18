@@ -1,14 +1,14 @@
 'use client'
 
-import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
+import { useRef, useEffect, useCallback, useMemo } from 'react'
 import { useRouteStore } from '@/store/routeStore'
 import { useCanvasResize } from '@/hooks/useCanvasResize'
 import { usePanZoom } from '@/hooks/usePanZoom'
 import { useRouteDrawing } from '@/hooks/useRouteDrawing'
 import { useHitTesting } from '@/hooks/useHitTesting'
 import { drawRoutes } from '@/lib/routeRenderer'
-import { screenToCanvasCoords, toNormalizedCoords } from '@/lib/canvasMath'
-import type { CanvasMode, RouteLine, CanvasDimensions } from '@/types/domain'
+import { RouteEditSidebar } from '@/components/RouteEditSidebar'
+import type { CanvasMode, RouteLine } from '@/types/domain'
 
 interface UnifiedRouteCanvasProps {
   mode: CanvasMode
@@ -34,16 +34,11 @@ export function UnifiedRouteCanvas({
     setRoutes,
     activeRouteId,
     currentPoints,
-    zoomTransform,
     interactionTool,
+    selectedRouteId,
   } = useRouteStore()
 
   const routes = propRoutes || storeRoutes
-  const zoomTransformRef = useRef(zoomTransform)
-
-  useEffect(() => {
-    zoomTransformRef.current = zoomTransform
-  }, [zoomTransform])
 
   useEffect(() => {
     if (propRoutes) {
@@ -65,24 +60,18 @@ export function UnifiedRouteCanvas({
     const width = imageElement.naturalWidth * ratio
     const height = imageElement.naturalHeight * ratio
 
+    const centerX = (finalDimensions.width - width) / 2
+    const centerY = (finalDimensions.height - height) / 2
+
     return {
       width,
       height,
-      offsetX: (finalDimensions.width - width) / 2,
-      offsetY: (finalDimensions.height - height) / 2,
+      centerX,
+      centerY,
     }
   }, [imageElement, finalDimensions])
 
-  console.log('[DEBUG UnifiedRouteCanvas]', { 
-    imageUrl: imageUrl?.substring(0, 50), 
-    dimensions: finalDimensions, 
-    imageLoaded, 
-    imageError,
-    imageElement: imageElement ? { naturalWidth: imageElement.naturalWidth, naturalHeight: imageElement.naturalHeight } : null
-  })
-
-  const { isPanning, startPan, updatePan, endPan, startPinch, updatePinch, endPinch, zoomToPoint } =
-    usePanZoom()
+  usePanZoom()
 
   const { isDrawingEnabled, addPoint } = useRouteDrawing()
 
@@ -97,35 +86,20 @@ export function UnifiedRouteCanvas({
       const screenX = clientX - rect.left
       const screenY = clientY - rect.top
 
-      const logicalX = (screenX - zoomTransform.x) / zoomTransform.scale
-      const logicalY = (screenY - zoomTransform.y) / zoomTransform.scale
+      const normX = screenX / imageBounds.width
+      const normY = screenY / imageBounds.height
 
-      return toNormalizedCoords(
-        logicalX,
-        logicalY,
-        imageBounds.width,
-        imageBounds.height,
-        imageBounds.offsetX,
-        imageBounds.offsetY
-      )
+      return { x: normX, y: normY }
     },
-    [imageBounds, zoomTransform]
+    [imageBounds]
   )
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      console.log('[DEBUG handleMouseDown] isDrawingEnabled:', isDrawingEnabled, 'button:', e.button, 'altKey:', e.altKey)
-      if (e.button === 1 || (e.button === 0 && e.altKey)) {
-        startPan(e.clientX, e.clientY)
-        return
-      }
-
       if (e.button === 0 && !e.altKey) {
         const point = getCanvasPoint(e.clientX, e.clientY)
-        console.log('[DEBUG handleMouseDown] point:', point)
 
         if (isDrawingEnabled) {
-          console.log('[DEBUG handleMouseDown] calling addPoint')
           addPoint(point)
         } else {
           handleRouteClick(point)
@@ -136,30 +110,12 @@ export function UnifiedRouteCanvas({
         }
       }
     },
-    [startPan, getCanvasPoint, isDrawingEnabled, addPoint, handleRouteClick, activeRouteId, onRouteSelect]
+    [getCanvasPoint, isDrawingEnabled, addPoint, handleRouteClick, activeRouteId, onRouteSelect]
   )
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (isPanning) {
-        updatePan(e.clientX, e.clientY)
-      }
-    },
-    [isPanning, updatePan]
-  )
-
-  const handleMouseUp = useCallback(() => {
-    if (isPanning) {
-      endPan()
-    }
-  }, [isPanning, endPan])
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent<HTMLCanvasElement>) => {
-      if (e.touches.length === 2) {
-        startPinch(Array.from(e.touches) as unknown as TouchList)
-        return
-      }
+      if (e.touches.length > 1) return
 
       if (e.touches.length === 1) {
         const touch = e.touches[0]
@@ -172,77 +128,54 @@ export function UnifiedRouteCanvas({
         }
       }
     },
-    [startPinch, getCanvasPoint, isDrawingEnabled, addPoint, handleRouteClick]
+    [getCanvasPoint, isDrawingEnabled, addPoint, handleRouteClick]
   )
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent<HTMLCanvasElement>) => {
-      if (e.touches.length === 2) {
-        updatePinch(Array.from(e.touches) as unknown as TouchList)
-      }
+      if (e.touches.length > 1) return
     },
-    [updatePinch]
+    []
   )
 
-  const handleTouchEnd = useCallback(() => {
-    endPinch()
-  }, [endPinch])
-
-  const handleWheel = useCallback(
-    (e: React.WheelEvent<HTMLCanvasElement>) => {
-      e.preventDefault()
-      const canvas = canvasRef.current
-      if (!canvas) return
-
-      const rect = canvas.getBoundingClientRect()
-      const pointX = e.clientX - rect.left
-      const pointY = e.clientY - rect.top
-
-      zoomToPoint(e.deltaY, pointX, pointY)
-    },
-    [zoomToPoint]
-  )
+  const handleTouchEnd = useCallback(() => {}, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx || !finalDimensions) return
 
+    if (!imageElement || imageElement.naturalWidth === 0) return
+
+    const hRatio = finalDimensions.width / imageElement.naturalWidth
+    const vRatio = finalDimensions.height / imageElement.naturalHeight
+    const ratio = Math.min(hRatio, vRatio)
+
+    const drawWidth = imageElement.naturalWidth * ratio
+    const drawHeight = imageElement.naturalHeight * ratio
+    const centerX = (finalDimensions.width - drawWidth) / 2
+    const centerY = (finalDimensions.height - drawHeight) / 2
+
     const dpr = window.devicePixelRatio || 1
-    canvas.width = finalDimensions.width * dpr
-    canvas.height = finalDimensions.height * dpr
-    canvas.style.width = `${finalDimensions.width}px`
-    canvas.style.height = `${finalDimensions.height}px`
+    canvas.width = drawWidth * dpr
+    canvas.height = drawHeight * dpr
+    canvas.style.width = `${drawWidth}px`
+    canvas.style.height = `${drawHeight}px`
+    canvas.style.position = 'absolute'
+    canvas.style.left = `${centerX}px`
+    canvas.style.top = `${centerY}px`
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.save()
     ctx.scale(dpr, dpr)
 
-    ctx.translate(zoomTransformRef.current.x, zoomTransformRef.current.y)
-    ctx.scale(zoomTransformRef.current.scale, zoomTransformRef.current.scale)
-
-    let imageRenderProps = { x: 0, y: 0, width: finalDimensions.width, height: finalDimensions.height }
-
-    if (imageElement && imageElement.naturalWidth > 0) {
-      const hRatio = finalDimensions.width / imageElement.naturalWidth
-      const vRatio = finalDimensions.height / imageElement.naturalHeight
-      const ratio = Math.min(hRatio, vRatio)
-
-      const drawWidth = imageElement.naturalWidth * ratio
-      const drawHeight = imageElement.naturalHeight * ratio
-      const centerX = (finalDimensions.width - drawWidth) / 2
-      const centerY = (finalDimensions.height - drawHeight) / 2
-
-      imageRenderProps = { x: centerX, y: centerY, width: drawWidth, height: drawHeight }
-
-      ctx.drawImage(imageElement, centerX, centerY, drawWidth, drawHeight)
-    }
+    ctx.drawImage(imageElement, 0, 0, drawWidth, drawHeight)
 
     const routeCanvasDimensions = {
-      width: imageRenderProps.width,
-      height: imageRenderProps.height,
-      offsetX: imageRenderProps.x,
-      offsetY: imageRenderProps.y,
+      width: drawWidth,
+      height: drawHeight,
+      centerX: 0,
+      centerY: 0,
     }
 
     drawRoutes(
@@ -252,15 +185,11 @@ export function UnifiedRouteCanvas({
       currentPoints,
       routeCanvasDimensions,
       mode,
-      interactionTool,
-      zoomTransformRef.current
+      interactionTool
     )
 
     ctx.restore()
   }, [
-    zoomTransform.x,
-    zoomTransform.y,
-    zoomTransform.scale,
     routes,
     activeRouteId,
     currentPoints,
@@ -276,12 +205,7 @@ export function UnifiedRouteCanvas({
     }
   }, [routes, onRoutesUpdate])
 
-  const cursorStyle =
-    isPanning || (isDrawingEnabled && currentPoints.length > 0)
-      ? 'grabbing'
-      : isDrawingEnabled
-        ? 'crosshair'
-        : 'default'
+  const cursorStyle = isDrawingEnabled && currentPoints.length > 0 ? 'crosshair' : 'default'
 
   return (
     <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${className}`}>
@@ -300,16 +224,14 @@ export function UnifiedRouteCanvas({
       <canvas
         ref={canvasRef}
         className="absolute inset-0 z-10"
-        style={{ cursor: cursorStyle }}
+        style={{ cursor: cursorStyle, touchAction: 'none' }}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onWheel={handleWheel}
       />
+
+      {selectedRouteId && mode === 'submit' && <RouteEditSidebar />}
     </div>
   )
 }
