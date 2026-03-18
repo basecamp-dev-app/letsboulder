@@ -1,1 +1,4 @@
-SELECT c.slug, c.country_code, c.country_id, co.name as country_name FROM crags c LEFT JOIN countries co ON c.country_id = co.id WHERE c.slug='test';
+SELECT rl.image_id, ci.url, ci.width, ci.height
+FROM route_lines rl
+JOIN crag_images ci ON ci.id = rl.image_id
+WHERE rl.climb_id = '4f8d4bed-731f-476e-bcbb-f2fb1d49cb2b';

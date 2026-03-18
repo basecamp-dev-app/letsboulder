@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useCallback, useState } from 'react'
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { useRouteStore } from '@/store/routeStore'
 import { useCanvasResize } from '@/hooks/useCanvasResize'
 import { usePanZoom } from '@/hooks/usePanZoom'
@@ -55,6 +55,24 @@ export function UnifiedRouteCanvas({
 
   const finalDimensions = dimensions
 
+  const imageBounds = useMemo(() => {
+    if (!imageElement || !finalDimensions) return null
+
+    const hRatio = finalDimensions.width / imageElement.naturalWidth
+    const vRatio = finalDimensions.height / imageElement.naturalHeight
+    const ratio = Math.min(hRatio, vRatio)
+
+    const width = imageElement.naturalWidth * ratio
+    const height = imageElement.naturalHeight * ratio
+
+    return {
+      width,
+      height,
+      offsetX: (finalDimensions.width - width) / 2,
+      offsetY: (finalDimensions.height - height) / 2,
+    }
+  }, [imageElement, finalDimensions])
+
   console.log('[DEBUG UnifiedRouteCanvas]', { 
     imageUrl: imageUrl?.substring(0, 50), 
     dimensions: finalDimensions, 
@@ -73,17 +91,25 @@ export function UnifiedRouteCanvas({
   const getCanvasPoint = useCallback(
     (clientX: number, clientY: number) => {
       const canvas = canvasRef.current
-      if (!canvas || !finalDimensions) return { x: 0, y: 0 }
+      if (!canvas || !imageBounds) return { x: 0, y: 0 }
 
       const rect = canvas.getBoundingClientRect()
-      const x = clientX - rect.left
-      const y = clientY - rect.top
+      const screenX = clientX - rect.left
+      const screenY = clientY - rect.top
 
-      console.log('[DEBUG getCanvasPoint] raw coords:', { x, y, canvasRect: { width: rect.width, height: rect.height }, finalDimensions, zoomTransform })
+      const logicalX = (screenX - zoomTransform.x) / zoomTransform.scale
+      const logicalY = (screenY - zoomTransform.y) / zoomTransform.scale
 
-      return toNormalizedCoords(x, y, finalDimensions.width, finalDimensions.height, zoomTransform)
+      return toNormalizedCoords(
+        logicalX,
+        logicalY,
+        imageBounds.width,
+        imageBounds.height,
+        imageBounds.offsetX,
+        imageBounds.offsetY
+      )
     },
-    [finalDimensions, zoomTransform]
+    [imageBounds, zoomTransform]
   )
 
   const handleMouseDown = useCallback(
