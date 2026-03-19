@@ -53,6 +53,17 @@ interface ImageAssetRow {
   height: number | null
 }
 
+type ResolvedImageRow = {
+  id: string
+  linked_image_id: string | null
+  url: string
+  width: number | null
+  height: number | null
+  created_at: string | null
+  crag_id: string
+  crags: CragRow | CragRow[] | null
+}
+
 interface RouteLineRow {
   id: string
   climb_id: string
@@ -138,21 +149,47 @@ async function getSupabase() {
   )
 }
 
-export const getImageByDisplayId = cache(async (displayImageId: string) => {
+async function resolveCragImageRow(displayImageId: string): Promise<ResolvedImageRow | null> {
   const supabase = await getSupabase()
+  const baseSelect = 'id, linked_image_id, url, width, height, created_at, crag_id, crags(id, slug, country_code, name)'
+
   const { data, error } = await supabase
     .from('crag_images')
-    .select('id, linked_image_id, url, width, height, created_at, crag_id, crags(id, slug, country_code, name)')
+    .select(baseSelect)
     .or(`id.eq.${displayImageId},linked_image_id.eq.${displayImageId}`)
     .order('created_at', { ascending: false })
 
   if (error) throw error
 
-  const rows = (data || []) as unknown as CragImageRow[]
-  if (rows.length === 0) return null
+  const rows = (data || []) as unknown as ResolvedImageRow[]
+  if (rows.length > 0) {
+    const exactDisplayMatch = rows.find((row) => getDisplayImageId(row) === displayImageId)
+    return exactDisplayMatch || rows[0] || null
+  }
 
-  const exactDisplayMatch = rows.find((row) => getDisplayImageId(row) === displayImageId)
-  const resolved = exactDisplayMatch || rows[0]
+  const { data: asset, error: assetError } = await supabase
+    .from('images')
+    .select('id')
+    .eq('id', displayImageId)
+    .maybeSingle()
+
+  if (assetError) throw assetError
+  if (!asset?.id) return null
+
+  const { data: fallbackRows, error: fallbackError } = await supabase
+    .from('crag_images')
+    .select(baseSelect)
+    .eq('linked_image_id', asset.id)
+    .order('created_at', { ascending: false })
+
+  if (fallbackError) throw fallbackError
+
+  return ((fallbackRows || []) as unknown as ResolvedImageRow[])[0] || null
+}
+
+export const getImageByDisplayId = cache(async (displayImageId: string) => {
+  const supabase = await getSupabase()
+  const resolved = await resolveCragImageRow(displayImageId)
   if (!resolved) return null
 
   const canonicalId = getDisplayImageId(resolved)
