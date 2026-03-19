@@ -1,11 +1,15 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
+import { usePathname, useRouter } from 'next/navigation'
+import type { Session } from '@supabase/supabase-js'
 import { useImageNavigation } from '@/app/[country]/[crag]/i/[imageId]/useImageNavigation'
 import type { ImageFirstPayload } from '@/app/[country]/[crag]/i/[imageId]/image-page-server'
 import { UnifiedRouteCanvas } from '@/components/UnifiedRouteCanvas'
+import LightweightCragMap from '@/components/lightweight-crag-map'
 import { normalizePoints } from '@/lib/canvasMath'
+import { createClient } from '@/lib/supabase'
 import type { RouteLine, RoutePoint } from '@/types/domain'
 import ClimbInfoPanel from '@/app/climb/components/ClimbInfoPanel'
 
@@ -35,9 +39,14 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     navigationContext,
     initialClimbId,
     initialRouteId,
+    initialRouteSlug,
     countryCode,
     cragSlug,
   } = payload
+  const router = useRouter()
+  const pathname = usePathname()
+  const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
+  const [userPresent, setUserPresent] = useState(false)
 
   const {
     activeImageIndex,
@@ -56,12 +65,35 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     startIndex: navigationContext.startIndex,
     initialRoutes,
     initialRouteId,
+    initialRouteSlug,
     initialClimbId,
     countryCode,
     cragSlug,
     stacks: navigationContext.stacks,
     sectorMarkers: navigationContext.sectorMarkers,
   })
+
+  useEffect(() => {
+    const supabase = createClient()
+
+    const syncUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      setUserPresent(!!user)
+      setHasHydratedAuth(true)
+    }
+
+    void syncUser()
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
+      setUserPresent(!!session?.user)
+      setHasHydratedAuth(true)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   const selectedClimb = useMemo(() => {
     const activeRoute = initialRoutes.find((route) => route.routeId === activeRouteId)
@@ -83,6 +115,15 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const activeImageMeta = activeImageId
     ? navigationContext.imageMap[activeImageId] || heroImage
     : heroImage
+
+  const mapPins = useMemo(() => {
+    return payload.mapPins.map((pin, index) => ({
+      id: pin.imageId,
+      latitude: pin.latitude,
+      longitude: pin.longitude,
+      label: String(index + 1),
+    }))
+  }, [payload.mapPins])
 
   const routesForActiveImage = useMemo(() => {
     return initialRoutes
@@ -115,6 +156,10 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       })
       .filter((route) => route.points.length >= 2)
   }, [initialRoutes, activeImageMeta, activeImageId])
+
+  const handleGoToAuth = () => {
+    router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/${countryCode}/${cragSlug}/i/${heroImage.displayImageId}`)}`)
+  }
 
   const handleRouteSelect = (routeId: string | null) => {
     if (routeId) {
@@ -232,14 +277,14 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         pendingStarRating={null}
         savingFeedback={false}
         logging={false}
-        userPresent={false}
+        userPresent={hasHydratedAuth ? userPresent : true}
         gradeSystem={'font' as never}
         gradeOpinionLabels={{ soft: 'Soft', agree: 'Agree', hard: 'Hard' }}
         formatRouteTypeLabel={(value) => value}
         onOpenOffline={() => undefined}
         onOpenFlag={() => undefined}
         onShare={() => undefined}
-        onGoToAuth={() => undefined}
+        onGoToAuth={handleGoToAuth}
         onLog={() => undefined}
         onSetFeedbackCollapsed={() => undefined}
         onSetPendingGradeOpinion={() => undefined}
@@ -247,16 +292,32 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onSaveFeedback={() => undefined}
         onGoToLogbook={() => undefined}
         deferredSections={
-          !activeClimbId ? (
-            <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">
-                Overview
+          <>
+            {mapPins.length > 0 ? (
+              <LightweightCragMap
+                className="mt-4"
+                pins={mapPins}
+                activePinId={activeImageId}
+                onPinSelect={(imageId) => {
+                  const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
+                  if (nextIndex >= 0) {
+                    setActiveImageIndex(nextIndex)
+                  }
+                }}
+                heightClassName="min-h-[220px]"
+              />
+            ) : null}
+            {!activeClimbId ? (
+              <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                <div className="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">
+                  Overview
+                </div>
+                <p className="mt-2">
+                  Select a route line to view details, or keep swiping to explore this area.
+                </p>
               </div>
-              <p className="mt-2">
-                Select a route line to view details, or keep swiping to explore this area.
-              </p>
-            </div>
-          ) : null
+            ) : null}
+          </>
         }
       />
     </div>

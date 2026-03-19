@@ -3,7 +3,6 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import CragPageClient from '@/app/crag/components/CragPageClient'
 import { loadInitialCragRouteData } from '@/app/crag/components/crag-page-server'
 import type { Crag } from '@/app/crag/components/CragPageClient'
-import { loadPlaceCommunityData } from '@/features/community/server/load-place-community-data'
 
 export const revalidate = 300
 
@@ -75,7 +74,6 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
     })(),
   }
 
-  const communityData = await loadPlaceCommunityData(supabase, id)
   const initialRouteData = await loadInitialCragRouteData(supabase as never, id, {
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
@@ -89,10 +87,6 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
       initialRoutes={initialRouteData.initialRoutes}
       initialRoutePreviewByClimbId={initialRouteData.initialRoutePreviewByClimbId}
       initialCragCenter={initialRouteData.initialCragCenter}
-      communityPlaceId={communityData.placeId}
-      communityPlaceSlug={communityData.placeSlug}
-      initialSessionPosts={communityData.sessionPosts}
-      initialUpdatePosts={communityData.updatePosts}
     />
   )
 }

@@ -11,8 +11,8 @@ function isMobileDevice(): boolean {
   return navigator.maxTouchPoints > 0
 }
 
-export function useHitTesting() {
-  const { routes, activeRouteId, setActiveRoute, setSelectedRoute, interactionTool } = useRouteStore()
+export function useHitTesting(routes: RouteLine[]) {
+  const { activeRouteId, setActiveRoute, setSelectedRoute, interactionTool } = useRouteStore()
   const pathCache = useRef<Map<string, Path2D | null>>(new Map())
 
   const getPathForRoute = useCallback((route: RouteLine): Path2D | null => {

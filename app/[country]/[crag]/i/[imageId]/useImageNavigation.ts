@@ -11,6 +11,7 @@ export function useImageNavigation({
   startIndex,
   initialRoutes,
   initialRouteId,
+  initialRouteSlug,
   initialClimbId,
   countryCode,
   cragSlug,
@@ -21,6 +22,7 @@ export function useImageNavigation({
   startIndex: number
   initialRoutes: ImageFirstRouteLine[]
   initialRouteId?: string | null
+  initialRouteSlug?: string | null
   initialClimbId?: string | null
   countryCode: string
   cragSlug: string
@@ -49,9 +51,14 @@ export function useImageNavigation({
       return userSelectedRouteId
     }
 
-    const routeQueryId = searchParams.get('route') || initialRouteId
-    if (routeQueryId && initialRoutes.some((route) => route.routeId === routeQueryId)) {
-      return routeQueryId
+    const routeQuery = searchParams.get('route') || initialRouteSlug || initialRouteId
+    if (routeQuery) {
+      const slugMatch = initialRoutes.find((route) => route.climbSlug === routeQuery)
+      if (slugMatch) return slugMatch.routeId
+
+      if (initialRoutes.some((route) => route.routeId === routeQuery)) {
+        return routeQuery
+      }
     }
 
     const climbQueryId = searchParams.get('climb') || initialClimbId
@@ -61,7 +68,7 @@ export function useImageNavigation({
     }
 
     return initialRoutes[0]?.routeId || null
-  }, [activeImageId, initialClimbId, initialRouteId, initialRoutes, searchParams, userSelectedRouteId])
+  }, [activeImageId, initialClimbId, initialRouteId, initialRouteSlug, initialRoutes, searchParams, userSelectedRouteId])
 
   const activeClimbId = useMemo(() => {
     if (!activeRouteId) return null
@@ -107,13 +114,18 @@ export function useImageNavigation({
     params.delete('climb')
 
     if (activeRouteId) {
-      params.set('route', activeRouteId)
+      const activeRoute = initialRoutes.find((route) => route.routeId === activeRouteId)
+      if (activeRoute?.climbSlug) {
+        params.set('route', activeRoute.climbSlug)
+      } else {
+        params.set('route', activeRouteId)
+      }
     } else {
       params.delete('route')
     }
 
     router.replace(`${newPath}${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false })
-  }, [activeClimbId, activeImageId, activeRouteId, countryCode, cragSlug, pathname, router, searchParams])
+  }, [activeClimbId, activeImageId, activeRouteId, countryCode, cragSlug, initialRoutes, pathname, router, searchParams])
 
   return {
     activeImageIndex,

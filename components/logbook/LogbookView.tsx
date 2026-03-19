@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -78,7 +78,12 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
   const [publishingDraftId, setPublishingDraftId] = useState<string | null>(null)
   const [ownerSubmissionTab, setOwnerSubmissionTab] = useState<OwnerSubmissionsTab>('all')
+  const [isMounted, setIsMounted] = useState(false)
   const { toasts, addToast, removeToast } = useToast()
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const stats = useMemo(() => {
     if (logs.length === 0) return null
@@ -234,7 +239,7 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
+      {isMounted ? <ToastContainer toasts={toasts} onRemove={removeToast} /> : null}
 
       {isOwnProfile && profile && (
         <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">

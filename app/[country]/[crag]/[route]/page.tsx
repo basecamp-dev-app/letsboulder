@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/ssr'
-import ClimbPageClient from '@/app/climb/components/ClimbPageClient'
 import { SITE_URL } from '@/lib/site'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
 
@@ -200,6 +199,7 @@ export default async function RoutePage({ params }: { params: Promise<RouteParam
   if (!crag) notFound()
 
   if (!climb) notFound()
+  if (!best?.image_id) notFound()
 
   const routeName = (climb.name || '').trim() || 'Route'
   const grade = climb.grade
@@ -241,10 +241,6 @@ export default async function RoutePage({ params }: { params: Promise<RouteParam
     },
   }
 
-  return (
-    <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(routeSchema) }} />
-      <ClimbPageClient climbId={climb.id} />
-    </>
-  )
+  void routeSchema
+  redirect(`/${country.toLowerCase()}/${cragSlug}/i/${best.image_id}?route=${encodeURIComponent(routeSlug)}`)
 }

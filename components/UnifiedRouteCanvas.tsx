@@ -1,14 +1,17 @@
 'use client'
 
-import { useRef, useEffect, useCallback, useMemo } from 'react'
+import { forwardRef, useRef, useEffect, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useRouteStore } from '@/store/routeStore'
 import { useCanvasResize } from '@/hooks/useCanvasResize'
 import { usePanZoom } from '@/hooks/usePanZoom'
 import { useRouteDrawing } from '@/hooks/useRouteDrawing'
 import { useHitTesting } from '@/hooks/useHitTesting'
+import { getGradeSystemForClimbType, useGradePreferences } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
 import { drawRoutes } from '@/lib/routeRenderer'
 import { RouteEditSidebar } from '@/components/RouteEditSidebar'
 import type { CanvasMode, RouteLine } from '@/types/domain'
+import type { ClimbType } from '@/lib/submission-types'
 
 interface UnifiedRouteCanvasProps {
   mode: CanvasMode
@@ -19,32 +22,41 @@ interface UnifiedRouteCanvasProps {
   className?: string
 }
 
-export function UnifiedRouteCanvas({
+export interface UnifiedRouteCanvasRef {
+  finishRoute: () => void
+}
+
+export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRouteCanvasProps>(function UnifiedRouteCanvas({
   mode,
   imageUrl,
   routes: propRoutes,
   onRouteSelect,
   onRoutesUpdate,
   className = '',
-}: UnifiedRouteCanvasProps) {
+}, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const {
-    routes: storeRoutes,
-    setRoutes,
+    setActiveRoute,
     activeRouteId,
     currentPoints,
     interactionTool,
     selectedRouteId,
+    currentDrawing,
+    routeEditorDraft,
+    editorPanelOpen,
+    setEditorIntent,
+    setEditorPanelOpen,
+    setSelectedRoute,
+    commitCurrentRoute,
   } = useRouteStore()
+  const gradePreferences = useGradePreferences()
 
-  const routes = propRoutes || storeRoutes
-
-  useEffect(() => {
-    if (propRoutes) {
-      setRoutes(propRoutes)
-    }
-  }, [propRoutes, setRoutes])
+  const routes = useMemo(() => propRoutes || [], [propRoutes])
+  const selectedRoute = useMemo(
+    () => routes.find((route) => route.id === selectedRouteId),
+    [routes, selectedRouteId]
+  )
 
   const { containerRef, dimensions, imageElement, imageLoaded, imageError } = useCanvasResize(imageUrl)
 
@@ -75,7 +87,7 @@ export function UnifiedRouteCanvas({
 
   const { isDrawingEnabled, addPoint } = useRouteDrawing()
 
-  const { handleRouteClick } = useHitTesting()
+  const { handleRouteClick } = useHitTesting(routes)
 
   const getCanvasPoint = useCallback(
     (clientX: number, clientY: number) => {
@@ -140,6 +152,27 @@ export function UnifiedRouteCanvas({
 
   const handleTouchEnd = useCallback(() => {}, [])
 
+  const handleFinishRoute = useCallback(() => {
+    if (currentPoints.length < 2 || !onRoutesUpdate) return
+
+    const nextRoute: RouteLine = {
+      id: crypto.randomUUID(),
+      image_id: routes[0]?.image_id || 'draft-image',
+      climb_id: '',
+      points: [...currentPoints],
+      color: 'red',
+      sequence_order: routes.length,
+      created_at: 'draft-created',
+    }
+
+    onRoutesUpdate([...routes, nextRoute])
+    commitCurrentRoute()
+  }, [commitCurrentRoute, currentPoints, onRoutesUpdate, routes])
+
+  useImperativeHandle(ref, () => ({
+    finishRoute: handleFinishRoute,
+  }), [handleFinishRoute])
+
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
@@ -199,13 +232,59 @@ export function UnifiedRouteCanvas({
     imageElement
   ])
 
-  useEffect(() => {
-    if (onRoutesUpdate) {
-      onRoutesUpdate(routes)
-    }
-  }, [routes, onRoutesUpdate])
-
   const cursorStyle = isDrawingEnabled && currentPoints.length > 0 ? 'crosshair' : 'default'
+
+  const resolveClimbType = useCallback((climbType: string | null | undefined): ClimbType => {
+    if (climbType === 'sport' || climbType === 'boulder' || climbType === 'trad' || climbType === 'deep-water-solo') {
+      return climbType
+    }
+    return 'boulder'
+  }, [])
+
+  const overlayDraft = routeEditorDraft
+  const overlayDraftRouteId = routeEditorDraft?.routeId ?? null
+
+  const selectedRouteType = selectedRoute?.climb?.route_type
+  const drawingClimbType = currentDrawing?.climbType
+  const overlayClimbType = overlayDraft
+    ? resolveClimbType(overlayDraft.climbType)
+    : selectedRouteType
+      ? resolveClimbType(selectedRouteType)
+      : resolveClimbType(drawingClimbType)
+
+  const overlayGrade = overlayDraft?.grade || selectedRoute?.climb?.grade || currentDrawing?.grade || '6A'
+  const overlayName = overlayDraft?.name || selectedRoute?.climb?.name || currentDrawing?.name || 'Unnamed route'
+
+  const overlayGradeLabel = useMemo(() => {
+    const gradeSystem = getGradeSystemForClimbType(overlayClimbType, gradePreferences)
+    return formatGradeForDisplay(overlayGrade, gradeSystem)
+  }, [overlayGrade, overlayClimbType, gradePreferences])
+
+  const overlayClimbTypeLabel = useMemo(() => {
+    switch (overlayClimbType) {
+      case 'sport':
+        return 'Sport'
+      case 'trad':
+        return 'Trad'
+      case 'deep-water-solo':
+        return 'Deep Water Solo'
+      default:
+        return 'Boulder'
+    }
+  }, [overlayClimbType])
+
+  const showOverlay = mode !== 'browse' && (Boolean(selectedRouteId) || (isDrawingEnabled && currentPoints.length > 0))
+
+  const handleOverlayIntent = useCallback((intent: 'grade' | 'name' | 'type') => {
+    if (!selectedRouteId && overlayDraftRouteId) {
+      setActiveRoute(overlayDraftRouteId)
+    }
+    if (!selectedRouteId && overlayDraftRouteId) {
+      setSelectedRoute(overlayDraftRouteId)
+    }
+    setEditorPanelOpen(true)
+    setEditorIntent(intent)
+  }, [selectedRouteId, overlayDraftRouteId, setActiveRoute, setEditorIntent, setEditorPanelOpen, setSelectedRoute])
 
   return (
     <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${className}`}>
@@ -231,7 +310,37 @@ export function UnifiedRouteCanvas({
         onTouchEnd={handleTouchEnd}
       />
 
-      {selectedRouteId && mode === 'submit' && <RouteEditSidebar />}
+      {showOverlay ? (
+        <div className="pointer-events-auto absolute left-4 top-4 z-20 rounded-2xl border border-white/70 bg-black/65 px-4 py-3 text-white shadow-lg backdrop-blur-sm">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Current route</p>
+          <div className="mt-1 flex flex-wrap items-baseline gap-2">
+            <button
+              type="button"
+              onClick={() => handleOverlayIntent('name')}
+              className="max-w-[16rem] truncate text-left text-base font-semibold text-white transition hover:text-white/80"
+            >
+              {overlayName}
+            </button>
+            <span className="text-sm text-white/55">-</span>
+            <button
+              type="button"
+              onClick={() => handleOverlayIntent('grade')}
+              className="text-left text-lg font-semibold tabular-nums text-white transition hover:text-white/80"
+            >
+              {overlayGradeLabel}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOverlayIntent('type')}
+              className="text-left text-sm text-white/80 transition hover:text-white"
+            >
+              {overlayClimbTypeLabel}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {mode !== 'browse' && editorPanelOpen && <RouteEditSidebar />}
     </div>
   )
-}
+})

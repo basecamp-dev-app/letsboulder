@@ -181,6 +181,7 @@ export function getGradeSystemForClimbType(
     case 'boulder':
       return preferences.boulder
     case 'sport':
+    case 'deep-water-solo':
     case 'deep_water_solo':
       return preferences.route
     case 'trad':

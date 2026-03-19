@@ -7,7 +7,6 @@ import { loadInitialCragRouteData } from '@/app/crag/components/crag-page-server
 import type { Crag } from '@/app/crag/components/CragPageClient'
 import CragStructuredData from '@/app/crag/components/CragStructuredData'
 import type { BreadcrumbItem } from '@/app/crag/components/crag-page-types'
-import { loadPlaceCommunityData } from '@/features/community/server/load-place-community-data'
 
 export const revalidate = 60
 
@@ -202,7 +201,6 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
     ...(initialCrag.climbing_areas?.name ? [{ label: initialCrag.climbing_areas.name }] : []),
     { label: crag.name },
   ]
-  const communityData = await loadPlaceCommunityData(supabase, crag.id)
   const initialRouteData = await loadInitialCragRouteData(supabase as never, crag.id, {
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
@@ -222,10 +220,6 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
         initialRoutes={initialRouteData.initialRoutes}
         initialRoutePreviewByClimbId={initialRouteData.initialRoutePreviewByClimbId}
         initialCragCenter={initialRouteData.initialCragCenter}
-        communityPlaceId={communityData.placeId}
-        communityPlaceSlug={communityData.placeSlug}
-        initialSessionPosts={communityData.sessionPosts}
-        initialUpdatePosts={communityData.updatePosts}
       />
     </>
   )

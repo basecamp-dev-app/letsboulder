@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X } from 'lucide-react'
+import { Trash2, X } from 'lucide-react'
 import { useRouteStore } from '@/store/routeStore'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import GradePicker from '@/components/GradePicker'
+import { getGradeSystemForClimbType, useGradePreferences } from '@/hooks/useGradeSystem'
+import { formatGradeForDisplay } from '@/lib/grade-display'
+import type { ClimbType } from '@/lib/submission-types'
 
 const ROUTE_TYPES = [
   { value: 'sport', label: 'Sport' },
@@ -14,52 +17,89 @@ const ROUTE_TYPES = [
   { value: 'deep-water-solo', label: 'Deep Water Solo' },
 ]
 
+const DEFAULT_GRADE = '6A'
+
+function isClimbType(value: string | null | undefined): value is ClimbType {
+  return value === 'sport' || value === 'boulder' || value === 'trad' || value === 'deep-water-solo'
+}
+
 interface RouteEditSidebarProps {
   onClose?: () => void
 }
 
 export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
-  const { routes, selectedRouteId, setSelectedRoute, updateRoute } = useRouteStore()
-  const [isGradePickerOpen, setIsGradePickerOpen] = useState(false)
-  const [localName, setLocalName] = useState('')
-  const [localGrade, setLocalGrade] = useState('')
-  const [localRouteType, setLocalRouteType] = useState('boulder')
-  const [localDescription, setLocalDescription] = useState('')
+  const {
+    routes,
+    selectedRouteId,
+    routeEditorDraft,
+    editorIntent,
+    updateRoute,
+    deleteRoute,
+    setEditorDraft,
+    updateEditorDraft,
+    setEditorIntent,
+    setEditorPanelOpen,
+    setSelectedRoute,
+  } = useRouteStore()
+  const gradePreferences = useGradePreferences()
+  const selectedRoute = routes.find((r) => r.id === selectedRouteId)
+  const [gradePickerOpen, setGradePickerOpen] = useState(false)
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const initializedRef = useRef(false)
+  const nameInputRef = useRef<HTMLInputElement>(null)
+  const descriptionRef = useRef<HTMLTextAreaElement>(null)
+  const gradeButtonRef = useRef<HTMLButtonElement>(null)
+  const typeSelectRef = useRef<HTMLSelectElement>(null)
 
-  const selectedRoute = routes.find((r) => r.id === selectedRouteId)
+  const currentGrade = routeEditorDraft?.grade || selectedRoute?.climb?.grade || DEFAULT_GRADE
+  const currentClimbType = routeEditorDraft?.climbType || (isClimbType(selectedRoute?.climb?.route_type) ? selectedRoute.climb.route_type : 'boulder')
+  const name = routeEditorDraft?.name ?? selectedRoute?.climb?.name ?? ''
+  const description = routeEditorDraft?.description ?? selectedRoute?.climb?.description ?? ''
+
+  const getGradeDisplay = useCallback(
+    (grade: string | null | undefined, climbType: ClimbType = currentClimbType) => {
+      const gradeSystem = getGradeSystemForClimbType(climbType, gradePreferences)
+      return formatGradeForDisplay(grade, gradeSystem)
+    },
+    [currentClimbType, gradePreferences]
+  )
+
+  const formattedCurrentGrade = getGradeDisplay(currentGrade)
 
   useEffect(() => {
-    if (!selectedRoute) return
-    if (initializedRef.current) return
+    if (!selectedRouteId || !selectedRoute) return
+    if (routeEditorDraft?.routeId === selectedRouteId) return
 
-    initializedRef.current = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLocalName(selectedRoute.climb?.name || '')
-    setLocalGrade(selectedRoute.climb?.grade || '')
-    setLocalRouteType(selectedRoute.climb?.route_type || 'boulder')
-    setLocalDescription(selectedRoute.climb?.description || '')
-  }, [selectedRoute])
+    setEditorDraft({
+      routeId: selectedRouteId,
+      name: selectedRoute.climb?.name || '',
+      grade: selectedRoute.climb?.grade || DEFAULT_GRADE,
+      climbType: isClimbType(selectedRoute.climb?.route_type) ? selectedRoute.climb.route_type : 'boulder',
+      description: selectedRoute.climb?.description || '',
+    })
+  }, [selectedRouteId, selectedRoute, routeEditorDraft?.routeId, setEditorDraft])
+
+  const openGradePicker = useCallback(() => {
+    setGradePickerOpen(true)
+  }, [setGradePickerOpen])
 
   const saveChanges = useCallback(() => {
-    if (!selectedRouteId) return
+    if (!selectedRouteId || !routeEditorDraft || routeEditorDraft.routeId !== selectedRouteId) return
     updateRoute(selectedRouteId, {
       climb: {
         ...selectedRoute?.climb,
         id: selectedRoute?.climb?.id || '',
-        name: localName,
-        grade: localGrade,
-        route_type: localRouteType,
-        description: localDescription,
+        name: routeEditorDraft.name,
+        grade: routeEditorDraft.grade,
+        route_type: routeEditorDraft.climbType,
+        description: routeEditorDraft.description,
         status: selectedRoute?.climb?.status || 'pending',
       },
     } as Partial<(typeof routes)[0]>)
-  }, [selectedRouteId, selectedRoute, updateRoute, localName, localGrade, localRouteType, localDescription])
+  }, [selectedRouteId, selectedRoute, updateRoute, routeEditorDraft])
 
   useEffect(() => {
-    if (!selectedRouteId) return
+    if (!selectedRouteId || !routeEditorDraft || routeEditorDraft.routeId !== selectedRouteId) return
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
@@ -74,36 +114,76 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
         clearTimeout(saveTimeoutRef.current)
       }
     }
-  }, [localName, localGrade, localRouteType, localDescription, selectedRouteId, saveChanges])
+  }, [routeEditorDraft, selectedRouteId, saveChanges])
+
+  useEffect(() => {
+    if (!editorIntent) return
+
+    if (editorIntent === 'grade') {
+      setEditorPanelOpen(true)
+      queueMicrotask(openGradePicker)
+      gradeButtonRef.current?.focus()
+    }
+
+    if (editorIntent === 'name') {
+      nameInputRef.current?.focus()
+    }
+
+    if (editorIntent === 'type') {
+      typeSelectRef.current?.focus()
+    }
+
+    if (editorIntent === 'description') {
+      descriptionRef.current?.focus()
+    }
+
+    setEditorIntent(null)
+  }, [editorIntent, openGradePicker, setEditorIntent, setEditorPanelOpen])
 
   const handleClose = () => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
       saveChanges()
     }
-    setSelectedRoute(null)
+    setEditorPanelOpen(false)
+    setEditorIntent(null)
     onClose?.()
   }
 
   const handleGradeSelect = (newGrade: string) => {
-    setLocalGrade(newGrade)
+    updateEditorDraft({ grade: newGrade })
   }
 
-  if (!selectedRouteId || !selectedRoute) {
+  const handleDeleteRoute = () => {
+    if (!selectedRouteId) return
+    deleteRoute(selectedRouteId)
+    setEditorPanelOpen(false)
+    setEditorIntent(null)
+    setSelectedRoute(null)
+  }
+
+  if (!routeEditorDraft && !selectedRouteId) {
     return null
   }
 
   return (
     <>
-      <div className="fixed top-0 right-0 h-full w-[360px] bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-xl z-50 flex flex-col">
+      <div
+        className="fixed right-0 z-[5200] flex w-[360px] flex-col border-l border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+        style={{
+          top: 'var(--app-header-offset, 0px)',
+          height: 'calc(100dvh - var(--app-header-offset, 0px))',
+          maxHeight: 'calc(100dvh - var(--app-header-offset, 0px))',
+        }}
+      >
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Route</h2>
           <button
             onClick={handleClose}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className="rounded-lg border border-transparent p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
             aria-label="Close sidebar"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
@@ -113,9 +193,10 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
               Name
             </label>
             <Input
+              ref={nameInputRef}
               id="route-name"
-              value={localName}
-              onChange={(e) => setLocalName(e.target.value)}
+              value={name}
+              onChange={(e) => updateEditorDraft({ name: e.target.value })}
               placeholder="Enter route name"
               className="w-full"
             />
@@ -126,11 +207,12 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
               Grade
             </label>
             <button
+              ref={gradeButtonRef}
               id="route-grade"
-              onClick={() => setIsGradePickerOpen(true)}
+              onClick={openGradePicker}
               className="w-full px-3 py-2 text-left border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
-              {localGrade || 'Select grade'}
+              {formattedCurrentGrade}
             </button>
           </div>
 
@@ -139,9 +221,14 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
               Type
             </label>
             <select
+              ref={typeSelectRef}
               id="route-type"
-              value={localRouteType}
-              onChange={(e) => setLocalRouteType(e.target.value)}
+              value={currentClimbType}
+              onChange={(e) => {
+                if (isClimbType(e.target.value)) {
+                  updateEditorDraft({ climbType: e.target.value })
+                }
+              }}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {ROUTE_TYPES.map((type) => (
@@ -157,24 +244,36 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
               Description
             </label>
             <textarea
+              ref={descriptionRef}
               id="route-description"
-              value={localDescription}
-              onChange={(e) => setLocalDescription(e.target.value)}
+              value={description}
+              onChange={(e) => updateEditorDraft({ description: e.target.value })}
               placeholder="Add a description..."
               rows={4}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
           </div>
+
+          <button
+            type="button"
+            onClick={handleDeleteRoute}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/30"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Route
+          </button>
         </div>
       </div>
 
-      <Dialog open={isGradePickerOpen} onOpenChange={setIsGradePickerOpen}>
+      <Dialog open={gradePickerOpen} onOpenChange={setGradePickerOpen}>
         <DialogContent className="sm:max-w-md">
+          <DialogTitle className="sr-only">Select route grade</DialogTitle>
           <GradePicker
-            isOpen={isGradePickerOpen}
-            onClose={() => setIsGradePickerOpen(false)}
+            isOpen={gradePickerOpen}
+            onClose={() => setGradePickerOpen(false)}
             onSelect={handleGradeSelect}
-            currentGrade={localGrade}
+            currentGrade={currentGrade}
+            climbType={currentClimbType}
             mode="select"
           />
         </DialogContent>

@@ -31,7 +31,7 @@ interface SortableThumbProps {
   onRemove: (id: string) => void
 }
 
-function SortableThumb({ image, index, removing, onRemove }: SortableThumbProps) {
+function SortableThumb({ image, removing, onRemove }: Omit<SortableThumbProps, 'index'>) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: image.id, disabled: removing })
 
   return (
@@ -55,11 +55,6 @@ function SortableThumb({ image, index, removing, onRemove }: SortableThumbProps)
       >
         {removing ? '...' : 'X'}
       </button>
-      {index === 0 && (
-        <div className="absolute left-1 top-1 z-20 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white">
-          Primary
-        </div>
-      )}
       <NextImage src={image.uploadedUrl} alt="Selected" fill unoptimized sizes="96px" className="object-cover" />
     </div>
   )
@@ -384,20 +379,19 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
             Upload multiple photos together when they belong to the same area, boulder, or photo stack.
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            All photos here map to one pin. Use a separate submission for a different area or a boulder that is far away.
+            Keep each draft focused on a single crag. Start a separate draft for a different crag.
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Drag to reorder. The first image is used as the default drawing canvas.
+            Drag to reorder for convenience. In Draft Editor, you can draw routes on any photo.
           </p>
           <div className="overflow-x-auto">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
               <SortableContext items={images.map((img) => img.id)} strategy={horizontalListSortingStrategy}>
                 <div className="flex gap-2 pb-1">
-                  {images.map((image, index) => (
+                  {images.map((image) => (
                     <SortableThumb
                       key={image.id}
                       image={image}
-                      index={index}
                       removing={removingImageId === image.id}
                       onRemove={(id) => {
                         void handleRemove(id)

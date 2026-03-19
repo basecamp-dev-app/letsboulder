@@ -201,12 +201,12 @@ export default function DraftIntakeView() {
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Start a new draft</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Start a new draft.</h1>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Upload photos first, then continue in Draft Editor to review the suggested crag, draw routes, invite collaborators, and publish.
+            Upload your photos to begin. In the Draft Editor, you&apos;ll be able to review the suggested crag, draw routes on any photo, and publish when ready.
           </p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Upload all photos for one crag in the same draft. Each photo keeps its original GPS, nearby photos can group into shared map pins, and if a photo is within 150m of an existing crag we will try to preselect it for you.
+            Upload all photos for a single crag together. Every photo preserves its original GPS location.
           </p>
         </div>
 
@@ -216,7 +216,7 @@ export default function DraftIntakeView() {
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{selectedLabel}</p>
           {selectedGps ? (
             <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">
-              Location loaded from the first uploaded photo with GPS. We will use it to suggest a nearby crag if one exists.
+              GPS detected from your upload set. We&apos;ll use nearby photo locations to suggest a crag when possible.
             </p>
           ) : null}
           {nearbyCragMatch ? (

@@ -7,11 +7,25 @@ import type {
   DrawingRoute,
   InteractionTool,
 } from '@/types/domain'
+import type { ClimbType } from '@/lib/submission-types'
+
+interface RouteEditorDraft {
+  routeId: string | null
+  name: string
+  grade: string
+  climbType: ClimbType
+  description: string
+}
+
+type EditorIntent = 'grade' | 'name' | 'type' | 'description' | null
 
 interface HistoryEntry {
   routes: RouteLine[]
   currentPoints: RoutePoint[]
   currentDrawing: DrawingRoute | null
+  routeEditorDraft: RouteEditorDraft | null
+  editorIntent: EditorIntent
+  editorPanelOpen: boolean
 }
 
 interface RouteState {
@@ -23,6 +37,9 @@ interface RouteState {
   zoomTransform: ZoomTransform
   currentPoints: RoutePoint[]
   currentDrawing: DrawingRoute | null
+  routeEditorDraft: RouteEditorDraft | null
+  editorIntent: EditorIntent
+  editorPanelOpen: boolean
 
   past: HistoryEntry[]
   future: HistoryEntry[]
@@ -43,6 +60,11 @@ interface RouteState {
   commitCurrentRoute: () => void
   setCurrentDrawing: (drawing: DrawingRoute | null) => void
   updateCurrentDrawing: (updates: Partial<DrawingRoute>) => void
+  setEditorDraft: (draft: RouteEditorDraft | null) => void
+  updateEditorDraft: (updates: Partial<RouteEditorDraft>) => void
+  setEditorIntent: (intent: EditorIntent) => void
+  setEditorPanelOpen: (open: boolean) => void
+  clearCanvasState: () => void
   commitToHistory: () => void
   undo: () => void
   redo: () => void
@@ -62,6 +84,9 @@ const initialState = {
   zoomTransform: { x: 0, y: 0, scale: 1 } as ZoomTransform,
   currentPoints: [] as RoutePoint[],
   currentDrawing: null as DrawingRoute | null,
+  routeEditorDraft: null as RouteEditorDraft | null,
+  editorIntent: null as EditorIntent,
+  editorPanelOpen: false,
   past: [] as HistoryEntry[],
   future: [] as HistoryEntry[],
 }
@@ -72,25 +97,54 @@ const getHistoryEntry = (state: RouteState): HistoryEntry => ({
   currentDrawing: state.currentDrawing
     ? { ...state.currentDrawing, points: [...state.currentDrawing.points] }
     : null,
+  routeEditorDraft: state.routeEditorDraft ? { ...state.routeEditorDraft } : null,
+  editorIntent: state.editorIntent,
+  editorPanelOpen: state.editorPanelOpen,
 })
+
+const areRoutePointsEqual = (left: RoutePoint[], right: RoutePoint[]) => (
+  left.length === right.length && left.every((point, index) => {
+    const other = right[index]
+    return point.x === other?.x && point.y === other?.y
+  })
+)
+
+const areRoutesEqual = (left: RouteLine[], right: RouteLine[]) => (
+  left.length === right.length && left.every((route, index) => {
+    const other = right[index]
+    return route.id === other?.id
+      && route.image_id === other.image_id
+      && route.climb_id === other.climb_id
+      && route.color === other.color
+      && route.sequence_order === other.sequence_order
+      && route.image_width === other.image_width
+      && route.image_height === other.image_height
+      && areRoutePointsEqual(route.points, other.points)
+  })
+)
 
 export const useRouteStore = create<RouteState>()((set, get) => ({
   ...initialState,
 
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => set((state) => state.mode === mode ? state : { mode }),
 
-  setInteractionTool: (tool) => set({ interactionTool: tool }),
+  setInteractionTool: (tool) => set((state) => state.interactionTool === tool ? state : { interactionTool: tool }),
 
   setActiveRoute: (id) => set({ activeRouteId: id }),
 
-  setSelectedRoute: (id) => set({ selectedRouteId: id }),
+  setSelectedRoute: (id) => set((state) => ({
+    selectedRouteId: id,
+    routeEditorDraft: id && state.routeEditorDraft?.routeId === id ? state.routeEditorDraft : id ? null : null,
+    editorIntent: null,
+    editorPanelOpen: id ? true : state.editorPanelOpen,
+  })),
 
   updateZoomTransform: (transform) =>
     set((state) => ({
       zoomTransform: { ...state.zoomTransform, ...transform },
     })),
 
-  setRoutes: (routes) => set({ routes }),
+  setRoutes: (routes) => set((state) => (areRoutesEqual(state.routes, routes) ? state : { routes })),
 
   addRoute: (route) =>
     set((state) => ({
@@ -109,6 +163,9 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
       routes: state.routes.filter((r) => r.id !== id),
       activeRouteId: state.activeRouteId === id ? null : state.activeRouteId,
       selectedRouteId: state.selectedRouteId === id ? null : state.selectedRouteId,
+      routeEditorDraft: state.selectedRouteId === id ? null : state.routeEditorDraft,
+      editorIntent: state.selectedRouteId === id ? null : state.editorIntent,
+      editorPanelOpen: state.selectedRouteId === id ? false : state.editorPanelOpen,
     })),
 
   setCurrentPoints: (points) => set({ currentPoints: points }),
@@ -130,18 +187,7 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
     const state = get()
     if (state.currentPoints.length < 2) return
 
-    const newRoute: RouteLine = {
-      id: `route-${Date.now()}`,
-      image_id: '',
-      climb_id: `climb-${Date.now()}`,
-      points: [...state.currentPoints],
-      color: '#dc2626',
-      sequence_order: state.routes.length,
-      created_at: new Date().toISOString(),
-    }
-
-    set((s) => ({
-      routes: [...s.routes, newRoute],
+    set(() => ({
       currentPoints: [],
     }))
   },
@@ -154,6 +200,35 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
         ? { ...state.currentDrawing, ...updates }
         : null,
     })),
+
+  setEditorDraft: (draft) => set({ routeEditorDraft: draft }),
+
+  updateEditorDraft: (updates) =>
+    set((state) => ({
+      routeEditorDraft: state.routeEditorDraft
+        ? { ...state.routeEditorDraft, ...updates }
+        : null,
+    })),
+
+  setEditorIntent: (intent) => set({ editorIntent: intent }),
+
+  setEditorPanelOpen: (open) => set({ editorPanelOpen: open }),
+
+  clearCanvasState: () => set((state) => ({
+    routes: [],
+    activeRouteId: null,
+    selectedRouteId: null,
+    currentPoints: [],
+    currentDrawing: null,
+    routeEditorDraft: null,
+    editorIntent: null,
+    editorPanelOpen: false,
+    past: [],
+    future: [],
+    mode: state.mode,
+    interactionTool: state.interactionTool,
+    zoomTransform: state.zoomTransform,
+  })),
 
   commitToHistory: () => {
     const state = get()
@@ -177,6 +252,9 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
       routes: previous.routes,
       currentPoints: previous.currentPoints,
       currentDrawing: previous.currentDrawing,
+      routeEditorDraft: previous.routeEditorDraft,
+      editorIntent: previous.editorIntent,
+      editorPanelOpen: previous.editorPanelOpen,
     })
   },
 
@@ -193,6 +271,9 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
       routes: next.routes,
       currentPoints: next.currentPoints,
       currentDrawing: next.currentDrawing,
+      routeEditorDraft: next.routeEditorDraft,
+      editorIntent: next.editorIntent,
+      editorPanelOpen: next.editorPanelOpen,
     })
   },
 
