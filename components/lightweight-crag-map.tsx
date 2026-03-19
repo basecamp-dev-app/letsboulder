@@ -22,14 +22,14 @@ export interface LightweightCragMapPin {
 function pinVisualStyles(active: boolean, tone: 'draft' | 'published') {
   if (active) {
     return {
-      background: tone === 'published' ? '#c084fc' : '#0f766e',
+      background: tone === 'published' ? '#ffd700' : '#ff8c00',
       border: '#fef3c7',
-      shadow: '0 0 0 4px rgba(20,184,166,0.22), 0 10px 24px rgba(15,23,42,0.36)',
+      shadow: '0 0 0 4px rgba(251,191,36,0.32), 0 12px 28px rgba(15,23,42,0.42)',
       size: 34,
       fontSize: 12,
-      scale: 'scale(1.12)',
+      scale: 'scale(1.2)',
       opacity: '1',
-      ring: '<span style="position:absolute;inset:-6px;border-radius:9999px;border:2px solid rgba(45,212,191,0.55);animation:lightweight-map-pulse 1.8s ease-out infinite;"></span>',
+      ring: '<span style="position:absolute;inset:-6px;border-radius:9999px;border:2px solid rgba(251,191,36,0.7);animation:lightweight-map-pulse 1.8s ease-out infinite;"></span>',
     }
   }
 
@@ -71,12 +71,21 @@ interface LightweightCragMapProps {
   heightClassName?: string
 }
 
-function normalizePins(pins: LightweightCragMapPin[]) {
+function normalizePins(pins: LightweightCragMapPin[], activePinId: string | null) {
   const collapsed = new Map<string, LightweightCragMapPin>()
 
   pins.forEach((pin, index) => {
     const key = `${pin.latitude}:${pin.longitude}`
-    if (collapsed.has(key)) return
+    const existing = collapsed.get(key)
+    if (existing) {
+      if (activePinId && pin.id === activePinId) {
+        collapsed.set(key, {
+          ...pin,
+          label: pin.label || existing.label || String(index + 1),
+        })
+      }
+      return
+    }
     collapsed.set(key, {
       ...pin,
       label: pin.label || String(index + 1),
@@ -111,7 +120,7 @@ export default function LightweightCragMap({
     }
     return pins
   }, [draftPins, pins, publishedPins])
-  const normalizedPins = useMemo(() => normalizePins(resolvedPins), [resolvedPins])
+  const normalizedPins = useMemo(() => normalizePins(resolvedPins, activePinId), [activePinId, resolvedPins])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -199,6 +208,7 @@ export default function LightweightCragMap({
               <Marker
                 key={pin.id}
                 position={[pin.latitude, pin.longitude]}
+                zIndexOffset={active ? 9999 : tone === 'draft' ? 600 : 200}
                 icon={leafletLib?.divIcon({
                   className: active ? 'lightweight-crag-map-pin lightweight-crag-map-pin-active' : 'lightweight-crag-map-pin',
                   html: `<div style="position:relative;width:${visual.size}px;height:${visual.size}px;">${visual.ring}<div style="background:${visual.background};width:${visual.size}px;height:${visual.size}px;border-radius:9999px;display:flex;align-items:center;justify-content:center;color:white;font-size:${visual.fontSize}px;font-weight:700;border:2px solid ${visual.border};box-shadow:${visual.shadow};transform:${visual.scale};opacity:${visual.opacity};">${pin.label || index + 1}</div></div>`,

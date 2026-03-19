@@ -20,7 +20,8 @@ interface DraftCreateImageInput {
 }
 
 function normalizeCreateImages(value: unknown): DraftCreateImageInput[] | null {
-  if (!Array.isArray(value) || value.length === 0) return null
+  if (value == null) return []
+  if (!Array.isArray(value)) return null
 
   const images: DraftCreateImageInput[] = []
   for (const item of value) {
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     const images = normalizeCreateImages(body?.images)
     if (!images) {
-      return NextResponse.json({ error: 'images must be a non-empty array' }, { status: 400 })
+      return NextResponse.json({ error: 'images must be an array when provided' }, { status: 400 })
     }
 
     for (const image of images) {
@@ -93,38 +94,40 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const uploadSignature = buildUploadSignature(images)
+    const uploadSignature = images.length > 0 ? buildUploadSignature(images) : null
     const metadataBase = body?.metadata && typeof body.metadata === 'object' ? body.metadata : {}
     const metadata = {
       ...metadataBase,
-      uploadSignature,
+      ...(uploadSignature ? { uploadSignature } : {}),
     }
 
-    const { data: existingDraft, error: existingDraftError } = await supabase
-      .from('submission_drafts')
-      .select('id, user_id, crag_id, status, metadata, created_at, updated_at')
-      .eq('user_id', userId)
-      .eq('status', 'draft')
-      .contains('metadata', { uploadSignature })
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    if (uploadSignature) {
+      const { data: existingDraft, error: existingDraftError } = await supabase
+        .from('submission_drafts')
+        .select('id, user_id, crag_id, status, metadata, created_at, updated_at')
+        .eq('user_id', userId)
+        .eq('status', 'draft')
+        .contains('metadata', { uploadSignature })
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-    if (!existingDraftError && existingDraft) {
-      const { data: existingImages, error: existingImagesError } = await supabase
-        .from('submission_draft_images')
-        .select('id, display_order')
-        .eq('draft_id', existingDraft.id)
-        .order('display_order', { ascending: true })
+      if (!existingDraftError && existingDraft) {
+        const { data: existingImages, error: existingImagesError } = await supabase
+          .from('submission_draft_images')
+          .select('id, display_order')
+          .eq('draft_id', existingDraft.id)
+          .order('display_order', { ascending: true })
 
-      if (!existingImagesError) {
-        return NextResponse.json({
-          success: true,
-          draft: {
-            ...existingDraft,
-            images: existingImages || [],
-          },
-        })
+        if (!existingImagesError) {
+          return NextResponse.json({
+            success: true,
+            draft: {
+              ...existingDraft,
+              images: existingImages || [],
+            },
+          })
+        }
       }
     }
 
@@ -157,6 +160,10 @@ export async function POST(request: NextRequest) {
       height: image.height ?? null,
       route_data: {},
     }))
+
+    if (imageRows.length === 0) {
+      return NextResponse.json({ success: true, draft: { ...draft, images: [] } })
+    }
 
     const { data: createdImages, error: imagesError } = await supabase
       .from('submission_draft_images')

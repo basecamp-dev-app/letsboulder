@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
+import NextImage from 'next/image'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown, Link2, Loader2, MapPin, Search, Trash2, Users } from 'lucide-react'
@@ -21,7 +22,7 @@ import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
-import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
+import { useDraftUploadManager } from '@/lib/draft-upload-manager'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirection } from '@/lib/draft-metadata'
@@ -95,15 +96,6 @@ interface DraftConflictResponse {
   }
 }
 
-interface DraftAppendImagesResponse {
-  success: boolean
-  draft: {
-    updated_at: string
-    appended_image_ids?: string[]
-    images?: DraftImagePayload[]
-  } | null
-}
-
 interface DraftDeleteImageResponse {
   success: boolean
   deleted_image_id?: string
@@ -146,6 +138,9 @@ interface ManageImageTab {
   signedUrl: string
   latitude: number | null
   longitude: number | null
+  status?: 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
+  error?: string | null
+  pendingClientId?: string | null
 }
 
 interface PublishedCragImagePin {
@@ -391,6 +386,7 @@ export default function EditDraftPage() {
   const { setMode, setInteractionTool, reset, clearCanvasState, selectedRouteId, setSelectedRoute, setActiveRoute, setEditorPanelOpen, currentPoints, interactionTool, undoLastPoint } = useRouteStore()
   const gradePreferences = useGradePreferences()
   const editorGradeSystem = getGradeSystemForClimbType(routeType, gradePreferences)
+  const { uploads, hasPendingUploads, hasFailedUploads, retryUpload, removeUpload, registerDraftUpdatedAt, queueDraftUploads, resumeQueue, isQueuePaused } = useDraftUploadManager()
 
   const [searchingLocation, setSearchingLocation] = useState(false)
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
@@ -490,6 +486,7 @@ export default function EditDraftPage() {
 
       setDraft(nextDraft)
       setDraftUpdatedAt(nextDraft.updated_at)
+      registerDraftUpdatedAt(nextDraft.id, nextDraft.updated_at)
       setConflict(null)
       setManageImages(nextManageImages)
       setDefaultImageId(nextDefaultImageId)
@@ -536,12 +533,15 @@ export default function EditDraftPage() {
         setIsOwner(payload.isOwner)
       }
     } catch (loadError) {
+      if (loadError instanceof DOMException ? loadError.name === 'AbortError' : loadError instanceof Error && loadError.name === 'AbortError') {
+        return
+      }
       const message = loadError instanceof Error ? loadError.message : 'Failed to load draft'
       setError(message)
     } finally {
       setLoading(false)
     }
-  }, [draftId])
+  }, [draftId, registerDraftUpdatedAt])
 
   useEffect(() => {
     void loadDraft()
@@ -652,10 +652,76 @@ export default function EditDraftPage() {
     hasShownCollabToastRef.current = true
   }, [collaborationAdded, addToast])
 
+  const pendingDraftUploads = useMemo(() => draftId ? uploads.filter((upload) => upload.draftId === draftId) : [], [draftId, uploads])
+
+  const queuePaused = useMemo(() => isQueuePaused(draftId || undefined), [draftId, isQueuePaused])
+
+  const mergedManageImages = useMemo(() => {
+    const pendingTabs: ManageImageTab[] = pendingDraftUploads
+      .filter((upload) => !upload.attachedDraftImageId)
+      .map((upload, index) => ({
+        imageId: upload.clientId,
+        index: manageImages.length + index,
+        label: upload.status === 'FAILED'
+          ? `Failed: ${upload.fileName}`
+          : upload.status === 'UPLOADING'
+            ? `Uploading ${upload.progress}%: ${upload.fileName}`
+            : upload.status === 'PREPROCESSING'
+              ? `Preparing: ${upload.fileName}`
+              : `Waiting: ${upload.fileName}`,
+        signedUrl: upload.previewUrl,
+        latitude: upload.gpsData?.latitude ?? null,
+        longitude: upload.gpsData?.longitude ?? null,
+        status: upload.status,
+        error: upload.error,
+        pendingClientId: upload.clientId,
+      }))
+
+    return [...manageImages, ...pendingTabs].sort((a, b) => a.index - b.index)
+  }, [manageImages, pendingDraftUploads])
+
+  useEffect(() => {
+    if (!draftId || activeImageId) return
+    const firstReadyUpload = pendingDraftUploads.find((upload) => upload.status === 'SUCCESS' && upload.attachedDraftImageId) || null
+    if (!firstReadyUpload?.attachedDraftImageId) return
+    void loadDraft().then(() => {
+      setActiveImageId((current) => current || firstReadyUpload.attachedDraftImageId)
+      setDefaultImageId((current) => current || firstReadyUpload.attachedDraftImageId)
+    })
+  }, [activeImageId, draftId, loadDraft, pendingDraftUploads])
+
+  const lastLoadedSuccessRef = useRef<string | null>(null)
+  const abortedSuccessReloadRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    const newestSuccessfulUpload = pendingDraftUploads.find((upload) => upload.status === 'SUCCESS' && upload.attachedDraftImageId) || null
+    const successKey = newestSuccessfulUpload?.attachedDraftImageId || null
+    if (!successKey || successKey === lastLoadedSuccessRef.current) return
+    lastLoadedSuccessRef.current = successKey
+    void loadDraft().catch((error: unknown) => {
+      const isAbortError = error instanceof DOMException
+        ? error.name === 'AbortError'
+        : error instanceof Error && error.name === 'AbortError'
+      if (isAbortError) {
+        abortedSuccessReloadRef.current = successKey
+      }
+    })
+  }, [loadDraft, pendingDraftUploads])
+
+  useEffect(() => {
+    const successKey = abortedSuccessReloadRef.current
+    if (!successKey || loading) return
+    abortedSuccessReloadRef.current = null
+    const timer = window.setTimeout(() => {
+      void loadDraft()
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [loadDraft, loading, pendingDraftUploads])
+
   const activeImageTab = useMemo(() => {
     if (!activeImageId) return null
-    return manageImages.find((image) => image.imageId === activeImageId) || null
-  }, [activeImageId, manageImages])
+    return mergedManageImages.find((image) => image.imageId === activeImageId) || null
+  }, [activeImageId, mergedManageImages])
   const activeDraftImageId = activeImageTab?.imageId || null
 
   const activeRoutes = useMemo(() => {
@@ -694,11 +760,13 @@ export default function EditDraftPage() {
     }
   }, [activeImageTab])
 
+  const activeImageReady = Boolean(activeImageTab?.signedUrl) && activeImageTab?.status !== 'FAILED'
+
   const hasValidLocation = markerPosition !== null
   const defaultImageTab = useMemo(() => {
     if (!defaultImageId) return null
-    return manageImages.find((image) => image.imageId === defaultImageId) || null
-  }, [defaultImageId, manageImages])
+    return mergedManageImages.find((image) => image.imageId === defaultImageId) || null
+  }, [defaultImageId, mergedManageImages])
   const defaultImageRoutes = useMemo(() => {
     if (!defaultImageId) return []
     return routesByImageId[defaultImageId] || []
@@ -706,6 +774,14 @@ export default function EditDraftPage() {
 
   const publishValidationMessage = useMemo(() => {
     const missingItems: string[] = []
+
+    if (draftId && hasPendingUploads(draftId)) {
+      missingItems.push('wait for photo uploads to finish')
+    }
+
+    if (draftId && hasFailedUploads(draftId)) {
+      missingItems.push('retry or delete failed photo uploads')
+    }
 
     if (!cragId) {
       missingItems.push('select a crag')
@@ -722,18 +798,19 @@ export default function EditDraftPage() {
     return missingItems.length > 0
       ? `Before publishing, ${missingItems.join(', ')}.`
       : null
-  }, [cragId, defaultImageRoutes.length, defaultImageTab, hasValidLocation])
+  }, [cragId, defaultImageRoutes.length, defaultImageTab, draftId, hasFailedUploads, hasPendingUploads, hasValidLocation])
 
   const quickSwitcherImages = useMemo(() => {
-    return manageImages
+    return mergedManageImages
       .slice()
       .sort((a, b) => a.index - b.index)
       .map((image: ManageImageTab) => ({
         ...image,
         badgeNumber: image.index + 1,
         isDefault: image.imageId === defaultImageId,
+        progress: image.pendingClientId ? (pendingDraftUploads.find((upload) => upload.clientId === image.pendingClientId)?.progress || 0) : undefined,
       }))
-  }, [defaultImageId, manageImages])
+  }, [defaultImageId, mergedManageImages, pendingDraftUploads])
 
   const draftMapPins = useMemo<LightweightCragMapPin[]>(() => {
     const seenCoordinateGroups = new Set<string>()
@@ -906,26 +983,12 @@ export default function EditDraftPage() {
     }, 0)
   }, [focusDrawingArea])
 
-  const getImageDimensions = useCallback((file: File): Promise<{ width: number; height: number }> => {
-    return new Promise((resolve) => {
-      const objectUrl = URL.createObjectURL(file)
-      const image = new window.Image()
-      image.onload = () => {
-        URL.revokeObjectURL(objectUrl)
-        resolve({ width: image.naturalWidth || 1200, height: image.naturalHeight || 1200 })
-      }
-      image.onerror = () => {
-        URL.revokeObjectURL(objectUrl)
-        resolve({ width: 1200, height: 1200 })
-      }
-      image.src = objectUrl
-    })
-  }, [])
-
   const handleAddImages = useCallback(async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0 || !draftId || !draftUpdatedAt || addingImages) return
 
-    const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'))
+    const files = Array.from(fileList)
+      .filter((file) => file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name))
+      .slice(0, 20)
     if (files.length === 0) {
       setError('Select at least one image file')
       return
@@ -936,73 +999,7 @@ export default function EditDraftPage() {
     setSuccess(null)
 
     try {
-      const uploadedImages: Array<{ storage_bucket: string; storage_path: string; width: number; height: number; route_data: Record<string, unknown> }> = []
-
-      for (const file of files) {
-        const uploadSession = await createMediaUploadSession({
-          purpose: 'draft_image',
-          contentType: file.type || 'image/jpeg',
-          fileName: file.name,
-          byteSize: file.size,
-          draftId,
-        })
-
-        try {
-          await uploadFileToMediaSession(uploadSession.uploadUrl, uploadSession.uploadHeaders, file)
-          await completeMediaUploadSession(uploadSession.imageId)
-        } catch (uploadError) {
-          await deleteMediaUploadSession(uploadSession.imageId).catch(() => null)
-          throw uploadError instanceof Error ? uploadError : new Error('Failed to upload image')
-        }
-
-        const dimensions = await getImageDimensions(file)
-        uploadedImages.push({
-          storage_bucket: uploadSession.bucket,
-          storage_path: uploadSession.objectKey,
-          width: dimensions.width,
-          height: dimensions.height,
-          route_data: {},
-        })
-      }
-
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/images`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          images: uploadedImages,
-          expected_updated_at: draftUpdatedAt,
-        }),
-      })
-
-      const payload = await response.json().catch(() => ({} as DraftAppendImagesResponse & DraftConflictResponse & { error?: string }))
-
-      if (!response.ok) {
-        if (response.status === 409 && (payload as DraftConflictResponse).code === 'draft_conflict') {
-          const conflictPayload = payload as DraftConflictResponse
-          setConflict({
-            serverUpdatedAt: conflictPayload.current_updated_at,
-            lastEditorName: conflictPayload.current_data?.last_updated_by_display_name || 'Another collaborator',
-            pendingChanges: {
-              images: [],
-              metadata: {},
-              cragId,
-            },
-          })
-          return
-        }
-
-        throw new Error((payload as { error?: string }).error || 'Failed to add images')
-      }
-
-      const appendedIds = payload.draft?.appended_image_ids || []
-      const newestImageId = appendedIds[appendedIds.length - 1] || null
-      await loadDraft()
-      if (newestImageId) {
-        setActiveImageId(newestImageId)
-      }
-      if (payload.draft?.updated_at) {
-        setDraftUpdatedAt(payload.draft.updated_at)
-      }
+      queueDraftUploads(files, draftId)
       setSuccess(`Added ${files.length} image${files.length === 1 ? '' : 's'} to draft`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add images')
@@ -1012,9 +1009,22 @@ export default function EditDraftPage() {
         addImageInputRef.current.value = ''
       }
     }
-  }, [addingImages, cragId, draftId, draftUpdatedAt, getImageDimensions, loadDraft])
+  }, [addingImages, draftId, draftUpdatedAt, queueDraftUploads])
 
   const handleRemoveImage = useCallback(async (imageId: string) => {
+    const pendingUpload = pendingDraftUploads.find((upload) => upload.clientId === imageId) || null
+    if (pendingUpload) {
+      setError(null)
+      setSuccess(null)
+      await removeUpload(pendingUpload.clientId)
+      if (activeImageId === pendingUpload.clientId) {
+        const fallbackImageId = mergedManageImages.find((image) => image.imageId !== pendingUpload.clientId)?.imageId || null
+        setActiveImageId(fallbackImageId)
+      }
+      setSuccess('Image removed from draft')
+      return
+    }
+
     if (!draft || !draftUpdatedAt || removingImageId) return
     if (draft.images.length <= 1) {
       setError('A draft must keep at least one image')
@@ -1085,7 +1095,7 @@ export default function EditDraftPage() {
     } finally {
       setRemovingImageId(null)
     }
-  }, [activeImageId, cragId, defaultImageId, draft, draftUpdatedAt, loadDraft, removingImageId])
+  }, [activeImageId, cragId, defaultImageId, draft, draftUpdatedAt, loadDraft, mergedManageImages, pendingDraftUploads, removeUpload, removingImageId])
 
   const handleCreateInvite = useCallback(async () => {
     if (!draftId || creatingInvite || !isOwner) return
@@ -1638,7 +1648,7 @@ export default function EditDraftPage() {
                 <button
                   type="button"
                   onClick={() => { void publishDraft() }}
-                  disabled={publishingDraft || savingDraft || !!conflict}
+                  disabled={publishingDraft || savingDraft || !!conflict || Boolean(draftId && (hasPendingUploads(draftId) || hasFailedUploads(draftId)))}
                   className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
                 >
                   {publishingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -1704,6 +1714,101 @@ export default function EditDraftPage() {
         {success ? (
           <div className="mb-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
             {success}
+          </div>
+        ) : null}
+
+        {pendingDraftUploads.length > 0 ? (
+          <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Background uploads</h2>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Photos appear in the gallery as each upload finishes. Publishing stays locked until every upload is resolved.
+                </p>
+              </div>
+              {queuePaused ? (
+                <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                  Queue paused
+                </span>
+              ) : draftId && hasPendingUploads(draftId) ? (
+                <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+                  Uploading
+                </span>
+              ) : draftId && hasFailedUploads(draftId) ? (
+                <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                  Attention needed
+                </span>
+              ) : null}
+            </div>
+            {queuePaused ? (
+              <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                <span>The queue is paused on a failed upload. Retry or delete the blocked image to continue.</span>
+                <button
+                  type="button"
+                  onClick={resumeQueue}
+                  className="rounded-md border border-amber-300 px-2 py-1 font-medium hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/30"
+                >
+                  Resume
+                </button>
+              </div>
+            ) : null}
+            <div className="mt-3 space-y-2">
+              {pendingDraftUploads.filter((upload) => !upload.attachedDraftImageId).map((upload) => (
+                <div key={upload.clientId} className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
+                  <div className="relative h-12 w-12 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800">
+                    {upload.previewUrl ? (
+                      <NextImage src={upload.previewUrl} alt={upload.fileName} fill unoptimized sizes="48px" className="object-cover opacity-80" />
+                    ) : (
+                      <div className="h-full w-full animate-pulse bg-gray-200 dark:bg-gray-700" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{upload.fileName}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {upload.status === 'FAILED'
+                        ? upload.error || 'Upload failed'
+                        : upload.status === 'QUEUED'
+                          ? 'Waiting in queue'
+                          : upload.status === 'PREPROCESSING'
+                            ? 'Preparing image'
+                            : `Uploading ${upload.progress}%`}
+                    </p>
+                  </div>
+                  {upload.status === 'FAILED' ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => retryUpload(upload.clientId)}
+                        className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                      >
+                        Retry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { void removeUpload(upload.clientId) }}
+                        className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-20">
+                      {upload.status === 'UPLOADING' ? (
+                        <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700">
+                          <div className="h-2 rounded-full bg-blue-500 transition-all" style={{ width: `${upload.progress}%` }} />
+                        </div>
+                      ) : upload.status === 'PREPROCESSING' ? (
+                        <div className="h-2 rounded-full bg-gradient-to-r from-gray-300 via-gray-400 to-gray-300 dark:from-gray-700 dark:via-gray-500 dark:to-gray-700" />
+                      ) : (
+                        <div className="rounded-full bg-gray-100 px-2 py-1 text-center text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+                          Queued
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
 
@@ -1985,6 +2090,10 @@ export default function EditDraftPage() {
             quickSwitcherImages={quickSwitcherImages}
             activeImageId={activeImageId}
             activeImageUrl={(imageSelection as { imageUrl: string }).imageUrl}
+            activeImageReady={activeImageReady}
+            activeImageStatus={activeImageTab?.status}
+            onRetryActiveImage={activeImageTab?.status === 'FAILED' ? () => retryUpload(activeImageTab.imageId) : undefined}
+            onDeleteActiveImage={activeImageTab?.status === 'FAILED' ? () => { void handleRemoveImage(activeImageTab.imageId) } : undefined}
             draftPins={draftMapPins}
             publishedPins={publishedMapPins}
             initialCenter={markerPosition}
@@ -2014,6 +2123,7 @@ export default function EditDraftPage() {
               <button
                 type="button"
                 onClick={setActiveAsDefault}
+                disabled={!activeImageReady}
                 className="inline-flex h-9 items-center rounded-xl border border-blue-200 px-2 text-[11px] font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-950/30"
               >
                 Default

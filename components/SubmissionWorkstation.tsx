@@ -13,6 +13,9 @@ interface WorkstationImage {
   signedUrl: string
   badgeNumber: number
   isDefault?: boolean
+  status?: 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
+  error?: string | null
+  progress?: number
 }
 
 interface SubmissionWorkstationProps {
@@ -21,6 +24,10 @@ interface SubmissionWorkstationProps {
   quickSwitcherImages: WorkstationImage[]
   activeImageId: string | null
   activeImageUrl: string
+  activeImageReady?: boolean
+  activeImageStatus?: WorkstationImage['status']
+  onRetryActiveImage?: () => void
+  onDeleteActiveImage?: () => void
   draftPins?: LightweightCragMapPin[]
   publishedPins?: LightweightCragMapPin[]
   initialCenter?: [number, number] | null
@@ -49,6 +56,10 @@ export function SubmissionWorkstation({
   quickSwitcherImages,
   activeImageId,
   activeImageUrl,
+  activeImageReady = true,
+  activeImageStatus,
+  onRetryActiveImage,
+  onDeleteActiveImage,
   draftPins = [],
   publishedPins = [],
   initialCenter = null,
@@ -70,6 +81,14 @@ export function SubmissionWorkstation({
   canvasMode = 'edit-existing',
   onRoutesUpdate,
 }: SubmissionWorkstationProps) {
+  const activeStatusLabel = activeImageStatus === 'QUEUED'
+    ? 'Waiting in queue...'
+    : activeImageStatus === 'PREPROCESSING'
+      ? 'Compressing and preparing...'
+      : activeImageStatus === 'FAILED'
+        ? 'Upload failed.'
+        : 'Uploading...'
+
   return (
     <div ref={drawingAreaRef} className="mb-1 space-y-1">
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -103,7 +122,21 @@ export function SubmissionWorkstation({
                   <span className={`absolute left-1 top-1 z-10 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold ${isActive ? 'bg-blue-600 text-white' : 'bg-black/70 text-white'}`}>
                     {image.badgeNumber}
                   </span>
-                  <NextImage src={image.signedUrl} alt={`Quick switch image ${image.badgeNumber}`} fill unoptimized sizes="56px" className="object-cover" />
+                  {image.signedUrl ? (
+                    <NextImage src={image.signedUrl} alt={`Quick switch image ${image.badgeNumber}`} fill unoptimized sizes="56px" className="object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gray-200 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                      {image.status === 'FAILED'
+                        ? 'Failed'
+                        : image.status === 'QUEUED'
+                          ? 'Waiting'
+                          : image.status === 'PREPROCESSING'
+                            ? 'Preparing'
+                            : image.status === 'UPLOADING'
+                              ? `Up ${image.progress || 0}%`
+                              : 'Ready'}
+                    </div>
+                  )}
                 </div>
                 <div className={`mt-1 text-center text-[11px] font-medium ${isActive ? 'text-blue-700 dark:text-blue-200' : 'text-gray-600 dark:text-gray-300'}`}>
                   {image.isDefault ? `Default ${image.badgeNumber}` : `Image ${image.badgeNumber}`}
@@ -187,14 +220,42 @@ export function SubmissionWorkstation({
         </button>
       </div>
       <div className="h-[calc(100dvh-9.75rem)] rounded-t-lg overflow-hidden border border-gray-200 border-b-0 dark:border-gray-800 md:h-[calc(100vh-7.5rem)]">
-        <UnifiedRouteCanvas
-          ref={routeCanvasRef}
-          key={canvasKey}
-          mode={canvasMode}
-          imageUrl={activeImageUrl}
-          routes={existingRouteLines}
-          onRoutesUpdate={onRoutesUpdate}
-        />
+        {activeImageReady ? (
+          <UnifiedRouteCanvas
+            ref={routeCanvasRef}
+            key={canvasKey}
+            mode={canvasMode}
+            imageUrl={activeImageUrl}
+            routes={existingRouteLines}
+            onRoutesUpdate={onRoutesUpdate}
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-3 bg-gray-100 px-6 text-center text-sm text-gray-500 dark:bg-gray-900 dark:text-gray-300">
+            <div>{activeStatusLabel}</div>
+            {activeImageStatus === 'FAILED' ? (
+              <div className="flex items-center gap-2">
+                {onRetryActiveImage ? (
+                  <button
+                    type="button"
+                    onClick={onRetryActiveImage}
+                    className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                  >
+                    Retry
+                  </button>
+                ) : null}
+                {onDeleteActiveImage ? (
+                  <button
+                    type="button"
+                    onClick={onDeleteActiveImage}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                  >
+                    Delete
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        )}
       </div>
       <RouteEditorRail
         routes={existingRouteLines}
