@@ -34,6 +34,12 @@ export interface DraftMetadataV2 {
     contributionCreditPlatform: string | null
     contributionCreditHandle: string | null
     sectorId?: string | null
+    canvasSource?: {
+      kind: 'draft-image' | 'crag-image'
+      draftImageId?: string
+      cragImageId?: string
+      cragId?: string
+    } | null
   }
 }
 
@@ -79,6 +85,7 @@ export function normalizeDraftMetadata(
         contributionCreditPlatform: metadata.submission?.contributionCreditPlatform || null,
         contributionCreditHandle: metadata.submission?.contributionCreditHandle || null,
         sectorId: metadata.submission?.sectorId || null,
+        canvasSource: metadata.submission?.canvasSource || null,
       },
     }
   }
@@ -117,6 +124,7 @@ export function normalizeDraftMetadata(
       isAnonymousSubmission: legacy.isAnonymousSubmission === true,
       contributionCreditPlatform: legacy.contributionCreditPlatform || null,
       contributionCreditHandle: legacy.contributionCreditHandle || null,
+      canvasSource: null,
     },
   }
 }
@@ -135,6 +143,7 @@ export function serializeDraftMetadataV2(metadata: DraftMetadataV2): DraftMetada
       contributionCreditPlatform: metadata.submission.contributionCreditPlatform,
       contributionCreditHandle: metadata.submission.contributionCreditHandle,
       sectorId: metadata.submission.sectorId || null,
+      canvasSource: metadata.submission.canvasSource || null,
     },
   }
 }

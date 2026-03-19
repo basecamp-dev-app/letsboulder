@@ -1,0 +1,144 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { withCsrfProtection } from '@/lib/csrf-server'
+import { createErrorResponse } from '@/lib/errors'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
+
+interface AttachCragImageInput {
+  uploaded_image_id: string
+}
+
+interface UploadedImageRow {
+  id: string
+  created_by: string | null
+  storage_bucket: string | null
+  storage_path: string | null
+  width: number | null
+  height: number | null
+}
+
+function normalizeImages(value: unknown): AttachCragImageInput[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null
+
+  const normalized: AttachCragImageInput[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') return null
+    const candidate = item as Partial<AttachCragImageInput>
+    if (typeof candidate.uploaded_image_id !== 'string' || !candidate.uploaded_image_id) return null
+    normalized.push({ uploaded_image_id: candidate.uploaded_image_id })
+  }
+
+  return normalized
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const csrfResult = await withCsrfProtection(request)
+  if (!csrfResult.valid) return csrfResult.response!
+
+  const { id: cragId } = await params
+  if (!cragId) {
+    return NextResponse.json({ error: 'Crag ID is required' }, { status: 400 })
+  }
+
+  const cookies = request.cookies
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookies.getAll() },
+        setAll() {},
+      },
+    }
+  )
+
+  try {
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
+    if (authError || !userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
+    const body = await request.json().catch(() => null)
+    const images = normalizeImages(body?.images)
+    if (!images) {
+      return NextResponse.json({ error: 'images must be a non-empty array of uploaded_image_id values' }, { status: 400 })
+    }
+
+    const { data: existingCrag, error: cragError } = await supabase
+      .from('crags')
+      .select('id')
+      .eq('id', cragId)
+      .maybeSingle()
+
+    if (cragError) {
+      return createErrorResponse(cragError, 'Failed to validate crag')
+    }
+
+    if (!existingCrag) {
+      return NextResponse.json({ error: 'Crag not found' }, { status: 404 })
+    }
+
+    const uploadedImageIds = images.map((image) => image.uploaded_image_id)
+    const { data: uploadedRows, error: uploadedError } = await supabase
+      .from('images')
+      .select('id, created_by, storage_bucket, storage_path, width, height')
+      .in('id', uploadedImageIds)
+
+    if (uploadedError) {
+      return createErrorResponse(uploadedError, 'Failed to load uploaded images')
+    }
+
+    const uploadedById = new Map<string, UploadedImageRow>()
+    for (const row of (uploadedRows || []) as UploadedImageRow[]) {
+      uploadedById.set(row.id, row)
+    }
+
+    const insertRows = uploadedImageIds.map((imageId) => {
+      const uploaded = uploadedById.get(imageId)
+      if (!uploaded) {
+        throw new Error(`Uploaded image not found: ${imageId}`)
+      }
+
+      if (uploaded.created_by !== userId) {
+        throw new Error('Unauthorized uploaded image')
+      }
+
+      if (!uploaded.storage_bucket || !uploaded.storage_path) {
+        throw new Error('Uploaded image storage path is incomplete')
+      }
+
+      return {
+        crag_id: cragId,
+        url: `private://${uploaded.storage_bucket}/${uploaded.storage_path}`,
+        width: uploaded.width,
+        height: uploaded.height,
+        source_image_id: uploaded.id,
+        linked_image_id: uploaded.id,
+      }
+    })
+
+    const { data: insertedRows, error: insertError } = await supabase
+      .from('crag_images')
+      .insert(insertRows)
+      .select('id, crag_id, url, width, height, source_image_id, linked_image_id, created_at')
+
+    if (insertError) {
+      return createErrorResponse(insertError, 'Failed to attach crag images')
+    }
+
+    return NextResponse.json({ success: true, images: insertedRows || [] }, { status: 201 })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized uploaded image') {
+      return NextResponse.json({ error: 'Unauthorized uploaded image' }, { status: 403 })
+    }
+
+    if (error instanceof Error && error.message.startsWith('Uploaded image')) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    return createErrorResponse(error, 'Failed to attach crag images')
+  }
+}

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
-import { DraftUploadManagerProvider } from '@/lib/draft-upload-manager'
+import { MediaUploadManagerProvider } from '@/lib/media/media-upload-manager'
 import { SubmitProvider } from '@/lib/submit-context'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -43,13 +43,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SubmitProvider>
-      <DraftUploadManagerProvider>
+      <MediaUploadManagerProvider>
         {!hideHeader && <Header />}
         <main id="main-content" className="min-h-screen">
           {children}
         </main>
         {!hideFooter && <Footer />}
-      </DraftUploadManagerProvider>
+      </MediaUploadManagerProvider>
     </SubmitProvider>
   )
 }
