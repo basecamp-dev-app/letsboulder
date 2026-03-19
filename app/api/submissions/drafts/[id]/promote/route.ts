@@ -120,10 +120,6 @@ export async function POST(
         return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
       }
 
-      if (typeof error.message === 'string' && error.message.includes('Default image orientation is required before publishing')) {
-        return NextResponse.json({ error: 'Set an image orientation for the default image before publishing this draft' }, { status: 400 })
-      }
-
       if (typeof error.message === 'string' && error.message.includes('Default draft image must contain at least one route before publishing')) {
         return NextResponse.json({ error: 'Draw at least one route on the default image before publishing this draft' }, { status: 400 })
       }
@@ -132,6 +128,7 @@ export async function POST(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
+      console.error('RPC Promotion Error:', error)
       return createErrorResponse(error, 'Failed to publish draft')
     }
 

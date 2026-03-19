@@ -3,16 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import NextImage from 'next/image'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Link2, Loader2, MapPin, Plus, Search, Trash2, Users } from 'lucide-react'
+import { ChevronDown, Link2, Loader2, MapPin, Search, Trash2, Users } from 'lucide-react'
 import { useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import type { UserResponse } from '@supabase/supabase-js'
 import 'leaflet/dist/leaflet.css'
-import { UnifiedRouteCanvas } from '@/components/UnifiedRouteCanvas'
+import { type UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
+import { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
+import { SubmissionWorkstation } from '@/components/SubmissionWorkstation'
+import { getGradeSystemForClimbType, useGradePreferences } from '@/hooks/useGradeSystem'
 import { useRouteStore } from '@/store/routeStore'
-import { normalizePoints } from '@/lib/canvasMath'
 import CragSelector from '@/app/submit/components/CragSelector'
 import SectorSelector from '@/app/submit/components/SectorSelector'
 import AtlasContextCard from '@/components/submissions/atlas-context-card'
@@ -22,7 +23,7 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
-import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type NewRouteData, type RouteLine, type RoutePoint } from '@/lib/submission-types'
+import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirection } from '@/lib/draft-metadata'
 import { createClient } from '@/lib/supabase'
 
@@ -143,6 +144,14 @@ interface ManageImageTab {
   index: number
   label: string
   signedUrl: string
+  latitude: number | null
+  longitude: number | null
+}
+
+interface PublishedCragImagePin {
+  id: string
+  latitude: number
+  longitude: number
 }
 
 const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
@@ -198,8 +207,49 @@ function parseRoutesFromRouteData(routeData: Record<string, unknown> | null, fal
   return routes
 }
 
+function buildDraftImagesPayload(
+  images: DraftImagePayload[],
+  routesByImageId: Record<string, DraftRoute[]>,
+  routeType: string
+): DraftSavePayload['images'] {
+  return images
+    .slice()
+    .sort((a, b) => a.display_order - b.display_order)
+    .map((image, index) => {
+      const routes = routesByImageId[image.id] || []
+      const completedRoutes = routes.map((route, routeIndex) => ({
+        id: route.id,
+        name: route.name,
+        grade: route.grade,
+        description: route.description,
+        climbType: route.climbType || routeType,
+        points: route.points,
+        sequenceOrder: routeIndex,
+        imageWidth: route.imageWidth || image.width || 1200,
+        imageHeight: route.imageHeight || image.height || 1200,
+      }))
+
+      const baseRouteData = image.route_data && typeof image.route_data === 'object'
+        ? image.route_data
+        : {}
+
+      return {
+        id: image.id,
+        display_order: index,
+        route_data: {
+          ...baseRouteData,
+          completedRoutes,
+        },
+      }
+    })
+}
+
 function sortFaceDirections(directions: FaceDirection[]): FaceDirection[] {
   return [...directions].sort((a, b) => FACE_DIRECTIONS.indexOf(a) - FACE_DIRECTIONS.indexOf(b))
+}
+
+function coordinateKey(latitude: number, longitude: number) {
+  return `${latitude.toFixed(5)}:${longitude.toFixed(5)}`
 }
 
 function MapClickHandler({ onClick }: { onClick: (event: L.LeafletMouseEvent) => void }) {
@@ -323,25 +373,47 @@ export default function EditDraftPage() {
   const publishRequirementsRef = useRef<HTMLDivElement | null>(null)
   const cragSectionRef = useRef<HTMLDivElement | null>(null)
   const locationSectionRef = useRef<HTMLDivElement | null>(null)
+  const drawingAreaRef = useRef<HTMLDivElement | null>(null)
   const hasShownCollabToastRef = useRef(false)
   const autosaveTimeoutRef = useRef<number | null>(null)
   const hasLoadedRoutesRef = useRef(false)
   const lastPersistedRoutesRef = useRef('')
   const autosavePausedRef = useRef(false)
   const autosavePausedSnapshotRef = useRef('')
-  const initializedImageIdRef = useRef<string | null>(null)
+  const previousActiveImageIdRef = useRef<string | null>(null)
+  const routeCanvasRef = useRef<UnifiedRouteCanvasRef>(null)
+  const hasHydratedLocationRef = useRef(false)
+  const lastLocationSyncRef = useRef<string | null>(null)
   const [autosaveState, setAutosaveState] = useState<'idle' | 'pending' | 'saving' | 'syncing' | 'saved'>('idle')
   const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const { setRoutes, setMode, setInteractionTool, reset, addRoute, deleteRoute, updateRoute, activeRouteId, currentPoints, interactionTool, commitCurrentRoute, undoLastPoint } = useRouteStore()
+  const { setMode, setInteractionTool, reset, clearCanvasState, selectedRouteId, setSelectedRoute, setActiveRoute, setEditorPanelOpen, currentPoints, interactionTool, undoLastPoint } = useRouteStore()
+  const gradePreferences = useGradePreferences()
+  const editorGradeSystem = getGradeSystemForClimbType(routeType, gradePreferences)
 
-  console.log('[DEBUG DraftEditPage] currentPoints:', currentPoints.length, 'interactionTool:', interactionTool)
   const [searchingLocation, setSearchingLocation] = useState(false)
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
   const [mapOpen, setMapOpen] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
+  const [orientationOpen, setOrientationOpen] = useState(false)
+  const [publishedCragPins, setPublishedCragPins] = useState<PublishedCragImagePin[]>([])
   const atlasSync = useAtlasAutoSync(markerPosition?.[0] ?? null, markerPosition?.[1] ?? null)
+  const markerLatitude = markerPosition?.[0] ?? null
+  const markerLongitude = markerPosition?.[1] ?? null
+  const atlasCountryId = atlasSync.atlas?.countryId ?? null
+  const atlasCountryCode = atlasSync.atlas?.countryCode ?? null
+  const atlasCountryName = atlasSync.atlas?.countryName ?? null
+  const atlasAdminRegionName = atlasSync.atlas?.adminRegionName ?? null
+  const atlasUnRegionName = atlasSync.atlas?.unRegionName ?? null
+  const atlasContinentName = atlasSync.atlas?.continentName ?? null
+  const nearbyCragId = atlasSync.nearbyCrag?.id ?? null
+  const nearbyCragName = atlasSync.nearbyCrag?.name ?? null
+  const imagesPayload = useMemo(() => {
+    if (!draft) return []
+    return buildDraftImagesPayload(draft.images, routesByImageId, routeType)
+  }, [draft, routeType, routesByImageId])
+  const imagesPayloadSignature = useMemo(() => JSON.stringify(imagesPayload), [imagesPayload])
 
   const loadDraft = useCallback(async () => {
     if (!draftId) return
@@ -384,6 +456,8 @@ export default function EditDraftPage() {
           index,
           label: image.id === nextDefaultImageId ? `Default${directionsLabel}` : `Image ${index + 1}${directionsLabel}`,
           signedUrl: image.signed_url || '',
+          latitude: typeof image.latitude === 'number' ? image.latitude : null,
+          longitude: typeof image.longitude === 'number' ? image.longitude : null,
         }
       })
 
@@ -445,6 +519,19 @@ export default function EditDraftPage() {
       setCragId(nextDraft.crag_id)
       setSelectedCrag(nextCrag)
       setShowCragSelector(!nextDraft.crag_id)
+      hasHydratedLocationRef.current = false
+      const metadataLocationContext = normalizedMetadata.submission.location ?? null
+      lastLocationSyncRef.current = JSON.stringify({
+        latitude: typeof metadataLatitude === 'number' ? metadataLatitude : null,
+        longitude: typeof metadataLongitude === 'number' ? metadataLongitude : null,
+        countryId: metadataLocationContext?.countryId ?? null,
+        countryCode: metadataLocationContext?.countryCode ?? null,
+        countryName: metadataLocationContext?.countryName ?? null,
+        adminRegionName: metadataLocationContext?.adminRegionName ?? null,
+        unRegionName: metadataLocationContext?.unRegionName ?? null,
+        continentName: metadataLocationContext?.continentName ?? null,
+        cragId: nextDraft.crag_id,
+      })
       if (typeof payload.isOwner === 'boolean') {
         setIsOwner(payload.isOwner)
       }
@@ -459,6 +546,52 @@ export default function EditDraftPage() {
   useEffect(() => {
     void loadDraft()
   }, [loadDraft])
+
+  useEffect(() => {
+    if (!cragId) {
+      setPublishedCragPins([])
+      return
+    }
+
+    let cancelled = false
+
+    async function loadPublishedCragPins() {
+      try {
+        const response = await fetch(`/api/crags/${cragId}/images`, { cache: 'no-store' })
+        const payload = await response.json().catch(() => ({} as { images?: Array<{ id?: string; display_image_id?: string; latitude?: number | null; longitude?: number | null }> }))
+        if (!response.ok || !Array.isArray(payload.images)) {
+          if (!cancelled) setPublishedCragPins([])
+          return
+        }
+
+        const nextPins = payload.images
+          .map((image: { id?: string; display_image_id?: string; latitude?: number | null; longitude?: number | null }) => {
+            const latitude = typeof image.latitude === 'number' ? image.latitude : null
+            const longitude = typeof image.longitude === 'number' ? image.longitude : null
+            const id = typeof image.display_image_id === 'string' && image.display_image_id
+              ? image.display_image_id
+              : typeof image.id === 'string'
+                ? image.id
+                : null
+            if (!id || latitude === null || longitude === null) return null
+            return { id, latitude, longitude }
+          })
+          .filter((image: PublishedCragImagePin | null): image is PublishedCragImagePin => image !== null)
+
+        if (!cancelled) {
+          setPublishedCragPins(nextPins)
+        }
+      } catch {
+        if (!cancelled) setPublishedCragPins([])
+      }
+    }
+
+    void loadPublishedCragPins()
+
+    return () => {
+      cancelled = true
+    }
+  }, [cragId])
 
   useEffect(() => {
     const supabase = createClient()
@@ -540,7 +673,7 @@ export default function EditDraftPage() {
       sequence_order: route.sequenceOrder,
       image_width: route.imageWidth,
       image_height: route.imageHeight,
-      created_at: new Date().toISOString(),
+      created_at: 'draft-hydrated',
       climb: {
         id: route.id,
         name: route.name,
@@ -582,10 +715,6 @@ export default function EditDraftPage() {
       missingItems.push('add climb location')
     }
 
-    if (!defaultImageId || !orientationByImageId[defaultImageId]?.length) {
-      missingItems.push('set image orientation for the default image')
-    }
-
     if (!defaultImageTab || defaultImageRoutes.length === 0) {
       missingItems.push(`draw at least one route on ${defaultImageTab?.label || 'the default image'}`)
     }
@@ -593,7 +722,60 @@ export default function EditDraftPage() {
     return missingItems.length > 0
       ? `Before publishing, ${missingItems.join(', ')}.`
       : null
-  }, [cragId, defaultImageId, defaultImageRoutes.length, defaultImageTab, hasValidLocation, orientationByImageId])
+  }, [cragId, defaultImageRoutes.length, defaultImageTab, hasValidLocation])
+
+  const quickSwitcherImages = useMemo(() => {
+    return manageImages
+      .slice()
+      .sort((a, b) => a.index - b.index)
+      .map((image: ManageImageTab) => ({
+        ...image,
+        badgeNumber: image.index + 1,
+        isDefault: image.imageId === defaultImageId,
+      }))
+  }, [defaultImageId, manageImages])
+
+  const draftMapPins = useMemo<LightweightCragMapPin[]>(() => {
+    const seenCoordinateGroups = new Set<string>()
+    return quickSwitcherImages.reduce<LightweightCragMapPin[]>((acc, image) => {
+      if (typeof image.latitude !== 'number' || typeof image.longitude !== 'number') return acc
+      const key = coordinateKey(image.latitude, image.longitude)
+      if (seenCoordinateGroups.has(key)) return acc
+      seenCoordinateGroups.add(key)
+      acc.push({
+        id: image.imageId,
+        latitude: image.latitude,
+        longitude: image.longitude,
+        label: String(image.badgeNumber),
+        interactive: true,
+        tone: 'draft',
+      })
+      return acc
+    }, [])
+  }, [quickSwitcherImages])
+
+  const publishedMapPins = useMemo<LightweightCragMapPin[]>(() => {
+    const draftCoordinateKeys = new Set(
+      quickSwitcherImages
+        .filter((image: ManageImageTab & { badgeNumber: number; isDefault: boolean }) => typeof image.latitude === 'number' && typeof image.longitude === 'number')
+        .map((image: ManageImageTab & { badgeNumber: number; isDefault: boolean }) => coordinateKey(image.latitude as number, image.longitude as number))
+    )
+    const seenPublishedCoordinates = new Set<string>()
+
+    return publishedCragPins.reduce<LightweightCragMapPin[]>((acc, image) => {
+      const key = coordinateKey(image.latitude, image.longitude)
+      if (draftCoordinateKeys.has(key) || seenPublishedCoordinates.has(key)) return acc
+      seenPublishedCoordinates.add(key)
+      acc.push({
+        id: `published-${image.id}`,
+        latitude: image.latitude,
+        longitude: image.longitude,
+        interactive: false,
+        tone: 'published',
+      })
+      return acc
+    }, [])
+  }, [publishedCragPins, quickSwitcherImages])
 
   useEffect(() => {
     setMode('edit-existing')
@@ -604,163 +786,95 @@ export default function EditDraftPage() {
   }, [setMode, setInteractionTool, reset])
 
   useEffect(() => {
-    if (!activeImageId || !activeImageTab || !existingRouteLines) return
+    const previousActiveImageId = previousActiveImageIdRef.current
 
-    // Break the loop: If we already loaded routes for this image, STOP.
-    if (initializedImageIdRef.current === activeImageId) return
-
-    let isActive = true
-    const img = new window.Image()
-
-    img.onload = () => {
-      // If the effect was cleaned up (user switched images), abort.
-      if (!isActive) return
-
-      const normalizedRoutes = existingRouteLines.map((route) => ({
-        ...route,
-        points: normalizePoints(
-          route.points,
-          { width: img.width, height: img.height, naturalWidth: img.width, naturalHeight: img.height },
-          route.image_width,
-          route.image_height
-        ),
-      }))
-
-      setRoutes(normalizedRoutes)
-
-      // Lock the initialization for this image ID
-      initializedImageIdRef.current = activeImageId
+    if (previousActiveImageId && activeImageId && previousActiveImageId !== activeImageId) {
+      clearCanvasState()
     }
 
-    img.src = activeImageTab.signedUrl
-
-    // Cleanup function runs if dependencies change before onload fires
-    return () => {
-      isActive = false
-    }
-  }, [activeImageId, activeImageTab, existingRouteLines, setRoutes])
+    previousActiveImageIdRef.current = activeImageId
+  }, [activeImageId, clearCanvasState])
 
   useEffect(() => {
-    if (!draftId || !draftUpdatedAt || !atlasSync.atlas) return
+    if (!draft || loading) return
+    hasHydratedLocationRef.current = true
+  }, [draft, loading])
+
+  useEffect(() => {
+    if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !atlasSync.atlas || imagesPayload.length === 0) return
+
+    const latitudeValue = markerLatitude
+    const longitudeValue = markerLongitude
+    const nextCragId = cragId ?? nearbyCragId
+    const signature = JSON.stringify({
+      latitude: latitudeValue,
+      longitude: longitudeValue,
+      countryId: atlasCountryId,
+      countryCode: atlasCountryCode,
+      countryName: atlasCountryName,
+      adminRegionName: atlasAdminRegionName,
+      unRegionName: atlasUnRegionName,
+      continentName: atlasContinentName,
+      cragId: nextCragId,
+    })
+
+    if (signature === lastLocationSyncRef.current) return
 
     const timer = window.setTimeout(async () => {
+      lastLocationSyncRef.current = signature
+      const atlasForPatch = atlasSync.atlas
+
+      if (!atlasForPatch) {
+        lastLocationSyncRef.current = null
+        return
+      }
+
       const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           expected_updated_at: draftUpdatedAt,
+          images: imagesPayload,
           metadata: {
             submission: {
               location: {
-                latitude: markerPosition ? markerPosition[0] : null,
-                longitude: markerPosition ? markerPosition[1] : null,
-                countryId: atlasSync.atlas.countryId,
-                countryCode: atlasSync.atlas.countryCode,
-                countryName: atlasSync.atlas.countryName,
-                adminRegionName: atlasSync.atlas.adminRegionName,
-                unRegionName: atlasSync.atlas.unRegionName,
-                continentName: atlasSync.atlas.continentName,
+                latitude: latitudeValue,
+                longitude: longitudeValue,
+                countryId: atlasForPatch.countryId,
+                countryCode: atlasForPatch.countryCode,
+                countryName: atlasForPatch.countryName,
+                adminRegionName: atlasForPatch.adminRegionName,
+                unRegionName: atlasForPatch.unRegionName,
+                continentName: atlasForPatch.continentName,
               },
             },
           },
-          cragId: cragId ?? atlasSync.nearbyCrag?.id ?? null,
+          cragId: nextCragId,
         }),
       })
 
       const payload = await response.json().catch(() => ({}))
       if (response.ok && payload?.draft?.updated_at) {
         setDraftUpdatedAt(payload.draft.updated_at)
+      } else {
+        lastLocationSyncRef.current = null
       }
-      if (!cragId && atlasSync.nearbyCrag?.id) {
-        setCragId(atlasSync.nearbyCrag.id)
+      if (!cragId && nearbyCragId) {
+        setCragId(nearbyCragId)
         setSelectedCrag((current) => current || {
-          id: atlasSync.nearbyCrag?.id || '',
-          name: atlasSync.nearbyCrag?.name || 'Suggested crag',
-          latitude: markerPosition ? markerPosition[0] : 0,
-          longitude: markerPosition ? markerPosition[1] : 0,
+          id: nearbyCragId,
+          name: nearbyCragName || 'Suggested crag',
+          latitude: latitudeValue ?? 0,
+          longitude: longitudeValue ?? 0,
         })
       }
     }, 400)
 
     return () => window.clearTimeout(timer)
-  }, [atlasSync.atlas, atlasSync.nearbyCrag, cragId, draftId, draftUpdatedAt, markerPosition])
-
-  const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
-    if (!activeDraftImageId) return
-    setRoutesByImageId((prev) => {
-      const current = prev[activeDraftImageId] || []
-      const previousById = new Map(current.map((route) => [route.id, route]))
-      const mapped = routes.map((route, index) => {
-        const previous = previousById.get(route.id)
-        return {
-          id: route.id,
-          name: route.name,
-          grade: previous?.grade || '6A',
-          description: route.description,
-          climbType: previous?.climbType || routeType,
-          points: route.points,
-          sequenceOrder: index,
-          imageWidth: previous?.imageWidth || 1200,
-          imageHeight: previous?.imageHeight || 1200,
-        }
-      })
-
-      if (areDraftRoutesEqual(current, mapped)) return prev
-
-      return {
-        ...prev,
-        [activeDraftImageId]: mapped,
-      }
-    })
-  }, [activeDraftImageId, routeType])
-
-  const handleCreateRoutes = useCallback((newRoutes: NewRouteData[]) => {
-    if (!activeDraftImageId) return
-    if (newRoutes.length === 0) return
-    setRoutesByImageId((prev) => {
-      const current = prev[activeDraftImageId] || []
-      const appended = [
-        ...current,
-        ...newRoutes.map((route, index) => ({
-          id: route.id,
-          name: route.name,
-          grade: route.grade,
-          description: route.description,
-          climbType: route.climbType || routeType,
-          points: route.points,
-          sequenceOrder: current.length + index,
-          imageWidth: route.imageWidth,
-          imageHeight: route.imageHeight,
-        })),
-      ]
-
-      if (areDraftRoutesEqual(current, appended)) return prev
-
-      return {
-        ...prev,
-        [activeDraftImageId]: appended,
-      }
-    })
-    setSuccess(`Added ${newRoutes.length} new route${newRoutes.length === 1 ? '' : 's'} to this draft image.`)
-  }, [activeDraftImageId, routeType])
-
-  const handleDeleteRoute = useCallback(async (routeLineId: string) => {
-    if (!activeDraftImageId) return
-    setRoutesByImageId((prev) => {
-      const current = prev[activeDraftImageId] || []
-      const next = current
-        .filter((route) => route.id !== routeLineId)
-        .map((route, index) => ({ ...route, sequenceOrder: index }))
-
-      if (areDraftRoutesEqual(current, next)) return prev
-
-      return {
-        ...prev,
-        [activeDraftImageId]: next,
-      }
-    })
-    setSuccess('Route removed from draft image.')
-  }, [activeDraftImageId])
+  // draftUpdatedAt and atlasSync.atlas are intentionally read at execution time
+  // to avoid retriggering this sync effect after a successful PATCH.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atlasAdminRegionName, atlasContinentName, atlasCountryCode, atlasCountryId, atlasCountryName, atlasUnRegionName, cragId, draft, draftId, imagesPayload.length, imagesPayloadSignature, loading, markerLatitude, markerLongitude, nearbyCragId, nearbyCragName])
 
   const toggleImageOrientation = useCallback((direction: FaceDirection) => {
     if (!activeDraftImageId) return
@@ -780,6 +894,17 @@ export default function EditDraftPage() {
     if (!activeDraftImageId) return
     setDefaultImageId(activeDraftImageId)
   }, [activeDraftImageId])
+
+  const focusDrawingArea = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    drawingAreaRef.current?.scrollIntoView({ behavior, block: 'start' })
+  }, [])
+
+  const handleQuickSwitchImage = useCallback((imageId: string) => {
+    setActiveImageId(imageId)
+    window.setTimeout(() => {
+      focusDrawingArea('smooth')
+    }, 0)
+  }, [focusDrawingArea])
 
   const getImageDimensions = useCallback((file: File): Promise<{ width: number; height: number }> => {
     return new Promise((resolve) => {
@@ -1121,8 +1246,9 @@ export default function EditDraftPage() {
     }
   }, [searchQuery])
 
-  const saveDraft = useCallback(async (options?: { silent?: boolean }) => {
+  const saveDraft = useCallback(async (options?: { silent?: boolean; overrideRoutesByImageId?: Record<string, DraftRoute[]> }) => {
     const silent = options?.silent === true
+    const resolvedRoutesByImageId = options?.overrideRoutesByImageId ?? routesByImageId
     if (!draft || !draftUpdatedAt) return false
 
     if (autosaveTimeoutRef.current) {
@@ -1139,37 +1265,7 @@ export default function EditDraftPage() {
     }
 
     try {
-      const imagesPayload = draft.images
-        .slice()
-        .sort((a, b) => a.display_order - b.display_order)
-        .map((image, index) => {
-          const routes = routesByImageId[image.id] || []
-          const completedRoutes = routes.map((route, routeIndex) => ({
-            id: route.id,
-            name: route.name,
-            grade: route.grade,
-            description: route.description,
-            climbType: route.climbType || routeType,
-            points: route.points,
-            sequenceOrder: routeIndex,
-            imageWidth: route.imageWidth,
-            imageHeight: route.imageHeight,
-          }))
-
-          const baseRouteData = image.route_data && typeof image.route_data === 'object'
-            ? image.route_data
-            : {}
-
-          return {
-            id: image.id,
-            display_order: index,
-            route_data: {
-              ...baseRouteData,
-              completedRoutes,
-            },
-          }
-        })
-
+      const nextImagesPayload = buildDraftImagesPayload(draft.images, resolvedRoutesByImageId, routeType)
       const normalizedHandle = normalizeSubmissionCreditHandle(creditHandle)
       if (creditHandle.trim().length > 0 && !normalizedHandle) {
         throw new Error('Invalid credit handle format')
@@ -1180,7 +1276,7 @@ export default function EditDraftPage() {
             navigation: {
               defaultImageId,
             },
-            images: imagesPayload.reduce<Record<string, { imageId: string; displayOrder: number; orientation?: OrientationDirection[] }>>((acc, image) => {
+            images: nextImagesPayload.reduce<Record<string, { imageId: string; displayOrder: number; orientation?: OrientationDirection[] }>>((acc, image) => {
               acc[image.id] = {
                 imageId: image.id,
                 displayOrder: image.display_order,
@@ -1202,7 +1298,7 @@ export default function EditDraftPage() {
           })
 
           const savePayload: DraftSavePayload = {
-            images: imagesPayload,
+            images: nextImagesPayload,
             cragId,
             metadata: fullV2Metadata as unknown as Record<string, unknown>,
           }
@@ -1236,7 +1332,7 @@ export default function EditDraftPage() {
               if (!isSelfConflict) {
                 autosavePausedRef.current = true
               autosavePausedSnapshotRef.current = JSON.stringify({
-                routesByImageId,
+                routesByImageId: resolvedRoutesByImageId,
                 orientationByImageId,
                 latitude: markerPosition ? markerPosition[0] : null,
                 longitude: markerPosition ? markerPosition[1] : null,
@@ -1267,7 +1363,7 @@ export default function EditDraftPage() {
       } : prev)
       setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
       lastPersistedRoutesRef.current = JSON.stringify({
-        routesByImageId,
+        routesByImageId: resolvedRoutesByImageId,
         orientationByImageId,
         latitude: markerPosition ? markerPosition[0] : null,
         longitude: markerPosition ? markerPosition[1] : null,
@@ -1290,6 +1386,61 @@ export default function EditDraftPage() {
       setSavingDraft(false)
     }
   }, [cragId, creditHandle, creditPlatform, currentUserId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId])
+
+  const scheduleDraftPersist = useCallback((nextRoutesByImageId: Record<string, DraftRoute[]>) => {
+    if (autosaveTimeoutRef.current) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+    }
+
+    setAutosaveState('pending')
+    autosaveTimeoutRef.current = window.setTimeout(() => {
+      autosaveTimeoutRef.current = null
+      void saveDraft({ silent: true, overrideRoutesByImageId: nextRoutesByImageId })
+    }, 1000)
+  }, [saveDraft])
+
+  const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
+    if (!activeDraftImageId) return
+    setRoutesByImageId((prev) => {
+      const current = prev[activeDraftImageId] || []
+      const previousById = new Map(current.map((route) => [route.id, route]))
+      const mapped = routes.map((route, index) => {
+        const previous = previousById.get(route.id)
+        return {
+          id: route.id,
+          name: route.name,
+          grade: previous?.grade || '6A',
+          description: route.description,
+          climbType: previous?.climbType || routeType,
+          points: route.points,
+          sequenceOrder: index,
+          imageWidth: previous?.imageWidth || 1200,
+          imageHeight: previous?.imageHeight || 1200,
+        }
+      })
+
+      if (areDraftRoutesEqual(current, mapped)) return prev
+
+      const nextRoutesByImageId = {
+        ...prev,
+        [activeDraftImageId]: mapped,
+      }
+
+      scheduleDraftPersist(nextRoutesByImageId)
+      return nextRoutesByImageId
+    })
+  }, [activeDraftImageId, routeType, scheduleDraftPersist])
+
+  const handleCanvasRoutesUpdate = useCallback((routes: RouteLine[]) => {
+    const editableRoutes = routes.map((route) => ({
+      id: route.id,
+      name: route.climb?.name || 'Unnamed',
+      grade: route.climb?.grade || '6A',
+      description: route.climb?.description ?? undefined,
+      points: route.points,
+    }))
+    handleEditRoutesUpdate(editableRoutes)
+  }, [handleEditRoutesUpdate])
 
   const handleManualSave = useCallback(() => {
     if (autosaveTimeoutRef.current) {
@@ -1556,102 +1707,22 @@ export default function EditDraftPage() {
           </div>
         ) : null}
 
-        <div ref={cragSectionRef} className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Manage all images</h2>
-            <div className="flex items-center gap-2">
-              {activeImageTab ? (
-                <button
-                  type="button"
-                  onClick={setActiveAsDefault}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                >
-                  Set current as default
-                </button>
-              ) : null}
-              {activeImageTab ? (
-                <button
-                  type="button"
-                  onClick={() => { void handleRemoveImage(activeImageTab.imageId) }}
-                  disabled={removingImageId === activeImageTab.imageId || manageImages.length <= 1 || !!conflict}
-                  className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-                >
-                  {removingImageId === activeImageTab.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  Remove current image
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => addImageInputRef.current?.click()}
-                disabled={addingImages || !!conflict}
-                className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-              >
-                {addingImages ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                Add photo(s)
-              </button>
-            </div>
-          </div>
-          <input
-            ref={addImageInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={(event) => {
-                void handleAddImages(event.target.files)
-              }}
-            />
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {manageImages.map((image) => {
-              const isActive = image.imageId === activeImageId
-              const isDefault = image.imageId === defaultImageId
-              return (
-                <div
-                  key={image.imageId}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setActiveImageId(image.imageId)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      setActiveImageId(image.imageId)
-                    }
-                  }}
-                  className={`rounded-md border p-2 text-left text-xs font-medium transition-colors cursor-pointer ${
-                    isActive
-                      ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-200'
-                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  <div className="relative mb-1 h-16 w-full overflow-hidden rounded border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
-                    <NextImage src={image.signedUrl} alt={`Image ${image.index + 1}`} fill unoptimized sizes="160px" className="object-cover" />
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span>{isDefault ? `Default (${image.index + 1})` : `Image ${image.index + 1}`}</span>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void handleRemoveImage(image.imageId)
-                      }}
-                      disabled={removingImageId !== null || manageImages.length <= 1 || !!conflict}
-                      className="inline-flex items-center justify-center rounded p-1 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-red-300 dark:hover:bg-red-900/20"
-                      aria-label={`Remove image ${image.index + 1}`}
-                    >
-                      {removingImageId === image.imageId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <input
+          ref={addImageInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            void handleAddImages(event.target.files)
+          }}
+        />
 
-        <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+        <div className="mb-2 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <AtlasContextCard result={atlasSync} />
         </div>
 
-        <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+        <div className="mb-2 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-3 flex items-center gap-2">
             <MapPin className="h-4 w-4 text-gray-500" />
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Draft metadata</h2>
@@ -1770,7 +1841,7 @@ export default function EditDraftPage() {
                     ? 'bg-green-500 text-white hover:bg-green-600'
                     : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 }`}
-                onClick={() => commitCurrentRoute()}
+                onClick={() => routeCanvasRef.current?.finishRoute()}
                 disabled={currentPoints.length < 2}
               >
                 Finish Route
@@ -1871,99 +1942,91 @@ export default function EditDraftPage() {
           </div>
         </div>
 
-        <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Image orientation</h2>
-          <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Optional metadata for each image. All photos in this draft share the same climb location and nearby images can form a shared pin stack.</p>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-            {FACE_DIRECTIONS.map((direction) => {
-              const selected = activeImageTab ? (orientationByImageId[activeImageTab.imageId] || []).includes(direction) : false
-              return (
-                <button
-                  key={direction}
-                  type="button"
-                  onClick={() => toggleImageOrientation(direction)}
-                  className={`rounded-md border px-2 py-2 text-xs font-semibold transition ${
-                    selected
-                      ? 'border-blue-600 bg-blue-600 text-white'
-                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  {direction}
-                </button>
-              )
-            })}
-          </div>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Which way are you looking in this photo?</p>
+          <div className="mb-2 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+          <button
+            type="button"
+            onClick={() => setOrientationOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+            aria-expanded={orientationOpen}
+          >
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Set Orientation</h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional metadata for each image.</p>
+            </div>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${orientationOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {orientationOpen ? (
+            <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
+              {FACE_DIRECTIONS.map((direction) => {
+                const selected = activeImageTab ? (orientationByImageId[activeImageTab.imageId] || []).includes(direction) : false
+                return (
+                  <button
+                    key={direction}
+                    type="button"
+                    onClick={() => toggleImageOrientation(direction)}
+                    className={`rounded-md border px-2 py-2 text-xs font-semibold transition ${
+                      selected
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    {direction}
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
         </div>
 
         {imageSelection && 'imageUrl' in imageSelection ? (
-          <>
-            <div className="flex gap-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+          <SubmissionWorkstation
+            drawingAreaRef={drawingAreaRef}
+            routeCanvasRef={routeCanvasRef}
+            quickSwitcherImages={quickSwitcherImages}
+            activeImageId={activeImageId}
+            activeImageUrl={(imageSelection as { imageUrl: string }).imageUrl}
+            draftPins={draftMapPins}
+            publishedPins={publishedMapPins}
+            initialCenter={markerPosition}
+            onSelectImage={handleQuickSwitchImage}
+            existingRouteLines={existingRouteLines}
+            selectedRouteId={selectedRouteId}
+            gradeSystem={editorGradeSystem}
+            onSelectRoute={(routeId) => {
+              setSelectedRoute(routeId)
+              setActiveRoute(routeId)
+              setEditorPanelOpen(true)
+            }}
+            interactionTool={interactionTool === 'select' ? 'select' : 'draw'}
+            currentPointsCount={currentPoints.length}
+            onSetSelectTool={() => {
+              setInteractionTool('select')
+              setEditorPanelOpen(true)
+            }}
+            onSetDrawTool={() => {
+              setInteractionTool('draw')
+              setEditorPanelOpen(false)
+            }}
+            onUndoPoint={() => undoLastPoint()}
+            onFinishRoute={() => routeCanvasRef.current?.finishRoute()}
+            canvasKey={activeImageTab?.imageId || 'draft-canvas'}
+            extraAction={activeImageTab ? (
               <button
                 type="button"
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  interactionTool === 'select'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
-                }`}
-                onClick={() => setInteractionTool('select')}
+                onClick={setActiveAsDefault}
+                className="inline-flex h-9 items-center rounded-xl border border-blue-200 px-2 text-[11px] font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-950/30"
               >
-                Select/Edit
+                Default
               </button>
-              <button
-                type="button"
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  interactionTool === 'draw'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
-                }`}
-                onClick={() => setInteractionTool('draw')}
-              >
-                Draw Route
-              </button>
-              <button
-                type="button"
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  currentPoints.length > 0
-                    ? 'bg-orange-500 text-white hover:bg-orange-600'
-                    : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                }`}
-                onClick={() => undoLastPoint()}
-                disabled={currentPoints.length === 0}
-              >
-                Undo Point
-              </button>
-              <button
-                type="button"
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  currentPoints.length >= 2
-                    ? 'bg-green-500 text-white hover:bg-green-600'
-                    : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                }`}
-                onClick={() => commitCurrentRoute()}
-                disabled={currentPoints.length < 2}
-              >
-                Finish Route
-              </button>
-            </div>
-            <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
-              <UnifiedRouteCanvas
-              key={`${activeImageTab?.imageId || 'draft-canvas'}:${existingRouteLines.length}`}
-              mode="edit-existing"
-              imageUrl={(imageSelection as { imageUrl: string }).imageUrl}
-              onRoutesUpdate={(routes) => {
-                const editableRoutes = routes.map((route) => ({
-                  id: route.id,
-                  name: route.climb?.name || 'Unnamed',
-                  grade: route.climb?.grade || '6A',
-                  description: route.climb?.description ?? undefined,
-                  points: route.points,
-                }))
-                handleEditRoutesUpdate(editableRoutes)
-              }}
-            />
-            </div>
-          </>
+            ) : null}
+            addAction={{ loading: addingImages, disabled: !!conflict, onClick: () => addImageInputRef.current?.click() }}
+            removeAction={activeImageTab ? {
+              loading: removingImageId === activeImageTab.imageId,
+              disabled: quickSwitcherImages.length <= 1 || !!conflict,
+              onClick: () => { void handleRemoveImage(activeImageTab.imageId) },
+            } : undefined}
+            onRoutesUpdate={handleCanvasRoutesUpdate}
+          />
         ) : null}
 
         <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">

@@ -22,7 +22,7 @@ export default async function ImagePage({
     country,
     crag,
     imageId,
-    routeId: route || null,
+    routeSlug: route || null,
     climbId: climb || null,
   })
 

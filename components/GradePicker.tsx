@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { getGradeSystemForClimbType, useGradePreferences } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay, toWholeVGrade } from '@/lib/grade-display'
-import { PUBLIC_GRADES } from '@/lib/grades'
+import { PUBLIC_GRADES, type GradeSystem } from '@/lib/grades'
+import type { ClimbType } from '@/lib/submission-types'
 
 const FRENCH_GRADES = PUBLIC_GRADES
 
@@ -12,6 +13,8 @@ interface GradePickerProps {
   onClose: () => void
   onSelect: (grade: string) => void
   currentGrade?: string
+  climbType?: ClimbType | 'deep_water_solo'
+  gradeSystem?: GradeSystem
   userVote?: string | null
   consensusGrade?: string
   voteCount?: number
@@ -23,15 +26,22 @@ export default function GradePicker({
   onClose,
   onSelect,
   currentGrade,
+  climbType,
+  gradeSystem: gradeSystemProp,
   userVote,
   consensusGrade,
   voteCount = 0,
   mode = 'select'
 }: GradePickerProps) {
-  const gradeSystem = useGradeSystem()
+  const gradePreferences = useGradePreferences()
   const [search, setSearch] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const openedAtRef = useRef<number>(0)
+
+  const gradeSystem = useMemo(() => {
+    if (gradeSystemProp) return gradeSystemProp
+    return getGradeSystemForClimbType(climbType, gradePreferences)
+  }, [climbType, gradePreferences, gradeSystemProp])
 
   const gradeOptions = useMemo(() => {
     if (gradeSystem !== 'v_scale') {
@@ -131,7 +141,7 @@ export default function GradePicker({
             type="text"
             placeholder="Search grades..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value)}
             onKeyDown={handleKeyDown}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -195,7 +205,11 @@ export default function GradePicker({
             Cancel
           </button>
           <button
-            onClick={() => selectedGrade && handleSelect(selectedGrade)}
+            onClick={() => {
+              if (!selectedGrade) return
+              handleSelect(selectedGrade)
+              setSearch('')
+            }}
             disabled={!selectedGrade}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >

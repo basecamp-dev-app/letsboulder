@@ -4,6 +4,7 @@ interface SubmissionImageRow {
   id: string
   url: string
   created_at: string
+  submission_id?: string | null
   moderation_status?: string | null
   is_anonymous_submission: boolean | null
   contribution_credit_platform: string | null
@@ -49,9 +50,11 @@ function pickRouteLinesCount(value: SubmissionImageRow['route_lines']): number {
 
 function resolveGroupKey(
   imageId: string,
+  submissionId: string | null | undefined,
   linkedImageToSourceMap: Map<string, string>,
   sourceImageIds: Set<string>
 ): string {
+  if (typeof submissionId === 'string' && submissionId) return submissionId
   const sourceImageId = linkedImageToSourceMap.get(imageId)
   if (sourceImageId) return sourceImageId
   if (sourceImageIds.has(imageId)) return imageId
@@ -85,13 +88,15 @@ export function groupSubmittedImages(
   const grouped = new Map<string, SubmissionGroupAggregate>()
 
   for (const row of rows) {
-    const groupKey = resolveGroupKey(row.id, linkedImageToSourceMap, sourceImageIds)
+    const groupKey = resolveGroupKey(row.id, row.submission_id, linkedImageToSourceMap, sourceImageIds)
     const existing = grouped.get(groupKey)
     const routeLinesCount = pickRouteLinesCount(row.route_lines)
     const cragName = pickCragName(row.crags)
 
     if (!existing) {
-      const canonical = rowByImageId.get(groupKey) || row
+      const canonical = row.submission_id
+        ? rows.find((candidate) => candidate.submission_id === row.submission_id && candidate.id === row.id) || row
+        : rowByImageId.get(groupKey) || row
       grouped.set(groupKey, {
         id: groupKey,
         canonical_image_id: canonical.id,

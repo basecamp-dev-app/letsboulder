@@ -1318,6 +1318,7 @@ export type Database = {
           storage_bucket: string | null
           storage_path: string | null
           storage_provider: string
+          submission_id: string | null
           un_region_name: string | null
           url: string
           variants: Json
@@ -1371,6 +1372,7 @@ export type Database = {
           storage_bucket?: string | null
           storage_path?: string | null
           storage_provider?: string
+          submission_id?: string | null
           un_region_name?: string | null
           url: string
           variants?: Json
@@ -1424,6 +1426,7 @@ export type Database = {
           storage_bucket?: string | null
           storage_path?: string | null
           storage_provider?: string
+          submission_id?: string | null
           un_region_name?: string | null
           url?: string
           variants?: Json
@@ -3603,6 +3606,10 @@ export type Database = {
           table_name: string
         }
         Returns: string
+      }
+      user_can_edit_submission_draft: {
+        Args: { p_draft_id: string; p_user_id: string }
+        Returns: boolean
       }
     }
     Enums: {

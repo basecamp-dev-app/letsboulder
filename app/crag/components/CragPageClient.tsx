@@ -9,14 +9,13 @@ import { ChevronDown, ChevronRight, Download, Filter, Loader2, Search, ArrowUpDo
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
-import PlaceCommunityClient from '@/features/community/components/PlaceCommunityClient'
 import { GRADES, PUBLIC_GRADES, normalizeGrade } from '@/lib/grades'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import CragPageSkeleton from '@/app/crag/components/CragPageSkeleton'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
-import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
 import { Button } from '@/components/ui/button'
+import LightweightCragMap from '@/components/lightweight-crag-map'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { buildCragImageDestination, type ImageRouteTarget } from '@/app/crag/components/crag-image-destination'
 import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
@@ -33,14 +32,6 @@ function getAverageCoordinates(images: { latitude: number; longitude: number }[]
   return [totalLat / images.length, totalLng / images.length]
 }
 
-const CragPageMap = dynamic(() => import('./CragPageMap'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-full">
-      <div className="animate-pulse bg-gray-300 dark:bg-gray-600 h-32 w-32 rounded-lg"></div>
-    </div>
-  ),
-})
 const TopThisPlacePanel = dynamic(() => import('@/features/community/components/TopThisPlacePanel'))
 const PlaceRankingsPanel = dynamic(() => import('@/features/community/components/PlaceRankingsPanel'))
 
@@ -107,10 +98,6 @@ interface ClusteredImageData extends ClusterableCragImage {
   supplementary_faces_count: number
 }
 
-interface OrderedPinCluster extends CragPinCluster<ClusteredImageData> {
-  badgeNumber: number
-}
-
 interface OfflineHydratedCragData {
   images: ImageData[]
   routes: CragRoute[]
@@ -141,6 +128,10 @@ interface CachedCragImageData {
 }
 
 type CragRouteIntelligenceRow = Database['public']['Functions']['get_crag_route_intelligence']['Returns'][number]
+
+type OrderedPinCluster = CragPinCluster<ClusteredImageData> & {
+  badgeNumber: number
+}
 
 export interface CragRoute {
   id: string
@@ -477,10 +468,7 @@ interface CragPageClientProps {
   initialRoutes?: CragRoute[] | null
   initialRoutePreviewByClimbId?: Record<string, RoutePreview>
   initialCragCenter?: [number, number] | null
-  communityPlaceId?: string | null
   communityPlaceSlug?: string | null
-  initialSessionPosts?: CommunitySessionPost[]
-  initialUpdatePosts?: CommunityUpdatePost[]
 }
 
 export default function CragPageClient({
@@ -490,10 +478,7 @@ export default function CragPageClient({
   initialRoutes = null,
   initialRoutePreviewByClimbId = {},
   initialCragCenter = null,
-  communityPlaceId,
   communityPlaceSlug,
-  initialSessionPosts = [],
-  initialUpdatePosts = [],
 }: CragPageClientProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -524,6 +509,7 @@ export default function CragPageClient({
   const [isAdmin, setIsAdmin] = useState(false)
   const [isFlagging, setIsFlagging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null)
   const [offlineDialogOpen, setOfflineDialogOpen] = useState(false)
   const [offlineDialogLoading, setOfflineDialogLoading] = useState(false)
   const [offlinePreviewLoading, setOfflinePreviewLoading] = useState(false)
@@ -1117,10 +1103,19 @@ export default function CragPageClient({
     )
   }, [clusteredPins.clusters, viewCenter])
 
+  const mapPins = useMemo(() => {
+    return orderedPinClusters.map((cluster) => ({
+      id: cluster.representativeImageId,
+      latitude: cluster.latitude,
+      longitude: cluster.longitude,
+      label: String(cluster.badgeNumber),
+    }))
+  }, [orderedPinClusters])
+
   const pinNumberByImageId = useMemo(() => {
     const mapping = new Map<string, number>()
     orderedPinClusters.forEach((cluster) => {
-      cluster.images.forEach((image) => {
+      cluster.images.forEach((image: ClusteredImageData) => {
         mapping.set(image.id, cluster.badgeNumber)
       })
     })
@@ -1158,6 +1153,24 @@ export default function CragPageClient({
 
     return nextTargets
   }, [imageById, routeNavigationTargetByClimbId])
+
+  const highlightedRouteIds = useMemo(() => {
+    if (!selectedImageId) return new Set<string>()
+
+    const matches = new Set<string>()
+    for (const route of routes) {
+      if (routePreviewDisplayByClimbId[route.id]?.imageId === selectedImageId) {
+        matches.add(route.id)
+        continue
+      }
+
+      if (routeNavigationDisplayByClimbId[route.id]?.displayImageId === selectedImageId) {
+        matches.add(route.id)
+      }
+    }
+
+    return matches
+  }, [routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId, routes, selectedImageId])
 
   const climbIdsFingerprint = useMemo(() => {
     return Array.from(new Set(routes.map((route) => route.id)))
@@ -1310,6 +1323,9 @@ export default function CragPageClient({
       })
       .sort((a, b) => {
         if (routeSort === 'sends') {
+          const aHighlighted = highlightedRouteIds.has(a.id)
+          const bHighlighted = highlightedRouteIds.has(b.id)
+          if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
           if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
           if ((a.weightedRating ?? -1) !== (b.weightedRating ?? -1)) return (b.weightedRating ?? -1) - (a.weightedRating ?? -1)
           const gradeCompare = compareGrades(a.grade, b.grade)
@@ -1318,6 +1334,9 @@ export default function CragPageClient({
         }
 
         if (routeSort === 'rating') {
+          const aHighlighted = highlightedRouteIds.has(a.id)
+          const bHighlighted = highlightedRouteIds.has(b.id)
+          if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
           if (a.weightedRating === null && b.weightedRating !== null) return 1
           if (a.weightedRating !== null && b.weightedRating === null) return -1
           if (a.weightedRating !== null && b.weightedRating !== null && a.weightedRating !== b.weightedRating) {
@@ -1329,15 +1348,21 @@ export default function CragPageClient({
         }
 
         if (routeSort === 'name') {
+          const aHighlighted = highlightedRouteIds.has(a.id)
+          const bHighlighted = highlightedRouteIds.has(b.id)
+          if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
           return a.name.localeCompare(b.name)
         }
 
+        const aHighlighted = highlightedRouteIds.has(a.id)
+        const bHighlighted = highlightedRouteIds.has(b.id)
+        if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
         const gradeCompare = compareGrades(a.grade, b.grade)
         if (gradeCompare !== 0) return gradeCompare
         if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
         return a.name.localeCompare(b.name)
       })
-  }, [maxGrade, minGrade, minRating, minSends, routeSort, routes, searchQuery, selectedDirections, selectedRouteTypes, topoOnly])
+  }, [highlightedRouteIds, maxGrade, minGrade, minRating, minSends, routeSort, routes, searchQuery, selectedDirections, selectedRouteTypes, topoOnly])
 
   const routeStats = useMemo(() => {
     const gradeCounts = new Map<string, number>()
@@ -1479,15 +1504,6 @@ export default function CragPageClient({
     return chips
   }, [gradeSystem, maxGrade, minGrade, minRating, minSends, searchQuery, selectedDirections, selectedRouteTypes, topoOnly])
 
-  const getImageDestination = useCallback((imageId: string) => {
-    return buildCragImageDestination({
-      imageId,
-      target: defaultRouteTargetByImageId[imageId],
-      routeHrefBase,
-      offlineOnly: typeof navigator !== 'undefined' && navigator.onLine === false,
-    })
-  }, [defaultRouteTargetByImageId, routeHrefBase])
-
   const getRouteDestination = useCallback((route: CragRoute) => {
     const offlineOnly = isOfflineDocumentNavigationPreferred()
     const routeTarget = routeNavigationDisplayByClimbId[route.id]
@@ -1546,11 +1562,6 @@ export default function CragPageClient({
     if (!imageId) return
   }, [])
 
-  const navigateToImageDestination = useCallback((imageId: string) => {
-    const destination = getImageDestination(imageId)
-    window.location.assign(destination)
-  }, [getImageDestination])
-
   useEffect(() => {
     if (orderedImages.length === 0) return
 
@@ -1592,7 +1603,6 @@ export default function CragPageClient({
     )
   }
 
-  const resolvedCommunityPlaceId = communityPlaceId || crag.id
   const canDownloadCrag = !offlineDialogLoading
   const projectedUsage = offlinePreview
     ? offlinePreview.usageBytes - (offlinePreview.existingPack?.estimatedBytes || 0) + (offlinePreview.deltaBytes || 0)
@@ -1677,14 +1687,11 @@ export default function CragPageClient({
         </div>
       )}
       <div className="relative z-0 h-[34vh] md:h-[58vh] bg-gray-200 dark:bg-gray-800">
-        <CragPageMap
-          cragName={crag.name}
-          cragCenter={cragCenter}
-          cragLatitude={crag.latitude}
-          cragLongitude={crag.longitude}
-          orderedPinClusters={orderedPinClusters}
-          imageById={imageById}
-          onMarkerClick={(imageId) => navigateToImageDestination(imageId)}
+        <LightweightCragMap
+          pins={mapPins}
+          activePinId={selectedImageId}
+          initialCenter={cragCenter}
+          onPinSelect={(imageId) => setSelectedImageId(imageId)}
         />
 
         <div className="absolute top-4 left-4 z-[1000] bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 dark:text-gray-100 shadow-md backdrop-blur">
@@ -1772,7 +1779,7 @@ export default function CragPageClient({
               ) : (
                 <div className="divide-y divide-stone-100 dark:divide-gray-800">
                   {filteredRoutes.map((route) => (
-                    <a key={route.id} href={getRouteDestination(route)} className="flex items-center gap-3 px-4 py-3 transition hover:bg-stone-50 dark:hover:bg-gray-800/50">
+                    <a key={route.id} href={getRouteDestination(route)} className={`flex items-center gap-3 px-4 py-3 transition hover:bg-stone-50 dark:hover:bg-gray-800/50 ${highlightedRouteIds.has(route.id) ? 'bg-teal-50/80 ring-1 ring-inset ring-teal-200 dark:bg-teal-950/20 dark:ring-teal-900' : ''}`}>
                       {routePreviewDisplayByClimbId[route.id] ? (
                         <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                           <Image src={routePreviewDisplayByClimbId[route.id].imageUrl} alt={`${route.name} topo preview`} fill className="object-cover" sizes="64px" unoptimized />
@@ -1790,7 +1797,6 @@ export default function CragPageClient({
                           <span className="truncate text-sm font-semibold text-stone-900 dark:text-gray-100">{route.name}</span>
                           <span className="text-sm font-medium text-stone-600 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</span>
                         </div>
-                        <p className="mt-1 truncate text-xs text-stone-500 dark:text-gray-400">{routeLocationLabel}</p>
                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-600 dark:text-gray-300">
                           <span>{formatRatingValue(route.weightedRating)}{route.ratingCount > 0 ? ` (${route.ratingCount})` : ''}</span>
                           <span>{route.sendCount} ascents</span>
@@ -1807,22 +1813,6 @@ export default function CragPageClient({
         </section>
 
         <section className="space-y-4">
-          <div className="mb-6 space-y-4">
-            <PlaceCommunityClient
-              activeTab="upcoming"
-              placeId={resolvedCommunityPlaceId}
-              sessionPosts={initialSessionPosts}
-              updatePosts={initialUpdatePosts}
-            />
-          </div>
-          <div className="mb-6 space-y-4">
-            <PlaceCommunityClient
-              activeTab="updates"
-              placeId={resolvedCommunityPlaceId}
-              sessionPosts={initialSessionPosts}
-              updatePosts={initialUpdatePosts}
-            />
-          </div>
           <div className="mb-6 space-y-4">
             {communityPlaceSlug ? (
               <>

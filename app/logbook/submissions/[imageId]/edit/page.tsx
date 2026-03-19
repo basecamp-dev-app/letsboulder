@@ -1,15 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import dynamic from 'next/dynamic'
-import NextImage from 'next/image'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, Link2, MapPin, Search, Trash2, Users } from 'lucide-react'
-import { useMapEvents } from 'react-leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import { UnifiedRouteCanvas } from '@/components/UnifiedRouteCanvas'
+import { ChevronDown, Loader2, Link2, MapPin, Search, Trash2, Users } from 'lucide-react'
+import { SubmissionWorkstation } from '@/components/SubmissionWorkstation'
+import { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
+import { getGradeSystemForClimbType, useGradePreferences } from '@/hooks/useGradeSystem'
 import { useRouteStore } from '@/store/routeStore'
 import { normalizePoints } from '@/lib/canvasMath'
 import AtlasContextCard from '@/components/submissions/atlas-context-card'
@@ -22,13 +19,9 @@ import {
   normalizeSubmissionCreditPlatform,
   type SubmissionCreditPlatform,
 } from '@/lib/submission-credit'
-import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type NewRouteData, type RouteLine, type RoutePoint } from '@/lib/submission-types'
+import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
-
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false })
 
 interface EditableRoute {
   id: string
@@ -92,6 +85,7 @@ interface ImageRouteLineQuery {
 interface EditableImageQuery {
   id: string
   url: string
+  submission_id: string | null
   created_by: string | null
   crag_id: string | null
   is_anonymous_submission: boolean | null
@@ -114,19 +108,14 @@ interface EditableImageQuery {
   route_lines: ImageRouteLineQuery[] | null
 }
 
-interface FaceSummaryItem {
+interface SubmissionBatchImageQuery {
   id: string
-  image_id?: string | null
-  index?: number
+  submission_id: string | null
+  url: string
+  latitude: number | null
+  longitude: number | null
+  face_directions: string[] | null
   is_primary: boolean
-  url?: string | null
-  has_routes: boolean
-  face_directions?: string[] | null
-}
-
-interface FacesResponsePayload {
-  primary_image_id?: string
-  faces?: FaceSummaryItem[]
 }
 
 interface ManageFaceTab {
@@ -135,9 +124,38 @@ interface ManageFaceTab {
   label: string
   isPrimary: boolean
   signedUrl: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
-const VALID_ROUTE_TYPES = ['sport', 'boulder', 'trad', 'deep-water-solo'] as const
+interface CollapsiblePanelProps {
+  title: string
+  subtitle?: string
+  open: boolean
+  onToggle: () => void
+  children: ReactNode
+}
+
+function CollapsiblePanel({ title, subtitle, open, onToggle, children }: CollapsiblePanelProps) {
+  return (
+    <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 text-left"
+        aria-expanded={open}
+      >
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
+          {subtitle ? <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{subtitle}</p> : null}
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open ? <div className="mt-3">{children}</div> : null}
+    </div>
+  )
+}
+
 const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
   { value: 'instagram', label: 'Instagram' },
   { value: 'tiktok', label: 'TikTok' },
@@ -145,16 +163,6 @@ const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: s
   { value: 'x', label: 'X' },
   { value: 'other', label: 'Other' },
 ]
-
-function normalizeRouteType(value: string | null | undefined): (typeof VALID_ROUTE_TYPES)[number] | null {
-  if (!value) return null
-  const normalized = value.trim().toLowerCase().replace(/_/g, '-')
-  const canonical = normalized === 'bouldering' ? 'boulder' : normalized
-  if (!VALID_ROUTE_TYPES.includes(canonical as (typeof VALID_ROUTE_TYPES)[number])) {
-    return null
-  }
-  return canonical as (typeof VALID_ROUTE_TYPES)[number]
-}
 
 function parsePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[] {
   if (!raw) return []
@@ -179,22 +187,6 @@ function pickOne<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null
   if (Array.isArray(value)) return value[0] ?? null
   return value
-}
-
-function MapClickHandler({ onClick }: { onClick: (event: L.LeafletMouseEvent) => void }) {
-  useMapEvents({ click: onClick })
-  return null
-}
-
-function MapRecenter({ position }: { position: [number, number] | null }) {
-  const map = useMapEvents({})
-
-  useEffect(() => {
-    if (!position) return
-    map.setView(position, Math.max(map.getZoom(), 14))
-  }, [map, position])
-
-  return null
 }
 
 function parseCoordinate(value: string): number | null {
@@ -234,8 +226,7 @@ export default function EditSubmittedRoutesPage() {
   const { toasts, addToast, removeToast } = useToast()
 
   const [loading, setLoading] = useState(true)
-  const [savingEdits, setSavingEdits] = useState(false)
-  const [savingNewRoutes, setSavingNewRoutes] = useState(false)
+  const [, setSavingEdits] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [imageSelection, setImageSelection] = useState<ImageSelection | null>(null)
@@ -275,15 +266,15 @@ export default function EditSubmittedRoutesPage() {
   const [initialCreditPlatform, setInitialCreditPlatform] = useState<SubmissionCreditPlatform | null>(null)
   const [initialCreditHandle, setInitialCreditHandle] = useState('')
   const [savingAllChanges, setSavingAllChanges] = useState(false)
-  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchingLocation, setSearchingLocation] = useState(false)
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
-  const [mapOpen, setMapOpen] = useState(false)
   const parsedLatitude = useMemo(() => parseCoordinate(latitude), [latitude])
   const parsedLongitude = useMemo(() => parseCoordinate(longitude), [longitude])
 
-  const { setRoutes, setMode, setInteractionTool, reset, interactionTool, commitCurrentRoute, currentPoints, undoLastPoint } = useRouteStore()
+  const { setRoutes, setMode, setInteractionTool, reset, interactionTool, commitCurrentRoute, currentPoints, undoLastPoint, selectedRouteId, setSelectedRoute, setActiveRoute, setEditorPanelOpen } = useRouteStore()
+  const gradePreferences = useGradePreferences()
+  const editorGradeSystem = getGradeSystemForClimbType('boulder', gradePreferences)
   const atlasSync = useAtlasAutoSync(
     typeof parsedLatitude === 'number' && !Number.isNaN(parsedLatitude) ? parsedLatitude : null,
     typeof parsedLongitude === 'number' && !Number.isNaN(parsedLongitude) ? parsedLongitude : null,
@@ -296,6 +287,8 @@ export default function EditSubmittedRoutesPage() {
   const [deleteTransferSourceName, setDeleteTransferSourceName] = useState('')
   const [deleteTransferCandidates, setDeleteTransferCandidates] = useState<DeleteTransferCandidate[]>([])
   const [selectedTransferTargetRouteLineId, setSelectedTransferTargetRouteLineId] = useState<string>('')
+  const drawingAreaRef = useRef<HTMLDivElement | null>(null)
+  const [orientationOpen, setOrientationOpen] = useState(false)
 
   const buildEditUrl = useCallback((baseImageId: string, nextFaceImageId?: string | null) => {
     const nextParams = new URLSearchParams(searchParams.toString())
@@ -308,10 +301,6 @@ export default function EditSubmittedRoutesPage() {
     const query = nextParams.toString()
     return `/logbook/submissions/${baseImageId}/edit${query ? `?${query}` : ''}`
   }, [searchParams])
-
-  useEffect(() => {
-    import('leaflet').then((lib) => setLeaflet(lib))
-  }, [])
 
   useEffect(() => {
     setMode('edit-existing')
@@ -508,49 +497,73 @@ export default function EditSubmittedRoutesPage() {
 
     setFacesLoading(true)
     try {
-      const response = await fetch(`/api/images/${routeImageId}/faces`, { cache: 'no-store' })
-      if (!response.ok) {
+      const supabase = createClient()
+      const { data: currentImage, error: currentImageError } = await supabase
+        .from('images')
+        .select('id, submission_id')
+        .eq('id', routeImageId)
+        .single()
+
+      if (currentImageError || !currentImage) {
         setPrimaryManageImageId(routeImageId)
         setManageFaces([])
         return
       }
 
-      const payload = await response.json() as FacesResponsePayload
-      const resolvedPrimaryImageId = typeof payload.primary_image_id === 'string' && payload.primary_image_id
-        ? payload.primary_image_id
-        : routeImageId
-      const faces = Array.isArray(payload.faces) ? payload.faces : []
-      const nextFaces = faces
-        .filter((face): face is FaceSummaryItem & { image_id: string } => typeof face.image_id === 'string' && !!face.image_id)
-        .sort((a, b) => (a.index || 0) - (b.index || 0))
-        .map((face, index) => {
-          const directions = Array.isArray(face.face_directions) && face.face_directions.length > 0
-            ? face.face_directions.join('/')
+      const resolvedSubmissionId = typeof currentImage.submission_id === 'string' && currentImage.submission_id
+        ? currentImage.submission_id
+        : null
+      const batchQuery = resolvedSubmissionId
+        ? supabase
+            .from('images')
+            .select('id, submission_id, url, latitude, longitude, face_directions, is_primary')
+            .eq('submission_id', resolvedSubmissionId)
+            .order('created_at', { ascending: true })
+        : supabase
+            .from('images')
+            .select('id, submission_id, url, latitude, longitude, face_directions, is_primary')
+            .eq('id', routeImageId)
+
+      const { data: batchImages, error: batchError } = await batchQuery
+
+      if (batchError || !Array.isArray(batchImages)) {
+        setPrimaryManageImageId(routeImageId)
+        setManageFaces([])
+        return
+      }
+
+      const nextFaces = (batchImages as SubmissionBatchImageQuery[])
+        .map((image, index) => {
+          const directions = Array.isArray(image.face_directions) && image.face_directions.length > 0
+            ? image.face_directions.join('/')
             : null
-          const defaultLabel = face.is_primary
+          const defaultLabel = image.is_primary
             ? 'Primary'
-            : `Face ${index + 1}`
+            : `Image ${index + 1}`
           return {
-            imageId: face.image_id,
+            imageId: image.id,
             index,
             label: directions ? `${defaultLabel} (${directions})` : defaultLabel,
-            isPrimary: face.is_primary,
-            signedUrl: typeof face.url === 'string' && face.url ? face.url : null,
+            isPrimary: image.is_primary,
+            signedUrl: resolveRouteImageUrl(image.url),
+            latitude: image.latitude,
+            longitude: image.longitude,
           }
         })
 
-      const uniqueByImage = new Map(nextFaces.map((face) => [face.imageId, face]))
+      const uniqueByImage = new Map<string, ManageFaceTab>(nextFaces.map((face) => [face.imageId, face]))
       const orderedFaces = [...uniqueByImage.values()]
+      const resolvedPrimaryImageId = orderedFaces.find((face) => face.isPrimary)?.imageId || routeImageId
       const currentManagedImageId = requestedFaceImageId || routeImageId
-      const hasCurrentImage = orderedFaces.some((face) => face.imageId === currentManagedImageId)
-      if (!hasCurrentImage) {
-        orderedFaces.push({ imageId: currentManagedImageId, index: orderedFaces.length, label: 'Current image', isPrimary: false, signedUrl: null })
+
+      if (!orderedFaces.some((face) => face.imageId === currentManagedImageId)) {
+        orderedFaces.push({ imageId: currentManagedImageId, index: orderedFaces.length, label: 'Current image', isPrimary: false, signedUrl: null, latitude: null, longitude: null })
       }
+
       setPrimaryManageImageId(resolvedPrimaryImageId)
       setManageFaces(orderedFaces)
 
-      const shouldNormalizeRoute = resolvedPrimaryImageId !== routeImageId
-      if (shouldNormalizeRoute) {
+      if (resolvedPrimaryImageId !== routeImageId) {
         router.replace(buildEditUrl(resolvedPrimaryImageId, currentManagedImageId))
       }
     } catch {
@@ -569,17 +582,6 @@ export default function EditSubmittedRoutesPage() {
     return !!imageSelection
   }, [imageSelection])
 
-  const preferredRouteType = useMemo(() => {
-    const uniqueTypes = new Set<(typeof VALID_ROUTE_TYPES)[number]>()
-    for (const routeLine of existingRouteLines) {
-      const normalized = normalizeRouteType(routeLine.climb?.route_type)
-      if (normalized) uniqueTypes.add(normalized)
-    }
-
-    if (uniqueTypes.size !== 1) return null
-    return [...uniqueTypes][0]
-  }, [existingRouteLines])
-
   const collaborationAdded = searchParams.get('collab') === 'added'
   const publishedFacesParam = searchParams.get('publishedFaces')
   const publishedRoutesParam = searchParams.get('publishedRoutes')
@@ -595,6 +597,51 @@ export default function EditSubmittedRoutesPage() {
     if (parsedLongitude < -180 || parsedLongitude > 180) return null
     return [parsedLatitude, parsedLongitude]
   }, [latitude, longitude])
+  const activeImageUrl = imageSelection?.mode === 'existing' || imageSelection?.mode === 'crag-image' ? imageSelection.imageUrl : ''
+
+  const quickSwitcherImages = useMemo(() => {
+    return manageFaces
+      .slice()
+      .sort((a, b) => a.index - b.index)
+      .map((face) => ({
+        imageId: face.imageId,
+        signedUrl: face.signedUrl || (face.imageId === activeImageId ? activeImageUrl : ''),
+        badgeNumber: face.index + 1,
+        isDefault: face.imageId === (primaryManageImageId || routeImageId),
+      }))
+      .filter((face) => face.signedUrl)
+  }, [activeImageId, activeImageUrl, manageFaces, primaryManageImageId, routeImageId])
+
+  const publishedDraftPins = useMemo<LightweightCragMapPin[]>(() => {
+    return manageFaces.reduce<LightweightCragMapPin[]>((acc, face) => {
+      if (typeof face.latitude !== 'number' || typeof face.longitude !== 'number') return acc
+      if (acc.some((pin) => pin.latitude === face.latitude && pin.longitude === face.longitude)) return acc
+      acc.push({
+        id: face.imageId,
+        latitude: face.latitude,
+        longitude: face.longitude,
+        label: String(face.index + 1),
+        interactive: true,
+        tone: 'draft',
+      })
+      return acc
+    }, [])
+  }, [manageFaces])
+
+  const focusDrawingArea = useCallback(() => {
+    drawingAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  const handleQuickSwitchImage = useCallback((imageId: string) => {
+    if (imageId === activeImageId) {
+      focusDrawingArea()
+      return
+    }
+    router.replace(buildEditUrl(primaryManageImageId || routeImageId, imageId))
+    window.setTimeout(() => {
+      focusDrawingArea()
+    }, 0)
+  }, [activeImageId, buildEditUrl, focusDrawingArea, primaryManageImageId, routeImageId, router])
 
   const imageMetadataDirty = useMemo(() => {
     const initialLat = parseCoordinate(initialLatitude)
@@ -707,35 +754,6 @@ export default function EditSubmittedRoutesPage() {
       setSavingEdits(false)
     }
   }, [activeImageId, routesToPersist])
-
-  const handleCreateRoutes = useCallback(async (routesToCreate: NewRouteData[]) => {
-    if (savingNewRoutes || !activeImageId || routesToCreate.length === 0) return
-
-    setSavingNewRoutes(true)
-    setError(null)
-    setSuccess(null)
-
-    try {
-      const response = await csrfFetch(`/api/submissions/${activeImageId}/routes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ routes: routesToCreate, routeType: preferredRouteType }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data?.error || 'Failed to add new routes')
-      }
-
-      setSuccess(`Added ${routesToCreate.length} new route${routesToCreate.length === 1 ? '' : 's'}.`)
-      await loadSubmission()
-      setCanvasKey((value) => value + 1)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add new routes')
-    } finally {
-      setSavingNewRoutes(false)
-    }
-  }, [savingNewRoutes, activeImageId, loadSubmission, preferredRouteType])
 
   const handleDeleteExistingRoute = useCallback(async (routeLineId: string, transferTargetRouteLineId?: string) => {
     if (!activeImageId || !routeLineId || deletingExistingRouteId) return
@@ -881,16 +899,6 @@ export default function EditSubmittedRoutesPage() {
     setLongitude(nextLongitude.toFixed(6))
     setLocationSearchError(null)
   }, [])
-
-  const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
-    updateLocation(event.latlng.lat, event.latlng.lng)
-  }, [updateLocation])
-
-  const handleMarkerDragEnd = useCallback((event: L.LeafletEvent) => {
-    const marker = event.target as L.Marker
-    const next = marker.getLatLng()
-    updateLocation(next.lat, next.lng)
-  }, [updateLocation])
 
   const handleSearchLocation = useCallback(async () => {
     if (!searchQuery.trim()) return
@@ -1264,55 +1272,6 @@ export default function EditSubmittedRoutesPage() {
           </div>
         )}
 
-        {manageFaces.length > 0 && (
-          <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Manage all images</h2>
-              {facesLoading ? (
-                <span className="text-xs text-gray-500 dark:text-gray-400">Loading faces...</span>
-              ) : null}
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {manageFaces.map((face) => {
-                const active = face.imageId === activeImageId
-                return (
-                  <button
-                    key={face.imageId}
-                    type="button"
-                    onClick={() => {
-                      if (active) return
-                      router.replace(buildEditUrl(primaryManageImageId || routeImageId, face.imageId))
-                    }}
-                    className={`rounded-md border p-2 text-left text-xs font-medium transition-colors ${
-                      active
-                        ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-200'
-                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                    }`}
-                  >
-                    <div className="relative mb-1 h-16 w-full overflow-hidden rounded border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
-                      {face.signedUrl ? (
-                        <NextImage
-                          src={face.signedUrl}
-                          alt={face.isPrimary ? 'Primary face' : `Face ${face.index + 1}`}
-                          fill
-                          unoptimized
-                          sizes="160px"
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-[11px] text-gray-500 dark:text-gray-400">
-                          No preview
-                        </div>
-                      )}
-                    </div>
-                    {face.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
         <details className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900" open={cragMetadataDirty}>
           <summary className="cursor-pointer text-sm font-semibold text-gray-900 dark:text-gray-100">Location details</summary>
           <div className="mt-3 space-y-3">
@@ -1358,7 +1317,7 @@ export default function EditSubmittedRoutesPage() {
         <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <div className="mb-3 flex items-center gap-2">
             <MapPin className="h-4 w-4 text-gray-500" />
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Image location and face directions</h2>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Image location</h2>
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="text-xs text-gray-600 dark:text-gray-300">
@@ -1380,61 +1339,6 @@ export default function EditSubmittedRoutesPage() {
               />
             </label>
           </div>
-
-          {mapOpen ? (
-            <div className="mt-3">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Click map or drag marker to adjust location</p>
-                <button
-                  type="button"
-                  onClick={() => setMapOpen(false)}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                >
-                  Done
-                </button>
-              </div>
-              <div className="h-72 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-                <MapContainer
-                  center={markerPosition || [20, 0]}
-                  zoom={markerPosition ? 14 : 2}
-                  style={{ height: '100%', width: '100%' }}
-                >
-                  <MapRecenter position={markerPosition} />
-                  <MapClickHandler onClick={handleMapClick} />
-                  <TileLayer
-                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                    attribution="Imagery © Esri"
-                    maxZoom={19}
-                  />
-                  <TileLayer
-                    url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-                    attribution="Labels © Esri"
-                    maxZoom={19}
-                  />
-                  {markerPosition && leaflet ? (
-                    <Marker
-                      position={markerPosition}
-                      draggable={true}
-                      icon={leaflet.divIcon({
-                        className: 'location-marker',
-                        iconSize: [20, 20],
-                        iconAnchor: [10, 10],
-                      })}
-                      eventHandlers={{ dragend: handleMarkerDragEnd }}
-                    />
-                  ) : null}
-                </MapContainer>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setMapOpen(true)}
-              className="mt-3 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
-              Adjust location on map
-            </button>
-          )}
 
           <div className="mt-3 flex gap-2">
             <div className="relative flex-1">
@@ -1470,7 +1374,15 @@ export default function EditSubmittedRoutesPage() {
             <p className="mt-2 text-xs text-red-600 dark:text-red-400">{locationSearchError}</p>
           ) : null}
 
-          <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
+        </div>
+
+        <CollapsiblePanel
+          title="Set Orientation"
+          subtitle="Optional metadata for this image."
+          open={orientationOpen}
+          onToggle={() => setOrientationOpen((prev) => !prev)}
+        >
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
             {FACE_DIRECTIONS.map((direction) => {
               const selected = faceDirections.includes(direction)
               return (
@@ -1489,77 +1401,51 @@ export default function EditSubmittedRoutesPage() {
               )
             })}
           </div>
+        </CollapsiblePanel>
 
-        </div>
-
-        {hasReadyData && imageSelection && 'imageUrl' in imageSelection ? (
-          <>
-            <div className="flex gap-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-              <button
-                type="button"
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  interactionTool === 'select'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
-                }`}
-                onClick={() => setInteractionTool('select')}
-              >
-                Select/Edit
-              </button>
-              <button
-                type="button"
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  interactionTool === 'draw'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
-                }`}
-                onClick={() => setInteractionTool('draw')}
-              >
-                Draw Route
-              </button>
-              <button
-                type="button"
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  currentPoints.length > 0
-                    ? 'bg-orange-500 text-white hover:bg-orange-600'
-                    : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                }`}
-                onClick={() => undoLastPoint()}
-                disabled={currentPoints.length === 0}
-              >
-                Undo Point
-              </button>
-              <button
-                type="button"
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  currentPoints.length >= 2
-                    ? 'bg-green-500 text-white hover:bg-green-600'
-                    : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                }`}
-                onClick={() => commitCurrentRoute()}
-                disabled={currentPoints.length < 2}
-              >
-                Finish Route
-              </button>
-            </div>
-            <div className="h-[calc(100dvh-9rem)] md:h-[calc(100vh-7rem)] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
-              <UnifiedRouteCanvas
-              key={`${canvasKey}:${activeImageId}`}
-              mode="edit-existing"
-              imageUrl={imageSelection.imageUrl}
-              onRoutesUpdate={(routes) => {
-                const editableRoutes = routes.map((route) => ({
-                  id: route.id,
-                  name: route.climb?.name || 'Unnamed',
-                  grade: route.climb?.grade || '6A',
-                  description: route.climb?.description ?? undefined,
-                  points: route.points,
-                }))
-                setEditedRoutes(editableRoutes)
-              }}
-            />
-            </div>
-          </>
+        {hasReadyData && activeImageUrl ? (
+          <SubmissionWorkstation
+            drawingAreaRef={drawingAreaRef}
+            quickSwitcherImages={quickSwitcherImages}
+            activeImageId={activeImageId}
+            activeImageUrl={activeImageUrl}
+            draftPins={publishedDraftPins}
+            publishedPins={[]}
+            initialCenter={markerPosition}
+            onSelectImage={handleQuickSwitchImage}
+            existingRouteLines={existingRouteLines}
+            selectedRouteId={selectedRouteId}
+            gradeSystem={editorGradeSystem}
+            onSelectRoute={(routeId) => {
+              setSelectedRoute(routeId)
+              setActiveRoute(routeId)
+              setEditorPanelOpen(true)
+            }}
+            interactionTool={interactionTool === 'select' ? 'select' : 'draw'}
+            currentPointsCount={currentPoints.length}
+            onSetSelectTool={() => {
+              setInteractionTool('select')
+              setEditorPanelOpen(true)
+            }}
+            onSetDrawTool={() => {
+              setInteractionTool('draw')
+              setEditorPanelOpen(false)
+            }}
+            onUndoPoint={() => undoLastPoint()}
+            onFinishRoute={() => commitCurrentRoute()}
+            canvasKey={`${canvasKey}:${activeImageId}`}
+            extraAction={facesLoading ? <span className="px-2 text-[11px] text-gray-500 dark:text-gray-400">Loading...</span> : null}
+            onRoutesUpdate={(routes) => {
+              const editableRoutes = routes.map((route) => ({
+                id: route.id,
+                name: route.climb?.name || 'Unnamed',
+                grade: route.climb?.grade || '6A',
+                description: route.climb?.description ?? undefined,
+                points: route.points,
+              }))
+              setEditedRoutes(editableRoutes)
+            }}
+          />
         ) : null}
 
         <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
