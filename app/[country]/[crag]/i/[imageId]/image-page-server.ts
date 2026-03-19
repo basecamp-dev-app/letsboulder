@@ -323,11 +323,15 @@ export async function buildImageFirstPayload(args: {
       .filter((route) => route.climbSlug)
       .map((route) => [route.climbSlug, route] as const)
   )
-  const resolvedRoute = args.routeId
+  const resolvedRoute = args.routeId && routeById.has(args.routeId)
     ? routeById.get(args.routeId) || null
-    : args.routeSlug
+    : args.routeSlug && routeBySlug.has(args.routeSlug)
       ? routeBySlug.get(args.routeSlug) || null
-      : null
+      : args.routeId
+        ? routeBySlug.get(args.routeId) || null
+        : args.routeSlug
+          ? routeById.get(args.routeSlug) || null
+          : null
   const mapPins = spatialNodes
     .filter((node) => typeof node.latitude === 'number' && typeof node.longitude === 'number')
     .reduce<Array<{
