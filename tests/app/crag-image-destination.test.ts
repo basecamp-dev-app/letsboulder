@@ -13,7 +13,21 @@ describe('buildCragImageDestination', () => {
         climbSlug: 'arete',
         imageId: 'img-1',
       },
-    })).toBe('/pt/cccc/arete?image=img-1&route=route-1')
+    })).toBe('/pt/cccc/i/img-1?image=img-1&route=route-1&climb=climb-1')
+  })
+
+  test('preserves UUID route params for image-first navigation', () => {
+    expect(buildCragImageDestination({
+      imageId: 'img-uuid',
+      routeHrefBase: '/mx/el-nuevo-testamento',
+      offlineOnly: false,
+      target: {
+        climbId: '06dd93bf-66d2-4e3e-a632-586e83b5ff83',
+        routeId: 'a2fac2e6-2459-47d6-93ad-741e80f49caa',
+        climbSlug: 'omega',
+        imageId: 'd05a1dcc-3380-4f4a-85e0-9f19aada2ecd',
+      },
+    })).toBe('/mx/el-nuevo-testamento/i/img-uuid?image=d05a1dcc-3380-4f4a-85e0-9f19aada2ecd&route=a2fac2e6-2459-47d6-93ad-741e80f49caa&climb=06dd93bf-66d2-4e3e-a632-586e83b5ff83')
   })
 
   test('falls back to climb url when slug is unavailable', () => {
