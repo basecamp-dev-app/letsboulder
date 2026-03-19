@@ -10,7 +10,7 @@ import { getBoundingBoxesForCountry, validateCoordinatesInBoundingBox } from '@/
 
 interface CreateCragRequest {
   name: string
-  region_tag: string
+  region_tag?: string | null
   sub_area?: string
   latitude?: number | null
   longitude?: number | null
@@ -254,13 +254,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!trimmedRegionTag) {
-      return NextResponse.json(
-        { error: 'Region/Area tag is required' },
-        { status: 400 }
-      )
-    }
-
     if ((latitude == null && longitude != null) || (latitude != null && longitude == null)) {
       return NextResponse.json(
         { error: 'Both latitude and longitude must be provided together, or neither' },
@@ -328,11 +321,11 @@ export async function POST(request: NextRequest) {
 
         countryCode = result.countryCode
         countryId = result.countryId
-        regionName = result.regionName || trimmedRegionTag
+        regionName = result.regionName || trimmedRegionTag || null
       }
     }
 
-    // If coordinates not provided, region must be provided to determine country
+    // If coordinates not provided, region can be used to determine country
     if (!countryCode && trimmedRegionTag) {
       // Try to find the country from the region tag
       const { data: existingTags } = await supabase
@@ -347,7 +340,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!countryCode) {
+    if (!countryCode && latitude != null && longitude != null) {
       return NextResponse.json(
         { error: 'Could not determine country. Please provide coordinates or select a valid region.' },
         { status: 400 }
@@ -355,57 +348,59 @@ export async function POST(request: NextRequest) {
     }
 
     let locationTagId: string | null = null
-    const { data: existingTags, error: existingTagsError } = await supabase
-      .from('location_tags')
-      .select('id, kind, name, country_code')
-      .eq('kind', 'region')
-      .ilike('name', trimmedRegionTag)
-      .limit(1)
-
-    if (existingTagsError) {
-      return createErrorResponse(existingTagsError, 'Error resolving region tag')
-    }
-
-    const matchedTag = ((existingTags || []) as LocationTagRow[]).find((tag) => {
-      if (countryCode && tag.country_code && tag.country_code.toUpperCase() !== countryCode) return false
-      return true
-    }) || null
-
-    if (matchedTag?.id) {
-      locationTagId = matchedTag.id
-    } else {
-      const regionSlug = trimmedRegionTag
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '') || 'region'
-
-      const { data: createdTag, error: createTagError } = await supabase
+    if (trimmedRegionTag) {
+      const { data: existingTags, error: existingTagsError } = await supabase
         .from('location_tags')
-        .insert({
-          kind: 'region',
-          name: trimmedRegionTag,
-          slug: regionSlug,
-          country_code: countryCode,
-        })
-        .select('id')
-        .single()
+        .select('id, kind, name, country_code')
+        .eq('kind', 'region')
+        .ilike('name', trimmedRegionTag)
+        .limit(1)
 
-      if (createTagError || !createdTag?.id) {
-        const { data: fallbackTag, error: fallbackTagError } = await supabase
+      if (existingTagsError) {
+        return createErrorResponse(existingTagsError, 'Error resolving region tag')
+      }
+
+      const matchedTag = ((existingTags || []) as LocationTagRow[]).find((tag) => {
+        if (countryCode && tag.country_code && tag.country_code.toUpperCase() !== countryCode) return false
+        return true
+      }) || null
+
+      if (matchedTag?.id) {
+        locationTagId = matchedTag.id
+      } else if (countryCode) {
+        const regionSlug = trimmedRegionTag
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '') || 'region'
+
+        const { data: createdTag, error: createTagError } = await supabase
           .from('location_tags')
+          .insert({
+            kind: 'region',
+            name: trimmedRegionTag,
+            slug: regionSlug,
+            country_code: countryCode,
+          })
           .select('id')
-          .eq('kind', 'region')
-          .ilike('name', trimmedRegionTag)
-          .limit(1)
-          .maybeSingle()
+          .single()
 
-        if (fallbackTagError || !fallbackTag?.id) {
-          return createErrorResponse(createTagError || fallbackTagError, 'Error creating region tag')
+        if (createTagError || !createdTag?.id) {
+          const { data: fallbackTag, error: fallbackTagError } = await supabase
+            .from('location_tags')
+            .select('id')
+            .eq('kind', 'region')
+            .ilike('name', trimmedRegionTag)
+            .limit(1)
+            .maybeSingle()
+
+          if (fallbackTagError || !fallbackTag?.id) {
+            return createErrorResponse(createTagError || fallbackTagError, 'Error creating region tag')
+          }
+
+          locationTagId = fallbackTag.id
+        } else {
+          locationTagId = createdTag.id
         }
-
-        locationTagId = fallbackTag.id
-      } else {
-        locationTagId = createdTag.id
       }
     }
 
@@ -413,7 +408,7 @@ export async function POST(request: NextRequest) {
     const { data: existingSlugs } = await supabase
       .from('crags')
       .select('slug')
-      .eq('country_code', countryCode)
+      .eq('country_code', countryCode || '')
       .not('slug', 'is', null)
       .limit(10000)
     for (const row of (existingSlugs || []) as Array<{ slug: string | null }>) {

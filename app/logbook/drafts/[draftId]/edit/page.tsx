@@ -22,7 +22,7 @@ import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
-import { useDraftUploadManager } from '@/lib/draft-upload-manager'
+import { useDraftUploadManager, useMediaUploadManager, type MediaUploadItem } from '@/lib/media/media-upload-manager'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirection } from '@/lib/draft-metadata'
@@ -55,6 +55,17 @@ interface DraftPayload {
   images: DraftImagePayload[]
 }
 
+interface CragImagePayload {
+  id: string
+  signed_url: string | null
+  linked_image_id: string | null
+  display_image_id?: string | null
+  width: number | null
+  height: number | null
+  latitude?: number | null
+  longitude?: number | null
+}
+
 interface CollaboratorItem {
   userId: string
   role: string
@@ -83,6 +94,17 @@ interface DraftSavePayload {
   }>
   cragId: string | null
   metadata: Record<string, unknown>
+}
+
+interface CanvasSourceMetadata {
+  submission?: {
+    canvasSource?: {
+      kind?: 'draft-image' | 'crag-image'
+      draftImageId?: string
+      cragImageId?: string
+      cragId?: string
+    }
+  }
 }
 
 interface DraftConflictResponse {
@@ -133,6 +155,7 @@ interface EditableRoute {
 
 interface ManageImageTab {
   imageId: string
+  sourceKind: 'draft-image' | 'crag-image'
   index: number
   label: string
   signedUrl: string
@@ -142,6 +165,10 @@ interface ManageImageTab {
   error?: string | null
   pendingClientId?: string | null
 }
+
+type DraftCanvasSource =
+  | { kind: 'draft-image'; draftImageId: string }
+  | { kind: 'crag-image'; cragImageId: string; cragId: string }
 
 interface PublishedCragImagePin {
   id: string
@@ -348,6 +375,8 @@ export default function EditDraftPage() {
     longitude: number | null
   } | null>(null)
   const [showCragSelector, setShowCragSelector] = useState(false)
+  const [canvasSource, setCanvasSource] = useState<DraftCanvasSource | null>(null)
+  const [cragCanvasImages, setCragCanvasImages] = useState<CragImagePayload[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [draftUpdatedAt, setDraftUpdatedAt] = useState<string | null>(null)
   const [conflict, setConflict] = useState<ConflictState | null>(null)
@@ -387,6 +416,7 @@ export default function EditDraftPage() {
   const gradePreferences = useGradePreferences()
   const editorGradeSystem = getGradeSystemForClimbType(routeType, gradePreferences)
   const { uploads, hasPendingUploads, hasFailedUploads, retryUpload, removeUpload, registerDraftUpdatedAt, queueDraftUploads, resumeQueue, isQueuePaused } = useDraftUploadManager()
+  const { getUploadsForCrag } = useMediaUploadManager()
 
   const [searchingLocation, setSearchingLocation] = useState(false)
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
@@ -434,6 +464,7 @@ export default function EditDraftPage() {
 
       const metadata = nextDraft.metadata && typeof nextDraft.metadata === 'object' ? nextDraft.metadata : {}
       const normalizedMetadata = normalizeDraftMetadata(metadata, sortedImages)
+      const canvasMetadata = metadata as Record<string, unknown> as CanvasSourceMetadata
       const nextDefaultImageId = normalizedMetadata.navigation.defaultImageId || sortedImages[0]?.id || null
       const nextOrientationByImageId = Object.values(normalizedMetadata.images).reduce<Record<string, OrientationDirection[]>>((acc, image) => {
         if (Array.isArray(image.orientation) && image.orientation.length > 0) {
@@ -443,12 +474,13 @@ export default function EditDraftPage() {
       }, {})
 
       const nextRoutesByImageId: Record<string, DraftRoute[]> = {}
-      const nextManageImages: ManageImageTab[] = sortedImages.map((image, index) => {
+      const nextManageImages = sortedImages.map<ManageImageTab>((image, index) => {
         nextRoutesByImageId[image.id] = parseRoutesFromRouteData(image.route_data, image.width || 1200, image.height || 1200)
         const directions = nextOrientationByImageId[image.id]
         const directionsLabel = Array.isArray(directions) && directions.length > 0 ? ` (${directions.join('/')})` : ''
         return {
           imageId: image.id,
+          sourceKind: 'draft-image',
           index,
           label: image.id === nextDefaultImageId ? `Default${directionsLabel}` : `Image ${index + 1}${directionsLabel}`,
           signedUrl: image.signed_url || '',
@@ -516,6 +548,13 @@ export default function EditDraftPage() {
       setCragId(nextDraft.crag_id)
       setSelectedCrag(nextCrag)
       setShowCragSelector(!nextDraft.crag_id)
+      const savedCanvasSource = canvasMetadata.submission?.canvasSource
+      if (savedCanvasSource?.kind === 'crag-image' && typeof savedCanvasSource.cragImageId === 'string' && typeof savedCanvasSource.cragId === 'string') {
+        setCanvasSource({ kind: 'crag-image', cragImageId: savedCanvasSource.cragImageId, cragId: savedCanvasSource.cragId })
+        setActiveImageId(savedCanvasSource.cragImageId)
+      } else {
+        setCanvasSource(nextDefaultImageId ? { kind: 'draft-image', draftImageId: nextDefaultImageId } : null)
+      }
       hasHydratedLocationRef.current = false
       const metadataLocationContext = normalizedMetadata.submission.location ?? null
       lastLocationSyncRef.current = JSON.stringify({
@@ -550,6 +589,7 @@ export default function EditDraftPage() {
   useEffect(() => {
     if (!cragId) {
       setPublishedCragPins([])
+      setCragCanvasImages([])
       return
     }
 
@@ -558,10 +598,25 @@ export default function EditDraftPage() {
     async function loadPublishedCragPins() {
       try {
         const response = await fetch(`/api/crags/${cragId}/images`, { cache: 'no-store' })
-        const payload = await response.json().catch(() => ({} as { images?: Array<{ id?: string; display_image_id?: string; latitude?: number | null; longitude?: number | null }> }))
+        const payload = await response.json().catch(() => ({} as { images?: Array<{ id?: string; display_image_id?: string; linked_image_id?: string | null; signed_url?: string | null; width?: number | null; height?: number | null; latitude?: number | null; longitude?: number | null }> }))
         if (!response.ok || !Array.isArray(payload.images)) {
           if (!cancelled) setPublishedCragPins([])
           return
+        }
+
+        if (!cancelled) {
+          const imageItems = payload.images as Array<{ id?: string; display_image_id?: string; linked_image_id?: string | null; signed_url?: string | null; width?: number | null; height?: number | null; latitude?: number | null; longitude?: number | null }>
+          const nextCragImages: CragImagePayload[] = imageItems.map((image) => ({
+            id: typeof image.id === 'string' ? image.id : '',
+            signed_url: typeof image.signed_url === 'string' ? image.signed_url : null,
+            linked_image_id: typeof image.linked_image_id === 'string' ? image.linked_image_id : null,
+            display_image_id: typeof image.display_image_id === 'string' ? image.display_image_id : null,
+            width: typeof image.width === 'number' ? image.width : null,
+            height: typeof image.height === 'number' ? image.height : null,
+            latitude: typeof image.latitude === 'number' ? image.latitude : null,
+            longitude: typeof image.longitude === 'number' ? image.longitude : null,
+          })).filter((image) => Boolean(image.id))
+          setCragCanvasImages(nextCragImages)
         }
 
         const nextPins = payload.images
@@ -652,15 +707,57 @@ export default function EditDraftPage() {
     hasShownCollabToastRef.current = true
   }, [collaborationAdded, addToast])
 
-  const pendingDraftUploads = useMemo(() => draftId ? uploads.filter((upload) => upload.draftId === draftId) : [], [draftId, uploads])
+  const pendingDraftUploads = useMemo(() => draftId ? uploads.filter((upload: MediaUploadItem) => upload.target.kind === 'draft' && upload.target.draftId === draftId) : [], [draftId, uploads])
 
   const queuePaused = useMemo(() => isQueuePaused(draftId || undefined), [draftId, isQueuePaused])
+  const pendingCragUploads = useMemo(() => cragId ? getUploadsForCrag(cragId) : [], [cragId, getUploadsForCrag])
+
+  const mergedCragCanvasImages = useMemo(() => {
+    const persisted = cragCanvasImages
+      .filter((image) => image.signed_url)
+      .map<ManageImageTab>((image, index) => ({
+        imageId: image.id,
+        sourceKind: 'crag-image' as const,
+        index,
+        label: `Crag image ${index + 1}`,
+        signedUrl: image.signed_url || '',
+        latitude: typeof image.latitude === 'number' ? image.latitude : null,
+        longitude: typeof image.longitude === 'number' ? image.longitude : null,
+        status: undefined,
+        error: null,
+        pendingClientId: null,
+      }))
+
+    const pending = pendingCragUploads
+      .filter((upload) => !upload.attachedRecordId)
+      .map<ManageImageTab>((upload, index) => ({
+        imageId: upload.clientId,
+        sourceKind: 'crag-image' as const,
+        index: persisted.length + index,
+        label: upload.status === 'FAILED'
+          ? `Failed: ${upload.fileName}`
+          : upload.status === 'UPLOADING'
+            ? `Uploading ${upload.progress}%: ${upload.fileName}`
+            : upload.status === 'PREPROCESSING'
+              ? `Preparing: ${upload.fileName}`
+              : `Waiting: ${upload.fileName}`,
+        signedUrl: upload.previewUrl,
+        latitude: upload.gpsData?.latitude ?? null,
+        longitude: upload.gpsData?.longitude ?? null,
+        status: upload.status,
+        error: upload.error,
+        pendingClientId: upload.clientId,
+      }))
+
+    return [...persisted, ...pending]
+  }, [cragCanvasImages, pendingCragUploads])
 
   const mergedManageImages = useMemo(() => {
     const pendingTabs: ManageImageTab[] = pendingDraftUploads
-      .filter((upload) => !upload.attachedDraftImageId)
+      .filter((upload) => !upload.attachedRecordId)
       .map((upload, index) => ({
         imageId: upload.clientId,
+        sourceKind: 'draft-image',
         index: manageImages.length + index,
         label: upload.status === 'FAILED'
           ? `Failed: ${upload.fileName}`
@@ -682,11 +779,11 @@ export default function EditDraftPage() {
 
   useEffect(() => {
     if (!draftId || activeImageId) return
-    const firstReadyUpload = pendingDraftUploads.find((upload) => upload.status === 'SUCCESS' && upload.attachedDraftImageId) || null
-    if (!firstReadyUpload?.attachedDraftImageId) return
+    const firstReadyUpload = pendingDraftUploads.find((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId) || null
+    if (!firstReadyUpload?.attachedRecordId) return
     void loadDraft().then(() => {
-      setActiveImageId((current) => current || firstReadyUpload.attachedDraftImageId)
-      setDefaultImageId((current) => current || firstReadyUpload.attachedDraftImageId)
+      setActiveImageId((current) => current || firstReadyUpload.attachedRecordId)
+      setDefaultImageId((current) => current || firstReadyUpload.attachedRecordId)
     })
   }, [activeImageId, draftId, loadDraft, pendingDraftUploads])
 
@@ -694,8 +791,8 @@ export default function EditDraftPage() {
   const abortedSuccessReloadRef = useRef<string | null>(null)
 
   useEffect(() => {
-    const newestSuccessfulUpload = pendingDraftUploads.find((upload) => upload.status === 'SUCCESS' && upload.attachedDraftImageId) || null
-    const successKey = newestSuccessfulUpload?.attachedDraftImageId || null
+    const newestSuccessfulUpload = pendingDraftUploads.find((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId) || null
+    const successKey = newestSuccessfulUpload?.attachedRecordId || null
     if (!successKey || successKey === lastLoadedSuccessRef.current) return
     lastLoadedSuccessRef.current = successKey
     void loadDraft().catch((error: unknown) => {
@@ -709,6 +806,14 @@ export default function EditDraftPage() {
   }, [loadDraft, pendingDraftUploads])
 
   useEffect(() => {
+    if (!cragId || activeImageId || canvasSource?.kind === 'draft-image') return
+    const firstReadyCragImage = cragCanvasImages.find((image) => image.signed_url) || null
+    if (!firstReadyCragImage?.id) return
+    setActiveImageId(firstReadyCragImage.id)
+    setCanvasSource({ kind: 'crag-image', cragImageId: firstReadyCragImage.id, cragId })
+  }, [activeImageId, canvasSource, cragCanvasImages, cragId])
+
+  useEffect(() => {
     const successKey = abortedSuccessReloadRef.current
     if (!successKey || loading) return
     abortedSuccessReloadRef.current = null
@@ -720,8 +825,9 @@ export default function EditDraftPage() {
 
   const activeImageTab = useMemo(() => {
     if (!activeImageId) return null
-    return mergedManageImages.find((image) => image.imageId === activeImageId) || null
-  }, [activeImageId, mergedManageImages])
+    const sourceImages = canvasSource?.kind === 'crag-image' ? mergedCragCanvasImages : mergedManageImages
+    return sourceImages.find((image) => image.imageId === activeImageId) || null
+  }, [activeImageId, canvasSource, mergedCragCanvasImages, mergedManageImages])
   const activeDraftImageId = activeImageTab?.imageId || null
 
   const activeRoutes = useMemo(() => {
@@ -753,12 +859,23 @@ export default function EditDraftPage() {
 
   const imageSelection = useMemo<ImageSelection | null>(() => {
     if (!activeImageTab) return null
+    if (activeImageTab.sourceKind === 'crag-image') {
+      const selectedCragImage = cragCanvasImages.find((image) => image.id === activeImageTab.imageId) || null
+      return {
+        mode: 'crag-image',
+        cragImageId: activeImageTab.imageId,
+        imageUrl: activeImageTab.signedUrl,
+        linkedImageId: selectedCragImage?.linked_image_id || null,
+        width: selectedCragImage?.width || null,
+        height: selectedCragImage?.height || null,
+      }
+    }
     return {
       mode: 'existing',
       imageId: activeImageTab.imageId,
       imageUrl: activeImageTab.signedUrl,
     }
-  }, [activeImageTab])
+  }, [activeImageTab, cragCanvasImages])
 
   const activeImageReady = Boolean(activeImageTab?.signedUrl) && activeImageTab?.status !== 'FAILED'
 
@@ -801,16 +918,19 @@ export default function EditDraftPage() {
   }, [cragId, defaultImageRoutes.length, defaultImageTab, draftId, hasFailedUploads, hasPendingUploads, hasValidLocation])
 
   const quickSwitcherImages = useMemo(() => {
-    return mergedManageImages
+    const sourceImages = canvasSource?.kind === 'crag-image' ? mergedCragCanvasImages : mergedManageImages
+    const pendingUploads = canvasSource?.kind === 'crag-image' ? pendingCragUploads : pendingDraftUploads
+
+    return sourceImages
       .slice()
       .sort((a, b) => a.index - b.index)
       .map((image: ManageImageTab) => ({
         ...image,
         badgeNumber: image.index + 1,
-        isDefault: image.imageId === defaultImageId,
-        progress: image.pendingClientId ? (pendingDraftUploads.find((upload) => upload.clientId === image.pendingClientId)?.progress || 0) : undefined,
+        isDefault: image.sourceKind === 'draft-image' && image.imageId === defaultImageId,
+        progress: image.pendingClientId ? (pendingUploads.find((upload) => upload.clientId === image.pendingClientId)?.progress || 0) : undefined,
       }))
-  }, [defaultImageId, mergedManageImages, pendingDraftUploads])
+  }, [canvasSource, defaultImageId, mergedCragCanvasImages, mergedManageImages, pendingCragUploads, pendingDraftUploads])
 
   const draftMapPins = useMemo<LightweightCragMapPin[]>(() => {
     const seenCoordinateGroups = new Set<string>()
@@ -825,7 +945,7 @@ export default function EditDraftPage() {
         longitude: image.longitude,
         label: String(image.badgeNumber),
         interactive: true,
-        tone: 'draft',
+        tone: image.sourceKind === 'crag-image' ? 'published' : 'draft',
       })
       return acc
     }, [])
@@ -968,20 +1088,27 @@ export default function EditDraftPage() {
   }, [activeDraftImageId])
 
   const setActiveAsDefault = useCallback(() => {
-    if (!activeDraftImageId) return
-    setDefaultImageId(activeDraftImageId)
-  }, [activeDraftImageId])
+    if (!activeImageTab || activeImageTab.sourceKind !== 'draft-image') return
+    setDefaultImageId(activeImageTab.imageId)
+    setCanvasSource({ kind: 'draft-image', draftImageId: activeImageTab.imageId })
+  }, [activeImageTab])
 
   const focusDrawingArea = useCallback((behavior: ScrollBehavior = 'smooth') => {
     drawingAreaRef.current?.scrollIntoView({ behavior, block: 'start' })
   }, [])
 
   const handleQuickSwitchImage = useCallback((imageId: string) => {
+    const targetImage = quickSwitcherImages.find((image) => image.imageId === imageId) || null
     setActiveImageId(imageId)
+    if (targetImage?.sourceKind === 'crag-image' && cragId) {
+      setCanvasSource({ kind: 'crag-image', cragImageId: imageId, cragId })
+    } else {
+      setCanvasSource({ kind: 'draft-image', draftImageId: imageId })
+    }
     window.setTimeout(() => {
       focusDrawingArea('smooth')
     }, 0)
-  }, [focusDrawingArea])
+  }, [cragId, focusDrawingArea, quickSwitcherImages])
 
   const handleAddImages = useCallback(async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0 || !draftId || !draftUpdatedAt || addingImages) return
@@ -1304,6 +1431,18 @@ export default function EditDraftPage() {
               contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
               contributionCreditHandle: normalizedHandle,
               sectorId,
+              canvasSource: canvasSource?.kind === 'crag-image'
+                ? {
+                    kind: 'crag-image',
+                    cragImageId: canvasSource.cragImageId,
+                    cragId: canvasSource.cragId,
+                  }
+                : canvasSource?.kind === 'draft-image'
+                  ? {
+                      kind: 'draft-image',
+                      draftImageId: canvasSource.draftImageId,
+                    }
+                  : null,
             },
           })
 
@@ -1395,7 +1534,7 @@ export default function EditDraftPage() {
     } finally {
       setSavingDraft(false)
     }
-  }, [cragId, creditHandle, creditPlatform, currentUserId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId])
+  }, [canvasSource, cragId, creditHandle, creditPlatform, currentUserId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId])
 
   const scheduleDraftPersist = useCallback((nextRoutesByImageId: Record<string, DraftRoute[]>) => {
     if (autosaveTimeoutRef.current) {
@@ -1753,7 +1892,7 @@ export default function EditDraftPage() {
               </div>
             ) : null}
             <div className="mt-3 space-y-2">
-              {pendingDraftUploads.filter((upload) => !upload.attachedDraftImageId).map((upload) => (
+              {pendingDraftUploads.filter((upload) => !upload.attachedRecordId).map((upload) => (
                 <div key={upload.clientId} className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
                   <div className="relative h-12 w-12 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800">
                     {upload.previewUrl ? (
@@ -1883,10 +2022,21 @@ export default function EditDraftPage() {
                     latitude: crag.latitude,
                     longitude: crag.longitude,
                   })
+                  setCragCanvasImages([])
                   setShowCragSelector(false)
                   setSuccess('Crag selected for this draft.')
                 }}
-                onCreateNew={() => {
+                onCreateNew={(crag) => {
+                  setCragId(crag.id)
+                  setSelectedCrag({
+                    id: crag.id,
+                    name: crag.name,
+                    latitude: crag.latitude,
+                    longitude: crag.longitude,
+                  })
+                  setCragCanvasImages([])
+                  setCanvasSource(null)
+                  setSuccess(`Crag "${crag.name}" created. Upload up to 20 photos and the first ready image can be used as your canvas.`)
                   setShowCragSelector(false)
                 }}
               />

@@ -11,6 +11,8 @@ interface UploadSessionRequest {
   cragId?: string | null
 }
 
+type UploadPurpose = UploadSessionRequest['purpose']
+
 interface UploadSessionResponse {
   imageId: string
   objectKey: string
@@ -54,9 +56,11 @@ export async function uploadFileToMediaSession(uploadUrl: string, uploadHeaders:
   }
 }
 
-export async function completeMediaUploadSession(imageId: string, signal?: AbortSignal) {
+export async function completeMediaUploadSession(imageId: string, purpose: UploadPurpose = 'submission_image', signal?: AbortSignal) {
   const response = await csrfFetch(`/api/media/upload-sessions/${encodeURIComponent(imageId)}/complete`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ purpose }),
     signal,
   })
 

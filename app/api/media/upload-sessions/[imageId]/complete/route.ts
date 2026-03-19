@@ -29,12 +29,16 @@ interface ImageRow {
   original_key: string | null
 }
 
+interface CompleteUploadBody {
+  purpose?: 'submission_image' | 'draft_image' | 'crag_image'
+}
+
 async function enqueueMediaIngest(payload: {
   imageId: string
   originalBucket: string
   originalKey: string
   storageProvider: 'r2'
-  purpose: 'submission_image'
+  purpose: 'submission_image' | 'draft_image' | 'crag_image'
   triggeredByUserId: string
   trigger: 'upload'
 }) {
@@ -75,6 +79,11 @@ export async function POST(
     if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
+
+    const body = await request.json().catch(() => null) as CompleteUploadBody | null
+    const purpose = body?.purpose === 'draft_image' || body?.purpose === 'crag_image' || body?.purpose === 'submission_image'
+      ? body.purpose
+      : 'submission_image'
 
     const { data, error } = await supabase
       .from('images')
@@ -140,7 +149,7 @@ export async function POST(
       originalBucket: image.original_bucket,
       originalKey: image.original_key,
       storageProvider: 'r2',
-      purpose: 'submission_image',
+      purpose,
       triggeredByUserId: user.id,
       trigger: 'upload',
     })

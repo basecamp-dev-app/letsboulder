@@ -11,7 +11,7 @@ interface CragSelectorProps {
   latitude?: number | null
   longitude?: number | null
   onSelect: (crag: Crag) => void
-  onCreateNew?: (name: string) => void
+  onCreateNew?: (crag: Crag) => void
   selectedCragId?: string | null
 }
 
@@ -222,13 +222,13 @@ export default function CragSelector({
           rock_type: newCragRockType.trim() || null,
           latitude: latitude ?? null,
           longitude: longitude ?? null,
-          country_id: atlasSync.atlas?.countryId ?? null,
+          selected_country_code: atlasSync.atlas?.countryCode ?? null,
         }),
       })
 
       if (response.ok) {
         const newCrag = await response.json()
-        setSuccessMessage(`Crag "${newCrag.name}" created successfully!`)
+        setSuccessMessage(`Crag "${newCrag.name}" created. You can now upload up to 20 photos in the background.`)
         setShowCreate(false)
         setNewCragName('')
         setNewCragRegionTag('')
@@ -237,7 +237,7 @@ export default function CragSelector({
         setRegionTagResults([])
         setQuery(newCrag.name)
         onSelect(newCrag)
-        onCreateNew?.(newCrag.name)
+        onCreateNew?.(newCrag)
         setResults([newCrag])
         setTimeout(() => setSuccessMessage(''), 3000)
       } else {
@@ -343,7 +343,7 @@ export default function CragSelector({
               type="text"
               value={newCragRegionTag}
               onChange={(e) => setNewCragRegionTag(e.target.value)}
-              placeholder="Region/Area tag (required, e.g. Yosemite Valley)"
+              placeholder="Region/Area tag (optional, e.g. Yosemite Valley)"
               className="w-full px-3 py-3 min-h-[48px] text-lg border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {regionTagLoading && (
@@ -390,13 +390,13 @@ export default function CragSelector({
           <div className="flex gap-2">
             <button
               onClick={handleCreate}
-              disabled={!newCragName.trim() || !newCragRegionTag.trim() || isCreating}
+              disabled={!newCragName.trim() || isCreating}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isCreating && (
                 <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
               )}
-              {isCreating ? 'Creating...' : 'Create Crag'}
+              {isCreating ? 'Creating...' : 'Create and Continue'}
             </button>
             <button
               onClick={handleCancelCreate}
@@ -533,12 +533,12 @@ export default function CragSelector({
             )}
           </div>
 
-          <button
-            onClick={handleShowCreate}
-            className="mt-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
-          >
-            + Create new crag
-          </button>
+            <button
+              onClick={handleShowCreate}
+              className="mt-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
+            >
+            + Create new crag and upload photos
+            </button>
         </>
       )}
     </div>

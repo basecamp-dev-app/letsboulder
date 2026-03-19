@@ -9,17 +9,21 @@ import { stripExifMetadataFromFile } from '@/lib/image-metadata'
 import { isHeicFile } from '@/lib/image-utils'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 
-const MAX_DRAFT_UPLOADS = 20
+const MAX_UPLOADS_PER_TARGET = 20
 const SKIP_COMPRESSION_THRESHOLD_BYTES = 1024 * 1024
 const THUMBNAIL_MAX_WIDTH = 320
 
-export type DraftUploadStatus = 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
+export type MediaUploadStatus = 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
 
-export interface DraftUploadItem {
+export type MediaUploadTarget =
+  | { kind: 'draft'; draftId: string }
+  | { kind: 'crag'; cragId: string }
+
+export interface MediaUploadItem {
   clientId: string
-  draftId: string
+  target: MediaUploadTarget
   fileName: string
-  status: DraftUploadStatus
+  status: MediaUploadStatus
   progress: number
   previewUrl: string
   width: number | null
@@ -30,13 +34,13 @@ export interface DraftUploadItem {
   gpsData: { latitude: number; longitude: number } | null
   captureDate: string | null
   error: string | null
-  attachedDraftImageId: string | null
+  attachedRecordId: string | null
   startedAt: number
 }
 
 interface QueueEntry {
   clientId: string
-  draftId: string
+  target: MediaUploadTarget
   file: File
 }
 
@@ -50,34 +54,51 @@ interface DraftAttachResponse {
   } | null
 }
 
-interface DraftUploadManagerValue {
-  uploads: DraftUploadItem[]
-  activeClientId: string | null
-  isPaused: boolean
-  queueDraftUploads: (files: File[], draftId: string) => void
-  getUploadsForDraft: (draftId: string) => DraftUploadItem[]
-  retryUpload: (clientId: string) => void
-  removeUpload: (clientId: string) => Promise<void>
-  hasPendingUploads: (draftId: string) => boolean
-  hasFailedUploads: (draftId: string) => boolean
-  registerDraftUpdatedAt: (draftId: string, updatedAt: string) => void
-  resumeQueue: () => void
-  isQueuePaused: (draftId?: string) => boolean
-  getActiveUpload: (draftId: string) => DraftUploadItem | null
+interface CragAttachResponse {
+  error?: string
+  images?: Array<{ id?: string | null }>
 }
 
-const DraftUploadManagerContext = createContext<DraftUploadManagerValue | null>(null)
+interface MediaUploadManagerValue {
+  uploads: MediaUploadItem[]
+  activeClientId: string | null
+  isPaused: boolean
+  queueUploads: (files: File[], target: MediaUploadTarget) => void
+  getUploadsForDraft: (draftId: string) => MediaUploadItem[]
+  getUploadsForCrag: (cragId: string) => MediaUploadItem[]
+  retryUpload: (clientId: string) => void
+  removeUpload: (clientId: string) => Promise<void>
+  hasPendingUploads: (target: MediaUploadTarget) => boolean
+  hasFailedUploads: (target: MediaUploadTarget) => boolean
+  registerDraftUpdatedAt: (draftId: string, updatedAt: string) => void
+  resumeQueue: () => void
+  isQueuePaused: (target?: MediaUploadTarget) => boolean
+  getActiveUpload: (target: MediaUploadTarget) => MediaUploadItem | null
+}
+
+const MediaUploadManagerContext = createContext<MediaUploadManagerValue | null>(null)
 
 function createClientId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
 
-  return `draft-upload-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  return `media-upload-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 function ensureFileName(file: Blob, fallbackName: string) {
   return file instanceof File ? file.name : fallbackName
+}
+
+function isSameTarget(left: MediaUploadTarget, right: MediaUploadTarget) {
+  if (left.kind !== right.kind) return false
+  if (left.kind === 'draft' && right.kind === 'draft') {
+    return left.draftId === right.draftId
+  }
+  if (left.kind === 'crag' && right.kind === 'crag') {
+    return left.cragId === right.cragId
+  }
+  return false
 }
 
 async function getImageDimensions(source: Blob) {
@@ -128,8 +149,8 @@ async function preprocessFile(file: File) {
   return stripExifMetadataFromFile(maybeCompressed)
 }
 
-export function DraftUploadManagerProvider({ children }: { children: ReactNode }) {
-  const [uploads, setUploads] = useState<Record<string, DraftUploadItem>>({})
+export function MediaUploadManagerProvider({ children }: { children: ReactNode }) {
+  const [uploads, setUploads] = useState<Record<string, MediaUploadItem>>({})
   const [queueOrder, setQueueOrder] = useState<string[]>([])
   const [activeClientId, setActiveClientId] = useState<string | null>(null)
   const [isPaused, setIsPaused] = useState(false)
@@ -143,25 +164,14 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
   const activeClientIdRef = useRef(activeClientId)
   const isPausedRef = useRef(isPaused)
 
-  useEffect(() => {
-    uploadsRef.current = uploads
-  }, [uploads])
-
-  useEffect(() => {
-    queueOrderRef.current = queueOrder
-  }, [queueOrder])
-
-  useEffect(() => {
-    activeClientIdRef.current = activeClientId
-  }, [activeClientId])
-
-  useEffect(() => {
-    isPausedRef.current = isPaused
-  }, [isPaused])
+  useEffect(() => { uploadsRef.current = uploads }, [uploads])
+  useEffect(() => { queueOrderRef.current = queueOrder }, [queueOrder])
+  useEffect(() => { activeClientIdRef.current = activeClientId }, [activeClientId])
+  useEffect(() => { isPausedRef.current = isPaused }, [isPaused])
 
   const uploadsList = useMemo(() => Object.values(uploads).sort((a, b) => a.startedAt - b.startedAt), [uploads])
 
-  const updateUpload = useCallback((clientId: string, updater: (current: DraftUploadItem) => DraftUploadItem) => {
+  const updateUpload = useCallback((clientId: string, updater: (current: MediaUploadItem) => MediaUploadItem) => {
     setUploads((current) => {
       const existing = current[clientId]
       if (!existing) return current
@@ -176,13 +186,7 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
     setUploads((current) => {
       const existing = current[clientId]
       if (!existing || !existing.previewUrl.startsWith('blob:')) return current
-      return {
-        ...current,
-        [clientId]: {
-          ...existing,
-          previewUrl: '',
-        },
-      }
+      return { ...current, [clientId]: { ...existing, previewUrl: '' } }
     })
   }, [])
 
@@ -191,90 +195,107 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
   }, [])
 
   const getUploadsForDraft = useCallback((draftId: string) => {
-    return uploadsList.filter((upload) => upload.draftId === draftId)
+    return uploadsList.filter((upload) => upload.target.kind === 'draft' && upload.target.draftId === draftId)
   }, [uploadsList])
 
-  const getActiveUpload = useCallback((draftId: string) => {
+  const getUploadsForCrag = useCallback((cragId: string) => {
+    return uploadsList.filter((upload) => upload.target.kind === 'crag' && upload.target.cragId === cragId)
+  }, [uploadsList])
+
+  const getActiveUpload = useCallback((target: MediaUploadTarget) => {
     if (!activeClientId) return null
     const upload = uploads[activeClientId] || null
-    if (!upload || upload.draftId !== draftId) return null
+    if (!upload || !isSameTarget(upload.target, target)) return null
     return upload
   }, [activeClientId, uploads])
 
-  const isQueuePaused = useCallback((draftId?: string) => {
+  const isQueuePaused = useCallback((target?: MediaUploadTarget) => {
     if (!isPaused) return false
-    if (!draftId) return true
+    if (!target) return true
     const activeUpload = activeClientId ? uploads[activeClientId] : null
-    if (activeUpload?.draftId === draftId) return true
-    return queueOrder.some((clientId) => uploads[clientId]?.draftId === draftId)
+    if (activeUpload && isSameTarget(activeUpload.target, target)) return true
+    return queueOrder.some((clientId) => {
+      const upload = uploads[clientId]
+      return upload ? isSameTarget(upload.target, target) : false
+    })
   }, [activeClientId, isPaused, queueOrder, uploads])
 
-  const hasPendingUploads = useCallback((draftId: string) => {
-    return getUploadsForDraft(draftId).some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')
-  }, [getUploadsForDraft])
+  const hasPendingUploads = useCallback((target: MediaUploadTarget) => {
+    const matching = target.kind === 'draft' ? getUploadsForDraft(target.draftId) : getUploadsForCrag(target.cragId)
+    return matching.some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')
+  }, [getUploadsForCrag, getUploadsForDraft])
 
-  const hasFailedUploads = useCallback((draftId: string) => {
-    return getUploadsForDraft(draftId).some((upload) => upload.status === 'FAILED')
-  }, [getUploadsForDraft])
+  const hasFailedUploads = useCallback((target: MediaUploadTarget) => {
+    const matching = target.kind === 'draft' ? getUploadsForDraft(target.draftId) : getUploadsForCrag(target.cragId)
+    return matching.some((upload) => upload.status === 'FAILED')
+  }, [getUploadsForCrag, getUploadsForDraft])
 
-  const attachUploadToDraft = useCallback(async (clientId: string) => {
-    let attempts = 0
-
-    while (attempts < 2) {
-      attempts += 1
-      const upload = uploadsRef.current[clientId]
-      if (!upload) return
-
-      const expectedUpdatedAt = draftUpdatedAtRef.current.get(upload.draftId)
-      if (!expectedUpdatedAt || !upload.uploadedBucket || !upload.uploadedPath) {
-        throw new Error('Draft is not ready to receive uploads yet')
-      }
-
-      const response = await csrfFetch(`/api/submissions/drafts/${upload.draftId}/images`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          expected_updated_at: expectedUpdatedAt,
-          images: [{
-            storage_bucket: upload.uploadedBucket,
-            storage_path: upload.uploadedPath,
-            gps_data: upload.gpsData,
-            capture_date: upload.captureDate,
-            width: upload.width,
-            height: upload.height,
-            route_data: {},
-          }],
-        }),
-      })
-
-      const payload = await response.json().catch(() => ({} as DraftAttachResponse))
-      if (response.ok) {
-        if (payload.draft?.updated_at) {
-          draftUpdatedAtRef.current.set(upload.draftId, payload.draft.updated_at)
-        }
-        const attachedDraftImageId = Array.isArray(payload.draft?.appended_image_ids)
-          ? payload.draft?.appended_image_ids[0] || null
-          : null
-        updateUpload(clientId, (current) => ({
-          ...current,
-          status: 'SUCCESS',
-          progress: 100,
-          error: null,
-          attachedDraftImageId,
-        }))
-        revokePreviewUrl(clientId)
-        return
-      }
-
-      if (response.status === 409 && payload.code === 'draft_conflict' && payload.current_updated_at) {
-        draftUpdatedAtRef.current.set(upload.draftId, payload.current_updated_at)
-        continue
-      }
-
-      throw new Error(payload.error || 'Failed to attach upload to draft')
+  const attachUpload = useCallback(async (clientId: string) => {
+    const upload = uploadsRef.current[clientId]
+    if (!upload || !upload.uploadedBucket || !upload.uploadedPath || !upload.uploadedImageId) {
+      throw new Error('Upload is not ready to attach yet')
     }
 
-    throw new Error('Draft changed while attaching upload. Please retry.')
+    if (upload.target.kind === 'draft') {
+      let attempts = 0
+      while (attempts < 2) {
+        attempts += 1
+        const expectedUpdatedAt = draftUpdatedAtRef.current.get(upload.target.draftId)
+        if (!expectedUpdatedAt) {
+          throw new Error('Draft is not ready to receive uploads yet')
+        }
+
+        const response = await csrfFetch(`/api/submissions/drafts/${upload.target.draftId}/images`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            expected_updated_at: expectedUpdatedAt,
+            images: [{
+              storage_bucket: upload.uploadedBucket,
+              storage_path: upload.uploadedPath,
+              gps_data: upload.gpsData,
+              capture_date: upload.captureDate,
+              width: upload.width,
+              height: upload.height,
+              route_data: {},
+            }],
+          }),
+        })
+
+        const payload = await response.json().catch(() => ({} as DraftAttachResponse))
+        if (response.ok) {
+          if (payload.draft?.updated_at) {
+            draftUpdatedAtRef.current.set(upload.target.draftId, payload.draft.updated_at)
+          }
+          const attachedRecordId = Array.isArray(payload.draft?.appended_image_ids) ? payload.draft?.appended_image_ids[0] || null : null
+          updateUpload(clientId, (current) => ({ ...current, status: 'SUCCESS', progress: 100, error: null, attachedRecordId }))
+          revokePreviewUrl(clientId)
+          return
+        }
+
+        if (response.status === 409 && payload.code === 'draft_conflict' && payload.current_updated_at) {
+          draftUpdatedAtRef.current.set(upload.target.draftId, payload.current_updated_at)
+          continue
+        }
+
+        throw new Error(payload.error || 'Failed to attach upload to draft')
+      }
+
+      throw new Error('Draft changed while attaching upload. Please retry.')
+    }
+
+    const response = await csrfFetch(`/api/crags/${upload.target.cragId}/images/attach`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ images: [{ uploaded_image_id: upload.uploadedImageId }] }),
+    })
+    const payload = await response.json().catch(() => ({} as CragAttachResponse))
+    if (!response.ok) {
+      throw new Error(payload.error || 'Failed to attach upload to crag')
+    }
+    const attachedRecordId = Array.isArray(payload.images) ? payload.images[0]?.id || null : null
+    updateUpload(clientId, (current) => ({ ...current, status: 'SUCCESS', progress: 100, error: null, attachedRecordId }))
+    revokePreviewUrl(clientId)
   }, [revokePreviewUrl, updateUpload])
 
   const drainQueueRef = useRef<() => void>(() => {})
@@ -304,11 +325,12 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
       }))
 
       const uploadSession = await createMediaUploadSession({
-        purpose: 'draft_image',
+        purpose: entry.target.kind === 'draft' ? 'draft_image' : 'crag_image',
         contentType: preparedFile.type || 'image/jpeg',
         fileName: ensureFileName(preparedFile, entry.file.name),
         byteSize: preparedFile.size,
-        draftId: entry.draftId,
+        draftId: entry.target.kind === 'draft' ? entry.target.draftId : undefined,
+        cragId: entry.target.kind === 'crag' ? entry.target.cragId : undefined,
       }, abortController.signal)
       uploadSessionImageId = uploadSession.imageId
 
@@ -323,16 +345,15 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
       await uploadFileToMediaSession(uploadSession.uploadUrl, uploadSession.uploadHeaders, preparedFile, abortController.signal)
       updateUpload(entry.clientId, (current) => ({ ...current, progress: 80 }))
 
-      await completeMediaUploadSession(uploadSession.imageId, abortController.signal)
+      await completeMediaUploadSession(uploadSession.imageId, entry.target.kind === 'draft' ? 'draft_image' : 'crag_image', abortController.signal)
       updateUpload(entry.clientId, (current) => ({ ...current, progress: 90 }))
-      await attachUploadToDraft(entry.clientId)
+      await attachUpload(entry.clientId)
 
       completedSuccessfully = true
       setQueueOrder((current) => current.filter((clientId) => clientId !== entry.clientId))
+      setActiveClientId(null)
     } catch (error) {
-      const isAbortError = error instanceof DOMException
-        ? error.name === 'AbortError'
-        : error instanceof Error && error.name === 'AbortError'
+      const isAbortError = error instanceof DOMException ? error.name === 'AbortError' : error instanceof Error && error.name === 'AbortError'
 
       if (isAbortError) {
         updateUpload(entry.clientId, (current) => ({
@@ -358,7 +379,6 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
       }))
 
       setIsPaused(true)
-      revokePreviewUrl(entry.clientId)
     } finally {
       if (activeAbortControllerRef.current === abortController) {
         activeAbortControllerRef.current = null
@@ -369,7 +389,7 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
       }
       drainQueueRef.current()
     }
-  }, [attachUploadToDraft, revokePreviewUrl, updateUpload])
+  }, [attachUpload, updateUpload])
 
   const drainQueue = useCallback(() => {
     if (drainScheduledRef.current) return
@@ -402,13 +422,13 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
 
   drainQueueRef.current = drainQueue
 
-  const queueDraftUploads = useCallback((files: File[], draftId: string) => {
-    const acceptedFiles = files.slice(0, MAX_DRAFT_UPLOADS)
+  const queueUploads = useCallback((files: File[], target: MediaUploadTarget) => {
+    const acceptedFiles = files.slice(0, MAX_UPLOADS_PER_TARGET)
     const createdAt = Date.now()
 
     const createdUploads = acceptedFiles.map((file, index) => ({
       clientId: createClientId(),
-      draftId,
+      target,
       fileName: file.name,
       status: 'QUEUED' as const,
       progress: 0,
@@ -421,23 +441,20 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
       gpsData: null,
       captureDate: null,
       error: null,
-      attachedDraftImageId: null,
+      attachedRecordId: null,
       startedAt: createdAt + index,
     }))
 
     setUploads((current) => {
       const next = { ...current }
-      createdUploads.forEach((upload) => {
-        next[upload.clientId] = upload
-      })
+      createdUploads.forEach((upload) => { next[upload.clientId] = upload })
       return next
     })
-
     setQueueOrder((current) => [...current, ...createdUploads.map((upload) => upload.clientId)])
 
     createdUploads.forEach((upload, index) => {
       const file = acceptedFiles[index]
-      queueEntriesRef.current.set(upload.clientId, { clientId: upload.clientId, draftId, file })
+      queueEntriesRef.current.set(upload.clientId, { clientId: upload.clientId, target, file })
       void buildPreviewUrl(file).then((previewUrl) => {
         updateUpload(upload.clientId, (current) => ({ ...current, previewUrl }))
       })
@@ -452,7 +469,6 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
 
     setIsPaused(false)
     setQueueOrder((current) => [clientId, ...current.filter((queuedClientId) => queuedClientId !== clientId)])
-
     updateUpload(clientId, (current) => ({
       ...current,
       status: 'QUEUED',
@@ -461,22 +477,18 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
       uploadedImageId: null,
       uploadedBucket: null,
       uploadedPath: null,
-      attachedDraftImageId: null,
+      attachedRecordId: null,
     }))
-
     drainQueue()
   }, [drainQueue, updateUpload])
 
   const removeUpload = useCallback(async (clientId: string) => {
     const upload = uploadsRef.current[clientId]
     if (!upload) return
-
     if (upload.uploadedImageId) {
       await deleteMediaUploadSession(upload.uploadedImageId).catch(() => null)
     }
-
     revokePreviewUrl(clientId)
-
     setUploads((current) => {
       const next = { ...current }
       delete next[clientId]
@@ -484,7 +496,6 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
     })
     queueEntriesRef.current.delete(clientId)
     setQueueOrder((current) => current.filter((queuedClientId) => queuedClientId !== clientId))
-
     if (activeClientIdRef.current === clientId) {
       setActiveClientId(null)
     }
@@ -507,12 +518,13 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
     }
   }, [])
 
-  const value = useMemo<DraftUploadManagerValue>(() => ({
+  const value = useMemo<MediaUploadManagerValue>(() => ({
     uploads: uploadsList,
     activeClientId,
     isPaused,
-    queueDraftUploads,
+    queueUploads,
     getUploadsForDraft,
+    getUploadsForCrag,
     retryUpload,
     removeUpload,
     hasPendingUploads,
@@ -521,20 +533,34 @@ export function DraftUploadManagerProvider({ children }: { children: ReactNode }
     resumeQueue,
     isQueuePaused,
     getActiveUpload,
-  }), [activeClientId, getActiveUpload, getUploadsForDraft, hasFailedUploads, hasPendingUploads, isPaused, isQueuePaused, queueDraftUploads, registerDraftUpdatedAt, removeUpload, resumeQueue, retryUpload, uploadsList])
+  }), [activeClientId, getActiveUpload, getUploadsForCrag, getUploadsForDraft, hasFailedUploads, hasPendingUploads, isPaused, isQueuePaused, queueUploads, registerDraftUpdatedAt, removeUpload, resumeQueue, retryUpload, uploadsList])
 
-  return (
-    <DraftUploadManagerContext.Provider value={value}>
-      {children}
-    </DraftUploadManagerContext.Provider>
-  )
+  return <MediaUploadManagerContext.Provider value={value}>{children}</MediaUploadManagerContext.Provider>
+}
+
+export function useMediaUploadManager() {
+  const context = useContext(MediaUploadManagerContext)
+  if (!context) {
+    throw new Error('useMediaUploadManager must be used within MediaUploadManagerProvider')
+  }
+  return context
 }
 
 export function useDraftUploadManager() {
-  const context = useContext(DraftUploadManagerContext)
-  if (!context) {
-    throw new Error('useDraftUploadManager must be used within DraftUploadManagerProvider')
+  const context = useMediaUploadManager()
+  return {
+    uploads: context.uploads,
+    activeClientId: context.activeClientId,
+    isPaused: context.isPaused,
+    queueDraftUploads: (files: File[], draftId: string) => context.queueUploads(files, { kind: 'draft', draftId }),
+    getUploadsForDraft: context.getUploadsForDraft,
+    retryUpload: context.retryUpload,
+    removeUpload: context.removeUpload,
+    hasPendingUploads: (draftId: string) => context.hasPendingUploads({ kind: 'draft', draftId }),
+    hasFailedUploads: (draftId: string) => context.hasFailedUploads({ kind: 'draft', draftId }),
+    registerDraftUpdatedAt: context.registerDraftUpdatedAt,
+    resumeQueue: context.resumeQueue,
+    isQueuePaused: (draftId?: string) => draftId ? context.isQueuePaused({ kind: 'draft', draftId }) : context.isQueuePaused(),
+    getActiveUpload: (draftId: string) => context.getActiveUpload({ kind: 'draft', draftId }),
   }
-
-  return context
 }
