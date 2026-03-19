@@ -25,11 +25,12 @@ async function parseJson<T>(response: Response): Promise<T | null> {
   return response.json().catch(() => null)
 }
 
-export async function createMediaUploadSession(payload: UploadSessionRequest): Promise<UploadSessionResponse> {
+export async function createMediaUploadSession(payload: UploadSessionRequest, signal?: AbortSignal): Promise<UploadSessionResponse> {
   const response = await csrfFetch('/api/media/upload-sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal,
   })
 
   const data = await parseJson<UploadSessionResponse & { error?: string }>(response)
@@ -40,11 +41,12 @@ export async function createMediaUploadSession(payload: UploadSessionRequest): P
   return data
 }
 
-export async function uploadFileToMediaSession(uploadUrl: string, uploadHeaders: Record<string, string>, file: Blob) {
+export async function uploadFileToMediaSession(uploadUrl: string, uploadHeaders: Record<string, string>, file: Blob, signal?: AbortSignal) {
   const response = await fetch(uploadUrl, {
     method: 'PUT',
     headers: uploadHeaders,
     body: file,
+    signal,
   })
 
   if (!response.ok) {
@@ -52,9 +54,10 @@ export async function uploadFileToMediaSession(uploadUrl: string, uploadHeaders:
   }
 }
 
-export async function completeMediaUploadSession(imageId: string) {
+export async function completeMediaUploadSession(imageId: string, signal?: AbortSignal) {
   const response = await csrfFetch(`/api/media/upload-sessions/${encodeURIComponent(imageId)}/complete`, {
     method: 'POST',
+    signal,
   })
 
   const data = await parseJson<{ error?: string }>(response)

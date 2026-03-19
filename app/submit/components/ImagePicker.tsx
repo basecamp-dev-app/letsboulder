@@ -1,82 +1,84 @@
 'use client'
 
-import { useCallback, useState } from 'react'
-import type { ImageSelection, NewImageSelection, GpsData } from '@/lib/submission-types'
-import MultiImageUploader from './MultiImageUploader'
+import { useCallback, useRef, useState } from 'react'
 
 interface ImagePickerProps {
-  onSelect: (selection: ImageSelection | null, gpsData: GpsData | null) => void
-  onUploadingStateChange?: (uploading: boolean) => void
-  showBackButton?: boolean
+  onFilesSelected: (files: File[]) => void | Promise<void>
+  disabled?: boolean
 }
 
-export default function ImagePicker({ onSelect, onUploadingStateChange }: ImagePickerProps) {
-  const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [currentStep, setCurrentStep] = useState('')
+const MAX_FILES = 20
+
+export default function ImagePicker({ onFilesSelected, disabled = false }: ImagePickerProps) {
   const [error, setError] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const handleUploadComplete = useCallback((result: NewImageSelection) => {
-    setUploading(false)
-    setProgress(0)
-    setCurrentStep('')
+  const handleFiles = useCallback(async (fileList: FileList | null) => {
+    if (!fileList || disabled) return
+
+    const files = Array.from(fileList)
+      .filter((file) => file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name))
+      .slice(0, MAX_FILES)
+
+    if (files.length === 0) {
+      setError('Select at least one image file.')
+      return
+    }
+
     setError(null)
-    onUploadingStateChange?.(false)
-    const primaryImage = result.images[result.primaryIndex]
-    const sharedGps = primaryImage?.gpsData || result.images.find((image) => image.gpsData)?.gpsData || null
-    onSelect(result, sharedGps)
-  }, [onSelect, onUploadingStateChange])
-
-  const handleUploadError = useCallback((err: string) => {
-    setError(err)
-    setUploading(false)
-    setProgress(0)
-    setCurrentStep('')
-    onUploadingStateChange?.(false)
-  }, [onUploadingStateChange])
-
-  const handleUploadState = useCallback((uploadingState: boolean, progressValue: number, step: string) => {
-    setUploading(uploadingState)
-    setProgress(progressValue)
-    setCurrentStep(step)
-    onUploadingStateChange?.(uploadingState)
-  }, [onUploadingStateChange])
-
-  const handleClear = useCallback(() => {
-    setError(null)
-    onUploadingStateChange?.(false)
-    onSelect(null, null)
-  }, [onSelect, onUploadingStateChange])
+    await onFilesSelected(files)
+  }, [disabled, onFilesSelected])
 
   return (
-    <div className="image-picker">
-      {error && (
-        <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <MultiImageUploader
-        onComplete={handleUploadComplete}
-        onClear={handleClear}
-        onError={handleUploadError}
-        onUploading={handleUploadState}
+    <div className="space-y-3">
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        accept="image/*,.heic,.heif,.HEIC,.HEIF"
+        className="hidden"
+        disabled={disabled}
+        onChange={(event) => {
+          void handleFiles(event.target.files)
+          event.target.value = ''
+        }}
       />
 
-      {uploading && (
-        <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
-            <span className="text-sm text-gray-600 dark:text-gray-400">{currentStep}</span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div
-              className="bg-blue-500 h-2 rounded-full transition-all"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+      <div
+        onClick={() => {
+          if (!disabled) {
+            inputRef.current?.click()
+          }
+        }}
+        onDragOver={(event) => {
+          event.preventDefault()
+          if (!disabled) setIsDragging(true)
+        }}
+        onDragLeave={(event) => {
+          event.preventDefault()
+          setIsDragging(false)
+        }}
+        onDrop={(event) => {
+          event.preventDefault()
+          setIsDragging(false)
+          void handleFiles(event.dataTransfer.files)
+        }}
+        className={`rounded-lg border-2 border-dashed p-6 text-center transition-all duration-200 ${disabled ? 'cursor-default opacity-60' : 'cursor-pointer'} ${isDragging ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500'}`}
+      >
+        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {disabled ? 'Creating draft...' : isDragging ? 'Drop photos here' : 'Drop photos or click to select'}
+        </p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Up to 20 photos. The editor opens immediately while uploads continue in the background.
+        </p>
+      </div>
+
+      {error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+          {error}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
