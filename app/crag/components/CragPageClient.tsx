@@ -2,6 +2,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, startTransition } from 'react'
+import type { MouseEvent } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
@@ -162,6 +163,11 @@ export interface RoutePreview {
 interface RouteNavigationTarget extends ImageRouteTarget {
   displayImageId: string
   displayImageUrl: string
+}
+
+interface ResolvedRouteDestination {
+  href: string
+  ready: boolean
 }
 
 interface CragSwitcherOption {
@@ -1568,21 +1574,24 @@ export default function CragPageClient({
     return chips
   }, [gradeSystem, maxGrade, minGrade, minRating, minSends, searchQuery, selectedDirections, selectedRouteTypes, topoOnly])
 
-  const getRouteDestination = useCallback((route: CragRoute) => {
+  const getRouteDestination = useCallback((route: CragRoute): ResolvedRouteDestination => {
     const offlineOnly = isOfflineDocumentNavigationPreferred()
     const routeTarget = routeNavigationDisplayByClimbId[route.id]
     if (routeTarget) {
       const routeClimbId = routeTarget.climbId || route.id
-      return buildCragImageDestination({
-        imageId: routeTarget.displayImageId,
-        target: {
-          ...routeTarget,
-          climbId: routeClimbId,
-          climbSlug: route.slug || routeTarget.climbSlug,
-        },
-        routeHrefBase,
-        offlineOnly,
-      })
+      return {
+        href: buildCragImageDestination({
+          imageId: routeTarget.displayImageId,
+          target: {
+            ...routeTarget,
+            climbId: routeClimbId,
+            climbSlug: route.slug || routeTarget.climbSlug,
+          },
+          routeHrefBase,
+          offlineOnly,
+        }),
+        ready: true,
+      }
     }
 
     const preview = routePreviewDisplayByClimbId[route.id]
@@ -1590,39 +1599,61 @@ export default function CragPageClient({
     const fallbackTarget = fallbackImageId ? defaultRouteTargetByImageId[fallbackImageId] : undefined
 
     if (fallbackImageId && fallbackTarget) {
-      return buildCragImageDestination({
-        imageId: fallbackImageId,
-        target: {
-          ...fallbackTarget,
-          climbId: fallbackTarget.climbId || route.id,
-          routeId: fallbackTarget.routeId || route.id,
-          climbSlug: route.slug || fallbackTarget.climbSlug,
-        },
-        routeHrefBase,
-        offlineOnly,
-      })
+      return {
+        href: buildCragImageDestination({
+          imageId: fallbackImageId,
+          target: {
+            ...fallbackTarget,
+            climbId: fallbackTarget.climbId || route.id,
+            routeId: fallbackTarget.routeId || route.id,
+            climbSlug: route.slug || fallbackTarget.climbSlug,
+          },
+          routeHrefBase,
+          offlineOnly,
+        }),
+        ready: true,
+      }
     }
 
     if (!offlineOnly && fallbackImageId) {
-      return buildCragImageDestination({
-        imageId: fallbackImageId,
-        routeHrefBase,
-        offlineOnly: false,
-      })
+      return {
+        href: buildCragImageDestination({
+          imageId: fallbackImageId,
+          routeHrefBase,
+          offlineOnly: false,
+        }),
+        ready: false,
+      }
     }
 
     console.warn(`[Router Debug] Route target miss for climb_id: ${route.id}. Falling back to slug.`)
 
     if (offlineOnly) {
-      return `/climb/${route.id}`
+      return {
+        href: `/climb/${route.id}`,
+        ready: true,
+      }
     }
 
     if (route.slug && routeHrefBase) {
-      return `${routeHrefBase}/${route.slug}`
+      return {
+        href: `${routeHrefBase}/${route.slug}`,
+        ready: false,
+      }
     }
 
-    return `/climb/${route.id}`
+    return {
+      href: `/climb/${route.id}`,
+      ready: false,
+    }
   }, [defaultRouteTargetByImageId, routeHrefBase, routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId])
+
+  const handlePendingRouteNavigation = useCallback((event: MouseEvent<HTMLButtonElement>, route: CragRoute) => {
+    event.preventDefault()
+    const destination = getRouteDestination(route)
+    if (!destination.ready) return
+    router.push(destination.href)
+  }, [getRouteDestination, router])
 
   const prefetchImageDestination = useCallback((imageId: string) => {
     if (!imageId) return
@@ -1844,8 +1875,11 @@ export default function CragPageClient({
                 <p className="px-4 py-4 text-sm text-stone-500 dark:text-gray-400">No routes match this filter combination.</p>
               ) : (
                 <div className="divide-y divide-stone-100 dark:divide-gray-800">
-                  {filteredRoutes.map((route) => (
-                    <a key={route.id} href={getRouteDestination(route)} className={`flex items-center gap-3 px-4 py-3 transition hover:bg-stone-50 dark:hover:bg-gray-800/50 ${highlightedRouteIds.has(route.id) ? 'bg-teal-50/80 ring-1 ring-inset ring-teal-200 dark:bg-teal-950/20 dark:ring-teal-900' : ''}`}>
+                  {filteredRoutes.map((route) => {
+                    const destination = getRouteDestination(route)
+                    const className = `flex items-center gap-3 px-4 py-3 transition hover:bg-stone-50 dark:hover:bg-gray-800/50 ${highlightedRouteIds.has(route.id) ? 'bg-teal-50/80 ring-1 ring-inset ring-teal-200 dark:bg-teal-950/20 dark:ring-teal-900' : ''}`
+
+                    const content = (
                       {routePreviewDisplayByClimbId[route.id] ? (
                         <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                           <Image src={routePreviewDisplayByClimbId[route.id].imageUrl} alt={`${route.name} topo preview`} fill className="object-cover" sizes="64px" unoptimized />
@@ -1870,8 +1904,22 @@ export default function CragPageClient({
                         </div>
                       </div>
                       <ChevronRight className="size-4 shrink-0 text-stone-400" />
-                    </a>
-                  ))}
+                    )
+
+                    if (!destination.ready) {
+                      return (
+                        <button key={route.id} type="button" onClick={(event) => handlePendingRouteNavigation(event, route)} className={`${className} w-full text-left`}>
+                          {content}
+                        </button>
+                      )
+                    }
+
+                    return (
+                      <a key={route.id} href={destination.href} className={className}>
+                        {content}
+                      </a>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -1907,12 +1955,29 @@ export default function CragPageClient({
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Climbs</p>
                 <div className="space-y-2">
-                  {searchModalResults.length === 0 ? <p className="text-sm text-stone-500 dark:text-gray-400">No climbs match yet.</p> : searchModalResults.map((route) => (
-                    <a key={route.id} href={getRouteDestination(route)} className="flex items-center justify-between rounded-xl border border-stone-200 px-3 py-2 text-sm hover:bg-stone-50 dark:border-gray-700 dark:hover:bg-gray-800">
-                      <span>{route.name} <span className="text-stone-500">{formatGradeForDisplay(route.grade, gradeSystem)}</span></span>
-                      <ChevronRight className="size-4 text-stone-400" />
-                    </a>
-                  ))}
+                  {searchModalResults.length === 0 ? <p className="text-sm text-stone-500 dark:text-gray-400">No climbs match yet.</p> : searchModalResults.map((route) => {
+                    const destination = getRouteDestination(route)
+                    const content = (
+                      <>
+                        <span>{route.name} <span className="text-stone-500">{formatGradeForDisplay(route.grade, gradeSystem)}</span></span>
+                        <ChevronRight className="size-4 text-stone-400" />
+                      </>
+                    )
+
+                    if (!destination.ready) {
+                      return (
+                        <button key={route.id} type="button" onClick={(event) => handlePendingRouteNavigation(event, route)} className="flex w-full items-center justify-between rounded-xl border border-stone-200 px-3 py-2 text-left text-sm hover:bg-stone-50 dark:border-gray-700 dark:hover:bg-gray-800">
+                          {content}
+                        </button>
+                      )
+                    }
+
+                    return (
+                      <a key={route.id} href={destination.href} className="flex items-center justify-between rounded-xl border border-stone-200 px-3 py-2 text-sm hover:bg-stone-50 dark:border-gray-700 dark:hover:bg-gray-800">
+                        {content}
+                      </a>
+                    )
+                  })}
                 </div>
               </div>
               <div>

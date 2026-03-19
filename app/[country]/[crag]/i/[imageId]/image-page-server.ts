@@ -48,9 +48,12 @@ interface CragImageWithAssetRow extends CragImageRow {
 
 interface ImageAssetRow {
   id: string
+  crag_id: string
   url: string | null
   width: number | null
   height: number | null
+  created_at: string | null
+  crags: CragRow | CragRow[] | null
 }
 
 type ResolvedImageRow = {
@@ -62,6 +65,19 @@ type ResolvedImageRow = {
   created_at: string | null
   crag_id: string
   crags: CragRow | CragRow[] | null
+}
+
+type ResolvedImageRecord = {
+  canonicalId: string
+  redirectRequired: boolean
+  staticUrl: string
+  width: number
+  height: number
+  cragSlug: string
+  countryCode: string
+  cragId: string
+  cragName: string
+  fromCragImages: boolean
 }
 
 interface RouteLineRow {
@@ -190,36 +206,63 @@ async function resolveCragImageRow(displayImageId: string): Promise<ResolvedImag
 export const getImageByDisplayId = cache(async (displayImageId: string) => {
   const supabase = await getSupabase()
   const resolved = await resolveCragImageRow(displayImageId)
-  if (!resolved) return null
+  if (resolved) {
+    const canonicalId = getDisplayImageId(resolved)
+    if (!canonicalId) return null
 
-  const canonicalId = getDisplayImageId(resolved)
-  if (!canonicalId) return null
+    const crag = Array.isArray(resolved.crags) ? resolved.crags[0] : resolved.crags
+    if (!crag?.slug || !crag.country_code) return null
 
-  const crag = Array.isArray(resolved.crags) ? resolved.crags[0] : resolved.crags
-  if (!crag?.slug || !crag.country_code) return null
+    let asset: ImageAssetRow | null = null
+    if (resolved.linked_image_id) {
+      const { data: imageData } = await supabase
+        .from('images')
+        .select('id, crag_id, url, width, height, created_at, crags(id, slug, country_code, name)')
+        .eq('id', resolved.linked_image_id)
+        .maybeSingle()
+      asset = (imageData as ImageAssetRow | null) || null
+    }
 
-  let asset: ImageAssetRow | null = null
-  if (resolved.linked_image_id) {
-    const { data: imageData } = await supabase
-      .from('images')
-      .select('id, url, width, height')
-      .eq('id', resolved.linked_image_id)
-      .maybeSingle()
-    asset = (imageData as ImageAssetRow | null) || null
+    const src = resolveRouteImageUrl(asset?.url || resolved.url)
+    return {
+      canonicalId,
+      redirectRequired: canonicalId !== displayImageId,
+      staticUrl: src,
+      width: asset?.width ?? resolved.width ?? 1600,
+      height: asset?.height ?? resolved.height ?? 1200,
+      cragSlug: crag.slug,
+      countryCode: crag.country_code.toLowerCase(),
+      cragId: crag.id,
+      cragName: crag.name,
+      fromCragImages: true,
+    } satisfies ResolvedImageRecord
   }
 
-  const src = resolveRouteImageUrl(asset?.url || resolved.url)
+  const { data: rawImageData, error: rawImageError } = await supabase
+    .from('images')
+    .select('id, crag_id, url, width, height, created_at, crags(id, slug, country_code, name)')
+    .eq('id', displayImageId)
+    .maybeSingle()
+
+  if (rawImageError) throw rawImageError
+  const rawImage = rawImageData as ImageAssetRow | null
+  if (!rawImage) return null
+
+  const crag = Array.isArray(rawImage.crags) ? rawImage.crags[0] : rawImage.crags
+  if (!crag?.slug || !crag.country_code || !rawImage.url) return null
+
   return {
-    canonicalId,
-    redirectRequired: canonicalId !== displayImageId,
-    staticUrl: src,
-    width: asset?.width ?? resolved.width ?? 1600,
-    height: asset?.height ?? resolved.height ?? 1200,
+    canonicalId: rawImage.id,
+    redirectRequired: false,
+    staticUrl: resolveRouteImageUrl(rawImage.url),
+    width: rawImage.width ?? 1600,
+    height: rawImage.height ?? 1200,
     cragSlug: crag.slug,
     countryCode: crag.country_code.toLowerCase(),
     cragId: crag.id,
     cragName: crag.name,
-  }
+    fromCragImages: false,
+  } satisfies ResolvedImageRecord
 })
 
 export async function getRoutesByImage(displayImageId: string) {
@@ -308,7 +351,13 @@ export async function buildImageFirstPayload(args: {
       })
     .filter((node): node is NonNullable<typeof node> => node !== null)
 
-  const ordered = getStableSpatialOrder(spatialNodes)
+  const ordered = spatialNodes.length > 0
+    ? getStableSpatialOrder(spatialNodes)
+    : {
+        orderedImageIds: [image.canonicalId],
+        orderedStacks: [{ stackId: image.canonicalId, images: [{ displayImageId: image.canonicalId, cragImageId: image.canonicalId, latitude: null, longitude: null, createdAt: null, sectorId: null, sectorName: null }] }],
+        imageIndexByDisplayImageId: new Map([[image.canonicalId, 0]]),
+      }
   const imageMap: Record<string, { src: string; width: number; height: number }> = {}
   for (const row of cragImageRows) {
     const displayId = getDisplayImageId(row)
@@ -327,7 +376,7 @@ export async function buildImageFirstPayload(args: {
   }
 
   const startIndex = ordered.imageIndexByDisplayImageId.get(image.canonicalId) ?? 0
-  const sectorMarkers = ordered.orderedStacks.reduce<Record<string, { name: string; firstImageId: string }>>((markers, stack) => {
+  const sectorMarkers = spatialNodes.length > 0 ? ordered.orderedStacks.reduce<Record<string, { name: string; firstImageId: string }>>((markers, stack) => {
     const first = stack.images[0]
     if (!first?.sectorId || markers[first.sectorId]) return markers
     markers[first.sectorId] = {
@@ -335,7 +384,7 @@ export async function buildImageFirstPayload(args: {
       firstImageId: first.displayImageId,
     }
     return markers
-  }, {})
+  }, {}) : {}
   const initialRoutes = initialRouteRows.map((row, index) => {
     const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
     return {
