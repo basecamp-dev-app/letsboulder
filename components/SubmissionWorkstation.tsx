@@ -98,20 +98,12 @@ export function SubmissionWorkstation({
     if (!onQuickBarDropFiles) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
-    console.log('[quick-bar-drop] dragover', {
-      fileCount: event.dataTransfer.files.length,
-      types: Array.from(event.dataTransfer.types || []),
-    })
     setIsQuickBarDragOver(true)
   }
 
   const handleQuickBarDragEnter = (event: DragEvent<HTMLDivElement>) => {
     if (!onQuickBarDropFiles) return
     event.preventDefault()
-    console.log('[quick-bar-drop] dragenter', {
-      fileCount: event.dataTransfer.files.length,
-      types: Array.from(event.dataTransfer.types || []),
-    })
     setIsQuickBarDragOver(true)
   }
 
@@ -126,10 +118,6 @@ export function SubmissionWorkstation({
     event.preventDefault()
     setIsQuickBarDragOver(false)
     const files = Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name))
-    console.log('[quick-bar-drop] drop', {
-      fileCount: event.dataTransfer.files.length,
-      acceptedFileNames: files.map((file) => file.name),
-    })
     if (files.length === 0) return
     onQuickBarDropFiles(files)
   }
@@ -149,7 +137,7 @@ export function SubmissionWorkstation({
       <div
         className={`sticky top-[calc(var(--app-header-offset,0px)+0.5rem)] z-20 -mx-1 overflow-x-auto rounded-2xl px-2 py-2 shadow-sm backdrop-blur transition-colors ${
           isQuickBarDragOver
-            ? 'border-4 border-dashed border-blue-600 bg-blue-50/50 dark:border-blue-400 dark:bg-blue-950/40'
+            ? 'border-4 border-dashed border-blue-500 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-950/40'
             : 'border border-gray-200 bg-white/95 dark:border-gray-800 dark:bg-gray-900/95'
         }`}
         onDragEnter={handleQuickBarDragEnter}
@@ -159,8 +147,8 @@ export function SubmissionWorkstation({
       >
         <div className="relative">
         {isQuickBarDragOver ? (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-blue-50/60 text-sm font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
-            Drop photos here
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-blue-50/70 text-sm font-semibold text-blue-700 dark:bg-blue-950/50 dark:text-blue-200">
+            Drop photos to upload
           </div>
         ) : null}
         <div className="flex items-start gap-2">
