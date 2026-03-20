@@ -77,12 +77,24 @@ export default function cloudflareLoader({ src, width, quality }: ImageLoaderPro
     }
   }
 
+  let normalizedSrc = trimmed
+  try {
+    const normalizedUrl = new URL(trimmed)
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || null
+    const isSameOrigin = normalizedUrl.origin === 'http://localhost'
+      || normalizedUrl.origin === siteUrl
+
+    if (isSameOrigin) {
+      normalizedSrc = `${normalizedUrl.pathname}${normalizedUrl.search}`
+    }
+  } catch {
+    // Relative path; keep as-is.
+  }
+
   // Local images on same origin → use /cdn-cgi/image/ for CF Image Resizing
-  const isLocal = trimmed.startsWith('/') && !trimmed.startsWith('//')
-  if (isLocal) {
-    const params = [`width=${width}`]
-    if (quality) params.push(`quality=${quality}`)
-    return `/cdn-cgi/image/${params.join(',')}/${encodeURIComponent(trimmed)}`
+  if (normalizedSrc.startsWith('/') && !normalizedSrc.startsWith('//')) {
+    const params = [`width=${width}`, `quality=${quality || 75}`, 'format=auto']
+    return `/cdn-cgi/image/${params.join(',')}${normalizedSrc}`
   }
 
   return trimmed
