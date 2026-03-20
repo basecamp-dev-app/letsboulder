@@ -224,6 +224,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                           mode="browse"
                           imageUrl={imageMeta.src}
                           routes={visibleRoutes}
+                          activeRouteId={activeRouteId}
                           onRouteSelect={handleRouteSelect}
                         />
                       </div>
