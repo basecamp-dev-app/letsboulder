@@ -87,7 +87,8 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
           : submission.canonical_image_id
             ? `/image/${submission.canonical_image_id}`
             : `/image/${submission.id}`
-        const imageSrc = resolveRouteImageUrl(submission.url)
+        const imageSrcRaw = resolveRouteImageUrl(submission.url)
+        const imageSrc = typeof imageSrcRaw === 'string' && imageSrcRaw.trim().length > 0 ? imageSrcRaw : null
         const content = (
           <>
             {imageSrc ? (
