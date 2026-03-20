@@ -102,7 +102,6 @@ export default function FaceSwipeGallery({ faces, isOwner }: FaceSwipeGalleryPro
                     alt={face.is_primary ? 'Primary face' : 'Supplementary face'}
                     fill
                     sizes="(max-width: 768px) 85vw, 60vw"
-                    unoptimized
                     className="object-cover"
                   />
                   <div className="absolute left-2 top-2 rounded bg-black/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
@@ -143,7 +142,6 @@ export default function FaceSwipeGallery({ faces, isOwner }: FaceSwipeGalleryPro
               alt="Face thumbnail"
               fill
               sizes="56px"
-              unoptimized
               className="object-cover"
             />
           </button>

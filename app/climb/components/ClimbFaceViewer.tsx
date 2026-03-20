@@ -128,7 +128,6 @@ export default function ClimbFaceViewer({
                   alt={displayClimbName}
                   width={Math.max(1, face.width || 1600)}
                   height={Math.max(1, face.height || 1200)}
-                  unoptimized
                   sizes="100vw"
                   loading={index === activeFaceIndex ? 'eager' : 'lazy'}
                   draggable={false}
