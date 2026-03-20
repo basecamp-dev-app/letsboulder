@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, type DragEvent } from 'react'
 import NextImage from 'next/image'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import LightweightCragMap, { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
@@ -46,6 +47,7 @@ interface SubmissionWorkstationProps {
   extraAction?: React.ReactNode
   addAction?: { loading?: boolean; disabled?: boolean; onClick: () => void }
   removeAction?: { loading?: boolean; disabled?: boolean; onClick: () => void }
+  onQuickBarDropFiles?: (files: File[]) => void
   canvasMode?: 'edit-existing'
   onRoutesUpdate: (routes: RouteLine[]) => void
 }
@@ -78,9 +80,12 @@ export function SubmissionWorkstation({
   extraAction,
   addAction,
   removeAction,
+  onQuickBarDropFiles,
   canvasMode = 'edit-existing',
   onRoutesUpdate,
 }: SubmissionWorkstationProps) {
+  const [isQuickBarDragOver, setIsQuickBarDragOver] = useState(false)
+
   const activeStatusLabel = activeImageStatus === 'QUEUED'
     ? 'Waiting in queue...'
     : activeImageStatus === 'PREPROCESSING'
@@ -88,6 +93,46 @@ export function SubmissionWorkstation({
       : activeImageStatus === 'FAILED'
         ? 'Upload failed.'
         : 'Uploading...'
+
+  const handleQuickBarDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!onQuickBarDropFiles) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    console.log('[quick-bar-drop] dragover', {
+      fileCount: event.dataTransfer.files.length,
+      types: Array.from(event.dataTransfer.types || []),
+    })
+    setIsQuickBarDragOver(true)
+  }
+
+  const handleQuickBarDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    if (!onQuickBarDropFiles) return
+    event.preventDefault()
+    console.log('[quick-bar-drop] dragenter', {
+      fileCount: event.dataTransfer.files.length,
+      types: Array.from(event.dataTransfer.types || []),
+    })
+    setIsQuickBarDragOver(true)
+  }
+
+  const handleQuickBarDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!onQuickBarDropFiles) return
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    setIsQuickBarDragOver(false)
+  }
+
+  const handleQuickBarDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!onQuickBarDropFiles) return
+    event.preventDefault()
+    setIsQuickBarDragOver(false)
+    const files = Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name))
+    console.log('[quick-bar-drop] drop', {
+      fileCount: event.dataTransfer.files.length,
+      acceptedFileNames: files.map((file) => file.name),
+    })
+    if (files.length === 0) return
+    onQuickBarDropFiles(files)
+  }
 
   return (
     <div ref={drawingAreaRef} className="mb-1 space-y-1">
@@ -101,7 +146,23 @@ export function SubmissionWorkstation({
           heightClassName="h-[200px] min-h-[200px] md:h-[200px]"
         />
       </div>
-      <div className="sticky top-[calc(var(--app-header-offset,0px)+0.5rem)] z-20 -mx-1 overflow-x-auto rounded-2xl border border-gray-200 bg-white/95 px-2 py-2 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
+      <div
+        className={`sticky top-[calc(var(--app-header-offset,0px)+0.5rem)] z-20 -mx-1 overflow-x-auto rounded-2xl px-2 py-2 shadow-sm backdrop-blur transition-colors ${
+          isQuickBarDragOver
+            ? 'border-4 border-dashed border-blue-600 bg-blue-50/50 dark:border-blue-400 dark:bg-blue-950/40'
+            : 'border border-gray-200 bg-white/95 dark:border-gray-800 dark:bg-gray-900/95'
+        }`}
+        onDragEnter={handleQuickBarDragEnter}
+        onDragOver={handleQuickBarDragOver}
+        onDragLeave={handleQuickBarDragLeave}
+        onDrop={handleQuickBarDrop}
+      >
+        <div className="relative">
+        {isQuickBarDragOver ? (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-blue-50/60 text-sm font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
+            Drop photos here
+          </div>
+        ) : null}
         <div className="flex items-start gap-2">
           {quickSwitcherImages.map((image) => {
             const isActive = image.imageId === activeImageId
@@ -169,6 +230,7 @@ export function SubmissionWorkstation({
               </button>
             ) : null}
           </div>
+        </div>
         </div>
       </div>
       <div className="flex gap-2 rounded-lg bg-gray-100 p-2 dark:bg-gray-800">

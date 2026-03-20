@@ -8,7 +8,7 @@ import { createR2Client } from '@/lib/media/r2'
 export const runtime = 'nodejs'
 
 const MAX_WIDTH = 2400
-const DEFAULT_QUALITY = 75
+const DEFAULT_QUALITY = 85
 
 function parsePositiveInt(value: string | null): number | null {
   if (!value) return null

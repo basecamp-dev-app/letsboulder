@@ -8,8 +8,6 @@ export function useRouteDrawing() {
 
   const isDrawingEnabled = interactionTool === 'draw'
 
-  console.log('[DEBUG useRouteDrawing] interactionTool:', interactionTool, 'isDrawingEnabled:', isDrawingEnabled, 'currentPoints:', currentPoints.length)
-
   const startDrawing = useCallback(
     (point: RoutePoint) => {
       if (!isDrawingEnabled) return
