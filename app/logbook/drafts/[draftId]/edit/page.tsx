@@ -280,6 +280,18 @@ function coordinateKey(latitude: number, longitude: number) {
   return `${latitude.toFixed(5)}:${longitude.toFixed(5)}`
 }
 
+function isValidLocationCoordinate(latitude: number | null | undefined, longitude: number | null | undefined): latitude is number {
+  return typeof latitude === 'number'
+    && Number.isFinite(latitude)
+    && latitude >= -90
+    && latitude <= 90
+    && typeof longitude === 'number'
+    && Number.isFinite(longitude)
+    && longitude >= -180
+    && longitude <= 180
+    && !(latitude === 0 && longitude === 0)
+}
+
 function buildHighResCanvasUrl(url: string): string {
   const trimmedUrl = url.trim()
   if (!trimmedUrl) return ''
@@ -1080,6 +1092,19 @@ export default function EditDraftPage() {
     }, [])
   }, [quickSwitcherImages])
 
+  const fallbackLocation = useMemo<[number, number] | null>(() => {
+    const firstImagePin = draftMapPins.find((pin) => isValidLocationCoordinate(pin.latitude, pin.longitude)) || null
+    if (firstImagePin) {
+      return [firstImagePin.latitude, firstImagePin.longitude]
+    }
+
+    if (selectedCrag && isValidLocationCoordinate(selectedCrag.latitude, selectedCrag.longitude)) {
+      return [selectedCrag.latitude, selectedCrag.longitude]
+    }
+
+    return null
+  }, [draftMapPins, selectedCrag])
+
   const publishedMapPins = useMemo<LightweightCragMapPin[]>(() => {
     const draftCoordinateKeys = new Set(
       quickSwitcherImages
@@ -1138,7 +1163,15 @@ export default function EditDraftPage() {
   }, [draft, isInitialLoading])
 
   useEffect(() => {
-    if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !atlasSync.atlas || imagesPayload.length === 0) return
+    if (!hasHydratedLocationRef.current) return
+    if (markerPosition || !fallbackLocation) return
+
+    setLatitude(fallbackLocation[0].toFixed(6))
+    setLongitude(fallbackLocation[1].toFixed(6))
+  }, [fallbackLocation, markerPosition])
+
+  useEffect(() => {
+    if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !markerPosition || imagesPayload.length === 0) return
 
     const latitudeValue = markerLatitude
     const longitudeValue = markerLongitude
@@ -1161,11 +1194,6 @@ export default function EditDraftPage() {
       lastLocationSyncRef.current = signature
       const atlasForPatch = atlasSync.atlas
 
-      if (!atlasForPatch) {
-        lastLocationSyncRef.current = null
-        return
-      }
-
       const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1177,12 +1205,12 @@ export default function EditDraftPage() {
               location: {
                 latitude: latitudeValue,
                 longitude: longitudeValue,
-                countryId: atlasForPatch.countryId,
-                countryCode: atlasForPatch.countryCode,
-                countryName: atlasForPatch.countryName,
-                adminRegionName: atlasForPatch.adminRegionName,
-                unRegionName: atlasForPatch.unRegionName,
-                continentName: atlasForPatch.continentName,
+                countryId: atlasForPatch?.countryId ?? null,
+                countryCode: atlasForPatch?.countryCode ?? null,
+                countryName: atlasForPatch?.countryName ?? null,
+                adminRegionName: atlasForPatch?.adminRegionName ?? null,
+                unRegionName: atlasForPatch?.unRegionName ?? null,
+                continentName: atlasForPatch?.continentName ?? null,
               },
             },
           },
@@ -1211,7 +1239,7 @@ export default function EditDraftPage() {
   // draftUpdatedAt and atlasSync.atlas are intentionally read at execution time
   // to avoid retriggering this sync effect after a successful PATCH.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atlasAdminRegionName, atlasContinentName, atlasCountryCode, atlasCountryId, atlasCountryName, atlasUnRegionName, cragId, draft, draftId, imagesPayload.length, imagesPayloadSignature, isInitialLoading, markerLatitude, markerLongitude, nearbyCragId, nearbyCragName])
+  }, [atlasAdminRegionName, atlasContinentName, atlasCountryCode, atlasCountryId, atlasCountryName, atlasUnRegionName, cragId, draft, draftId, imagesPayload.length, imagesPayloadSignature, isInitialLoading, markerLatitude, markerLongitude, markerPosition, nearbyCragId, nearbyCragName])
 
   const toggleImageOrientation = useCallback((direction: FaceDirection) => {
     if (!activeDraftImageId) return
