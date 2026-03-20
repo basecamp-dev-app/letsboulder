@@ -31,6 +31,7 @@ export const useCanvasResize = (imageUrl: string) => {
 
     const img = new window.Image()
     img.crossOrigin = 'anonymous'
+    img.decoding = 'async'
 
     img.onload = () => {
       if (!isActive) return
@@ -53,6 +54,11 @@ export const useCanvasResize = (imageUrl: string) => {
     }
 
     img.src = imageUrl
+    if (typeof img.decode === 'function') {
+      void img.decode().catch(() => {
+        // Fall back to onload/onerror handling when decode is unavailable or fails.
+      })
+    }
 
     return () => { isActive = false }
   }, [imageUrl])

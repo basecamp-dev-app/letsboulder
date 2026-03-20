@@ -20,42 +20,13 @@ export interface LightweightCragMapPin {
   tone?: 'draft' | 'published'
 }
 
-function pinVisualStyles(active: boolean, tone: 'draft' | 'published') {
-  if (active) {
-    return {
-      background: tone === 'published' ? '#1d4ed8' : '#1d4ed8',
-      border: 'white',
-      shadow: '0 6px 18px rgba(15,23,42,0.28)',
-      size: 24,
-      fontSize: 11,
-      scale: 'scale(1)',
-      opacity: '1',
-      ring: '',
-    }
-  }
-
-  if (tone === 'published') {
-    return {
-      background: 'rgba(107,114,128,0.78)',
-      border: 'rgba(255,255,255,0.85)',
-      shadow: '0 4px 12px rgba(15,23,42,0.18)',
-      size: 24,
-      fontSize: 11,
-      scale: 'scale(1)',
-      opacity: '0.82',
-      ring: '',
-    }
-  }
-
+function pinVisualStyles(active: boolean) {
   return {
-    background: '#1d4ed8',
+    background: active ? '#2563eb' : '#6b7280',
     border: 'white',
-    shadow: '0 6px 18px rgba(15,23,42,0.28)',
+    shadow: '0 4px 12px rgba(15,23,42,0.22)',
     size: 24,
     fontSize: 11,
-    scale: 'scale(1)',
-    opacity: '1',
-    ring: '',
   }
 }
 
@@ -165,14 +136,6 @@ export default function LightweightCragMap({
       if (!nextContainer || !nextContainer.isConnected) return
 
       map.invalidateSize()
-      const activePin = activePinId ? normalizedPins.find((pin) => pin.id === activePinId) || null : null
-      if (activePin) {
-        map.panTo([activePin.latitude, activePin.longitude], { animate: true })
-        const currentZoom = map.getZoom()
-        setMinAllowedZoom(Math.max(2, currentZoom - 1))
-        return
-      }
-
       const bounds = leafletLib.latLngBounds(normalizedPins.map((pin) => [pin.latitude, pin.longitude] as [number, number]))
       map.fitBounds(bounds, { padding: [28, 28], maxZoom: 16, animate: false })
       const fittedZoom = map.getZoom()
@@ -233,18 +196,17 @@ export default function LightweightCragMap({
               pinId: pin.id,
               isActive: active,
             })
-            const tone = pin.tone ?? 'draft'
-            const visual = pinVisualStyles(active, tone)
+            const visual = pinVisualStyles(active)
             return (
               <Marker
                 key={pin.id}
                 position={[pin.latitude, pin.longitude]}
-                zIndexOffset={tone === 'draft' ? 600 : 200}
+                zIndexOffset={active ? 600 : 200}
                 icon={leafletLib?.divIcon({
                   className: 'lightweight-crag-map-pin',
-                  html: `<div style="position:relative;width:${visual.size}px;height:${visual.size}px;">${visual.ring}<div style="background:${visual.background};width:${visual.size}px;height:${visual.size}px;border-radius:9999px;display:flex;align-items:center;justify-content:center;color:white;font-size:${visual.fontSize}px;font-weight:700;border:2px solid ${visual.border};box-shadow:${visual.shadow};transform:${visual.scale};opacity:${visual.opacity};">${pin.label || index + 1}</div></div>`,
+                  html: `<div style="width:${visual.size}px;height:${visual.size}px;background:${visual.background};border-radius:9999px;display:flex;align-items:center;justify-content:center;color:white;font-size:${visual.fontSize}px;font-weight:700;border:2px solid ${visual.border};box-shadow:${visual.shadow};">${pin.label || index + 1}</div>`,
                   iconSize: [visual.size, visual.size],
-                  iconAnchor: [visual.size / 2, visual.size / 2],
+                  iconAnchor: [12, 12],
                 })}
                 eventHandlers={onPinSelect && pin.interactive !== false ? { click: () => onPinSelect(pin.id) } : undefined}
               />
