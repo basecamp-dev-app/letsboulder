@@ -50,16 +50,18 @@ export function useHitTesting(routes: RouteLine[]) {
 
   const handleRouteClick = useCallback(
     (point: RoutePoint) => {
-      if (interactionTool !== 'select') return
+      if (interactionTool !== 'select') return null
 
       const routeId = findRouteAtPoint(point)
       if (routeId) {
         const newRouteId = routeId === activeRouteId ? null : routeId
         setActiveRoute(newRouteId)
         setSelectedRoute(newRouteId)
+        return newRouteId
       } else {
         setActiveRoute(null)
         setSelectedRoute(null)
+        return null
       }
     },
     [interactionTool, findRouteAtPoint, activeRouteId, setActiveRoute, setSelectedRoute]

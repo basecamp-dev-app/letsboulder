@@ -17,6 +17,7 @@ interface UnifiedRouteCanvasProps {
   mode: CanvasMode
   imageUrl: string
   routes?: RouteLine[]
+  activeRouteId?: string | null
   onRouteSelect?: (routeId: string | null) => void
   onRoutesUpdate?: (routes: RouteLine[]) => void
   className?: string
@@ -30,6 +31,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   mode,
   imageUrl,
   routes: propRoutes,
+  activeRouteId: controlledActiveRouteId,
   onRouteSelect,
   onRoutesUpdate,
   className = '',
@@ -57,6 +59,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     () => routes.find((route) => route.id === selectedRouteId),
     [routes, selectedRouteId]
   )
+  const resolvedActiveRouteId = mode === 'browse' ? controlledActiveRouteId ?? null : activeRouteId
 
   const { containerRef, dimensions, imageElement, imageLoaded, imageError } = useCanvasResize(imageUrl)
 
@@ -114,15 +117,14 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
         if (isDrawingEnabled) {
           addPoint(point)
         } else {
-          handleRouteClick(point)
-          const clickedRouteId = activeRouteId
+          const clickedRouteId = handleRouteClick(point)
           if (onRouteSelect) {
-            onRouteSelect(clickedRouteId)
+            onRouteSelect(clickedRouteId ?? null)
           }
         }
       }
     },
-    [getCanvasPoint, isDrawingEnabled, addPoint, handleRouteClick, activeRouteId, onRouteSelect]
+    [getCanvasPoint, isDrawingEnabled, addPoint, handleRouteClick, onRouteSelect]
   )
 
   const handleTouchStart = useCallback(
@@ -214,7 +216,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     drawRoutes(
       ctx,
       routes,
-      activeRouteId,
+      resolvedActiveRouteId,
       currentPoints,
       routeCanvasDimensions,
       mode,
@@ -224,7 +226,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     ctx.restore()
   }, [
     routes,
-    activeRouteId,
+    resolvedActiveRouteId,
     currentPoints,
     finalDimensions,
     mode,
