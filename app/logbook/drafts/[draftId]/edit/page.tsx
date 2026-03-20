@@ -454,11 +454,16 @@ export default function EditDraftPage() {
       }
 
       const nextDraft = payload.draft
-      const sortedImages = [...(nextDraft.images || [])]
+      const allDraftImages = [...(nextDraft.images || [])]
         .sort((a, b) => a.display_order - b.display_order)
+      const sortedImages = allDraftImages
         .filter((image) => typeof image.signed_url === 'string' && !!image.signed_url)
+      const hasPersistedImageRows = allDraftImages.length > 0
+      const hasPendingDraftUploadRows = draftId
+        ? uploads.some((upload) => upload.target.kind === 'draft' && upload.target.draftId === draftId)
+        : false
 
-      if (sortedImages.length === 0) {
+      if (sortedImages.length === 0 && !hasPersistedImageRows && !hasPendingDraftUploadRows) {
         throw new Error('This draft has no accessible photos')
       }
 
@@ -522,7 +527,11 @@ export default function EditDraftPage() {
       setConflict(null)
       setManageImages(nextManageImages)
       setDefaultImageId(nextDefaultImageId)
-      setActiveImageId((current) => current && sortedImages.some((image) => image.id === current) ? current : nextDefaultImageId)
+      setActiveImageId((current) => {
+        if (current && sortedImages.some((image) => image.id === current)) return current
+        if (nextDefaultImageId) return nextDefaultImageId
+        return current
+      })
       setOrientationByImageId(nextOrientationByImageId)
       setRoutesByImageId(nextRoutesByImageId)
       hasLoadedRoutesRef.current = true
@@ -552,8 +561,8 @@ export default function EditDraftPage() {
       if (savedCanvasSource?.kind === 'crag-image' && typeof savedCanvasSource.cragImageId === 'string' && typeof savedCanvasSource.cragId === 'string') {
         setCanvasSource({ kind: 'crag-image', cragImageId: savedCanvasSource.cragImageId, cragId: savedCanvasSource.cragId })
         setActiveImageId(savedCanvasSource.cragImageId)
-      } else {
-        setCanvasSource(nextDefaultImageId ? { kind: 'draft-image', draftImageId: nextDefaultImageId } : null)
+      } else if (nextDefaultImageId) {
+        setCanvasSource({ kind: 'draft-image', draftImageId: nextDefaultImageId })
       }
       hasHydratedLocationRef.current = false
       const metadataLocationContext = normalizedMetadata.submission.location ?? null
@@ -580,7 +589,7 @@ export default function EditDraftPage() {
     } finally {
       setLoading(false)
     }
-  }, [draftId, registerDraftUpdatedAt])
+  }, [draftId, registerDraftUpdatedAt, uploads])
 
   useEffect(() => {
     void loadDraft()
@@ -1863,6 +1872,12 @@ export default function EditDraftPage() {
         {error ? (
           <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
             {error}
+          </div>
+        ) : null}
+
+        {!error && draft && manageImages.length === 0 && pendingDraftUploads.length === 0 ? (
+          <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+            Photos are still preparing for the editor. They should appear here once image access is ready.
           </div>
         ) : null}
 

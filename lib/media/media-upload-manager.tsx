@@ -156,18 +156,12 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
   const [isPaused, setIsPaused] = useState(false)
   const queueEntriesRef = useRef<Map<string, QueueEntry>>(new Map())
   const draftUpdatedAtRef = useRef<Map<string, string>>(new Map())
-  const drainScheduledRef = useRef(false)
   const activeAbortControllerRef = useRef<AbortController | null>(null)
+  const processingClientIdsRef = useRef<Set<string>>(new Set())
 
   const uploadsRef = useRef(uploads)
-  const queueOrderRef = useRef(queueOrder)
-  const activeClientIdRef = useRef(activeClientId)
-  const isPausedRef = useRef(isPaused)
 
   useEffect(() => { uploadsRef.current = uploads }, [uploads])
-  useEffect(() => { queueOrderRef.current = queueOrder }, [queueOrder])
-  useEffect(() => { activeClientIdRef.current = activeClientId }, [activeClientId])
-  useEffect(() => { isPausedRef.current = isPaused }, [isPaused])
 
   const uploadsList = useMemo(() => Object.values(uploads).sort((a, b) => a.startedAt - b.startedAt), [uploads])
 
@@ -298,13 +292,10 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     revokePreviewUrl(clientId)
   }, [revokePreviewUrl, updateUpload])
 
-  const drainQueueRef = useRef<() => void>(() => {})
-
   const processActiveEntry = useCallback(async (entry: QueueEntry) => {
     const abortController = new AbortController()
     activeAbortControllerRef.current = abortController
     let uploadSessionImageId: string | null = null
-    let completedSuccessfully = false
 
     try {
       updateUpload(entry.clientId, (current) => ({ ...current, status: 'PREPROCESSING', progress: 10, error: null }))
@@ -349,7 +340,6 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
       updateUpload(entry.clientId, (current) => ({ ...current, progress: 90 }))
       await attachUpload(entry.clientId)
 
-      completedSuccessfully = true
       setQueueOrder((current) => current.filter((clientId) => clientId !== entry.clientId))
       setActiveClientId(null)
     } catch (error) {
@@ -380,47 +370,42 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
 
       setIsPaused(true)
     } finally {
+      processingClientIdsRef.current.delete(entry.clientId)
       if (activeAbortControllerRef.current === abortController) {
         activeAbortControllerRef.current = null
       }
       abortController.abort()
-      if (!completedSuccessfully) {
-        setActiveClientId(null)
-      }
-      drainQueueRef.current()
+      setActiveClientId((current) => current === entry.clientId ? null : current)
     }
   }, [attachUpload, updateUpload])
 
-  const drainQueue = useCallback(() => {
-    if (drainScheduledRef.current) return
-    drainScheduledRef.current = true
+  useEffect(() => {
+    if (isPaused || activeClientId) return
 
-    queueMicrotask(() => {
-      drainScheduledRef.current = false
-      if (activeClientIdRef.current || isPausedRef.current) return
+    const nextClientId = queueOrder.find((clientId) => {
+      if (processingClientIdsRef.current.has(clientId)) return false
+      const upload = uploads[clientId]
+      return Boolean(upload && upload.status !== 'FAILED')
+    }) || null
 
-      const nextClientId = queueOrderRef.current[0] || null
-      if (!nextClientId) return
+    if (!nextClientId) return
 
-      const nextEntry = queueEntriesRef.current.get(nextClientId)
-      const nextUpload = uploadsRef.current[nextClientId]
-      if (!nextEntry || !nextUpload) {
-        setQueueOrder((current) => current.filter((clientId) => clientId !== nextClientId))
-        drainQueue()
-        return
-      }
+    const nextEntry = queueEntriesRef.current.get(nextClientId)
+    const nextUpload = uploads[nextClientId]
+    if (!nextEntry || !nextUpload) {
+      setQueueOrder((current) => current.filter((clientId) => clientId !== nextClientId))
+      return
+    }
 
-      if (nextUpload.status === 'FAILED') {
-        setIsPaused(true)
-        return
-      }
+    if (nextUpload.status === 'FAILED') {
+      setIsPaused(true)
+      return
+    }
 
-      setActiveClientId(nextClientId)
-      void processActiveEntry(nextEntry)
-    })
-  }, [processActiveEntry])
-
-  drainQueueRef.current = drainQueue
+    processingClientIdsRef.current.add(nextClientId)
+    setActiveClientId(nextClientId)
+    void processActiveEntry(nextEntry)
+  }, [activeClientId, isPaused, processActiveEntry, queueOrder, uploads])
 
   const queueUploads = useCallback((files: File[], target: MediaUploadTarget) => {
     const acceptedFiles = files.slice(0, MAX_UPLOADS_PER_TARGET)
@@ -460,8 +445,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
       })
     })
 
-    drainQueue()
-  }, [drainQueue, updateUpload])
+  }, [updateUpload])
 
   const retryUpload = useCallback((clientId: string) => {
     const entry = queueEntriesRef.current.get(clientId)
@@ -479,8 +463,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
       uploadedPath: null,
       attachedRecordId: null,
     }))
-    drainQueue()
-  }, [drainQueue, updateUpload])
+  }, [updateUpload])
 
   const removeUpload = useCallback(async (clientId: string) => {
     const upload = uploadsRef.current[clientId]
@@ -496,17 +479,14 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     })
     queueEntriesRef.current.delete(clientId)
     setQueueOrder((current) => current.filter((queuedClientId) => queuedClientId !== clientId))
-    if (activeClientIdRef.current === clientId) {
-      setActiveClientId(null)
-    }
+    processingClientIdsRef.current.delete(clientId)
+    setActiveClientId((current) => current === clientId ? null : current)
     setIsPaused(false)
-    drainQueue()
-  }, [drainQueue, revokePreviewUrl])
+  }, [revokePreviewUrl])
 
   const resumeQueue = useCallback(() => {
     setIsPaused(false)
-    drainQueue()
-  }, [drainQueue])
+  }, [])
 
   useEffect(() => {
     return () => {
