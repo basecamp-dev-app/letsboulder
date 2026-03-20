@@ -215,8 +215,6 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
 
-    ctx.drawImage(imageElement, 0, 0, drawWidth, drawHeight)
-
     const routeCanvasDimensions = {
       width: drawWidth,
       height: drawHeight,
