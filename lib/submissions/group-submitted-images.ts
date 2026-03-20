@@ -140,6 +140,7 @@ export function groupSubmittedImages(
   return [...grouped.values()]
     .map((group) => ({
       id: group.id,
+      canonical_image_id: group.canonical_image_id,
       kind: 'submitted' as const,
       status: toSubmittedStatus(group.has_published_image ? 'approved' : 'pending'),
       url: group.canonical_url,

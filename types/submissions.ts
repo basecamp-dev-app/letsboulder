@@ -1,5 +1,6 @@
 export interface Submission {
   id: string
+  canonical_image_id: string | null
   kind: 'submitted' | 'draft'
   status: 'draft' | 'pending_review' | 'published'
   is_optimistic?: boolean

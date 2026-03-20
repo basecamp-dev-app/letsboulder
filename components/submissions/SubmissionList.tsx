@@ -84,18 +84,28 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
             : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
         const destinationHref = submission.kind === 'draft'
           ? draftHref
-          : `/image/${submission.id}`
+          : submission.canonical_image_id
+            ? `/image/${submission.canonical_image_id}`
+            : `/image/${submission.id}`
+        const imageSrc = resolveRouteImageUrl(submission.url)
         const content = (
           <>
-            <Image
-              src={resolveRouteImageUrl(submission.url)}
-              alt="Submitted route image"
-              width={48}
-              height={48}
-              sizes="48px"
-              unoptimized={submission.kind === 'draft'}
-              className="w-12 h-12 object-cover rounded"
-            />
+            {imageSrc ? (
+              <Image
+                src={imageSrc}
+                alt="Submitted route image"
+                width={48}
+                height={48}
+                sizes="48px"
+                unoptimized={submission.kind === 'draft'}
+                className="h-12 w-12 rounded object-cover"
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                className="h-12 w-12 shrink-0 rounded bg-gray-100 dark:bg-gray-800"
+              />
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                 {submission.crag_name || 'Unknown crag'}
