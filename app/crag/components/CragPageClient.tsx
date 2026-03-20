@@ -1194,11 +1194,9 @@ export default function CragPageClient({
 
     for (const [climbId, preview] of Object.entries(routePreviewByClimbId)) {
       const image = imageById.get(preview.imageId)
-      if (!image) continue
-
       nextPreviews[climbId] = {
-        imageId: image.id,
-        imageUrl: image.url,
+        imageId: image?.id || preview.imageId,
+        imageUrl: image?.url || preview.imageUrl,
       }
     }
 
