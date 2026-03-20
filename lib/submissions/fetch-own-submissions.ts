@@ -101,6 +101,7 @@ export async function fetchOwnSubmissions(
 
     return {
       id: draft.id,
+      canonical_image_id: null,
       kind: 'draft',
       status: 'draft',
       is_anonymous_submission: false,

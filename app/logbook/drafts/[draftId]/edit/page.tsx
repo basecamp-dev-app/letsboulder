@@ -1095,11 +1095,11 @@ export default function EditDraftPage() {
   const fallbackLocation = useMemo<[number, number] | null>(() => {
     const firstImagePin = draftMapPins.find((pin) => isValidLocationCoordinate(pin.latitude, pin.longitude)) || null
     if (firstImagePin) {
-      return [firstImagePin.latitude, firstImagePin.longitude]
+      return [firstImagePin.latitude, firstImagePin.longitude as number]
     }
 
     if (selectedCrag && isValidLocationCoordinate(selectedCrag.latitude, selectedCrag.longitude)) {
-      return [selectedCrag.latitude, selectedCrag.longitude]
+      return [selectedCrag.latitude, selectedCrag.longitude as number]
     }
 
     return null
