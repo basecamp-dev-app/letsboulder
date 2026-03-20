@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
 import { useImageNavigation } from '@/app/[country]/[crag]/i/[imageId]/useImageNavigation'
 import type { ImageFirstPayload } from '@/app/[country]/[crag]/i/[imageId]/image-page-server'
+import { RouteEditorRail } from '@/components/RouteEditorRail'
 import { UnifiedRouteCanvas } from '@/components/UnifiedRouteCanvas'
 import LightweightCragMap from '@/components/lightweight-crag-map'
 import { normalizePoints } from '@/lib/canvasMath'
@@ -125,8 +126,11 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     }))
   }, [payload.mapPins])
 
-  const routesForActiveImage = useMemo(() => {
+  const visibleRoutes = useMemo(() => {
+    const targetImageId = activeImageId || heroImage.displayImageId
+
     return initialRoutes
+      .filter((route) => route.imageId === targetImageId)
       .map((route) => {
         const rawPoints = parsePoints(route.pathData)
         const normalized = normalizePoints(rawPoints, {
@@ -138,7 +142,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
         return {
           id: route.routeId,
-          image_id: activeImageId || '',
+          image_id: route.imageId,
           climb_id: route.climbId,
           points: normalized,
           color: route.color,
@@ -155,7 +159,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         } as RouteLine
       })
       .filter((route) => route.points.length >= 2)
-  }, [initialRoutes, activeImageMeta, activeImageId])
+  }, [initialRoutes, activeImageId, activeImageMeta, heroImage.displayImageId])
 
   const handleGoToAuth = () => {
     router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/${countryCode}/${cragSlug}/i/${heroImage.displayImageId}`)}`)
@@ -219,7 +223,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                         <UnifiedRouteCanvas
                           mode="browse"
                           imageUrl={imageMeta.src}
-                          routes={routesForActiveImage}
+                          routes={visibleRoutes}
                           onRouteSelect={handleRouteSelect}
                         />
                       </div>
@@ -244,6 +248,17 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
           Next
         </button>
       </main>
+
+      <div className="px-4 pb-4">
+        <div className="mx-auto w-full max-w-6xl">
+          <RouteEditorRail
+            routes={visibleRoutes}
+            selectedRouteId={activeRouteId}
+            gradeSystem={'font_scale'}
+            onSelectRoute={handleRouteSelect}
+          />
+        </div>
+      </div>
 
       <ClimbInfoPanel
         selectedClimb={selectedClimb}
