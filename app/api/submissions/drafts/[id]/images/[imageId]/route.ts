@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
+import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import type { Database } from '@/types/database'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -23,12 +25,10 @@ interface ProfileRow {
   display_name: string | null
 }
 
-interface DraftImageRow {
-  id: string
-  display_order: number
-  storage_bucket: string | null
-  storage_path: string | null
-}
+type DraftImageRow = Pick<
+  Database['public']['Tables']['submission_draft_images']['Row'],
+  'id' | 'display_order' | 'storage_provider' | 'storage_bucket' | 'storage_path'
+>
 
 function resolveDisplayName(profile: ProfileRow | null): string | null {
   if (!profile) return null
@@ -137,7 +137,7 @@ export async function DELETE(
 
     const { data: imageRows, error: imageRowsError } = await supabase
       .from('submission_draft_images')
-      .select('id, display_order, storage_bucket, storage_path')
+      .select('id, display_order, storage_provider, storage_bucket, storage_path')
       .eq('draft_id', id)
       .order('display_order', { ascending: true })
 
@@ -165,14 +165,7 @@ export async function DELETE(
       return createErrorResponse(deleteImageError, 'Failed to delete draft image')
     }
 
-    if (imageToDelete.storage_bucket && imageToDelete.storage_path) {
-      const { error: storageError } = await storageClient.storage
-        .from(imageToDelete.storage_bucket)
-        .remove([imageToDelete.storage_path])
-      if (storageError) {
-        return createErrorResponse(storageError, 'Failed to delete draft image file')
-      }
-    }
+    await cleanupDraftStorageObjects(storageClient, [imageToDelete])
 
     const remainingImages = draftImages.filter((image) => image.id !== imageId)
     for (let index = 0; index < remainingImages.length; index += 1) {
