@@ -53,7 +53,6 @@ export default function DraftIntakeView() {
       if (payload.draft.updated_at) registerDraftUpdatedAt(payload.draft.id, payload.draft.updated_at)
 
       queueDraftUploads(files, payload.draft.id)
-      addToast(`Draft created. Uploading ${files.length} photo${files.length === 1 ? '' : 's'} in the background.`, 'success')
       router.replace(`/logbook/drafts/${payload.draft.id}/edit`)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create draft'

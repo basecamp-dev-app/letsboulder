@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
 import { useDraftUploadManager, useMediaUploadManager, type MediaUploadItem } from '@/lib/media/media-upload-manager'
+import { uploadDebug } from '@/lib/media/upload-debug'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirection } from '@/lib/draft-metadata'
@@ -37,6 +38,7 @@ interface DraftImagePayload {
   display_order: number
   route_data: Record<string, unknown> | null
   signed_url: string | null
+  readiness_status: 'ready' | 'processing' | 'error'
   width: number | null
   height: number | null
   latitude: number | null
@@ -53,6 +55,10 @@ interface DraftPayload {
   metadata: Record<string, unknown> | null
   crags: { name?: string; latitude?: number | null; longitude?: number | null } | Array<{ name?: string; latitude?: number | null; longitude?: number | null }> | null
   images: DraftImagePayload[]
+}
+
+function isDraftImageReady(image: DraftImagePayload): boolean {
+  return image.readiness_status === 'ready' && !!image.signed_url
 }
 
 interface CragImagePayload {
@@ -338,7 +344,8 @@ export default function EditDraftPage() {
   const { toasts, addToast, removeToast } = useToast()
   const draftId = params.draftId as string
 
-  const [loading, setLoading] = useState(true)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const [isRefreshingDraft, setIsRefreshingDraft] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
   const [publishingDraft, setPublishingDraft] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -444,7 +451,12 @@ export default function EditDraftPage() {
   const loadDraft = useCallback(async () => {
     if (!draftId) return
 
-    setLoading(true)
+    const isFirstLoad = !draft
+    if (isFirstLoad) {
+      setIsInitialLoading(true)
+    } else {
+      setIsRefreshingDraft(true)
+    }
     setError(null)
     try {
       const response = await fetch(`/api/submissions/drafts/${draftId}`, { cache: 'no-store' })
@@ -456,16 +468,13 @@ export default function EditDraftPage() {
       const nextDraft = payload.draft
       const allDraftImages = [...(nextDraft.images || [])]
         .sort((a, b) => a.display_order - b.display_order)
-      const sortedImages = allDraftImages
-        .filter((image) => typeof image.signed_url === 'string' && !!image.signed_url)
+      const sortedImages = allDraftImages.filter((image) => isDraftImageReady(image))
       const hasPersistedImageRows = allDraftImages.length > 0
+      const hasProcessingPersistedImages = allDraftImages.some((image) => image.readiness_status === 'processing')
+      const hasErroredPersistedImages = hasPersistedImageRows && allDraftImages.every((image) => image.readiness_status === 'error')
       const hasPendingDraftUploadRows = draftId
         ? uploads.some((upload) => upload.target.kind === 'draft' && upload.target.draftId === draftId)
         : false
-
-      if (sortedImages.length === 0 && !hasPersistedImageRows && !hasPendingDraftUploadRows) {
-        throw new Error('This draft has no accessible photos')
-      }
 
       const metadata = nextDraft.metadata && typeof nextDraft.metadata === 'object' ? nextDraft.metadata : {}
       const normalizedMetadata = normalizeDraftMetadata(metadata, sortedImages)
@@ -580,6 +589,12 @@ export default function EditDraftPage() {
       if (typeof payload.isOwner === 'boolean') {
         setIsOwner(payload.isOwner)
       }
+
+      if (hasErroredPersistedImages && !hasPendingDraftUploadRows) {
+        setError('Some photos failed to prepare for the editor. Try re-uploading the affected images.')
+      } else if ((hasProcessingPersistedImages && sortedImages.length === 0) || hasPendingDraftUploadRows) {
+        setError(null)
+      }
     } catch (loadError) {
       if (loadError instanceof DOMException ? loadError.name === 'AbortError' : loadError instanceof Error && loadError.name === 'AbortError') {
         return
@@ -587,9 +602,13 @@ export default function EditDraftPage() {
       const message = loadError instanceof Error ? loadError.message : 'Failed to load draft'
       setError(message)
     } finally {
-      setLoading(false)
+      if (isFirstLoad) {
+        setIsInitialLoading(false)
+      } else {
+        setIsRefreshingDraft(false)
+      }
     }
-  }, [draftId, registerDraftUpdatedAt, uploads])
+  }, [draft, draftId, registerDraftUpdatedAt, uploads])
 
   useEffect(() => {
     void loadDraft()
@@ -788,6 +807,7 @@ export default function EditDraftPage() {
 
   const lastLoadedSuccessRef = useRef<string | null>(null)
   const abortedSuccessReloadRef = useRef<string | null>(null)
+  const loadingSuccessKeyRef = useRef<string | null>(null)
 
   const hasInFlightDraftUploads = useMemo(() => {
     return pendingDraftUploads.some((upload) => (
@@ -804,6 +824,7 @@ export default function EditDraftPage() {
       upload.status === 'SUCCESS'
       && Boolean(upload.attachedRecordId)
       && upload.attachedRecordId !== lastLoadedSuccessRef.current
+      && upload.attachedRecordId !== loadingSuccessKeyRef.current
     ))
   }, [pendingDraftUploads])
 
@@ -819,6 +840,17 @@ export default function EditDraftPage() {
     const settledSuccessUploads = pendingDraftUploads.filter((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId)
     const successKey = settledSuccessUploads[settledSuccessUploads.length - 1]?.attachedRecordId || null
     if (!successKey) return
+    if (loadingSuccessKeyRef.current === successKey) return
+    uploadDebug('editor-queue-drained-load-draft', {
+      draftId,
+      successKey,
+      pendingStatuses: pendingDraftUploads.map((upload) => ({
+        clientId: upload.clientId,
+        status: upload.status,
+        attachedRecordId: upload.attachedRecordId,
+      })),
+    })
+    loadingSuccessKeyRef.current = successKey
     lastLoadedSuccessRef.current = successKey
     void loadDraft().catch((error: unknown) => {
       const isAbortError = error instanceof DOMException
@@ -826,9 +858,10 @@ export default function EditDraftPage() {
         : error instanceof Error && error.name === 'AbortError'
       if (isAbortError) {
         abortedSuccessReloadRef.current = successKey
+        loadingSuccessKeyRef.current = null
       }
     })
-  }, [hasInFlightDraftUploads, hasUnhydratedSuccess, loadDraft, pendingDraftUploads])
+  }, [draftId, hasInFlightDraftUploads, hasUnhydratedSuccess, loadDraft, pendingDraftUploads])
 
   useEffect(() => {
     if (!cragId || activeImageId || canvasSource?.kind === 'draft-image') return
@@ -840,13 +873,14 @@ export default function EditDraftPage() {
 
   useEffect(() => {
     const successKey = abortedSuccessReloadRef.current
-    if (!successKey || loading) return
+    if (!successKey || isInitialLoading || isRefreshingDraft) return
     abortedSuccessReloadRef.current = null
+    loadingSuccessKeyRef.current = null
     const timer = window.setTimeout(() => {
       void loadDraft()
     }, 250)
     return () => window.clearTimeout(timer)
-  }, [loadDraft, loading, pendingDraftUploads])
+  }, [isInitialLoading, isRefreshingDraft, loadDraft, pendingDraftUploads])
 
   const activeImageTab = useMemo(() => {
     if (!activeImageId) return null
@@ -901,6 +935,16 @@ export default function EditDraftPage() {
       imageUrl: activeImageTab.signedUrl,
     }
   }, [activeImageTab, cragCanvasImages])
+
+  useEffect(() => {
+    if (!imageSelection || !('imageUrl' in imageSelection)) return
+    uploadDebug('editor-active-image-url', {
+      activeImageId,
+      imageUrl: imageSelection.imageUrl,
+      sourceKind: activeImageTab?.sourceKind || null,
+      status: activeImageTab?.status || null,
+    })
+  }, [activeImageId, activeImageTab?.sourceKind, activeImageTab?.status, imageSelection])
 
   const activeImageReady = Boolean(activeImageTab?.signedUrl) && activeImageTab?.status !== 'FAILED'
 
@@ -958,12 +1002,8 @@ export default function EditDraftPage() {
   }, [canvasSource, defaultImageId, mergedCragCanvasImages, mergedManageImages, pendingCragUploads, pendingDraftUploads])
 
   const draftMapPins = useMemo<LightweightCragMapPin[]>(() => {
-    const seenCoordinateGroups = new Set<string>()
     return quickSwitcherImages.reduce<LightweightCragMapPin[]>((acc, image) => {
       if (typeof image.latitude !== 'number' || typeof image.longitude !== 'number') return acc
-      const key = coordinateKey(image.latitude, image.longitude)
-      if (seenCoordinateGroups.has(key)) return acc
-      seenCoordinateGroups.add(key)
       acc.push({
         id: image.imageId,
         latitude: image.latitude,
@@ -1000,6 +1040,17 @@ export default function EditDraftPage() {
   }, [publishedCragPins, quickSwitcherImages])
 
   useEffect(() => {
+    if (!activeImageId) return
+    const activeQuickSwitchImage = quickSwitcherImages.find((image) => image.imageId === activeImageId) || null
+    uploadDebug('editor-active-image-map-data', {
+      activeImageId,
+      hasQuickSwitchImage: Boolean(activeQuickSwitchImage),
+      latitude: activeQuickSwitchImage?.latitude ?? null,
+      longitude: activeQuickSwitchImage?.longitude ?? null,
+    })
+  }, [activeImageId, quickSwitcherImages])
+
+  useEffect(() => {
     setMode('edit-existing')
     setInteractionTool('draw')
     return () => {
@@ -1018,9 +1069,9 @@ export default function EditDraftPage() {
   }, [activeImageId, clearCanvasState])
 
   useEffect(() => {
-    if (!draft || loading) return
+    if (!draft || isInitialLoading) return
     hasHydratedLocationRef.current = true
-  }, [draft, loading])
+  }, [draft, isInitialLoading])
 
   useEffect(() => {
     if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !atlasSync.atlas || imagesPayload.length === 0) return
@@ -1096,7 +1147,7 @@ export default function EditDraftPage() {
   // draftUpdatedAt and atlasSync.atlas are intentionally read at execution time
   // to avoid retriggering this sync effect after a successful PATCH.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atlasAdminRegionName, atlasContinentName, atlasCountryCode, atlasCountryId, atlasCountryName, atlasUnRegionName, cragId, draft, draftId, imagesPayload.length, imagesPayloadSignature, loading, markerLatitude, markerLongitude, nearbyCragId, nearbyCragName])
+  }, [atlasAdminRegionName, atlasContinentName, atlasCountryCode, atlasCountryId, atlasCountryName, atlasUnRegionName, cragId, draft, draftId, imagesPayload.length, imagesPayloadSignature, isInitialLoading, markerLatitude, markerLongitude, nearbyCragId, nearbyCragName])
 
   const toggleImageOrientation = useCallback((direction: FaceDirection) => {
     if (!activeDraftImageId) return
@@ -1162,6 +1213,18 @@ export default function EditDraftPage() {
       }
     }
   }, [addingImages, draftId, draftUpdatedAt, queueDraftUploads])
+
+  const handleQuickBarDropFiles = useCallback((files: File[]) => {
+    console.log('[quick-bar-drop] forwarding files to upload handler', files.map((file) => ({ name: file.name, type: file.type, size: file.size })))
+    const fileListLike: { length: number; item: (index: number) => File | null; [key: number]: File } = {
+      length: files.length,
+      item: (index: number) => files[index] || null,
+    }
+    files.forEach((file, index) => {
+      fileListLike[index] = file
+    })
+    void handleAddImages(fileListLike as unknown as FileList)
+  }, [handleAddImages])
 
   const handleRemoveImage = useCallback(async (imageId: string) => {
     const pendingUpload = pendingDraftUploads.find((upload) => upload.clientId === imageId) || null
@@ -1627,7 +1690,7 @@ export default function EditDraftPage() {
   useEffect(() => {
     if (!hasLoadedRoutesRef.current) return
     if (!draft || !draftUpdatedAt) return
-    if (loading || publishingDraft || savingDraft || !!conflict) return
+    if (isInitialLoading || publishingDraft || savingDraft || !!conflict) return
 
     const serializedRoutes = JSON.stringify({
       routesByImageId,
@@ -1667,7 +1730,7 @@ export default function EditDraftPage() {
         autosaveTimeoutRef.current = null
       }
     }
-  }, [autosaveState, conflict, draft, draftUpdatedAt, loading, markerPosition, orientationByImageId, publishingDraft, routesByImageId, saveDraft, savingDraft])
+  }, [autosaveState, conflict, draft, draftUpdatedAt, isInitialLoading, markerPosition, orientationByImageId, publishingDraft, routesByImageId, saveDraft, savingDraft])
 
   useEffect(() => {
     return () => {
@@ -1777,7 +1840,7 @@ export default function EditDraftPage() {
     }
   }, [conflict, addToast])
 
-  if (loading) {
+  if (isInitialLoading && !draft) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-gray-500 dark:text-gray-400" />
@@ -1875,9 +1938,15 @@ export default function EditDraftPage() {
           </div>
         ) : null}
 
-        {!error && draft && manageImages.length === 0 && pendingDraftUploads.length === 0 ? (
+        {!error && draft && manageImages.length === 0 ? (
           <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
-            Photos are still preparing for the editor. They should appear here once image access is ready.
+            {pendingDraftUploads.length > 0 || draft.images.some((image) => image.readiness_status === 'processing')
+              ? 'Photos are still preparing for the editor. They should appear here once image access is ready.'
+              : draft.images.length > 0 && draft.images.every((image) => image.readiness_status === 'error')
+                ? 'Some photos failed to prepare for the editor. Try re-uploading the affected images.'
+                : draft.images.length === 0 && pendingDraftUploads.length === 0
+                  ? 'This draft has no photos yet. Add at least one image to continue.'
+                  : 'Photos are still preparing for the editor. They should appear here once image access is ready.'}
           </div>
         ) : null}
 
@@ -2316,6 +2385,7 @@ export default function EditDraftPage() {
               disabled: quickSwitcherImages.length <= 1 || !!conflict,
               onClick: () => { void handleRemoveImage(activeImageTab.imageId) },
             } : undefined}
+            onQuickBarDropFiles={handleQuickBarDropFiles}
             onRoutesUpdate={handleCanvasRoutesUpdate}
           />
         ) : null}

@@ -1,64 +1,87 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react'
+
+import { uploadDebug } from '@/lib/media/upload-debug'
 
 export const useCanvasResize = (imageUrl: string) => {
-  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
-  const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
+  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null)
+  const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null)
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState(false)
 
-  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null)
 
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     if (node !== null) {
-      setContainerNode(node);
+      setContainerNode(node)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
     if (!imageUrl) return
 
     let isActive = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    /* eslint-disable react-hooks/set-state-in-effect */
     setImageLoaded(false)
     setImageError(false)
+    /* eslint-enable react-hooks/set-state-in-effect */
 
-    const img = new window.Image();
-    img.crossOrigin = 'anonymous';
+    uploadDebug('canvas-debug-load-start', {
+      imageUrl,
+    })
+
+    const img = new window.Image()
+    img.crossOrigin = 'anonymous'
 
     img.onload = () => {
-      if (!isActive) return;
-      setImageElement(img);
-      setImageLoaded(true);
-    };
+      if (!isActive) return
+      uploadDebug('canvas-debug-load-success', {
+        imageUrl,
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+      })
+      setImageElement(img)
+      setImageLoaded(true)
+    }
 
     img.onerror = () => {
-      if (!isActive) return;
-      setImageError(true);
-      setImageLoaded(true);
-    };
+      if (!isActive) return
+      uploadDebug('canvas-debug-load-error', {
+        imageUrl,
+      })
+      setImageError(true)
+      setImageLoaded(true)
+    }
 
-    img.src = imageUrl;
+    img.src = imageUrl
 
-    return () => { isActive = false; };
-  }, [imageUrl]);
+    return () => { isActive = false }
+  }, [imageUrl])
 
   useEffect(() => {
-    if (!containerNode) return;
+    uploadDebug('canvas-debug-state', {
+      imageUrl,
+      imageLoaded,
+      imageError,
+    })
+  }, [imageError, imageLoaded, imageUrl])
+
+  useEffect(() => {
+    if (!containerNode) return
 
     const updateDimensions = () => {
       setDimensions({
         width: containerNode.clientWidth,
         height: containerNode.clientHeight,
-      });
-    };
+      })
+    }
 
-    updateDimensions();
+    updateDimensions()
 
-    const resizeObserver = new ResizeObserver(updateDimensions);
-    resizeObserver.observe(containerNode);
+    const resizeObserver = new ResizeObserver(updateDimensions)
+    resizeObserver.observe(containerNode)
 
-    return () => resizeObserver.disconnect();
-  }, [containerNode]);
+    return () => resizeObserver.disconnect()
+  }, [containerNode])
 
-  return { containerRef, dimensions, imageElement, imageLoaded, imageError };
-};
+  return { containerRef, dimensions, imageElement, imageLoaded, imageError }
+}
