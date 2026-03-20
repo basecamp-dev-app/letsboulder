@@ -116,6 +116,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const activeImageMeta = activeImageId
     ? navigationContext.imageMap[activeImageId] || heroImage
     : heroImage
+  const activeCanvasImageUrl = activeImageMeta.src || heroImage.src
 
   const mapPins = useMemo(() => {
     return payload.mapPins.map((pin, index) => ({
@@ -209,7 +210,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                 >
                   <div className="relative h-[60vh] w-full">
                     <Image
-                      src={isActive ? heroImage.src : imageMeta.src}
+                      src={isActive ? activeCanvasImageUrl : imageMeta.src}
                       alt="Crag viewer"
                       fill
                       priority={isActive ? heroImage.priority : false}
@@ -222,7 +223,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                       <div className="absolute inset-0 z-10">
                         <UnifiedRouteCanvas
                           mode="browse"
-                          imageUrl={imageMeta.src}
+                          imageUrl={activeCanvasImageUrl}
                           routes={visibleRoutes}
                           activeRouteId={activeRouteId}
                           onRouteSelect={handleRouteSelect}
