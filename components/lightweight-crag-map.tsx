@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { uploadDebug } from '@/lib/media/upload-debug'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -19,42 +20,13 @@ export interface LightweightCragMapPin {
   tone?: 'draft' | 'published'
 }
 
-function pinVisualStyles(active: boolean, tone: 'draft' | 'published') {
-  if (active) {
-    return {
-      background: tone === 'published' ? '#ffd700' : '#ff8c00',
-      border: '#fef3c7',
-      shadow: '0 0 0 4px rgba(251,191,36,0.32), 0 12px 28px rgba(15,23,42,0.42)',
-      size: 34,
-      fontSize: 12,
-      scale: 'scale(1.2)',
-      opacity: '1',
-      ring: '<span style="position:absolute;inset:-6px;border-radius:9999px;border:2px solid rgba(251,191,36,0.7);animation:lightweight-map-pulse 1.8s ease-out infinite;"></span>',
-    }
-  }
-
-  if (tone === 'published') {
-    return {
-      background: 'rgba(107,114,128,0.78)',
-      border: 'rgba(255,255,255,0.85)',
-      shadow: '0 4px 12px rgba(15,23,42,0.18)',
-      size: 24,
-      fontSize: 11,
-      scale: 'scale(1)',
-      opacity: '0.82',
-      ring: '',
-    }
-  }
-
+function pinVisualStyles(active: boolean) {
   return {
-    background: '#1d4ed8',
+    background: active ? '#2563eb' : '#6b7280',
     border: 'white',
-    shadow: '0 6px 18px rgba(15,23,42,0.28)',
+    shadow: '0 4px 12px rgba(15,23,42,0.22)',
     size: 24,
     fontSize: 11,
-    scale: 'scale(1)',
-    opacity: '1',
-    ring: '',
   }
 }
 
@@ -71,28 +43,34 @@ interface LightweightCragMapProps {
   heightClassName?: string
 }
 
-function normalizePins(pins: LightweightCragMapPin[], activePinId: string | null) {
-  const collapsed = new Map<string, LightweightCragMapPin>()
+function normalizeCoordinateKey(latitude: number, longitude: number): string {
+  return `${latitude.toFixed(6)}:${longitude.toFixed(6)}`
+}
 
-  pins.forEach((pin, index) => {
-    const key = `${pin.latitude}:${pin.longitude}`
-    const existing = collapsed.get(key)
-    if (existing) {
-      if (activePinId && pin.id === activePinId) {
-        collapsed.set(key, {
-          ...pin,
-          label: pin.label || existing.label || String(index + 1),
-        })
-      }
+function normalizePins(pins: LightweightCragMapPin[], activePinId: string | null) {
+  const groupedPins = new Map<string, LightweightCragMapPin[]>()
+
+  pins.forEach((pin) => {
+    const key = normalizeCoordinateKey(pin.latitude, pin.longitude)
+    const existingGroup = groupedPins.get(key)
+    if (existingGroup) {
+      existingGroup.push(pin)
       return
     }
-    collapsed.set(key, {
-      ...pin,
-      label: pin.label || String(index + 1),
-    })
+
+    groupedPins.set(key, [pin])
   })
 
-  return Array.from(collapsed.values())
+  return Array.from(groupedPins.values()).map((group, index) => {
+    const representative = activePinId
+      ? group.find((pin) => pin.id === activePinId) || group[0]
+      : group[0]
+
+    return {
+      ...representative,
+      label: representative.label || group[0]?.label || String(index + 1),
+    }
+  })
 }
 
 export default function LightweightCragMap({
@@ -138,13 +116,36 @@ export default function LightweightCragMap({
   }, [initialCenter, resolvedPins])
 
   useEffect(() => {
-    if (!mapRef.current || !leafletLib || !mapReady || normalizedPins.length === 0) return
-    mapRef.current.invalidateSize()
-    const bounds = leafletLib.latLngBounds(normalizedPins.map((pin) => [pin.latitude, pin.longitude] as [number, number]))
-    mapRef.current.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 })
-    const fittedZoom = mapRef.current.getZoom()
-    setMinAllowedZoom(Math.max(2, fittedZoom - 1))
-  }, [leafletLib, mapReady, normalizedPins])
+    uploadDebug('map-debug-state', {
+      activePinId,
+      normalizedPinsCount: normalizedPins.length,
+      hasActivePin: Boolean(activePinId && normalizedPins.some((pin) => pin.id === activePinId)),
+      normalizedPinIds: normalizedPins.map((pin) => pin.id),
+    })
+  }, [activePinId, normalizedPins])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !leafletLib || !mapReady || normalizedPins.length === 0) return
+
+    const container = map.getContainer?.()
+    if (!container || !container.isConnected) return
+
+    const frameId = window.requestAnimationFrame(() => {
+      const nextContainer = map.getContainer?.()
+      if (!nextContainer || !nextContainer.isConnected) return
+
+      map.invalidateSize()
+      const bounds = leafletLib.latLngBounds(normalizedPins.map((pin) => [pin.latitude, pin.longitude] as [number, number]))
+      map.fitBounds(bounds, { padding: [28, 28], maxZoom: 16, animate: false })
+      const fittedZoom = map.getZoom()
+      setMinAllowedZoom(Math.max(2, fittedZoom - 1))
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+    }
+  }, [activePinId, leafletLib, mapReady, normalizedPins])
 
   if (normalizedPins.length === 0) {
     return null
@@ -171,17 +172,6 @@ export default function LightweightCragMap({
         :global(.lightweight-crag-map .leaflet-control-zoom a:hover) {
           background: rgba(245, 245, 244, 0.98);
         }
-        :global(.lightweight-crag-map-pin-active) {
-          animation: lightweight-map-pin-breathe 1.8s ease-in-out infinite;
-        }
-        @keyframes lightweight-map-pulse {
-          0% { transform: scale(0.82); opacity: 0.9; }
-          100% { transform: scale(1.4); opacity: 0; }
-        }
-        @keyframes lightweight-map-pin-breathe {
-          0%, 100% { transform: translateZ(0) scale(1); }
-          50% { transform: translateZ(0) scale(1.04); }
-        }
       `}</style>
       <div className={`lightweight-crag-map h-[260px] overflow-hidden rounded-[28px] border border-stone-200 bg-stone-100 shadow-sm md:h-[320px] dark:border-gray-800 dark:bg-gray-900 ${heightClassName}`}>
         <MapContainer
@@ -202,18 +192,21 @@ export default function LightweightCragMap({
           <ZoomControl position="topright" />
           {leafletLib && mapReady ? normalizedPins.map((pin, index) => {
             const active = pin.id === activePinId
-            const tone = pin.tone ?? 'draft'
-            const visual = pinVisualStyles(active, tone)
+            uploadDebug('map-render-debug', {
+              pinId: pin.id,
+              isActive: active,
+            })
+            const visual = pinVisualStyles(active)
             return (
               <Marker
                 key={pin.id}
                 position={[pin.latitude, pin.longitude]}
-                zIndexOffset={active ? 9999 : tone === 'draft' ? 600 : 200}
+                zIndexOffset={active ? 600 : 200}
                 icon={leafletLib?.divIcon({
-                  className: active ? 'lightweight-crag-map-pin lightweight-crag-map-pin-active' : 'lightweight-crag-map-pin',
-                  html: `<div style="position:relative;width:${visual.size}px;height:${visual.size}px;">${visual.ring}<div style="background:${visual.background};width:${visual.size}px;height:${visual.size}px;border-radius:9999px;display:flex;align-items:center;justify-content:center;color:white;font-size:${visual.fontSize}px;font-weight:700;border:2px solid ${visual.border};box-shadow:${visual.shadow};transform:${visual.scale};opacity:${visual.opacity};">${pin.label || index + 1}</div></div>`,
+                  className: 'lightweight-crag-map-pin',
+                  html: `<div style="width:${visual.size}px;height:${visual.size}px;background:${visual.background};border-radius:9999px;display:flex;align-items:center;justify-content:center;color:white;font-size:${visual.fontSize}px;font-weight:700;border:2px solid ${visual.border};box-shadow:${visual.shadow};">${pin.label || index + 1}</div>`,
                   iconSize: [visual.size, visual.size],
-                  iconAnchor: [visual.size / 2, visual.size / 2],
+                  iconAnchor: [12, 12],
                 })}
                 eventHandlers={onPinSelect && pin.interactive !== false ? { click: () => onPinSelect(pin.id) } : undefined}
               />

@@ -50,6 +50,31 @@ interface DraftStorageRow {
   storage_path: string | null
 }
 
+type DraftImageProcessingStatus = 'pending' | 'queued' | 'processing' | 'ready' | 'failed'
+type DraftImageReadinessStatus = 'processing' | 'ready' | 'error'
+
+interface DraftImageRow {
+  id: string
+  draft_id: string
+  display_order: number
+  storage_bucket: string | null
+  storage_path: string | null
+  width: number | null
+  height: number | null
+  route_data: unknown
+  latitude: number | null
+  longitude: number | null
+  created_at: string
+  updated_at: string
+  processing_status: DraftImageProcessingStatus | null
+  preview_variants: unknown
+}
+
+interface DraftImageResponse extends DraftImageRow {
+  signed_url: string | null
+  readiness_status: DraftImageReadinessStatus
+}
+
 function resolveDisplayName(profile: ProfileRow | null): string | null {
   if (!profile) return null
   if (profile.display_name) return profile.display_name
@@ -77,6 +102,12 @@ function normalizePatchImages(value: unknown): DraftPatchImage[] | null {
   }
 
   return images
+}
+
+function resolveDraftImageReadinessStatus(image: DraftImageRow, signedUrl: string | null): DraftImageReadinessStatus {
+  if (signedUrl) return 'ready'
+  if (!image.storage_bucket || !image.storage_path || image.processing_status === 'failed') return 'error'
+  return 'processing'
 }
 
 export async function GET(
@@ -126,7 +157,7 @@ export async function GET(
 
     const { data: images, error: imagesError } = await supabase
       .from('submission_draft_images')
-      .select('id, draft_id, display_order, storage_bucket, storage_path, width, height, route_data, latitude, longitude, created_at, updated_at')
+      .select('id, draft_id, display_order, storage_bucket, storage_path, width, height, route_data, latitude, longitude, created_at, updated_at, processing_status, preview_variants')
       .eq('draft_id', id)
       .order('display_order', { ascending: true })
 
@@ -134,7 +165,7 @@ export async function GET(
       return createErrorResponse(imagesError, 'Failed to fetch draft images')
     }
 
-    const imageRows = images || []
+    const imageRows = (images || []) as DraftImageRow[]
     const pathsByBucket = new Map<string, Set<string>>()
 
     for (const image of imageRows) {
@@ -167,12 +198,17 @@ export async function GET(
       }
     }
 
-    const withSignedUrls: Array<Record<string, unknown>> = imageRows.map((image) => ({
-      ...image,
-      signed_url: image.storage_bucket && image.storage_path
+    const withSignedUrls: DraftImageResponse[] = imageRows.map((image) => {
+      const signedUrl = image.storage_bucket && image.storage_path
         ? (signedByKey.get(getSignedUrlBatchKey(image.storage_bucket, image.storage_path)) || null)
-        : null,
-    }))
+        : null
+
+      return {
+        ...image,
+        signed_url: signedUrl,
+        readiness_status: resolveDraftImageReadinessStatus(image, signedUrl),
+      }
+    })
 
 
     const isOwner = draft.user_id === userId

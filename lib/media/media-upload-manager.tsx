@@ -8,6 +8,7 @@ import { extractGpsFromFile } from '@/lib/image-gps'
 import { stripExifMetadataFromFile } from '@/lib/image-metadata'
 import { isHeicFile } from '@/lib/image-utils'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
+import { uploadDebug } from '@/lib/media/upload-debug'
 
 const MAX_UPLOADS_PER_TARGET = 20
 const SKIP_COMPRESSION_THRESHOLD_BYTES = 1024 * 1024
@@ -139,8 +140,8 @@ async function preprocessFile(file: File) {
   const shouldCompress = normalizedFile.size > SKIP_COMPRESSION_THRESHOLD_BYTES || isHeicFile(file)
   const maybeCompressed = shouldCompress
     ? await imageCompression(normalizedFile, {
-        maxWidthOrHeight: 1600,
-        initialQuality: 0.75,
+        maxWidthOrHeight: 2800,
+        initialQuality: 0.9,
         fileType: 'image/jpeg',
         useWebWorker: true,
       })
@@ -156,8 +157,8 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
   const [isPaused, setIsPaused] = useState(false)
   const queueEntriesRef = useRef<Map<string, QueueEntry>>(new Map())
   const draftUpdatedAtRef = useRef<Map<string, string>>(new Map())
-  const drainScheduledRef = useRef(false)
   const activeAbortControllerRef = useRef<AbortController | null>(null)
+  const processingClientIdsRef = useRef<Set<string>>(new Set())
 
   const uploadsRef = useRef(uploads)
   const queueOrderRef = useRef(queueOrder)
@@ -298,13 +299,20 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     revokePreviewUrl(clientId)
   }, [revokePreviewUrl, updateUpload])
 
-  const drainQueueRef = useRef<() => void>(() => {})
+  const startNextUploadRef = useRef<() => void>(() => {})
 
   const processActiveEntry = useCallback(async (entry: QueueEntry) => {
     const abortController = new AbortController()
     activeAbortControllerRef.current = abortController
     let uploadSessionImageId: string | null = null
-    let completedSuccessfully = false
+
+    uploadDebug('process-active-entry-start', {
+      clientId: entry.clientId,
+      target: entry.target.kind,
+      targetId: entry.target.kind === 'draft' ? entry.target.draftId : entry.target.cragId,
+      fileName: entry.file.name,
+      queueLength: queueOrderRef.current.length,
+    })
 
     try {
       updateUpload(entry.clientId, (current) => ({ ...current, status: 'PREPROCESSING', progress: 10, error: null }))
@@ -333,6 +341,11 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
         cragId: entry.target.kind === 'crag' ? entry.target.cragId : undefined,
       }, abortController.signal)
       uploadSessionImageId = uploadSession.imageId
+      uploadDebug('upload-session-created', {
+        clientId: entry.clientId,
+        imageId: uploadSession.imageId,
+        objectKey: uploadSession.objectKey,
+      })
 
       updateUpload(entry.clientId, (current) => ({
         ...current,
@@ -342,18 +355,44 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
         uploadedPath: uploadSession.objectKey,
       }))
 
-      await uploadFileToMediaSession(uploadSession.uploadUrl, uploadSession.uploadHeaders, preparedFile, abortController.signal)
+      await uploadFileToMediaSession(uploadSession.uploadUrl, uploadSession.uploadHeaders, preparedFile, {
+        signal: abortController.signal,
+        onProgress: ({ progress }) => {
+          updateUpload(entry.clientId, (current) => ({
+            ...current,
+            progress: Math.max(current.progress, 35 + Math.round(progress * 0.45)),
+          }))
+        },
+      })
       updateUpload(entry.clientId, (current) => ({ ...current, progress: 80 }))
 
       await completeMediaUploadSession(uploadSession.imageId, entry.target.kind === 'draft' ? 'draft_image' : 'crag_image', abortController.signal)
+      uploadDebug('upload-session-complete-succeeded', {
+        clientId: entry.clientId,
+        imageId: uploadSession.imageId,
+      })
       updateUpload(entry.clientId, (current) => ({ ...current, progress: 90 }))
       await attachUpload(entry.clientId)
+      uploadDebug('attach-upload-succeeded', {
+        clientId: entry.clientId,
+        imageId: uploadSession.imageId,
+      })
 
-      completedSuccessfully = true
-      setQueueOrder((current) => current.filter((clientId) => clientId !== entry.clientId))
+      const nextQueueOrder = queueOrderRef.current.filter((clientId) => clientId !== entry.clientId)
+      queueOrderRef.current = nextQueueOrder
+      setQueueOrder(nextQueueOrder)
+      if (activeClientIdRef.current === entry.clientId) {
+        activeClientIdRef.current = null
+      }
       setActiveClientId(null)
     } catch (error) {
       const isAbortError = error instanceof DOMException ? error.name === 'AbortError' : error instanceof Error && error.name === 'AbortError'
+      uploadDebug('process-active-entry-error', {
+        clientId: entry.clientId,
+        imageId: uploadSessionImageId,
+        isAbortError,
+        message: error instanceof Error ? error.message : 'Unknown upload error',
+      })
 
       if (isAbortError) {
         updateUpload(entry.clientId, (current) => ({
@@ -380,47 +419,83 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
 
       setIsPaused(true)
     } finally {
+      uploadDebug('process-active-entry-finally', {
+        clientId: entry.clientId,
+        activeClientId: activeClientIdRef.current,
+        queueOrder: queueOrderRef.current,
+        isPaused: isPausedRef.current,
+        processingClientIds: Array.from(processingClientIdsRef.current),
+      })
+      processingClientIdsRef.current.delete(entry.clientId)
       if (activeAbortControllerRef.current === abortController) {
         activeAbortControllerRef.current = null
       }
       abortController.abort()
-      if (!completedSuccessfully) {
-        setActiveClientId(null)
+      if (activeClientIdRef.current === entry.clientId) {
+        activeClientIdRef.current = null
       }
-      drainQueueRef.current()
+      setActiveClientId(null)
+      startNextUploadRef.current()
     }
   }, [attachUpload, updateUpload])
 
-  const drainQueue = useCallback(() => {
-    if (drainScheduledRef.current) return
-    drainScheduledRef.current = true
-
-    queueMicrotask(() => {
-      drainScheduledRef.current = false
-      if (activeClientIdRef.current || isPausedRef.current) return
-
-      const nextClientId = queueOrderRef.current[0] || null
-      if (!nextClientId) return
-
-      const nextEntry = queueEntriesRef.current.get(nextClientId)
-      const nextUpload = uploadsRef.current[nextClientId]
-      if (!nextEntry || !nextUpload) {
-        setQueueOrder((current) => current.filter((clientId) => clientId !== nextClientId))
-        drainQueue()
-        return
-      }
-
-      if (nextUpload.status === 'FAILED') {
-        setIsPaused(true)
-        return
-      }
-
-      setActiveClientId(nextClientId)
-      void processActiveEntry(nextEntry)
+  const startNextUpload = useCallback(() => {
+    uploadDebug('start-next-upload-called', {
+      activeClientId: activeClientIdRef.current,
+      isPaused: isPausedRef.current,
+      queueOrder: queueOrderRef.current,
+      processingClientIds: Array.from(processingClientIdsRef.current),
     })
+
+    if (isPausedRef.current || activeClientIdRef.current) return
+
+    const nextClientId = queueOrderRef.current.find((clientId) => {
+      if (processingClientIdsRef.current.has(clientId)) return false
+      const upload = uploadsRef.current[clientId]
+      return Boolean(upload && upload.status !== 'FAILED')
+    }) || null
+
+    if (!nextClientId) {
+      uploadDebug('queue-drained', {
+        queueOrder: queueOrderRef.current,
+        activeClientId: activeClientIdRef.current,
+      })
+      return
+    }
+
+    const nextEntry = queueEntriesRef.current.get(nextClientId)
+    const nextUpload = uploadsRef.current[nextClientId]
+    if (!nextEntry || !nextUpload) {
+      uploadDebug('start-next-upload-missing-entry', {
+        nextClientId,
+        hasEntry: Boolean(nextEntry),
+        hasUpload: Boolean(nextUpload),
+      })
+      const nextQueueOrder = queueOrderRef.current.filter((clientId) => clientId !== nextClientId)
+      queueOrderRef.current = nextQueueOrder
+      setQueueOrder(nextQueueOrder)
+      startNextUploadRef.current()
+      return
+    }
+
+    if (nextUpload.status === 'FAILED') {
+      uploadDebug('start-next-upload-paused-on-failed-item', { nextClientId })
+      setIsPaused(true)
+      return
+    }
+
+    processingClientIdsRef.current.add(nextClientId)
+    activeClientIdRef.current = nextClientId
+    uploadDebug('start-next-upload-starting', {
+      nextClientId,
+      status: nextUpload.status,
+      fileName: nextUpload.fileName,
+    })
+    setActiveClientId(nextClientId)
+    void processActiveEntry(nextEntry)
   }, [processActiveEntry])
 
-  drainQueueRef.current = drainQueue
+  startNextUploadRef.current = startNextUpload
 
   const queueUploads = useCallback((files: File[], target: MediaUploadTarget) => {
     const acceptedFiles = files.slice(0, MAX_UPLOADS_PER_TARGET)
@@ -460,15 +535,28 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
       })
     })
 
-    drainQueue()
-  }, [drainQueue, updateUpload])
+    uploadDebug('queue-created', {
+      target: target.kind,
+      targetId: target.kind === 'draft' ? target.draftId : target.cragId,
+      clientIds: createdUploads.map((upload) => upload.clientId),
+      fileNames: createdUploads.map((upload) => upload.fileName),
+      queueLengthAfterEnqueue: queueOrderRef.current.length + createdUploads.length,
+    })
+
+    queueMicrotask(() => {
+      startNextUploadRef.current()
+    })
+
+  }, [updateUpload])
 
   const retryUpload = useCallback((clientId: string) => {
     const entry = queueEntriesRef.current.get(clientId)
     if (!entry) return
 
     setIsPaused(false)
-    setQueueOrder((current) => [clientId, ...current.filter((queuedClientId) => queuedClientId !== clientId)])
+    const nextQueueOrder = [clientId, ...queueOrderRef.current.filter((queuedClientId) => queuedClientId !== clientId)]
+    queueOrderRef.current = nextQueueOrder
+    setQueueOrder(nextQueueOrder)
     updateUpload(clientId, (current) => ({
       ...current,
       status: 'QUEUED',
@@ -479,8 +567,11 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
       uploadedPath: null,
       attachedRecordId: null,
     }))
-    drainQueue()
-  }, [drainQueue, updateUpload])
+    uploadDebug('queue-retry-requested', { clientId })
+    queueMicrotask(() => {
+      startNextUploadRef.current()
+    })
+  }, [updateUpload])
 
   const removeUpload = useCallback(async (clientId: string) => {
     const upload = uploadsRef.current[clientId]
@@ -495,18 +586,28 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
       return next
     })
     queueEntriesRef.current.delete(clientId)
-    setQueueOrder((current) => current.filter((queuedClientId) => queuedClientId !== clientId))
+    const nextQueueOrder = queueOrderRef.current.filter((queuedClientId) => queuedClientId !== clientId)
+    queueOrderRef.current = nextQueueOrder
+    setQueueOrder(nextQueueOrder)
+    processingClientIdsRef.current.delete(clientId)
     if (activeClientIdRef.current === clientId) {
-      setActiveClientId(null)
+      activeClientIdRef.current = null
     }
+    setActiveClientId((current) => current === clientId ? null : current)
     setIsPaused(false)
-    drainQueue()
-  }, [drainQueue, revokePreviewUrl])
+    uploadDebug('queue-item-removed', { clientId })
+    startNextUploadRef.current()
+  }, [revokePreviewUrl])
 
   const resumeQueue = useCallback(() => {
     setIsPaused(false)
-    drainQueue()
-  }, [drainQueue])
+    uploadDebug('queue-resume-requested', {
+      queueOrder: queueOrderRef.current,
+    })
+    queueMicrotask(() => {
+      startNextUploadRef.current()
+    })
+  }, [])
 
   useEffect(() => {
     return () => {

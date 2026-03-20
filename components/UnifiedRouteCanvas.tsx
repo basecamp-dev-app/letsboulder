@@ -7,6 +7,7 @@ import { usePanZoom } from '@/hooks/usePanZoom'
 import { useRouteDrawing } from '@/hooks/useRouteDrawing'
 import { useHitTesting } from '@/hooks/useHitTesting'
 import { getGradeSystemForClimbType, useGradePreferences } from '@/hooks/useGradeSystem'
+import { uploadDebug } from '@/lib/media/upload-debug'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { drawRoutes } from '@/lib/routeRenderer'
 import { RouteEditSidebar } from '@/components/RouteEditSidebar'
@@ -62,6 +63,14 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   const resolvedActiveRouteId = mode === 'browse' ? controlledActiveRouteId ?? null : activeRouteId
 
   const { containerRef, dimensions, imageElement, imageLoaded, imageError } = useCanvasResize(imageUrl)
+
+  useEffect(() => {
+    uploadDebug('canvas-component-state', {
+      imageUrl,
+      imageLoaded,
+      imageError,
+    })
+  }, [imageError, imageLoaded, imageUrl])
 
   const finalDimensions = dimensions
 
@@ -203,6 +212,8 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.save()
     ctx.scale(dpr, dpr)
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
 
     ctx.drawImage(imageElement, 0, 0, drawWidth, drawHeight)
 

@@ -144,7 +144,7 @@ export async function POST(
       return createErrorResponse(updateError, 'Failed to queue image for ingest')
     }
 
-    await enqueueMediaIngest({
+    void enqueueMediaIngest({
       imageId: image.id,
       originalBucket: image.original_bucket,
       originalKey: image.original_key,
@@ -152,6 +152,12 @@ export async function POST(
       purpose,
       triggeredByUserId: user.id,
       trigger: 'upload',
+    }).catch((enqueueError: unknown) => {
+      console.error('Failed to enqueue media ingest after upload completion', {
+        imageId: image.id,
+        purpose,
+        error: enqueueError instanceof Error ? enqueueError.message : enqueueError,
+      })
     })
 
     return NextResponse.json({
