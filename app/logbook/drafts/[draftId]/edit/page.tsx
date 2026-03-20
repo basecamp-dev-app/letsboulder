@@ -777,23 +777,39 @@ export default function EditDraftPage() {
     return [...manageImages, ...pendingTabs].sort((a, b) => a.index - b.index)
   }, [manageImages, pendingDraftUploads])
 
-  useEffect(() => {
-    if (!draftId || activeImageId) return
-    const firstReadyUpload = pendingDraftUploads.find((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId) || null
-    if (!firstReadyUpload?.attachedRecordId) return
-    void loadDraft().then(() => {
-      setActiveImageId((current) => current || firstReadyUpload.attachedRecordId)
-      setDefaultImageId((current) => current || firstReadyUpload.attachedRecordId)
-    })
-  }, [activeImageId, draftId, loadDraft, pendingDraftUploads])
-
   const lastLoadedSuccessRef = useRef<string | null>(null)
   const abortedSuccessReloadRef = useRef<string | null>(null)
 
+  const hasInFlightDraftUploads = useMemo(() => {
+    return pendingDraftUploads.some((upload) => (
+      upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING'
+    ))
+  }, [pendingDraftUploads])
+
+  const firstReadyDraftUpload = useMemo(() => {
+    return pendingDraftUploads.find((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId) || null
+  }, [pendingDraftUploads])
+
+  const hasUnhydratedSuccess = useMemo(() => {
+    return pendingDraftUploads.some((upload) => (
+      upload.status === 'SUCCESS'
+      && Boolean(upload.attachedRecordId)
+      && upload.attachedRecordId !== lastLoadedSuccessRef.current
+    ))
+  }, [pendingDraftUploads])
+
   useEffect(() => {
-    const newestSuccessfulUpload = pendingDraftUploads.find((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId) || null
-    const successKey = newestSuccessfulUpload?.attachedRecordId || null
-    if (!successKey || successKey === lastLoadedSuccessRef.current) return
+    if (!draftId || activeImageId) return
+    if (!firstReadyDraftUpload?.attachedRecordId) return
+    setActiveImageId((current) => current || firstReadyDraftUpload.attachedRecordId)
+    setDefaultImageId((current) => current || firstReadyDraftUpload.attachedRecordId)
+  }, [activeImageId, draftId, firstReadyDraftUpload])
+
+  useEffect(() => {
+    if (hasInFlightDraftUploads || !hasUnhydratedSuccess) return
+    const settledSuccessUploads = pendingDraftUploads.filter((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId)
+    const successKey = settledSuccessUploads[settledSuccessUploads.length - 1]?.attachedRecordId || null
+    if (!successKey) return
     lastLoadedSuccessRef.current = successKey
     void loadDraft().catch((error: unknown) => {
       const isAbortError = error instanceof DOMException
@@ -803,7 +819,7 @@ export default function EditDraftPage() {
         abortedSuccessReloadRef.current = successKey
       }
     })
-  }, [loadDraft, pendingDraftUploads])
+  }, [hasInFlightDraftUploads, hasUnhydratedSuccess, loadDraft, pendingDraftUploads])
 
   useEffect(() => {
     if (!cragId || activeImageId || canvasSource?.kind === 'draft-image') return
