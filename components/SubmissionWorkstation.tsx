@@ -172,7 +172,7 @@ export function SubmissionWorkstation({
                     {image.badgeNumber}
                   </span>
                   {image.signedUrl ? (
-                    <NextImage src={image.signedUrl} alt={`Quick switch image ${image.badgeNumber}`} fill unoptimized sizes="56px" className="object-cover" />
+                    <NextImage src={image.signedUrl} alt={`Quick switch image ${image.badgeNumber}`} fill sizes="56px" className="object-cover" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gray-200 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300">
                       {image.status === 'FAILED'
