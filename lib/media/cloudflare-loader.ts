@@ -62,19 +62,14 @@ export default function cloudflareLoader({ src, width, quality }: ImageLoaderPro
   const variant = snapWidthToVariant(width)
   const mediaHost = getMediaHost()
 
+  if (isLocalApiMediaUrl(parsed)) {
+    return trimmed.startsWith('/') ? trimmed : `${parsed.pathname}${parsed.search}`
+  }
+
   // Media worker URL → return worker URL with snapped variant
   if (isMediaWorkerUrl(parsed) && mediaHost) {
     const key = extractObjectKey(parsed.pathname, MEDIA_PATH_PREFIX)
     if (key) return buildWorkerVariantUrl(mediaHost, key, variant)
-  }
-
-  // /api/media/ proxy URL → bypass proxy, go to media worker
-  if (isLocalApiMediaUrl(parsed) && mediaHost) {
-    const segments = parsed.pathname.slice(API_MEDIA_PREFIX.length).split('/')
-    if (segments.length >= 2) {
-      const objectKey = segments.slice(1).join('/')
-      if (objectKey) return buildWorkerVariantUrl(mediaHost, objectKey, variant)
-    }
   }
 
   let normalizedSrc = trimmed
