@@ -116,6 +116,7 @@ interface RouteLineRow {
 export interface ImageFirstRouteLine {
   routeId: string
   climbId: string
+  imageId: string
   climbSlug: string | null
   climbName: string
   climbGrade: string | null
@@ -390,6 +391,7 @@ export async function buildImageFirstPayload(args: {
     return {
       routeId: row.id,
       climbId: row.climb_id,
+      imageId: image.canonicalId,
       climbSlug: climb?.slug || null,
       climbName: climb?.name || 'Unnamed route',
       climbGrade: climb?.grade || null,
