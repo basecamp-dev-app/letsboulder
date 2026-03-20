@@ -58,7 +58,6 @@ export default function RoutePreviewThumb({
         src={imageUrl}
         alt="Route preview"
         fill
-        unoptimized
         sizes="(max-width: 640px) 96px, (max-width: 768px) 112px, 128px"
         className="object-cover"
         loading="lazy"

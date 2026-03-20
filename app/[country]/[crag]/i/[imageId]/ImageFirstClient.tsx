@@ -10,6 +10,7 @@ import { RouteEditorRail } from '@/components/RouteEditorRail'
 import { UnifiedRouteCanvas } from '@/components/UnifiedRouteCanvas'
 import LightweightCragMap from '@/components/lightweight-crag-map'
 import { normalizePoints } from '@/lib/canvasMath'
+import { getMediaUrl } from '@/lib/media/get-media-url'
 import { createClient } from '@/lib/supabase'
 import type { RouteLine, RoutePoint } from '@/types/domain'
 import ClimbInfoPanel from '@/app/climb/components/ClimbInfoPanel'
@@ -216,14 +217,13 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                       priority={isActive ? heroImage.priority : false}
                       className="object-contain"
                       loading={isActive ? 'eager' : 'lazy'}
-                      unoptimized
                     />
 
                     {isActive && (
                       <div className="absolute inset-0 z-10">
                         <UnifiedRouteCanvas
                           mode="browse"
-                          imageUrl={activeCanvasImageUrl}
+                          imageUrl={getMediaUrl(activeCanvasImageUrl, 'topo')}
                           routes={visibleRoutes}
                           activeRouteId={activeRouteId}
                           onRouteSelect={handleRouteSelect}

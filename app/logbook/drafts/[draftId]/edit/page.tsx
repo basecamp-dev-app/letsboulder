@@ -298,18 +298,33 @@ function buildHighResCanvasUrl(url: string): string {
   if (trimmedUrl.startsWith('blob:')) return trimmedUrl
 
   try {
-    const parsedUrl = new URL(trimmedUrl)
+    const parsedUrl = new URL(trimmedUrl, 'http://placeholder')
+
+    // Handle media worker URLs with ?variant= query param
+    const variant = parsedUrl.searchParams.get('variant')
+    if (variant && variant !== 'topo' && variant !== 'full') {
+      parsedUrl.searchParams.set('variant', 'topo')
+      if (!parsedUrl.searchParams.has('format')) {
+        parsedUrl.searchParams.set('format', 'jpeg')
+      }
+      return trimmedUrl.startsWith('/') ? `${parsedUrl.pathname}${parsedUrl.search}` : parsedUrl.toString()
+    }
+    if (variant === 'topo' || variant === 'full') {
+      return trimmedUrl
+    }
+
+    // Handle legacy /thumbnail or /preview path-based variants
     const pathLower = parsedUrl.pathname.toLowerCase()
     const isLowResVariant = pathLower.includes('/thumbnail') || pathLower.includes('/preview')
     if (!isLowResVariant) {
-      return parsedUrl.toString()
+      return trimmedUrl
     }
 
     const width = Number(parsedUrl.searchParams.get('w') || parsedUrl.searchParams.get('width') || '0')
     parsedUrl.searchParams.set('w', String(Math.max(width, 2048)))
     parsedUrl.searchParams.set('q', '90')
     parsedUrl.searchParams.delete('width')
-    return parsedUrl.toString()
+    return trimmedUrl.startsWith('/') ? `${parsedUrl.pathname}${parsedUrl.search}` : parsedUrl.toString()
   } catch {
     return trimmedUrl
   }

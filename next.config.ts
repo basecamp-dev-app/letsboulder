@@ -59,6 +59,8 @@ const nextConfig: NextConfig = {
     ]
   },
   images: {
+    loader: 'custom',
+    loaderFile: './lib/media/cloudflare-loader.ts',
     localPatterns: [
       {
         pathname: '/logo-light.png',

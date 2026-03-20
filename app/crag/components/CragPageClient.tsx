@@ -1883,7 +1883,7 @@ export default function CragPageClient({
                       <>
                         {routePreviewDisplayByClimbId[route.id] ? (
                           <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                            <Image src={routePreviewDisplayByClimbId[route.id].imageUrl} alt={`${route.name} topo preview`} fill className="object-cover" sizes="64px" unoptimized />
+                            <Image src={routePreviewDisplayByClimbId[route.id].imageUrl} alt={`${route.name} topo preview`} fill className="object-cover" sizes="64px" />
                             {pinNumberByImageId.get(routePreviewDisplayByClimbId[route.id].imageId) ? (
                               <div className="absolute left-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-white/95 text-[10px] font-semibold text-stone-900 shadow-sm dark:bg-gray-900/95 dark:text-gray-100">
                                 {pinNumberByImageId.get(routePreviewDisplayByClimbId[route.id].imageId)}
