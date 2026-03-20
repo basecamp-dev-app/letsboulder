@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
+import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import type { Database } from '@/types/database'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -45,13 +47,13 @@ interface ProfileRow {
   display_name: string | null
 }
 
-interface DraftStorageRow {
-  storage_bucket: string | null
-  storage_path: string | null
-}
-
 type DraftImageProcessingStatus = 'pending' | 'queued' | 'processing' | 'ready' | 'failed'
 type DraftImageReadinessStatus = 'processing' | 'ready' | 'error'
+
+type DraftStorageRow = Pick<
+  Database['public']['Tables']['submission_draft_images']['Row'],
+  'storage_provider' | 'storage_bucket' | 'storage_path'
+>
 
 interface DraftImageRow {
   id: string
@@ -486,30 +488,14 @@ export async function DELETE(
 
     const { data: draftImages, error: draftImagesError } = await supabase
       .from('submission_draft_images')
-      .select('storage_bucket, storage_path')
+      .select('storage_provider, storage_bucket, storage_path')
       .eq('draft_id', id)
 
     if (draftImagesError) {
       return createErrorResponse(draftImagesError, 'Failed to read draft image storage paths')
     }
 
-    const pathsByBucket = new Map<string, string[]>()
-    for (const image of (draftImages || []) as DraftStorageRow[]) {
-      if (!image.storage_bucket || !image.storage_path) continue
-      const existingPaths = pathsByBucket.get(image.storage_bucket) || []
-      existingPaths.push(image.storage_path)
-      pathsByBucket.set(image.storage_bucket, existingPaths)
-    }
-
-    for (const [bucket, paths] of pathsByBucket.entries()) {
-      const uniquePaths = Array.from(new Set(paths))
-      if (uniquePaths.length === 0) continue
-
-      const { error: storageError } = await storageClient.storage.from(bucket).remove(uniquePaths)
-      if (storageError) {
-        return createErrorResponse(storageError, 'Failed to delete submission draft image files')
-      }
-    }
+    const draftStorageRows = (draftImages || []) as DraftStorageRow[]
 
     const { data: deletedDraft, error: deleteError } = await supabase
       .from('submission_drafts')
@@ -525,6 +511,8 @@ export async function DELETE(
     if (!deletedDraft) {
       return NextResponse.json({ error: 'Failed to delete submission draft' }, { status: 500 })
     }
+
+    await cleanupDraftStorageObjects(storageClient, draftStorageRows)
 
     return NextResponse.json({ success: true })
   } catch (error) {
