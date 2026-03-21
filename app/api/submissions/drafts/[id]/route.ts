@@ -3,8 +3,6 @@ import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
-import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
-import { createSignedObjectUrls } from '@/lib/media/object-urls'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import type { Database } from '@/types/database'
 
@@ -73,8 +71,13 @@ interface DraftImageRow {
 }
 
 interface DraftImageResponse extends DraftImageRow {
-  signed_url: string | null
+  proxy_url: string | null
   readiness_status: DraftImageReadinessStatus
+}
+
+function buildDraftImageProxyUrl(draftId: string, path: string): string {
+  const searchParams = new URLSearchParams({ draftId, path })
+  return `/api/media/private?${searchParams.toString()}`
 }
 
 function resolveDisplayName(profile: ProfileRow | null): string | null {
@@ -106,8 +109,8 @@ function normalizePatchImages(value: unknown): DraftPatchImage[] | null {
   return images
 }
 
-function resolveDraftImageReadinessStatus(image: DraftImageRow, signedUrl: string | null): DraftImageReadinessStatus {
-  if (signedUrl) return 'ready'
+function resolveDraftImageReadinessStatus(image: DraftImageRow): DraftImageReadinessStatus {
+  if (image.storage_bucket && image.storage_path && image.processing_status === 'ready') return 'ready'
   if (!image.storage_bucket || !image.storage_path || image.processing_status === 'failed') return 'error'
   return 'processing'
 }
@@ -132,14 +135,6 @@ export async function GET(
       },
     }
   )
-
-  const readClient = SUPABASE_SERVICE_ROLE_KEY
-    ? createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        SUPABASE_SERVICE_ROLE_KEY,
-        { cookies: { getAll() { return [] }, setAll() {} } }
-      )
-    : supabase
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
@@ -168,47 +163,12 @@ export async function GET(
     }
 
     const imageRows = (images || []) as DraftImageRow[]
-    const pathsByBucket = new Map<string, Set<string>>()
-
-    for (const image of imageRows) {
-      if (!image.storage_bucket || !image.storage_path) continue
-      const current = pathsByBucket.get(image.storage_bucket) || new Set<string>()
-      current.add(image.storage_path)
-      pathsByBucket.set(image.storage_bucket, current)
-    }
-
-    const signedByKey = new Map<string, string>()
-
-    for (const [bucket, pathSet] of pathsByBucket.entries()) {
-      const paths = Array.from(pathSet)
-      if (paths.length === 0) continue
-
-      try {
-        const signed = await createSignedObjectUrls(paths.map((path) => ({ bucket, path })), readClient)
-        for (const path of paths) {
-          const signedUrl = signed.get(`${bucket}:${path}`)
-          if (!signedUrl) continue
-          signedByKey.set(getSignedUrlBatchKey(bucket, path), signedUrl)
-        }
-      } catch (error) {
-        console.warn('Draft batch signed URL generation failed:', {
-          draftId: id,
-          bucket,
-          pathCount: paths.length,
-          error,
-        })
-      }
-    }
 
     const withSignedUrls: DraftImageResponse[] = imageRows.map((image) => {
-      const signedUrl = image.storage_bucket && image.storage_path
-        ? (signedByKey.get(getSignedUrlBatchKey(image.storage_bucket, image.storage_path)) || null)
-        : null
-
       return {
         ...image,
-        signed_url: signedUrl,
-        readiness_status: resolveDraftImageReadinessStatus(image, signedUrl),
+        proxy_url: image.storage_path ? buildDraftImageProxyUrl(id, image.storage_path) : null,
+        readiness_status: resolveDraftImageReadinessStatus(image),
       }
     })
 
