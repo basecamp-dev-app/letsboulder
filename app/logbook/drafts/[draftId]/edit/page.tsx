@@ -37,7 +37,7 @@ interface DraftImagePayload {
   id: string
   display_order: number
   route_data: Record<string, unknown> | null
-  signed_url: string | null
+  proxy_url: string | null
   readiness_status: 'ready' | 'processing' | 'error'
   width: number | null
   height: number | null
@@ -58,7 +58,7 @@ interface DraftPayload {
 }
 
 function isDraftImageReady(image: DraftImagePayload): boolean {
-  return image.readiness_status === 'ready' && !!image.signed_url
+  return image.readiness_status === 'ready' && !!image.proxy_url
 }
 
 interface CragImagePayload {
@@ -552,7 +552,7 @@ export default function EditDraftPage() {
           sourceKind: 'draft-image',
           index,
           label: image.id === nextDefaultImageId ? `Default${directionsLabel}` : `Image ${index + 1}${directionsLabel}`,
-          signedUrl: image.signed_url || '',
+          signedUrl: image.proxy_url || '',
           latitude: typeof image.latitude === 'number' ? image.latitude : null,
           longitude: typeof image.longitude === 'number' ? image.longitude : null,
         }
