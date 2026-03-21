@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import AppLayout from '@/components/AppLayout'
 import ChunkLoadRecovery from '@/components/ChunkLoadRecovery'
+import DevBrowserLogger from '@/components/DevBrowserLogger'
 import Providers from '@/components/providers'
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import {
@@ -201,6 +202,7 @@ export default function RootLayout({
         </a>
         <Providers>
           <ChunkLoadRecovery />
+          <DevBrowserLogger />
           <ServiceWorkerRegistration />
           <AppLayout>{children}</AppLayout>
           <Analytics />
