@@ -1,5 +1,5 @@
 import { notFound, permanentRedirect } from 'next/navigation'
-import ImageFirstClient from '@/app/[country]/[crag]/i/[imageId]/ImageFirstClient'
+import ImageFirstClientLoader from '@/app/[country]/[crag]/i/[imageId]/ImageFirstClientLoader'
 import { buildImageFirstPayload } from '@/app/[country]/[crag]/i/[imageId]/image-page-server'
 
 interface ImagePageParams {
@@ -35,5 +35,5 @@ export default async function ImagePage({
     notFound()
   }
 
-  return <ImageFirstClient payload={result.payload} />
+  return <ImageFirstClientLoader payload={result.payload} />
 }

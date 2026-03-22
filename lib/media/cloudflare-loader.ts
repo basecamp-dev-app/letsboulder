@@ -62,7 +62,8 @@ export default function cloudflareLoader({ src, width, quality }: ImageLoaderPro
   const mediaHost = getMediaHost()
 
   if (isLocalApiMediaUrl(parsed)) {
-    return trimmed.startsWith('/') ? trimmed : `${parsed.pathname}${parsed.search}`
+    parsed.searchParams.set('w', String(width))
+    return `${parsed.pathname}${parsed.search}`
   }
 
   // Media worker URL → return worker URL with snapped variant
