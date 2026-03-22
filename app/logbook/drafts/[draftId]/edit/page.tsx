@@ -58,7 +58,7 @@ interface DraftPayload {
 }
 
 function isDraftImageReady(image: DraftImagePayload): boolean {
-  return image.readiness_status === 'ready' && !!image.proxy_url
+  return (image.readiness_status === 'ready' || image.readiness_status === 'processing') && !!image.proxy_url
 }
 
 interface CragImagePayload {
