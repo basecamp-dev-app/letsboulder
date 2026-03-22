@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 import { uploadDebug } from '@/lib/media/upload-debug'
 
@@ -20,6 +20,7 @@ export const useCanvasResize = (imageUrl: string) => {
   const [imageError, setImageError] = useState(false)
 
   const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null)
+  const loadGenerationRef = useRef(0)
 
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     if (node !== null) {
@@ -30,11 +31,9 @@ export const useCanvasResize = (imageUrl: string) => {
   useEffect(() => {
     if (!imageUrl) return
 
-    let isActive = true
-    /* eslint-disable react-hooks/set-state-in-effect */
+    const generation = ++loadGenerationRef.current
     setImageLoaded(false)
     setImageError(false)
-    /* eslint-enable react-hooks/set-state-in-effect */
 
     uploadDebug('canvas-debug-load-start', {
       imageUrl,
@@ -48,7 +47,7 @@ export const useCanvasResize = (imageUrl: string) => {
     img.decoding = 'async'
 
     img.onload = () => {
-      if (!isActive) return
+      if (loadGenerationRef.current !== generation) return
       uploadDebug('canvas-debug-load-success', {
         imageUrl,
         usesAnonymousCrossOrigin,
@@ -60,7 +59,7 @@ export const useCanvasResize = (imageUrl: string) => {
     }
 
     img.onerror = () => {
-      if (!isActive) return
+      if (loadGenerationRef.current !== generation) return
       uploadDebug('canvas-debug-load-error', {
         imageUrl,
         usesAnonymousCrossOrigin,
@@ -76,7 +75,14 @@ export const useCanvasResize = (imageUrl: string) => {
       })
     }
 
-    return () => { isActive = false }
+    return () => {
+      // Intentionally mutate ref to invalidate stale onload/onerror callbacks
+      /* eslint-disable react-hooks/exhaustive-deps */
+      if (loadGenerationRef.current === generation) {
+        loadGenerationRef.current++
+      }
+      /* eslint-enable react-hooks/exhaustive-deps */
+    }
   }, [imageUrl])
 
   useEffect(() => {
