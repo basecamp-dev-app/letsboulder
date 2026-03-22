@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
@@ -167,11 +167,11 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/${countryCode}/${cragSlug}/i/${heroImage.displayImageId}`)}`)
   }
 
-  const handleRouteSelect = (routeId: string | null) => {
+  const handleRouteSelect = useCallback((routeId: string | null) => {
     if (routeId) {
       setUserSelectedRouteId(routeId)
     }
-  }
+  }, [setUserSelectedRouteId])
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-white">
@@ -219,22 +219,23 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                       loading={isActive ? 'eager' : 'lazy'}
                       crossOrigin="anonymous"
                     />
-
-                    {isActive && (
-                      <div className="absolute inset-0 z-10">
-                        <UnifiedRouteCanvas
-                          mode="browse"
-                          imageUrl={getMediaUrl(activeCanvasImageUrl, 'topo')}
-                          routes={visibleRoutes}
-                          activeRouteId={activeRouteId}
-                          onRouteSelect={handleRouteSelect}
-                        />
-                      </div>
-                    )}
                   </div>
                 </div>
               )
             })}
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-4 py-14">
+          <div className="pointer-events-auto relative h-[60vh] w-full max-w-6xl">
+            <UnifiedRouteCanvas
+              key={activeImageId}
+              mode="browse"
+              imageUrl={getMediaUrl(activeCanvasImageUrl, 'topo')}
+              routes={visibleRoutes}
+              activeRouteId={activeRouteId}
+              onRouteSelect={handleRouteSelect}
+            />
           </div>
         </div>
 
