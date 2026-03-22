@@ -219,23 +219,20 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                       loading={isActive ? 'eager' : 'lazy'}
                       crossOrigin="anonymous"
                     />
+                    {isActive && (
+                      <UnifiedRouteCanvas
+                        key={activeImageId}
+                        mode="browse"
+                        imageUrl={getMediaUrl(activeCanvasImageUrl, 'topo')}
+                        routes={visibleRoutes}
+                        activeRouteId={activeRouteId}
+                        onRouteSelect={handleRouteSelect}
+                      />
+                    )}
                   </div>
                 </div>
               )
             })}
-          </div>
-        </div>
-
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-4 py-14">
-          <div className="pointer-events-auto relative h-[60vh] w-full max-w-6xl">
-            <UnifiedRouteCanvas
-              key={activeImageId}
-              mode="browse"
-              imageUrl={getMediaUrl(activeCanvasImageUrl, 'topo')}
-              routes={visibleRoutes}
-              activeRouteId={activeRouteId}
-              onRouteSelect={handleRouteSelect}
-            />
           </div>
         </div>
 
