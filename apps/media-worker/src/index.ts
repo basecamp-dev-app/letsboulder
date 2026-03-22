@@ -187,7 +187,7 @@ async function handleOrigin(request: Request, env: Env, url: URL) {
 
   const headers = new Headers()
   object.writeHttpMetadata(headers)
-  headers.set('Cache-Control', 'private, no-store')
+  headers.set('Cache-Control', 'private, max-age=3600')
 
   return new Response(object.body, { headers })
 }
