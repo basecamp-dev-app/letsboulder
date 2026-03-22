@@ -170,6 +170,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ bucket: string; path: string[] }> }
 ) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Use CDN for production' }, { status: 404 })
+  }
+
   const { bucket, path: pathSegments } = await params
   const objectPath = Array.isArray(pathSegments) ? pathSegments.join('/') : ''
 

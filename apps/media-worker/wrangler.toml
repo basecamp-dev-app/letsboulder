@@ -1,4 +1,4 @@
-name = "letsboulder-media-worker"
+name = "media-worker"
 main = "src/index.ts"
 compatibility_date = "2026-03-01"
 
@@ -8,7 +8,11 @@ enabled = true
 [vars]
 ENABLE_MODERATION = "false"
 MEDIA_MODERATION_PROVIDER = "disabled"
-MEDIA_HOST = "https://media.letsboulder.com"
+MEDIA_HOST = "https://static.letsboulder.com"
+
+[env.staging]
+name = "media-worker-staging"
+vars = { ENABLE_MODERATION = "false", MEDIA_MODERATION_PROVIDER = "disabled", MEDIA_HOST = "https://static.dev.letsboulder.com" }
 
 [[queues.producers]]
 binding = "MEDIA_QUEUE"
