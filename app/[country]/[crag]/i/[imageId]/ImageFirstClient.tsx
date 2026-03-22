@@ -217,7 +217,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                       priority={isActive ? heroImage.priority : false}
                       className="object-contain"
                       loading={isActive ? 'eager' : 'lazy'}
-                      crossOrigin="anonymous"
                     />
                     {isActive && (
                       <UnifiedRouteCanvas
