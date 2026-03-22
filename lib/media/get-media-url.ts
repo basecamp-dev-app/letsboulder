@@ -4,7 +4,7 @@ const MEDIA_PATH_PREFIX = '/media/'
 const API_MEDIA_PREFIX = '/api/media/'
 
 function parseMediaWorkerUrl(url: string): { key: string; host: string } | null {
-  const mediaHost = process.env.NEXT_PUBLIC_MEDIA_HOST?.replace(/\/$/, '')
+  const mediaHost = process.env.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '')
   if (!mediaHost) return null
 
   try {
