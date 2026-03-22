@@ -32,7 +32,7 @@ function buildOriginPath(originalKey: string): string {
 }
 
 function buildMediaPath(originalKey: string, variant: MediaVariantKey, format: MediaFormatKey): string {
-  const originPath = `/media/${originalKey.split('/').map(encodeURIComponent).join('/')}`
+  const originPath = `/${originalKey.split('/').map(encodeURIComponent).join('/')}`
   return `${originPath}?variant=${variant}&format=${format}`
 }
 
@@ -193,7 +193,7 @@ async function handleOrigin(request: Request, env: Env, url: URL) {
 }
 
 async function handleMedia(request: Request, env: Env, url: URL) {
-  const objectKey = url.pathname.replace(/^\/media\//, '')
+  const objectKey = url.pathname.substring(1)
     .split('/')
     .filter(Boolean)
     .map(decodeURIComponent)
@@ -246,7 +246,7 @@ export default {
       return handleOrigin(request, env, url)
     }
 
-    if (request.method === 'GET' && url.pathname.startsWith('/media/')) {
+    if (request.method === 'GET' && !url.pathname.startsWith('/origin/') && url.pathname !== '/enqueue') {
       return handleMedia(request, env, url)
     }
 
