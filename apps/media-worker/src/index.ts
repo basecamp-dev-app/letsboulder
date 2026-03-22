@@ -27,10 +27,6 @@ function json(data: unknown, init?: ResponseInit) {
   })
 }
 
-function buildOriginPath(originalKey: string): string {
-  return `/origin/${originalKey.split('/').map(encodeURIComponent).join('/')}`
-}
-
 function buildMediaPath(originalKey: string, variant: MediaVariantKey, format: MediaFormatKey): string {
   const originPath = `/${originalKey.split('/').map(encodeURIComponent).join('/')}`
   return `${originPath}?variant=${variant}&format=${format}`
@@ -69,13 +65,6 @@ function buildVirtualManifest(originalKey: string, sourceWidth: number | null, s
   return manifest
 }
 
-function parseFormat(value: string | null): MediaFormatKey {
-  if (value === 'avif' || value === 'webp' || value === 'jpeg') {
-    return value
-  }
-
-  return 'webp'
-}
 
 async function handleEnqueue(request: Request, env: Env) {
   const authHeader = request.headers.get('Authorization')
@@ -209,12 +198,10 @@ async function handleMedia(request: Request, env: Env, url: URL) {
     return json({ error: 'Invalid variant' }, { status: 400 })
   }
 
-  const format = parseFormat(url.searchParams.get('format'))
-  const originUrl = new URL(buildOriginPath(objectKey), env.MEDIA_HOST)
-  const response = await fetch(originUrl.toString(), {
-    headers: {
-      'X-Internal-Secret': env.INTERNAL_ORIGIN_SECRET,
-    },
+  const format = url.searchParams.get('format') === 'avif' ? 'avif' : 'webp'
+  const originUrl = `${env.R2_ORIGIN_URL}/${objectKey.split('/').map(encodeURIComponent).join('/')}`
+
+  const response = await fetch(originUrl, {
     cf: {
       image: {
         width,
@@ -223,15 +210,16 @@ async function handleMedia(request: Request, env: Env, url: URL) {
         metadata: 'keep',
       },
     },
-  } as RequestInit & { cf: { image: { width: number; format: MediaFormatKey; fit: 'scale-down'; metadata: 'keep' } } })
+  } as RequestInit & { cf: { image: { width: number; format: string; fit: 'scale-down'; metadata: 'keep' } } })
 
   if (!response.ok) {
-    return response
+    return new Response('Not found', { status: 404 })
   }
 
   const headers = new Headers(response.headers)
   headers.set('Cache-Control', 'public, max-age=31536000, immutable')
   headers.set('Vary', 'Accept')
+  headers.set('Access-Control-Allow-Origin', '*')
   return new Response(response.body, { status: response.status, headers })
 }
 

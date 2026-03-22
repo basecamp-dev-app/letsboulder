@@ -48,9 +48,8 @@ export function resolveRouteImageUrl(url: string | null | undefined): string {
   const objectPath = withoutPrefix.slice(firstSlashIndex + 1)
   if (!objectPath) return url
 
-  if (bucket === process.env.R2_PUBLIC_BUCKET) {
-    return buildCdnUrl(objectPath) || url
-  }
+  const cdnUrl = buildCdnUrl(objectPath)
+  if (cdnUrl) return cdnUrl
 
   return buildMediaProxyPath(bucket, objectPath)
 }
