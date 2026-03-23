@@ -11,7 +11,6 @@ import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUpload
 import { uploadDebug } from '@/lib/media/upload-debug'
 
 const MAX_UPLOADS_PER_TARGET = 20
-const SKIP_COMPRESSION_THRESHOLD_BYTES = 1024 * 1024
 const THUMBNAIL_MAX_WIDTH = 320
 
 export type MediaUploadStatus = 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
@@ -131,23 +130,13 @@ async function buildPreviewUrl(file: File) {
 
 async function preprocessFile(file: File) {
   const normalizedFile = isHeicFile(file)
-    ? new File([await convertHeicToJpegBlob(file)], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
-        type: 'image/jpeg',
+    ? new File([await convertHeicToJpegBlob(file)], file.name.replace(/\.(heic|heif)$/i, ".jpg"), {
+        type: "image/jpeg",
         lastModified: Date.now(),
       })
     : file
 
-  const shouldCompress = normalizedFile.size > SKIP_COMPRESSION_THRESHOLD_BYTES || isHeicFile(file)
-  const maybeCompressed = shouldCompress
-    ? await imageCompression(normalizedFile, {
-        maxWidthOrHeight: 2800,
-        initialQuality: 0.9,
-        fileType: 'image/jpeg',
-        useWebWorker: true,
-      })
-    : normalizedFile
-
-  return stripExifMetadataFromFile(maybeCompressed)
+  return stripExifMetadataFromFile(normalizedFile)
 }
 
 export function MediaUploadManagerProvider({ children }: { children: ReactNode }) {
