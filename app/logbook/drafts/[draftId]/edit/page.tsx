@@ -665,6 +665,24 @@ export default function EditDraftPage() {
     }
   }, [registerDraftUpdatedAt])
 
+  const syncUploadedImages = useCallback(async () => {
+    const currentDraftId = draftIdRef.current
+    if (!currentDraftId || !draft) return
+
+    try {
+      const response = await fetch(`/api/submissions/drafts/${currentDraftId}`, { cache: 'no-store' })
+      const payload = await response.json().catch(() => ({} as { draft?: DraftPayload; error?: string }))
+      if (!response.ok || !payload?.draft) {
+        return
+      }
+
+      const freshImages = payload.draft.images || []
+      setDraft((prev) => prev ? { ...prev, images: freshImages } : prev)
+    } catch (error) {
+      uploadDebug('sync-uploaded-images-failed', { draftId: currentDraftId, error: String(error) })
+    }
+  }, [draft])
+
   useEffect(() => {
     draftIdRef.current = draftId
   }, [draftId])
@@ -915,7 +933,7 @@ export default function EditDraftPage() {
     lastProcessedSuccessKeyRef.current = successKey
     void (async () => {
       try {
-        await loadDraft()
+        await syncUploadedImages()
       } catch (error: unknown) {
         const isAbortError = error instanceof DOMException
           ? error.name === 'AbortError'
@@ -928,7 +946,7 @@ export default function EditDraftPage() {
         isFetchingRef.current = false
       }
     })()
-  }, [draftId, hasInFlightDraftUploads, loadDraft, pendingDraftUploads])
+  }, [draftId, hasInFlightDraftUploads, pendingDraftUploads, syncUploadedImages])
 
   useEffect(() => {
     if (!cragId || activeImageId || canvasSource?.kind === 'draft-image') return
@@ -1800,6 +1818,7 @@ export default function EditDraftPage() {
     if (!hasLoadedRoutesRef.current) return
     if (!draft || !draftUpdatedAt) return
     if (isInitialLoading || publishingDraft || savingDraft || !!conflict) return
+    if (hasInFlightDraftUploads) return
 
     const serializedRoutes = JSON.stringify({
       routesByImageId,
@@ -1839,7 +1858,7 @@ export default function EditDraftPage() {
         autosaveTimeoutRef.current = null
       }
     }
-  }, [autosaveState, conflict, draft, draftUpdatedAt, isInitialLoading, markerPosition, orientationByImageId, publishingDraft, routesByImageId, saveDraft, savingDraft])
+  }, [autosaveState, conflict, draft, draftUpdatedAt, hasInFlightDraftUploads, isInitialLoading, markerPosition, orientationByImageId, publishingDraft, routesByImageId, saveDraft, savingDraft])
 
   useEffect(() => {
     return () => {
