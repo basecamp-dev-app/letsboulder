@@ -217,33 +217,39 @@ export default function LightweightCragMap({
         }
       `}</style>
       <div className={`lightweight-crag-map h-[260px] overflow-hidden rounded-[28px] border border-stone-200 bg-stone-100 shadow-sm md:h-[320px] dark:border-gray-800 dark:bg-gray-900 ${heightClassName}`}>
-        <MapContainer
-          ref={mapRef as never}
-          center={center}
-          zoom={15}
-          minZoom={minAllowedZoom ?? undefined}
-          maxZoom={19}
-          style={{ height: '100%', width: '100%' }}
-          preferCanvas={true}
-          scrollWheelZoom={true}
-          doubleClickZoom={true}
-          touchZoom={true}
-          zoomControl={false}
-          whenReady={() => setMapReady(true)}
-        >
-          <TileLayer url={tileUrl} attribution={attribution} maxZoom={19} />
-          <ZoomControl position="topright" />
-          {leafletLib && mapReady ? normalizedPins.map((pin, index) => (
-            <MapPinMarker
-              key={pin.id}
-              pin={pin}
-              index={index}
-              active={pin.id === activePinId}
-              leafletLib={leafletLib}
-              onPinSelect={onPinSelect}
-            />
-          )) : null}
-        </MapContainer>
+        {leafletLib ? (
+          <MapContainer
+            ref={mapRef as never}
+            center={center}
+            zoom={15}
+            minZoom={minAllowedZoom ?? undefined}
+            maxZoom={19}
+            style={{ height: '100%', width: '100%' }}
+            preferCanvas={true}
+            scrollWheelZoom={true}
+            doubleClickZoom={true}
+            touchZoom={true}
+            zoomControl={false}
+            whenReady={() => setMapReady(true)}
+          >
+            <TileLayer url={tileUrl} attribution={attribution} maxZoom={19} />
+            <ZoomControl position="topright" />
+            {mapReady ? normalizedPins.map((pin, index) => (
+              <MapPinMarker
+                key={pin.id}
+                pin={pin}
+                index={index}
+                active={pin.id === activePinId}
+                leafletLib={leafletLib}
+                onPinSelect={onPinSelect}
+              />
+            )) : null}
+          </MapContainer>
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <div className="animate-spin h-8 w-8 border-4 border-stone-400 border-t-transparent rounded-full" />
+          </div>
+        )}
       </div>
     </div>
   )
