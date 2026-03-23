@@ -44,6 +44,21 @@ function buildWorkerVariantUrl(
   return `${host}/${encodedKey}?variant=${variant}&format=webp`
 }
 
+function transformStaticVariantPath(pathname: string, requestedVariant: string, format: string = 'webp'): string | null {
+  const variantPattern = /^(.*\/v1\/)([a-z0-9_-]+)\.([a-z0-9]+)$/i
+  const match = pathname.match(variantPattern)
+
+  if (!match) return null
+
+  const [, prefix, currentVariant, ext] = match
+
+  if (currentVariant === requestedVariant && ext === format) {
+    return pathname
+  }
+
+  return `${prefix}${requestedVariant}.${format}`
+}
+
 export default function cloudflareLoader({ src, width, quality }: ImageLoaderProps): string {
   if (!src) return ''
 
@@ -69,7 +84,17 @@ export default function cloudflareLoader({ src, width, quality }: ImageLoaderPro
   // Media worker URL → return worker URL with snapped variant
   if (isMediaWorkerUrl(parsed) && mediaHost) {
     const key = extractObjectKey(parsed.pathname)
-    if (key) return buildWorkerVariantUrl(mediaHost, key, variant)
+    if (key) {
+      const normalizedKey = key.startsWith('/') ? key : `/${key}`
+      const staticVariantPath = transformStaticVariantPath(normalizedKey, variant)
+
+      if (staticVariantPath) {
+        const safeHost = mediaHost.endsWith('/') ? mediaHost.slice(0, -1) : mediaHost
+        return `${safeHost}${staticVariantPath}`
+      }
+
+      return buildWorkerVariantUrl(mediaHost, key, variant)
+    }
   }
 
   let normalizedSrc = trimmed
