@@ -12,40 +12,6 @@ interface CragRow {
   name: string
 }
 
-interface CragImageRow {
-  id: string
-  linked_image_id: string | null
-  url: string
-  width: number | null
-  height: number | null
-  created_at: string | null
-  crag_id: string
-  sector_id: string | null
-  crags: CragRow | CragRow[] | null
-}
-
-interface CragImageWithAssetRow extends CragImageRow {
-  sectors: { name: string | null } | Array<{ name: string | null }> | null
-  images:
-    | {
-        id: string
-        latitude: number | null
-        longitude: number | null
-        url: string | null
-        width: number | null
-        height: number | null
-      }
-    | Array<{
-        id: string
-        latitude: number | null
-        longitude: number | null
-        url: string | null
-        width: number | null
-        height: number | null
-      }>
-    | null
-}
-
 interface ImageAssetRow {
   id: string
   crag_id: string
@@ -320,54 +286,50 @@ export async function buildImageFirstPayload(args: {
     }
   }
 
-  const [initialRouteRows, cragImageRows] = await Promise.all([
+  const [initialRouteRows, cragImages] = await Promise.all([
     getRoutesByImage(image.canonicalId),
     (async () => {
       const supabase = await getSupabase()
       const { data, error } = await supabase
-        .from('crag_images')
-        .select('id, linked_image_id, url, width, height, created_at, sector_id, sectors(name), images:linked_image_id(id, latitude, longitude, url, width, height)')
+        .from('images')
+        .select('id, url, width, height, created_at, latitude, longitude')
         .eq('crag_id', image.cragId)
         .order('created_at', { ascending: false })
 
-        if (error) throw error
-        return (data || []) as unknown as CragImageWithAssetRow[]
-      })(),
+      if (error) throw error
+      return (data || []) as Array<{
+        id: string
+        url: string
+        width: number | null
+        height: number | null
+        created_at: string | null
+        latitude: number | null
+        longitude: number | null
+      }>
+    })(),
   ])
 
-  const spatialNodes = cragImageRows
-    .map((row) => {
-      const displayId = getDisplayImageId(row)
-      if (!displayId) return null
-      const linkedImage = Array.isArray(row.images) ? row.images[0] : row.images
-        return {
-          displayImageId: displayId,
-          cragImageId: row.id,
-          latitude: linkedImage?.latitude ?? null,
-          longitude: linkedImage?.longitude ?? null,
-          createdAt: row.created_at,
-          sectorId: row.sector_id,
-          sectorName: Array.isArray(row.sectors) ? (row.sectors[0]?.name || null) : (row.sectors?.name || null),
-        }
-      })
-    .filter((node): node is NonNullable<typeof node> => node !== null)
+  const spatialNodes = cragImages.map((row) => ({
+    displayImageId: row.id,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    createdAt: row.created_at,
+  }))
 
   const ordered = spatialNodes.length > 0
     ? getStableSpatialOrder(spatialNodes)
     : {
         orderedImageIds: [image.canonicalId],
-        orderedStacks: [{ stackId: image.canonicalId, images: [{ displayImageId: image.canonicalId, cragImageId: image.canonicalId, latitude: null, longitude: null, createdAt: null, sectorId: null, sectorName: null }] }],
+        orderedStacks: [{ stackId: image.canonicalId, images: [{ displayImageId: image.canonicalId, latitude: null, longitude: null, createdAt: null }] }],
         imageIndexByDisplayImageId: new Map([[image.canonicalId, 0]]),
       }
   const imageMap: Record<string, { src: string; width: number; height: number }> = {}
-  for (const row of cragImageRows) {
-    const displayId = getDisplayImageId(row)
-    if (!displayId || imageMap[displayId]) continue
-    const linkedImage = Array.isArray(row.images) ? row.images[0] : row.images
-    imageMap[displayId] = {
-      src: resolveRouteImageUrl(linkedImage?.url || row.url),
-      width: linkedImage?.width ?? row.width ?? 1600,
-      height: linkedImage?.height ?? row.height ?? 1200,
+  for (const row of cragImages) {
+    if (imageMap[row.id]) continue
+    imageMap[row.id] = {
+      src: resolveRouteImageUrl(row.url),
+      width: row.width ?? 1600,
+      height: row.height ?? 1200,
     }
   }
   imageMap[image.canonicalId] = {
@@ -377,15 +339,7 @@ export async function buildImageFirstPayload(args: {
   }
 
   const startIndex = ordered.imageIndexByDisplayImageId.get(image.canonicalId) ?? 0
-  const sectorMarkers = spatialNodes.length > 0 ? ordered.orderedStacks.reduce<Record<string, { name: string; firstImageId: string }>>((markers, stack) => {
-    const first = stack.images[0]
-    if (!first?.sectorId || markers[first.sectorId]) return markers
-    markers[first.sectorId] = {
-      name: first.sectorName || first.sectorId,
-      firstImageId: first.displayImageId,
-    }
-    return markers
-  }, {}) : {}
+  const sectorMarkers: Record<string, { name: string; firstImageId: string }> = {}
   const initialRoutes = initialRouteRows.map((row, index) => {
     const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
     return {
