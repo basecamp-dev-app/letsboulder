@@ -236,6 +236,14 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     : heroImage
   const activeCanvasImageUrl = activeImageMeta.src || heroImage.src
 
+  console.log('[RouteDebug] ImageSource:', {
+    activeImageId,
+    activeImageIndex,
+    activeImageMeta: { src: activeImageMeta.src, width: activeImageMeta.width, height: activeImageMeta.height },
+    activeCanvasImageUrl,
+    heroImage: { displayImageId: heroImage.displayImageId, src: heroImage.src },
+  })
+
   const mapPins = useMemo(() => {
     return payload.mapPins.map((pin, index) => ({
       id: pin.imageId,
