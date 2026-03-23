@@ -39,7 +39,7 @@ export function getMediaStorageConfig(): MediaStorageConfig {
     s3Endpoint: getRequiredEnv('R2_S3_ENDPOINT'),
     privateBucket: getRequiredEnv('R2_PRIVATE_BUCKET'),
     publicBucket: getRequiredEnv('R2_PUBLIC_BUCKET'),
-    cdnBaseUrl: getRequiredEnv('MEDIA_CDN_BASE_URL').replace(/\/$/, ''),
+    cdnBaseUrl: getRequiredEnv('NEXT_PUBLIC_MEDIA_CDN_URL').replace(/\/$/, ''),
   }
 }
 
