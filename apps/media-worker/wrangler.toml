@@ -42,3 +42,19 @@ bucket_name = "lb-dev-media-public"
 pattern = "static.dev.letsboulder.com/*"
 zone_name = "letsboulder.com"
 
+[env.production]
+name = "media-worker-production"
+
+[env.production.vars]
+ENABLE_MODERATION = "false"
+MEDIA_MODERATION_PROVIDER = "disabled"
+MEDIA_HOST = "https://static.letsboulder.com"
+R2_ORIGIN_URL = "https://r2-origin-prod.letsboulder.com"
+SUPABASE_URL = "https://glxnbxbkedeogtcivpsx.supabase.co"
+R2_PRIVATE_BUCKET = "lb-prod-media-private"
+R2_PUBLIC_BUCKET = "lb-prod-media-public"
+
+[[env.production.routes]]
+pattern = "static.letsboulder.com/*"
+zone_name = "letsboulder.com"
+
