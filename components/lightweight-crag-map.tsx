@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { uploadDebug } from '@/lib/media/upload-debug'
 
@@ -29,6 +29,49 @@ function pinVisualStyles(active: boolean) {
     fontSize: 11,
   }
 }
+
+interface MapPinMarkerProps {
+  pin: LightweightCragMapPin
+  index: number
+  active: boolean
+  leafletLib: typeof import('leaflet')
+  onPinSelect?: (id: string) => void
+}
+
+const MapPinMarker = memo(function MapPinMarker({
+  pin,
+  index,
+  active,
+  leafletLib,
+  onPinSelect,
+}: MapPinMarkerProps) {
+  useEffect(() => {
+    uploadDebug('map-render-debug', { pinId: pin.id, isActive: active })
+  }, [pin.id, active])
+
+  const visual = pinVisualStyles(active)
+  return (
+    <Marker
+      position={[pin.latitude, pin.longitude]}
+      zIndexOffset={active ? 600 : 200}
+      icon={leafletLib?.divIcon({
+        className: 'lightweight-crag-map-pin',
+        html: `<div style="width:${visual.size}px;height:${visual.size}px;background:${visual.background};border-radius:9999px;display:flex;align-items:center;justify-content:center;color:white;font-size:${visual.fontSize}px;font-weight:700;border:2px solid ${visual.border};box-shadow:${visual.shadow};">${pin.label || index + 1}</div>`,
+        iconSize: [visual.size, visual.size],
+        iconAnchor: [12, 12],
+      })}
+      eventHandlers={onPinSelect && pin.interactive !== false ? { click: () => onPinSelect(pin.id) } : undefined}
+    />
+  )
+}, (prev, next) => {
+  return prev.pin.latitude === next.pin.latitude
+    && prev.pin.longitude === next.pin.longitude
+    && prev.active === next.active
+    && prev.pin.label === next.pin.label
+    && prev.pin.interactive === next.pin.interactive
+    && prev.index === next.index
+    && prev.onPinSelect === next.onPinSelect
+})
 
 interface LightweightCragMapProps {
   pins?: LightweightCragMapPin[]
@@ -174,45 +217,39 @@ export default function LightweightCragMap({
         }
       `}</style>
       <div className={`lightweight-crag-map h-[260px] overflow-hidden rounded-[28px] border border-stone-200 bg-stone-100 shadow-sm md:h-[320px] dark:border-gray-800 dark:bg-gray-900 ${heightClassName}`}>
-        <MapContainer
-          ref={mapRef as never}
-          center={center}
-          zoom={15}
-          minZoom={minAllowedZoom ?? undefined}
-          maxZoom={19}
-          style={{ height: '100%', width: '100%' }}
-          preferCanvas={true}
-          scrollWheelZoom={true}
-          doubleClickZoom={true}
-          touchZoom={true}
-          zoomControl={false}
-          whenReady={() => setMapReady(true)}
-        >
-          <TileLayer url={tileUrl} attribution={attribution} maxZoom={19} />
-          <ZoomControl position="topright" />
-          {leafletLib && mapReady ? normalizedPins.map((pin, index) => {
-            const active = pin.id === activePinId
-            uploadDebug('map-render-debug', {
-              pinId: pin.id,
-              isActive: active,
-            })
-            const visual = pinVisualStyles(active)
-            return (
-              <Marker
+        {leafletLib ? (
+          <MapContainer
+            ref={mapRef as never}
+            center={center}
+            zoom={15}
+            minZoom={minAllowedZoom ?? undefined}
+            maxZoom={19}
+            style={{ height: '100%', width: '100%' }}
+            preferCanvas={true}
+            scrollWheelZoom={true}
+            doubleClickZoom={true}
+            touchZoom={true}
+            zoomControl={false}
+            whenReady={() => setMapReady(true)}
+          >
+            <TileLayer url={tileUrl} attribution={attribution} maxZoom={19} />
+            <ZoomControl position="topright" />
+            {mapReady ? normalizedPins.map((pin, index) => (
+              <MapPinMarker
                 key={pin.id}
-                position={[pin.latitude, pin.longitude]}
-                zIndexOffset={active ? 600 : 200}
-                icon={leafletLib?.divIcon({
-                  className: 'lightweight-crag-map-pin',
-                  html: `<div style="width:${visual.size}px;height:${visual.size}px;background:${visual.background};border-radius:9999px;display:flex;align-items:center;justify-content:center;color:white;font-size:${visual.fontSize}px;font-weight:700;border:2px solid ${visual.border};box-shadow:${visual.shadow};">${pin.label || index + 1}</div>`,
-                  iconSize: [visual.size, visual.size],
-                  iconAnchor: [12, 12],
-                })}
-                eventHandlers={onPinSelect && pin.interactive !== false ? { click: () => onPinSelect(pin.id) } : undefined}
+                pin={pin}
+                index={index}
+                active={pin.id === activePinId}
+                leafletLib={leafletLib}
+                onPinSelect={onPinSelect}
               />
-            )
-          }) : null}
-        </MapContainer>
+            )) : null}
+          </MapContainer>
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <div className="animate-spin h-8 w-8 border-4 border-stone-400 border-t-transparent rounded-full" />
+          </div>
+        )}
       </div>
     </div>
   )

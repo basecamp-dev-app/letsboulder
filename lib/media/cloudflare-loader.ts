@@ -1,7 +1,6 @@
 import type { ImageLoaderProps } from 'next/image'
 import { MEDIA_VARIANT_WIDTHS, type MediaVariantKey } from '@/apps/media-worker/src/config'
 
-const MEDIA_PATH_PREFIX = '/media/'
 const API_MEDIA_PREFIX = '/api/media/'
 
 const VARIANT_ORDER: MediaVariantKey[] = ['thumb', 'card', 'detail', 'topo', 'full']
@@ -14,14 +13,14 @@ function snapWidthToVariant(width: number): MediaVariantKey {
 }
 
 function getMediaHost(): string | null {
-  return process.env.NEXT_PUBLIC_MEDIA_HOST?.replace(/\/$/, '') || null
+  return process.env.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '') || null
 }
 
 function isMediaWorkerUrl(url: URL): boolean {
   const host = getMediaHost()
   if (!host) return false
   try {
-    return url.origin === new URL(host).origin && url.pathname.startsWith(MEDIA_PATH_PREFIX)
+    return url.origin === new URL(host).origin
   } catch {
     return false
   }
@@ -31,8 +30,8 @@ function isLocalApiMediaUrl(url: URL): boolean {
   return url.pathname.startsWith(API_MEDIA_PREFIX)
 }
 
-function extractObjectKey(pathname: string, prefix: string): string | null {
-  const key = pathname.slice(prefix.length)
+function extractObjectKey(pathname: string): string | null {
+  const key = pathname.slice(1)  // Remove leading slash
   return key || null
 }
 
@@ -42,7 +41,7 @@ function buildWorkerVariantUrl(
   variant: MediaVariantKey,
 ): string {
   const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/')
-  return `${host}${MEDIA_PATH_PREFIX}${encodedKey}?variant=${variant}&format=webp`
+  return `${host}/${encodedKey}?variant=${variant}&format=webp`
 }
 
 export default function cloudflareLoader({ src, width, quality }: ImageLoaderProps): string {
@@ -63,12 +62,13 @@ export default function cloudflareLoader({ src, width, quality }: ImageLoaderPro
   const mediaHost = getMediaHost()
 
   if (isLocalApiMediaUrl(parsed)) {
-    return trimmed.startsWith('/') ? trimmed : `${parsed.pathname}${parsed.search}`
+    parsed.searchParams.set('w', String(width))
+    return `${parsed.pathname}${parsed.search}`
   }
 
   // Media worker URL → return worker URL with snapped variant
   if (isMediaWorkerUrl(parsed) && mediaHost) {
-    const key = extractObjectKey(parsed.pathname, MEDIA_PATH_PREFIX)
+    const key = extractObjectKey(parsed.pathname)
     if (key) return buildWorkerVariantUrl(mediaHost, key, variant)
   }
 

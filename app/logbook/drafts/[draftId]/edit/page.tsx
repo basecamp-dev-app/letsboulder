@@ -58,7 +58,7 @@ interface DraftPayload {
 }
 
 function isDraftImageReady(image: DraftImagePayload): boolean {
-  return image.readiness_status === 'ready' && !!image.proxy_url
+  return (image.readiness_status === 'ready' || image.readiness_status === 'processing') && !!image.proxy_url
 }
 
 interface CragImagePayload {
@@ -1146,11 +1146,14 @@ export default function EditDraftPage() {
   useEffect(() => {
     if (!activeImageId) return
     const activeQuickSwitchImage = quickSwitcherImages.find((image) => image.imageId === activeImageId) || null
+    const latitude = activeQuickSwitchImage?.latitude ?? null
+    const longitude = activeQuickSwitchImage?.longitude ?? null
+    if (latitude === null && longitude === null) return
     uploadDebug('editor-active-image-map-data', {
       activeImageId,
       hasQuickSwitchImage: Boolean(activeQuickSwitchImage),
-      latitude: activeQuickSwitchImage?.latitude ?? null,
-      longitude: activeQuickSwitchImage?.longitude ?? null,
+      latitude,
+      longitude,
     })
   }, [activeImageId, quickSwitcherImages])
 

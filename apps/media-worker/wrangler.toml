@@ -1,6 +1,6 @@
-name = "letsboulder-media-worker"
+name = "media-worker"
 main = "src/index.ts"
-compatibility_date = "2026-03-01"
+compatibility_date = "2026-03-22"
 
 [observability]
 enabled = true
@@ -8,20 +8,37 @@ enabled = true
 [vars]
 ENABLE_MODERATION = "false"
 MEDIA_MODERATION_PROVIDER = "disabled"
-MEDIA_HOST = "https://media.letsboulder.com"
+MEDIA_HOST = "https://static.letsboulder.com"
 
-[[queues.producers]]
+[env.staging]
+name = "media-worker-staging"
+
+[env.staging.vars]
+ENABLE_MODERATION = "false"
+MEDIA_MODERATION_PROVIDER = "disabled"
+MEDIA_HOST = "https://static.dev.letsboulder.com"
+R2_ORIGIN_URL = "https://r2-origin-dev.letsboulder.com"
+SUPABASE_URL = "https://pfleqxztfiddujvylvaz.supabase.co"
+R2_PRIVATE_BUCKET = "lb-dev-media-private"
+R2_PUBLIC_BUCKET = "lb-dev-media-public"
+
+[[env.staging.queues.producers]]
 binding = "MEDIA_QUEUE"
-queue = "media-transform-queue"
+queue = "media-transform-queue-staging"
 
-[[queues.consumers]]
-queue = "media-transform-queue"
+[[env.staging.queues.consumers]]
+queue = "media-transform-queue-staging"
 max_batch_size = 1
 
-[[r2_buckets]]
+[[env.staging.r2_buckets]]
 binding = "ORIGINALS_BUCKET"
-bucket_name = "letsboulder-originals"
+bucket_name = "lb-dev-media-private"
 
-[[r2_buckets]]
+[[env.staging.r2_buckets]]
 binding = "PUBLIC_BUCKET"
-bucket_name = "letsboulder-public"
+bucket_name = "lb-dev-media-public"
+
+[[env.staging.routes]]
+pattern = "static.dev.letsboulder.com/*"
+zone_name = "letsboulder.com"
+

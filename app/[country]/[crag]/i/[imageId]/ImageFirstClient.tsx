@@ -1,16 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
 import { useImageNavigation } from '@/app/[country]/[crag]/i/[imageId]/useImageNavigation'
-import type { ImageFirstPayload } from '@/app/[country]/[crag]/i/[imageId]/image-page-server'
+import type { ImageFirstPayload, ImageFirstRouteLine } from '@/app/[country]/[crag]/i/[imageId]/image-page-server'
 import { RouteEditorRail } from '@/components/RouteEditorRail'
 import { UnifiedRouteCanvas } from '@/components/UnifiedRouteCanvas'
 import LightweightCragMap from '@/components/lightweight-crag-map'
 import { normalizePoints } from '@/lib/canvasMath'
-import { getMediaUrl } from '@/lib/media/get-media-url'
 import { createClient } from '@/lib/supabase'
 import type { RouteLine, RoutePoint } from '@/types/domain'
 import ClimbInfoPanel from '@/app/climb/components/ClimbInfoPanel'
@@ -49,6 +48,10 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const pathname = usePathname()
   const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
   const [userPresent, setUserPresent] = useState(false)
+  const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(
+    () => ({ [heroImage.displayImageId]: initialRoutes })
+  )
+  const [loadedImageElement, setLoadedImageElement] = useState<HTMLImageElement | null>(null)
 
   const {
     activeImageIndex,
@@ -97,8 +100,98 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     return () => subscription.unsubscribe()
   }, [])
 
+  const otherImageIds = useMemo(
+    () => navigationContext.orderedImageIds.filter((id) => id !== heroImage.displayImageId),
+    [navigationContext.orderedImageIds, heroImage.displayImageId]
+  )
+
+  useEffect(() => {
+    if (otherImageIds.length === 0) return
+
+    const supabase = createClient()
+    let cancelled = false
+
+    const fetchAllRoutes = async () => {
+      const { data, error } = await supabase
+        .from('route_lines')
+        .select(
+          'id, image_id, climb_id, color, points, image_width, image_height, sequence_order, created_at, climbs (id, name, slug, grade, description, route_type, average_stars, star_votes)'
+        )
+        .in('image_id', otherImageIds)
+        .order('sequence_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true })
+
+      if (cancelled || error || !data) return
+
+      const grouped: Record<string, ImageFirstRouteLine[]> = {}
+      for (const row of data as Array<{
+        id: string
+        image_id: string
+        climb_id: string
+        color: string | null
+        points: RoutePoint[] | string | null
+        image_width: number | null
+        image_height: number | null
+        sequence_order: number | null
+        created_at: string | null
+        climbs: {
+          id: string
+          name: string | null
+          slug: string | null
+          grade: string | null
+          description: string | null
+          route_type: string | null
+          average_stars: number | null
+          star_votes: number | null
+        } | Array<{
+          id: string
+          name: string | null
+          slug: string | null
+          grade: string | null
+          description: string | null
+          route_type: string | null
+          average_stars: number | null
+          star_votes: number | null
+        }> | null
+      }>) {
+        const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
+        if (!row.image_id || !climb) continue
+
+        const route: ImageFirstRouteLine = {
+          routeId: row.id,
+          climbId: row.climb_id,
+          imageId: row.image_id,
+          climbSlug: climb.slug || null,
+          climbName: climb.name || 'Unnamed route',
+          climbGrade: climb.grade || null,
+          climbDescription: climb.description || null,
+          climbRouteType: climb.route_type || null,
+          climbAverageStars: climb.average_stars ?? null,
+          climbStarVotes: climb.star_votes ?? null,
+          pathData: row.points,
+          color: row.color || '#ef4444',
+          isPrimary: false,
+        }
+
+        if (!grouped[row.image_id]) grouped[row.image_id] = []
+        grouped[row.image_id].push(route)
+      }
+
+      if (cancelled) return
+      setRoutesByImageId((prev) => ({ ...prev, ...grouped }))
+    }
+
+    void fetchAllRoutes()
+    return () => { cancelled = true }
+  }, [otherImageIds])
+
+  const allRoutesFlat = useMemo(
+    () => Object.values(routesByImageId).flat(),
+    [routesByImageId]
+  )
+
   const selectedClimb = useMemo(() => {
-    const activeRoute = initialRoutes.find((route) => route.routeId === activeRouteId)
+    const activeRoute = allRoutesFlat.find((route) => route.routeId === activeRouteId)
     if (!activeRoute) return null
     return {
       id: activeRoute.climbId,
@@ -107,11 +200,11 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       route_type: activeRoute.climbRouteType,
       description: activeRoute.climbDescription,
     }
-  }, [activeRouteId, initialRoutes])
+  }, [activeRouteId, allRoutesFlat])
 
   const activeRouteMeta = useMemo(
-    () => initialRoutes.find((route) => route.routeId === activeRouteId) || null,
-    [activeRouteId, initialRoutes]
+    () => allRoutesFlat.find((route) => route.routeId === activeRouteId) || null,
+    [activeRouteId, allRoutesFlat]
   )
 
   const activeImageMeta = activeImageId
@@ -130,48 +223,47 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   const visibleRoutes = useMemo(() => {
     const targetImageId = activeImageId || heroImage.displayImageId
+    const routes = routesByImageId[targetImageId] || []
 
-    return initialRoutes
-      .filter((route) => route.imageId === targetImageId)
-      .map((route) => {
-        const rawPoints = parsePoints(route.pathData)
-        const normalized = normalizePoints(rawPoints, {
-          width: activeImageMeta.width,
-          height: activeImageMeta.height,
-          naturalWidth: activeImageMeta.width,
-          naturalHeight: activeImageMeta.height,
-        })
-
-        return {
-          id: route.routeId,
-          image_id: route.imageId,
-          climb_id: route.climbId,
-          points: normalized,
-          color: route.color,
-          sequence_order: 0,
-          created_at: '',
-          climb: {
-            id: route.climbId,
-            name: route.climbName,
-            grade: route.climbGrade || 'Unknown',
-            status: 'approved',
-            route_type: route.climbRouteType,
-            description: route.climbDescription,
-          },
-        } as RouteLine
+    return routes.map((route) => {
+      const rawPoints = parsePoints(route.pathData)
+      const normalized = normalizePoints(rawPoints, {
+        width: activeImageMeta.width,
+        height: activeImageMeta.height,
+        naturalWidth: activeImageMeta.width,
+        naturalHeight: activeImageMeta.height,
       })
-      .filter((route) => route.points.length >= 2)
-  }, [initialRoutes, activeImageId, activeImageMeta, heroImage.displayImageId])
+
+      return {
+        id: route.routeId,
+        image_id: route.imageId,
+        climb_id: route.climbId,
+        points: normalized,
+        color: route.color,
+        sequence_order: 0,
+        created_at: '',
+        climb: {
+          id: route.climbId,
+          name: route.climbName,
+          grade: route.climbGrade || 'Unknown',
+          status: 'approved',
+          route_type: route.climbRouteType,
+          description: route.climbDescription,
+        },
+      } as RouteLine
+    })
+    .filter((route) => route.points.length >= 2)
+  }, [routesByImageId, activeImageId, activeImageMeta, heroImage.displayImageId])
 
   const handleGoToAuth = () => {
     router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/${countryCode}/${cragSlug}/i/${heroImage.displayImageId}`)}`)
   }
 
-  const handleRouteSelect = (routeId: string | null) => {
+  const handleRouteSelect = useCallback((routeId: string | null) => {
     if (routeId) {
       setUserSelectedRouteId(routeId)
     }
-  }
+  }, [setUserSelectedRouteId])
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-white">
@@ -217,19 +309,24 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                       priority={isActive ? heroImage.priority : false}
                       className="object-contain"
                       loading={isActive ? 'eager' : 'lazy'}
-                      crossOrigin="anonymous"
+                      onLoad={(e) => {
+                        const img = e.currentTarget as HTMLImageElement
+                        setLoadedImageElement(img)
+                      }}
                     />
-
-                    {isActive && (
-                      <div className="absolute inset-0 z-10">
+                                        {isActive && loadedImageElement && (
+                      <>
+                        <div className="hidden print:block">Canvas URL: {activeCanvasImageUrl}</div>
                         <UnifiedRouteCanvas
+                          key={activeImageId}
                           mode="browse"
-                          imageUrl={getMediaUrl(activeCanvasImageUrl, 'topo')}
+                          imageUrl={activeCanvasImageUrl}
+                          preloadedImage={loadedImageElement}
                           routes={visibleRoutes}
                           activeRouteId={activeRouteId}
                           onRouteSelect={handleRouteSelect}
                         />
-                      </div>
+                      </>
                     )}
                   </div>
                 </div>
@@ -266,7 +363,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       <ClimbInfoPanel
         selectedClimb={selectedClimb}
         selectedRouteExists={!!activeRouteId}
-        totalRoutesCombined={initialRoutes.length}
+        totalRoutesCombined={allRoutesFlat.length}
         totalFaces={navigationContext.orderedImageIds.length}
         isFacesLoading={false}
         cragPath={`/${countryCode}/${cragSlug}`}

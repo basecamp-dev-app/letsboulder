@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 import { uploadDebug } from '@/lib/media/upload-debug'
 
@@ -13,13 +13,14 @@ function shouldUseAnonymousCrossOrigin(imageUrl: string): boolean {
   }
 }
 
-export const useCanvasResize = (imageUrl: string) => {
+export const useCanvasResize = (imageUrl: string, preloadedImage?: HTMLImageElement | null) => {
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null)
   const [imageElement, setImageElement] = useState<HTMLImageElement | null>(null)
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
 
   const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null)
+  const loadGenerationRef = useRef(0)
 
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     if (node !== null) {
@@ -28,30 +29,40 @@ export const useCanvasResize = (imageUrl: string) => {
   }, [])
 
   useEffect(() => {
-    if (!imageUrl) return
+    if (preloadedImage && preloadedImage.complete && preloadedImage.naturalWidth > 0) {
+      setImageElement(preloadedImage)
+      setImageLoaded(true)
+      setImageError(false)
+      uploadDebug('canvas-using-preloaded', {
+        imageUrl,
+        naturalWidth: preloadedImage.naturalWidth,
+        naturalHeight: preloadedImage.naturalHeight,
+      })
+      return
+    }
+  }, [preloadedImage, imageUrl])
 
-    let isActive = true
-    /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!imageUrl || preloadedImage) return
+
+    const generation = ++loadGenerationRef.current
     setImageLoaded(false)
     setImageError(false)
-    /* eslint-enable react-hooks/set-state-in-effect */
 
     uploadDebug('canvas-debug-load-start', {
       imageUrl,
     })
 
+    console.log('[CanvasResize] Loading:', imageUrl)
+
     const img = new window.Image()
-    const usesAnonymousCrossOrigin = shouldUseAnonymousCrossOrigin(imageUrl)
-    if (usesAnonymousCrossOrigin) {
-      img.crossOrigin = 'anonymous'
-    }
     img.decoding = 'async'
 
     img.onload = () => {
-      if (!isActive) return
+      if (loadGenerationRef.current !== generation) return
+      console.log('[CanvasResize] Loaded:', imageUrl, { naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight })
       uploadDebug('canvas-debug-load-success', {
         imageUrl,
-        usesAnonymousCrossOrigin,
         naturalWidth: img.naturalWidth,
         naturalHeight: img.naturalHeight,
       })
@@ -60,10 +71,10 @@ export const useCanvasResize = (imageUrl: string) => {
     }
 
     img.onerror = () => {
-      if (!isActive) return
+      if (loadGenerationRef.current !== generation) return
+      console.log('[CanvasResize] Error loading:', imageUrl)
       uploadDebug('canvas-debug-load-error', {
         imageUrl,
-        usesAnonymousCrossOrigin,
       })
       setImageError(true)
       setImageLoaded(true)
@@ -76,7 +87,15 @@ export const useCanvasResize = (imageUrl: string) => {
       })
     }
 
-    return () => { isActive = false }
+    return () => {
+      // Intentionally mutate ref to invalidate stale onload/onerror callbacks
+      /* eslint-disable react-hooks/exhaustive-deps */
+      if (loadGenerationRef.current === generation) {
+        loadGenerationRef.current++
+      }
+      /* eslint-enable react-hooks/exhaustive-deps */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageUrl])
 
   useEffect(() => {

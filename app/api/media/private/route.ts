@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(response.Body as ReadableStream, {
       headers: {
         'Content-Type': response.ContentType || 'application/octet-stream',
-        'Cache-Control': 'private, no-store',
+        'Cache-Control': 'private, max-age=3600',
       },
     })
   } catch (error) {
