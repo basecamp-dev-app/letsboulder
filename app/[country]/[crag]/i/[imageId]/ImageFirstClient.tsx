@@ -44,6 +44,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     countryCode,
     cragSlug,
   } = payload
+  const { linkedImageIdByDisplayId } = navigationContext
   const router = useRouter()
   const pathname = usePathname()
   const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
@@ -105,8 +106,20 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     [navigationContext.orderedImageIds, heroImage.displayImageId]
   )
 
+  const allRouteImageIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const displayId of otherImageIds) {
+      ids.add(displayId)
+      const linkedId = linkedImageIdByDisplayId[displayId]
+      if (linkedId && linkedId !== displayId) {
+        ids.add(linkedId)
+      }
+    }
+    return Array.from(ids)
+  }, [otherImageIds, linkedImageIdByDisplayId])
+
   useEffect(() => {
-    if (otherImageIds.length === 0) return
+    if (allRouteImageIds.length === 0) return
 
     const supabase = createClient()
     let cancelled = false
@@ -117,7 +130,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         .select(
           'id, image_id, climb_id, color, points, image_width, image_height, sequence_order, created_at, climbs (id, name, slug, grade, description, route_type)'
         )
-        .in('image_id', otherImageIds)
+        .in('image_id', allRouteImageIds)
         .order('sequence_order', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: true })
 
@@ -183,7 +196,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
     void fetchAllRoutes()
     return () => { cancelled = true }
-  }, [otherImageIds])
+  }, [allRouteImageIds])
 
   const allRoutesFlat = useMemo(
     () => Object.values(routesByImageId).flat(),
@@ -222,8 +235,9 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   }, [payload.mapPins])
 
   const visibleRoutes = useMemo(() => {
-    const targetImageId = activeImageId || heroImage.displayImageId
-    const routes = routesByImageId[targetImageId] || []
+    const displayImageId = activeImageId || heroImage.displayImageId
+    const primaryImageId = linkedImageIdByDisplayId[displayImageId] || displayImageId
+    const routes = routesByImageId[primaryImageId] || []
 
     return routes.map((route) => {
       const rawPoints = parsePoints(route.pathData)
@@ -253,7 +267,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       } as RouteLine
     })
     .filter((route) => route.points.length >= 2)
-  }, [routesByImageId, activeImageId, activeImageMeta, heroImage.displayImageId])
+  }, [routesByImageId, activeImageId, activeImageMeta, heroImage.displayImageId, linkedImageIdByDisplayId])
 
   const handleGoToAuth = () => {
     router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/${countryCode}/${cragSlug}/i/${heroImage.displayImageId}`)}`)

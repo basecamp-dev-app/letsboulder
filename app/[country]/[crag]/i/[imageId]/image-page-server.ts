@@ -108,6 +108,7 @@ export interface ImageFirstPayload {
     orderedImageIds: string[]
     startIndex: number
     imageMap: Record<string, { src: string; width: number; height: number }>
+    linkedImageIdByDisplayId: Record<string, string>
     stacks: Array<{ stackId: string; imageIds: string[] }>
     sectorMarkers: Record<string, { name: string; firstImageId: string }>
   }
@@ -286,7 +287,7 @@ export async function buildImageFirstPayload(args: {
     }
   }
 
-  const [initialRouteRows, cragImages] = await Promise.all([
+  const [initialRouteRows, cragImages, cragImageRows] = await Promise.all([
     getRoutesByImage(image.canonicalId),
     (async () => {
       const supabase = await getSupabase()
@@ -307,7 +308,28 @@ export async function buildImageFirstPayload(args: {
         longitude: number | null
       }>
     })(),
+    (async () => {
+      const supabase = await getSupabase()
+      const { data, error } = await supabase
+        .from('crag_images')
+        .select('id, linked_image_id')
+        .eq('crag_id', image.cragId)
+
+      if (error) return []
+      return (data || []) as Array<{
+        id: string
+        linked_image_id: string | null
+      }>
+    })(),
   ])
+
+  const linkedImageIdByDisplayId: Record<string, string> = {}
+  for (const row of cragImageRows) {
+    if (row.linked_image_id) {
+      linkedImageIdByDisplayId[row.id] = row.linked_image_id
+    }
+  }
+  linkedImageIdByDisplayId[image.canonicalId] = image.canonicalId
 
   const spatialNodes = cragImages.map((row) => ({
     displayImageId: row.id,
@@ -411,6 +433,7 @@ export async function buildImageFirstPayload(args: {
         orderedImageIds: ordered.orderedImageIds,
         startIndex,
         imageMap,
+        linkedImageIdByDisplayId,
         stacks: ordered.orderedStacks.map((stack) => ({
           stackId: stack.stackId,
           imageIds: stack.images.map((imageNode) => imageNode.displayImageId),
