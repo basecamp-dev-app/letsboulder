@@ -115,7 +115,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       const { data, error } = await supabase
         .from('route_lines')
         .select(
-          'id, image_id, climb_id, color, points, image_width, image_height, sequence_order, created_at, climbs (id, name, slug, grade, description, route_type, average_stars, star_votes)'
+          'id, image_id, climb_id, color, points, image_width, image_height, sequence_order, created_at, climbs (id, name, slug, grade, description, route_type)'
         )
         .in('image_id', otherImageIds)
         .order('sequence_order', { ascending: true, nullsFirst: false })
