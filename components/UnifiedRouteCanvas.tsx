@@ -1,8 +1,8 @@
 'use client'
 
-import { forwardRef, useRef, useEffect, useCallback, useImperativeHandle, useMemo } from 'react'
+import { forwardRef, useRef, useState, useEffect, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useRouteStore } from '@/store/routeStore'
-import { useCanvasResize } from '@/hooks/useCanvasResize'
+import { useContainerSize } from '@/hooks/use-container-size'
 import { usePanZoom } from '@/hooks/usePanZoom'
 import { useRouteDrawing } from '@/hooks/useRouteDrawing'
 import { useHitTesting } from '@/hooks/useHitTesting'
@@ -17,7 +17,6 @@ import type { ClimbType } from '@/lib/submission-types'
 interface UnifiedRouteCanvasProps {
   mode: CanvasMode
   imageUrl: string
-  preloadedImage?: HTMLImageElement | null
   routes?: RouteLine[]
   activeRouteId?: string | null
   onRouteSelect?: (routeId: string | null) => void
@@ -29,10 +28,32 @@ export interface UnifiedRouteCanvasRef {
   finishRoute: () => void
 }
 
+interface CanvasImageProps {
+  src: string
+  onImageLoad: (naturalWidth: number, naturalHeight: number) => void
+  onImageError: () => void
+}
+
+function CanvasImage({ src, onImageLoad, onImageError }: CanvasImageProps) {
+  return (
+    <img
+      src={src}
+      alt=""
+      className="absolute inset-0 w-full h-full object-contain select-none"
+      style={{ pointerEvents: 'none' }}
+      draggable={false}
+      onLoad={(e) => {
+        const img = e.currentTarget
+        onImageLoad(img.naturalWidth, img.naturalHeight)
+      }}
+      onError={onImageError}
+    />
+  )
+}
+
 export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRouteCanvasProps>(function UnifiedRouteCanvas({
   mode,
   imageUrl,
-  preloadedImage,
   routes: propRoutes,
   activeRouteId: controlledActiveRouteId,
   onRouteSelect,
@@ -64,7 +85,12 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   )
   const resolvedActiveRouteId = mode === 'browse' ? controlledActiveRouteId ?? null : activeRouteId
 
-  const { containerRef, dimensions, imageElement, imageLoaded, imageError } = useCanvasResize(imageUrl, preloadedImage)
+  const { containerRef, dimensions } = useContainerSize()
+
+  const [naturalWidth, setNaturalWidth] = useState(0)
+  const [naturalHeight, setNaturalHeight] = useState(0)
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState(false)
 
   useEffect(() => {
     uploadDebug('canvas-component-state', {
@@ -77,14 +103,14 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   const finalDimensions = dimensions
 
   const imageBounds = useMemo(() => {
-    if (!imageElement || !finalDimensions) return null
+    if (naturalWidth === 0 || !finalDimensions) return null
 
-    const hRatio = finalDimensions.width / imageElement.naturalWidth
-    const vRatio = finalDimensions.height / imageElement.naturalHeight
+    const hRatio = finalDimensions.width / naturalWidth
+    const vRatio = finalDimensions.height / naturalHeight
     const ratio = Math.min(hRatio, vRatio)
 
-    const width = imageElement.naturalWidth * ratio
-    const height = imageElement.naturalHeight * ratio
+    const width = naturalWidth * ratio
+    const height = naturalHeight * ratio
 
     const centerX = (finalDimensions.width - width) / 2
     const centerY = (finalDimensions.height - height) / 2
@@ -95,7 +121,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
       centerX,
       centerY,
     }
-  }, [imageElement, finalDimensions])
+  }, [naturalWidth, naturalHeight, finalDimensions])
 
   usePanZoom()
 
@@ -189,16 +215,16 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
-    if (!canvas || !ctx || !finalDimensions) return
+    if (!canvas || !ctx || !finalDimensions || !imageLoaded) return
 
-    if (!imageElement || imageElement.naturalWidth === 0) return
+    if (naturalWidth === 0) return
 
-    const hRatio = finalDimensions.width / imageElement.naturalWidth
-    const vRatio = finalDimensions.height / imageElement.naturalHeight
+    const hRatio = finalDimensions.width / naturalWidth
+    const vRatio = finalDimensions.height / naturalHeight
     const ratio = Math.min(hRatio, vRatio)
 
-    const drawWidth = imageElement.naturalWidth * ratio
-    const drawHeight = imageElement.naturalHeight * ratio
+    const drawWidth = naturalWidth * ratio
+    const drawHeight = naturalHeight * ratio
     const centerX = (finalDimensions.width - drawWidth) / 2
     const centerY = (finalDimensions.height - drawHeight) / 2
 
@@ -214,10 +240,6 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.save()
     ctx.scale(dpr, dpr)
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-
-    ctx.drawImage(imageElement, 0, 0, drawWidth, drawHeight)
 
     const routeCanvasDimensions = {
       width: drawWidth,
@@ -225,13 +247,6 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
       centerX: 0,
       centerY: 0,
     }
-
-    console.log('[RouteDebug] Canvas routes:', {
-      routesCount: routes?.length || 0,
-      routeIds: routes?.map(r => r.id) || [],
-      routeImageIds: routes?.map(r => r.image_id) || [],
-      imageUrl: imageUrl?.substring(0, 50),
-    })
 
     drawRoutes(
       ctx,
@@ -251,7 +266,9 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     finalDimensions,
     mode,
     interactionTool,
-    imageElement
+    naturalWidth,
+    naturalHeight,
+    imageLoaded,
   ])
 
   const cursorStyle = isDrawingEnabled && currentPoints.length > 0 ? 'crosshair' : 'default'
@@ -308,15 +325,34 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     setEditorIntent(intent)
   }, [selectedRouteId, overlayDraftRouteId, setActiveRoute, setEditorIntent, setEditorPanelOpen, setSelectedRoute])
 
+  const handleImageLoad = useCallback((width: number, height: number) => {
+    setNaturalWidth(width)
+    setNaturalHeight(height)
+    setImageLoaded(true)
+    setImageError(false)
+  }, [])
+
+  const handleImageError = useCallback(() => {
+    setImageError(true)
+    setImageLoaded(true)
+  }, [])
+
   return (
-    <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${className}`}>
-      {imageError && !preloadedImage && (
+    <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${className}`} style={{ cursor: cursorStyle }}>
+      <CanvasImage
+        key={imageUrl}
+        src={imageUrl}
+        onImageLoad={handleImageLoad}
+        onImageError={handleImageError}
+      />
+
+      {imageError && (
         <div className="absolute inset-0 flex items-center justify-center text-red-500">
           Failed to load image
         </div>
       )}
 
-      {!imageLoaded && !imageError && !preloadedImage && (
+      {!imageLoaded && !imageError && (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
         </div>
@@ -324,8 +360,8 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
 
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 z-10"
-        style={{ cursor: cursorStyle, touchAction: 'none' }}
+        className="absolute z-10"
+        style={{ touchAction: 'none' }}
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
