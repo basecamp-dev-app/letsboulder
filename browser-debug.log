@@ -1,0 +1,44 @@
+
+> climbing-app@0.1.0 dev
+> NEXT_TELEMETRY_DISABLED=1 next dev --webpack
+
+▲ Next.js 16.2.0 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.68.65:3000
+- Environments: .env.local
+✓ Ready in 711ms
+- Experiments (use with caution):
+  · optimizePackageImports
+
+○ Compiling /[country]/[crag]/i/[imageId] ...
+ GET /gb/harrisons 200 in 13.7s (next.js: 12.3s, application-code: 1429ms)
+○ Compiling /api/dev-logger ...
+ GET /api/csrf 200 in 9.3s (next.js: 8.8s, application-code: 499ms)
+ POST /api/dev-logger 200 in 6.8s (next.js: 6.0s, application-code: 791ms)
+ GET /api/crags/nearby?lat=51.07558673&lng=0.20040918 200 in 8.6s (next.js: 7.8s, application-code: 867ms)
+ GET / 200 in 8.8s (next.js: 7.8s, application-code: 960ms)
+ GET /api/offline-packs/crags/fe6bfe37-585e-4938-8f47-f054043b898c 200 in 9.7s (next.js: 8.6s, application-code: 1029ms)
+ GET /api/settings 401 in 4.7s (next.js: 3.2s, proxy.ts: 1347ms, application-code: 150ms)
+ POST /api/dev-logger 200 in 3.7s (next.js: 3.1s, application-code: 623ms)
+ POST /api/dev-logger 200 in 3.7s (next.js: 3.1s, application-code: 622ms)
+ GET /offline 200 in 3.4s (next.js: 2.8s, application-code: 631ms)
+ GET /offline/library 200 in 4.0s (next.js: 2.7s, application-code: 1308ms)
+ GET /gb/harrisons/i/b7a711e5-3a12-429c-a8e7-dd04b8affdb6?image=b7a711e5-3a12-429c-a8e7-dd04b8affdb6&route=217b943c-3b70-4e90-91da-b1066a188e44&climb=225fd5b4-cfbe-47fc-9a9e-cea8687af535 200 in 3.9s (next.js: 2.7s, application-code: 1241ms)
+ GET / 200 in 350ms (next.js: 23ms, application-code: 328ms)
+ GET /offline 200 in 225ms (next.js: 24ms, application-code: 201ms)
+ GET /offline/library 200 in 168ms (next.js: 2ms, application-code: 165ms)
+ GET /offline 200 in 74ms (next.js: 4ms, application-code: 71ms)
+ GET /offline/library 200 in 111ms (next.js: 4ms, application-code: 108ms)
+ GET / 200 in 143ms (next.js: 10ms, application-code: 134ms)
+ GET /api/settings 401 in 107ms (next.js: 51ms, proxy.ts: 34ms, application-code: 22ms)
+ GET /gb/harrisons/i/5dbd7226-6733-4720-8d34-b0f6dfc6c215?image=b7a711e5-3a12-429c-a8e7-dd04b8affdb6&route=route-a5c31f 200 in 272ms (next.js: 58ms, application-code: 214ms)
+ GET /gb/harrisons/i/42aa9cb1-1fd4-4cb8-b319-22f58337dc79?image=b7a711e5-3a12-429c-a8e7-dd04b8affdb6&route=route-debb13 200 in 303ms (next.js: 52ms, application-code: 252ms)
+⚠ Found a change in next.config.ts. Restarting the server to apply the changes...
+▲ Next.js 16.2.0 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.68.65:3000
+- Environments: .env.local
+✓ Ready in 777ms
+- Experiments (use with caution):
+  · optimizePackageImports
+
