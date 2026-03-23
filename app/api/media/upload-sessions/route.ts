@@ -55,30 +55,41 @@ export async function POST(request: NextRequest) {
     const autoApprove = !moderation.enabled || moderation.provider === 'disabled'
     const privateUrl = `private://${storage.privateBucket}/${objectKey}`
 
+    const insertPayload = {
+      id: imageId,
+      url: privateUrl,
+      created_by: user.id,
+      width: payload.width,
+      height: payload.height,
+      storage_bucket: storage.privateBucket,
+      storage_path: objectKey,
+      storage_provider: 'r2',
+      original_bucket: storage.privateBucket,
+      original_key: objectKey,
+      original_mime_type: payload.contentType,
+      original_bytes: payload.byteSize,
+      original_width: payload.width,
+      original_height: payload.height,
+      visibility: autoApprove ? 'public' : 'private',
+      moderation_status: autoApprove ? 'approved' : 'pending',
+      processing_status: autoApprove ? 'ready' : 'pending',
+      status: autoApprove ? 'approved' : 'pending',
+    }
+
     const { error: insertError } = await supabase
       .from('images')
-      .insert({
-        id: imageId,
-        url: privateUrl,
-        created_by: user.id,
-        width: payload.width,
-        height: payload.height,
-        storage_bucket: storage.privateBucket,
-        storage_path: objectKey,
-        storage_provider: 'r2',
-        original_bucket: storage.privateBucket,
-        original_key: objectKey,
-        original_mime_type: payload.contentType,
-        original_bytes: payload.byteSize,
-        original_width: payload.width,
-        original_height: payload.height,
-        visibility: autoApprove ? 'public' : 'private',
-        moderation_status: autoApprove ? 'approved' : 'pending',
-        processing_status: autoApprove ? 'ready' : 'pending',
-        status: autoApprove ? 'approved' : 'pending',
-      })
+      .insert(insertPayload)
 
     if (insertError) {
+      console.error('[upload-sessions] DB insert failed', {
+        error: insertError.message,
+        code: insertError.code,
+        details: insertError.details,
+        hint: insertError.hint,
+        userId: user.id,
+        imageId,
+        objectKey,
+      })
       return createErrorResponse(insertError, 'Failed to create image upload session')
     }
 
@@ -95,6 +106,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response)
   } catch (error) {
+    console.error('[upload-sessions] Unexpected error', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return createErrorResponse(error, 'Failed to create upload session')
   }
 }
