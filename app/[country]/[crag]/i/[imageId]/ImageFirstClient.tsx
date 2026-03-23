@@ -53,7 +53,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     const primaryId = linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId
     return { [primaryId]: initialRoutes }
   })
-  const [loadedImageElement, setLoadedImageElement] = useState<HTMLImageElement | null>(null)
+  const [loadedElements, setLoadedElements] = useState<Record<string, HTMLImageElement>>({})
 
   const {
     activeImageIndex,
@@ -236,12 +236,16 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     : heroImage
   const activeCanvasImageUrl = activeImageMeta.src || heroImage.src
 
+  const loadedElement = activeImageId ? loadedElements[activeImageId] : null
+
   console.log('[RouteDebug] ImageSource:', {
     activeImageId,
     activeImageIndex,
     activeImageMeta: { src: activeImageMeta.src, width: activeImageMeta.width, height: activeImageMeta.height },
     activeCanvasImageUrl,
     heroImage: { displayImageId: heroImage.displayImageId, src: heroImage.src },
+    loadedElementSrc: loadedElement?.src,
+    loadedElementsKeys: Object.keys(loadedElements),
   })
 
   const mapPins = useMemo(() => {
@@ -355,17 +359,17 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                       loading={isActive ? 'eager' : 'lazy'}
                       onLoad={(e) => {
                         const img = e.currentTarget as HTMLImageElement
-                        setLoadedImageElement(img)
+                        setLoadedElements((prev) => ({ ...prev, [imageId]: img }))
                       }}
                     />
-                                        {isActive && loadedImageElement && (
+                    {isActive && loadedElements[imageId] && (
                       <>
                         <div className="hidden print:block">Canvas URL: {activeCanvasImageUrl}</div>
                         <UnifiedRouteCanvas
                           key={activeImageId}
                           mode="browse"
                           imageUrl={activeCanvasImageUrl}
-                          preloadedImage={loadedImageElement}
+                          preloadedImage={loadedElements[imageId]}
                           routes={visibleRoutes}
                           activeRouteId={activeRouteId}
                           onRouteSelect={handleRouteSelect}
