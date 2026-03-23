@@ -26,6 +26,8 @@ const nextConfig: NextConfig = {
     'http://localhost:3000',
     'http://127.0.0.1:3001',
     'http://localhost:3001',
+    'http://192.168.68.65:3000',
+    'http://10.97.156.72:3000',
   ],
   async redirects() {
     return [
@@ -53,6 +55,15 @@ const nextConfig: NextConfig = {
           {
             key: 'Cache-Control',
             value: 'no-cache, must-revalidate',
+          },
+        ],
+      },
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Referrer-Policy',
+            value: 'no-referrer',
           },
         ],
       },

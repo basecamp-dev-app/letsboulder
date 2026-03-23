@@ -5,6 +5,20 @@ import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 import { createR2Client } from '@/lib/media/r2'
 
+export async function OPTIONS(request: NextRequest) {
+  const origin = request.headers.get('origin') || '*'
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Credentials': 'true',
+      'Vary': 'Origin',
+    },
+  })
+}
+
 export const runtime = 'nodejs'
 
 const MAX_WIDTH = 2400
@@ -170,11 +184,29 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ bucket: string; path: string[] }> }
 ) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Use CDN for production' }, {
+      status: 404,
+      headers: {
+        'Access-Control-Allow-Origin': request.headers.get('origin') || '*',
+        'Access-Control-Allow-Credentials': 'true',
+        'Vary': 'Origin',
+      },
+    })
+  }
+
   const { bucket, path: pathSegments } = await params
   const objectPath = Array.isArray(pathSegments) ? pathSegments.join('/') : ''
 
   if (!bucket || !objectPath) {
-    return NextResponse.json({ error: 'Invalid media path' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid media path' }, {
+      status: 400,
+      headers: {
+        'Access-Control-Allow-Origin': request.headers.get('origin') || '*',
+        'Access-Control-Allow-Credentials': 'true',
+        'Vary': 'Origin',
+      },
+    })
   }
 
   const cookies = request.cookies
@@ -194,13 +226,27 @@ export async function GET(
     const allowed = await canReadObject(bucket, objectPath, user?.id || null)
 
     if (!allowed) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Not found' }, {
+        status: 404,
+        headers: {
+          'Access-Control-Allow-Origin': request.headers.get('origin') || '*',
+          'Access-Control-Allow-Credentials': 'true',
+          'Vary': 'Origin',
+        },
+      })
     }
 
     const r2 = createR2Client()
     const response = await r2.send(new GetObjectCommand({ Bucket: bucket, Key: objectPath }))
     if (!response.Body) {
-      return NextResponse.json({ error: 'Failed to load media' }, { status: 404 })
+      return NextResponse.json({ error: 'Failed to load media' }, {
+        status: 404,
+        headers: {
+          'Access-Control-Allow-Origin': request.headers.get('origin') || '*',
+          'Access-Control-Allow-Credentials': 'true',
+          'Vary': 'Origin',
+        },
+      })
     }
 
     const bytes = await streamToBuffer(response.Body as AsyncIterable<Uint8Array>)
@@ -210,16 +256,30 @@ export async function GET(
     const responseBytes = transformed?.bytes || bytes
     const responseContentType = transformed?.contentType || contentType
 
+    const origin = request.headers.get('origin') || '*'
     return new NextResponse(new Uint8Array(responseBytes), {
       headers: {
         'Content-Type': responseContentType,
         'Content-Length': String(responseBytes.byteLength),
         'Cache-Control': 'public, max-age=31536000, immutable',
-        Vary: 'Accept',
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        Vary: 'Accept, Origin',
       },
     })
   } catch (error) {
     console.error('Media proxy error:', error)
-    return NextResponse.json({ error: 'Failed to load media' }, { status: 500 })
+    const origin = request.headers.get('origin') || '*'
+    return NextResponse.json(
+      { error: 'Failed to load media' },
+      {
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Vary': 'Origin',
+        },
+      }
+    )
   }
 }

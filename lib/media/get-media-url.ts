@@ -4,7 +4,7 @@ const MEDIA_PATH_PREFIX = '/media/'
 const API_MEDIA_PREFIX = '/api/media/'
 
 function parseMediaWorkerUrl(url: string): { key: string; host: string } | null {
-  const mediaHost = process.env.NEXT_PUBLIC_MEDIA_HOST?.replace(/\/$/, '')
+  const mediaHost = process.env.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '')
   if (!mediaHost) return null
 
   try {
@@ -15,6 +15,26 @@ function parseMediaWorkerUrl(url: string): { key: string; host: string } | null 
     if (!isLocalMedia && !isWorkerUrl) return null
 
     const key = parsed.pathname.slice(MEDIA_PATH_PREFIX.length)
+    if (!key) return null
+
+    return { key, host: mediaHost }
+  } catch {
+    return null
+  }
+}
+
+function parseCdnUrl(url: string): { key: string; host: string } | null {
+  const mediaHost = process.env.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '')
+  if (!mediaHost) return null
+
+  try {
+    const parsed = new URL(url, 'http://placeholder')
+    if (parsed.origin !== new URL(mediaHost).origin) return null
+
+    const CDN_IMAGES_PATH = '/images/'
+    if (!parsed.pathname.startsWith(CDN_IMAGES_PATH)) return null
+
+    const key = parsed.pathname.slice(CDN_IMAGES_PATH.length)
     if (!key) return null
 
     return { key, host: mediaHost }
@@ -38,6 +58,11 @@ export function getMediaUrl(
   const workerMatch = parseMediaWorkerUrl(url)
   if (workerMatch) {
     return buildMediaWorkerUrl(workerMatch.host, workerMatch.key, variant, format)
+  }
+
+  const cdnMatch = parseCdnUrl(url)
+  if (cdnMatch) {
+    return buildMediaWorkerUrl(cdnMatch.host, cdnMatch.key, variant, format)
   }
 
   if (url.startsWith(API_MEDIA_PREFIX)) {
