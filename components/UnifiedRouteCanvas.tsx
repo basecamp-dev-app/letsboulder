@@ -17,6 +17,7 @@ import type { ClimbType } from '@/lib/submission-types'
 interface UnifiedRouteCanvasProps {
   mode: CanvasMode
   imageUrl: string
+  preloadedImage?: HTMLImageElement | null
   routes?: RouteLine[]
   activeRouteId?: string | null
   onRouteSelect?: (routeId: string | null) => void
@@ -31,6 +32,7 @@ export interface UnifiedRouteCanvasRef {
 export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRouteCanvasProps>(function UnifiedRouteCanvas({
   mode,
   imageUrl,
+  preloadedImage,
   routes: propRoutes,
   activeRouteId: controlledActiveRouteId,
   onRouteSelect,
@@ -62,7 +64,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   )
   const resolvedActiveRouteId = mode === 'browse' ? controlledActiveRouteId ?? null : activeRouteId
 
-  const { containerRef, dimensions, imageElement, imageLoaded, imageError } = useCanvasResize(imageUrl)
+  const { containerRef, dimensions, imageElement, imageLoaded, imageError } = useCanvasResize(imageUrl, preloadedImage)
 
   useEffect(() => {
     uploadDebug('canvas-component-state', {
@@ -215,6 +217,8 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
 
+    ctx.drawImage(imageElement, 0, 0, drawWidth, drawHeight)
+
     const routeCanvasDimensions = {
       width: drawWidth,
       height: drawHeight,
@@ -299,13 +303,13 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
 
   return (
     <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${className}`}>
-      {imageError && (
+      {imageError && !preloadedImage && (
         <div className="absolute inset-0 flex items-center justify-center text-red-500">
           Failed to load image
         </div>
       )}
 
-      {!imageLoaded && !imageError && (
+      {!imageLoaded && !imageError && !preloadedImage && (
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
         </div>
