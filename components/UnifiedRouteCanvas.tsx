@@ -226,6 +226,13 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
       centerY: 0,
     }
 
+    console.log('[RouteDebug] Canvas routes:', {
+      routesCount: routes?.length || 0,
+      routeIds: routes?.map(r => r.id) || [],
+      routeImageIds: routes?.map(r => r.image_id) || [],
+      imageUrl: imageUrl?.substring(0, 50),
+    })
+
     drawRoutes(
       ctx,
       routes,
