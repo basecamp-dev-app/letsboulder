@@ -182,18 +182,33 @@ async function handleOrigin(request: Request, env: Env, url: URL) {
 }
 
 async function handleMedia(request: Request, env: Env, url: URL) {
-  const objectKey = url.pathname.substring(1)
-    .split('/')
-    .filter(Boolean)
-    .map(decodeURIComponent)
-    .join('/')
+  const pathname = url.pathname.substring(1)
+
+  const staticVariantMatch = pathname.match(/^(images\/[^/]+\/v1\/)([a-z0-9_-]+)\.([a-z]+)$/i)
+  let objectKey: string
+  let variant: string | null = null
+  let width: number | null = null
+
+  if (staticVariantMatch) {
+    const uuid = staticVariantMatch[1]?.replace(/^images\//, '').replace(/\/v1\/$/, '')
+    variant = staticVariantMatch[2] ?? null
+    width = getVariantWidth(variant)
+    objectKey = `images/originals/${uuid}/original.jpg`
+  } else {
+    objectKey = pathname
+      .split('/')
+      .filter(Boolean)
+      .map(decodeURIComponent)
+      .join('/')
+
+    variant = url.searchParams.get('variant')
+    width = getVariantWidth(variant)
+  }
 
   if (!objectKey) {
     return new Response('Not found', { status: 404 })
   }
 
-  const variant = url.searchParams.get('variant')
-  const width = getVariantWidth(variant)
   if (!width) {
     return json({ error: 'Invalid variant' }, { status: 400 })
   }
