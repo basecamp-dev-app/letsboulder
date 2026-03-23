@@ -324,12 +324,14 @@ export async function buildImageFirstPayload(args: {
   ])
 
   const linkedImageIdByDisplayId: Record<string, string> = {}
+  console.log('[RouteDebug] Server cragImageRows:', JSON.stringify(cragImageRows?.slice(0, 5), null, 2))
   for (const row of cragImageRows) {
     if (row.linked_image_id) {
       linkedImageIdByDisplayId[row.id] = row.linked_image_id
     }
   }
   linkedImageIdByDisplayId[image.canonicalId] = image.canonicalId
+  console.log('[RouteDebug] Server mapping:', JSON.stringify(linkedImageIdByDisplayId, null, 2))
 
   const spatialNodes = cragImages.map((row) => ({
     displayImageId: row.id,
