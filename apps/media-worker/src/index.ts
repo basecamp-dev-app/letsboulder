@@ -222,10 +222,10 @@ async function handleMedia(request: Request, env: Env, url: URL) {
         width,
         format,
         fit: 'scale-down',
-        metadata: 'keep',
+        metadata: 'none',
       },
     },
-  } as RequestInit & { cf: { image: { width: number; format: string; fit: 'scale-down'; metadata: 'keep' } } })
+  } as RequestInit & { cf: { image: { width: number; format: string; fit: 'scale-down'; metadata: 'none' } } })
 
   if (!response.ok) {
     return new Response('Not found', { status: 404 })
