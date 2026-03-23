@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 
 function getMediaCdnRemotePattern() {
-  const raw = process.env.MEDIA_CDN_BASE_URL?.trim()
+  const raw = process.env.NEXT_PUBLIC_MEDIA_CDN_URL?.trim()
   if (!raw) return null
 
   try {
