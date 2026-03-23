@@ -22,7 +22,7 @@ import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
-import { useDraftUploadManager, useMediaUploadManager, type MediaUploadItem } from '@/lib/media/media-upload-manager'
+import { useDraftUploadManager, useMediaUploadManager, type MediaUploadItem, type UploadCompleteCallback } from '@/lib/media/media-upload-manager'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
@@ -475,7 +475,7 @@ export default function EditDraftPage() {
   const { setMode, setInteractionTool, reset, clearCanvasState, selectedRouteId, setSelectedRoute, setActiveRoute, setEditorPanelOpen, currentPoints, interactionTool, undoLastPoint } = useRouteStore()
   const gradePreferences = useGradePreferences()
   const editorGradeSystem = getGradeSystemForClimbType(routeType, gradePreferences)
-  const { uploads, hasPendingUploads, hasFailedUploads, retryUpload, removeUpload, registerDraftUpdatedAt, queueDraftUploads, resumeQueue, isQueuePaused } = useDraftUploadManager()
+  const { uploads, hasPendingUploads, hasFailedUploads, retryUpload, removeUpload, registerDraftUpdatedAt, queueDraftUploads, resumeQueue, isQueuePaused, subscribeToUploadComplete } = useDraftUploadManager()
   const { getUploadsForCrag } = useMediaUploadManager()
   const uploadsRef = useRef<MediaUploadItem[]>([])
 
@@ -890,8 +890,6 @@ export default function EditDraftPage() {
     return [...manageImages, ...pendingTabs].sort((a, b) => a.index - b.index)
   }, [manageImages, pendingDraftUploads])
 
-  const lastProcessedSuccessKeyRef = useRef<string | null>(null)
-  const abortedSuccessReloadRef = useRef<string | null>(null)
   const stableCanvasUrlRef = useRef<{ imageId: string | null; imageUrl: string }>({ imageId: null, imageUrl: '' })
 
   const hasInFlightDraftUploads = useMemo(() => {
@@ -900,53 +898,21 @@ export default function EditDraftPage() {
     ))
   }, [pendingDraftUploads])
 
-  const firstReadyDraftUpload = useMemo(() => {
-    return pendingDraftUploads.find((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId) || null
-  }, [pendingDraftUploads])
-
   useEffect(() => {
-    if (!draftId || activeImageId) return
-    if (!firstReadyDraftUpload?.attachedRecordId) return
-    setActiveImageId((current) => current || firstReadyDraftUpload.attachedRecordId)
-    setDefaultImageId((current) => current || firstReadyDraftUpload.attachedRecordId)
-  }, [activeImageId, draftId, firstReadyDraftUpload])
-
-  useEffect(() => {
-    if (hasInFlightDraftUploads) return
-    const successKey = pendingDraftUploads
-      .filter((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId)
-      .map((upload) => upload.attachedRecordId as string)
-      .sort()
-      .join(',')
-    if (!successKey) return
-    if (isFetchingRef.current || successKey === lastProcessedSuccessKeyRef.current) return
-    uploadDebug('editor-queue-drained-load-draft', {
-      draftId,
-      successKey,
-      pendingStatuses: pendingDraftUploads.map((upload) => ({
-        clientId: upload.clientId,
-        status: upload.status,
-        attachedRecordId: upload.attachedRecordId,
-      })),
-    })
-    isFetchingRef.current = true
-    lastProcessedSuccessKeyRef.current = successKey
-    void (async () => {
-      try {
-        await syncUploadedImages()
-      } catch (error: unknown) {
-        const isAbortError = error instanceof DOMException
-          ? error.name === 'AbortError'
-          : error instanceof Error && error.name === 'AbortError'
-        if (isAbortError) {
-          abortedSuccessReloadRef.current = successKey
-          lastProcessedSuccessKeyRef.current = null
-        }
-      } finally {
+    if (!draftId) return
+    const handleUploadComplete: UploadCompleteCallback = (_target, _clientId, attachedRecordId) => {
+      if (isFetchingRef.current) return
+      isFetchingRef.current = true
+      void syncUploadedImages().finally(() => {
         isFetchingRef.current = false
+      })
+      if (attachedRecordId) {
+        setActiveImageId((current) => current || attachedRecordId)
+        setDefaultImageId((current) => current || attachedRecordId)
       }
-    })()
-  }, [draftId, hasInFlightDraftUploads, pendingDraftUploads, syncUploadedImages])
+    }
+    return subscribeToUploadComplete(handleUploadComplete)
+  }, [draftId, subscribeToUploadComplete, syncUploadedImages])
 
   useEffect(() => {
     if (!cragId || activeImageId || canvasSource?.kind === 'draft-image') return
@@ -955,20 +921,6 @@ export default function EditDraftPage() {
     setActiveImageId(firstReadyCragImage.id)
     setCanvasSource({ kind: 'crag-image', cragImageId: firstReadyCragImage.id, cragId })
   }, [activeImageId, canvasSource, cragCanvasImages, cragId])
-
-  useEffect(() => {
-    const successKey = abortedSuccessReloadRef.current
-    if (!successKey || isInitialLoading || isRefreshingDraft || isFetchingRef.current) return
-    abortedSuccessReloadRef.current = null
-    const timer = window.setTimeout(() => {
-      if (isFetchingRef.current) return
-      isFetchingRef.current = true
-      void loadDraft().finally(() => {
-        isFetchingRef.current = false
-      })
-    }, 250)
-    return () => window.clearTimeout(timer)
-  }, [isInitialLoading, isRefreshingDraft, loadDraft])
 
   const activeImageTab = useMemo(() => {
     if (!activeImageId) return null

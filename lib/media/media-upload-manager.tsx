@@ -5,7 +5,7 @@ import imageCompression from 'browser-image-compression'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { extractGpsFromFile } from '@/lib/image-gps'
-import { stripExifMetadataFromFile } from '@/lib/image-metadata'
+
 import { isHeicFile } from '@/lib/image-utils'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { uploadDebug } from '@/lib/media/upload-debug'
@@ -59,6 +59,8 @@ interface CragAttachResponse {
   images?: Array<{ id?: string | null }>
 }
 
+export type UploadCompleteCallback = (target: MediaUploadTarget, clientId: string, attachedRecordId: string | null) => void
+
 interface MediaUploadManagerValue {
   uploads: MediaUploadItem[]
   activeClientId: string | null
@@ -74,6 +76,7 @@ interface MediaUploadManagerValue {
   resumeQueue: () => void
   isQueuePaused: (target?: MediaUploadTarget) => boolean
   getActiveUpload: (target: MediaUploadTarget) => MediaUploadItem | null
+  subscribeToUploadComplete: (callback: UploadCompleteCallback) => () => void
 }
 
 const MediaUploadManagerContext = createContext<MediaUploadManagerValue | null>(null)
@@ -129,14 +132,14 @@ async function buildPreviewUrl(file: File) {
 }
 
 async function preprocessFile(file: File) {
-  const normalizedFile = isHeicFile(file)
-    ? new File([await convertHeicToJpegBlob(file)], file.name.replace(/\.(heic|heif)$/i, ".jpg"), {
-        type: "image/jpeg",
-        lastModified: Date.now(),
-      })
-    : file
-
-  return stripExifMetadataFromFile(normalizedFile)
+  if (isHeicFile(file)) {
+    return new File(
+      [await convertHeicToJpegBlob(file)],
+      file.name.replace(/\.(heic|heif)$/i, '.jpg'),
+      { type: 'image/jpeg', lastModified: Date.now() }
+    )
+  }
+  return file
 }
 
 export function MediaUploadManagerProvider({ children }: { children: ReactNode }) {
@@ -153,6 +156,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
   const queueOrderRef = useRef(queueOrder)
   const activeClientIdRef = useRef(activeClientId)
   const isPausedRef = useRef(isPaused)
+  const subscribersRef = useRef<Set<UploadCompleteCallback>>(new Set())
 
   useEffect(() => { uploadsRef.current = uploads }, [uploads])
   useEffect(() => { queueOrderRef.current = queueOrder }, [queueOrder])
@@ -260,6 +264,9 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
           const attachedRecordId = Array.isArray(payload.draft?.appended_image_ids) ? payload.draft?.appended_image_ids[0] || null : null
           updateUpload(clientId, (current) => ({ ...current, status: 'SUCCESS', progress: 100, error: null, attachedRecordId }))
           revokePreviewUrl(clientId)
+          subscribersRef.current.forEach((cb) => {
+            try { cb(upload.target, clientId, attachedRecordId) } catch {}
+          })
           return
         }
 
@@ -286,6 +293,9 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     const attachedRecordId = Array.isArray(payload.images) ? payload.images[0]?.id || null : null
     updateUpload(clientId, (current) => ({ ...current, status: 'SUCCESS', progress: 100, error: null, attachedRecordId }))
     revokePreviewUrl(clientId)
+    subscribersRef.current.forEach((cb) => {
+      try { cb(upload.target, clientId, attachedRecordId) } catch {}
+    })
   }, [revokePreviewUrl, updateUpload])
 
   const startNextUploadRef = useRef<() => void>(() => {})
@@ -598,6 +608,11 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     })
   }, [])
 
+  const subscribeToUploadComplete = useCallback((callback: UploadCompleteCallback) => {
+    subscribersRef.current.add(callback)
+    return () => { subscribersRef.current.delete(callback) }
+  }, [])
+
   useEffect(() => {
     return () => {
       Object.values(uploadsRef.current).forEach((upload) => {
@@ -623,7 +638,8 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     resumeQueue,
     isQueuePaused,
     getActiveUpload,
-  }), [activeClientId, getActiveUpload, getUploadsForCrag, getUploadsForDraft, hasFailedUploads, hasPendingUploads, isPaused, isQueuePaused, queueUploads, registerDraftUpdatedAt, removeUpload, resumeQueue, retryUpload, uploadsList])
+    subscribeToUploadComplete,
+  }), [activeClientId, getActiveUpload, getUploadsForCrag, getUploadsForDraft, hasFailedUploads, hasPendingUploads, isPaused, isQueuePaused, queueUploads, registerDraftUpdatedAt, removeUpload, resumeQueue, retryUpload, subscribeToUploadComplete, uploadsList])
 
   return <MediaUploadManagerContext.Provider value={value}>{children}</MediaUploadManagerContext.Provider>
 }
@@ -652,5 +668,6 @@ export function useDraftUploadManager() {
     resumeQueue: context.resumeQueue,
     isQueuePaused: (draftId?: string) => draftId ? context.isQueuePaused({ kind: 'draft', draftId }) : context.isQueuePaused(),
     getActiveUpload: (draftId: string) => context.getActiveUpload({ kind: 'draft', draftId }),
+    subscribeToUploadComplete: context.subscribeToUploadComplete,
   }
 }
