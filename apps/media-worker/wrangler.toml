@@ -58,3 +58,19 @@ R2_PUBLIC_BUCKET = "lb-prod-media-public"
 pattern = "static.letsboulder.com/*"
 zone_name = "letsboulder.com"
 
+[[env.production.r2_buckets]]
+binding = "ORIGINALS_BUCKET"
+bucket_name = "lb-prod-media-private"
+
+[[env.production.r2_buckets]]
+binding = "PUBLIC_BUCKET"
+bucket_name = "lb-prod-media-public"
+
+[[env.production.queues.producers]]
+binding = "MEDIA_QUEUE"
+queue = "media-transform-queue-prod"
+
+[[env.production.queues.consumers]]
+queue = "media-transform-queue-prod"
+max_batch_size = 1
+
