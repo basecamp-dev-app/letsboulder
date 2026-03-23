@@ -49,9 +49,10 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const pathname = usePathname()
   const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
   const [userPresent, setUserPresent] = useState(false)
-  const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(
-    () => ({ [heroImage.displayImageId]: initialRoutes })
-  )
+  const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(() => {
+    const primaryId = linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId
+    return { [primaryId]: initialRoutes }
+  })
   const [loadedImageElement, setLoadedImageElement] = useState<HTMLImageElement | null>(null)
 
   const {
