@@ -507,6 +507,11 @@ export async function POST(request: NextRequest) {
 
       if (shouldCreateLinkedImage) {
         const parsedStorage = parsePrivateStorageUrl(cragImage.url)
+
+        // Extract upload session UUID from storage path to use as images.id
+        // This ensures images.id matches the UUID in the URL, so the CDN can serve it
+        const uploadSessionUuid = parsedStorage?.path?.match(/images\/originals\/([0-9a-fA-F-]{36})/)?.[1]
+
         const insertPayload: Record<string, unknown> = {
           url: cragImage.url,
           crag_id: existingCragId,
@@ -518,6 +523,10 @@ export async function POST(request: NextRequest) {
           latitude: null,
           longitude: null,
           capture_date: null,
+        }
+
+        if (uploadSessionUuid) {
+          insertPayload.id = uploadSessionUuid
         }
 
         if (parsedStorage) {
