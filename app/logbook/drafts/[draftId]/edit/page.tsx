@@ -990,7 +990,7 @@ export default function EditDraftPage() {
       ? imageSelection.cragImageId
       : imageSelection.imageId
 
-    if (stableCanvasUrlRef.current.imageId === nextImageId && stableCanvasUrlRef.current.imageUrl) {
+    if (stableCanvasUrlRef.current.imageId === nextImageId && stableCanvasUrlRef.current.imageUrl === imageSelection.imageUrl) {
       return stableCanvasUrlRef.current.imageUrl
     }
 

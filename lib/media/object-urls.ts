@@ -3,6 +3,8 @@ import { createPrivateReadUrl, createPrivateReadUrls } from '@/lib/media/r2'
 export interface StorageObjectRef {
   bucket: string
   path: string
+  /** Extracted upload-session UUID from the path (images/originals/{uuid}/...) */
+  uploadSessionId?: string | null
 }
 
 const PRIVATE_URL_PREFIX = 'private://'
@@ -19,7 +21,10 @@ export function parsePrivateStorageUrl(url: string | null | undefined): StorageO
   const path = withoutPrefix.slice(firstSlashIndex + 1)
   if (!bucket || !path) return null
 
-  return { bucket, path }
+  const uuidMatch = path.match(/images\/originals\/([0-9a-fA-F-]{36})/)
+  const uploadSessionId = uuidMatch?.[1] ?? null
+
+  return { bucket, path, uploadSessionId }
 }
 
 export function isR2ManagedBucket(bucket: string): boolean {
