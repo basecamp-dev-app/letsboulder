@@ -59,7 +59,7 @@ interface CragAttachResponse {
   images?: Array<{ id?: string | null }>
 }
 
-export type UploadCompleteCallback = (target: MediaUploadTarget, clientId: string, attachedRecordId: string | null) => void
+export type UploadCompleteCallback = (target: MediaUploadTarget, clientId: string, attachedRecordId: string | null, newUpdatedAt?: string | null) => void
 
 interface MediaUploadManagerValue {
   uploads: MediaUploadItem[]
@@ -151,6 +151,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
   const draftUpdatedAtRef = useRef<Map<string, string>>(new Map())
   const activeAbortControllerRef = useRef<AbortController | null>(null)
   const processingClientIdsRef = useRef<Set<string>>(new Set())
+  const alreadyAttachedRef = useRef<Set<string>>(new Set())
 
   const uploadsRef = useRef(uploads)
   const queueOrderRef = useRef(queueOrder)
@@ -225,8 +226,12 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
   }, [getUploadsForCrag, getUploadsForDraft])
 
   const attachUpload = useCallback(async (clientId: string) => {
+    if (alreadyAttachedRef.current.has(clientId)) return
+    alreadyAttachedRef.current.add(clientId)
+
     const upload = uploadsRef.current[clientId]
     if (!upload || !upload.uploadedBucket || !upload.uploadedPath || !upload.uploadedImageId) {
+      alreadyAttachedRef.current.delete(clientId)
       throw new Error('Upload is not ready to attach yet')
     }
 
@@ -264,8 +269,9 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
           const attachedRecordId = Array.isArray(payload.draft?.appended_image_ids) ? payload.draft?.appended_image_ids[0] || null : null
           updateUpload(clientId, (current) => ({ ...current, status: 'SUCCESS', progress: 100, error: null, attachedRecordId }))
           revokePreviewUrl(clientId)
+          const newUpdatedAt = payload.draft?.updated_at || null
           subscribersRef.current.forEach((cb) => {
-            try { cb(upload.target, clientId, attachedRecordId) } catch {}
+            try { cb(upload.target, clientId, attachedRecordId, newUpdatedAt) } catch {}
           })
           return
         }
@@ -552,6 +558,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     const entry = queueEntriesRef.current.get(clientId)
     if (!entry) return
 
+    alreadyAttachedRef.current.delete(clientId)
     setIsPaused(false)
     const nextQueueOrder = [clientId, ...queueOrderRef.current.filter((queuedClientId) => queuedClientId !== clientId)]
     queueOrderRef.current = nextQueueOrder
@@ -585,6 +592,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
       return next
     })
     queueEntriesRef.current.delete(clientId)
+    alreadyAttachedRef.current.delete(clientId)
     const nextQueueOrder = queueOrderRef.current.filter((queuedClientId) => queuedClientId !== clientId)
     queueOrderRef.current = nextQueueOrder
     setQueueOrder(nextQueueOrder)
