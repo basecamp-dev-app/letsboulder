@@ -27,6 +27,13 @@ export function resolveRouteImageUrl(url: string | null | undefined): string {
   if (!url) return ''
 
   if (url.startsWith('/images/') || url.startsWith('/originals/') || url.startsWith('/cdn-cgi/')) {
+    if (url.includes('?')) {
+      return buildMediaHostUrl(url)
+    }
+    if (url.startsWith('/images/originals/') || url.startsWith('/originals/')) {
+      const basePath = url.startsWith('/') ? url : `/${url}`
+      return `${buildMediaHostUrl(basePath)}?variant=detail&format=webp`
+    }
     return buildMediaHostUrl(url)
   }
 
