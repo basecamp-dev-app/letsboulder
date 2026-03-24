@@ -56,7 +56,12 @@ export function resolveRouteImageUrl(url: string | null | undefined): string {
   if (!objectPath) return url
 
   const cdnUrl = buildCdnUrl(objectPath)
-  if (cdnUrl) return cdnUrl
+  if (cdnUrl) {
+    if (objectPath.startsWith('images/originals/') && !objectPath.includes('?')) {
+      return `${cdnUrl}?variant=detail&format=webp`
+    }
+    return cdnUrl
+  }
 
   return buildMediaProxyPath(bucket, objectPath)
 }
