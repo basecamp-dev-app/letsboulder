@@ -900,7 +900,11 @@ export default function EditDraftPage() {
 
   useEffect(() => {
     if (!draftId) return
-    const handleUploadComplete: UploadCompleteCallback = (_target, _clientId, attachedRecordId) => {
+    const handleUploadComplete: UploadCompleteCallback = (_target, _clientId, attachedRecordId, newUpdatedAt) => {
+      if (newUpdatedAt) {
+        setDraftUpdatedAt(newUpdatedAt)
+        registerDraftUpdatedAt(draftId, newUpdatedAt)
+      }
       if (isFetchingRef.current) return
       isFetchingRef.current = true
       void syncUploadedImages().finally(() => {
@@ -912,7 +916,7 @@ export default function EditDraftPage() {
       }
     }
     return subscribeToUploadComplete(handleUploadComplete)
-  }, [draftId, subscribeToUploadComplete, syncUploadedImages])
+  }, [draftId, registerDraftUpdatedAt, subscribeToUploadComplete, syncUploadedImages])
 
   useEffect(() => {
     if (!cragId || activeImageId || canvasSource?.kind === 'draft-image') return
