@@ -79,7 +79,7 @@ async function fetchGradePreferences(): Promise<{ boulder: GradeSystem; route: G
   return gradePreferencesRequest
 }
 
-export function updateGradePreference(type: 'boulder' | 'route' | 'trad', value: GradeSystem) {
+function updateGradePreference(type: 'boulder' | 'route' | 'trad', value: GradeSystem) {
   if (!gradePreferencesCache) {
     gradePreferencesCache = getDefaultPreferences()
   }
