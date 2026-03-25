@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import Image from 'next/image'
 
-import type { RoutePoint } from '@/lib/useRouteSelection'
+import type { RoutePoint } from '@/features/climb/hooks/use-route-selection'
 
 function smoothSvgPath(points: RoutePoint[]): string {
   if (points.length < 2) return ''

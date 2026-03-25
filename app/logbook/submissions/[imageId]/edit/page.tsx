@@ -12,7 +12,7 @@ import { normalizePoints } from '@/lib/canvasMath'
 import AtlasContextCard from '@/components/submissions/atlas-context-card'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
-import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
 import { createClient } from '@/lib/supabase'
 import {
   normalizeSubmissionCreditHandle,

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/ssr'
 import { SITE_URL } from '@/lib/site'
-import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
 
 export const revalidate = 60
 

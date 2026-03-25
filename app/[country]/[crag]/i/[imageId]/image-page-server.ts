@@ -1,9 +1,9 @@
 import { cache } from 'react'
 import { createServerClient } from '@supabase/ssr'
 import { getDisplayImageId } from '@/lib/image-identity'
-import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
-import type { RoutePoint } from '@/lib/useRouteSelection'
+import type { RoutePoint } from '@/features/climb/hooks/use-route-selection'
 
 interface CragRow {
   id: string

@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
-import type { RoutePoint } from '@/lib/useRouteSelection'
+import type { RoutePoint } from '@/features/climb/hooks/use-route-selection'
 import { getCanonicalRouteFaces } from '@/lib/climb/canonical-logic'
 import { buildMediaProxyUrl, estimateCompressedImageBytes, parsePrivateMediaRef } from '@/lib/media-proxy'
 import type { ClimbPackResponse, OfflineMapPin } from '@/lib/climb/queries'
 import { getDisplayImageId } from '@/lib/image-identity'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
-import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
 
 interface ImageInfoRow {
   id: string

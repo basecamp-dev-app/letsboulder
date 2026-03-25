@@ -18,7 +18,7 @@ import {
   upsertStoredCragManifest,
   type OfflinePackRecord,
 } from '@/lib/offline/storage'
-import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
 import { sendServiceWorkerMessage, subscribeToOfflineJobProgress, type OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 
 export const OFFLINE_PACK_BUDGET_BYTES = 250 * 1024 * 1024

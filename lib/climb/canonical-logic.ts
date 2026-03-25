@@ -1,5 +1,5 @@
 import { normalizeGrade } from '@/lib/grades'
-import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
 import type { Database } from '@/types/database'
 
 const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
