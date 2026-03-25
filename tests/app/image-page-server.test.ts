@@ -15,7 +15,7 @@ vi.mock('react', () => ({ cache: cacheMock }))
 vi.mock('@supabase/ssr', () => ({
   createServerClient: vi.fn(() => ({
     from: (table: string) => ({
-      select: () => {
+      select: (cols?: string) => {
         if (table === 'crag_images') {
           return {
             or: () => ({
@@ -34,6 +34,7 @@ vi.mock('@supabase/ssr', () => ({
           return {
             eq: () => ({
               maybeSingle: async () => ({ data: state.rawImage, error: null }),
+              order: async () => ({ data: [state.rawImage], error: null }),
             }),
           }
         }
@@ -48,6 +49,14 @@ vi.mock('@supabase/ssr', () => ({
           }
         }
 
+        throw new Error(`Unexpected table ${table}`)
+      },
+      eq: (col: string, val: unknown) => {
+        if (table === 'images') {
+          return {
+            maybeSingle: async () => ({ data: state.rawImage, error: null }),
+          }
+        }
         throw new Error(`Unexpected table ${table}`)
       },
     }),
