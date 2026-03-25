@@ -55,32 +55,32 @@ This repo assumes you run schema changes through migrations committed in git.
 
 ### 0) Tooling sanity
 
-Use the pinned Supabase CLI (via npm) and confirm you're not accidentally using multiple CLIs:
+Use the pinned Supabase CLI and confirm it is available:
 
 ```bash
 npm install
-npm run supabase:doctor
+npx supabase --version
 ```
 
 ### 1) Create and test locally
 
 ```bash
 supabase start
-npm run db:local:up
 ```
 
 ### 2) Deploy schema to dev
 
 ```bash
-npm run db:push:dev:dry
-npm run db:push:dev
+supabase db push --linked --dry-run
+supabase db push --linked
 ```
 
 ### 3) Deploy schema to prod
 
 ```bash
-npm run db:push:prod:dry
-npm run db:push:prod
+supabase link --project-ref <prod-ref>
+supabase db push --linked --dry-run
+supabase db push --linked
 ```
 
 ## If `db push` Fails With "Remote migration versions not found"
@@ -98,7 +98,7 @@ This usually means the remote migration history table (`supabase_migrations.sche
 1) Inspect migration history:
 
 ```bash
-npm run db:migrations:list:linked
+supabase migration list --linked
 ```
 
 2) If remote has versions that do not exist in git, reconstruct them into new migrations (do not delete random history in prod).
@@ -123,6 +123,6 @@ psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" \
 Then re-run:
 
 ```bash
-npm run db:push:dev:dry
-npm run db:push:dev
+supabase db push --linked --dry-run
+supabase db push --linked
 ```

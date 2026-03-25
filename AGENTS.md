@@ -48,10 +48,19 @@ npm run supabase:doctor  # Verify Supabase CLI
 
 ## File References
 
-- **Schema:** @docs/db/schema.md (grades, migrations, cascade logic)
-- **Patterns:** @docs/patterns.md (canvas, maps, GPS, HEIC)
+- **Schema:** @docs/db/schema.md (grades, tables, RPCs, migrations, cascade logic)
+- **Patterns:** @docs/patterns.md (canvas, maps, GPS, HEIC, media, offline)
+- **Architecture:** @docs/architecture.md (system topology, data flow)
+- **Media:** @docs/media-pipeline.md (upload, processing, delivery)
+- **Auth:** @docs/auth-security.md (CSRF, rate limiting, auth patterns)
+- **Offline:** @docs/offline-pwa.md (service worker, packs, caching)
+- **Submissions:** @docs/submission-workflow.md (draft-to-publish)
+- **API:** @docs/api/routes.md (route handler reference)
+- **Testing:** @docs/testing/README.md (Vitest, Playwright, CI)
+- **Contributing:** @CONTRIBUTING.md (branch strategy, commit conventions)
 
 <next_steps>
   - Keep schema.md and patterns.md in sync with code changes
+  - Regenerate `types/database.ts` via `supabase gen types` after any schema change
   - Prioritize Supabase-generated type migration in `types/database.ts`, `lib/submission-types.ts`, and ranking/community query surfaces.
 </next_steps>
