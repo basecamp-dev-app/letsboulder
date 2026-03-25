@@ -13,6 +13,7 @@ import { normalizePoints } from '@/lib/canvasMath'
 import { createClient } from '@/lib/supabase'
 import type { RouteLine, RoutePoint } from '@/types/domain'
 import ClimbInfoPanel from '@/app/climb/components/ClimbInfoPanel'
+import { useGradeSystem } from '@/hooks/useGradeSystem'
 
 function parsePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[] {
   if (!raw) return []
@@ -47,6 +48,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const { linkedImageIdByDisplayId } = navigationContext
   const router = useRouter()
   const pathname = usePathname()
+  const gradeSystem = useGradeSystem()
   const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
   const [userPresent, setUserPresent] = useState(false)
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(() => {
@@ -386,7 +388,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
           <RouteEditorRail
             routes={visibleRoutes}
             selectedRouteId={activeRouteId}
-            gradeSystem={'font_scale'}
+            gradeSystem={gradeSystem}
             onSelectRoute={handleRouteSelect}
           />
         </div>
@@ -425,7 +427,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         savingFeedback={false}
         logging={false}
         userPresent={hasHydratedAuth ? userPresent : true}
-        gradeSystem={'font' as never}
+        gradeSystem={gradeSystem}
         gradeOpinionLabels={{ soft: 'Soft', agree: 'Agree', hard: 'Hard' }}
         formatRouteTypeLabel={(value) => value}
         onOpenOffline={() => undefined}
