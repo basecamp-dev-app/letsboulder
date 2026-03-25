@@ -1011,6 +1011,8 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
         contentType: compressedFile.type || 'image/jpeg',
         fileName: compressedFile.name,
         byteSize: compressedFile.size,
+        gpsData: finalGps,
+        captureDate: null,
       })
 
       try {
