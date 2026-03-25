@@ -28,7 +28,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 browser-debug.log
+
+# local test artifacts
+/dev.log
+/playwright-report/
+/test-results/
+/playwright/.auth/
 
 # env files (can opt-in for committing if needed)
 .env*

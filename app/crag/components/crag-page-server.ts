@@ -1,7 +1,7 @@
 import { normalizeGrade } from '@/lib/grades'
 import { dedupeCanonicalRoutes, remapRoutePreviewsByEffectiveClimbId } from '@/lib/climb/canonical-logic'
 import { buildSelectableImageIdByImageId } from '@/lib/image-identity'
-import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
 import type { Database } from '@/types/database'
 import type { CragRoute, RoutePreview } from '@/app/crag/components/CragPageClient'
 

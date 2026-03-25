@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { useRouteStore } from '@/store/routeStore'
-import { createRoutePath2D } from '@/lib/routeRenderer'
+import { createRoutePath2D } from '@/lib/route-renderer'
 import type { RoutePoint, RouteLine } from '@/types/domain'
 
 const THRESHOLD_DESKTOP = 0.015

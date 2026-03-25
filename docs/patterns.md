@@ -24,7 +24,7 @@ import { useRef, useEffect } from 'react'
 import { useRouteDrawing } from '@/hooks/useRouteDrawing'
 import { useHitTesting } from '@/hooks/useHitTesting'
 import { useRouteStore } from '@/store/routeStore'
-import { drawRoute } from '@/lib/routeRenderer'
+import { drawRoutes } from '@/lib/route-renderer'
 
 export default function UnifiedRouteCanvas({ imageId }: { imageId: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -55,7 +55,7 @@ export default function UnifiedRouteCanvas({ imageId }: { imageId: string }) {
 - `hooks/useRouteDrawing.ts` — route drawing state and point management
 - `hooks/useHitTesting.ts` — hit testing for selecting/editing route points
 - `store/routeStore.ts` — Zustand store for route selection state
-- `lib/routeRenderer.ts` — canvas rendering (Path2D, DPR-aware)
+- `lib/route-renderer.ts` — canvas rendering (Path2D, DPR-aware)
 - `lib/canvasMath.ts` — coordinate transforms and math utilities
 - `types/domain.ts` — `RoutePoint`, `RouteLine`, `DrawingRoute`, `CanvasDimensions`
 
