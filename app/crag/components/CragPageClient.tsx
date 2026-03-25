@@ -1360,8 +1360,19 @@ export default function CragPageClient({
         effectiveClimbIdByClimbId
       )
 
+      const nextRouteImageIdsByClimbId: Record<string, string[]> = {}
+      for (const row of (routeTargetsData || []) as RouteLineTargetRow[]) {
+        const effectiveClimbId = effectiveClimbIdByClimbId[row.climb_id] || row.climb_id
+        const climbImageIds = nextRouteImageIdsByClimbId[effectiveClimbId] || []
+        if (!climbImageIds.includes(row.image_id)) {
+          climbImageIds.push(row.image_id)
+          nextRouteImageIdsByClimbId[effectiveClimbId] = climbImageIds
+        }
+      }
+
       if (ignore) return
 
+      setRouteImageIdsByClimbId(nextRouteImageIdsByClimbId)
       setRoutePreviewByClimbId((prev) => ({ ...prev, ...mappedTargets.nextRoutePreviewByClimbId }))
       setRouteNavigationTargetByClimbId((prev) => ({ ...prev, ...mappedTargets.nextRouteNavigationTargetByClimbId }))
 
@@ -1371,6 +1382,7 @@ export default function CragPageClient({
       if (cached) {
         cragImageCache.set(id, {
           ...cached,
+          routeImageIdsByClimbId: nextRouteImageIdsByClimbId,
           routePreviewByClimbId: { ...cached.routePreviewByClimbId, ...mappedTargets.nextRoutePreviewByClimbId },
           routeNavigationTargetByClimbId: { ...cached.routeNavigationTargetByClimbId, ...mappedTargets.nextRouteNavigationTargetByClimbId },
         })
@@ -1392,6 +1404,32 @@ export default function CragPageClient({
     }
     return [...uniqueTypes].sort((a, b) => a.localeCompare(b))
   }, [routes])
+
+  const clearAllRouteFilters = useCallback(() => {
+    setSelectedImageId(null)
+    setMinGrade('')
+    setMaxGrade('')
+    setMinRating('')
+    setMinSends('')
+    setSearchQuery('')
+    setSelectedDirections([])
+    setSelectedRouteTypes([])
+    setTopoOnly(false)
+  }, [])
+
+  const hasActiveRouteFilters = useMemo(() => {
+    return Boolean(
+      selectedImageId
+      || minGrade
+      || maxGrade
+      || minRating
+      || minSends
+      || searchQuery.trim()
+      || selectedDirections.length > 0
+      || selectedRouteTypes.length > 0
+      || topoOnly
+    )
+  }, [maxGrade, minGrade, minRating, minSends, searchQuery, selectedDirections.length, selectedRouteTypes.length, selectedImageId, topoOnly])
 
   const routeHrefBase = useMemo(() => {
     if (!crag?.country_code || !crag.slug) return null
@@ -1431,6 +1469,8 @@ export default function CragPageClient({
 
     return routes
       .filter((route) => {
+        if (selectedImageId && !highlightedRouteIds.has(route.id)) return false
+
         const routeGradeIndex = getGradeIndex(route.grade)
         if (minIndex !== undefined) {
           if (routeGradeIndex === undefined || routeGradeIndex < minIndex) return false
@@ -1501,7 +1541,7 @@ export default function CragPageClient({
         if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
         return a.name.localeCompare(b.name)
       })
-  }, [highlightedRouteIds, maxGrade, minGrade, minRating, minSends, routeSort, routes, searchQuery, selectedDirections, selectedRouteTypes, topoOnly])
+  }, [highlightedRouteIds, maxGrade, minGrade, minRating, minSends, routeSort, routes, searchQuery, selectedDirections, selectedImageId, selectedRouteTypes, topoOnly])
 
   const routeStats = useMemo(() => {
     const gradeCounts = new Map<string, number>()
@@ -1920,6 +1960,11 @@ export default function CragPageClient({
               <button type="button" onClick={() => setSortModalOpen(true)} className="rounded-full border border-stone-200 bg-stone-50 p-2 text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
                 <ArrowUpDown className="size-4" />
               </button>
+              {hasActiveRouteFilters ? (
+                <button type="button" onClick={clearAllRouteFilters} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
+                  Clear filters
+                </button>
+              ) : null}
               <div className="ml-auto text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">
                 {selectedImageId ? `${selectedRouteCount} / ${routes.length} selected` : ''}
                 {selectedImageId ? ' · ' : ''}
