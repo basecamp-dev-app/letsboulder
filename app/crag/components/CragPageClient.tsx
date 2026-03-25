@@ -102,6 +102,7 @@ interface ClusteredImageData extends ClusterableCragImage {
 interface OfflineHydratedCragData {
   images: ImageData[]
   routes: CragRoute[]
+  routeImageIdsByClimbId: Record<string, string[]>
   routePreviewByClimbId: Record<string, RoutePreview>
   defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
   routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
@@ -128,6 +129,7 @@ interface CachedCragImageData {
   images: ImageData[]
   cragCenter: [number, number] | null
   defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
+  routeImageIdsByClimbId: Record<string, string[]>
   routePreviewByClimbId: Record<string, RoutePreview>
   routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
   cachedAt: number
@@ -320,6 +322,7 @@ function mapRouteTargetsByEffectiveClimbId(
 
 function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedCragData {
   const imageMap = new Map<string, ImageData>()
+  const routeImageIdsByClimbId: Record<string, string[]> = {}
   const routePreviewByClimbId: Record<string, RoutePreview> = {}
   const defaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
   const routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget> = {}
@@ -385,6 +388,11 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
     })
 
     for (const line of payload.primary_route_lines || []) {
+      const climbImageIds = routeImageIdsByClimbId[line.climb_id] || []
+      if (!climbImageIds.includes(primaryImage.id)) {
+        climbImageIds.push(primaryImage.id)
+        routeImageIdsByClimbId[line.climb_id] = climbImageIds
+      }
       if (routePreviewByClimbId[line.climb_id]) continue
       routePreviewByClimbId[line.climb_id] = {
         imageId: primaryImage.id,
@@ -411,6 +419,7 @@ function hydrateOfflineCragData(payloads: ClimbPackResponse[]): OfflineHydratedC
   return {
     images: Array.from(imageMap.values()),
     routes: Array.from(routeMap.values()),
+    routeImageIdsByClimbId,
     routePreviewByClimbId,
     defaultRouteTargetByImageId,
     routeNavigationTargetByClimbId,
@@ -524,6 +533,7 @@ interface CragPageClientProps {
   initialCrag?: Crag | null
   initialImages?: ImageData[]
   initialRoutes?: CragRoute[] | null
+  initialRouteImageIdsByClimbId?: Record<string, string[]>
   initialRoutePreviewByClimbId?: Record<string, RoutePreview>
   initialCragCenter?: [number, number] | null
   communityPlaceSlug?: string | null
@@ -534,6 +544,7 @@ export default function CragPageClient({
   initialCrag = null,
   initialImages = [],
   initialRoutes = null,
+  initialRouteImageIdsByClimbId = {},
   initialRoutePreviewByClimbId = {},
   initialCragCenter = null,
   communityPlaceSlug,
@@ -545,6 +556,7 @@ export default function CragPageClient({
   const hasInitialRouteData = initialRoutes !== null
   const [images, setImages] = useState<ImageData[]>(initialImages)
   const [routes, setRoutes] = useState<CragRoute[]>(initialRoutes || [])
+  const [routeImageIdsByClimbId, setRouteImageIdsByClimbId] = useState<Record<string, string[]>>(initialRouteImageIdsByClimbId)
   const [routePreviewByClimbId, setRoutePreviewByClimbId] = useState<Record<string, RoutePreview>>(initialRoutePreviewByClimbId)
   const [routesLoadState, setRoutesLoadState] = useState<'idle' | 'loading' | 'loaded' | 'error'>(hasInitialRouteData ? 'loaded' : 'idle')
   const [routeSort, setRouteSort] = useState<'sends' | 'rating' | 'grade' | 'name'>('sends')
@@ -680,6 +692,7 @@ export default function CragPageClient({
         setImages(hydrated.images)
         setRoutes(hydrated.routes)
         setRoutesLoadState('loaded')
+        setRouteImageIdsByClimbId(hydrated.routeImageIdsByClimbId)
         setRoutePreviewByClimbId(hydrated.routePreviewByClimbId)
         setDefaultRouteTargetByImageId(hydrated.defaultRouteTargetByImageId)
         setRouteNavigationTargetByClimbId(hydrated.routeNavigationTargetByClimbId)
@@ -692,6 +705,7 @@ export default function CragPageClient({
       setImages([])
       if (!hasInitialRouteData) {
         setRoutes([])
+        setRouteImageIdsByClimbId({})
       }
       setDefaultRouteTargetByImageId({})
       setRouteNavigationTargetByClimbId({})
@@ -708,6 +722,7 @@ export default function CragPageClient({
         setImages(cached.images)
         setCragCenter(cached.cragCenter)
         setDefaultRouteTargetByImageId(cached.defaultRouteTargetByImageId)
+        setRouteImageIdsByClimbId(cached.routeImageIdsByClimbId || {})
         setRouteNavigationTargetByClimbId(cached.routeNavigationTargetByClimbId)
         setRoutePreviewByClimbId(cached.routePreviewByClimbId)
         setLoading(false)
@@ -857,6 +872,7 @@ export default function CragPageClient({
       const routeSource: CragRoute[] = hasInitialRouteData ? routes : initialRouteSource
       const routeClimbIds = Array.from(new Set(routeSource.map((route) => route.id).filter(Boolean)))
       const nextDefaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
+      const nextRouteImageIdsByClimbId: Record<string, string[]> = {}
       const imageById = new Map(previewImages.map((image) => [image.id, image]))
       const nextRoutePreviewByClimbId: Record<string, RoutePreview> = {}
       const nextRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget> = {}
@@ -891,6 +907,12 @@ export default function CragPageClient({
           console.error('Error fetching image route targets:', routeTargetsError)
         } else {
           for (const row of (routeTargetsData || []) as RouteLineTargetRow[]) {
+            const effectiveClimbId = effectiveClimbIdByClimbId[row.climb_id] || row.climb_id
+            const climbImageIds = nextRouteImageIdsByClimbId[effectiveClimbId] || []
+            if (!climbImageIds.includes(row.image_id)) {
+              climbImageIds.push(row.image_id)
+              nextRouteImageIdsByClimbId[effectiveClimbId] = climbImageIds
+            }
             if (nextDefaultRouteTargetByImageId[row.image_id]) continue
             const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
             nextDefaultRouteTargetByImageId[row.image_id] = {
@@ -909,7 +931,6 @@ export default function CragPageClient({
 
           Object.assign(nextRoutePreviewByClimbId, mappedTargets.nextRoutePreviewByClimbId)
           Object.assign(nextRouteNavigationTargetByClimbId, mappedTargets.nextRouteNavigationTargetByClimbId)
-
           console.debug('[Router Debug] Target Map populated with keys:', Object.keys(mappedTargets.nextRouteNavigationTargetByClimbId))
         }
       }
@@ -919,6 +940,7 @@ export default function CragPageClient({
       setCrag(cragData)
       setImages(previewImages)
       setDefaultRouteTargetByImageId(nextDefaultRouteTargetByImageId)
+      setRouteImageIdsByClimbId(nextRouteImageIdsByClimbId)
       setRoutePreviewByClimbId(nextRoutePreviewByClimbId)
       setRouteNavigationTargetByClimbId(nextRouteNavigationTargetByClimbId)
       const withCoords = formattedImages.filter(
@@ -939,6 +961,7 @@ export default function CragPageClient({
         images: previewImages,
         cragCenter: nextCenter,
         defaultRouteTargetByImageId: nextDefaultRouteTargetByImageId,
+        routeImageIdsByClimbId: nextRouteImageIdsByClimbId,
         routePreviewByClimbId: nextRoutePreviewByClimbId,
         routeNavigationTargetByClimbId: nextRouteNavigationTargetByClimbId,
         cachedAt: Date.now(),
@@ -1219,23 +1242,53 @@ export default function CragPageClient({
     return nextTargets
   }, [imageById, routeNavigationTargetByClimbId])
 
+  const selectedImageIds = useMemo(() => {
+    if (!selectedImageId) return new Set<string>()
+
+    const selectedClusterId = clusteredPins.clusterIdByImageId.get(selectedImageId)
+    if (!selectedClusterId) return new Set([selectedImageId])
+
+    const selectedCluster = clusteredPins.clusters.find((cluster) => cluster.id === selectedClusterId)
+    if (!selectedCluster) return new Set([selectedImageId])
+
+    return new Set(selectedCluster.images.map((image) => image.id))
+  }, [clusteredPins.clusterIdByImageId, clusteredPins.clusters, selectedImageId])
+
   const highlightedRouteIds = useMemo(() => {
     if (!selectedImageId) return new Set<string>()
 
     const matches = new Set<string>()
     for (const route of routes) {
-      if (routePreviewDisplayByClimbId[route.id]?.imageId === selectedImageId) {
+      const routeImageIds = routeImageIdsByClimbId[route.id] || []
+      if (routeImageIds.some((imageId) => selectedImageIds.has(imageId))) {
         matches.add(route.id)
         continue
       }
 
-      if (routeNavigationDisplayByClimbId[route.id]?.displayImageId === selectedImageId) {
+      if (routePreviewDisplayByClimbId[route.id]?.imageId && selectedImageIds.has(routePreviewDisplayByClimbId[route.id].imageId)) {
+        matches.add(route.id)
+        continue
+      }
+
+      if (routeNavigationDisplayByClimbId[route.id]?.displayImageId && selectedImageIds.has(routeNavigationDisplayByClimbId[route.id].displayImageId)) {
         matches.add(route.id)
       }
     }
 
     return matches
-  }, [routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId, routes, selectedImageId])
+  }, [routeImageIdsByClimbId, routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId, routes, selectedImageIds, selectedImageId])
+
+  useEffect(() => {
+    if (!selectedImageId) return
+
+    console.debug('[Crag Debug] Pin selection state', {
+      selectedImageId,
+      selectedImageIds: Array.from(selectedImageIds),
+      highlightedRouteIds: Array.from(highlightedRouteIds),
+      routeImageIdsByClimbIdKeys: Object.keys(routeImageIdsByClimbId),
+      routeCount: routes.length,
+    })
+  }, [highlightedRouteIds, routeImageIdsByClimbId, routes, selectedImageId, selectedImageIds])
 
   const climbIdsFingerprint = useMemo(() => {
     return Array.from(new Set(routes.map((route) => route.id)))
@@ -1786,7 +1839,14 @@ export default function CragPageClient({
           pins={mapPins}
           activePinId={selectedImageId}
           initialCenter={cragCenter}
-          onPinSelect={(imageId) => setSelectedImageId(imageId)}
+          onPinSelect={(imageId) => {
+            console.debug('[Crag Debug] Pin clicked', {
+              imageId,
+              currentSelectedImageId: selectedImageId,
+              clusterId: clusteredPins.clusterIdByImageId.get(imageId) || null,
+            })
+            setSelectedImageId(imageId)
+          }}
         />
 
         <div className="absolute top-4 left-4 z-[1000] bg-white/90 dark:bg-gray-800/90 rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 dark:text-gray-100 shadow-md backdrop-blur">

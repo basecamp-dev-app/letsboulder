@@ -209,6 +209,7 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
         initialCrag={initialCrag}
         initialImages={initialRouteData.initialImages}
         initialRoutes={initialRouteData.initialRoutes}
+        initialRouteImageIdsByClimbId={initialRouteData.initialRouteImageIdsByClimbId}
         initialRoutePreviewByClimbId={initialRouteData.initialRoutePreviewByClimbId}
         initialCragCenter={initialRouteData.initialCragCenter}
       />
