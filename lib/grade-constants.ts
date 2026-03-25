@@ -1,4 +1,5 @@
 export const VALID_GRADES = [
+  '3A', '3A+', '3B', '3B+', '3C', '3C+',
   '4A', '4A+', '4B', '4B+', '4C', '4C+',
   '5A', '5A+', '5B', '5B+', '5C', '5C+',
   '6A', '6A+', '6B', '6B+', '6C', '6C+',
@@ -9,7 +10,7 @@ export const VALID_GRADES = [
 
 export type Grade = typeof VALID_GRADES[number]
 
-export const MIN_SELECTABLE_GRADE: Grade = '4A'
+export const MIN_SELECTABLE_GRADE: Grade = '3A'
 
 export const SELECTABLE_GRADES = VALID_GRADES.slice(
   Math.max(0, VALID_GRADES.indexOf(MIN_SELECTABLE_GRADE))
