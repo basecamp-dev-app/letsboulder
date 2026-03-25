@@ -75,6 +75,7 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
       initialCrag={initialCrag}
       initialImages={initialRouteData.initialImages}
       initialRoutes={initialRouteData.initialRoutes}
+      initialRouteImageIdsByClimbId={initialRouteData.initialRouteImageIdsByClimbId}
       initialRoutePreviewByClimbId={initialRouteData.initialRoutePreviewByClimbId}
       initialCragCenter={initialRouteData.initialCragCenter}
     />
