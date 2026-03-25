@@ -135,7 +135,7 @@ export function SubmissionWorkstation({
         />
       </div>
       <div
-        className={`sticky top-[calc(var(--app-header-offset,0px)+0.5rem)] z-20 -mx-1 overflow-x-auto rounded-2xl px-2 py-2 shadow-sm backdrop-blur transition-colors ${
+        className={`-mx-1 overflow-x-auto rounded-2xl px-2 py-2 shadow-sm transition-colors ${
           isQuickBarDragOver
             ? 'border-4 border-dashed border-blue-500 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-950/40'
             : 'border border-gray-200 bg-white/95 dark:border-gray-800 dark:bg-gray-900/95'
