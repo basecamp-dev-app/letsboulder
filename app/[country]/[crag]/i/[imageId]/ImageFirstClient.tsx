@@ -73,6 +73,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     initialRouteId,
     initialRouteSlug,
     initialClimbId,
+    linkedImageIdByDisplayId,
     countryCode,
     cragSlug,
     stacks: navigationContext.stacks,
