@@ -15,6 +15,8 @@ interface UploadedImageRow {
   storage_path: string | null
   width: number | null
   height: number | null
+  latitude: number | null
+  longitude: number | null
 }
 
 function normalizeImages(value: unknown): AttachCragImageInput[] | null {
@@ -84,7 +86,7 @@ export async function POST(
     const uploadedImageIds = images.map((image) => image.uploaded_image_id)
     const { data: uploadedRows, error: uploadedError } = await supabase
       .from('images')
-      .select('id, created_by, storage_bucket, storage_path, width, height')
+      .select('id, created_by, storage_bucket, storage_path, width, height, latitude, longitude, capture_date')
       .in('id', uploadedImageIds)
 
     if (uploadedError) {
@@ -115,6 +117,8 @@ export async function POST(
         url: `private://${uploaded.storage_bucket}/${uploaded.storage_path}`,
         width: uploaded.width,
         height: uploaded.height,
+        latitude: uploaded.latitude,
+        longitude: uploaded.longitude,
         source_image_id: uploaded.id,
         linked_image_id: uploaded.id,
       }

@@ -320,6 +320,11 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     })
 
     try {
+      const upload = uploadsRef.current[entry.clientId]
+      if (!upload) {
+        throw new Error('Upload entry is missing')
+      }
+
       updateUpload(entry.clientId, (current) => ({ ...current, status: 'PREPROCESSING', progress: 10, error: null }))
 
       const [preparedFile, gpsData] = await Promise.all([
@@ -342,6 +347,8 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
         contentType: preparedFile.type || 'image/jpeg',
         fileName: ensureFileName(preparedFile, entry.file.name),
         byteSize: preparedFile.size,
+        gpsData: upload.gpsData,
+        captureDate: upload.captureDate,
         draftId: entry.target.kind === 'draft' ? entry.target.draftId : undefined,
         cragId: entry.target.kind === 'crag' ? entry.target.cragId : undefined,
       }, abortController.signal)

@@ -60,6 +60,29 @@ interface CragImageSubmission {
   routeType?: (typeof VALID_ROUTE_TYPES)[number]
 }
 
+interface CragImageRow {
+  id: string
+  url: string
+  crag_id: string | null
+  width: number | null
+  height: number | null
+  latitude: number | null
+  longitude: number | null
+  source_image_id: string | null
+  linked_image_id: string | null
+  source_image: {
+    id: string
+    latitude: number | null
+    longitude: number | null
+    capture_date: string | null
+  } | Array<{
+    id: string
+    latitude: number | null
+    longitude: number | null
+    capture_date: string | null
+  }> | null
+}
+
 interface NewRouteData {
   id: string
   name: string
@@ -486,7 +509,7 @@ export async function POST(request: NextRequest) {
 
       const { data: cragImage, error: cragImageError } = await supabase
         .from('crag_images')
-        .select('id, url, crag_id, width, height, source_image_id, linked_image_id')
+        .select('id, url, crag_id, width, height, latitude, longitude, source_image_id, linked_image_id, source_image:source_image_id(id, latitude, longitude, capture_date)')
         .eq('id', body.cragImageId)
         .single()
 
@@ -495,34 +518,52 @@ export async function POST(request: NextRequest) {
         return response
       }
 
-      existingCragId = cragImage.crag_id
+      const cragImageRow = cragImage as CragImageRow
+
+      existingCragId = cragImageRow.crag_id
 
       if (!existingCragId) {
         response = NextResponse.json({ error: 'Crag image is not attached to a crag' }, { status: 400 })
         return response
       }
 
-      let resolvedImageId = cragImage.linked_image_id
-      const shouldCreateLinkedImage = !resolvedImageId || (cragImage.source_image_id && resolvedImageId === cragImage.source_image_id)
+      let resolvedImageId = cragImageRow.linked_image_id
+      const shouldCreateLinkedImage = !resolvedImageId || (cragImageRow.source_image_id && resolvedImageId === cragImageRow.source_image_id)
 
       if (shouldCreateLinkedImage) {
-        const parsedStorage = parsePrivateStorageUrl(cragImage.url)
+        const parsedStorage = parsePrivateStorageUrl(cragImageRow.url)
+        const sourceImage = Array.isArray(cragImageRow.source_image)
+          ? cragImageRow.source_image[0] || null
+          : cragImageRow.source_image
+        const latitude = typeof cragImageRow.latitude === 'number'
+          ? cragImageRow.latitude
+          : typeof sourceImage?.latitude === 'number'
+            ? sourceImage.latitude
+            : null
+        const longitude = typeof cragImageRow.longitude === 'number'
+          ? cragImageRow.longitude
+          : typeof sourceImage?.longitude === 'number'
+            ? sourceImage.longitude
+            : null
+        const captureDate = typeof sourceImage?.capture_date === 'string' && sourceImage.capture_date
+          ? sourceImage.capture_date
+          : null
 
         // Extract upload session UUID from storage path to use as images.id
         // This ensures images.id matches the UUID in the URL, so the CDN can serve it
         const uploadSessionUuid = parsedStorage?.path?.match(/images\/originals\/([0-9a-fA-F-]{36})/)?.[1]
 
         const insertPayload: Record<string, unknown> = {
-          url: cragImage.url,
+          url: cragImageRow.url,
           crag_id: existingCragId,
-          width: cragImage.width,
-          height: cragImage.height,
-          natural_width: cragImage.width,
-          natural_height: cragImage.height,
+          width: cragImageRow.width,
+          height: cragImageRow.height,
+          natural_width: cragImageRow.width,
+          natural_height: cragImageRow.height,
           created_by: userId,
-          latitude: null,
-          longitude: null,
-          capture_date: null,
+          latitude,
+          longitude,
+          capture_date: captureDate,
         }
 
         if (uploadSessionUuid) {

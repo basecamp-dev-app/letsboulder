@@ -58,6 +58,17 @@ export function normalizeUploadSessionRequest(input: unknown): MediaUploadSessio
     contentType: candidate.contentType,
     fileName: candidate.fileName,
     byteSize: candidate.byteSize,
+    gpsData: (() => {
+      const gpsValue = candidate['gpsData']
+      if (!gpsValue || typeof gpsValue !== 'object') return null
+      const gps = gpsValue as Record<string, unknown>
+      if (typeof gps.latitude !== 'number' || typeof gps.longitude !== 'number') return null
+      return {
+        latitude: gps.latitude,
+        longitude: gps.longitude,
+      }
+    })(),
+    captureDate: typeof candidate['captureDate'] === 'string' && candidate['captureDate'] ? candidate['captureDate'] : null,
     width: typeof candidate.width === 'number' && Number.isFinite(candidate.width) ? candidate.width : null,
     height: typeof candidate.height === 'number' && Number.isFinite(candidate.height) ? candidate.height : null,
     draftId: typeof candidate.draftId === 'string' && candidate.draftId ? candidate.draftId : null,
