@@ -58,7 +58,15 @@ Note: local Supabase configuration lives in `supabase/config.toml` and should be
 
 ## Migrations Are Canonical
 
-See `docs/db/migrations.md`.
+All schema changes are defined in `supabase/migrations/*.sql`. See `docs/db/migrations.md` for the full workflow.
+
+Quick reference:
+
+```bash
+supabase start                          # Apply migrations locally
+supabase db push --linked --dry-run     # Preview changes against linked project
+supabase db push --linked               # Apply changes
+```
 
 ## Sync Database from Production
 
@@ -101,7 +109,7 @@ Run in Supabase Studio SQL Editor (http://localhost:54323):
 INSERT INTO auth.users (id, email, encrypted_password, confirmed_at, raw_app_meta_data, created_at, updated_at)
 VALUES (
   '25dfbf3e-00bd-4a46-9fb1-e9e0aa4e3044',
-  'dev@letsboulder.com',
+  'hello@letsboulder.com',
   '$2a$06$ha4tARgJzQFxh8i.x4wk1uKTm3gG0H.FS9/XcJBqJOiLSfyT.9RzC', -- 'devpassword123'
   NOW(),
   '{"gsyrocks_admin": true}',
@@ -111,7 +119,7 @@ VALUES (
 
 -- Create profile with admin flag
 INSERT INTO public.profiles (id, email, is_admin, username)
-VALUES ('25dfbf3e-00bd-4a46-9fb1-e9e0aa4e3044', 'dev@letsboulder.com', true, 'devadmin')
+VALUES ('25dfbf3e-00bd-4a46-9fb1-e9e0aa4e3044', 'hello@letsboulder.com', true, 'devadmin')
 ON CONFLICT (id) DO UPDATE SET is_admin = true;
 
 -- Create default auth instance
@@ -130,7 +138,7 @@ WHERE id = '25dfbf3e-00bd-4a46-9fb1-e9e0aa4e3044';
 ### Step 2: Sign In
 
 1. Go to http://localhost:3000/auth
-2. Enter `dev@letsboulder.com`
+2. Enter `hello@letsboulder.com`
 3. Check magic link at http://localhost:54324
 4. Click the link to complete sign-in
 
@@ -194,7 +202,7 @@ INSERT INTO auth.instances (id, uuid, raw_base_config, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-000000000000', '{}', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
-UPDATE auth.users SET instance_id = '00000000-0000-0000-0000-000000000000' WHERE email = 'dev@letsboulder.com';
+UPDATE auth.users SET instance_id = '00000000-0000-0000-0000-000000000000' WHERE email = 'hello@letsboulder.com';
 ```
 
 **Restart auth service**:
@@ -221,7 +229,7 @@ npm run dev
 
 2. Verify database:
    ```sql
-   SELECT id, email, is_admin FROM profiles WHERE email = 'dev@letsboulder.com';
+   SELECT id, email, is_admin FROM profiles WHERE email = 'hello@letsboulder.com';
    -- Should show is_admin = true
    ```
 
@@ -264,10 +272,37 @@ SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
 INTERNAL_MODERATION_SECRET=local_moderation_secret
 
 NEXT_PUBLIC_DEV_PASSWORD_AUTH=true
-DEV_USER_EMAIL=dev@letsboulder.com
+DEV_USER_EMAIL=hello@letsboulder.com
 DEV_USER_PASSWORD=devpassword123
 ```
 
 Run `supabase start` to get local credentials.
 
 `INTERNAL_MODERATION_SECRET` is optional for local dev. If it is missing, route photo uploads are auto-approved so images are immediately visible during development.
+
+### Media Pipeline (R2 + Cloudflare Worker)
+
+For local development, the media pipeline uses the staging Cloudflare Worker. Add these to `.env.local`:
+
+```bash
+# Cloudflare R2 (use staging credentials)
+R2_S3_ENDPOINT=https://<staging-account-id>.r2.cloudflarestorage.com
+R2_PRIVATE_BUCKET=lb-dev-media-private
+R2_PUBLIC_BUCKET=lb-dev-media-public
+R2_ACCESS_KEY_ID=<staging-r2-access-key>
+R2_SECRET_ACCESS_KEY=<staging-r2-secret-key>
+
+# CDN URL (points to staging worker)
+NEXT_PUBLIC_MEDIA_CDN_URL=https://static.dev.letsboulder.com
+```
+
+For testing the Worker locally:
+
+```bash
+cd apps/media-worker
+npx wrangler dev --env staging
+```
+
+The Worker handles image processing (variant generation) and CDN delivery. In local dev, images uploaded to the app are processed by the staging Worker at `static.dev.letsboulder.com`.
+
+See [docs/media-pipeline.md](docs/media-pipeline.md) for the full flow.
