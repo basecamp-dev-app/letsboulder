@@ -3,7 +3,6 @@
 import { forwardRef, useRef, useState, useEffect, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useRouteStore } from '@/store/routeStore'
 import { useContainerSize } from '@/hooks/use-container-size'
-import { usePanZoom } from '@/hooks/usePanZoom'
 import { useRouteDrawing } from '@/hooks/useRouteDrawing'
 import { useHitTesting } from '@/hooks/useHitTesting'
 import { getGradeSystemForClimbType, useGradePreferences } from '@/hooks/useGradeSystem'
@@ -123,8 +122,6 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
       centerY,
     }
   }, [naturalWidth, naturalHeight, finalDimensions])
-
-  usePanZoom()
 
   const { isDrawingEnabled, addPoint } = useRouteDrawing()
 
