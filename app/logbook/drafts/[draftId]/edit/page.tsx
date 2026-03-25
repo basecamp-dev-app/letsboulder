@@ -387,6 +387,47 @@ function areDraftRoutesEqual(a: DraftRoute[], b: DraftRoute[]): boolean {
   return true
 }
 
+function areRouteLinesEqual(a: RouteLine[], b: RouteLine[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i]
+    const right = b[i]
+    if (
+      left.id !== right.id ||
+      left.image_id !== right.image_id ||
+      left.climb_id !== right.climb_id ||
+      left.color !== right.color ||
+      left.sequence_order !== right.sequence_order ||
+      left.image_width !== right.image_width ||
+      left.image_height !== right.image_height ||
+      (left.climb?.id || '') !== (right.climb?.id || '') ||
+      (left.climb?.name || '') !== (right.climb?.name || '') ||
+      (left.climb?.grade || '') !== (right.climb?.grade || '') ||
+      (left.climb?.status || '') !== (right.climb?.status || '') ||
+      (left.climb?.route_type || '') !== (right.climb?.route_type || '') ||
+      (left.climb?.description || '') !== (right.climb?.description || '')
+    ) {
+      return false
+    }
+
+    if (left.points.length !== right.points.length) return false
+    for (let pointIndex = 0; pointIndex < left.points.length; pointIndex += 1) {
+      const leftPoint = left.points[pointIndex]
+      const rightPoint = right.points[pointIndex]
+      if (
+        normalizePointForCompare(leftPoint.x) !== normalizePointForCompare(rightPoint.x) ||
+        normalizePointForCompare(leftPoint.y) !== normalizePointForCompare(rightPoint.y)
+      ) {
+        return false
+      }
+    }
+  }
+
+  return true
+}
+
 export default function EditDraftPage() {
   const params = useParams()
   const router = useRouter()
@@ -462,6 +503,8 @@ export default function EditDraftPage() {
   const autosavePausedRef = useRef(false)
   const autosavePausedSnapshotRef = useRef('')
   const previousActiveImageIdRef = useRef<string | null>(null)
+  const lastSeededRouteImageIdRef = useRef<string | null>(null)
+  const skipRouteStoreSyncRef = useRef<string | null>(null)
   const routeCanvasRef = useRef<UnifiedRouteCanvasRef>(null)
   const hasHydratedLocationRef = useRef(false)
   const lastLocationSyncRef = useRef<string | null>(null)
@@ -472,7 +515,7 @@ export default function EditDraftPage() {
   const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const { setMode, setInteractionTool, reset, clearCanvasState, selectedRouteId, setSelectedRoute, setActiveRoute, setEditorPanelOpen, currentPoints, interactionTool, undoLastPoint } = useRouteStore()
+  const { setMode, setInteractionTool, reset, clearCanvasState, selectedRouteId, routes: routeStoreRoutes, setRoutes: setRouteStoreRoutes, setSelectedRoute, setActiveRoute, setEditorPanelOpen, currentPoints, interactionTool, undoLastPoint } = useRouteStore()
   const gradePreferences = useGradePreferences()
   const editorGradeSystem = getGradeSystemForClimbType(routeType, gradePreferences)
   const { uploads, hasPendingUploads, hasFailedUploads, retryUpload, removeUpload, registerDraftUpdatedAt, queueDraftUploads, resumeQueue, isQueuePaused, subscribeToUploadComplete } = useDraftUploadManager()
@@ -670,18 +713,11 @@ export default function EditDraftPage() {
     if (!currentDraftId || !draft) return
 
     try {
-      const response = await fetch(`/api/submissions/drafts/${currentDraftId}`, { cache: 'no-store' })
-      const payload = await response.json().catch(() => ({} as { draft?: DraftPayload; error?: string }))
-      if (!response.ok || !payload?.draft) {
-        return
-      }
-
-      const freshImages = payload.draft.images || []
-      setDraft((prev) => prev ? { ...prev, images: freshImages } : prev)
+      await loadDraft()
     } catch (error) {
       uploadDebug('sync-uploaded-images-failed', { draftId: currentDraftId, error: String(error) })
     }
-  }, [draft])
+  }, [draft, loadDraft])
 
   useEffect(() => {
     draftIdRef.current = draftId
@@ -1761,6 +1797,27 @@ export default function EditDraftPage() {
     }))
     handleEditRoutesUpdate(editableRoutes)
   }, [handleEditRoutesUpdate])
+
+  useEffect(() => {
+    if (!activeDraftImageId) return
+    if (lastSeededRouteImageIdRef.current === activeDraftImageId) return
+
+    lastSeededRouteImageIdRef.current = activeDraftImageId
+    if (!areRouteLinesEqual(routeStoreRoutes, existingRouteLines)) {
+      skipRouteStoreSyncRef.current = activeDraftImageId
+      setRouteStoreRoutes(existingRouteLines)
+    }
+  }, [activeDraftImageId, existingRouteLines, routeStoreRoutes, setRouteStoreRoutes])
+
+  useEffect(() => {
+    if (!activeDraftImageId) return
+    if (skipRouteStoreSyncRef.current === activeDraftImageId) {
+      skipRouteStoreSyncRef.current = null
+      return
+    }
+    if (areRouteLinesEqual(routeStoreRoutes, existingRouteLines)) return
+    handleCanvasRoutesUpdate(routeStoreRoutes)
+  }, [activeDraftImageId, existingRouteLines, handleCanvasRoutesUpdate, routeStoreRoutes])
 
   const handleManualSave = useCallback(() => {
     if (autosaveTimeoutRef.current) {
