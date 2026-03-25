@@ -15,58 +15,56 @@ This library contains the "how-to" for unique climbing features.
 
 ---
 
-## 1. Canvas Drawing
+## 1. Route Canvas Drawing
 
 ### Pattern
 ```typescript
 'use client'
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect } from 'react'
+import { useRouteDrawing } from '@/hooks/useRouteDrawing'
+import { useHitTesting } from '@/hooks/useHitTesting'
+import { useRouteStore } from '@/store/routeStore'
+import { drawRoute } from '@/lib/routeRenderer'
 
-export default function RouteCanvas() {
+export default function UnifiedRouteCanvas({ imageId }: { imageId: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const pathRef = useRef<Path2D | null>(null)
-  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1
+  const { routes, activeRoute, addPoint, finishRoute } = useRouteDrawing(imageId)
+  const { hitTest } = useHitTesting(canvasRef, routes)
+  const { selectedRouteId, setSelectedRoute } = useRouteStore()
 
-  const draw = useCallback(() => {
+  useEffect(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
     if (!canvas || !ctx) return
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    const dpr = window.devicePixelRatio || 1
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr)
 
-    if (pathRef.current) {
-      ctx.stroke(pathRef.current)
+    for (const route of routes) {
+      drawRoute(ctx, route, route.id === selectedRouteId)
     }
-  }, [dpr])
+  }, [routes, selectedRouteId])
 
-  useEffect(() => {
-    const path = new Path2D()
-    path.moveTo(100, 100)
-    path.quadraticCurveTo(200, 50, 300, 100)
-    pathRef.current = path
-    draw()
-  }, [draw])
-
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (!document.hidden) draw()
-    }
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [draw])
-
-  return <canvas ref={canvasRef} style={{ width: '100%', height: '400px' }} />
+  return <canvas ref={canvasRef} />
 }
 ```
 
+### Key Files
+- `components/UnifiedRouteCanvas.tsx` — main canvas component
+- `hooks/useRouteDrawing.ts` — route drawing state and point management
+- `hooks/useHitTesting.ts` — hit testing for selecting/editing route points
+- `store/routeStore.ts` — Zustand store for route selection state
+- `lib/routeRenderer.ts` — canvas rendering (Path2D, DPR-aware)
+- `lib/canvasMath.ts` — coordinate transforms and math utilities
+- `types/domain.ts` — `RoutePoint`, `RouteLine`, `DrawingRoute`, `CanvasDimensions`
+
 ### Known Edge Cases
 - **High DPI displays:** Scale canvas by `window.devicePixelRatio` or lines will appear blurry
-- **Touch vs Mouse:** Handle both `touchstart`/`touchmove` and `mousedown`/`mousemove` events
-- **Resize:** Debounce resize handlers; redraw on orientation change
-- **Context loss:** On mobile, switching apps can lose canvas context. Use Path2D to store route geometry and redraw on `visibilitychange` event
-- **120Hz displays:** Use `requestAnimationFrame` for any animations to prevent stutter on high refresh rate mobile screens
+- **Touch vs Mouse:** `useRouteDrawing` handles both `touchstart`/`touchmove` and `mousedown`/`mousemove`
+- **Resize:** Use `useContainerSize` hook; redraw on orientation change
+- **Context loss:** Path2D stores route geometry; redraw on `visibilitychange` event
+- **CSS layering:** Canvas is layered via CSS (decoupled from image rendering) — see `db0a1ee` refactor
 
 ---
 
@@ -221,20 +219,42 @@ const index3 = parseVGrade('V5?') // → 5
 const french = getGradeDisplay(5, 'french_equivalent') // → '7a'
 ```
 
+### Known Edge Cases
+- **Range grades:** Use `gradeMappings` from `@/lib/grades` as single source of truth for V-Scale <-> Font <-> YDS <-> French <-> British
+- **Nuance handling:** Normalize inputs: V4/5 -> V4, V5+ -> V5, V5- -> V4, V5? -> V5 (project)
+- **Public boundaries:** Use `@/lib/grade-constants` for user-facing valid/selectable grades (`4A-9C+`); `@/lib/grades` may still contain broader internal mappings
+
 ---
 
 ## 6. Media Ingest Pipeline
 
+See [media-pipeline.md](../media-pipeline.md) for the full end-to-end flow.
+
 ### Pattern
 ```typescript
+import { createPrivateUploadUrl } from '@/lib/media/r2'
 import { getMediaModerationConfig } from '@/lib/media/config'
 
-const moderation = getMediaModerationConfig()
+// Generate presigned upload URL
+const { uploadUrl, objectKey } = await createPrivateUploadUrl(
+  `uploads/${userId}/${imageId}.jpg`,
+  'image/jpeg'
+)
 
+// Check moderation config
+const moderation = getMediaModerationConfig()
 if (!moderation.enabled) {
-  // Skip moderation and continue processing.
+  // Skip moderation — auto-approve for dev
 }
 ```
+
+### Key Files
+- `lib/media/r2.ts` — R2 S3 client (presigned URLs, object operations)
+- `lib/media/config.ts` — storage and moderation configuration
+- `lib/media/cloudflare-loader.ts` — Next.js custom image loader for CDN
+- `lib/media/client-upload.ts` — client-side upload orchestration
+- `lib/media/draft-storage.ts` — draft image storage
+- `apps/media-worker/` — Cloudflare Worker for processing
 
 ### Known Edge Cases
 - **Public delivery:** Serve approved immutable variants from the CDN hostname, not app-route proxies.
@@ -242,61 +262,42 @@ if (!moderation.enabled) {
 - **Cache busting:** Use versioned object paths like `v{asset_version}` instead of query strings.
 - **Worker safety:** Async ingest jobs must be idempotent; retries should not create duplicate variants.
 
-### Known Edge Cases
-- **Range grades:** Use `gradeMappings` from `@/lib/grades` as single source of truth for V ↔ Font ↔ YDS ↔ French ↔ British
-- **Nuance handling:** Normalize inputs: V4/5 → V4, V5+ → V5, V5- → V4, V5? → V5 (project)
-- **Public boundaries:** Use `@/lib/grade-constants` for user-facing valid/selectable grades (`4A-9C+`); `@/lib/grades` may still contain broader internal mappings
-
 ---
 
-## 6. Offline / PWA
+## 7. Offline / PWA
+
+See [offline-pwa.md](../offline-pwa.md) for the full architecture.
 
 ### Pattern
 ```typescript
-// lib/tile-downloader.ts
-async function downloadCragTiles(urls: string[], cragId: string, concurrency = 5) {
-  const cache = await caches.open(`crag-${cragId}`)
-  const queue = [...urls]
+// lib/offline/packs.ts
+import { saveCragOffline, removeCragOffline } from '@/lib/offline/packs'
 
-  async function worker() {
-    while (queue.length) {
-      const url = queue.shift()!
-      try {
-        const res = await fetch(url)
-        if (res.ok) await cache.put(url, res)
-      } catch {}
-    }
-  }
+// Save a crag for offline use
+const { preview, completed, warning } = await saveCragOffline(cragId, (event) => {
+  console.log(`Progress: ${event.completedClimbs}/${event.totalClimbs}`)
+})
+await completed
 
-  await Promise.all(Array(concurrency).fill(null).map(worker))
-}
-
-// app/components/download-offline-button.tsx
-'use client'
-import { useState } from 'react'
-import { getCragTileUrls } from '@/app/actions/download-crag'
-import { downloadCragTiles } from '@/lib/tile-downloader'
-
-export function DownloadOfflineButton({ cragId, bounds }: { cragId: string, bounds: any }) {
-  const [downloading, setDownloading] = useState(false)
-
-  async function downloadForOffline() {
-    setDownloading(true)
-    try {
-      const urls = await getCragTileUrls(cragId, bounds)
-      await downloadCragTiles(urls, cragId)
-    } finally {
-      setDownloading(false)
-    }
-  }
-
-  return (
-    <button onClick={downloadForOffline} disabled={downloading}>
-      {downloading ? 'Downloading...' : 'Download for Offline'}
-    </button>
-  )
-}
+// Remove a crag from offline storage
+await removeCragOffline(cragId)
 ```
+
+### Key Files
+- `lib/offline/packs.ts` — pack management (save, remove, preview, budget)
+- `lib/offline/storage.ts` — IndexedDB storage for pack records and manifests
+- `lib/offline/tiles.ts` — tile URL building
+- `lib/offline/sw-messages.ts` — service worker communication via BroadcastChannel
+- `public/sw.js` — service worker with 6 cache layers
+- `lib/query-persistence.ts` — React Query IndexedDB persistence (12h max age)
+- `app/offline/page.tsx` — offline launcher
+- `app/offline/library/page.tsx` — offline pack library
+
+### Service Worker Messages
+- `SAVE_CLIMB_PACK` — cache climb page, media, and tiles
+- `REMOVE_CLIMB_PACK` — remove climb from caches
+- `SAVE_CRAG_PACK` — cache crag + all child climbs (with progress broadcast)
+- `REMOVE_CRAG_PACK` — remove crag + orphaned climbs
 
 ### Known Edge Cases
 - **Storage quota:** Warn user before download; estimate tile count (~100 tiles per crag)
@@ -312,18 +313,23 @@ export function DownloadOfflineButton({ cragId, bounds }: { cragId: string, boun
 
 ---
 
-## 7. Community Posts
+## 8. Community Posts
 
 ### Pattern
 ```typescript
-// app/actions/create-post.ts
 'use server'
-import { csrfFetch } from '@/lib/csrf'
-import { createClient } from '@/utils/supabase/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
 export async function createPost(formData: FormData) {
-  const supabase = createClient()
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+  )
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
@@ -331,11 +337,11 @@ export async function createPost(formData: FormData) {
   const placeId = formData.get('place_id') as string
   const type = formData.get('type') as 'session' | 'conditions' | 'question' | 'update'
 
-  const { error } = await supabase.from('posts').insert({
+  const { error } = await supabase.from('community_posts').insert({
     user_id: user.id,
     place_id: placeId,
     content,
-    type
+    post_type: type
   })
 
   if (error) throw new Error(error.message)
