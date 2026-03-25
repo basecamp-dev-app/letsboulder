@@ -1,9 +1,9 @@
 # Database Schema - letsboulder.com
 
-## 1. Grade System (The "4A Floor")
+## 1. Grade System (The "3A Floor")
 
 ### Floor Grade
-- **User-facing minimum:** `4A`
+- **User-facing minimum:** `3A`
 - **User-facing maximum:** `9C+`
 - **Public source of truth:** `@/lib/grade-constants.ts`
 
@@ -11,31 +11,57 @@
 `@/lib/grade-constants.ts` defines the public valid/selectable grade range.
 `@/lib/grades.ts` defines cross-system mappings and internal grade utilities.
 
-The `gradeMappings` table in `@/lib/grades.ts` is the source of truth for cross-system conversion:
+The `gradeMappings` array in `@/lib/grades.ts` is the source of truth for cross-system conversion.
+Font scale is the master index (42 entries). V-scale, YDS, French, British are derived — some values duplicate where their resolution is coarser.
 
 | grade_index | V-Scale | Font | YDS | French | British | Difficulty |
 |------------|---------|------|-----|--------|---------|------------|
-| 0 | VB | 3 | 5.6 | 4 | VB | Beginner |
-| 1 | V0 | 4 | 5.9 | 5 | V0 | Beginner |
-| 2 | V1 | 5 | 5.10a | 6a | E1 | Intermediate |
-| 3 | V2 | 5+ | 5.10c | 6a+ | E2 | Intermediate |
-| 4 | V3 | 6A | 5.11a | 6b | E3 | Intermediate |
-| 5 | V4 | 6B | 5.11c | 6c | E4 | Advanced |
-| 6 | V5 | 6C | 5.12a | 7a | E5 | Advanced |
-| 7 | V6 | 6C+ | 5.12b | 7a+ | E6 | Advanced |
-| 8 | V7 | 7A | 5.13a | 7b | E7 | Expert |
-| 9 | V8 | 7B | 5.13b | 7c | E8 | Expert |
-| 10 | V9 | 7B+ | 5.13c | 7c+ | E9 | Expert |
-| 11 | V10 | 7C | 5.14a | 8a | E10 | Elite |
-| 12 | V11 | 8A | 5.14c | 8a+ | E11 | Elite |
-| 13 | V12 | 8A+ | 5.15a | 8b | E11 | Elite |
-| 14 | V13 | 8B | 5.15b | 8c | E11 | Elite |
-| 15 | V14 | 8B+ | 5.15c | 9a | E11 | Elite |
-| 16 | V15 | 8C | 5.15d | 9a+ | E11 | Elite |
-| 17 | V16 | 8C+ | 5.16a | 9b | E11 | Elite |
+| 0 | VB | 3A | 5.4 | 3 | M | Beginner |
+| 1 | VB | 3A+ | 5.5 | 3+ | M | Beginner |
+| 2 | VB | 3B | 5.5 | 3+ | D | Beginner |
+| 3 | VB | 3B+ | 5.6 | 4- | VD | Beginner |
+| 4 | VB | 3C | 5.6 | 4- | VD | Beginner |
+| 5 | VB | 3C+ | 5.6 | 4 | VD | Beginner |
+| 6 | VB | 4A | 5.7 | 4 | VD | Beginner |
+| 7 | V0 | 4A+ | 5.9 | 5 | D | Beginner |
+| 8 | V0 | 4B | 5.9 | 5+ | D | Beginner |
+| 9 | V0 | 4B+ | 5.10a | 6a | HVD | Intermediate |
+| 10 | V1 | 4C | 5.10a | 6a | S | Intermediate |
+| 11 | V1 | 4C+ | 5.10b | 6a+ | VS | Intermediate |
+| 12 | V1 | 5A | 5.10b | 6a+ | HVS | Intermediate |
+| 13 | V2 | 5A+ | 5.10c | 6b | E1 | Intermediate |
+| 14 | V2 | 5B | 5.10c | 6b | E1 | Intermediate |
+| 15 | V2 | 5B+ | 5.10d | 6b | E2 | Intermediate |
+| 16 | V2 | 5C | 5.10d | 6b+ | E2 | Intermediate |
+| 17 | V3 | 5C+ | 5.11a | 6b+ | E3 | Intermediate |
+| 18 | V3 | 6A | 5.11a | 6b | E3 | Intermediate |
+| 19 | V3 | 6A+ | 5.11b | 6b+ | E3 | Advanced |
+| 20 | V4 | 6B | 5.11c | 6c | E4 | Advanced |
+| 21 | V4 | 6B+ | 5.11d | 6c+ | E4 | Advanced |
+| 22 | V5 | 6C | 5.12a | 7a | E5 | Advanced |
+| 23 | V5 | 6C+ | 5.12b | 7a+ | E6 | Advanced |
+| 24 | V6 | 7A | 5.12b | 7a+ | E6 | Advanced |
+| 25 | V6 | 7A+ | 5.12c | 7b | E7 | Expert |
+| 26 | V7 | 7B | 5.13a | 7c | E8 | Expert |
+| 27 | V8 | 7B+ | 5.13b | 7c+ | E9 | Expert |
+| 28 | V9 | 7C | 5.13c | 7c+ | E9 | Expert |
+| 29 | V10 | 7C+ | 5.14a | 8a | E10 | Elite |
+| 30 | V11 | 8A | 5.14a | 8a | E10 | Elite |
+| 31 | V12 | 8A+ | 5.14c | 8a+ | E11 | Elite |
+| 32 | V13 | 8B | 5.15a | 8b | E11 | Elite |
+| 33 | V14 | 8B+ | 5.15b | 8c | E11 | Elite |
+| 34 | V15 | 8C | 5.15c | 9a | E11 | Elite |
+| 35 | V16 | 8C+ | 5.15d | 9a+ | E11 | Elite |
+| 36 | V17 | 9A | 5.15d | 9a+ | E11 | Elite |
+| 37 | V17 | 9A+ | 5.16a | 9b | E11 | Elite |
+| 38 | V18 | 9B | 5.16a | 9b+ | E11 | Elite |
+| 39 | V18 | 9B+ | 5.16b | 9c | E12 | Elite |
+| 40 | V19 | 9C | 5.16c | 9c+ | E12 | Elite |
+| 41 | V19 | 9C+ | 5.16d | 9c+ | E13 | Elite |
 
 **Agent rule:** Always use `gradeMappings` for V-Scale <-> Font <-> YDS <-> French <-> British conversions.
-**Boundary rule:** User-facing validation and selection must stay within `4A-9C+`, even though internal helpers may still model lower grades.
+**Boundary rule:** User-facing validation and selection must stay within `3A-9C+`.
+**Source of truth:** `climbs.grade` stores the Font string (e.g. '6A'). `climbs.grade_index` is a derived column for sorting.
 
 ---
 

@@ -2,6 +2,12 @@ import { type Grade } from '@/lib/grade-constants'
 import { clampGradeToPublicRange, getGradeDisplay, getGradeIndex, getGradeMapping, gradeMappings, type GradeMapping, type GradeSystem } from '@/lib/grades'
 
 const V_SCALE_DISPLAY_BY_GRADE: Record<Grade, string> = {
+  '3A': 'VB-',
+  '3A+': 'VB-',
+  '3B': 'VB-',
+  '3B+': 'VB-',
+  '3C': 'VB-',
+  '3C+': 'VB',
   '4A': 'V0-',
   '4A+': 'V0',
   '4B': 'V0+',
@@ -58,6 +64,8 @@ function toVGrade(grade: string | null | undefined): string | null {
 export function toWholeVGrade(grade: string | null | undefined): string | null {
   const display = toVGrade(grade)
   if (!display) return null
+
+  if (/^VB/i.test(display)) return 'VB'
 
   const match = /^V(\d+)/i.exec(display)
   if (!match) return null

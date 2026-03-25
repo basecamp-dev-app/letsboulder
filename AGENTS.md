@@ -3,7 +3,7 @@
 <environment>
   DIR: /home/hadow
   STACK: Next.js 16 | React 19 | Tailwind v4 | Supabase | shadcn/ui
-  GRADES: 4A-9C+ (see @docs/db/schema.md)
+  GRADES: 3A-9C+ (see @docs/db/schema.md)
 </environment>
 
 <constraint>

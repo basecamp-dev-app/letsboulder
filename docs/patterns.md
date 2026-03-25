@@ -222,7 +222,7 @@ const french = getGradeDisplay(5, 'french_equivalent') // → '7a'
 ### Known Edge Cases
 - **Range grades:** Use `gradeMappings` from `@/lib/grades` as single source of truth for V-Scale <-> Font <-> YDS <-> French <-> British
 - **Nuance handling:** Normalize inputs: V4/5 -> V4, V5+ -> V5, V5- -> V4, V5? -> V5 (project)
-- **Public boundaries:** Use `@/lib/grade-constants` for user-facing valid/selectable grades (`4A-9C+`); `@/lib/grades` may still contain broader internal mappings
+- **Public boundaries:** Use `@/lib/grade-constants` for user-facing valid/selectable grades (`3A-9C+`); `@/lib/grades` may still contain broader internal mappings
 
 ---
 

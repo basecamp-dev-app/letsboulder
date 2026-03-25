@@ -94,7 +94,7 @@ Bouldering topo and climbing logbook web app.
 | `lib/csrf.ts` | JWT-based CSRF token system |
 | `lib/rate-limit.ts` | In-memory rate limiter (7 tiers) |
 | `lib/media/r2.ts` | Cloudflare R2 S3 operations |
-| `lib/grades.ts` | Grade conversion engine (4A-9C+) |
+| `lib/grades.ts` | Grade conversion engine (3A-9C+) |
 | `public/sw.js` | Service worker for offline PWA |
 | `components/UnifiedRouteCanvas.tsx` | Canvas-based route drawing |
 | `store/routeStore.ts` | Zustand store for route selection |
