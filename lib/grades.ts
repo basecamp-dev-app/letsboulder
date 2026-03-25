@@ -19,44 +19,44 @@ export interface GradeMapping {
 
 export const gradeMappings: GradeMapping[] = [
   // Sub-beginner range (3A-3C+) — below VB
-  { grade_index: 0, v_scale: 'VB', font_scale: '3A', yds_equivalent: '5.4', french_equivalent: '3', british_equivalent: 'M', difficulty_group: 'Beginner' },
-  { grade_index: 1, v_scale: 'VB', font_scale: '3A+', yds_equivalent: '5.5', french_equivalent: '3+', british_equivalent: 'M', difficulty_group: 'Beginner' },
-  { grade_index: 2, v_scale: 'VB', font_scale: '3B', yds_equivalent: '5.5', french_equivalent: '3+', british_equivalent: 'D', difficulty_group: 'Beginner' },
-  { grade_index: 3, v_scale: 'VB', font_scale: '3B+', yds_equivalent: '5.6', french_equivalent: '4-', british_equivalent: 'VD', difficulty_group: 'Beginner' },
-  { grade_index: 4, v_scale: 'VB', font_scale: '3C', yds_equivalent: '5.6', french_equivalent: '4-', british_equivalent: 'VD', difficulty_group: 'Beginner' },
+  { grade_index: 0, v_scale: 'VB-', font_scale: '3A', yds_equivalent: '5.4', french_equivalent: '3', british_equivalent: 'M', difficulty_group: 'Beginner' },
+  { grade_index: 1, v_scale: 'VB-', font_scale: '3A+', yds_equivalent: '5.5', french_equivalent: '3+', british_equivalent: 'M', difficulty_group: 'Beginner' },
+  { grade_index: 2, v_scale: 'VB-', font_scale: '3B', yds_equivalent: '5.5', french_equivalent: '3+', british_equivalent: 'D', difficulty_group: 'Beginner' },
+  { grade_index: 3, v_scale: 'VB-', font_scale: '3B+', yds_equivalent: '5.6', french_equivalent: '4-', british_equivalent: 'VD', difficulty_group: 'Beginner' },
+  { grade_index: 4, v_scale: 'VB-', font_scale: '3C', yds_equivalent: '5.6', french_equivalent: '4-', british_equivalent: 'VD', difficulty_group: 'Beginner' },
   { grade_index: 5, v_scale: 'VB', font_scale: '3C+', yds_equivalent: '5.6', french_equivalent: '4', british_equivalent: 'VD', difficulty_group: 'Beginner' },
 
   // Beginner range (4A-4B) — V0 zone
-  { grade_index: 6, v_scale: 'VB', font_scale: '4A', yds_equivalent: '5.7', french_equivalent: '4', british_equivalent: 'VD', difficulty_group: 'Beginner' },
+  { grade_index: 6, v_scale: 'V0-', font_scale: '4A', yds_equivalent: '5.7', french_equivalent: '4', british_equivalent: 'VD', difficulty_group: 'Beginner' },
   { grade_index: 7, v_scale: 'V0', font_scale: '4A+', yds_equivalent: '5.9', french_equivalent: '5', british_equivalent: 'D', difficulty_group: 'Beginner' },
-  { grade_index: 8, v_scale: 'V0', font_scale: '4B', yds_equivalent: '5.9', french_equivalent: '5+', british_equivalent: 'D', difficulty_group: 'Beginner' },
+  { grade_index: 8, v_scale: 'V0+', font_scale: '4B', yds_equivalent: '5.9', french_equivalent: '5+', british_equivalent: 'D', difficulty_group: 'Beginner' },
 
   // Intermediate range (4B+-5C+) — V1-V2 zone
-  { grade_index: 9, v_scale: 'V0', font_scale: '4B+', yds_equivalent: '5.10a', french_equivalent: '6a', british_equivalent: 'HVD', difficulty_group: 'Intermediate' },
+  { grade_index: 9, v_scale: 'V1-', font_scale: '4B+', yds_equivalent: '5.10a', french_equivalent: '6a', british_equivalent: 'HVD', difficulty_group: 'Intermediate' },
   { grade_index: 10, v_scale: 'V1', font_scale: '4C', yds_equivalent: '5.10a', french_equivalent: '6a', british_equivalent: 'S', difficulty_group: 'Intermediate' },
-  { grade_index: 11, v_scale: 'V1', font_scale: '4C+', yds_equivalent: '5.10b', french_equivalent: '6a+', british_equivalent: 'VS', difficulty_group: 'Intermediate' },
-  { grade_index: 12, v_scale: 'V1', font_scale: '5A', yds_equivalent: '5.10b', french_equivalent: '6a+', british_equivalent: 'HVS', difficulty_group: 'Intermediate' },
-  { grade_index: 13, v_scale: 'V2', font_scale: '5A+', yds_equivalent: '5.10c', french_equivalent: '6b', british_equivalent: 'E1', difficulty_group: 'Intermediate' },
+  { grade_index: 11, v_scale: 'V1+', font_scale: '4C+', yds_equivalent: '5.10b', french_equivalent: '6a+', british_equivalent: 'VS', difficulty_group: 'Intermediate' },
+  { grade_index: 12, v_scale: 'V1-2', font_scale: '5A', yds_equivalent: '5.10b', french_equivalent: '6a+', british_equivalent: 'HVS', difficulty_group: 'Intermediate' },
+  { grade_index: 13, v_scale: 'V2-', font_scale: '5A+', yds_equivalent: '5.10c', french_equivalent: '6b', british_equivalent: 'E1', difficulty_group: 'Intermediate' },
   { grade_index: 14, v_scale: 'V2', font_scale: '5B', yds_equivalent: '5.10c', french_equivalent: '6b', british_equivalent: 'E1', difficulty_group: 'Intermediate' },
-  { grade_index: 15, v_scale: 'V2', font_scale: '5B+', yds_equivalent: '5.10d', french_equivalent: '6b', british_equivalent: 'E2', difficulty_group: 'Intermediate' },
-  { grade_index: 16, v_scale: 'V2', font_scale: '5C', yds_equivalent: '5.10d', french_equivalent: '6b+', british_equivalent: 'E2', difficulty_group: 'Intermediate' },
-  { grade_index: 17, v_scale: 'V3', font_scale: '5C+', yds_equivalent: '5.11a', french_equivalent: '6b+', british_equivalent: 'E3', difficulty_group: 'Intermediate' },
+  { grade_index: 15, v_scale: 'V2+', font_scale: '5B+', yds_equivalent: '5.10d', french_equivalent: '6b', british_equivalent: 'E2', difficulty_group: 'Intermediate' },
+  { grade_index: 16, v_scale: 'V2-3', font_scale: '5C', yds_equivalent: '5.10d', french_equivalent: '6b+', british_equivalent: 'E2', difficulty_group: 'Intermediate' },
+  { grade_index: 17, v_scale: 'V3-', font_scale: '5C+', yds_equivalent: '5.11a', french_equivalent: '6b+', british_equivalent: 'E3', difficulty_group: 'Intermediate' },
 
   // Intermediate-Advanced (6A-6B+) — V3-V4 zone
   { grade_index: 18, v_scale: 'V3', font_scale: '6A', yds_equivalent: '5.11a', french_equivalent: '6b', british_equivalent: 'E3', difficulty_group: 'Intermediate' },
-  { grade_index: 19, v_scale: 'V3', font_scale: '6A+', yds_equivalent: '5.11b', french_equivalent: '6b+', british_equivalent: 'E3', difficulty_group: 'Advanced' },
+  { grade_index: 19, v_scale: 'V3-4', font_scale: '6A+', yds_equivalent: '5.11b', french_equivalent: '6b+', british_equivalent: 'E3', difficulty_group: 'Advanced' },
   { grade_index: 20, v_scale: 'V4', font_scale: '6B', yds_equivalent: '5.11c', french_equivalent: '6c', british_equivalent: 'E4', difficulty_group: 'Advanced' },
-  { grade_index: 21, v_scale: 'V4', font_scale: '6B+', yds_equivalent: '5.11d', french_equivalent: '6c+', british_equivalent: 'E4', difficulty_group: 'Advanced' },
+  { grade_index: 21, v_scale: 'V4-5', font_scale: '6B+', yds_equivalent: '5.11d', french_equivalent: '6c+', british_equivalent: 'E4', difficulty_group: 'Advanced' },
 
   // Advanced (6C-7A) — V5-V6 zone
   { grade_index: 22, v_scale: 'V5', font_scale: '6C', yds_equivalent: '5.12a', french_equivalent: '7a', british_equivalent: 'E5', difficulty_group: 'Advanced' },
-  { grade_index: 23, v_scale: 'V5', font_scale: '6C+', yds_equivalent: '5.12b', french_equivalent: '7a+', british_equivalent: 'E6', difficulty_group: 'Advanced' },
+  { grade_index: 23, v_scale: 'V5-6', font_scale: '6C+', yds_equivalent: '5.12b', french_equivalent: '7a+', british_equivalent: 'E6', difficulty_group: 'Advanced' },
   { grade_index: 24, v_scale: 'V6', font_scale: '7A', yds_equivalent: '5.12b', french_equivalent: '7a+', british_equivalent: 'E6', difficulty_group: 'Advanced' },
 
   // Expert (7A+-7C) — V7-V9 zone
-  { grade_index: 25, v_scale: 'V6', font_scale: '7A+', yds_equivalent: '5.12c', french_equivalent: '7b', british_equivalent: 'E7', difficulty_group: 'Expert' },
-  { grade_index: 26, v_scale: 'V7', font_scale: '7B', yds_equivalent: '5.13a', french_equivalent: '7c', british_equivalent: 'E8', difficulty_group: 'Expert' },
-  { grade_index: 27, v_scale: 'V8', font_scale: '7B+', yds_equivalent: '5.13b', french_equivalent: '7c+', british_equivalent: 'E9', difficulty_group: 'Expert' },
+  { grade_index: 25, v_scale: 'V7-', font_scale: '7A+', yds_equivalent: '5.12c', french_equivalent: '7b', british_equivalent: 'E7', difficulty_group: 'Expert' },
+  { grade_index: 26, v_scale: 'V8-', font_scale: '7B', yds_equivalent: '5.13a', french_equivalent: '7c', british_equivalent: 'E8', difficulty_group: 'Expert' },
+  { grade_index: 27, v_scale: 'V8+', font_scale: '7B+', yds_equivalent: '5.13b', french_equivalent: '7c+', british_equivalent: 'E9', difficulty_group: 'Expert' },
   { grade_index: 28, v_scale: 'V9', font_scale: '7C', yds_equivalent: '5.13c', french_equivalent: '7c+', british_equivalent: 'E9', difficulty_group: 'Expert' },
 
   // Elite (7C+-9C+) — V10+ zone
@@ -68,11 +68,11 @@ export const gradeMappings: GradeMapping[] = [
   { grade_index: 34, v_scale: 'V15', font_scale: '8C', yds_equivalent: '5.15c', french_equivalent: '9a', british_equivalent: 'E11', difficulty_group: 'Elite' },
   { grade_index: 35, v_scale: 'V16', font_scale: '8C+', yds_equivalent: '5.15d', french_equivalent: '9a+', british_equivalent: 'E11', difficulty_group: 'Elite' },
   { grade_index: 36, v_scale: 'V17', font_scale: '9A', yds_equivalent: '5.15d', french_equivalent: '9a+', british_equivalent: 'E11', difficulty_group: 'Elite' },
-  { grade_index: 37, v_scale: 'V17', font_scale: '9A+', yds_equivalent: '5.16a', french_equivalent: '9b', british_equivalent: 'E11', difficulty_group: 'Elite' },
+  { grade_index: 37, v_scale: 'V17+', font_scale: '9A+', yds_equivalent: '5.16a', french_equivalent: '9b', british_equivalent: 'E11', difficulty_group: 'Elite' },
   { grade_index: 38, v_scale: 'V18', font_scale: '9B', yds_equivalent: '5.16a', french_equivalent: '9b+', british_equivalent: 'E11', difficulty_group: 'Elite' },
-  { grade_index: 39, v_scale: 'V18', font_scale: '9B+', yds_equivalent: '5.16b', french_equivalent: '9c', british_equivalent: 'E12', difficulty_group: 'Elite' },
+  { grade_index: 39, v_scale: 'V18+', font_scale: '9B+', yds_equivalent: '5.16b', french_equivalent: '9c', british_equivalent: 'E12', difficulty_group: 'Elite' },
   { grade_index: 40, v_scale: 'V19', font_scale: '9C', yds_equivalent: '5.16c', french_equivalent: '9c+', british_equivalent: 'E12', difficulty_group: 'Elite' },
-  { grade_index: 41, v_scale: 'V19', font_scale: '9C+', yds_equivalent: '5.16d', french_equivalent: '9c+', british_equivalent: 'E13', difficulty_group: 'Elite' },
+  { grade_index: 41, v_scale: 'V19+', font_scale: '9C+', yds_equivalent: '5.16d', french_equivalent: '9c+', british_equivalent: 'E13', difficulty_group: 'Elite' },
 ]
 
 const gradeIndexMap: Record<number, GradeMapping> = Object.fromEntries(
