@@ -1278,6 +1278,11 @@ export default function CragPageClient({
     return matches
   }, [routeImageIdsByClimbId, routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId, routes, selectedImageIds, selectedImageId])
 
+  const selectedRouteCount = useMemo(() => {
+    if (!selectedImageId) return 0
+    return routes.reduce((count, route) => count + (highlightedRouteIds.has(route.id) ? 1 : 0), 0)
+  }, [highlightedRouteIds, routes, selectedImageId])
+
   useEffect(() => {
     if (!selectedImageId) return
 
@@ -1902,7 +1907,11 @@ export default function CragPageClient({
               <button type="button" onClick={() => setSortModalOpen(true)} className="rounded-full border border-stone-200 bg-stone-50 p-2 text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
                 <ArrowUpDown className="size-4" />
               </button>
-              <div className="ml-auto text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">{filteredRoutes.length} routes</div>
+              <div className="ml-auto text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">
+                {selectedImageId ? `${selectedRouteCount} / ${routes.length} selected` : ''}
+                {selectedImageId ? ' · ' : ''}
+                {filteredRoutes.length} routes
+              </div>
             </div>
           </div>
 
