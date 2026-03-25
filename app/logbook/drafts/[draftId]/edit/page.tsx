@@ -1794,7 +1794,7 @@ export default function EditDraftPage() {
       id: route.id,
       name: route.climb?.name || 'Unnamed',
       grade: route.climb?.grade || '6A',
-      climbType: route.climb?.route_type,
+      climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : undefined,
       description: route.climb?.description ?? undefined,
       points: route.points,
     }))
