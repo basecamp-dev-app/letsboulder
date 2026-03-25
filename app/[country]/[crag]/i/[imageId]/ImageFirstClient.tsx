@@ -10,10 +10,13 @@ import { RouteEditorRail } from '@/components/RouteEditorRail'
 import { UnifiedRouteCanvas } from '@/components/UnifiedRouteCanvas'
 import LightweightCragMap from '@/components/lightweight-crag-map'
 import { normalizePoints } from '@/lib/canvasMath'
+import type { Database } from '@/types/database'
 import { createClient } from '@/lib/supabase'
 import type { RouteLine, RoutePoint } from '@/types/domain'
 import ClimbInfoPanel from '@/app/climb/components/ClimbInfoPanel'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { csrfFetch } from '@/hooks/useCsrf'
+import type { GradeOpinion } from '@/lib/grade-feedback'
 
 function parsePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[] {
   if (!raw) return []
@@ -34,6 +37,18 @@ function parsePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[
   }
 }
 
+type UserClimbRow = Database['public']['Tables']['user_climbs']['Row']
+
+function toLoggedClimbInfo(row: UserClimbRow | null): { gradeOpinion: 'soft' | 'agree' | 'hard' | null; starRating: number | null } | null {
+  if (!row) return null
+  return {
+    gradeOpinion: row.grade_opinion === 'soft' || row.grade_opinion === 'agree' || row.grade_opinion === 'hard'
+      ? row.grade_opinion
+      : null,
+    starRating: row.star_rating,
+  }
+}
+
 export default function ImageFirstClient({ payload }: { payload: ImageFirstPayload }) {
   const {
     heroImage,
@@ -51,6 +66,14 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const gradeSystem = useGradeSystem()
   const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
   const [userPresent, setUserPresent] = useState(false)
+  const [selectedClimbLogged, setSelectedClimbLogged] = useState(false)
+  const [selectedClimbLog, setSelectedClimbLog] = useState<{ gradeOpinion: GradeOpinion | null; starRating: number | null } | null>(null)
+  const [selectedClimbHasSavedFeedback, setSelectedClimbHasSavedFeedback] = useState(false)
+  const [selectedClimbFeedbackCollapsed, setSelectedClimbFeedbackCollapsed] = useState(true)
+  const [pendingGradeOpinion, setPendingGradeOpinion] = useState<GradeOpinion | null>(null)
+  const [pendingStarRating, setPendingStarRating] = useState<number | null>(null)
+  const [savingFeedback, setSavingFeedback] = useState(false)
+  const [logging, setLogging] = useState(false)
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(() => {
     const primaryId = linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId
     return { [primaryId]: initialRoutes }
@@ -211,6 +234,47 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     return () => { cancelled = true }
   }, [allRouteImageIds])
 
+  useEffect(() => {
+    if (!activeClimbId || !userPresent) {
+      setSelectedClimbLogged(false)
+      setSelectedClimbLog(null)
+      setSelectedClimbHasSavedFeedback(false)
+      setSelectedClimbFeedbackCollapsed(true)
+      setPendingGradeOpinion(null)
+      setPendingStarRating(null)
+      return
+    }
+
+    const supabase = createClient()
+    let cancelled = false
+
+    const fetchSelectedClimbLog = async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      const userId = userData.user?.id
+      if (!userId) return
+
+      const { data, error } = await supabase
+        .from('user_climbs')
+        .select('grade_opinion, star_rating')
+        .eq('user_id', userId)
+        .eq('climb_id', activeClimbId)
+        .maybeSingle()
+
+      if (cancelled || error) return
+
+      const log = toLoggedClimbInfo(data)
+      setSelectedClimbLogged(!!data)
+      setSelectedClimbLog(log)
+      setSelectedClimbHasSavedFeedback(!!data && (!!log?.gradeOpinion || log?.starRating !== null))
+      setSelectedClimbFeedbackCollapsed(!!data)
+      setPendingGradeOpinion(log?.gradeOpinion ?? null)
+      setPendingStarRating(log?.starRating ?? null)
+    }
+
+    void fetchSelectedClimbLog()
+    return () => { cancelled = true }
+  }, [activeClimbId, userPresent])
+
   const allRoutesFlat = useMemo(
     () => Object.values(routesByImageId).flat(),
     [routesByImageId]
@@ -227,6 +291,27 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       description: activeRoute.climbDescription,
     }
   }, [activeRouteId, allRoutesFlat])
+
+  const updateLocalClimbGrade = useCallback((climbId: string, grade: string) => {
+    setRoutesByImageId((previous) => {
+      let changed = false
+      const next: Record<string, ImageFirstRouteLine[]> = {}
+
+      for (const [imageId, routes] of Object.entries(previous)) {
+        const updatedRoutes = routes.map((route) => {
+          if (route.climbId !== climbId) return route
+          changed = true
+          return {
+            ...route,
+            climbGrade: grade,
+          }
+        })
+        next[imageId] = updatedRoutes
+      }
+
+      return changed ? next : previous
+    })
+  }, [])
 
   const activeRouteMeta = useMemo(
     () => allRoutesFlat.find((route) => route.routeId === activeRouteId) || null,
@@ -303,6 +388,71 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       setUserSelectedRouteId(routeId)
     }
   }, [setUserSelectedRouteId])
+
+  const handleLog = useCallback(async (style: 'flash' | 'top' | 'try') => {
+    if (!activeClimbId || !userPresent) return false
+
+    setLogging(true)
+    try {
+      const response = await csrfFetch('/api/log-routes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ climbIds: [activeClimbId], style }),
+      })
+
+      if (!response.ok) return false
+
+      setSelectedClimbLogged(true)
+      setSelectedClimbFeedbackCollapsed(false)
+      return true
+    } finally {
+      setLogging(false)
+    }
+  }, [activeClimbId, userPresent])
+
+  const handleSaveFeedback = useCallback(async () => {
+    if (!activeClimbId || !userPresent) return
+    if (!pendingGradeOpinion && pendingStarRating === null) return
+
+    setSavingFeedback(true)
+    try {
+      const response = await csrfFetch('/api/user-climbs/feedback', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          climbId: activeClimbId,
+          gradeOpinion: pendingGradeOpinion,
+          starRating: pendingStarRating,
+        }),
+      })
+
+      if (!response.ok) return
+
+      const payload = await response.json().catch(() => ({})) as {
+        updatedGrade?: string
+        gradeUpdated?: boolean
+        gradeOpinion?: GradeOpinion | null
+        starRating?: number | null
+      }
+
+      setSelectedClimbLog({
+        gradeOpinion: payload.gradeOpinion ?? pendingGradeOpinion ?? null,
+        starRating: payload.starRating ?? pendingStarRating ?? null,
+      })
+      setSelectedClimbHasSavedFeedback(true)
+      setSelectedClimbFeedbackCollapsed(true)
+
+      if (payload.gradeUpdated && payload.updatedGrade) {
+        updateLocalClimbGrade(activeClimbId, payload.updatedGrade)
+      }
+    } finally {
+      setSavingFeedback(false)
+    }
+  }, [activeClimbId, pendingGradeOpinion, pendingStarRating, updateLocalClimbGrade, userPresent])
+
+  const handleGoToLogbook = useCallback(() => {
+    router.push('/logbook')
+  }, [router])
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-white">
@@ -408,10 +558,10 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         contributionCreditUrl={null}
         imageLatitude={null}
         imageLongitude={null}
-        selectedClimbLogged={false}
-        selectedClimbLog={null}
-        selectedClimbHasSavedFeedback={false}
-        selectedClimbFeedbackCollapsed={true}
+        selectedClimbLogged={selectedClimbLogged}
+        selectedClimbLog={selectedClimbLog}
+        selectedClimbHasSavedFeedback={selectedClimbHasSavedFeedback}
+        selectedClimbFeedbackCollapsed={selectedClimbFeedbackCollapsed}
         selectedClimbRatingSummary={
           activeRouteMeta
             ? {
@@ -422,10 +572,10 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         }
         selectedClimbAverageRating={activeRouteMeta?.climbAverageStars ?? null}
         selectedClimbRoundedStars={Math.round(activeRouteMeta?.climbAverageStars ?? 0)}
-        pendingGradeOpinion={null}
-        pendingStarRating={null}
-        savingFeedback={false}
-        logging={false}
+        pendingGradeOpinion={pendingGradeOpinion}
+        pendingStarRating={pendingStarRating}
+        savingFeedback={savingFeedback}
+        logging={logging}
         userPresent={hasHydratedAuth ? userPresent : true}
         gradeSystem={gradeSystem}
         gradeOpinionLabels={{ soft: 'Soft', agree: 'Agree', hard: 'Hard' }}
@@ -434,12 +584,12 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onOpenFlag={() => undefined}
         onShare={() => undefined}
         onGoToAuth={handleGoToAuth}
-        onLog={() => undefined}
-        onSetFeedbackCollapsed={() => undefined}
-        onSetPendingGradeOpinion={() => undefined}
-        onSetPendingStarRating={() => undefined}
-        onSaveFeedback={() => undefined}
-        onGoToLogbook={() => undefined}
+        onLog={handleLog}
+        onSetFeedbackCollapsed={setSelectedClimbFeedbackCollapsed}
+        onSetPendingGradeOpinion={setPendingGradeOpinion}
+        onSetPendingStarRating={setPendingStarRating}
+        onSaveFeedback={handleSaveFeedback}
+        onGoToLogbook={handleGoToLogbook}
         deferredSections={
           <>
             {mapPins.length > 0 ? (
