@@ -148,6 +148,7 @@ export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cra
   const imageById = new Map(images.map((image) => [image.id, image]))
   const imageIds = images.map((image) => image.id)
   const initialRoutePreviewByClimbId: Record<string, RoutePreview> = {}
+  const initialRouteImageIdsByClimbId: Record<string, string[]> = {}
 
   if (imageIds.length > 0) {
     const { data: routeLineData } = await supabase
@@ -159,6 +160,12 @@ export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cra
       .order('created_at', { ascending: true })
 
     for (const row of (routeLineData || []) as RouteLineTargetRow[]) {
+      const effectiveClimbId = effectiveClimbIdByClimbId[row.climb_id] || row.climb_id
+      const climbImageIds = initialRouteImageIdsByClimbId[effectiveClimbId] || []
+      if (!climbImageIds.includes(row.image_id)) {
+        climbImageIds.push(row.image_id)
+        initialRouteImageIdsByClimbId[effectiveClimbId] = climbImageIds
+      }
       if (initialRoutePreviewByClimbId[row.climb_id]) continue
       const image = imageById.get(row.image_id)
       if (!image) continue
@@ -179,6 +186,7 @@ export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cra
 
   return {
     initialRoutes,
+    initialRouteImageIdsByClimbId,
     initialRoutePreviewByClimbId: dedupedRoutePreviewByClimbId,
     initialImages: images.map((image) => ({
       id: image.id,
