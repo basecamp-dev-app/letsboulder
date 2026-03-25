@@ -13,6 +13,7 @@ export function useImageNavigation({
   initialRouteId,
   initialRouteSlug,
   initialClimbId,
+  linkedImageIdByDisplayId,
   countryCode,
   cragSlug,
   stacks,
@@ -24,6 +25,7 @@ export function useImageNavigation({
   initialRouteId?: string | null
   initialRouteSlug?: string | null
   initialClimbId?: string | null
+  linkedImageIdByDisplayId: Record<string, string>
   countryCode: string
   cragSlug: string
   stacks: Array<{ stackId: string; imageIds: string[] }>
@@ -43,6 +45,7 @@ export function useImageNavigation({
   })
 
   const activeImageId = orderedImageIds[activeImageIndex] || null
+  const canonicalActiveImageId = activeImageId ? linkedImageIdByDisplayId[activeImageId] || activeImageId : null
 
   const activeRouteId = useMemo(() => {
     if (!activeImageId) return null
@@ -104,12 +107,12 @@ export function useImageNavigation({
   }, [activeImageIndex, emblaApi])
 
   useEffect(() => {
-    if (!activeImageId) return
+    if (!canonicalActiveImageId) return
 
     const currentPathImageId = pathname.split('/').pop()
-    if (currentPathImageId === activeImageId) return
+    if (currentPathImageId === canonicalActiveImageId) return
 
-    const newPath = `/${countryCode}/${cragSlug}/i/${activeImageId}`
+    const newPath = `/${countryCode}/${cragSlug}/i/${canonicalActiveImageId}`
     const params = new URLSearchParams(searchParams.toString())
     params.delete('climb')
 
@@ -125,11 +128,12 @@ export function useImageNavigation({
     }
 
     router.replace(`${newPath}${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false })
-  }, [activeClimbId, activeImageId, activeRouteId, countryCode, cragSlug, initialRoutes, pathname, router, searchParams])
+  }, [activeClimbId, canonicalActiveImageId, activeRouteId, countryCode, cragSlug, initialRoutes, pathname, router, searchParams])
 
   return {
     activeImageIndex,
     activeImageId,
+    canonicalActiveImageId,
     activeRouteId,
     activeClimbId,
     activeSector,
