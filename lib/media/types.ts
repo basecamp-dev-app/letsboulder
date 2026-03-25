@@ -34,6 +34,11 @@ export interface MediaUploadSessionRequest {
   contentType: string
   fileName: string
   byteSize: number
+  gpsData?: {
+    latitude: number
+    longitude: number
+  } | null
+  captureDate?: string | null
   width?: number | null
   height?: number | null
   draftId?: string | null

@@ -192,6 +192,8 @@ export default function MultiImageUploader({ onComplete, onClear, onError, onUpl
           contentType: compressed.type || 'image/jpeg',
           fileName: compressed.name,
           byteSize: compressed.size,
+          gpsData,
+          captureDate: null,
         })
 
         try {
