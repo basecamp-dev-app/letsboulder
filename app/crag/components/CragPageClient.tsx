@@ -15,6 +15,7 @@ import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import CragPageSkeleton from '@/app/crag/components/CragPageSkeleton'
 import { resolveRouteImageUrl } from '@/lib/route-image-url'
+import { buildSelectableImageIdByImageId } from '@/lib/image-identity'
 import { Button } from '@/components/ui/button'
 import LightweightCragMap from '@/components/lightweight-crag-map'
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -292,7 +293,8 @@ function buildEffectiveClimbLookup(rows: ClimbIdentityRow[]) {
 function mapRouteTargetsByEffectiveClimbId(
   routeTargetsData: RouteLineTargetRow[],
   imageById: Map<string, ImageData | ClusteredImageData>,
-  effectiveClimbIdByClimbId: Record<string, string>
+  effectiveClimbIdByClimbId: Record<string, string>,
+  selectableImageIdByImageId: Record<string, string> = {}
 ) {
   const nextRoutePreviewByClimbId: Record<string, RoutePreview> = {}
   const nextRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget> = {}
@@ -300,19 +302,20 @@ function mapRouteTargetsByEffectiveClimbId(
   for (const row of routeTargetsData) {
     const effectiveClimbId = effectiveClimbIdByClimbId[row.climb_id] || row.climb_id
     if (nextRouteNavigationTargetByClimbId[effectiveClimbId]) continue
-    const image = imageById.get(row.image_id)
+    const selectableImageId = selectableImageIdByImageId[row.image_id] || row.image_id
+    const image = imageById.get(selectableImageId)
     if (!image) continue
     const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
     nextRoutePreviewByClimbId[effectiveClimbId] = {
-      imageId: row.image_id,
+      imageId: selectableImageId,
       imageUrl: image.url,
     }
     nextRouteNavigationTargetByClimbId[effectiveClimbId] = {
       climbId: effectiveClimbId,
       routeId: row.id,
       climbSlug: climb?.slug || null,
-      imageId: row.image_id,
-      displayImageId: row.image_id,
+      imageId: selectableImageId,
+      displayImageId: selectableImageId,
       displayImageUrl: image.url,
     }
   }
@@ -840,6 +843,14 @@ export default function CragPageClient({
       }
 
       const mergedImagesData = [...allImagesData, ...supplementaryImagesData]
+      const selectableImageIdByImageId = buildSelectableImageIdByImageId(
+        mergedImagesData.map((image) => ({
+          id: image.id,
+          latitude: image.latitude,
+          longitude: image.longitude,
+        })),
+        (supplementaryImageIdsData || []) as Array<{ linked_image_id: string | null; source_image_id: string | null }>
+      )
 
       const primaryImagesData = mergedImagesData.filter(
         (img: { id: string; url: string }) => !supplementaryImageIds.has(img.id) && !supplementaryImageUrls.has(img.url)
@@ -908,25 +919,27 @@ export default function CragPageClient({
         } else {
           for (const row of (routeTargetsData || []) as RouteLineTargetRow[]) {
             const effectiveClimbId = effectiveClimbIdByClimbId[row.climb_id] || row.climb_id
+            const selectableImageId = selectableImageIdByImageId[row.image_id] || row.image_id
             const climbImageIds = nextRouteImageIdsByClimbId[effectiveClimbId] || []
-            if (!climbImageIds.includes(row.image_id)) {
-              climbImageIds.push(row.image_id)
+            if (!climbImageIds.includes(selectableImageId)) {
+              climbImageIds.push(selectableImageId)
               nextRouteImageIdsByClimbId[effectiveClimbId] = climbImageIds
             }
-            if (nextDefaultRouteTargetByImageId[row.image_id]) continue
+            if (nextDefaultRouteTargetByImageId[selectableImageId]) continue
             const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
-            nextDefaultRouteTargetByImageId[row.image_id] = {
+            nextDefaultRouteTargetByImageId[selectableImageId] = {
               climbId: row.climb_id,
               routeId: row.id,
               climbSlug: climb?.slug || null,
-              imageId: row.image_id,
+              imageId: selectableImageId,
             }
           }
 
           const mappedTargets = mapRouteTargetsByEffectiveClimbId(
             (routeTargetsData || []) as RouteLineTargetRow[],
             imageById,
-            effectiveClimbIdByClimbId
+            effectiveClimbIdByClimbId,
+            selectableImageIdByImageId
           )
 
           Object.assign(nextRoutePreviewByClimbId, mappedTargets.nextRoutePreviewByClimbId)
