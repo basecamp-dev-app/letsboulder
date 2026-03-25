@@ -155,6 +155,7 @@ interface EditableRoute {
   id: string
   name: string
   grade: string
+  climbType?: string
   description?: string
   points: RoutePoint[]
 }
@@ -436,7 +437,7 @@ export default function EditDraftPage() {
   const draftId = params.draftId as string
 
   const [isInitialLoading, setIsInitialLoading] = useState(true)
-  const [isRefreshingDraft, setIsRefreshingDraft] = useState(false)
+  const [, setIsRefreshingDraft] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
   const [publishingDraft, setPublishingDraft] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1765,9 +1766,9 @@ export default function EditDraftPage() {
         return {
           id: route.id,
           name: route.name,
-          grade: previous?.grade || '6A',
+          grade: route.grade || previous?.grade || '6A',
           description: route.description,
-          climbType: previous?.climbType || routeType,
+          climbType: route.climbType || previous?.climbType || routeType,
           points: route.points,
           sequenceOrder: index,
           imageWidth: previous?.imageWidth || 1200,
@@ -1788,15 +1789,17 @@ export default function EditDraftPage() {
   }, [activeDraftImageId, routeType, scheduleDraftPersist])
 
   const handleCanvasRoutesUpdate = useCallback((routes: RouteLine[]) => {
+    setRouteStoreRoutes(routes)
     const editableRoutes = routes.map((route) => ({
       id: route.id,
       name: route.climb?.name || 'Unnamed',
       grade: route.climb?.grade || '6A',
+      climbType: route.climb?.route_type,
       description: route.climb?.description ?? undefined,
       points: route.points,
     }))
     handleEditRoutesUpdate(editableRoutes)
-  }, [handleEditRoutesUpdate])
+  }, [handleEditRoutesUpdate, setRouteStoreRoutes])
 
   useEffect(() => {
     if (!activeDraftImageId) return
