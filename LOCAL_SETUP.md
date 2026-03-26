@@ -38,7 +38,7 @@ export SUPABASE_ACCESS_TOKEN=your-token-here
 
 # Login and link to project
 supabase login
-supabase link --project-ref licfcldjccnqtounaeld
+supabase link --project-ref pfleqxztfiddujvylvaz
 ```
 
 ## Start Local Supabase
