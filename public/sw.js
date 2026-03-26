@@ -290,11 +290,15 @@ self.addEventListener('message', (event) => {
         const packUrls = [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
         await cacheUrls(PACK_CACHE, packUrls)
         await cachePageAssets(packUrls)
-        await cacheUrls(MEDIA_CACHE, mediaUrls)
+        const mediaFailures = await cacheUrls(MEDIA_CACHE, mediaUrls, { strict: false })
         const tileFailures = await cacheUrls(TILE_CACHE, tileUrls, { strict: false })
+        const parts = []
+        if (mediaFailures.length > 0) parts.push('some media')
+        if (tileFailures.length > 0) parts.push('some map tiles')
         respond({
           ok: true,
-          warning: tileFailures.length > 0 ? 'Saved core offline content, but some map tiles could not be cached.' : undefined,
+          warning: parts.length > 0 ? `Saved offline content, but ${parts.join(' and ')} could not be cached.` : undefined,
+          failedMediaUrls: mediaFailures.map((failure) => failure.url),
           failedTileUrls: tileFailures.map((failure) => failure.url),
         })
         return
@@ -322,6 +326,7 @@ self.addEventListener('message', (event) => {
         let completedClimbs = 0
         let completedBytes = 0
         const failedTileUrls = []
+        const failedMediaUrls = []
 
         broadcastProgress({
           type: 'OFFLINE_JOB_PROGRESS',
@@ -359,9 +364,11 @@ self.addEventListener('message', (event) => {
             currentClimbName: climb.climbName,
           })
 
-          await cacheUrls(MEDIA_CACHE, Array.isArray(climb.mediaUrls) ? climb.mediaUrls : [], {
+          const climbMediaFailures = await cacheUrls(MEDIA_CACHE, Array.isArray(climb.mediaUrls) ? climb.mediaUrls : [], {
             concurrency: 3,
+            strict: false,
           })
+          failedMediaUrls.push(...climbMediaFailures.map((failure) => failure.url))
 
           completedClimbs += 1
           completedBytes += Number(climb.estimatedBytes || 0)
@@ -388,9 +395,13 @@ self.addEventListener('message', (event) => {
           totalBytes,
         })
 
+        const warningParts = []
+        if (failedMediaUrls.length > 0) warningParts.push('some media')
+        if (failedTileUrls.length > 0) warningParts.push('some map tiles')
         respond({
           ok: true,
-          warning: failedTileUrls.length > 0 ? 'Saved core offline content, but some map tiles could not be cached.' : undefined,
+          warning: warningParts.length > 0 ? `Saved offline content, but ${warningParts.join(' and ')} could not be cached.` : undefined,
+          failedMediaUrls,
           failedTileUrls,
         })
         return
