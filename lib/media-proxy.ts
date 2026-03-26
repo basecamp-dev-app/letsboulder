@@ -34,6 +34,6 @@ export function estimateCompressedImageBytes(width: number | null | undefined, h
     return 400 * 1024
   }
 
-  const estimated = Math.round(width * height * 0.22)
+  const estimated = Math.round(width * height * 0.10)
   return Math.max(150 * 1024, estimated)
 }
