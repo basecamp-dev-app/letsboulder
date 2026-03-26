@@ -510,6 +510,7 @@ export default function EditDraftPage() {
   const hasHydratedLocationRef = useRef(false)
   const lastLocationSyncRef = useRef<string | null>(null)
   const isFetchingRef = useRef(false)
+  const needsRefetchRef = useRef(false)
   const draftIdRef = useRef(draftId)
   const draftRef = useRef<DraftPayload | null>(null)
   const [autosaveState, setAutosaveState] = useState<'idle' | 'pending' | 'saving' | 'syncing' | 'saved'>('idle')
@@ -878,12 +879,29 @@ export default function EditDraftPage() {
         pendingClientId: null,
       }))
 
+    // Optimistic entries: crag uploads that just succeeded but haven't appeared in persisted yet
+    const optimistic = pendingCragUploads
+      .filter((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId && upload.uploadedPath)
+      .filter((upload) => !cragCanvasImages.some((img) => img.id === upload.attachedRecordId))
+      .map<ManageImageTab>((upload) => ({
+        imageId: upload.attachedRecordId!,
+        sourceKind: 'crag-image' as const,
+        index: persisted.length,
+        label: 'Crag image (syncing...)',
+        signedUrl: upload.previewUrl,
+        latitude: upload.gpsData?.latitude ?? null,
+        longitude: upload.gpsData?.longitude ?? null,
+        status: undefined,
+        error: null,
+        pendingClientId: null,
+      }))
+
     const pending = pendingCragUploads
       .filter((upload) => !upload.attachedRecordId)
       .map<ManageImageTab>((upload, index) => ({
         imageId: upload.clientId,
         sourceKind: 'crag-image' as const,
-        index: persisted.length + index,
+        index: persisted.length + optimistic.length + index,
         label: upload.status === 'FAILED'
           ? `Failed: ${upload.fileName}`
           : upload.status === 'UPLOADING'
@@ -899,16 +917,33 @@ export default function EditDraftPage() {
         pendingClientId: upload.clientId,
       }))
 
-    return [...persisted, ...pending]
+    return [...persisted, ...optimistic, ...pending]
   }, [cragCanvasImages, pendingCragUploads])
 
   const mergedManageImages = useMemo(() => {
+    // Optimistic entries: uploads that just succeeded but haven't appeared in manageImages yet
+    const optimisticTabs: ManageImageTab[] = pendingDraftUploads
+      .filter((upload) => upload.status === 'SUCCESS' && upload.attachedRecordId && upload.uploadedPath)
+      .filter((upload) => !manageImages.some((img) => img.imageId === upload.attachedRecordId))
+      .map((upload) => ({
+        imageId: upload.attachedRecordId!,
+        sourceKind: 'draft-image' as const,
+        index: manageImages.length,
+        label: 'Image (syncing...)',
+        signedUrl: upload.previewUrl || `/api/media/private?draftId=${draftId}&path=${encodeURIComponent(upload.uploadedPath!)}`,
+        latitude: upload.gpsData?.latitude ?? null,
+        longitude: upload.gpsData?.longitude ?? null,
+        status: undefined,
+        error: null,
+        pendingClientId: null,
+      }))
+
     const pendingTabs: ManageImageTab[] = pendingDraftUploads
       .filter((upload) => !upload.attachedRecordId)
       .map((upload, index) => ({
         imageId: upload.clientId,
-        sourceKind: 'draft-image',
-        index: manageImages.length + index,
+        sourceKind: 'draft-image' as const,
+        index: manageImages.length + optimisticTabs.length + index,
         label: upload.status === 'FAILED'
           ? `Failed: ${upload.fileName}`
           : upload.status === 'UPLOADING'
@@ -924,8 +959,8 @@ export default function EditDraftPage() {
         pendingClientId: upload.clientId,
       }))
 
-    return [...manageImages, ...pendingTabs].sort((a, b) => a.index - b.index)
-  }, [manageImages, pendingDraftUploads])
+    return [...manageImages, ...optimisticTabs, ...pendingTabs].sort((a, b) => a.index - b.index)
+  }, [draftId, manageImages, pendingDraftUploads])
 
   const stableCanvasUrlRef = useRef<{ imageId: string | null; imageUrl: string }>({ imageId: null, imageUrl: '' })
 
@@ -942,18 +977,48 @@ export default function EditDraftPage() {
         setDraftUpdatedAt(newUpdatedAt)
         registerDraftUpdatedAt(draftId, newUpdatedAt)
       }
-      if (isFetchingRef.current) return
-      isFetchingRef.current = true
-      void syncUploadedImages().finally(() => {
-        isFetchingRef.current = false
-      })
       if (attachedRecordId) {
         setActiveImageId((current) => current || attachedRecordId)
         setDefaultImageId((current) => current || attachedRecordId)
       }
+      if (isFetchingRef.current) {
+        needsRefetchRef.current = true
+        return
+      }
+      isFetchingRef.current = true
+      needsRefetchRef.current = false
+      void syncUploadedImages().finally(() => {
+        isFetchingRef.current = false
+        if (needsRefetchRef.current) {
+          needsRefetchRef.current = false
+          void syncUploadedImages()
+        }
+      })
     }
     return subscribeToUploadComplete(handleUploadComplete)
   }, [draftId, registerDraftUpdatedAt, subscribeToUploadComplete, syncUploadedImages])
+
+  // Polling fallback: periodically refetch when draft has images still processing.
+  // This catches cases where subscriber events are missed or the worker completes
+  // after all upload callbacks have fired.
+  const hasProcessingImages = useMemo(() => {
+    if (!draft) return false
+    return draft.images.some((image) => image.readiness_status === 'processing')
+  }, [draft])
+
+  useEffect(() => {
+    if (!hasProcessingImages || !draftId) return
+    // Only poll when no uploads are actively firing subscriber callbacks
+    const hasActiveUploads = pendingDraftUploads.some(
+      (upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING'
+    )
+    if (hasActiveUploads) return
+
+    const timer = window.setInterval(() => {
+      void loadDraft()
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [hasProcessingImages, draftId, pendingDraftUploads, loadDraft])
 
   useEffect(() => {
     if (!cragId || activeImageId || canvasSource?.kind === 'draft-image') return
@@ -2106,7 +2171,7 @@ export default function EditDraftPage() {
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Background uploads</h2>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Photos appear in the gallery as each upload finishes. Publishing stays locked until every upload is resolved.
+                  Photos appear in the gallery as each upload finishes. Failed uploads are skipped — retry or delete them below.
                 </p>
               </div>
               {queuePaused ? (
@@ -2125,7 +2190,7 @@ export default function EditDraftPage() {
             </div>
             {queuePaused ? (
               <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                <span>The queue is paused on a failed upload. Retry or delete the blocked image to continue.</span>
+                <span>The upload queue is paused. Resume to continue processing remaining uploads.</span>
                 <button
                   type="button"
                   onClick={resumeQueue}

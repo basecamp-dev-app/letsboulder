@@ -268,7 +268,6 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
           }
           const attachedRecordId = Array.isArray(payload.draft?.appended_image_ids) ? payload.draft?.appended_image_ids[0] || null : null
           updateUpload(clientId, (current) => ({ ...current, status: 'SUCCESS', progress: 100, error: null, attachedRecordId }))
-          revokePreviewUrl(clientId)
           const newUpdatedAt = payload.draft?.updated_at || null
           subscribersRef.current.forEach((cb) => {
             try { cb(upload.target, clientId, attachedRecordId, newUpdatedAt) } catch {}
@@ -298,11 +297,10 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     }
     const attachedRecordId = Array.isArray(payload.images) ? payload.images[0]?.id || null : null
     updateUpload(clientId, (current) => ({ ...current, status: 'SUCCESS', progress: 100, error: null, attachedRecordId }))
-    revokePreviewUrl(clientId)
     subscribersRef.current.forEach((cb) => {
       try { cb(upload.target, clientId, attachedRecordId) } catch {}
     })
-  }, [revokePreviewUrl, updateUpload])
+  }, [updateUpload])
 
   const startNextUploadRef = useRef<() => void>(() => {})
 
@@ -390,6 +388,11 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
         imageId: uploadSession.imageId,
       })
 
+      // Delayed cleanup: revoke blob preview URL after the UI has had time
+      // to transition to the server-side proxy URL
+      const previewClientId = entry.clientId
+      setTimeout(() => revokePreviewUrl(previewClientId), 10000)
+
       const nextQueueOrder = queueOrderRef.current.filter((clientId) => clientId !== entry.clientId)
       queueOrderRef.current = nextQueueOrder
       setQueueOrder(nextQueueOrder)
@@ -429,7 +432,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
         error: error instanceof Error ? error.message : 'Failed to upload image',
       }))
 
-      setIsPaused(true)
+      uploadDebug('upload-marked-failed', { clientId: entry.clientId })
     } finally {
       uploadDebug('process-active-entry-finally', {
         clientId: entry.clientId,
@@ -449,7 +452,7 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
       setActiveClientId(null)
       startNextUploadRef.current()
     }
-  }, [attachUpload, updateUpload])
+  }, [attachUpload, revokePreviewUrl, updateUpload])
 
   const startNextUpload = useCallback(() => {
     uploadDebug('start-next-upload-called', {
@@ -622,6 +625,17 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
       startNextUploadRef.current()
     })
   }, [])
+
+  useEffect(() => {
+    const handleOnline = () => {
+      if (isPausedRef.current) {
+        uploadDebug('network-reconnected-resuming')
+        resumeQueue()
+      }
+    }
+    window.addEventListener('online', handleOnline)
+    return () => window.removeEventListener('online', handleOnline)
+  }, [resumeQueue])
 
   const subscribeToUploadComplete = useCallback((callback: UploadCompleteCallback) => {
     subscribersRef.current.add(callback)
