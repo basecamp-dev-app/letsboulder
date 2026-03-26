@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { buildClimbOfflinePack } from '@/lib/offline/build-climb-pack'
 import type { CragOfflinePackManifest, OfflineMapPin } from '@/lib/climb/queries'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
+import { estimateCompressedImageBytes } from '@/lib/media-proxy'
 
 interface ClimbRow {
   id: string
@@ -87,6 +88,9 @@ export async function GET(
             mediaCount: pack.offline_pack.mediaCount,
             coverImageUrl: pack.offline_pack.coverImageUrl || null,
             primaryPin: pack.offline_pack.primaryPin || null,
+            mediaUrls: pack.offline_pack.mediaUrls,
+            primaryImage: pack.primary_image,
+            faces: pack.faces,
           }
         } catch (error) {
           console.error('Failed to build climb summary for crag offline pack:', { cragId, climbId: climb.id, error })
@@ -105,8 +109,23 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to load any climbs for this crag pack' }, { status: 500 })
     }
 
-    const estimatedBytes = climbSummaries.reduce((sum, climb) => sum + climb.estimatedBytes, 0)
-    const mediaCount = climbSummaries.reduce((sum, climb) => sum + climb.mediaCount, 0)
+    const imageByteEstimates = new Map<string, number>()
+    for (const climb of climbSummaries) {
+      if (climb.primaryImage?.url && !imageByteEstimates.has(climb.primaryImage.url)) {
+        const w = climb.primaryImage.natural_width ?? climb.primaryImage.width ?? null
+        const h = climb.primaryImage.natural_height ?? climb.primaryImage.height ?? null
+        imageByteEstimates.set(climb.primaryImage.url, estimateCompressedImageBytes(w, h))
+      }
+      for (const face of climb.faces) {
+        if (!face.url || imageByteEstimates.has(face.url)) continue
+        const w = face.metadata?.width ?? null
+        const h = face.metadata?.height ?? null
+        imageByteEstimates.set(face.url, estimateCompressedImageBytes(w, h))
+      }
+    }
+
+    const estimatedBytes = Array.from(imageByteEstimates.values()).reduce((sum, b) => sum + b, 0)
+    const mediaCount = imageByteEstimates.size
     const savedPins = climbSummaries
       .map((climb) => climb.primaryPin)
       .filter((pin): pin is OfflineMapPin => pin !== null)
@@ -134,7 +153,17 @@ export async function GET(
       estimatedBytes,
       climbCount: climbSummaries.length,
       mediaCount,
-      climbs: climbSummaries,
+      climbs: climbSummaries.map((climb) => ({
+        climbId: climb.climbId,
+        climbName: climb.climbName,
+        canonicalPath: climb.canonicalPath,
+        manifestUrl: climb.manifestUrl,
+        versionHash: climb.versionHash,
+        estimatedBytes: climb.estimatedBytes,
+        mediaCount: climb.mediaCount,
+        coverImageUrl: climb.coverImageUrl,
+        primaryPin: climb.primaryPin,
+      })),
       savedPins,
       tileManifest,
       removedClimbIds: [],
