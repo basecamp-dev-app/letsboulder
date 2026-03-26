@@ -57,7 +57,7 @@ export async function GET(
         .from('climbs')
         .select('id, name, slug, status')
         .eq('crag_id', cragId)
-        .in('status', ['active', 'approved'])
+        .is('deleted_at', null)
         .order('name', { ascending: true }),
     ])
 
