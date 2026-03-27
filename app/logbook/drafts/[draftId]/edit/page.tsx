@@ -529,6 +529,7 @@ export default function EditDraftPage() {
   const [mapOpen, setMapOpen] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
   const [orientationOpen, setOrientationOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const [publishedCragPins, setPublishedCragPins] = useState<PublishedCragImagePin[]>([])
   const atlasSync = useAtlasAutoSync(markerPosition?.[0] ?? null, markerPosition?.[1] ?? null)
   const markerLatitude = markerPosition?.[0] ?? null
@@ -2506,42 +2507,6 @@ export default function EditDraftPage() {
           </div>
         </div>
 
-          <div className="mb-2 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <button
-            type="button"
-            onClick={() => setOrientationOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between gap-3 text-left"
-            aria-expanded={orientationOpen}
-          >
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Set Orientation</h2>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional metadata for each image.</p>
-            </div>
-            <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${orientationOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {orientationOpen ? (
-            <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
-              {FACE_DIRECTIONS.map((direction) => {
-                const selected = activeImageTab ? (orientationByImageId[activeImageTab.imageId] || []).includes(direction) : false
-                return (
-                  <button
-                    key={direction}
-                    type="button"
-                    onClick={() => toggleImageOrientation(direction)}
-                    className={`rounded-md border px-2 py-2 text-xs font-semibold transition ${
-                      selected
-                        ? 'border-blue-600 bg-blue-600 text-white'
-                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                    }`}
-                  >
-                    {direction}
-                  </button>
-                )
-              })}
-            </div>
-          ) : null}
-        </div>
-
         {imageSelection && 'imageUrl' in imageSelection ? (
           <SubmissionWorkstation
             drawingAreaRef={drawingAreaRef}
@@ -2600,69 +2565,124 @@ export default function EditDraftPage() {
         ) : null}
 
         <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-gray-500" />
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Collaborators</h2>
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+            aria-expanded={detailsOpen}
+          >
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">More details</h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Orientation, collaborators, and credit settings.</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShareOpen(true)}
-              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
-            >
-              Manage collaborators
-            </button>
-          </div>
-        </div>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${detailsOpen ? 'rotate-180' : ''}`} />
+          </button>
 
-        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <div className="mb-3 flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Contribution credit</h2>
-          </div>
-          <label className="mb-3 flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-200">
-            <input
-              type="checkbox"
-              checked={isAnonymousSubmission}
-              onChange={(event) => setIsAnonymousSubmission(event.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
-            />
-            <span>
-              <span className="block font-medium text-gray-900 dark:text-gray-100">Publish anonymously</span>
-              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                Your upload stays editable in your logbook, but your public profile, submitter name, and credit link stay hidden.
-              </span>
-            </span>
-          </label>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <label className="text-xs text-gray-600 dark:text-gray-300">
-              Platform
-              <select
-                value={creditPlatform}
-                onChange={(event) => setCreditPlatform(event.target.value as SubmissionCreditPlatform)}
-                disabled={isAnonymousSubmission}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-              >
-                {CREDIT_PLATFORM_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs text-gray-600 dark:text-gray-300 md:col-span-2">
-              Handle
-              <input
-                value={creditHandle}
-                onChange={(event) => setCreditHandle(event.target.value)}
-                placeholder="handle"
-                disabled={isAnonymousSubmission}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-              />
-            </label>
-          </div>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {isAnonymousSubmission
-              ? 'Credit is hidden while anonymous publishing is on.'
-              : `Shown publicly as @${normalizeSubmissionCreditHandle(creditHandle) || 'handle'} after publish.`}
-          </p>
+          {detailsOpen ? (
+            <div className="mt-3 space-y-3">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+                <button
+                  type="button"
+                  onClick={() => setOrientationOpen((prev) => !prev)}
+                  className="flex w-full items-center justify-between gap-3 text-left"
+                  aria-expanded={orientationOpen}
+                >
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Set Orientation</h2>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional metadata for each image.</p>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${orientationOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {orientationOpen ? (
+                  <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
+                    {FACE_DIRECTIONS.map((direction) => {
+                      const selected = activeImageTab ? (orientationByImageId[activeImageTab.imageId] || []).includes(direction) : false
+                      return (
+                        <button
+                          key={direction}
+                          type="button"
+                          onClick={() => toggleImageOrientation(direction)}
+                          className={`rounded-md border px-2 py-2 text-xs font-semibold transition ${
+                            selected
+                              ? 'border-blue-600 bg-blue-600 text-white'
+                              : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          {direction}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-gray-500" />
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Collaborators</h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShareOpen(true)}
+                    className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+                  >
+                    Manage collaborators
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+                <div className="mb-3 flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Contribution credit</h2>
+                </div>
+                <label className="mb-3 flex items-start gap-3 rounded-md border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={isAnonymousSubmission}
+                    onChange={(event) => setIsAnonymousSubmission(event.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
+                  />
+                  <span>
+                    <span className="block font-medium text-gray-900 dark:text-gray-100">Publish anonymously</span>
+                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                      Your upload stays editable in your logbook, but your public profile, submitter name, and credit link stay hidden.
+                    </span>
+                  </span>
+                </label>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <label className="text-xs text-gray-600 dark:text-gray-300">
+                    Platform
+                    <select
+                      value={creditPlatform}
+                      onChange={(event) => setCreditPlatform(event.target.value as SubmissionCreditPlatform)}
+                      disabled={isAnonymousSubmission}
+                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                    >
+                      {CREDIT_PLATFORM_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs text-gray-600 dark:text-gray-300 md:col-span-2">
+                    Handle
+                    <input
+                      value={creditHandle}
+                      onChange={(event) => setCreditHandle(event.target.value)}
+                      placeholder="handle"
+                      disabled={isAnonymousSubmission}
+                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                    />
+                  </label>
+                </div>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  {isAnonymousSubmission
+                    ? 'Credit is hidden while anonymous publishing is on.'
+                    : `Shown publicly as @${normalizeSubmissionCreditHandle(creditHandle) || 'handle'} after publish.`}
+                </p>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <Dialog open={shareOpen} onOpenChange={setShareOpen}>

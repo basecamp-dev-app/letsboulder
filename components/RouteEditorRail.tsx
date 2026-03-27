@@ -15,7 +15,7 @@ export function RouteEditorRail({ routes, selectedRouteId, gradeSystem, onSelect
   if (routes.length === 0) return null
 
   return (
-    <div className="rounded-b-lg border-x border-b border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900">
+    <div className="rounded-3xl border border-gray-200 bg-white px-3 py-2 shadow-sm dark:border-gray-800 dark:bg-gray-900">
       <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory">
         {routes.map((route) => {
           const isActive = route.id === selectedRouteId
