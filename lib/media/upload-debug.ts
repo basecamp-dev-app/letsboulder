@@ -24,7 +24,7 @@ function sanitizeDetails(details: Record<string, unknown>): Record<string, unkno
 function isOnRelevantRoute(): boolean {
   if (typeof window === 'undefined') return true
   const { pathname } = window.location
-  return pathname.includes('/edit') || pathname.includes('/upload')
+  return pathname.includes('/edit') || pathname.includes('/upload') || pathname.includes('/submit')
 }
 
 export function uploadDebug(event: string, details?: Record<string, unknown>) {
