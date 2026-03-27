@@ -364,34 +364,62 @@ export default function EditSubmittedRoutesPage() {
       }
       setCurrentUserId(user.id)
 
-      const { data, error: imageError } = await supabase
-        .from('images')
-        .select(`
-          id,
-          url,
-          created_by,
-          crag_id,
-          is_anonymous_submission,
-          contribution_credit_platform,
-          contribution_credit_handle,
-          latitude,
-          longitude,
-          face_directions,
-          crags:crag_id (id, name, region_name, sub_area),
-          route_lines (
+      const imageQuery = async (imageId: string) => {
+        return supabase
+          .from('images')
+          .select(`
             id,
-            points,
-            sequence_order,
-            image_width,
-            image_height,
-            climbs (id, name, grade, status, route_type, description, user_id)
-          )
-        `)
-        .eq('id', activeImageId)
-        .single()
+            url,
+            created_by,
+            crag_id,
+            is_anonymous_submission,
+            contribution_credit_platform,
+            contribution_credit_handle,
+            latitude,
+            longitude,
+            face_directions,
+            crags:crag_id (id, name, region_name, sub_area),
+            route_lines (
+              id,
+              points,
+              sequence_order,
+              image_width,
+              image_height,
+              climbs (id, name, grade, status, route_type, description, user_id)
+            )
+          `)
+          .eq('id', imageId)
+          .maybeSingle()
+      }
+
+      const firstAttempt = await imageQuery(activeImageId)
+      let data = firstAttempt.data
+      let imageError = firstAttempt.error
+
+      if ((!data || imageError) && requestedFaceImageId && requestedFaceImageId !== routeImageId && activeImageId === requestedFaceImageId) {
+        const fallbackAttempt = await imageQuery(routeImageId)
+        if (fallbackAttempt.data && !fallbackAttempt.error) {
+          router.replace(buildEditUrl(routeImageId))
+          return
+        }
+
+        if (!data) {
+          data = fallbackAttempt.data
+        }
+        if (!imageError) {
+          imageError = fallbackAttempt.error
+        }
+      }
 
       if (imageError || !data) {
-        setError('Failed to load this submission')
+        const reason = imageError?.message || 'The submission could not be found or loaded.'
+        console.error('Submission image query failed:', {
+          activeImageId,
+          routeImageId,
+          requestedFaceImageId,
+          reason,
+        })
+        setError(`Failed to load this submission. ${reason}`)
         return
       }
 
@@ -481,12 +509,18 @@ export default function EditSubmittedRoutesPage() {
       setExistingRouteLines(mappedRouteLines)
       setInitialEditedRoutes(mappedEditableRoutes)
       setEditedRoutes(mappedEditableRoutes)
-    } catch {
-      setError('Failed to load this submission')
+    } catch (error) {
+      console.error('Failed to load submission editor state:', {
+        activeImageId,
+        routeImageId,
+        requestedFaceImageId,
+        error,
+      })
+      setError('Failed to load this submission. Please refresh and try again.')
     } finally {
       setLoading(false)
     }
-  }, [activeImageId, buildEditUrl, routeImageId, router])
+  }, [activeImageId, buildEditUrl, requestedFaceImageId, routeImageId, router])
 
   useEffect(() => {
     loadSubmission()
