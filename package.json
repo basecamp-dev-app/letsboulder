@@ -57,7 +57,7 @@
     "react-dom": "19.2.1",
     "react-leaflet": "^5.0.0",
     "recharts": "^3.6.0",
-    "resend": "^6.6.0",
+    "resend": "^6.9.4",
     "sharp": "^0.34.5",
     "supabase": "^2.76.14",
     "supercluster": "^8.0.1",
