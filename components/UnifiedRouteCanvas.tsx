@@ -173,11 +173,14 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
         if (isDrawingEnabled) {
           addPoint(point)
         } else {
-          handleRouteClick(point)
+          const clickedRouteId = handleRouteClick(point)
+          if (onRouteSelect) {
+            onRouteSelect(clickedRouteId ?? null)
+          }
         }
       }
     },
-    [getCanvasPoint, isDrawingEnabled, addPoint, handleRouteClick]
+    [getCanvasPoint, isDrawingEnabled, addPoint, handleRouteClick, onRouteSelect]
   )
 
   const handleTouchMove = useCallback(

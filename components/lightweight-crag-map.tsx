@@ -20,9 +20,14 @@ export interface LightweightCragMapPin {
   tone?: 'draft' | 'published'
 }
 
-function pinVisualStyles(active: boolean) {
+function pinVisualStyles(active: boolean, tone: LightweightCragMapPin['tone']) {
+  const isDraft = tone === 'draft'
+  const background = isDraft
+    ? (active ? '#1d4ed8' : '#3b82f6')
+    : (active ? '#b91c1c' : '#ef4444')
+
   return {
-    background: active ? '#2563eb' : '#6b7280',
+    background,
     border: 'white',
     shadow: '0 4px 12px rgba(15,23,42,0.22)',
     size: 24,
@@ -49,7 +54,7 @@ const MapPinMarker = memo(function MapPinMarker({
     uploadDebug('map-render-debug', { pinId: pin.id, isActive: active })
   }, [pin.id, active])
 
-  const visual = pinVisualStyles(active)
+  const visual = pinVisualStyles(active, pin.tone)
   return (
     <Marker
       position={[pin.latitude, pin.longitude]}
