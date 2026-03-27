@@ -289,6 +289,7 @@ export default function EditSubmittedRoutesPage() {
   const [selectedTransferTargetRouteLineId, setSelectedTransferTargetRouteLineId] = useState<string>('')
   const drawingAreaRef = useRef<HTMLDivElement | null>(null)
   const [orientationOpen, setOrientationOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
 
   const buildEditUrl = useCallback((baseImageId: string, nextFaceImageId?: string | null) => {
     const nextParams = new URLSearchParams(searchParams.toString())
@@ -1410,33 +1411,6 @@ export default function EditSubmittedRoutesPage() {
 
         </div>
 
-        <CollapsiblePanel
-          title="Set Orientation"
-          subtitle="Optional metadata for this image."
-          open={orientationOpen}
-          onToggle={() => setOrientationOpen((prev) => !prev)}
-        >
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-            {FACE_DIRECTIONS.map((direction) => {
-              const selected = faceDirections.includes(direction)
-              return (
-                <button
-                  key={direction}
-                  type="button"
-                  onClick={() => toggleFaceDirection(direction)}
-                  className={`rounded-md border px-2 py-2 text-xs font-semibold transition ${
-                    selected
-                      ? 'border-blue-600 bg-blue-600 text-white'
-                      : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  {direction}
-                </button>
-              )
-            })}
-          </div>
-        </CollapsiblePanel>
-
         {hasReadyData && activeImageUrl ? (
           <SubmissionWorkstation
             drawingAreaRef={drawingAreaRef}
@@ -1482,80 +1456,114 @@ export default function EditSubmittedRoutesPage() {
           />
         ) : null}
 
-        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-gray-500" />
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Collaborators</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShareOpen(true)}
-              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
-            >
-              Manage collaborators
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <div className="mb-3 flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Contribution credit</h2>
-          </div>
-
-          {canEditContributionCredit ? (
-            <>
-              <label className="mb-3 flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-200">
-                <input
-                  type="checkbox"
-                  checked={isAnonymousSubmission}
-                  onChange={(event) => setIsAnonymousSubmission(event.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
-                />
-                <span>
-                  <span className="block font-medium text-gray-900 dark:text-gray-100">Keep this submission anonymous</span>
-                  <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                    This removes the upload from your public profile and hides your submitter name and credit link on the climb page.
-                  </span>
-                </span>
-              </label>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <label className="text-xs text-gray-600 dark:text-gray-300">
-                  Platform
-                  <select
-                    value={creditPlatform}
-                    onChange={(event) => setCreditPlatform(event.target.value as SubmissionCreditPlatform)}
-                    disabled={isAnonymousSubmission}
-                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+        <CollapsiblePanel
+          title="More details"
+          subtitle="Orientation, collaborators, and credit settings."
+          open={detailsOpen}
+          onToggle={() => setDetailsOpen((prev) => !prev)}
+        >
+          <CollapsiblePanel
+            title="Set Orientation"
+            subtitle="Optional metadata for this image."
+            open={orientationOpen}
+            onToggle={() => setOrientationOpen((prev) => !prev)}
+          >
+            <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+              {FACE_DIRECTIONS.map((direction) => {
+                const selected = faceDirections.includes(direction)
+                return (
+                  <button
+                    key={direction}
+                    type="button"
+                    onClick={() => toggleFaceDirection(direction)}
+                    className={`rounded-md border px-2 py-2 text-xs font-semibold transition ${
+                      selected
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+                    }`}
                   >
-                    {CREDIT_PLATFORM_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs text-gray-600 dark:text-gray-300 md:col-span-2">
-                  Handle
-                  <input
-                    value={creditHandle}
-                    onChange={(event) => setCreditHandle(event.target.value)}
-                    placeholder="handle"
-                    disabled={isAnonymousSubmission}
-                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                  />
-                </label>
+                    {direction}
+                  </button>
+                )
+              })}
+            </div>
+          </CollapsiblePanel>
+
+          <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-gray-500" />
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Collaborators</h2>
               </div>
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                {isAnonymousSubmission
-                  ? 'Credit is hidden while anonymous mode is on.'
-                  : `Shown publicly as @${normalizeSubmissionCreditHandle(creditHandle) || 'handle'}`}
+              <button
+                type="button"
+                onClick={() => setShareOpen(true)}
+                className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+              >
+                Manage collaborators
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+            <div className="mb-3 flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Contribution credit</h2>
+            </div>
+
+            {canEditContributionCredit ? (
+              <>
+                <label className="mb-3 flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={isAnonymousSubmission}
+                    onChange={(event) => setIsAnonymousSubmission(event.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
+                  />
+                  <span>
+                    <span className="block font-medium text-gray-900 dark:text-gray-100">Keep this submission anonymous</span>
+                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                      This removes the upload from your public profile and hides your submitter name and credit link on the climb page.
+                    </span>
+                  </span>
+                </label>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <label className="text-xs text-gray-600 dark:text-gray-300">
+                    Platform
+                    <select
+                      value={creditPlatform}
+                      onChange={(event) => setCreditPlatform(event.target.value as SubmissionCreditPlatform)}
+                      disabled={isAnonymousSubmission}
+                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                    >
+                      {CREDIT_PLATFORM_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs text-gray-600 dark:text-gray-300 md:col-span-2">
+                    Handle
+                    <input
+                      value={creditHandle}
+                      onChange={(event) => setCreditHandle(event.target.value)}
+                      placeholder="handle"
+                      disabled={isAnonymousSubmission}
+                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                    />
+                  </label>
+                </div>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  {isAnonymousSubmission
+                    ? 'Credit is hidden while anonymous mode is on.'
+                    : `Shown publicly as @${normalizeSubmissionCreditHandle(creditHandle) || 'handle'}`}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Only the original contributor can edit contribution credit.
               </p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Only the original contributor can edit contribution credit.
-            </p>
-          )}
-        </div>
+            )}
+          </div>
+        </CollapsiblePanel>
 
         <Dialog
           open={deleteTransferCandidates.length > 0 && !!deleteTransferSourceRouteLineId}

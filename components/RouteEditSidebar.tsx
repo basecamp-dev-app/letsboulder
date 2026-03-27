@@ -168,14 +168,13 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
 
   return (
     <>
-      <div
-        className="fixed right-0 z-[5200] flex w-[360px] flex-col border-l border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+      <div className="fixed inset-x-0 bottom-0 z-[5200] flex max-h-[min(78dvh,40rem)] flex-col rounded-t-[2rem] border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900 md:inset-y-0 md:right-0 md:left-auto md:w-[360px] md:max-h-none md:rounded-none md:rounded-l-[2rem] md:border-y-0 md:border-r-0 md:border-l"
         style={{
-          top: 'var(--app-header-offset, 0px)',
-          height: 'calc(100dvh - var(--app-header-offset, 0px))',
-          maxHeight: 'calc(100dvh - var(--app-header-offset, 0px))',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.75rem)',
+          top: 'auto',
         }}
       >
+        <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-700 md:hidden" />
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Edit Route</h2>
           <button
