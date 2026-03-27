@@ -558,6 +558,13 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
       queueLengthAfterEnqueue: queueOrderRef.current.length + createdUploads.length,
     })
 
+    const nextUploads = { ...uploadsRef.current }
+    createdUploads.forEach((upload) => {
+      nextUploads[upload.clientId] = upload
+    })
+    uploadsRef.current = nextUploads
+    queueOrderRef.current = [...queueOrderRef.current, ...createdUploads.map((upload) => upload.clientId)]
+
     queueMicrotask(() => {
       startNextUploadRef.current()
     })
@@ -624,6 +631,41 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     queueMicrotask(() => {
       startNextUploadRef.current()
     })
+  }, [])
+
+  useEffect(() => {
+    const resumeIfNeeded = () => {
+      if (document.visibilityState !== 'visible') return
+      if (isPausedRef.current || activeClientIdRef.current) return
+      if (queueOrderRef.current.length === 0) return
+      queueMicrotask(() => {
+        startNextUploadRef.current()
+      })
+    }
+
+    const handlePageShow = () => {
+      resumeIfNeeded()
+    }
+
+    document.addEventListener('visibilitychange', resumeIfNeeded)
+    window.addEventListener('pageshow', handlePageShow)
+
+    return () => {
+      document.removeEventListener('visibilitychange', resumeIfNeeded)
+      window.removeEventListener('pageshow', handlePageShow)
+    }
+  }, [])
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (isPausedRef.current || activeClientIdRef.current) return
+      if (queueOrderRef.current.length === 0) return
+      queueMicrotask(() => {
+        startNextUploadRef.current()
+      })
+    }, 5000)
+
+    return () => window.clearInterval(intervalId)
   }, [])
 
   useEffect(() => {
