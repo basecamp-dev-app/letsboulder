@@ -13,7 +13,7 @@ export default async function ClimbPage({
 
   try {
     const payload = await buildClimbOfflinePack(id)
-    const cragPath = payload.crag_path
+    const climbPath = payload.offline_pack?.canonicalPath || payload.offline_pack?.pageUrl || payload.crag_path || null
     const requestedRouteId = resolvedSearchParams.route || null
     const selectedRoute = requestedRouteId
       ? payload.primary_route_lines.find((routeLine) => routeLine.id === requestedRouteId) || null
@@ -22,11 +22,17 @@ export default async function ClimbPage({
       ? payload.faces.find((face) => Array.isArray(face.routes) && face.routes.some((route) => route.id === selectedRoute.id))?.display_image_id
         || payload.primary_image?.display_image_id
         || payload.primary_image?.id
+        || payload.faces[0]?.display_image_id
+        || payload.faces[0]?.image_id
         || null
-      : payload.primary_image?.display_image_id || payload.primary_image?.id || null
+      : payload.primary_image?.display_image_id
+        || payload.primary_image?.id
+        || payload.faces[0]?.display_image_id
+        || payload.faces[0]?.image_id
+        || null
     const routeId = selectedRoute?.id || payload.primary_route_lines[0]?.id || null
 
-    if (!cragPath || !displayImageId) {
+    if (!climbPath || !displayImageId) {
       notFound()
     }
 
@@ -37,7 +43,7 @@ export default async function ClimbPage({
       query.set('route', routeId)
     }
 
-    redirect(`${cragPath}/i/${displayImageId}?${query.toString()}`)
+    redirect(`${climbPath}/i/${displayImageId}?${query.toString()}`)
   } catch {
     notFound()
   }
