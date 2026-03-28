@@ -1997,24 +1997,27 @@ export default function EditDraftPage() {
     }, 1000)
   }, [saveDraft])
 
-  const scheduleMetadataAutosave = useCallback(() => {
+  const persistMetadataImmediately = useCallback((applyChange: () => void) => {
+    applyChange()
+
     if (autosaveTimeoutRef.current) {
       window.clearTimeout(autosaveTimeoutRef.current)
+      autosaveTimeoutRef.current = null
     }
 
-    setAutosaveState('pending')
-    autosaveTimeoutRef.current = window.setTimeout(() => {
-      autosaveTimeoutRef.current = null
+    setAutosaveState('saving')
+    window.setTimeout(() => {
       void saveDraft({ silent: true })
-    }, 1000)
+    }, 0)
   }, [saveDraft])
 
   const setActiveAsDefault = useCallback(() => {
     if (!activeImageTab || activeImageTab.sourceKind !== 'draft-image') return
-    setDefaultImageId(activeImageTab.imageId)
-    setCanvasSource({ kind: 'draft-image', draftImageId: activeImageTab.imageId })
-    scheduleMetadataAutosave()
-  }, [activeImageTab, scheduleMetadataAutosave])
+    persistMetadataImmediately(() => {
+      setDefaultImageId(activeImageTab.imageId)
+      setCanvasSource({ kind: 'draft-image', draftImageId: activeImageTab.imageId })
+    })
+  }, [activeImageTab, persistMetadataImmediately])
 
   const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
     if (!activeDraftImageId) return
@@ -2806,8 +2809,10 @@ export default function EditDraftPage() {
               <select
                 value={routeType}
                 onChange={(event) => {
-                  setRouteType(event.target.value)
-                  scheduleMetadataAutosave()
+                  const nextRouteType = event.target.value
+                  persistMetadataImmediately(() => {
+                    setRouteType(nextRouteType)
+                  })
                 }}
                 className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               >
