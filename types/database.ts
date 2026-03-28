@@ -2789,27 +2789,16 @@ export type Database = {
         Args: { p_image_id: string }
         Returns: Json
       }
-      get_crag_pins:
-        | {
-            Args: never
-            Returns: {
-              id: string
-              image_count: number
-              latitude: number
-              longitude: number
-              name: string
-            }[]
-          }
-        | {
-            Args: { include_pending?: boolean }
-            Returns: {
-              id: string
-              image_count: number
-              latitude: number
-              longitude: number
-              name: string
-            }[]
-          }
+      get_crag_pins: {
+        Args: never
+        Returns: {
+          id: string
+          image_count: number
+          latitude: number
+          longitude: number
+          name: string
+        }[]
+      }
       get_crag_route_intelligence: {
         Args: { p_crag_id: string }
         Returns: {

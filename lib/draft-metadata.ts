@@ -6,6 +6,7 @@ export interface DraftImageMetadataV2 {
   imageId: string
   displayOrder: number
   orientation?: OrientationDirection[]
+  locationMode?: 'shared' | 'custom'
   gps?: {
     latitude: number | null
     longitude: number | null
@@ -66,6 +67,11 @@ function normalizeOrientation(value: unknown): OrientationDirection[] {
   return FACE_DIRECTIONS.filter((direction) => value.includes(direction))
 }
 
+function normalizeLocationMode(value: unknown, hasGps: boolean): 'shared' | 'custom' {
+  if (value === 'shared' || value === 'custom') return value
+  return hasGps ? 'custom' : 'shared'
+}
+
 export function normalizeDraftMetadata(
   rawMetadata: Record<string, unknown> | null | undefined,
   draftImages: DraftImageRowLike[]
@@ -77,7 +83,22 @@ export function normalizeDraftMetadata(
       navigation: {
         defaultImageId: metadata.navigation?.defaultImageId || null,
       },
-      images: metadata.images || {},
+      images: Object.entries(metadata.images || {}).reduce<Record<string, DraftImageMetadataV2>>((acc, [imageId, image]) => {
+        const candidate = image as DraftImageMetadataV2
+        const hasGps = typeof candidate.gps?.latitude === 'number' && typeof candidate.gps?.longitude === 'number'
+        acc[imageId] = {
+          ...candidate,
+          imageId: candidate.imageId || imageId,
+          displayOrder: typeof candidate.displayOrder === 'number' ? candidate.displayOrder : 0,
+          orientation: normalizeOrientation(candidate.orientation),
+          locationMode: normalizeLocationMode(candidate.locationMode, hasGps),
+          gps: {
+            latitude: typeof candidate.gps?.latitude === 'number' ? candidate.gps.latitude : null,
+            longitude: typeof candidate.gps?.longitude === 'number' ? candidate.gps.longitude : null,
+          },
+        }
+        return acc
+      }, {}),
       submission: {
         routeType: metadata.submission?.routeType || 'sport',
         location: metadata.submission?.location || null,
@@ -103,6 +124,7 @@ export function normalizeDraftMetadata(
       imageId: image.id,
       displayOrder: image.display_order,
       orientation: normalizeOrientation(legacy.faceDirectionsByImage?.[index]),
+      locationMode: normalizeLocationMode(undefined, typeof image.latitude === 'number' && typeof image.longitude === 'number'),
       gps: {
         latitude: typeof image.latitude === 'number' ? image.latitude : null,
         longitude: typeof image.longitude === 'number' ? image.longitude : null,

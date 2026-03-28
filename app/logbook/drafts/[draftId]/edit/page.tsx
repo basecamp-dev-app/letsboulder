@@ -167,6 +167,7 @@ interface ManageImageTab {
   signedUrl: string
   latitude: number | null
   longitude: number | null
+  locationMode?: 'shared' | 'custom'
   status?: 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
   error?: string | null
   pendingClientId?: string | null
@@ -238,11 +239,20 @@ function parseRoutesFromRouteData(routeData: Record<string, unknown> | null, fal
 function buildDraftImagesPayload(
   images: DraftImagePayload[],
   routesByImageId: Record<string, DraftRoute[]>,
-  routeType: string
+  routeType: string,
+  orderedManageImages?: ManageImageTab[]
 ): DraftSavePayload['images'] {
+  const imageOrderLookup = new Map((orderedManageImages || []).map((image, index) => [image.imageId, index]))
   return images
     .slice()
-    .sort((a, b) => a.display_order - b.display_order)
+    .sort((a, b) => {
+      const left = imageOrderLookup.get(a.id)
+      const right = imageOrderLookup.get(b.id)
+      if (typeof left === 'number' && typeof right === 'number') return left - right
+      if (typeof left === 'number') return -1
+      if (typeof right === 'number') return 1
+      return a.display_order - b.display_order
+    })
     .map((image, index) => {
       const routes = routesByImageId[image.id] || []
       const completedRoutes = routes.map((route, routeIndex) => ({
@@ -448,6 +458,8 @@ export default function EditDraftPage() {
   const [defaultImageId, setDefaultImageId] = useState<string | null>(null)
   const [orientationByImageId, setOrientationByImageId] = useState<Record<string, OrientationDirection[]>>({})
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, DraftRoute[]>>({})
+  const [locationModeByImageId, setLocationModeByImageId] = useState<Record<string, 'shared' | 'custom'>>({})
+  const [customGpsByImageId, setCustomGpsByImageId] = useState<Record<string, { latitude: number | null; longitude: number | null }>>({})
 
   const [routeType, setRouteType] = useState<string>('sport')
   const [creditPlatform, setCreditPlatform] = useState<SubmissionCreditPlatform>('instagram')
@@ -541,8 +553,8 @@ export default function EditDraftPage() {
   const nearbyCragName = atlasSync.nearbyCrag?.name ?? null
   const imagesPayload = useMemo(() => {
     if (!draft) return []
-    return buildDraftImagesPayload(draft.images, routesByImageId, routeType)
-  }, [draft, routeType, routesByImageId])
+    return buildDraftImagesPayload(draft.images, routesByImageId, routeType, manageImages)
+  }, [draft, manageImages, routeType, routesByImageId])
   const imagesPayloadSignature = useMemo(() => JSON.stringify(imagesPayload), [imagesPayload])
 
   const loadDraft = useCallback(async () => {
@@ -584,6 +596,17 @@ export default function EditDraftPage() {
         }
         return acc
       }, {})
+      const nextLocationModeByImageId = Object.values(normalizedMetadata.images).reduce<Record<string, 'shared' | 'custom'>>((acc, image) => {
+        acc[image.imageId] = image.locationMode === 'custom' ? 'custom' : 'shared'
+        return acc
+      }, {})
+      const nextCustomGpsByImageId = Object.values(normalizedMetadata.images).reduce<Record<string, { latitude: number | null; longitude: number | null }>>((acc, image) => {
+        acc[image.imageId] = {
+          latitude: typeof image.gps?.latitude === 'number' ? image.gps.latitude : null,
+          longitude: typeof image.gps?.longitude === 'number' ? image.gps.longitude : null,
+        }
+        return acc
+      }, {})
 
       const nextRoutesByImageId: Record<string, DraftRoute[]> = {}
       const nextManageImages = sortedImages.map<ManageImageTab>((image, index) => {
@@ -598,6 +621,7 @@ export default function EditDraftPage() {
           signedUrl: image.proxy_url || '',
           latitude: typeof image.latitude === 'number' ? image.latitude : null,
           longitude: typeof image.longitude === 'number' ? image.longitude : null,
+          locationMode: nextLocationModeByImageId[image.id] || 'shared',
         }
       })
 
@@ -640,6 +664,8 @@ export default function EditDraftPage() {
         return current
       })
       setOrientationByImageId(nextOrientationByImageId)
+      setLocationModeByImageId(nextLocationModeByImageId)
+      setCustomGpsByImageId(nextCustomGpsByImageId)
       setRoutesByImageId(nextRoutesByImageId)
       hasLoadedRoutesRef.current = true
       lastPersistedRoutesRef.current = JSON.stringify({
@@ -1684,11 +1710,16 @@ export default function EditDraftPage() {
             navigation: {
               defaultImageId,
             },
-            images: nextImagesPayload.reduce<Record<string, { imageId: string; displayOrder: number; orientation?: OrientationDirection[] }>>((acc, image) => {
+            images: nextImagesPayload.reduce<Record<string, { imageId: string; displayOrder: number; orientation?: OrientationDirection[]; locationMode: 'shared' | 'custom'; gps: { latitude: number | null; longitude: number | null } }>>((acc, image) => {
               acc[image.id] = {
                 imageId: image.id,
                 displayOrder: image.display_order,
                 orientation: orientationByImageId[image.id] || [],
+                locationMode: locationModeByImageId[image.id] === 'custom' ? 'custom' : 'shared',
+                gps: {
+                  latitude: customGpsByImageId[image.id]?.latitude ?? null,
+                  longitude: customGpsByImageId[image.id]?.longitude ?? null,
+                },
               }
               return acc
             }, {}),
@@ -1805,7 +1836,7 @@ export default function EditDraftPage() {
     } finally {
       setSavingDraft(false)
     }
-  }, [canvasSource, cragId, creditHandle, creditPlatform, currentUserId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId])
+  }, [canvasSource, cragId, creditHandle, creditPlatform, currentUserId, customGpsByImageId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, locationModeByImageId, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId])
 
   const scheduleDraftPersist = useCallback((nextRoutesByImageId: Record<string, DraftRoute[]>) => {
     if (autosaveTimeoutRef.current) {
