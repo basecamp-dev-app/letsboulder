@@ -99,6 +99,9 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
           : submission.canonical_image_id
             ? `/image/${submission.canonical_image_id}`
             : `/image/${submission.id}`
+        const manageHref = submission.canonical_image_id
+          ? `/logbook/submissions/${submission.canonical_image_id}/edit`
+          : `/logbook/submissions/${submission.id}/edit`
         const imageSrcRaw = resolveRouteImageUrl(submission.url)
         const imageSrc = typeof imageSrcRaw === 'string' && imageSrcRaw.trim().length > 0 ? imageSrcRaw : null
         const content = (
@@ -200,7 +203,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                       </div>
                     ) : (
                       <Link
-                        href={`/logbook/submissions/${submission.id}/edit`}
+                        href={manageHref}
                         className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
                       >
                         Manage
