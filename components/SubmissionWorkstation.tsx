@@ -5,6 +5,7 @@ import { GripHorizontal, ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react'
 import LightweightCragMap, { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
 import { RouteEditorRail } from '@/components/RouteEditorRail'
 import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
+import type { ClimbType } from '@/lib/submission-types'
 import type { RouteLine } from '@/types/domain'
 
 interface WorkstationImage {
@@ -49,6 +50,7 @@ interface SubmissionWorkstationProps {
   removeAction?: { loading?: boolean; disabled?: boolean; onClick: () => void }
   onQuickBarDropFiles?: (files: File[]) => void
   canvasMode?: 'edit-existing'
+  defaultClimbType?: ClimbType
   onRoutesUpdate: (routes: RouteLine[]) => void
   hideRouteActions?: boolean
 }
@@ -84,6 +86,7 @@ export function SubmissionWorkstation({
   removeAction,
   onQuickBarDropFiles,
   canvasMode = 'edit-existing',
+  defaultClimbType = 'boulder',
   onRoutesUpdate,
   hideRouteActions = false,
 }: SubmissionWorkstationProps) {
@@ -352,6 +355,7 @@ export function SubmissionWorkstation({
             key={canvasKey}
             mode={canvasMode}
             imageUrl={activeImageUrl}
+            defaultClimbType={defaultClimbType}
             routes={existingRouteLines}
             onRoutesUpdate={onRoutesUpdate}
             className="h-full min-h-[52dvh] md:min-h-[60dvh]"
