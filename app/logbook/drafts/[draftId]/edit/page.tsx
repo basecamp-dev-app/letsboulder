@@ -1211,6 +1211,15 @@ export default function EditDraftPage() {
     })
   }, [quickSwitcherImages])
 
+  const activeImageCustomPosition = useMemo<[number, number] | null>(() => {
+    if (!activeDraftImageId || activeImageLocationMode !== 'custom') return null
+    const gps = customGpsByImageId[activeDraftImageId]
+    if (!gps || !isValidLocationCoordinate(gps.latitude, gps.longitude)) return null
+    return [gps.latitude as number, gps.longitude as number]
+  }, [activeDraftImageId, activeImageLocationMode, customGpsByImageId])
+
+  const effectiveMarkerPosition = activeImageCustomPosition || markerPosition
+
   const fallbackLocation = useMemo<[number, number] | null>(() => {
     const firstImagePin = draftMapPins.find((pin) => isValidLocationCoordinate(pin.latitude, pin.longitude)) || null
     if (firstImagePin) {
@@ -1250,8 +1259,8 @@ export default function EditDraftPage() {
   useEffect(() => {
     if (!activeImageId) return
     const activeQuickSwitchImage = quickSwitcherImages.find((image) => image.imageId === activeImageId) || null
-    const latitude = activeQuickSwitchImage?.latitude ?? null
-    const longitude = activeQuickSwitchImage?.longitude ?? null
+      const latitude = activeImageCustomPosition?.[0] ?? activeQuickSwitchImage?.latitude ?? null
+      const longitude = activeImageCustomPosition?.[1] ?? activeQuickSwitchImage?.longitude ?? null
     if (latitude === null && longitude === null) return
     uploadDebug('editor-active-image-map-data', {
       activeImageId,
@@ -1259,7 +1268,7 @@ export default function EditDraftPage() {
       latitude,
       longitude,
     })
-  }, [activeImageId, quickSwitcherImages])
+  }, [activeImageCustomPosition, activeImageId, quickSwitcherImages])
 
   useEffect(() => {
     setMode('edit-existing')
@@ -1286,11 +1295,11 @@ export default function EditDraftPage() {
 
   useEffect(() => {
     if (!hasHydratedLocationRef.current) return
-    if (markerPosition || !fallbackLocation) return
+    if (effectiveMarkerPosition || !fallbackLocation) return
 
     setLatitude(fallbackLocation[0].toFixed(6))
     setLongitude(fallbackLocation[1].toFixed(6))
-  }, [fallbackLocation, markerPosition])
+  }, [effectiveMarkerPosition, fallbackLocation])
 
   useEffect(() => {
     if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !markerPosition || imagesPayload.length === 0) return
@@ -1719,7 +1728,7 @@ export default function EditDraftPage() {
     }
 
     try {
-      const nextImagesPayload = buildDraftImagesPayload(draft.images, resolvedRoutesByImageId, routeType)
+      const nextImagesPayload = buildDraftImagesPayload(draft.images, resolvedRoutesByImageId, routeType, manageImages)
       const normalizedHandle = normalizeSubmissionCreditHandle(creditHandle)
       if (creditHandle.trim().length > 0 && !normalizedHandle) {
         throw new Error('Invalid credit handle format')
@@ -1856,7 +1865,7 @@ export default function EditDraftPage() {
     } finally {
       setSavingDraft(false)
     }
-  }, [canvasSource, cragId, creditHandle, creditPlatform, currentUserId, customGpsByImageId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, locationModeByImageId, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId])
+  }, [canvasSource, cragId, creditHandle, creditPlatform, currentUserId, customGpsByImageId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, locationModeByImageId, manageImages, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId])
 
   const scheduleDraftPersist = useCallback((nextRoutesByImageId: Record<string, DraftRoute[]>) => {
     if (autosaveTimeoutRef.current) {
@@ -1955,6 +1964,9 @@ export default function EditDraftPage() {
       orientationByImageId,
       latitude: markerPosition ? markerPosition[0] : null,
       longitude: markerPosition ? markerPosition[1] : null,
+      customGpsByImageId,
+      locationModeByImageId,
+      cragId,
     })
 
     if (autosavePausedRef.current) {
@@ -1988,7 +2000,7 @@ export default function EditDraftPage() {
         autosaveTimeoutRef.current = null
       }
     }
-  }, [autosaveState, conflict, draft, draftUpdatedAt, hasInFlightDraftUploads, isInitialLoading, markerPosition, orientationByImageId, publishingDraft, routesByImageId, saveDraft, savingDraft])
+  }, [autosaveState, conflict, cragId, customGpsByImageId, draft, draftUpdatedAt, hasInFlightDraftUploads, isInitialLoading, locationModeByImageId, markerPosition, orientationByImageId, publishingDraft, routesByImageId, saveDraft, savingDraft])
 
   useEffect(() => {
     return () => {
@@ -2452,6 +2464,7 @@ export default function EditDraftPage() {
                   setCragCanvasImages([])
                   setShowCragSelector(false)
                   setSuccess('Crag selected for this draft.')
+                  void saveDraft({ silent: true })
                 }}
                 onCreateNew={(crag) => {
                   setCragId(crag.id)
@@ -2465,6 +2478,7 @@ export default function EditDraftPage() {
                   setCanvasSource(null)
                   setSuccess(`Crag "${crag.name}" created. Upload up to 20 photos and the first ready image can be used as your canvas.`)
                   setShowCragSelector(false)
+                  void saveDraft({ silent: true })
                 }}
               />
             </div>
@@ -2494,7 +2508,7 @@ export default function EditDraftPage() {
                 }}
                 className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeImageLocationMode === 'shared' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'}`}
               >
-                Shared pin
+                Submission location
               </button>
               <button
                 type="button"
@@ -2512,9 +2526,12 @@ export default function EditDraftPage() {
                 }}
                 className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeImageLocationMode === 'custom' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'}`}
               >
-                Own pin
+                This image only
               </button>
             </div>
+            <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+              `Submission location` uses the same pin as any other image assigned to the draft-level location. `This image only` keeps its own exact coordinates.
+            </p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <label className="text-xs text-gray-600 dark:text-gray-300">
                 Latitude
@@ -2568,7 +2585,10 @@ export default function EditDraftPage() {
                   <p className="text-xs text-gray-500 dark:text-gray-400">Click map or drag marker to adjust location</p>
                   <button
                     type="button"
-                    onClick={() => setMapOpen(false)}
+                    onClick={async () => {
+                      await saveDraft({ silent: true })
+                      setMapOpen(false)
+                    }}
                     className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                   >
                     Done
@@ -2576,11 +2596,11 @@ export default function EditDraftPage() {
             </div>
                 <div className="h-72 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
                   <MapContainer
-                    center={markerPosition || [20, 0]}
-                    zoom={markerPosition ? 14 : 2}
+                    center={effectiveMarkerPosition || [20, 0]}
+                    zoom={effectiveMarkerPosition ? 14 : 2}
                     style={{ height: '100%', width: '100%' }}
                   >
-                    <MapRecenter position={markerPosition} />
+                    <MapRecenter position={effectiveMarkerPosition} />
                     <MapClickHandler onClick={handleMapClick} />
                     <TileLayer
                       url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -2592,9 +2612,9 @@ export default function EditDraftPage() {
                       attribution="Labels © Esri"
                       maxZoom={19}
                     />
-                    {markerPosition && leaflet ? (
+                    {effectiveMarkerPosition && leaflet ? (
                       <Marker
-                        position={markerPosition}
+                        position={effectiveMarkerPosition}
                         draggable={true}
                         icon={leaflet.divIcon({
                           className: 'location-marker',
