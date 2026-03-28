@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Loader2, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -33,6 +34,7 @@ interface PendingAction {
 
 export default function SubmissionList({ submissions, isOwnProfile, deletingDraftId, publishingDraftId, onDeleteDraft, onPublishDraft }: SubmissionListProps) {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
+  const [deleteRouteConfirmation, setDeleteRouteConfirmation] = useState('')
 
   const pendingSubmission = useMemo(
     () => submissions.find((submission) => submission.id === pendingAction?.draftId) ?? null,
@@ -45,8 +47,13 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
       ? deletingDraftId === pendingAction.draftId
       : false
 
+  const pendingDeleteRouteCount = pendingSubmission?.route_lines_count ?? 0
+  const requiresRouteConfirmation = pendingAction?.type === 'delete' && pendingDeleteRouteCount > 0
+  const isDeleteConfirmationValid = !requiresRouteConfirmation || deleteRouteConfirmation.trim() === String(pendingDeleteRouteCount)
+
   const handleConfirmAction = () => {
     if (!pendingAction) return
+    if (pendingAction.type === 'delete' && !isDeleteConfirmationValid) return
 
     const action = pendingAction
     setPendingAction(null)
@@ -57,6 +64,11 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
     }
 
     onDeleteDraft(action.draftId)
+  }
+
+  const openPendingAction = (action: PendingAction) => {
+    setDeleteRouteConfirmation('')
+    setPendingAction(action)
   }
 
   return (
@@ -161,7 +173,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                         ) : (
                           <button
                             type="button"
-                            onClick={() => setPendingAction({ draftId: submission.id, type: 'publish' })}
+                            onClick={() => openPendingAction({ draftId: submission.id, type: 'publish' })}
                             className="text-xs font-medium text-green-700 hover:text-green-800 dark:text-green-300 dark:hover:text-green-200"
                           >
                             Publish
@@ -172,7 +184,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                         ) : (
                           <button
                             type="button"
-                            onClick={() => setPendingAction({ draftId: submission.id, type: 'delete' })}
+                            onClick={() => openPendingAction({ draftId: submission.id, type: 'delete' })}
                             className="text-gray-400 hover:text-red-500 p-1 transition-colors"
                             title="Delete draft"
                             aria-label="Delete draft"
@@ -221,6 +233,36 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                 : `This will permanently remove ${pendingSubmission?.crag_name || 'this draft'} from your drafts.`}
             </DialogDescription>
           </DialogHeader>
+          {pendingAction?.type === 'delete' ? (
+            <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+              <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900/60">
+                <div className="font-medium text-gray-900 dark:text-gray-100">
+                  {pendingSubmission?.crag_name || 'Unknown crag'}
+                </div>
+                <div>{pendingDeleteRouteCount} route{pendingDeleteRouteCount === 1 ? '' : 's'}</div>
+                <div>Submitted {pendingSubmission ? new Date(pendingSubmission.created_at).toLocaleDateString() : 'unknown date'}</div>
+              </div>
+
+              {requiresRouteConfirmation ? (
+                <div className="space-y-2">
+                  <label htmlFor="delete-route-confirmation" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Type the route count to confirm deletion
+                  </label>
+                  <Input
+                    id="delete-route-confirmation"
+                    inputMode="numeric"
+                    value={deleteRouteConfirmation}
+                    onChange={(event) => setDeleteRouteConfirmation(event.target.value)}
+                    placeholder={`Enter ${pendingDeleteRouteCount}`}
+                  />
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  This draft has no routes, so you can confirm immediately.
+                </p>
+              )}
+            </div>
+          ) : null}
           <DialogFooter>
             <Button
               type="button"
@@ -233,7 +275,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
               type="button"
               variant={pendingAction?.type === 'delete' ? 'destructive' : 'default'}
               onClick={handleConfirmAction}
-              disabled={!pendingAction || isConfirmLoading}
+              disabled={!pendingAction || isConfirmLoading || !isDeleteConfirmationValid}
             >
               {pendingAction?.type === 'publish' ? 'Confirm publish' : 'Confirm delete'}
             </Button>
