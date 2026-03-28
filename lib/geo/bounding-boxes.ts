@@ -1,4 +1,4 @@
-import { getGeoJsonBoundingBoxesForCountry } from '@/lib/geo/country-bounds'
+import { getGeoJsonBoundingBoxesForCountryFallback } from '@/lib/geo/country-bounds'
 
 export interface BoundingBox {
   name: string;           // e.g., 'Contiguous', 'Hawaii', 'Mainland'
@@ -100,7 +100,7 @@ export const COUNTRY_BOUNDING_BOXES: Record<string, BoundingBox[]> = {
 
 export function getBoundingBoxesForCountry(countryCode: string): BoundingBox[] {
   const normalizedCode = countryCode.toUpperCase()
-  return COUNTRY_BOUNDING_BOXES[normalizedCode] || getGeoJsonBoundingBoxesForCountry(normalizedCode)
+  return COUNTRY_BOUNDING_BOXES[normalizedCode] || getGeoJsonBoundingBoxesForCountryFallback(normalizedCode)
 }
 
 export function validateCoordinatesInBoundingBox(

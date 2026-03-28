@@ -14,7 +14,7 @@
     "build": "NEXT_TELEMETRY_DISABLED=1 next build --webpack",
     "media-backfill": "node scripts/media/backfill-images.mjs",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",
-    "lint": "eslint",
+    "lint": "eslint --cache --concurrency auto",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:integration": "vitest run --config vitest.config.ts --mode integration"
   },
