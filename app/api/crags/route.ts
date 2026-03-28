@@ -292,23 +292,29 @@ export async function POST(request: NextRequest) {
       if (selected_country_code) {
         const boundingBoxes = getBoundingBoxesForCountry(selected_country_code)
         
-        if (!boundingBoxes || boundingBoxes.length === 0) {
-          return NextResponse.json(
-            { error: `Unknown country code: ${selected_country_code}` },
-            { status: 400 }
-          )
+        if (boundingBoxes && boundingBoxes.length > 0) {
+          const validation = validateCoordinatesInBoundingBox(latitude, longitude, boundingBoxes)
+
+          if (!validation.isValid) {
+            return NextResponse.json(
+              { error: `Coordinates validation failed: ${validation.reason}` },
+              { status: 400 }
+            )
+          }
+
+          countryCode = selected_country_code
+        } else {
+          const resolved = await resolveCountryFromCoordinates(supabase, latitude, longitude)
+          if (!resolved.countryCode) {
+            return NextResponse.json(
+              { error: 'Could not resolve country from this crag location. Please ensure your pin is on land.' },
+              { status: 400 }
+            )
+          }
+          countryCode = resolved.countryCode
+          countryId = resolved.countryId
+          regionName = resolved.regionName || trimmedRegionTag || null
         }
-        
-        const validation = validateCoordinatesInBoundingBox(latitude, longitude, boundingBoxes)
-        
-        if (!validation.isValid) {
-          return NextResponse.json(
-            { error: `Coordinates validation failed: ${validation.reason}` },
-            { status: 400 }
-          )
-        }
-        
-        countryCode = selected_country_code
       } else {
         const result = await resolveCountryFromCoordinates(supabase, latitude, longitude)
 

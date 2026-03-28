@@ -626,8 +626,8 @@ export default function EditDraftPage() {
         }
       })
 
-      const normalizedRouteType = typeof metadata.routeType === 'string' && metadata.routeType
-        ? metadata.routeType
+      const normalizedRouteType = typeof normalizedMetadata.submission.routeType === 'string' && normalizedMetadata.submission.routeType
+        ? normalizedMetadata.submission.routeType
         : 'sport'
 
       const normalizedCreditPlatform = normalizeSubmissionCreditPlatform((metadata as { contributionCreditPlatform?: unknown }).contributionCreditPlatform)
@@ -1324,6 +1324,10 @@ export default function EditDraftPage() {
           images: imagesPayload,
           metadata: {
             submission: {
+              routeType,
+              isAnonymousSubmission,
+              contributionCreditPlatform: creditPlatform,
+              contributionCreditHandle: creditHandle,
               location: {
                 latitude: latitudeValue,
                 longitude: longitudeValue,
@@ -2321,6 +2325,7 @@ export default function EditDraftPage() {
             draftPins={draftMapPins}
             publishedPins={publishedMapPins}
             initialCenter={markerPosition}
+            hideRouteActions={mapOpen}
             onSelectImage={handleQuickSwitchImage}
             onReorderImages={(imageIds) => {
               setManageImages((prev) => reorderItemsByIds(prev, imageIds).map((image) => ({
@@ -2567,18 +2572,6 @@ export default function EditDraftPage() {
                     className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                   >
                     Done
-              </button>
-              <button
-                type="button"
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  currentPoints.length >= 2
-                    ? 'bg-green-500 text-white hover:bg-green-600'
-                    : 'bg-gray-200 dark:bg-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                }`}
-                onClick={() => routeCanvasRef.current?.finishRoute()}
-                disabled={currentPoints.length < 2}
-              >
-                Finish Route
               </button>
             </div>
                 <div className="h-72 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
