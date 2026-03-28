@@ -2344,6 +2344,8 @@ export default function EditDraftPage() {
                   ...prev,
                   [activeDraftImageId]: nextRoutes,
                 }
+                skipRouteStoreSyncRef.current = activeDraftImageId
+                setRouteStoreRoutes(resequenceRoutes(existingRouteLines, routeIds) as RouteLine[])
                 scheduleDraftPersist(nextRoutesByImageId)
                 return nextRoutesByImageId
               })

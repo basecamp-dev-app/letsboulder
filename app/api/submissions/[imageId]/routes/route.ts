@@ -92,6 +92,7 @@ function normalizeRoutes(value: unknown): EditableRoutePayload[] | null {
       name: route.name,
       description: route.description,
       points: route.points,
+      sequenceOrder: typeof route.sequenceOrder === 'number' ? route.sequenceOrder : undefined,
     })
   }
 
@@ -754,7 +755,7 @@ export async function PUT(
         name: route.name.trim(),
         description: route.description?.trim() || null,
         points: route.points,
-        sequenceOrder: typeof route.sequenceOrder === 'number' ? route.sequenceOrder : 0,
+        sequenceOrder: route.sequenceOrder,
       })),
     })
 
