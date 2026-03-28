@@ -17,6 +17,7 @@ interface UnifiedRouteCanvasProps {
   mode: CanvasMode
   imageUrl: string
   routes?: RouteLine[]
+  defaultClimbType?: ClimbType
   activeRouteId?: string | null
   onRouteSelect?: (routeId: string | null) => void
   onRoutesUpdate?: (routes: RouteLine[]) => void
@@ -55,6 +56,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   mode,
   imageUrl,
   routes: propRoutes,
+  defaultClimbType = 'boulder',
   activeRouteId: controlledActiveRouteId,
   onRouteSelect,
   onRoutesUpdate,
@@ -183,11 +185,19 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
       color: 'red',
       sequence_order: routes.length,
       created_at: 'draft-created',
+      climb: {
+        id: '',
+        name: 'Unnamed route',
+        grade: '6A',
+        status: 'draft',
+        route_type: defaultClimbType,
+        description: null,
+      },
     }
 
     onRoutesUpdate([...routes, nextRoute])
     commitCurrentRoute()
-  }, [commitCurrentRoute, currentPoints, onRoutesUpdate, routes])
+  }, [commitCurrentRoute, currentPoints, defaultClimbType, onRoutesUpdate, routes])
 
   useImperativeHandle(ref, () => ({
     finishRoute: handleFinishRoute,
