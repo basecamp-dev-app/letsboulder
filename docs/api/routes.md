@@ -159,7 +159,7 @@ User settings management. Requires authentication. Uses CSRF protection.
 
 ### submissions
 
-Draft management, collaboration, and image submission. Requires authentication. Uses CSRF protection.
+Draft management, collaboration, image submission, and durable draft route syncing. Requires authentication. Uses CSRF protection.
 
 ### test
 
