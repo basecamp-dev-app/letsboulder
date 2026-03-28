@@ -23,6 +23,7 @@ import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
 import { useDraftUploadManager, useMediaUploadManager, type MediaUploadItem, type UploadCompleteCallback } from '@/lib/media/media-upload-manager'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
+import type { ClimbType } from '@/lib/submission-types'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirection } from '@/lib/draft-metadata'
 import { createClient } from '@/lib/supabase'
@@ -285,6 +286,13 @@ function buildDraftImagesPayload(
 function buildManageImageLabel(index: number, imageId: string, defaultImageId: string | null, directions?: OrientationDirection[]): string {
   const directionsLabel = Array.isArray(directions) && directions.length > 0 ? ` (${directions.join('/')})` : ''
   return imageId === defaultImageId ? `Default${directionsLabel}` : `Image ${index + 1}${directionsLabel}`
+}
+
+function resolveDraftClimbType(value: string): ClimbType {
+  if (value === 'sport' || value === 'boulder' || value === 'trad' || value === 'deep-water-solo') {
+    return value
+  }
+  return 'boulder'
 }
 
 function sortFaceDirections(directions: FaceDirection[]): FaceDirection[] {
@@ -2511,6 +2519,7 @@ export default function EditDraftPage() {
             onUndoPoint={() => undoLastPoint()}
             onFinishRoute={() => routeCanvasRef.current?.finishRoute()}
             canvasKey={activeImageTab?.imageId || 'draft-canvas'}
+            defaultClimbType={resolveDraftClimbType(routeType)}
             extraAction={activeImageTab ? (
               <button
                 type="button"
