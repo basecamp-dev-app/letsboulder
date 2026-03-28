@@ -83,9 +83,6 @@ export default function DraftIntakeView() {
         <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
           <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Upload photos</h2>
           <ImagePicker onFilesSelected={handleFilesSelected} disabled={creatingDraft} />
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            Up to 20 photos. The editor opens immediately while uploads continue in the background. HEIC, JPEG, PNG, and WebP supported.
-          </p>
         </div>
 
         {error ? (

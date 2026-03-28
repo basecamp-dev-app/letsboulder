@@ -87,6 +87,11 @@ function resolveDisplayName(profile: ProfileRow | null): string | null {
   return null
 }
 
+function normalizeJsonRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
 function normalizePatchImages(value: unknown): DraftPatchImage[] | null {
   if (!Array.isArray(value) || value.length === 0) return null
 
@@ -167,14 +172,15 @@ export async function GET(
     const withSignedUrls: DraftImageResponse[] = imageRows.map((image) => {
       return {
         ...image,
+        route_data: normalizeJsonRecord(image.route_data) ?? {},
+        preview_variants: normalizeJsonRecord(image.preview_variants),
         proxy_url: image.storage_path ? buildDraftImageProxyUrl(id, image.storage_path) : null,
         readiness_status: resolveDraftImageReadinessStatus(image),
       }
     })
 
-
     const isOwner = draft.user_id === userId
-    return NextResponse.json({ draft: { ...draft, images: withSignedUrls }, isOwner })
+    return NextResponse.json({ draft: { ...draft, metadata: normalizeJsonRecord(draft.metadata), images: withSignedUrls }, isOwner })
   } catch (error) {
     return createErrorResponse(error, 'Failed to fetch submission draft')
   }

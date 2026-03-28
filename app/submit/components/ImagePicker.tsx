@@ -69,9 +69,6 @@ export default function ImagePicker({ onFilesSelected, disabled = false }: Image
         <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
           {disabled ? 'Creating draft...' : isDragging ? 'Drop photos here' : 'Drop photos or click to select'}
         </p>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Up to 20 photos. The editor opens immediately while uploads continue in the background.
-        </p>
       </div>
 
       {error ? (
