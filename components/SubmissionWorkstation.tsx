@@ -51,6 +51,7 @@ interface SubmissionWorkstationProps {
   onQuickBarDropFiles?: (files: File[]) => void
   canvasMode?: 'edit-existing'
   onRoutesUpdate: (routes: RouteLine[]) => void
+  hideRouteActions?: boolean
 }
 
 export function SubmissionWorkstation({
@@ -85,6 +86,7 @@ export function SubmissionWorkstation({
   onQuickBarDropFiles,
   canvasMode = 'edit-existing',
   onRoutesUpdate,
+  hideRouteActions = false,
 }: SubmissionWorkstationProps) {
   const [isQuickBarDragOver, setIsQuickBarDragOver] = useState(false)
 
@@ -320,7 +322,7 @@ export function SubmissionWorkstation({
                 : 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-600 dark:text-gray-500'
             }`}
             onClick={onUndoPoint}
-            disabled={currentPointsCount === 0}
+            disabled={hideRouteActions || currentPointsCount === 0}
           >
             Undo Point
           </button>
@@ -332,7 +334,7 @@ export function SubmissionWorkstation({
                 : 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-600 dark:text-gray-500'
             }`}
             onClick={onFinishRoute}
-            disabled={currentPointsCount < 2}
+            disabled={hideRouteActions || currentPointsCount < 2}
           >
             Finish Route
           </button>

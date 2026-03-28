@@ -350,7 +350,30 @@ export async function PATCH(
         : {}
 
       const nextMetadata = metadataPatch
-        ? { ...existingMetadata, ...metadataPatch }
+        ? {
+            ...existingMetadata,
+            ...metadataPatch,
+            submission: {
+              ...((existingMetadata.submission && typeof existingMetadata.submission === 'object' && !Array.isArray(existingMetadata.submission))
+                ? existingMetadata.submission as Record<string, unknown>
+                : {}),
+              ...((metadataPatch.submission && typeof metadataPatch.submission === 'object' && !Array.isArray(metadataPatch.submission))
+                ? metadataPatch.submission as Record<string, unknown>
+                : {}),
+              location: {
+                ...((((existingMetadata.submission && typeof existingMetadata.submission === 'object' && !Array.isArray(existingMetadata.submission)
+                  ? (existingMetadata.submission as Record<string, unknown>).location
+                  : null) && typeof (existingMetadata.submission as Record<string, unknown>).location === 'object' && !Array.isArray((existingMetadata.submission as Record<string, unknown>).location))
+                  ? (existingMetadata.submission as Record<string, unknown>).location as Record<string, unknown>
+                  : {})),
+                ...((((metadataPatch.submission && typeof metadataPatch.submission === 'object' && !Array.isArray(metadataPatch.submission)
+                  ? (metadataPatch.submission as Record<string, unknown>).location
+                  : null) && typeof (metadataPatch.submission as Record<string, unknown>).location === 'object' && !Array.isArray((metadataPatch.submission as Record<string, unknown>).location))
+                  ? (metadataPatch.submission as Record<string, unknown>).location as Record<string, unknown>
+                  : {})),
+              },
+            },
+          }
         : existingMetadata
 
       const updatePayload: { metadata?: Record<string, unknown>; crag_id?: string | null; updated_at: string; last_edited_by: string } = {
