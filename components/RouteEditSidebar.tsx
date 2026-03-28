@@ -265,7 +265,7 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
       </div>
 
       <Dialog open={gradePickerOpen} onOpenChange={setGradePickerOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="z-[6200] sm:max-w-md" overlayClassName="z-[6190]">
           <DialogTitle className="sr-only">Select route grade</DialogTitle>
           <GradePicker
             isOpen={gradePickerOpen}
