@@ -98,6 +98,7 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 |-------|---------|
 | `submission_drafts` | Draft submissions with metadata |
 | `submission_draft_images` | Images attached to drafts (storage-aware) |
+| `submission_draft_routes` | Durable per-image draft routes for image-scoped sync |
 | `submissions` | Promoted/live submissions |
 | `crag_images` | Multi-image crag gallery |
 
@@ -135,6 +136,7 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `users` | `notifications` | Cascade delete |
 | `users` | `gym_memberships` | Cascade delete |
 | `submission_drafts` | `submission_draft_images` | Cascade delete |
+| `submission_draft_images` | `submission_draft_routes` | Cascade delete |
 | `submissions` | `images` | **Refer to** `supabase/migrations/` |
 
 **Agent rule:** Before any DELETE operation, check the migration files in `supabase/migrations/` to confirm ON DELETE behavior. Never assume cascade behavior.
@@ -143,6 +145,7 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 - `images` carries media-pipeline state in addition to legacy `url` storage fields.
 - Key columns: `storage_provider`, `original_bucket`, `original_key`, `asset_version`, `variants`, `visibility`, `processing_status`, `checksum_sha256`, `processed_at`, `latitude`, `longitude`.
 - `submission_draft_images` mirrors the provider-aware original reference.
+- `submission_draft_routes` stores durable draft route geometry and metadata. Route drawing now persists per image via image-scoped bulk sync instead of relying on `submission_draft_images.route_data` as the primary store.
 - `media_jobs` and `claim_media_job(worker_name text)` are legacy artifacts from the retired polling Node worker.
 - Active ingest runs through Cloudflare Queue + the Worker in `apps/media-worker`; `images` remains the source of truth.
 
@@ -166,6 +169,7 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 |----------|---------|
 | `create_unified_submission(...)` | Atomically create submission with images |
 | `promote_draft(draft_id)` | Promote draft to live submission |
+| `sync_submission_draft_routes(draft_id, draft_image_id, routes)` | Replace the durable draft route set for one image |
 | `user_can_edit_submission_draft(draft_id, user_id)` | Permission check for draft editing |
 | `handle_submission_draft_promoted(...)` | Trigger handler for draft promotion |
 
