@@ -538,7 +538,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
           <RouteEditorRail
             routes={visibleRoutes}
             selectedRouteId={activeRouteId}
-            gradeSystem={gradeSystem}
             onSelectRoute={handleRouteSelect}
           />
         </div>
