@@ -20,7 +20,7 @@ const ROUTE_TYPES = [
 const DEFAULT_GRADE = '6A'
 
 function isClimbType(value: string | null | undefined): value is ClimbType {
-  return value === 'sport' || value === 'boulder' || value === 'trad' || value === 'deep-water-solo'
+  return value === 'sport' || value === 'boulder' || value === 'trad' || value === 'deep-water-solo' || value === 'deep_water_solo'
 }
 
 interface RouteEditSidebarProps {

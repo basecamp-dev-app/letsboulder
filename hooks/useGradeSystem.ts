@@ -11,6 +11,8 @@ const VALID_SYSTEMS: GradeSystem[] = ['v_scale', 'font_scale', 'yds_equivalent',
 let gradePreferencesCache: { boulder: GradeSystem; route: GradeSystem; trad: GradeSystem } | null = null
 let gradePreferencesRequest: Promise<{ boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }> | null = null
 
+type GradePreferences = { boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }
+
 function normalizeGradeSystem(value: unknown): GradeSystem {
   if (value === 'v') return 'v_scale'
   if (value === 'font') return 'font_scale'
@@ -18,34 +20,35 @@ function normalizeGradeSystem(value: unknown): GradeSystem {
   return 'font_scale'
 }
 
-function readStoredGradePreferences(): { boulder: GradeSystem; route: GradeSystem; trad: GradeSystem } | null {
+function normalizeGradePreferences(value: unknown): GradePreferences {
+  const record = typeof value === 'object' && value !== null ? value as Record<string, unknown> : null
+  return {
+    boulder: normalizeGradeSystem(record?.boulder),
+    route: normalizeGradeSystem(record?.route ?? 'yds_equivalent'),
+    trad: normalizeGradeSystem(record?.trad ?? 'yds_equivalent'),
+  }
+}
+
+function readStoredGradePreferences(): GradePreferences | null {
   if (typeof window === 'undefined') return null
   const stored = localStorage.getItem(STORAGE_KEY)
   if (!stored) return null
   try {
-    const parsed = JSON.parse(stored)
-    return {
-      boulder: normalizeGradeSystem(parsed.boulder),
-      route: normalizeGradeSystem(parsed.route),
-      trad: normalizeGradeSystem(parsed.trad),
-    }
+    return normalizeGradePreferences(JSON.parse(stored))
   } catch {
     const normalized = normalizeGradeSystem(stored)
     return { boulder: normalized, route: 'yds_equivalent', trad: 'yds_equivalent' }
   }
 }
 
-function getDefaultPreferences(): { boulder: GradeSystem; route: GradeSystem; trad: GradeSystem } {
+function getDefaultPreferences(): GradePreferences {
   return { boulder: 'v_scale', route: 'yds_equivalent', trad: 'yds_equivalent' }
 }
 
-async function fetchGradePreferences(): Promise<{ boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }> {
-  if (gradePreferencesCache) return gradePreferencesCache
-
+async function fetchGradePreferences(): Promise<GradePreferences> {
   const stored = readStoredGradePreferences()
-  if (stored) {
+  if (stored && !gradePreferencesCache) {
     gradePreferencesCache = stored
-    return stored
   }
 
   if (!gradePreferencesRequest) {
@@ -56,11 +59,11 @@ async function fetchGradePreferences(): Promise<{ boulder: GradeSystem; route: G
           return gradePreferencesCache
         }
         const data = await response.json()
-        const prefs = {
+        const prefs = normalizeGradePreferences({
           boulder: normalizeGradeSystem(data?.settings?.boulderSystem),
           route: normalizeGradeSystem(data?.settings?.routeSystem),
           trad: normalizeGradeSystem(data?.settings?.tradSystem),
-        }
+        })
         gradePreferencesCache = prefs
         if (typeof window !== 'undefined') {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
@@ -79,18 +82,20 @@ async function fetchGradePreferences(): Promise<{ boulder: GradeSystem; route: G
   return gradePreferencesRequest
 }
 
-function updateGradePreference(type: 'boulder' | 'route' | 'trad', value: GradeSystem) {
-  if (!gradePreferencesCache) {
-    gradePreferencesCache = getDefaultPreferences()
-  }
-  gradePreferencesCache[type] = value
+function writeGradePreferences(next: GradePreferences) {
+  gradePreferencesCache = next
   if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(gradePreferencesCache))
-  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: gradePreferencesCache }))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+  window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: next }))
 }
 
-export function updateGradeSystemPreference(value: GradeSystem) {
-  updateGradePreference('boulder', value)
+export function updateGradePreferences(next: Partial<GradePreferences>) {
+  const current = gradePreferencesCache || readStoredGradePreferences() || getDefaultPreferences()
+  writeGradePreferences({
+    boulder: next.boulder ? normalizeGradeSystem(next.boulder) : current.boulder,
+    route: next.route ? normalizeGradeSystem(next.route) : current.route,
+    trad: next.trad ? normalizeGradeSystem(next.trad) : current.trad,
+  })
 }
 
 export function useGradeSystem() {
@@ -108,7 +113,7 @@ export function useGradeSystem() {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== STORAGE_KEY || !event.newValue) return
       try {
-        const next = JSON.parse(event.newValue)
+        const next = normalizeGradePreferences(JSON.parse(event.newValue))
         gradePreferencesCache = next
         setPrefs(next)
       } catch {}
@@ -148,7 +153,7 @@ export function useGradePreferences() {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== STORAGE_KEY || !event.newValue) return
       try {
-        const next = JSON.parse(event.newValue)
+        const next = normalizeGradePreferences(JSON.parse(event.newValue))
         gradePreferencesCache = next
         setPrefs(next)
       } catch {}

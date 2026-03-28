@@ -275,6 +275,9 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   const cursorStyle = isDrawingEnabled && currentPoints.length > 0 ? 'crosshair' : 'default'
 
   const resolveClimbType = useCallback((climbType: string | null | undefined): ClimbType => {
+    if (climbType === 'deep_water_solo') {
+      return 'deep-water-solo'
+    }
     if (climbType === 'sport' || climbType === 'boulder' || climbType === 'trad' || climbType === 'deep-water-solo') {
       return climbType
     }

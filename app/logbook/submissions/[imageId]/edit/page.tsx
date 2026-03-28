@@ -6,7 +6,6 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronDown, Loader2, Link2, MapPin, Search, Trash2, Users } from 'lucide-react'
 import { SubmissionWorkstation } from '@/components/SubmissionWorkstation'
 import { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
-import { getGradeSystemForClimbType, useGradePreferences } from '@/hooks/useGradeSystem'
 import { useRouteStore } from '@/store/routeStore'
 import { normalizePoints } from '@/lib/canvasMath'
 import AtlasContextCard from '@/components/submissions/atlas-context-card'
@@ -273,8 +272,6 @@ export default function EditSubmittedRoutesPage() {
   const parsedLongitude = useMemo(() => parseCoordinate(longitude), [longitude])
 
   const { setRoutes, setMode, setInteractionTool, reset, interactionTool, commitCurrentRoute, currentPoints, undoLastPoint, selectedRouteId, setSelectedRoute, setActiveRoute, setEditorPanelOpen } = useRouteStore()
-  const gradePreferences = useGradePreferences()
-  const editorGradeSystem = getGradeSystemForClimbType('boulder', gradePreferences)
   const atlasSync = useAtlasAutoSync(
     typeof parsedLatitude === 'number' && !Number.isNaN(parsedLatitude) ? parsedLatitude : null,
     typeof parsedLongitude === 'number' && !Number.isNaN(parsedLongitude) ? parsedLongitude : null,
@@ -1423,7 +1420,6 @@ export default function EditSubmittedRoutesPage() {
             onSelectImage={handleQuickSwitchImage}
             existingRouteLines={existingRouteLines}
             selectedRouteId={selectedRouteId}
-            gradeSystem={editorGradeSystem}
             onSelectRoute={(routeId) => {
               setSelectedRoute(routeId)
               setActiveRoute(routeId)

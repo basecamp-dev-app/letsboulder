@@ -13,7 +13,6 @@ import 'leaflet/dist/leaflet.css'
 import { type UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
 import { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
 import { SubmissionWorkstation } from '@/components/SubmissionWorkstation'
-import { getGradeSystemForClimbType, useGradePreferences } from '@/hooks/useGradeSystem'
 import { useRouteStore } from '@/store/routeStore'
 import CragSelector from '@/app/submit/components/CragSelector'
 import SectorSelector from '@/app/submit/components/SectorSelector'
@@ -518,8 +517,6 @@ export default function EditDraftPage() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const { setMode, setInteractionTool, reset, clearCanvasState, selectedRouteId, routes: routeStoreRoutes, setRoutes: setRouteStoreRoutes, setSelectedRoute, setActiveRoute, setEditorPanelOpen, currentPoints, interactionTool, undoLastPoint } = useRouteStore()
-  const gradePreferences = useGradePreferences()
-  const editorGradeSystem = getGradeSystemForClimbType(routeType, gradePreferences)
   const { uploads, hasPendingUploads, hasFailedUploads, retryUpload, removeUpload, registerDraftUpdatedAt, queueDraftUploads, resumeQueue, isQueuePaused, subscribeToUploadComplete } = useDraftUploadManager()
   const { getUploadsForCrag } = useMediaUploadManager()
   const uploadsRef = useRef<MediaUploadItem[]>([])
@@ -2280,7 +2277,6 @@ export default function EditDraftPage() {
             onSelectImage={handleQuickSwitchImage}
             existingRouteLines={existingRouteLines}
             selectedRouteId={selectedRouteId}
-            gradeSystem={editorGradeSystem}
             onSelectRoute={(routeId) => {
               setSelectedRoute(routeId)
               setActiveRoute(routeId)
