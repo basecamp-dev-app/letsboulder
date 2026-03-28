@@ -14,7 +14,18 @@
 ALTER TABLE climbs DROP CONSTRAINT IF EXISTS climbs_grade_index_fkey;
 
 -- Step 2: Shift climbs.grade_index by +6 first (no FK to block us)
-UPDATE climbs SET grade_index = grade_index + 6 WHERE grade_index IS NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'climbs'
+      AND column_name = 'grade_index'
+  ) THEN
+    EXECUTE 'UPDATE climbs SET grade_index = grade_index + 6 WHERE grade_index IS NOT NULL';
+  END IF;
+END $$;
 
 -- Step 3: Shift grade_mappings rows by +6
 -- Use temporary offset (+1000) to avoid primary key conflicts during the shift.
@@ -88,14 +99,47 @@ UPDATE grade_votes SET grade = '4C'  WHERE grade = '5';
 UPDATE grade_votes SET grade = '5B'  WHERE grade = '5+';
 
 -- Step 9: Backfill grade_index for any climbs missing it
-UPDATE climbs
-SET grade_index = gm.grade_index
-FROM grade_mappings gm
-WHERE UPPER(climbs.grade) = gm.font_scale
-  AND climbs.grade_index IS NULL
-  AND climbs.grade IS NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'climbs'
+      AND column_name = 'grade_index'
+  ) THEN
+    EXECUTE $sql$
+      UPDATE climbs
+      SET grade_index = gm.grade_index
+      FROM grade_mappings gm
+      WHERE UPPER(climbs.grade) = gm.font_scale
+        AND climbs.grade_index IS NULL
+        AND climbs.grade IS NOT NULL
+    $sql$;
+  ELSE
+    ALTER TABLE climbs ADD COLUMN grade_index INT;
+    EXECUTE $sql$
+      UPDATE climbs
+      SET grade_index = gm.grade_index
+      FROM grade_mappings gm
+      WHERE UPPER(climbs.grade) = gm.font_scale
+        AND climbs.grade IS NOT NULL
+    $sql$;
+  END IF;
+END $$;
 
 -- Step 10: Re-add the FK constraint
-ALTER TABLE climbs
-  ADD CONSTRAINT climbs_grade_index_fkey
-  FOREIGN KEY (grade_index) REFERENCES grade_mappings(grade_index);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.table_constraints
+    WHERE constraint_schema = 'public'
+      AND table_name = 'climbs'
+      AND constraint_name = 'climbs_grade_index_fkey'
+  ) THEN
+    ALTER TABLE climbs
+      ADD CONSTRAINT climbs_grade_index_fkey
+      FOREIGN KEY (grade_index) REFERENCES grade_mappings(grade_index);
+  END IF;
+END $$;
