@@ -27,6 +27,7 @@ import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, typ
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirection } from '@/lib/draft-metadata'
 import { createClient } from '@/lib/supabase'
+import { buildMapPins, reorderItemsByIds, resequenceRoutes, resolveLocationMode } from '@/lib/editor-image-state'
 
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false })
@@ -1058,6 +1059,7 @@ export default function EditDraftPage() {
     return sourceImages.find((image) => image.imageId === activeImageId) || null
   }, [activeImageId, canvasSource, mergedCragCanvasImages, mergedManageImages])
   const activeDraftImageId = activeImageTab?.imageId || null
+  const activeImageLocationMode = activeDraftImageId ? (resolveLocationMode(locationModeByImageId[activeDraftImageId])) : 'shared'
 
   const activeRoutes = useMemo(() => {
     if (!activeDraftImageId) return []
@@ -1193,18 +1195,20 @@ export default function EditDraftPage() {
   }, [canvasSource, defaultImageId, mergedCragCanvasImages, mergedManageImages, pendingCragUploads, pendingDraftUploads])
 
   const draftMapPins = useMemo<LightweightCragMapPin[]>(() => {
-    return quickSwitcherImages.reduce<LightweightCragMapPin[]>((acc, image) => {
-      if (typeof image.latitude !== 'number' || typeof image.longitude !== 'number') return acc
-      acc.push({
-        id: image.imageId,
-        latitude: image.latitude,
-        longitude: image.longitude,
-        label: String(image.badgeNumber),
-        interactive: true,
-        tone: image.sourceKind === 'crag-image' ? 'published' : 'draft',
-      })
-      return acc
-    }, [])
+    return buildMapPins(quickSwitcherImages.map((image) => ({
+      imageId: image.imageId,
+      order: image.badgeNumber - 1,
+      label: image.label,
+      latitude: image.latitude,
+      longitude: image.longitude,
+      locationMode: resolveLocationMode(image.locationMode),
+    }))).map((pin) => {
+      const sourceImage = quickSwitcherImages.find((image) => image.imageId === pin.id)
+      return {
+        ...pin,
+        tone: sourceImage?.sourceKind === 'crag-image' ? 'published' : 'draft',
+      }
+    })
   }, [quickSwitcherImages])
 
   const fallbackLocation = useMemo<[number, number] | null>(() => {
@@ -1637,17 +1641,30 @@ export default function EditDraftPage() {
     router.push('/logbook')
   }, [draftId, isOwner, addToast, router])
 
+  const updateDraftLocation = useCallback((nextLatitude: number, nextLongitude: number) => {
+    if (activeDraftImageId && activeImageLocationMode === 'custom') {
+      setCustomGpsByImageId((prev) => ({
+        ...prev,
+        [activeDraftImageId]: {
+          latitude: nextLatitude,
+          longitude: nextLongitude,
+        },
+      }))
+      return
+    }
+    setLatitude(nextLatitude.toFixed(6))
+    setLongitude(nextLongitude.toFixed(6))
+  }, [activeDraftImageId, activeImageLocationMode])
+
   const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
-    setLatitude(event.latlng.lat.toFixed(6))
-    setLongitude(event.latlng.lng.toFixed(6))
-  }, [])
+    updateDraftLocation(event.latlng.lat, event.latlng.lng)
+  }, [updateDraftLocation])
 
   const handleMarkerDragEnd = useCallback((event: L.LeafletEvent) => {
     const marker = event.target as L.Marker
     const position = marker.getLatLng()
-    setLatitude(position.lat.toFixed(6))
-    setLongitude(position.lng.toFixed(6))
-  }, [])
+    updateDraftLocation(position.lat, position.lng)
+  }, [updateDraftLocation])
 
   const handleSearchLocation = useCallback(async () => {
     const query = searchQuery.trim()
@@ -1670,15 +1687,14 @@ export default function EditDraftPage() {
         throw new Error('Invalid location coordinates')
       }
 
-      setLatitude(lat.toFixed(6))
-      setLongitude(lng.toFixed(6))
+      updateDraftLocation(lat, lng)
       setMapOpen(true)
     } catch (err) {
       setLocationSearchError(err instanceof Error ? err.message : 'Failed to search location')
     } finally {
       setSearchingLocation(false)
     }
-  }, [searchQuery])
+  }, [searchQuery, updateDraftLocation])
 
   const saveDraft = useCallback(async (options?: { silent?: boolean; overrideRoutesByImageId?: Record<string, DraftRoute[]> }) => {
     const silent = options?.silent === true
@@ -2306,12 +2322,31 @@ export default function EditDraftPage() {
             publishedPins={publishedMapPins}
             initialCenter={markerPosition}
             onSelectImage={handleQuickSwitchImage}
+            onReorderImages={(imageIds) => {
+              setManageImages((prev) => reorderItemsByIds(prev, imageIds).map((image) => ({
+                ...image,
+                locationMode: resolveLocationMode(locationModeByImageId[image.imageId] || image.locationMode),
+              })))
+            }}
             existingRouteLines={existingRouteLines}
             selectedRouteId={selectedRouteId}
             onSelectRoute={(routeId) => {
               setSelectedRoute(routeId)
               setActiveRoute(routeId)
               setEditorPanelOpen(true)
+            }}
+            onReorderRoutes={(routeIds) => {
+              if (!activeDraftImageId) return
+              setRoutesByImageId((prev) => {
+                const current = prev[activeDraftImageId] || []
+                const nextRoutes = resequenceRoutes(current, routeIds)
+                const nextRoutesByImageId = {
+                  ...prev,
+                  [activeDraftImageId]: nextRoutes,
+                }
+                scheduleDraftPersist(nextRoutesByImageId)
+                return nextRoutesByImageId
+              })
             }}
             interactionTool={interactionTool === 'select' ? 'select' : 'draw'}
             currentPointsCount={currentPoints.length}
@@ -2442,12 +2477,56 @@ export default function EditDraftPage() {
 
           <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/60">
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Image location</h3>
+            <div className="mb-3 inline-flex rounded-lg border border-gray-200 p-1 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!activeDraftImageId) return
+                  setLocationModeByImageId((prev) => ({ ...prev, [activeDraftImageId]: 'shared' }))
+                  setManageImages((prev) => prev.map((image) => image.imageId === activeDraftImageId ? { ...image, locationMode: 'shared' } : image))
+                }}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeImageLocationMode === 'shared' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'}`}
+              >
+                Shared pin
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!activeDraftImageId) return
+                  setLocationModeByImageId((prev) => ({ ...prev, [activeDraftImageId]: 'custom' }))
+                  setCustomGpsByImageId((prev) => ({
+                    ...prev,
+                    [activeDraftImageId]: prev[activeDraftImageId] || {
+                      latitude: markerPosition?.[0] ?? null,
+                      longitude: markerPosition?.[1] ?? null,
+                    },
+                  }))
+                  setManageImages((prev) => prev.map((image) => image.imageId === activeDraftImageId ? { ...image, locationMode: 'custom' } : image))
+                }}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeImageLocationMode === 'custom' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'}`}
+              >
+                Own pin
+              </button>
+            </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <label className="text-xs text-gray-600 dark:text-gray-300">
                 Latitude
                 <input
-                  value={latitude}
-                  onChange={(event) => setLatitude(event.target.value)}
+                  value={activeImageLocationMode === 'custom' && activeDraftImageId ? String(customGpsByImageId[activeDraftImageId]?.latitude ?? '') : latitude}
+                  onChange={(event) => {
+                    if (activeImageLocationMode === 'custom' && activeDraftImageId) {
+                      const nextLatitude = event.target.value
+                      setCustomGpsByImageId((prev) => ({
+                        ...prev,
+                        [activeDraftImageId]: {
+                          latitude: nextLatitude.trim() === '' ? null : Number(nextLatitude),
+                          longitude: prev[activeDraftImageId]?.longitude ?? null,
+                        },
+                      }))
+                      return
+                    }
+                    setLatitude(event.target.value)
+                  }}
                   placeholder="e.g. 48.4049"
                   className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                 />
@@ -2455,8 +2534,21 @@ export default function EditDraftPage() {
               <label className="text-xs text-gray-600 dark:text-gray-300">
                 Longitude
                 <input
-                  value={longitude}
-                  onChange={(event) => setLongitude(event.target.value)}
+                  value={activeImageLocationMode === 'custom' && activeDraftImageId ? String(customGpsByImageId[activeDraftImageId]?.longitude ?? '') : longitude}
+                  onChange={(event) => {
+                    if (activeImageLocationMode === 'custom' && activeDraftImageId) {
+                      const nextLongitude = event.target.value
+                      setCustomGpsByImageId((prev) => ({
+                        ...prev,
+                        [activeDraftImageId]: {
+                          latitude: prev[activeDraftImageId]?.latitude ?? null,
+                          longitude: nextLongitude.trim() === '' ? null : Number(nextLongitude),
+                        },
+                      }))
+                      return
+                    }
+                    setLongitude(event.target.value)
+                  }}
                   placeholder="e.g. 2.6920"
                   className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
                 />

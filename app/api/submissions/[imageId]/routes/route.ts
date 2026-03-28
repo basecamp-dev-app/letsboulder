@@ -20,6 +20,7 @@ interface EditableRoutePayload {
   name: string
   description?: string
   points: RoutePoint[]
+  sequenceOrder?: number
 }
 
 interface NewRoutePayload {
@@ -753,6 +754,7 @@ export async function PUT(
         name: route.name.trim(),
         description: route.description?.trim() || null,
         points: route.points,
+        sequenceOrder: typeof route.sequenceOrder === 'number' ? route.sequenceOrder : 0,
       })),
     })
 

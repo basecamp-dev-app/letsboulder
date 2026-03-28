@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type DragEvent } from 'react'
 import NextImage from 'next/image'
-import { ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react'
+import { GripHorizontal, ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react'
 import LightweightCragMap, { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
 import { RouteEditorRail } from '@/components/RouteEditorRail'
 import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
@@ -16,6 +16,7 @@ interface WorkstationImage {
   status?: 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
   error?: string | null
   progress?: number
+  locationMode?: 'shared' | 'custom'
 }
 
 interface SubmissionWorkstationProps {
@@ -32,9 +33,11 @@ interface SubmissionWorkstationProps {
   publishedPins?: LightweightCragMapPin[]
   initialCenter?: [number, number] | null
   onSelectImage: (imageId: string) => void
+  onReorderImages?: (imageIds: string[]) => void
   existingRouteLines: RouteLine[]
   selectedRouteId: string | null
   onSelectRoute: (routeId: string) => void
+  onReorderRoutes?: (routeIds: string[]) => void
   interactionTool: 'select' | 'draw'
   currentPointsCount: number
   onSetSelectTool: () => void
@@ -64,9 +67,11 @@ export function SubmissionWorkstation({
   publishedPins = [],
   initialCenter = null,
   onSelectImage,
+  onReorderImages,
   existingRouteLines,
   selectedRouteId,
   onSelectRoute,
+  onReorderRoutes,
   interactionTool,
   currentPointsCount,
   onSetSelectTool,
@@ -100,26 +105,44 @@ export function SubmissionWorkstation({
         ? 'Upload failed.'
         : 'Uploading...'
 
-  const handleQuickBarDragOver = (event: DragEvent<HTMLDivElement>) => {
+  const handleQuickBarDragOver = (event: DragEvent<HTMLElement>) => {
     if (!onQuickBarDropFiles) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
     setIsQuickBarDragOver(true)
   }
 
-  const handleQuickBarDragEnter = (event: DragEvent<HTMLDivElement>) => {
+  const handleQuickBarDragEnter = (event: DragEvent<HTMLElement>) => {
     if (!onQuickBarDropFiles) return
     event.preventDefault()
     setIsQuickBarDragOver(true)
   }
 
-  const handleQuickBarDragLeave = (event: DragEvent<HTMLDivElement>) => {
+  const handleQuickBarDragLeave = (event: DragEvent<HTMLElement>) => {
     if (!onQuickBarDropFiles) return
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
     setIsQuickBarDragOver(false)
   }
 
-  const handleQuickBarDrop = (event: DragEvent<HTMLDivElement>) => {
+  const handleQuickBarDrop = (event: DragEvent<HTMLElement>) => {
+    const sourceImageId = event.dataTransfer.getData('application/x-letsboulder-image-id')
+    if (sourceImageId && onReorderImages) {
+      event.preventDefault()
+      setIsQuickBarDragOver(false)
+      const target = event.target as HTMLElement | null
+      const targetButton = target?.closest('[data-image-id]') as HTMLElement | null
+      const targetImageId = targetButton?.dataset.imageId
+      if (!targetImageId || targetImageId === sourceImageId) return
+      const currentOrder = quickSwitcherImages.map((image) => image.imageId)
+      const sourceIndex = currentOrder.indexOf(sourceImageId)
+      const targetIndex = currentOrder.indexOf(targetImageId)
+      if (sourceIndex < 0 || targetIndex < 0) return
+      const nextOrder = [...currentOrder]
+      const [moved] = nextOrder.splice(sourceIndex, 1)
+      nextOrder.splice(targetIndex, 0, moved)
+      onReorderImages(nextOrder)
+      return
+    }
     if (!onQuickBarDropFiles) return
     event.preventDefault()
     setIsQuickBarDragOver(false)
@@ -181,6 +204,20 @@ export function SubmissionWorkstation({
                   <button
                     key={`quick-switch-${image.imageId}`}
                     type="button"
+                    data-image-id={image.imageId}
+                    draggable={Boolean(onReorderImages)}
+                    onDragStart={(event) => {
+                      if (!onReorderImages) return
+                      event.dataTransfer.effectAllowed = 'move'
+                      event.dataTransfer.setData('application/x-letsboulder-image-id', image.imageId)
+                      event.dataTransfer.setData('text/plain', image.imageId)
+                    }}
+                    onDragOver={(event) => {
+                      if (!onReorderImages) return
+                      event.preventDefault()
+                      event.dataTransfer.dropEffect = 'move'
+                    }}
+                    onDrop={(event) => handleQuickBarDrop(event)}
                     onClick={() => onSelectImage(image.imageId)}
                     className={`shrink-0 rounded-2xl border p-1.5 transition ${
                       isActive
@@ -191,6 +228,7 @@ export function SubmissionWorkstation({
                     aria-label={`Switch to image ${image.badgeNumber}`}
                   >
                     <div className="relative h-14 w-14 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800">
+                      {onReorderImages ? <GripHorizontal className="absolute bottom-1 right-1 z-10 h-3.5 w-3.5 rounded-full bg-black/55 p-[2px] text-white" /> : null}
                       <span className={`absolute left-1 top-1 z-10 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold ${isActive ? 'bg-blue-600 text-white' : 'bg-black/70 text-white'}`}>
                         {image.badgeNumber}
                       </span>
@@ -213,6 +251,11 @@ export function SubmissionWorkstation({
                     <div className={`mt-1 text-center text-[11px] font-medium ${isActive ? 'text-blue-700 dark:text-blue-200' : 'text-gray-600 dark:text-gray-300'}`}>
                       {image.isDefault ? `Default ${image.badgeNumber}` : `Image ${image.badgeNumber}`}
                     </div>
+                    {image.locationMode ? (
+                      <div className="mt-0.5 text-center text-[10px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500">
+                        {image.locationMode === 'custom' ? 'Own pin' : 'Shared'}
+                      </div>
+                    ) : null}
                   </button>
                 )
               })}
@@ -344,6 +387,7 @@ export function SubmissionWorkstation({
         routes={existingRouteLines}
         selectedRouteId={selectedRouteId}
         onSelectRoute={onSelectRoute}
+        onReorderRoutes={onReorderRoutes}
       />
 
       <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">

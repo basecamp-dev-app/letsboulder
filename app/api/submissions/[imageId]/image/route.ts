@@ -11,6 +11,7 @@ interface UpdateImageMetadataPayload {
   latitude: number | null
   longitude: number | null
   faceDirections: FaceDirection[]
+  locationMode?: 'shared' | 'custom'
 }
 
 function normalizePayload(value: unknown): UpdateImageMetadataPayload | null {
@@ -19,15 +20,18 @@ function normalizePayload(value: unknown): UpdateImageMetadataPayload | null {
     latitude?: unknown
     longitude?: unknown
     faceDirections?: unknown
+    locationMode?: unknown
   }
 
   const latitude = candidate.latitude
   const longitude = candidate.longitude
   const faceDirections = candidate.faceDirections
+  const locationMode = candidate.locationMode
 
   if (!(latitude === null || typeof latitude === 'number')) return null
   if (!(longitude === null || typeof longitude === 'number')) return null
   if (!Array.isArray(faceDirections)) return null
+  if (!(locationMode === undefined || locationMode === 'shared' || locationMode === 'custom')) return null
 
   if (typeof latitude === 'number' && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) return null
   if (typeof longitude === 'number' && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) return null
@@ -48,6 +52,7 @@ function normalizePayload(value: unknown): UpdateImageMetadataPayload | null {
     latitude: latitude as number | null,
     longitude: longitude as number | null,
     faceDirections: normalizedDirections,
+    locationMode: locationMode === 'shared' ? 'shared' : locationMode === 'custom' ? 'custom' : undefined,
   }
 }
 
@@ -98,6 +103,7 @@ export async function PUT(
       p_latitude: payload.latitude,
       p_longitude: payload.longitude,
       p_face_directions: payload.faceDirections,
+      p_location_mode: payload.locationMode ?? null,
     })
 
     if (rpcError) {
@@ -133,12 +139,13 @@ export async function PUT(
       }
     }
 
-    if (relatedImageIds.size > 1) {
+    if (payload.locationMode === 'shared' && relatedImageIds.size > 1) {
       const { error: syncCoordsError } = await supabase
         .from('images')
         .update({
-          latitude: payload.latitude,
-          longitude: payload.longitude,
+          latitude: null,
+          longitude: null,
+          location_mode: 'shared',
           last_edited_by: userId,
         })
         .in('id', [...relatedImageIds])
@@ -171,8 +178,9 @@ export async function PUT(
     return NextResponse.json({
       success: true,
       metadata: result && typeof result === 'object' ? result : {
-        latitude: payload.latitude,
-        longitude: payload.longitude,
+        latitude: payload.locationMode === 'shared' ? null : payload.latitude,
+        longitude: payload.locationMode === 'shared' ? null : payload.longitude,
+        location_mode: payload.locationMode ?? 'custom',
         face_directions: payload.faceDirections,
       },
     })
