@@ -22,6 +22,7 @@ import {
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
+import type { UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
 
 interface EditableRoute {
   id: string
@@ -280,7 +281,7 @@ export default function EditSubmittedRoutesPage() {
   const parsedLatitude = useMemo(() => parseCoordinate(latitude), [latitude])
   const parsedLongitude = useMemo(() => parseCoordinate(longitude), [longitude])
 
-  const { setRoutes, setMode, setInteractionTool, reset, interactionTool, commitCurrentRoute, currentPoints, undoLastPoint, selectedRouteId, setSelectedRoute, setActiveRoute, setEditorPanelOpen } = useRouteStore()
+  const { setRoutes, setMode, setInteractionTool, reset, interactionTool, currentPoints, undoLastPoint, selectedRouteId, setSelectedRoute, setActiveRoute, setEditorPanelOpen } = useRouteStore()
   const atlasSync = useAtlasAutoSync(
     typeof parsedLatitude === 'number' && !Number.isNaN(parsedLatitude) ? parsedLatitude : null,
     typeof parsedLongitude === 'number' && !Number.isNaN(parsedLongitude) ? parsedLongitude : null,
@@ -294,6 +295,7 @@ export default function EditSubmittedRoutesPage() {
   const [deleteTransferCandidates, setDeleteTransferCandidates] = useState<DeleteTransferCandidate[]>([])
   const [selectedTransferTargetRouteLineId, setSelectedTransferTargetRouteLineId] = useState<string>('')
   const drawingAreaRef = useRef<HTMLDivElement | null>(null)
+  const routeCanvasRef = useRef<UnifiedRouteCanvasRef | null>(null)
   const [orientationOpen, setOrientationOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
 
@@ -1425,6 +1427,7 @@ export default function EditSubmittedRoutesPage() {
         {hasReadyData && activeImageUrl ? (
           <SubmissionWorkstation
             drawingAreaRef={drawingAreaRef}
+            routeCanvasRef={routeCanvasRef}
             quickSwitcherImages={quickSwitcherImages}
             activeImageId={activeImageId}
             activeImageUrl={activeImageUrl}
@@ -1468,7 +1471,7 @@ export default function EditSubmittedRoutesPage() {
               setEditorPanelOpen(false)
             }}
             onUndoPoint={() => undoLastPoint()}
-            onFinishRoute={() => commitCurrentRoute()}
+            onFinishRoute={() => routeCanvasRef.current?.finishRoute()}
             canvasKey={`${canvasKey}:${activeImageId}`}
             extraAction={facesLoading ? <span className="px-2 text-[11px] text-gray-500 dark:text-gray-400">Loading...</span> : null}
             onRoutesUpdate={(routes) => {
