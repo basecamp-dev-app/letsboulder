@@ -29,6 +29,9 @@ BEGIN
 END $$;
 
 DO $$
+DECLARE
+  has_is_primary BOOLEAN := false;
+  order_clause TEXT := 'created_at ASC NULLS LAST, id ASC';
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -37,13 +40,25 @@ BEGIN
       AND table_name = 'images'
       AND column_name = 'submission_id'
   ) THEN
-    EXECUTE $sql$
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'images'
+        AND column_name = 'is_primary'
+    ) INTO has_is_primary;
+
+    IF has_is_primary THEN
+      order_clause := 'CASE WHEN is_primary THEN 0 ELSE 1 END, created_at ASC NULLS LAST, id ASC';
+    END IF;
+
+    EXECUTE format($sql$
       WITH ordered_images AS (
         SELECT
           id,
           ROW_NUMBER() OVER (
             PARTITION BY submission_id
-            ORDER BY CASE WHEN is_primary THEN 0 ELSE 1 END, created_at ASC NULLS LAST, id ASC
+            ORDER BY %s
           ) - 1 AS next_face_order
         FROM public.images
         WHERE submission_id IS NOT NULL
@@ -53,7 +68,7 @@ BEGIN
       FROM ordered_images
       WHERE target.id = ordered_images.id
         AND target.face_order IS NULL
-    $sql$;
+    $sql$, order_clause);
   END IF;
 END $$;
 
