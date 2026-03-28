@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState, type DragEvent } from 'react'
-import NextImage from 'next/image'
 import { GripHorizontal, ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react'
 import LightweightCragMap, { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
 import { RouteEditorRail } from '@/components/RouteEditorRail'
@@ -235,7 +234,8 @@ export function SubmissionWorkstation({
                         {image.badgeNumber}
                       </span>
                       {image.signedUrl ? (
-                        <NextImage src={image.signedUrl} alt={`Quick switch image ${image.badgeNumber}`} fill sizes="56px" className="object-cover" />
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={image.signedUrl} alt={`Quick switch image ${image.badgeNumber}`} className="h-full w-full object-cover" draggable={false} />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center bg-gray-200 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300">
                           {image.status === 'FAILED'
