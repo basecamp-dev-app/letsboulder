@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type DragEvent } from 'react'
 import NextImage from 'next/image'
-import { ChevronDown, ImagePlus, Layers3, Loader2, Map, PencilLine, Plus, Trash2 } from 'lucide-react'
+import { ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react'
 import LightweightCragMap, { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
 import { RouteEditorRail } from '@/components/RouteEditorRail'
 import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
@@ -85,9 +85,6 @@ export function SubmissionWorkstation({
   onRoutesUpdate,
 }: SubmissionWorkstationProps) {
   const [isQuickBarDragOver, setIsQuickBarDragOver] = useState(false)
-  const [mapOpen, setMapOpen] = useState(false)
-  const [mediaTrayOpen, setMediaTrayOpen] = useState(false)
-  const [routesTrayOpen, setRoutesTrayOpen] = useState(false)
 
   const isDrawing = interactionTool === 'draw'
   const hasDraftPoints = currentPointsCount > 0
@@ -163,63 +160,8 @@ export function SubmissionWorkstation({
             ) : null}
           </div>
         </div>
-
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          <button
-            type="button"
-            onClick={() => setMediaTrayOpen((open) => !open)}
-            className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-left transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/80 dark:hover:bg-gray-800"
-            aria-expanded={mediaTrayOpen}
-          >
-            <span className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-              <Layers3 className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-              Photos
-            </span>
-            <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform dark:text-gray-400 ${mediaTrayOpen ? 'rotate-180' : ''}`} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setMapOpen((open) => !open)}
-            className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-left transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/80 dark:hover:bg-gray-800"
-            aria-expanded={mapOpen}
-          >
-            <span className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-              <Map className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-              Location map
-            </span>
-            <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform dark:text-gray-400 ${mapOpen ? 'rotate-180' : ''}`} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setRoutesTrayOpen((open) => !open)}
-            className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-left transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800/80 dark:hover:bg-gray-800"
-            aria-expanded={routesTrayOpen}
-          >
-            <span className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-              <PencilLine className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-              Routes
-            </span>
-            <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform dark:text-gray-400 ${routesTrayOpen ? 'rotate-180' : ''}`} />
-          </button>
-        </div>
-      </div>
-
-      {mapOpen ? (
-        <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <LightweightCragMap
-            draftPins={draftPins}
-            publishedPins={publishedPins}
-            activePinId={activeImageId}
-            initialCenter={initialCenter}
-            onPinSelect={onSelectImage}
-            heightClassName="h-[180px] min-h-[180px] md:h-[200px]"
-          />
-        </div>
-      ) : null}
-
-      {mediaTrayOpen ? (
         <div
-          className={`overflow-x-auto rounded-3xl px-3 py-3 shadow-sm transition-colors ${
+          className={`mt-3 overflow-x-auto rounded-3xl px-3 py-3 shadow-sm transition-colors ${
             isQuickBarDragOver
               ? 'border-4 border-dashed border-blue-500 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-950/40'
               : 'border border-gray-200 bg-white/95 dark:border-gray-800 dark:bg-gray-900/95'
@@ -304,63 +246,64 @@ export function SubmissionWorkstation({
             </div>
           </div>
         </div>
-      ) : null}
+      </div>
 
-      <div className="sticky bottom-[calc(var(--app-mobile-footer-offset,4rem)+env(safe-area-inset-bottom,0px)+0.5rem)] z-20 rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-lg backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 md:bottom-4">
-        <div className="flex gap-2 overflow-x-auto">
-        <button
-          type="button"
-          className={`min-w-[7rem] flex-1 rounded-2xl px-3 py-2 text-sm font-medium transition-colors ${
-            interactionTool === 'select'
-              ? 'bg-blue-500 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
-          }`}
-          onClick={onSetSelectTool}
-        >
-          Select/Edit
-        </button>
-        <button
-          type="button"
-          className={`min-w-[7rem] flex-1 rounded-2xl px-3 py-2 text-sm font-medium transition-colors ${
-            interactionTool === 'draw'
-              ? 'bg-blue-500 text-white'
-              : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
-          }`}
-          onClick={onSetDrawTool}
-        >
-          Draw Route
-        </button>
-        <button
-          type="button"
-          className={`min-w-[7rem] flex-1 rounded-2xl px-3 py-2 text-sm font-medium transition-colors ${
-            currentPointsCount > 0
-              ? 'bg-orange-500 text-white hover:bg-orange-600'
-              : 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-600 dark:text-gray-500'
-          }`}
-          onClick={onUndoPoint}
-          disabled={currentPointsCount === 0}
-        >
-          Undo Point
-        </button>
-        <button
-          type="button"
-          className={`min-w-[7rem] flex-1 rounded-2xl px-3 py-2 text-sm font-medium transition-colors ${
-            currentPointsCount >= 2
-              ? 'bg-green-500 text-white hover:bg-green-600'
-              : 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-600 dark:text-gray-500'
-          }`}
-          onClick={onFinishRoute}
-          disabled={currentPointsCount < 2}
-        >
-          Finish Route
-        </button>
+      <div className="rounded-3xl border border-gray-200 bg-white/95 p-2 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <button
+            type="button"
+            className={`rounded-2xl px-3 py-2 text-sm font-medium transition-colors ${
+              interactionTool === 'select'
+                ? 'bg-blue-500 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+            }`}
+            onClick={onSetSelectTool}
+          >
+            Select/Edit
+          </button>
+          <button
+            type="button"
+            className={`rounded-2xl px-3 py-2 text-sm font-medium transition-colors ${
+              interactionTool === 'draw'
+                ? 'bg-blue-500 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+            }`}
+            onClick={onSetDrawTool}
+          >
+            Draw Route
+          </button>
+          <button
+            type="button"
+            className={`rounded-2xl px-3 py-2 text-sm font-medium transition-colors ${
+              currentPointsCount > 0
+                ? 'bg-orange-500 text-white hover:bg-orange-600'
+                : 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-600 dark:text-gray-500'
+            }`}
+            onClick={onUndoPoint}
+            disabled={currentPointsCount === 0}
+          >
+            Undo Point
+          </button>
+          <button
+            type="button"
+            className={`rounded-2xl px-3 py-2 text-sm font-medium transition-colors ${
+              currentPointsCount >= 2
+                ? 'bg-green-500 text-white hover:bg-green-600'
+                : 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-600 dark:text-gray-500'
+            }`}
+            onClick={onFinishRoute}
+            disabled={currentPointsCount < 2}
+          >
+            Finish Route
+          </button>
         </div>
         <div className="mt-2 flex items-center justify-between px-1 text-xs text-gray-500 dark:text-gray-400">
           <span>{isDrawing ? (hasDraftPoints ? `${currentPointsCount} points placed` : 'Tap the wall to add points') : 'Tap a route to edit details'}</span>
           <span>{routeCountLabel}</span>
         </div>
       </div>
-      <div className="min-h-[52dvh] rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-800 md:min-h-[60dvh]">
+
+      <div className="min-h-[52dvh] overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900 md:min-h-[60dvh]">
         {activeImageReady ? (
           <UnifiedRouteCanvas
             ref={routeCanvasRef}
@@ -369,6 +312,7 @@ export function SubmissionWorkstation({
             imageUrl={activeImageUrl}
             routes={existingRouteLines}
             onRoutesUpdate={onRoutesUpdate}
+            className="h-full min-h-[52dvh] md:min-h-[60dvh]"
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 bg-gray-100 px-6 text-center text-sm text-gray-500 dark:bg-gray-900 dark:text-gray-300">
@@ -399,14 +343,23 @@ export function SubmissionWorkstation({
         )}
       </div>
 
-      {routesTrayOpen || !isDrawing ? (
-        <RouteEditorRail
-          routes={existingRouteLines}
-          selectedRouteId={selectedRouteId}
-          gradeSystem={gradeSystem}
-          onSelectRoute={onSelectRoute}
+      <RouteEditorRail
+        routes={existingRouteLines}
+        selectedRouteId={selectedRouteId}
+        gradeSystem={gradeSystem}
+        onSelectRoute={onSelectRoute}
+      />
+
+      <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <LightweightCragMap
+          draftPins={draftPins}
+          publishedPins={publishedPins}
+          activePinId={activeImageId}
+          initialCenter={initialCenter}
+          onPinSelect={onSelectImage}
+          heightClassName="h-[180px] min-h-[180px] md:h-[200px]"
         />
-      ) : null}
+      </div>
     </div>
   )
 }

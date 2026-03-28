@@ -36,6 +36,10 @@ export async function resolveUserIdWithFallback(
     return { userId: headerUserId }
   }
 
-  const { data: { user }, error } = await client.auth.getUser()
-  return { userId: user?.id ?? null, authError: error }
+  try {
+    const { data: { user }, error } = await client.auth.getUser()
+    return { userId: user?.id ?? null, authError: error }
+  } catch (error) {
+    return { userId: null, authError: error }
+  }
 }
