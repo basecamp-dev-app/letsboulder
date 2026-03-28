@@ -13,6 +13,7 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
 import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
 import { createClient } from '@/lib/supabase'
+import { buildMapPins, reorderItemsByIds, resequenceRoutes, resolveLocationMode } from '@/lib/editor-image-state'
 import {
   normalizeSubmissionCreditHandle,
   normalizeSubmissionCreditPlatform,
@@ -28,6 +29,7 @@ interface EditableRoute {
   grade: string
   description?: string
   points: RoutePoint[]
+  sequenceOrder?: number
 }
 
 interface CollaboratorItem {
@@ -93,6 +95,7 @@ interface EditableImageQuery {
   latitude: number | null
   longitude: number | null
   face_directions: string[] | null
+  location_mode?: string | null
   crags?: {
     id: string
     name: string
@@ -115,6 +118,8 @@ interface SubmissionBatchImageQuery {
   longitude: number | null
   face_directions: string[] | null
   is_primary: boolean
+  location_mode?: string | null
+  face_order?: number | null
 }
 
 interface ManageFaceTab {
@@ -125,6 +130,7 @@ interface ManageFaceTab {
   signedUrl: string | null
   latitude?: number | null
   longitude?: number | null
+  locationMode?: 'shared' | 'custom'
 }
 
 interface CollapsiblePanelProps {
@@ -246,6 +252,8 @@ export default function EditSubmittedRoutesPage() {
   const [initialRegionTag, setInitialRegionTag] = useState('')
   const [initialSubArea, setInitialSubArea] = useState('')
   const [initialFaceDirections, setInitialFaceDirections] = useState<FaceDirection[]>([])
+  const [locationMode, setLocationMode] = useState<'shared' | 'custom'>('custom')
+  const [initialLocationMode, setInitialLocationMode] = useState<'shared' | 'custom'>('custom')
   const [shareOpen, setShareOpen] = useState(false)
   const [loadingCollaborators, setLoadingCollaborators] = useState(false)
   const [collaborators, setCollaborators] = useState<CollaboratorItem[]>([])
@@ -473,6 +481,7 @@ export default function EditSubmittedRoutesPage() {
         grade: routeLine.climb?.grade || '6A',
         description: routeLine.climb?.description || undefined,
         points: routeLine.points,
+        sequenceOrder: typeof routeLine.sequence_order === 'number' ? routeLine.sequence_order : index,
       }))
 
       setImageSelection({
@@ -484,6 +493,9 @@ export default function EditSubmittedRoutesPage() {
       setLongitude(typeof submission.longitude === 'number' ? submission.longitude.toString() : '')
       setInitialLatitude(typeof submission.latitude === 'number' ? submission.latitude.toString() : '')
       setInitialLongitude(typeof submission.longitude === 'number' ? submission.longitude.toString() : '')
+      const resolvedLocationMode = submission.location_mode === 'shared' ? 'shared' : 'custom'
+      setLocationMode(resolvedLocationMode)
+      setInitialLocationMode(resolvedLocationMode)
       const submittedDirections = Array.isArray(submission.face_directions) ? submission.face_directions : []
       const normalizedDirections = FACE_DIRECTIONS.filter((direction) => submittedDirections.includes(direction))
       const linkedCrag = pickOne(submission.crags)
@@ -548,12 +560,13 @@ export default function EditSubmittedRoutesPage() {
       const batchQuery = resolvedSubmissionId
         ? supabase
             .from('images')
-            .select('id, submission_id, url, latitude, longitude, face_directions, is_primary')
+            .select('id, submission_id, url, latitude, longitude, face_directions, is_primary, location_mode, face_order')
             .eq('submission_id', resolvedSubmissionId)
+            .order('face_order', { ascending: true, nullsFirst: false })
             .order('created_at', { ascending: true })
         : supabase
             .from('images')
-            .select('id, submission_id, url, latitude, longitude, face_directions, is_primary')
+            .select('id, submission_id, url, latitude, longitude, face_directions, is_primary, location_mode, face_order')
             .eq('id', routeImageId)
 
       const { data: batchImages, error: batchError } = await batchQuery
@@ -580,6 +593,7 @@ export default function EditSubmittedRoutesPage() {
             signedUrl: resolveRouteImageUrl(image.url),
             latitude: image.latitude,
             longitude: image.longitude,
+            locationMode: resolveLocationMode(image.location_mode),
           }
         })
 
@@ -640,24 +654,20 @@ export default function EditSubmittedRoutesPage() {
         signedUrl: face.signedUrl || (face.imageId === activeImageId ? activeImageUrl : ''),
         badgeNumber: face.index + 1,
         isDefault: face.imageId === (primaryManageImageId || routeImageId),
+        locationMode: face.locationMode,
       }))
       .filter((face) => face.signedUrl)
   }, [activeImageId, activeImageUrl, manageFaces, primaryManageImageId, routeImageId])
 
   const publishedDraftPins = useMemo<LightweightCragMapPin[]>(() => {
-    return manageFaces.reduce<LightweightCragMapPin[]>((acc, face) => {
-      if (typeof face.latitude !== 'number' || typeof face.longitude !== 'number') return acc
-      if (acc.some((pin) => pin.latitude === face.latitude && pin.longitude === face.longitude)) return acc
-      acc.push({
-        id: face.imageId,
-        latitude: face.latitude,
-        longitude: face.longitude,
-        label: String(face.index + 1),
-        interactive: true,
-        tone: 'draft',
-      })
-      return acc
-    }, [])
+    return buildMapPins(manageFaces.map((face) => ({
+      imageId: face.imageId,
+      order: face.index,
+      label: face.label,
+      latitude: typeof face.latitude === 'number' ? face.latitude : null,
+      longitude: typeof face.longitude === 'number' ? face.longitude : null,
+      locationMode: face.locationMode || 'shared',
+    })))
   }, [manageFaces])
 
   const focusDrawingArea = useCallback(() => {
@@ -684,8 +694,8 @@ export default function EditSubmittedRoutesPage() {
     const coordsChanged = initialLat !== currentLat || initialLng !== currentLng
     const initialDirections = sortFaceDirections(initialFaceDirections).join('|')
     const currentDirections = sortFaceDirections(faceDirections).join('|')
-    return coordsChanged || initialDirections !== currentDirections
-  }, [initialLatitude, initialLongitude, latitude, longitude, initialFaceDirections, faceDirections])
+    return coordsChanged || initialDirections !== currentDirections || initialLocationMode !== locationMode
+  }, [initialLatitude, initialLongitude, latitude, longitude, initialFaceDirections, faceDirections, initialLocationMode, locationMode])
 
   const cragMetadataDirty = useMemo(() => {
     if (!canEditCragMetadata) return false
@@ -879,6 +889,7 @@ export default function EditSubmittedRoutesPage() {
         latitude: parsedLatitude,
         longitude: parsedLongitude,
         faceDirections,
+        locationMode,
       }),
     })
 
@@ -890,8 +901,9 @@ export default function EditSubmittedRoutesPage() {
     setInitialLatitude(latitude)
     setInitialLongitude(longitude)
     setInitialFaceDirections(faceDirections)
+    setInitialLocationMode(locationMode)
     return true
-  }, [activeImageId, imageMetadataDirty, latitude, longitude, faceDirections])
+  }, [activeImageId, imageMetadataDirty, latitude, longitude, faceDirections, locationMode])
 
   const saveCragMetadata = useCallback(async () => {
     if (!activeImageId || !canEditCragMetadata || !cragMetadataDirty) return false
@@ -1418,12 +1430,30 @@ export default function EditSubmittedRoutesPage() {
             publishedPins={[]}
             initialCenter={markerPosition}
             onSelectImage={handleQuickSwitchImage}
+            onReorderImages={async (imageIds) => {
+              const reorderedFaces = reorderItemsByIds(manageFaces, imageIds)
+              setManageFaces(reorderedFaces)
+              const response = await csrfFetch(`/api/submissions/${activeImageId}/faces`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageIds }),
+              })
+              if (!response.ok) {
+                const data = await response.json().catch(() => ({}))
+                throw new Error(data?.error || 'Failed to reorder images')
+              }
+            }}
             existingRouteLines={existingRouteLines}
             selectedRouteId={selectedRouteId}
             onSelectRoute={(routeId) => {
               setSelectedRoute(routeId)
               setActiveRoute(routeId)
               setEditorPanelOpen(true)
+            }}
+            onReorderRoutes={(routeIds) => {
+              const reordered = resequenceRoutes(existingRouteLines, routeIds)
+              setExistingRouteLines(reordered)
+              setEditedRoutes((prev) => resequenceRoutes(prev, routeIds))
             }}
             interactionTool={interactionTool === 'select' ? 'select' : 'draw'}
             currentPointsCount={currentPoints.length}
@@ -1446,6 +1476,7 @@ export default function EditSubmittedRoutesPage() {
                 grade: route.climb?.grade || '6A',
                 description: route.climb?.description ?? undefined,
                 points: route.points,
+                sequenceOrder: typeof route.sequence_order === 'number' ? route.sequence_order : 0,
               }))
               setEditedRoutes(editableRoutes)
             }}
