@@ -2121,15 +2121,6 @@ export default function EditDraftPage() {
           </div>
         ) : null}
 
-        <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
-          <span className="mr-2 inline-flex rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700 dark:bg-gray-700 dark:text-gray-100">
-            Draft
-          </span>
-          {isOwner
-            ? 'Only collaborators can see this draft. It is not on the map until you publish.'
-            : 'You are collaborating on this draft. The owner must publish it to map.'}
-        </div>
-
         {collaborationAdded ? (
           <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
             You&apos;ve been added as a collaborator. You can now edit this draft.
@@ -2271,6 +2262,63 @@ export default function EditDraftPage() {
             void handleAddImages(event.target.files)
           }}
         />
+
+        {imageSelection && 'imageUrl' in imageSelection ? (
+          <SubmissionWorkstation
+            drawingAreaRef={drawingAreaRef}
+            routeCanvasRef={routeCanvasRef}
+            quickSwitcherImages={quickSwitcherImages}
+            activeImageId={activeImageId}
+            activeImageUrl={stableActiveImageUrl}
+            activeImageReady={activeImageReady}
+            activeImageStatus={activeImageTab?.status}
+            onRetryActiveImage={activeImageTab?.status === 'FAILED' ? () => retryUpload(activeImageTab.imageId) : undefined}
+            onDeleteActiveImage={activeImageTab?.status === 'FAILED' ? () => { void handleRemoveImage(activeImageTab.imageId) } : undefined}
+            draftPins={draftMapPins}
+            publishedPins={publishedMapPins}
+            initialCenter={markerPosition}
+            onSelectImage={handleQuickSwitchImage}
+            existingRouteLines={existingRouteLines}
+            selectedRouteId={selectedRouteId}
+            gradeSystem={editorGradeSystem}
+            onSelectRoute={(routeId) => {
+              setSelectedRoute(routeId)
+              setActiveRoute(routeId)
+              setEditorPanelOpen(true)
+            }}
+            interactionTool={interactionTool === 'select' ? 'select' : 'draw'}
+            currentPointsCount={currentPoints.length}
+            onSetSelectTool={() => {
+              setInteractionTool('select')
+              setEditorPanelOpen(true)
+            }}
+            onSetDrawTool={() => {
+              setInteractionTool('draw')
+              setEditorPanelOpen(false)
+            }}
+            onUndoPoint={() => undoLastPoint()}
+            onFinishRoute={() => routeCanvasRef.current?.finishRoute()}
+            canvasKey={activeImageTab?.imageId || 'draft-canvas'}
+            extraAction={activeImageTab ? (
+              <button
+                type="button"
+                onClick={setActiveAsDefault}
+                disabled={!activeImageReady}
+                className="inline-flex h-9 items-center rounded-xl border border-blue-200 px-2 text-[11px] font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-950/30"
+              >
+                Default
+              </button>
+            ) : null}
+            addAction={{ loading: addingImages, disabled: !!conflict, onClick: () => addImageInputRef.current?.click() }}
+            removeAction={activeImageTab ? {
+              loading: removingImageId === activeImageTab.imageId,
+              disabled: quickSwitcherImages.length <= 1 || !!conflict,
+              onClick: () => { void handleRemoveImage(activeImageTab.imageId) },
+            } : undefined}
+            onQuickBarDropFiles={handleQuickBarDropFiles}
+            onRoutesUpdate={handleCanvasRoutesUpdate}
+          />
+        ) : null}
 
         <div className="mb-2 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <AtlasContextCard result={atlasSync} />
@@ -2506,63 +2554,6 @@ export default function EditDraftPage() {
             </label>
           </div>
         </div>
-
-        {imageSelection && 'imageUrl' in imageSelection ? (
-          <SubmissionWorkstation
-            drawingAreaRef={drawingAreaRef}
-            routeCanvasRef={routeCanvasRef}
-            quickSwitcherImages={quickSwitcherImages}
-            activeImageId={activeImageId}
-            activeImageUrl={stableActiveImageUrl}
-            activeImageReady={activeImageReady}
-            activeImageStatus={activeImageTab?.status}
-            onRetryActiveImage={activeImageTab?.status === 'FAILED' ? () => retryUpload(activeImageTab.imageId) : undefined}
-            onDeleteActiveImage={activeImageTab?.status === 'FAILED' ? () => { void handleRemoveImage(activeImageTab.imageId) } : undefined}
-            draftPins={draftMapPins}
-            publishedPins={publishedMapPins}
-            initialCenter={markerPosition}
-            onSelectImage={handleQuickSwitchImage}
-            existingRouteLines={existingRouteLines}
-            selectedRouteId={selectedRouteId}
-            gradeSystem={editorGradeSystem}
-            onSelectRoute={(routeId) => {
-              setSelectedRoute(routeId)
-              setActiveRoute(routeId)
-              setEditorPanelOpen(true)
-            }}
-            interactionTool={interactionTool === 'select' ? 'select' : 'draw'}
-            currentPointsCount={currentPoints.length}
-            onSetSelectTool={() => {
-              setInteractionTool('select')
-              setEditorPanelOpen(true)
-            }}
-            onSetDrawTool={() => {
-              setInteractionTool('draw')
-              setEditorPanelOpen(false)
-            }}
-            onUndoPoint={() => undoLastPoint()}
-            onFinishRoute={() => routeCanvasRef.current?.finishRoute()}
-            canvasKey={activeImageTab?.imageId || 'draft-canvas'}
-            extraAction={activeImageTab ? (
-              <button
-                type="button"
-                onClick={setActiveAsDefault}
-                disabled={!activeImageReady}
-                className="inline-flex h-9 items-center rounded-xl border border-blue-200 px-2 text-[11px] font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-950/30"
-              >
-                Default
-              </button>
-            ) : null}
-            addAction={{ loading: addingImages, disabled: !!conflict, onClick: () => addImageInputRef.current?.click() }}
-            removeAction={activeImageTab ? {
-              loading: removingImageId === activeImageTab.imageId,
-              disabled: quickSwitcherImages.length <= 1 || !!conflict,
-              onClick: () => { void handleRemoveImage(activeImageTab.imageId) },
-            } : undefined}
-            onQuickBarDropFiles={handleQuickBarDropFiles}
-            onRoutesUpdate={handleCanvasRoutesUpdate}
-          />
-        ) : null}
 
         <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
           <button
