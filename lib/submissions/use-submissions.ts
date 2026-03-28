@@ -40,18 +40,24 @@ export function useSubmissions() {
     setDeletingDraftId(draftId)
     try {
       const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, { method: 'DELETE' })
+      if (response.status === 404) {
+        await refresh()
+        return true
+      }
+
       if (!response.ok) {
         throw new Error('Failed to delete draft')
       }
 
       setSubmissions((previous) => previous.filter((submission) => submission.id !== draftId))
+      await refresh()
       return true
     } catch {
       return false
     } finally {
       setDeletingDraftId(null)
     }
-  }, [])
+  }, [refresh])
 
   const publishDraft = useCallback(async (draftId: string) => {
     setPublishingDraftId(draftId)
