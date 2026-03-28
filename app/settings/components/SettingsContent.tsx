@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { updateGradeSystemPreference } from '@/hooks/useGradeSystem'
+import { updateGradePreferences } from '@/hooks/useGradeSystem'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { GradeSystem } from '@/lib/grade-display'
 import { fetchSettings, settingsQueryKey, type SettingsPayload } from '@/lib/settings/queries'
@@ -157,7 +157,11 @@ export default function SettingsContent({ user }: SettingsContentProps) {
     setRouteSystem((data.settings.routeSystem || 'yds_equivalent') as GradeSystem)
     setTradSystem((data.settings.tradSystem || 'yds_equivalent') as GradeSystem)
     setImageCount(data.imageCount || 0)
-    updateGradeSystemPreference((data.settings.boulderSystem || 'v_scale') as GradeSystem)
+    updateGradePreferences({
+      boulder: (data.settings.boulderSystem || 'v_scale') as GradeSystem,
+      route: (data.settings.routeSystem || 'yds_equivalent') as GradeSystem,
+      trad: (data.settings.tradSystem || 'yds_equivalent') as GradeSystem,
+    })
     hasHydratedFormRef.current = true
     setLoading(isLoading)
   }, [data, isDirty, isLoading])
@@ -279,17 +283,19 @@ export default function SettingsContent({ user }: SettingsContentProps) {
 
   const handleBoulderSystemChange = (next: GradeSystem) => {
     setBoulderSystem(next)
-    updateGradeSystemPreference(next)
+    updateGradePreferences({ boulder: next })
     setIsDirty(true)
   }
 
   const handleRouteSystemChange = (next: GradeSystem) => {
     setRouteSystem(next)
+    updateGradePreferences({ route: next })
     setIsDirty(true)
   }
 
   const handleTradSystemChange = (next: GradeSystem) => {
     setTradSystem(next)
+    updateGradePreferences({ trad: next })
     setIsDirty(true)
   }
 

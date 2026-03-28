@@ -6,7 +6,6 @@ import { ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react'
 import LightweightCragMap, { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
 import { RouteEditorRail } from '@/components/RouteEditorRail'
 import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
-import type { GradeSystem } from '@/lib/grades'
 import type { RouteLine } from '@/types/domain'
 
 interface WorkstationImage {
@@ -35,7 +34,6 @@ interface SubmissionWorkstationProps {
   onSelectImage: (imageId: string) => void
   existingRouteLines: RouteLine[]
   selectedRouteId: string | null
-  gradeSystem: GradeSystem
   onSelectRoute: (routeId: string) => void
   interactionTool: 'select' | 'draw'
   currentPointsCount: number
@@ -68,7 +66,6 @@ export function SubmissionWorkstation({
   onSelectImage,
   existingRouteLines,
   selectedRouteId,
-  gradeSystem,
   onSelectRoute,
   interactionTool,
   currentPointsCount,
@@ -346,7 +343,6 @@ export function SubmissionWorkstation({
       <RouteEditorRail
         routes={existingRouteLines}
         selectedRouteId={selectedRouteId}
-        gradeSystem={gradeSystem}
         onSelectRoute={onSelectRoute}
       />
 

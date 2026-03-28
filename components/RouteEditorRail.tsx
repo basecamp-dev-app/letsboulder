@@ -1,17 +1,18 @@
 'use client'
 
+import { getGradeSystemForClimbType, useGradePreferences } from '@/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
-import type { GradeSystem } from '@/lib/grades'
 import type { RouteLine } from '@/types/domain'
 
 interface RouteEditorRailProps {
   routes: RouteLine[]
   selectedRouteId: string | null
-  gradeSystem: GradeSystem
   onSelectRoute: (routeId: string) => void
 }
 
-export function RouteEditorRail({ routes, selectedRouteId, gradeSystem, onSelectRoute }: RouteEditorRailProps) {
+export function RouteEditorRail({ routes, selectedRouteId, onSelectRoute }: RouteEditorRailProps) {
+  const gradePreferences = useGradePreferences()
+
   if (routes.length === 0) return null
 
   return (
@@ -19,6 +20,8 @@ export function RouteEditorRail({ routes, selectedRouteId, gradeSystem, onSelect
       <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory">
         {routes.map((route) => {
           const isActive = route.id === selectedRouteId
+          const climbType = route.climb?.route_type ?? undefined
+          const gradeSystem = getGradeSystemForClimbType(climbType || undefined, gradePreferences)
 
           return (
             <button
