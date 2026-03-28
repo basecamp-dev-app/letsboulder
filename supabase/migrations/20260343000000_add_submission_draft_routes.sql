@@ -148,7 +148,11 @@ BEGIN
 
   WITH payload AS (
     SELECT
-      COALESCE(NULLIF(item->>'id', ''), gen_random_uuid()::TEXT)::UUID AS id,
+      CASE
+        WHEN NULLIF(BTRIM(item->>'id'), '') IS NULL THEN gen_random_uuid()
+        WHEN BTRIM(item->>'id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN BTRIM(item->>'id')::UUID
+        ELSE gen_random_uuid()
+      END AS id,
       COALESCE(NULLIF(BTRIM(item->>'name'), ''), 'Unnamed route') AS name,
       COALESCE(NULLIF(BTRIM(item->>'grade'), ''), '6A') AS grade,
       NULLIF(BTRIM(item->>'description'), '') AS description,
@@ -494,7 +498,11 @@ INSERT INTO public.submission_draft_routes (
   updated_at
 )
 SELECT
-  COALESCE(NULLIF(BTRIM(route_item->>'id'), ''), gen_random_uuid()::TEXT)::UUID,
+      CASE
+        WHEN NULLIF(BTRIM(route_item->>'id'), '') IS NULL THEN gen_random_uuid()
+        WHEN BTRIM(route_item->>'id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN BTRIM(route_item->>'id')::UUID
+        ELSE gen_random_uuid()
+      END,
   di.draft_id,
   di.id,
   COALESCE(NULLIF(BTRIM(route_item->>'name'), ''), 'Unnamed route'),
