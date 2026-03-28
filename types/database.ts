@@ -1288,6 +1288,7 @@ export type Database = {
           created_by: string | null
           face_direction: string | null
           face_directions: string[] | null
+          face_order: number | null
           has_humans: boolean | null
           height: number | null
           id: string
@@ -1296,6 +1297,7 @@ export type Database = {
           is_verified: boolean | null
           last_edited_by: string | null
           latitude: number | null
+          location_mode: string | null
           longitude: number | null
           moderated_at: string | null
           moderation_error: string | null
@@ -1342,6 +1344,7 @@ export type Database = {
           created_by?: string | null
           face_direction?: string | null
           face_directions?: string[] | null
+          face_order?: number | null
           has_humans?: boolean | null
           height?: number | null
           id?: string
@@ -1350,6 +1353,7 @@ export type Database = {
           is_verified?: boolean | null
           last_edited_by?: string | null
           latitude?: number | null
+          location_mode?: string | null
           longitude?: number | null
           moderated_at?: string | null
           moderation_error?: string | null
@@ -1396,6 +1400,7 @@ export type Database = {
           created_by?: string | null
           face_direction?: string | null
           face_directions?: string[] | null
+          face_order?: number | null
           has_humans?: boolean | null
           height?: number | null
           id?: string
@@ -1404,6 +1409,7 @@ export type Database = {
           is_verified?: boolean | null
           last_edited_by?: string | null
           latitude?: number | null
+          location_mode?: string | null
           longitude?: number | null
           moderated_at?: string | null
           moderation_error?: string | null
@@ -2281,6 +2287,89 @@ export type Database = {
           },
         ]
       }
+      submission_draft_routes: {
+        Row: {
+          climb_type: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          draft_id: string
+          draft_image_id: string
+          grade: string
+          id: string
+          image_height: number | null
+          image_width: number | null
+          name: string
+          points: Json
+          sequence_order: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          climb_type?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          draft_id: string
+          draft_image_id: string
+          grade?: string
+          id?: string
+          image_height?: number | null
+          image_width?: number | null
+          name?: string
+          points?: Json
+          sequence_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          climb_type?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          draft_id?: string
+          draft_image_id?: string
+          grade?: string
+          id?: string
+          image_height?: number | null
+          image_width?: number | null
+          name?: string
+          points?: Json
+          sequence_order?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submission_draft_routes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submission_draft_routes_draft_id_fkey"
+            columns: ["draft_id"]
+            isOneToOne: false
+            referencedRelation: "submission_drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submission_draft_routes_draft_image_id_fkey"
+            columns: ["draft_image_id"]
+            isOneToOne: false
+            referencedRelation: "submission_draft_images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submission_draft_routes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       submission_drafts: {
         Row: {
           crag_id: string | null
@@ -2789,16 +2878,27 @@ export type Database = {
         Args: { p_image_id: string }
         Returns: Json
       }
-      get_crag_pins: {
-        Args: never
-        Returns: {
-          id: string
-          image_count: number
-          latitude: number
-          longitude: number
-          name: string
-        }[]
-      }
+      get_crag_pins:
+        | {
+            Args: never
+            Returns: {
+              id: string
+              image_count: number
+              latitude: number
+              longitude: number
+              name: string
+            }[]
+          }
+        | {
+            Args: { include_pending?: boolean }
+            Returns: {
+              id: string
+              image_count: number
+              latitude: number
+              longitude: number
+              name: string
+            }[]
+          }
       get_crag_route_intelligence: {
         Args: { p_crag_id: string }
         Returns: {
@@ -3551,6 +3651,10 @@ export type Database = {
         Args: { p_climb_id: string }
         Returns: undefined
       }
+      sync_submission_draft_routes: {
+        Args: { p_draft_id: string; p_draft_image_id: string; p_routes: Json }
+        Returns: Json
+      }
       unlockrows: { Args: { "": string }; Returns: number }
       update_own_profile_submission_credit: {
         Args: { p_handle: string; p_platform: string }
@@ -3577,14 +3681,29 @@ export type Database = {
         }
         Returns: Json
       }
-      update_submission_image_metadata: {
-        Args: {
-          p_face_directions: string[]
-          p_image_id: string
-          p_latitude: number
-          p_longitude: number
-        }
-        Returns: Json
+      update_submission_image_metadata:
+        | {
+            Args: {
+              p_face_directions: string[]
+              p_image_id: string
+              p_latitude: number
+              p_longitude: number
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_face_directions: string[]
+              p_image_id: string
+              p_latitude: number
+              p_location_mode?: string
+              p_longitude: number
+            }
+            Returns: Json
+          }
+      update_submission_image_order: {
+        Args: { p_image_ids: Json; p_submission_id: string }
+        Returns: number
       }
       updategeometrysrid: {
         Args: {
