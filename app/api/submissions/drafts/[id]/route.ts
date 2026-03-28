@@ -75,6 +75,21 @@ interface DraftImageResponse extends DraftImageRow {
   readiness_status: DraftImageReadinessStatus
 }
 
+interface DraftRouteRow {
+  id: string
+  draft_image_id: string
+  name: string
+  grade: string
+  description: string | null
+  climb_type: string
+  points: unknown
+  sequence_order: number
+  image_width: number | null
+  image_height: number | null
+  created_at: string
+  updated_at: string
+}
+
 function buildDraftImageProxyUrl(draftId: string, path: string): string {
   const searchParams = new URLSearchParams({ draftId, path })
   return `/api/media/private?${searchParams.toString()}`
@@ -168,11 +183,47 @@ export async function GET(
     }
 
     const imageRows = (images || []) as DraftImageRow[]
+    const { data: draftRoutes, error: draftRoutesError } = await supabase
+      .from('submission_draft_routes')
+      .select('id, draft_image_id, name, grade, description, climb_type, points, sequence_order, image_width, image_height, created_at, updated_at')
+      .eq('draft_id', id)
+      .order('draft_image_id', { ascending: true })
+      .order('sequence_order', { ascending: true })
+      .order('created_at', { ascending: true })
+
+    if (draftRoutesError) {
+      return createErrorResponse(draftRoutesError, 'Failed to fetch draft routes')
+    }
+
+    const draftRoutesByImageId = ((draftRoutes || []) as DraftRouteRow[]).reduce<Record<string, Array<Record<string, unknown>>>>((acc, route) => {
+      const points = Array.isArray(route.points) ? route.points : []
+      const imageRoutes = acc[route.draft_image_id] || []
+      imageRoutes.push({
+        id: route.id,
+        name: route.name,
+        grade: route.grade,
+        description: route.description,
+        climbType: route.climb_type,
+        points,
+        sequenceOrder: route.sequence_order,
+        imageWidth: route.image_width,
+        imageHeight: route.image_height,
+      })
+      acc[route.draft_image_id] = imageRoutes
+      return acc
+    }, {})
 
     const withSignedUrls: DraftImageResponse[] = imageRows.map((image) => {
+      const normalizedRouteData = normalizeJsonRecord(image.route_data) ?? {}
+      const persistedRoutes = draftRoutesByImageId[image.id]
       return {
         ...image,
-        route_data: normalizeJsonRecord(image.route_data) ?? {},
+        route_data: persistedRoutes
+          ? {
+              ...normalizedRouteData,
+              completedRoutes: persistedRoutes,
+            }
+          : normalizedRouteData,
         preview_variants: normalizeJsonRecord(image.preview_variants),
         proxy_url: image.storage_path ? buildDraftImageProxyUrl(id, image.storage_path) : null,
         readiness_status: resolveDraftImageReadinessStatus(image),

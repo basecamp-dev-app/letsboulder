@@ -1994,16 +1994,45 @@ export default function EditDraftPage() {
   }, [canvasSource, cragId, creditHandle, creditPlatform, currentUserId, customGpsByImageId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, locationModeByImageId, manageImages, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId])
 
   const scheduleDraftPersist = useCallback((nextRoutesByImageId: Record<string, DraftRoute[]>) => {
-    if (autosaveTimeoutRef.current) {
-      window.clearTimeout(autosaveTimeoutRef.current)
-    }
+    const currentDraftId = draftIdRef.current
+    if (!currentDraftId || !activeDraftImageId) return
 
-    setAutosaveState('pending')
-    autosaveTimeoutRef.current = window.setTimeout(() => {
-      autosaveTimeoutRef.current = null
-      void saveDraft({ silent: true, overrideRoutesByImageId: nextRoutesByImageId })
-    }, 1000)
-  }, [saveDraft])
+    const currentImageRoutes = nextRoutesByImageId[activeDraftImageId] || []
+    setAutosaveState('saving')
+    void csrfFetch(`/api/submissions/drafts/${currentDraftId}/routes`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        draftImageId: activeDraftImageId,
+        routes: currentImageRoutes.map((route, index) => ({
+          id: route.id,
+          name: route.name,
+          grade: route.grade,
+          description: route.description,
+          climbType: route.climbType || routeType,
+          points: route.points,
+          sequenceOrder: index,
+          imageWidth: route.imageWidth,
+          imageHeight: route.imageHeight,
+        })),
+      }),
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({} as { result?: { updated_at?: string } }))
+        if (!response.ok) {
+          throw new Error('Failed to sync draft routes')
+        }
+        const nextUpdatedAt = payload.result?.updated_at
+        if (typeof nextUpdatedAt === 'string' && nextUpdatedAt) {
+          setDraftUpdatedAt(nextUpdatedAt)
+          registerDraftUpdatedAt(currentDraftId, nextUpdatedAt)
+        }
+        setAutosaveState('saved')
+      })
+      .catch(() => {
+        setAutosaveState('idle')
+      })
+  }, [activeDraftImageId, registerDraftUpdatedAt, routeType])
 
   const persistMetadataImmediately = useCallback((applyChange: () => void) => {
     applyChange()
