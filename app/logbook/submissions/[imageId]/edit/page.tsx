@@ -214,6 +214,7 @@ function routeEditSignature(route: EditableRoute): string {
     id: route.id,
     name: route.name.trim(),
     description: (route.description || '').trim(),
+    sequenceOrder: typeof route.sequenceOrder === 'number' ? route.sequenceOrder : null,
     points: route.points.map((point) => ({
       x: normalizePointForCompare(point.x),
       y: normalizePointForCompare(point.y),
@@ -789,6 +790,7 @@ export default function EditSubmittedRoutesPage() {
           name: updated.name,
           description: updated.description,
           points: updated.points,
+          sequenceOrder: updated.sequenceOrder,
         }
       }))
       return true
