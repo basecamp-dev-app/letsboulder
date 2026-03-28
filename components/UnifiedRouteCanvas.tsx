@@ -144,53 +144,33 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     [imageBounds]
   )
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (e.button === 0 && !e.altKey) {
-        const point = getCanvasPoint(e.clientX, e.clientY)
+  const lastPointerTimestampRef = useRef(0)
 
-        if (isDrawingEnabled) {
-          addPoint(point)
-        } else {
-          const clickedRouteId = handleRouteClick(point)
-          if (onRouteSelect) {
-            onRouteSelect(clickedRouteId ?? null)
-          }
-        }
-      }
-    },
-    [getCanvasPoint, isDrawingEnabled, addPoint, handleRouteClick, onRouteSelect]
-  )
+  const handleCanvasPress = useCallback((clientX: number, clientY: number) => {
+    const point = getCanvasPoint(clientX, clientY)
 
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent<HTMLCanvasElement>) => {
-      if (e.touches.length > 1) return
+    if (isDrawingEnabled) {
+      addPoint(point)
+      return
+    }
 
-      if (e.touches.length === 1) {
-        const touch = e.touches[0]
-        const point = getCanvasPoint(touch.clientX, touch.clientY)
+    const clickedRouteId = handleRouteClick(point)
+    if (onRouteSelect) {
+      onRouteSelect(clickedRouteId ?? null)
+    }
+  }, [addPoint, getCanvasPoint, handleRouteClick, isDrawingEnabled, onRouteSelect])
 
-        if (isDrawingEnabled) {
-          addPoint(point)
-        } else {
-          const clickedRouteId = handleRouteClick(point)
-          if (onRouteSelect) {
-            onRouteSelect(clickedRouteId ?? null)
-          }
-        }
-      }
-    },
-    [getCanvasPoint, isDrawingEnabled, addPoint, handleRouteClick, onRouteSelect]
-  )
+  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (event.button !== 0 || event.altKey) return
+    lastPointerTimestampRef.current = Date.now()
+    handleCanvasPress(event.clientX, event.clientY)
+  }, [handleCanvasPress])
 
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent<HTMLCanvasElement>) => {
-      if (e.touches.length > 1) return
-    },
-    []
-  )
-
-  const handleTouchEnd = useCallback(() => {}, [])
+  const handleMouseDown = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (Date.now() - lastPointerTimestampRef.current < 250) return
+    if (event.button !== 0 || event.altKey) return
+    handleCanvasPress(event.clientX, event.clientY)
+  }, [handleCanvasPress])
 
   const handleFinishRoute = useCallback(() => {
     if (currentPoints.length < 2 || !onRoutesUpdate) return
@@ -316,7 +296,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     }
   }, [overlayClimbType])
 
-  const showOverlay = mode !== 'browse' && (Boolean(selectedRouteId) || (isDrawingEnabled && currentPoints.length > 0))
+  const showOverlay = mode !== 'browse' && !isDrawingEnabled && Boolean(selectedRouteId)
 
   const handleOverlayIntent = useCallback((intent: 'grade' | 'name' | 'type') => {
     if (!selectedRouteId && overlayDraftRouteId) {
@@ -362,15 +342,13 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
         </div>
       )}
 
-      <canvas
-        ref={canvasRef}
-        className="absolute z-10"
-        style={{ touchAction: 'none' }}
-        onMouseDown={handleMouseDown}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      />
+        <canvas
+          ref={canvasRef}
+          className="absolute z-10"
+          style={{ touchAction: 'none' }}
+          onPointerDown={handlePointerDown}
+          onMouseDown={handleMouseDown}
+        />
 
       {showOverlay ? (
         <div className="pointer-events-auto absolute left-4 top-4 z-20 rounded-2xl border border-white/70 bg-black/60 px-3 py-2 text-white shadow-lg backdrop-blur-sm">
