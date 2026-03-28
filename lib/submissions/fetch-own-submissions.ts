@@ -8,6 +8,7 @@ interface DraftSubmissionRow {
   updated_at: string
   crags: { name?: string } | Array<{ name?: string }> | null
   submission_draft_images: DraftImageRef[] | null
+  submission_draft_routes: Array<{ id: string }> | null
 }
 
 interface SignedUrlObject {
@@ -42,7 +43,7 @@ export async function fetchOwnSubmissions(
 
   const { data: draftSubmissions } = await supabase
     .from('submission_drafts')
-    .select('id, created_at, updated_at, crags(name), submission_draft_images(storage_bucket, storage_path, route_data)')
+    .select('id, created_at, updated_at, crags(name), submission_draft_images(storage_bucket, storage_path, route_data), submission_draft_routes(id)')
     .eq('user_id', userId)
     .eq('status', 'draft')
     .order('updated_at', { ascending: false })
@@ -90,7 +91,8 @@ export async function fetchOwnSubmissions(
       ? (signedByKey.get(getSignedUrlBatchKey(firstImage.storage_bucket, firstImage.storage_path)) || '')
       : ''
 
-    const routeCount = draftImages.reduce((count, image) => {
+    const routeCountFromRows = Array.isArray(draft.submission_draft_routes) ? draft.submission_draft_routes.length : 0
+    const routeCountFromLegacy = draftImages.reduce((count, image) => {
       const routeData = image.route_data
       if (routeData && typeof routeData === 'object' && 'completedRoutes' in (routeData as Record<string, unknown>)) {
         const completedRoutes = (routeData as { completedRoutes?: unknown[] }).completedRoutes
@@ -98,6 +100,7 @@ export async function fetchOwnSubmissions(
       }
       return count
     }, 0)
+    const routeCount = routeCountFromRows > 0 ? routeCountFromRows : routeCountFromLegacy
 
     return {
       id: draft.id,
