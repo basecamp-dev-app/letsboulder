@@ -110,7 +110,7 @@ export default function OfflineCragMapSnippet({ pins, highlightedPinId = null, o
               position={userLocation}
               icon={L?.divIcon({
                 className: 'offline-user-map-pin',
-                html: '<div style="width:18px;height:18px;border-radius:9999px;background:#f97316;border:3px solid white;box-shadow:0 0 0 8px rgba(249,115,22,0.18);"></div>',
+                html: '<div style="width:18px;height:18px;border-radius:9999px;background:#2563eb;border:3px solid white;box-shadow:0 0 0 8px rgba(37,99,235,0.18);"></div>',
                 iconSize: [18, 18],
                 iconAnchor: [9, 9],
               })}
