@@ -282,6 +282,11 @@ function buildDraftImagesPayload(
     })
 }
 
+function buildManageImageLabel(index: number, imageId: string, defaultImageId: string | null, directions?: OrientationDirection[]): string {
+  const directionsLabel = Array.isArray(directions) && directions.length > 0 ? ` (${directions.join('/')})` : ''
+  return imageId === defaultImageId ? `Default${directionsLabel}` : `Image ${index + 1}${directionsLabel}`
+}
+
 function sortFaceDirections(directions: FaceDirection[]): FaceDirection[] {
   return [...directions].sort((a, b) => FACE_DIRECTIONS.indexOf(a) - FACE_DIRECTIONS.indexOf(b))
 }
@@ -655,7 +660,8 @@ export default function EditDraftPage() {
       const nextDraft = payload.draft
       const allDraftImages = [...(nextDraft.images || [])]
         .sort((a, b) => a.display_order - b.display_order)
-      const sortedImages = allDraftImages.filter((image) => isDraftImageReady(image))
+      const persistedImages = allDraftImages.filter((image) => image.id && typeof image.id === 'string')
+      const sortedImages = persistedImages.filter((image) => isDraftImageReady(image))
       const hasPersistedImageRows = allDraftImages.length > 0
       const hasProcessingPersistedImages = allDraftImages.some((image) => image.readiness_status === 'processing')
       const hasErroredPersistedImages = hasPersistedImageRows && allDraftImages.every((image) => image.readiness_status === 'error')
@@ -664,9 +670,9 @@ export default function EditDraftPage() {
         : false
 
       const metadata = nextDraft.metadata && typeof nextDraft.metadata === 'object' ? nextDraft.metadata : {}
-      const normalizedMetadata = normalizeDraftMetadata(metadata, sortedImages)
+      const normalizedMetadata = normalizeDraftMetadata(metadata, persistedImages)
       const canvasMetadata = metadata as Record<string, unknown> as CanvasSourceMetadata
-      const nextDefaultImageId = normalizedMetadata.navigation.defaultImageId || sortedImages[0]?.id || null
+      const nextDefaultImageId = normalizedMetadata.navigation.defaultImageId || persistedImages[0]?.id || null
       const nextOrientationByImageId = Object.values(normalizedMetadata.images).reduce<Record<string, OrientationDirection[]>>((acc, image) => {
         if (Array.isArray(image.orientation) && image.orientation.length > 0) {
           acc[image.imageId] = image.orientation
@@ -686,15 +692,16 @@ export default function EditDraftPage() {
       }, {})
 
       const nextRoutesByImageId: Record<string, DraftRoute[]> = {}
-      const nextManageImages = sortedImages.map<ManageImageTab>((image, index) => {
+      persistedImages.forEach((image) => {
         nextRoutesByImageId[image.id] = parseRoutesFromRouteData(image.route_data, image.width || 1200, image.height || 1200)
+      })
+      const nextManageImages = sortedImages.map<ManageImageTab>((image, index) => {
         const directions = nextOrientationByImageId[image.id]
-        const directionsLabel = Array.isArray(directions) && directions.length > 0 ? ` (${directions.join('/')})` : ''
         return {
           imageId: image.id,
           sourceKind: 'draft-image',
           index,
-          label: image.id === nextDefaultImageId ? `Default${directionsLabel}` : `Image ${index + 1}${directionsLabel}`,
+          label: buildManageImageLabel(index, image.id, nextDefaultImageId, directions),
           signedUrl: image.proxy_url || '',
           latitude: typeof image.latitude === 'number' ? image.latitude : null,
           longitude: typeof image.longitude === 'number' ? image.longitude : null,
@@ -1487,12 +1494,6 @@ export default function EditDraftPage() {
     })
   }, [activeDraftImageId])
 
-  const setActiveAsDefault = useCallback(() => {
-    if (!activeImageTab || activeImageTab.sourceKind !== 'draft-image') return
-    setDefaultImageId(activeImageTab.imageId)
-    setCanvasSource({ kind: 'draft-image', draftImageId: activeImageTab.imageId })
-  }, [activeImageTab])
-
   const focusDrawingArea = useCallback((behavior: ScrollBehavior = 'smooth') => {
     drawingAreaRef.current?.scrollIntoView({ behavior, block: 'start' })
   }, [])
@@ -1995,6 +1996,25 @@ export default function EditDraftPage() {
       void saveDraft({ silent: true, overrideRoutesByImageId: nextRoutesByImageId })
     }, 1000)
   }, [saveDraft])
+
+  const scheduleMetadataAutosave = useCallback(() => {
+    if (autosaveTimeoutRef.current) {
+      window.clearTimeout(autosaveTimeoutRef.current)
+    }
+
+    setAutosaveState('pending')
+    autosaveTimeoutRef.current = window.setTimeout(() => {
+      autosaveTimeoutRef.current = null
+      void saveDraft({ silent: true })
+    }, 1000)
+  }, [saveDraft])
+
+  const setActiveAsDefault = useCallback(() => {
+    if (!activeImageTab || activeImageTab.sourceKind !== 'draft-image') return
+    setDefaultImageId(activeImageTab.imageId)
+    setCanvasSource({ kind: 'draft-image', draftImageId: activeImageTab.imageId })
+    scheduleMetadataAutosave()
+  }, [activeImageTab, scheduleMetadataAutosave])
 
   const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
     if (!activeDraftImageId) return
@@ -2785,7 +2805,10 @@ export default function EditDraftPage() {
               Route type default
               <select
                 value={routeType}
-                onChange={(event) => setRouteType(event.target.value)}
+                onChange={(event) => {
+                  setRouteType(event.target.value)
+                  scheduleMetadataAutosave()
+                }}
                 className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               >
                 <option value="sport">Sport</option>
