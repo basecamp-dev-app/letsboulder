@@ -1,4 +1,5 @@
 ALTER TABLE public.images
+  ADD COLUMN IF NOT EXISTS submission_id UUID,
   ADD COLUMN IF NOT EXISTS face_order INTEGER;
 
 ALTER TABLE public.images
@@ -27,21 +28,34 @@ BEGIN
   END IF;
 END $$;
 
-WITH ordered_images AS (
-  SELECT
-    id,
-    ROW_NUMBER() OVER (
-      PARTITION BY submission_id
-      ORDER BY CASE WHEN is_primary THEN 0 ELSE 1 END, created_at ASC NULLS LAST, id ASC
-    ) - 1 AS next_face_order
-  FROM public.images
-  WHERE submission_id IS NOT NULL
-)
-UPDATE public.images AS target
-SET face_order = ordered_images.next_face_order
-FROM ordered_images
-WHERE target.id = ordered_images.id
-  AND target.face_order IS NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'images'
+      AND column_name = 'submission_id'
+  ) THEN
+    EXECUTE $sql$
+      WITH ordered_images AS (
+        SELECT
+          id,
+          ROW_NUMBER() OVER (
+            PARTITION BY submission_id
+            ORDER BY CASE WHEN is_primary THEN 0 ELSE 1 END, created_at ASC NULLS LAST, id ASC
+          ) - 1 AS next_face_order
+        FROM public.images
+        WHERE submission_id IS NOT NULL
+      )
+      UPDATE public.images AS target
+      SET face_order = ordered_images.next_face_order
+      FROM ordered_images
+      WHERE target.id = ordered_images.id
+        AND target.face_order IS NULL
+    $sql$;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS images_submission_id_face_order_idx
 ON public.images (submission_id, face_order)
