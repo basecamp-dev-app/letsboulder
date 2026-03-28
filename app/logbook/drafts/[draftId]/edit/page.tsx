@@ -1253,7 +1253,16 @@ export default function EditDraftPage() {
 
   const activeImageReady = Boolean(activeImageTab?.signedUrl) && activeImageTab?.status !== 'FAILED'
 
-  const hasValidLocation = markerPosition !== null
+  const activeImageCustomPosition = useMemo<[number, number] | null>(() => {
+    if (!activeDraftImageId || activeImageLocationMode !== 'custom') return null
+    const gps = customGpsByImageId[activeDraftImageId]
+    if (!gps || !isValidLocationCoordinate(gps.latitude, gps.longitude)) return null
+    return [gps.latitude as number, gps.longitude as number]
+  }, [activeDraftImageId, activeImageLocationMode, customGpsByImageId])
+
+  const effectiveMarkerPosition = activeImageCustomPosition || markerPosition
+  const hasValidLocation = effectiveMarkerPosition !== null
+
   const defaultImageTab = useMemo(() => {
     if (!defaultImageId) return null
     return mergedManageImages.find((image) => image.imageId === defaultImageId) || null
@@ -1322,15 +1331,6 @@ export default function EditDraftPage() {
       }
     })
   }, [quickSwitcherImages])
-
-  const activeImageCustomPosition = useMemo<[number, number] | null>(() => {
-    if (!activeDraftImageId || activeImageLocationMode !== 'custom') return null
-    const gps = customGpsByImageId[activeDraftImageId]
-    if (!gps || !isValidLocationCoordinate(gps.latitude, gps.longitude)) return null
-    return [gps.latitude as number, gps.longitude as number]
-  }, [activeDraftImageId, activeImageLocationMode, customGpsByImageId])
-
-  const effectiveMarkerPosition = activeImageCustomPosition || markerPosition
 
   const fallbackLocation = useMemo<[number, number] | null>(() => {
     const firstImagePin = draftMapPins.find((pin) => isValidLocationCoordinate(pin.latitude, pin.longitude)) || null
@@ -1414,10 +1414,10 @@ export default function EditDraftPage() {
   }, [effectiveMarkerPosition, fallbackLocation])
 
   useEffect(() => {
-    if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !markerPosition || imagesPayload.length === 0) return
+    if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) return
 
-    const latitudeValue = markerLatitude
-    const longitudeValue = markerLongitude
+    const latitudeValue = effectiveMarkerPosition[0]
+    const longitudeValue = effectiveMarkerPosition[1]
     const nextCragId = cragId ?? nearbyCragId
     const signature = JSON.stringify({
       latitude: latitudeValue,
@@ -1486,7 +1486,7 @@ export default function EditDraftPage() {
   // draftUpdatedAt and atlasSync.atlas are intentionally read at execution time
   // to avoid retriggering this sync effect after a successful PATCH.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atlasAdminRegionName, atlasContinentName, atlasCountryCode, atlasCountryId, atlasCountryName, atlasUnRegionName, cragId, draft, draftId, imagesPayload.length, imagesPayloadSignature, isInitialLoading, markerLatitude, markerLongitude, markerPosition, nearbyCragId, nearbyCragName])
+  }, [atlasAdminRegionName, atlasContinentName, atlasCountryCode, atlasCountryId, atlasCountryName, atlasUnRegionName, cragId, draft, draftId, effectiveMarkerPosition, imagesPayload.length, imagesPayloadSignature, isInitialLoading, nearbyCragId, nearbyCragName])
 
   const toggleImageOrientation = useCallback((direction: FaceDirection) => {
     if (!activeDraftImageId) return
