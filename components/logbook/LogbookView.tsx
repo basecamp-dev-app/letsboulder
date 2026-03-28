@@ -144,6 +144,11 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
 
     try {
       const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, { method: 'DELETE' })
+      if (response.status === 404) {
+        addToast('Draft already removed', 'success')
+        return
+      }
+
       if (!response.ok) throw new Error()
       addToast('Draft deleted', 'success')
     } catch {
