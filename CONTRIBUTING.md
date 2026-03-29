@@ -29,6 +29,14 @@ This project uses conventional commits:
 - Never commit `console.log`
 - Prefer Server Actions for UI mutations, Route Handlers for public API/webhooks
 
+## Module Boundaries
+
+- Use `app/` for route entrypoints and route-local wrappers only.
+- Put new product-domain code under `features/<domain>/`.
+- Keep root `components/` for shared UI, app shell, and `components/ui/` primitives.
+- Keep root `lib/` for cross-feature technical utilities, not feature-owned business logic.
+- Do not import from `@/app/**` outside route files. If code needs to be reused, move it into `features/**`, `lib/**`, or another shared layer first.
+
 ## Testing
 
 - Run `npm run lint` before committing
