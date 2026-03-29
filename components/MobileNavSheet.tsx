@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
 import { MOBILE_MORE_MENU_ITEMS } from '@/lib/nav-items'
-import type { Session, User } from '@supabase/supabase-js'
 import { suppressOverlayCleanup, useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { useLazyAuthUser } from '@/components/use-lazy-auth-user'
 
 interface MobileNavSheetProps {
   isOpen: boolean
@@ -49,24 +48,15 @@ const NAV_ITEM_ICONS: Record<string, React.ReactNode> = {
 export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
+  const { user, load: loadAuthUser } = useLazyAuthUser()
 
   useOverlayHistory({ open: isOpen, onClose, id: 'mobile-nav-sheet' })
 
   useEffect(() => {
-    const supabase = createClient()
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
+    if (isOpen) {
+      void loadAuthUser()
     }
-    getUser()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
-      setUser(session?.user || null)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
+  }, [isOpen, loadAuthUser])
 
   const handleNavigation = (href: string) => {
     suppressOverlayCleanup('mobile-nav-sheet')
@@ -77,8 +67,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
   const handleSignOut = async () => {
     suppressOverlayCleanup('mobile-nav-sheet')
     onClose()
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await fetch('/api/auth/signout', { method: 'POST' })
     router.replace('/')
   }
 
