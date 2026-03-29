@@ -9,6 +9,7 @@ import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLin
 import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { buildMapPins, resolveLocationMode } from '@/lib/editor-image-state'
 import { useRouteStore } from '@/store/routeStore'
+import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 
 interface ImageRouteLineQuery {
   id: string
@@ -58,17 +59,6 @@ interface ManageFaceTab {
   latitude?: number | null
   longitude?: number | null
   locationMode?: 'shared' | 'custom'
-}
-
-function parsePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[] {
-  if (!raw) return []
-  if (Array.isArray(raw)) return raw.filter((p) => typeof p?.x === 'number' && typeof p?.y === 'number').map((p) => ({ x: p.x, y: p.y }))
-  try {
-    const parsed = JSON.parse(raw) as RoutePoint[]
-    return Array.isArray(parsed) ? parsed.filter((p) => typeof p?.x === 'number' && typeof p?.y === 'number').map((p) => ({ x: p.x, y: p.y })) : []
-  } catch {
-    return []
-  }
 }
 
 function pickOne<T>(value: T | T[] | null | undefined): T | null {
@@ -200,7 +190,7 @@ export function useSubmissionEditorData() {
       const mappedRouteLines = (submission.route_lines || []).map((line) => {
         const climb = pickOne(line.climbs)
         if (!climb) return null
-        const points = parsePoints(line.points)
+        const points = parseRoutePoints(line.points)
         if (points.length < 2) return null
         return { id: line.id, image_id: submission.id, climb_id: climb.id, points, color: 'red', sequence_order: line.sequence_order, created_at: new Date().toISOString(), image_width: typeof line.image_width === 'number' ? line.image_width : undefined, image_height: typeof line.image_height === 'number' ? line.image_height : undefined, climb: { id: climb.id, name: climb.name, grade: climb.grade, status: climb.status, route_type: climb.route_type, description: climb.description } } as RouteLine
       }).filter((line): line is RouteLine => line !== null)
