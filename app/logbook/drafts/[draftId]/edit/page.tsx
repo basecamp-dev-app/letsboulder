@@ -1,21 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import dynamic from 'next/dynamic'
-import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronDown, Link2, Loader2, MapPin, Search, Trash2, Users } from 'lucide-react'
-import { useMapEvents } from 'react-leaflet'
-import L from 'leaflet'
+import { Loader2 } from 'lucide-react'
 import type { UserResponse } from '@supabase/supabase-js'
-import 'leaflet/dist/leaflet.css'
 import { type UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
 import { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
 import { SubmissionWorkstation } from '@/components/SubmissionWorkstation'
 import { useRouteStore } from '@/store/routeStore'
-import CragSelector from '@/app/submit/components/CragSelector'
-import SectorSelector from '@/app/submit/components/SectorSelector'
-import AtlasContextCard from '@/components/submissions/atlas-context-card'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { csrfFetch } from '@/hooks/useCsrf'
@@ -24,14 +16,17 @@ import { useDraftUploadManager, useMediaUploadManager, type MediaUploadItem, typ
 import { uploadDebug } from '@/lib/media/upload-debug'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import type { ClimbType } from '@/lib/submission-types'
-import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
+import { type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirection } from '@/lib/draft-metadata'
 import { createClient } from '@/lib/supabase'
 import { buildMapPins, reorderItemsByIds, resequenceRoutes, resolveLocationMode } from '@/lib/editor-image-state'
-
-const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
-const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false })
-const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false })
+import type { CollaboratorItem, InviteItem } from '@/lib/editor-types'
+import { sortFaceDirections, normalizePointForCompare, coordinateKey } from '@/lib/editor-helpers'
+import { CollaboratorDialog } from '@/components/editor/collaborator-dialog'
+import { DraftToolbar } from './components/draft-toolbar'
+import { DraftMetadataPanel } from './components/draft-metadata-panel'
+import { DraftDetailsPanel } from './components/draft-details-panel'
+import { DraftUploadQueue } from './components/draft-upload-queue'
 
 interface DraftImagePayload {
   id: string
@@ -70,26 +65,6 @@ interface CragImagePayload {
   height: number | null
   latitude?: number | null
   longitude?: number | null
-}
-
-interface CollaboratorItem {
-  userId: string
-  role: string
-  createdAt: string
-  profile: {
-    displayName: string
-    username: string | null
-    avatarUrl: string | null
-  }
-}
-
-interface InviteItem {
-  id: string
-  token: string
-  maxUses: number | null
-  usedCount: number
-  expiresAt: string | null
-  createdAt: string
 }
 
 interface DraftSavePayload {
@@ -183,14 +158,6 @@ interface PublishedCragImagePin {
   latitude: number
   longitude: number
 }
-
-const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'tiktok', label: 'TikTok' },
-  { value: 'youtube', label: 'YouTube' },
-  { value: 'x', label: 'X' },
-  { value: 'other', label: 'Other' },
-]
 
 function parseRoutesFromRouteData(routeData: Record<string, unknown> | null, fallbackWidth: number, fallbackHeight: number): DraftRoute[] {
   const raw = routeData && typeof routeData === 'object'
@@ -295,14 +262,6 @@ function resolveDraftClimbType(value: string): ClimbType {
   return 'boulder'
 }
 
-function sortFaceDirections(directions: FaceDirection[]): FaceDirection[] {
-  return [...directions].sort((a, b) => FACE_DIRECTIONS.indexOf(a) - FACE_DIRECTIONS.indexOf(b))
-}
-
-function coordinateKey(latitude: number, longitude: number) {
-  return `${latitude.toFixed(5)}:${longitude.toFixed(5)}`
-}
-
 function isValidLocationCoordinate(latitude: number | null | undefined, longitude: number | null | undefined): latitude is number {
   return typeof latitude === 'number'
     && Number.isFinite(latitude)
@@ -351,25 +310,6 @@ function buildHighResCanvasUrl(url: string): string {
   } catch {
     return trimmedUrl
   }
-}
-
-function MapClickHandler({ onClick }: { onClick: (event: L.LeafletMouseEvent) => void }) {
-  useMapEvents({ click: onClick })
-  return null
-}
-
-function MapRecenter({ position }: { position: [number, number] | null }) {
-  const map = useMapEvents({})
-  useEffect(() => {
-    if (position) {
-      map.setView(position, Math.max(map.getZoom(), 14))
-    }
-  }, [map, position])
-  return null
-}
-
-function normalizePointForCompare(value: number): number {
-  return Math.round(value * 1_000_000) / 1_000_000
 }
 
 function areDraftRoutesEqual(a: DraftRoute[], b: DraftRoute[]): boolean {
@@ -2289,64 +2229,19 @@ export default function EditDraftPage() {
     <div className="min-h-screen bg-white dark:bg-gray-950">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div className="mx-auto max-w-6xl px-4 py-4">
-        <div className="sticky top-0 z-30 -mx-4 mb-3 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:border-gray-800 dark:bg-gray-950/95 dark:supports-[backdrop-filter]:bg-gray-950/80 md:static md:mx-0 md:border-b-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none">
-          <div className="flex items-center justify-between gap-3">
-          <Link
-            href="/logbook"
-            className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            ← Back to logbook
-          </Link>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleManualSave}
-              disabled={savingDraft || publishingDraft || !!conflict}
-              className="inline-flex items-center gap-1 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900"
-            >
-              {savingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-              Save draft
-            </button>
-            {isOwner ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => { void publishDraft() }}
-                  disabled={publishingDraft || savingDraft || !!conflict || Boolean(draftId && (hasPendingUploads(draftId) || hasFailedUploads(draftId)))}
-                  className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {publishingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                  Publish
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { void handleDeleteDraft() }}
-                  className="inline-flex items-center gap-1 rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete draft
-                </button>
-              </>
-            ) : (
-              <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                Waiting for owner to publish
-              </span>
-            )}
-          </div>
-          </div>
-        </div>
-
-        {autosaveState !== 'idle' ? (
-          <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-            {autosaveState === 'pending'
-              ? 'Autosave queued...'
-              : autosaveState === 'saving'
-                ? 'Autosaving...'
-                : autosaveState === 'syncing'
-                  ? 'Syncing...'
-                  : 'Autosaved'}
-          </div>
-        ) : null}
+        <DraftToolbar
+          savingDraft={savingDraft}
+          publishingDraft={publishingDraft}
+          hasConflict={!!conflict}
+          isOwner={isOwner}
+          draftId={draftId}
+          hasPendingUploads={hasPendingUploads}
+          hasFailedUploads={hasFailedUploads}
+          onManualSave={handleManualSave}
+          onPublish={() => { void publishDraft() }}
+          onDeleteDraft={() => { void handleDeleteDraft() }}
+          autosaveState={autosaveState}
+        />
 
         {collaborationAdded ? (
           <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
@@ -2384,101 +2279,16 @@ export default function EditDraftPage() {
           </div>
         ) : null}
 
-        {pendingDraftUploads.length > 0 ? (
-          <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Background uploads</h2>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Photos appear in the gallery as each upload finishes. Failed uploads are skipped — retry or delete them below.
-                </p>
-              </div>
-              {queuePaused ? (
-                <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-                  Queue paused
-                </span>
-              ) : draftId && hasPendingUploads(draftId) ? (
-                <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
-                  Uploading
-                </span>
-              ) : draftId && hasFailedUploads(draftId) ? (
-                <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
-                  Attention needed
-                </span>
-              ) : null}
-            </div>
-            {queuePaused ? (
-              <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                <span>The upload queue is paused. Resume to continue processing remaining uploads.</span>
-                <button
-                  type="button"
-                  onClick={resumeQueue}
-                  className="rounded-md border border-amber-300 px-2 py-1 font-medium hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/30"
-                >
-                  Resume
-                </button>
-              </div>
-            ) : null}
-            <div className="mt-3 space-y-2">
-              {pendingDraftUploads.filter((upload) => !upload.attachedRecordId).map((upload) => (
-                <div key={upload.clientId} className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-700">
-                  <div className="relative h-12 w-12 overflow-hidden rounded-lg bg-gray-100 dark:bg-gray-800">
-                    {upload.previewUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={upload.previewUrl} alt={upload.fileName} className="h-full w-full object-cover opacity-80" draggable={false} />
-                    ) : (
-                      <div className="h-full w-full animate-pulse bg-gray-200 dark:bg-gray-700" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{upload.fileName}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {upload.status === 'FAILED'
-                        ? upload.error || 'Upload failed'
-                        : upload.status === 'QUEUED'
-                          ? 'Waiting in queue'
-                          : upload.status === 'PREPROCESSING'
-                            ? 'Preparing image'
-                            : `Uploading ${upload.progress}%`}
-                    </p>
-                  </div>
-                  {upload.status === 'FAILED' ? (
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => retryUpload(upload.clientId)}
-                        className="rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700"
-                      >
-                        Retry
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { void removeUpload(upload.clientId) }}
-                        className="rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="w-20">
-                      {upload.status === 'UPLOADING' ? (
-                        <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700">
-                          <div className="h-2 rounded-full bg-blue-500 transition-all" style={{ width: `${upload.progress}%` }} />
-                        </div>
-                      ) : upload.status === 'PREPROCESSING' ? (
-                        <div className="h-2 rounded-full bg-gradient-to-r from-gray-300 via-gray-400 to-gray-300 dark:from-gray-700 dark:via-gray-500 dark:to-gray-700" />
-                      ) : (
-                        <div className="rounded-full bg-gray-100 px-2 py-1 text-center text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-300">
-                          Queued
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
+        <DraftUploadQueue
+          pendingDraftUploads={pendingDraftUploads}
+          queuePaused={queuePaused}
+          draftId={draftId}
+          hasPendingUploads={hasPendingUploads}
+          hasFailedUploads={hasFailedUploads}
+          onRetryUpload={retryUpload}
+          onRemoveUpload={(clientId) => { void removeUpload(clientId) }}
+          onResumeQueue={resumeQueue}
+        />
 
         <input
           ref={addImageInputRef}
@@ -2570,562 +2380,126 @@ export default function EditDraftPage() {
           />
         ) : null}
 
-        <div className="mb-2 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <AtlasContextCard result={atlasSync} />
-        </div>
+        <DraftMetadataPanel
+          atlasSync={atlasSync}
+          selectedCrag={selectedCrag}
+          showCragSelector={showCragSelector}
+          cragId={cragId}
+          sectorId={sectorId}
+          activeImageLocationMode={activeImageLocationMode}
+          activeDraftImageId={activeDraftImageId}
+          latitude={latitude}
+          longitude={longitude}
+          customGpsByImageId={customGpsByImageId}
+          effectiveMarkerPosition={effectiveMarkerPosition}
+          mapOpen={mapOpen}
+          leaflet={leaflet}
+          searchQuery={searchQuery}
+          searchingLocation={searchingLocation}
+          locationSearchError={locationSearchError}
+          routeType={routeType}
+          onShowCragSelector={setShowCragSelector}
+          onSelectCrag={(crag) => {
+            setCragId(crag.id)
+            setSelectedCrag(crag)
+            setCragCanvasImages([])
+            setShowCragSelector(false)
+            setSuccess('Crag selected for this draft.')
+            void saveDraft({ silent: true })
+          }}
+          onCreateCrag={(crag) => {
+            setCragId(crag.id)
+            setSelectedCrag(crag)
+            setCragCanvasImages([])
+            setCanvasSource(null)
+            setSuccess(`Crag "${crag.name}" created. Upload up to 20 photos and the first ready image can be used as your canvas.`)
+            setShowCragSelector(false)
+            void saveDraft({ silent: true })
+          }}
+          onSectorChange={setSectorId}
+          onLocationModeChange={(mode) => {
+            if (!activeDraftImageId) return
+            if (mode === 'shared') {
+              setLocationModeByImageId((prev) => ({ ...prev, [activeDraftImageId]: 'shared' }))
+              setManageImages((prev) => prev.map((image) => image.imageId === activeDraftImageId ? { ...image, locationMode: 'shared' } : image))
+            } else {
+              setLocationModeByImageId((prev) => ({ ...prev, [activeDraftImageId]: 'custom' }))
+              setCustomGpsByImageId((prev) => ({
+                ...prev,
+                [activeDraftImageId]: prev[activeDraftImageId] || {
+                  latitude: markerPosition?.[0] ?? null,
+                  longitude: markerPosition?.[1] ?? null,
+                },
+              }))
+              setManageImages((prev) => prev.map((image) => image.imageId === activeDraftImageId ? { ...image, locationMode: 'custom' } : image))
+            }
+          }}
+          onLatitudeChange={setLatitude}
+          onLongitudeChange={setLongitude}
+          onCustomGpsChange={(imageId, gps) => {
+            setCustomGpsByImageId((prev) => ({ ...prev, [imageId]: gps }))
+          }}
+          onMapClick={handleMapClick}
+          onMarkerDragEnd={handleMarkerDragEnd}
+          onMapOpenChange={(open) => {
+            if (open) {
+              setMapOpen(true)
+            } else {
+              void saveDraft({ silent: true }).then(() => setMapOpen(false))
+            }
+          }}
+          onSearchQueryChange={setSearchQuery}
+          onSearchLocation={handleSearchLocation}
+          onRouteTypeChange={(nextRouteType) => {
+            persistMetadataImmediately(() => {
+              setRouteType(nextRouteType)
+            })
+          }}
+        />
 
-        <div className="mb-2 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <div className="mb-3 flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-gray-500" />
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Draft metadata</h2>
-          </div>
-          <div ref={locationSectionRef} className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/60">
-            {selectedCrag && !showCragSelector ? (
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{selectedCrag.name}</p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {typeof selectedCrag.latitude === 'number' && Number.isFinite(selectedCrag.latitude)
-                      && typeof selectedCrag.longitude === 'number' && Number.isFinite(selectedCrag.longitude)
-                      && (selectedCrag.latitude !== 0 || selectedCrag.longitude !== 0)
-                      ? `${selectedCrag.latitude.toFixed(4)}, ${selectedCrag.longitude.toFixed(4)}`
-                      : 'Crag selected'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowCragSelector(true)}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                >
-                  Change
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm text-gray-700 dark:text-gray-200">Select an existing crag or create a new one.</p>
-                {!showCragSelector ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowCragSelector(true)}
-                    className="inline-flex rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                  >
-                    Select crag
-                  </button>
-                ) : null}
-              </div>
-            )}
-          </div>
+        <DraftDetailsPanel
+          detailsOpen={detailsOpen}
+          onDetailsToggle={() => setDetailsOpen((prev) => !prev)}
+          orientationOpen={orientationOpen}
+          onOrientationToggle={() => setOrientationOpen((prev) => !prev)}
+          activeImageOrientation={activeImageTab ? (orientationByImageId[activeImageTab.imageId] || []) : []}
+          onToggleOrientation={toggleImageOrientation}
+          onShareOpen={() => setShareOpen(true)}
+          canEditCredit={true}
+          isAnonymous={isAnonymousSubmission}
+          onAnonymousChange={setIsAnonymousSubmission}
+          creditPlatform={creditPlatform}
+          onCreditPlatformChange={setCreditPlatform}
+          creditHandle={creditHandle}
+          onCreditHandleChange={setCreditHandle}
+        />
 
-          {showCragSelector ? (
-            <div className="mb-3">
-              <CragSelector
-                selectedCragId={cragId}
-                latitude={selectedCrag ? selectedCrag.latitude : (latitude ? parseFloat(latitude) : null)}
-                longitude={selectedCrag ? selectedCrag.longitude : (longitude ? parseFloat(longitude) : null)}
-                onSelect={(crag) => {
-                  setCragId(crag.id)
-                  setSelectedCrag({
-                    id: crag.id,
-                    name: crag.name,
-                    latitude: crag.latitude,
-                    longitude: crag.longitude,
-                  })
-                  setCragCanvasImages([])
-                  setShowCragSelector(false)
-                  setSuccess('Crag selected for this draft.')
-                  void saveDraft({ silent: true })
-                }}
-                onCreateNew={(crag) => {
-                  setCragId(crag.id)
-                  setSelectedCrag({
-                    id: crag.id,
-                    name: crag.name,
-                    latitude: crag.latitude,
-                    longitude: crag.longitude,
-                  })
-                  setCragCanvasImages([])
-                  setCanvasSource(null)
-                  setSuccess(`Crag "${crag.name}" created. Upload up to 20 photos and the first ready image can be used as your canvas.`)
-                  setShowCragSelector(false)
-                  void saveDraft({ silent: true })
-                }}
-              />
-            </div>
-          ) : null}
-
-          {selectedCrag && !showCragSelector ? (
-            <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/60">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Sector</h3>
-              <SectorSelector
-                cragId={cragId}
-                value={sectorId}
-                onChange={setSectorId}
-                placeholder="Select sector (optional)"
-              />
-            </div>
-          ) : null}
-
-          <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-800/60">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">Image location</h3>
-            <div className="mb-3 inline-flex rounded-lg border border-gray-200 p-1 dark:border-gray-700">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!activeDraftImageId) return
-                  setLocationModeByImageId((prev) => ({ ...prev, [activeDraftImageId]: 'shared' }))
-                  setManageImages((prev) => prev.map((image) => image.imageId === activeDraftImageId ? { ...image, locationMode: 'shared' } : image))
-                }}
-                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeImageLocationMode === 'shared' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'}`}
-              >
-                Submission location
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!activeDraftImageId) return
-                  setLocationModeByImageId((prev) => ({ ...prev, [activeDraftImageId]: 'custom' }))
-                  setCustomGpsByImageId((prev) => ({
-                    ...prev,
-                    [activeDraftImageId]: prev[activeDraftImageId] || {
-                      latitude: markerPosition?.[0] ?? null,
-                      longitude: markerPosition?.[1] ?? null,
-                    },
-                  }))
-                  setManageImages((prev) => prev.map((image) => image.imageId === activeDraftImageId ? { ...image, locationMode: 'custom' } : image))
-                }}
-                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeImageLocationMode === 'custom' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'}`}
-              >
-                This image only
-              </button>
-            </div>
-            <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
-              `Submission location` uses the same pin as any other image assigned to the draft-level location. `This image only` keeps its own exact coordinates.
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <label className="text-xs text-gray-600 dark:text-gray-300">
-                Latitude
-                <input
-                  value={activeImageLocationMode === 'custom' && activeDraftImageId ? String(customGpsByImageId[activeDraftImageId]?.latitude ?? '') : latitude}
-                  onChange={(event) => {
-                    if (activeImageLocationMode === 'custom' && activeDraftImageId) {
-                      const nextLatitude = event.target.value
-                      setCustomGpsByImageId((prev) => ({
-                        ...prev,
-                        [activeDraftImageId]: {
-                          latitude: nextLatitude.trim() === '' ? null : Number(nextLatitude),
-                          longitude: prev[activeDraftImageId]?.longitude ?? null,
-                        },
-                      }))
-                      return
-                    }
-                    setLatitude(event.target.value)
-                  }}
-                  placeholder="e.g. 48.4049"
-                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                />
-              </label>
-              <label className="text-xs text-gray-600 dark:text-gray-300">
-                Longitude
-                <input
-                  value={activeImageLocationMode === 'custom' && activeDraftImageId ? String(customGpsByImageId[activeDraftImageId]?.longitude ?? '') : longitude}
-                  onChange={(event) => {
-                    if (activeImageLocationMode === 'custom' && activeDraftImageId) {
-                      const nextLongitude = event.target.value
-                      setCustomGpsByImageId((prev) => ({
-                        ...prev,
-                        [activeDraftImageId]: {
-                          latitude: prev[activeDraftImageId]?.latitude ?? null,
-                          longitude: nextLongitude.trim() === '' ? null : Number(nextLongitude),
-                        },
-                      }))
-                      return
-                    }
-                    setLongitude(event.target.value)
-                  }}
-                  placeholder="e.g. 2.6920"
-                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                />
-              </label>
-            </div>
-
-            {mapOpen ? (
-              <div className="mt-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Click map or drag marker to adjust location</p>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await saveDraft({ silent: true })
-                      setMapOpen(false)
-                    }}
-                    className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                  >
-                    Done
-              </button>
-            </div>
-                <div className="h-72 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-                  <MapContainer
-                    center={effectiveMarkerPosition || [20, 0]}
-                    zoom={effectiveMarkerPosition ? 14 : 2}
-                    style={{ height: '100%', width: '100%' }}
-                  >
-                    <MapRecenter position={effectiveMarkerPosition} />
-                    <MapClickHandler onClick={handleMapClick} />
-                    <TileLayer
-                      url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                      attribution="Imagery © Esri"
-                      maxZoom={19}
-                    />
-                    <TileLayer
-                      url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-                      attribution="Labels © Esri"
-                      maxZoom={19}
-                    />
-                    {effectiveMarkerPosition && leaflet ? (
-                      <Marker
-                        position={effectiveMarkerPosition}
-                        draggable={true}
-                        icon={leaflet.divIcon({
-                          className: 'location-marker',
-                          iconSize: [20, 20],
-                          iconAnchor: [10, 10],
-                        })}
-                        eventHandlers={{ dragend: handleMarkerDragEnd }}
-                      />
-                    ) : null}
-                  </MapContainer>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setMapOpen(true)}
-                className="mt-3 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-              >
-                Adjust location on map
-              </button>
-            )}
-
-            <div className="mt-3 flex gap-2">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      void handleSearchLocation()
-                    }
-                  }}
-                  placeholder="Search for a location..."
-                  className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleSearchLocation()
-                }}
-                disabled={searchingLocation}
-                className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-              >
-                {searchingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Search
-              </button>
-            </div>
-
-            {locationSearchError ? (
-              <p className="mt-2 text-xs text-red-600 dark:text-red-400">{locationSearchError}</p>
-            ) : null}
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label className="text-xs text-gray-600 dark:text-gray-300">
-              Route type default
-              <select
-                value={routeType}
-                onChange={(event) => {
-                  const nextRouteType = event.target.value
-                  persistMetadataImmediately(() => {
-                    setRouteType(nextRouteType)
-                  })
-                }}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-              >
-                <option value="sport">Sport</option>
-                <option value="boulder">Boulder</option>
-                <option value="trad">Trad</option>
-                <option value="deep-water-solo">Deep water solo</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <button
-            type="button"
-            onClick={() => setDetailsOpen((prev) => !prev)}
-            className="flex w-full items-center justify-between gap-3 text-left"
-            aria-expanded={detailsOpen}
-          >
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">More details</h2>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Orientation, collaborators, and credit settings.</p>
-            </div>
-            <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${detailsOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {detailsOpen ? (
-            <div className="mt-3 space-y-3">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                <button
-                  type="button"
-                  onClick={() => setOrientationOpen((prev) => !prev)}
-                  className="flex w-full items-center justify-between gap-3 text-left"
-                  aria-expanded={orientationOpen}
-                >
-                  <div>
-                    <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Set Orientation</h2>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional metadata for each image.</p>
-                  </div>
-                  <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${orientationOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {orientationOpen ? (
-                  <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
-                    {FACE_DIRECTIONS.map((direction) => {
-                      const selected = activeImageTab ? (orientationByImageId[activeImageTab.imageId] || []).includes(direction) : false
-                      return (
-                        <button
-                          key={direction}
-                          type="button"
-                          onClick={() => toggleImageOrientation(direction)}
-                          className={`rounded-md border px-2 py-2 text-xs font-semibold transition ${
-                            selected
-                              ? 'border-blue-600 bg-blue-600 text-white'
-                              : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                          }`}
-                        >
-                          {direction}
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-gray-500" />
-                    <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Collaborators</h2>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShareOpen(true)}
-                    className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
-                  >
-                    Manage collaborators
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                <div className="mb-3 flex items-center gap-2">
-                  <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Contribution credit</h2>
-                </div>
-                <label className="mb-3 flex items-start gap-3 rounded-md border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-200">
-                  <input
-                    type="checkbox"
-                    checked={isAnonymousSubmission}
-                    onChange={(event) => setIsAnonymousSubmission(event.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
-                  />
-                  <span>
-                    <span className="block font-medium text-gray-900 dark:text-gray-100">Publish anonymously</span>
-                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                      Your upload stays editable in your logbook, but your public profile, submitter name, and credit link stay hidden.
-                    </span>
-                  </span>
-                </label>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <label className="text-xs text-gray-600 dark:text-gray-300">
-                    Platform
-                    <select
-                      value={creditPlatform}
-                      onChange={(event) => setCreditPlatform(event.target.value as SubmissionCreditPlatform)}
-                      disabled={isAnonymousSubmission}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                    >
-                      {CREDIT_PLATFORM_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-xs text-gray-600 dark:text-gray-300 md:col-span-2">
-                    Handle
-                    <input
-                      value={creditHandle}
-                      onChange={(event) => setCreditHandle(event.target.value)}
-                      placeholder="handle"
-                      disabled={isAnonymousSubmission}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                    />
-                  </label>
-                </div>
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  {isAnonymousSubmission
-                    ? 'Credit is hidden while anonymous publishing is on.'
-                    : `Shown publicly as @${normalizeSubmissionCreditHandle(creditHandle) || 'handle'} after publish.`}
-                </p>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Draft collaborators</DialogTitle>
-              <DialogDescription>
-                {isOwner
-                  ? 'Create a link for collaborators to help edit this draft before publishing.'
-                  : 'You can view collaborators. Only the owner can manage invites.'}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-3">
-              <div className="rounded-md border border-gray-200 p-3 dark:border-gray-800">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-                  <Link2 className="h-4 w-4" />
-                  Invite link
-                </div>
-                {isOwner ? (
-                  <button
-                    type="button"
-                    onClick={() => { void handleCreateInvite() }}
-                    disabled={creatingInvite}
-                    className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    {creatingInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Create new link
-                  </button>
-                ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Only the owner can create invite links.</p>
-                )}
-
-                {latestInviteUrl ? (
-                  <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-2 text-xs dark:border-gray-700 dark:bg-gray-900">
-                    <p className="break-all text-gray-700 dark:text-gray-200">{latestInviteUrl}</p>
-                    <button
-                      type="button"
-                      onClick={() => { void handleCopyInvite(latestInviteUrl) }}
-                      className="mt-2 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                    >
-                      Copy link
-                    </button>
-                  </div>
-                ) : null}
-
-                {activeInvites.length > 0 ? (
-                  <div className="mt-3 space-y-2">
-                    {activeInvites.map((invite) => {
-                      const origin = typeof window !== 'undefined' ? window.location.origin : ''
-                      const inviteUrl = `${origin}/api/submissions/drafts/collaborate/${invite.token}`
-                      return (
-                        <div key={invite.id} className="rounded-md border border-gray-200 p-2 text-xs dark:border-gray-700">
-                          <p className="break-all text-gray-600 dark:text-gray-300">{inviteUrl}</p>
-                          <div className="mt-2 flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => { void handleCopyInvite(inviteUrl) }}
-                              className="rounded-md border border-gray-300 px-2 py-1 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                            >
-                              Copy
-                            </button>
-                            {isOwner ? (
-                              <button
-                                type="button"
-                                onClick={() => { void handleRevokeInvite(invite.id) }}
-                                disabled={revokingInviteId === invite.id}
-                                className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-                              >
-                                {revokingInviteId === invite.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                Revoke
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-md border border-gray-200 p-3 dark:border-gray-800">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-                  <Users className="h-4 w-4" />
-                  Collaborators
-                </div>
-
-                {loadingCollaborators ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading collaborators...
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {ownerUserId && ownerProfile ? (
-                      <div className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-2 dark:border-gray-700">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{ownerProfile.displayName} (Owner)</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{ownerProfile.username ? `@${ownerProfile.username}` : 'No username'}</p>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {collaborators.length === 0 ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">No collaborators yet.</p>
-                    ) : (
-                      collaborators.map((collaborator) => (
-                        <div key={collaborator.userId} className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-2 dark:border-gray-700">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{collaborator.profile.displayName}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{collaborator.profile.username ? `@${collaborator.profile.username}` : 'No username'}</p>
-                          </div>
-                          {isOwner ? (
-                            <button
-                              type="button"
-                              onClick={() => { void handleRemoveCollaborator(collaborator.userId) }}
-                              disabled={removingCollaboratorId === collaborator.userId}
-                              className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-                            >
-                              {removingCollaboratorId === collaborator.userId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                              Remove
-                            </button>
-                          ) : null}
-                        </div>
-                      ))
-                    )}
-
-                    {!isOwner && currentUserId ? (
-                      <button
-                        type="button"
-                        onClick={() => { void handleRemoveCollaborator(currentUserId) }}
-                        disabled={removingCollaboratorId === currentUserId}
-                        className="mt-2 inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-                      >
-                        {removingCollaboratorId === currentUserId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                        Leave draft
-                      </button>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <CollaboratorDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          title="Draft collaborators"
+          description={isOwner
+            ? 'Create a link for collaborators to help edit this draft before publishing.'
+            : 'You can view collaborators. Only the owner can manage invites.'}
+          isOwner={isOwner}
+          ownerUserId={ownerUserId}
+          ownerProfile={ownerProfile}
+          collaborators={collaborators}
+          activeInvites={activeInvites}
+          loadingCollaborators={loadingCollaborators}
+          creatingInvite={creatingInvite}
+          revokingInviteId={revokingInviteId}
+          removingCollaboratorId={removingCollaboratorId}
+          latestInviteUrl={latestInviteUrl}
+          inviteUrlPrefix="/api/submissions/drafts/collaborate"
+          onCreateInvite={() => { void handleCreateInvite() }}
+          onCopyInvite={(url) => { void handleCopyInvite(url) }}
+          onRevokeInvite={(inviteId) => { void handleRevokeInvite(inviteId) }}
+          onRemoveCollaborator={(userId) => { void handleRemoveCollaborator(userId) }}
+          showLeaveButton
+          currentUserId={currentUserId}
+          onLeave={() => { if (currentUserId) void handleRemoveCollaborator(currentUserId) }}
+        />
 
         <Dialog open={!!conflict} onOpenChange={() => {}}>
           <DialogContent>
