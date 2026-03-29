@@ -4,8 +4,10 @@ import { cookies } from 'next/headers'
 import { validateCsrfToken } from '@/lib/csrf'
 
 export async function POST(request: NextRequest) {
-  const csrfError = await validateCsrfToken(request)
-  if (csrfError) return csrfError
+  const csrfValid = await validateCsrfToken(request)
+  if (!csrfValid) {
+    return NextResponse.json({ error: 'Invalid or missing CSRF token' }, { status: 403 })
+  }
 
   const cookieStore = await cookies()
   const supabase = createServerClient(
