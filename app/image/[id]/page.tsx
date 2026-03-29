@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
-import { getImageByDisplayId } from '@/app/[country]/[crag]/i/[imageId]/image-page-server'
+import { getImageByDisplayId } from '@/features/image-first/server/load-image-first-page'
 
 export default async function ImageRedirectPage({
   params,

@@ -1,6 +1,6 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import ImageFirstClientLoader from '@/app/[country]/[crag]/i/[imageId]/ImageFirstClientLoader'
-import { buildImageFirstPayload } from '@/app/[country]/[crag]/i/[imageId]/image-page-server'
+import { buildImageFirstPayload } from '@/features/image-first/server/load-image-first-page'
 
 interface ImagePageParams {
   country: string

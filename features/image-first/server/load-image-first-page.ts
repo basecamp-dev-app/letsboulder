@@ -4,6 +4,7 @@ import { getDisplayImageId } from '@/lib/image-identity'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import type { RoutePoint } from '@/types/domain'
+import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
 
 interface CragRow {
   id: string
@@ -77,52 +78,6 @@ interface RouteLineRow {
         star_votes: number | null
       }>
     | null
-}
-
-export interface ImageFirstRouteLine {
-  routeId: string
-  climbId: string
-  imageId: string
-  climbSlug: string | null
-  climbName: string
-  climbGrade: string | null
-  climbDescription: string | null
-  climbRouteType: string | null
-  climbAverageStars: number | null
-  climbStarVotes: number | null
-  pathData: RoutePoint[] | string | null
-  color: string
-  isPrimary: boolean
-}
-
-export interface ImageFirstPayload {
-  heroImage: {
-    displayImageId: string
-    src: string
-    width: number
-    height: number
-    priority: true
-  }
-  initialRoutes: ImageFirstRouteLine[]
-  navigationContext: {
-    orderedImageIds: string[]
-    startIndex: number
-    imageMap: Record<string, { src: string; width: number; height: number }>
-    linkedImageIdByDisplayId: Record<string, string>
-    stacks: Array<{ stackId: string; imageIds: string[] }>
-    sectorMarkers: Record<string, { name: string; firstImageId: string }>
-  }
-  initialClimbId: string | null
-  initialRouteId: string | null
-  initialRouteSlug: string | null
-  cragSlug: string
-  countryCode: string
-  mapPins: Array<{
-    imageId: string
-    latitude: number
-    longitude: number
-    routeSlug: string | null
-  }>
 }
 
 async function getSupabase() {
@@ -362,7 +317,7 @@ export async function buildImageFirstPayload(args: {
 
   const startIndex = ordered.imageIndexByDisplayImageId.get(image.canonicalId) ?? 0
   const sectorMarkers: Record<string, { name: string; firstImageId: string }> = {}
-  const initialRoutes = initialRouteRows.map((row, index) => {
+  const initialRoutes: ImageFirstRouteLine[] = initialRouteRows.map((row, index) => {
     const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
     return {
       routeId: row.id,
