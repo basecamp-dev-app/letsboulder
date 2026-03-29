@@ -1,0 +1,40 @@
+import { Metadata } from 'next'
+import Providers from '@/components/providers'
+import QueryProviders from '@/components/query-providers'
+
+export const metadata: Metadata = {
+  title: 'My Climbing Logbook',
+  description: 'View and manage your personal climbing logbook on letsboulder. Track your ascents, projects, and progress.',
+  alternates: {
+    canonical: '/logbook',
+  },
+  openGraph: {
+    title: 'My Climbing Logbook - letsboulder',
+    description: 'View and manage your personal climbing logbook on letsboulder.',
+    url: '/logbook',
+    images: [
+      {
+        url: '/og.png',
+        width: 1200,
+        height: 630,
+        alt: 'My Climbing Logbook - letsboulder',
+      },
+    ],
+  },
+  robots: {
+    index: false,
+    follow: true,
+  },
+}
+
+export default function LogbookLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <Providers>
+      <QueryProviders>{children}</QueryProviders>
+    </Providers>
+  )
+}

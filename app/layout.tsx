@@ -2,11 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
-import AppLayout from '@/components/AppLayout'
-import ChunkLoadRecovery from '@/components/ChunkLoadRecovery'
-import DevBrowserLogger from '@/components/DevBrowserLogger'
-import Providers from '@/components/providers'
-import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
+import RootClientUtilities from '@/components/RootClientUtilities'
 import {
   BRAND_NAME,
   INSTAGRAM_URL,
@@ -200,13 +196,9 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
-        <Providers>
-          <ChunkLoadRecovery />
-          <DevBrowserLogger />
-          <ServiceWorkerRegistration />
-          <AppLayout>{children}</AppLayout>
-          <Analytics />
-        </Providers>
+        {children}
+        <RootClientUtilities />
+        <Analytics />
       </body>
     </html>
   )
