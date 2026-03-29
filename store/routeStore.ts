@@ -9,7 +9,7 @@ import type {
 } from '@/types/domain'
 import type { ClimbType } from '@/lib/submission-types'
 
-interface RouteEditorDraft {
+export interface RouteEditorDraft {
   routeId: string | null
   name: string
   grade: string
@@ -19,16 +19,7 @@ interface RouteEditorDraft {
 
 type EditorIntent = 'grade' | 'name' | 'type' | 'description' | null
 
-interface HistoryEntry {
-  routes: RouteLine[]
-  currentPoints: RoutePoint[]
-  currentDrawing: DrawingRoute | null
-  routeEditorDraft: RouteEditorDraft | null
-  editorIntent: EditorIntent
-  editorPanelOpen: boolean
-}
-
-interface RouteState {
+interface CanvasSlice {
   routes: RouteLine[]
   activeRouteId: string | null
   selectedRouteId: string | null
@@ -37,13 +28,6 @@ interface RouteState {
   zoomTransform: ZoomTransform
   currentPoints: RoutePoint[]
   currentDrawing: DrawingRoute | null
-  routeEditorDraft: RouteEditorDraft | null
-  editorIntent: EditorIntent
-  editorPanelOpen: boolean
-
-  past: HistoryEntry[]
-  future: HistoryEntry[]
-
   setMode: (mode: CanvasMode) => void
   setInteractionTool: (tool: InteractionTool) => void
   setActiveRoute: (id: string | null) => void
@@ -60,10 +44,30 @@ interface RouteState {
   commitCurrentRoute: () => void
   setCurrentDrawing: (drawing: DrawingRoute | null) => void
   updateCurrentDrawing: (updates: Partial<DrawingRoute>) => void
+}
+
+interface EditorSlice {
+  routeEditorDraft: RouteEditorDraft | null
+  editorIntent: EditorIntent
+  editorPanelOpen: boolean
   setEditorDraft: (draft: RouteEditorDraft | null) => void
   updateEditorDraft: (updates: Partial<RouteEditorDraft>) => void
   setEditorIntent: (intent: EditorIntent) => void
   setEditorPanelOpen: (open: boolean) => void
+}
+
+interface HistoryEntry {
+  routes: RouteLine[]
+  currentPoints: RoutePoint[]
+  currentDrawing: DrawingRoute | null
+  routeEditorDraft: RouteEditorDraft | null
+  editorIntent: EditorIntent
+  editorPanelOpen: boolean
+}
+
+interface HistorySlice {
+  past: HistoryEntry[]
+  future: HistoryEntry[]
   clearCanvasState: () => void
   commitToHistory: () => void
   undo: () => void
@@ -72,6 +76,8 @@ interface RouteState {
   canRedo: () => boolean
   reset: () => void
 }
+
+type RouteStore = CanvasSlice & EditorSlice & HistorySlice
 
 const MAX_HISTORY = 50
 
@@ -91,7 +97,7 @@ const initialState = {
   future: [] as HistoryEntry[],
 }
 
-const getHistoryEntry = (state: RouteState): HistoryEntry => ({
+const getHistoryEntry = (state: RouteStore): HistoryEntry => ({
   routes: [...state.routes],
   currentPoints: [...state.currentPoints],
   currentDrawing: state.currentDrawing
@@ -123,7 +129,7 @@ const areRoutesEqual = (left: RouteLine[], right: RouteLine[]) => (
   })
 )
 
-export const useRouteStore = create<RouteState>()((set, get) => ({
+export const useRouteStore = create<RouteStore>()((set, get) => ({
   ...initialState,
 
   setMode: (mode) => set((state) => state.mode === mode ? state : { mode }),
@@ -281,5 +287,5 @@ export const useRouteStore = create<RouteState>()((set, get) => ({
 
   canRedo: () => get().future.length > 0,
 
-  reset: () => set(initialState),
+  reset: () => set(initialState)
 }))

@@ -1,5 +1,3 @@
-import type { SubmissionCreditPlatform } from '@/lib/submission-credit'
-
 export interface CollaboratorItem {
   userId: string
   role: string
@@ -29,11 +27,3 @@ export interface EditableRoute {
   points: Array<{ x: number; y: number }>
   sequenceOrder?: number
 }
-
-export const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'tiktok', label: 'TikTok' },
-  { value: 'youtube', label: 'YouTube' },
-  { value: 'x', label: 'X' },
-  { value: 'other', label: 'Other' },
-]

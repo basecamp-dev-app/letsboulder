@@ -1,7 +1,7 @@
 'use client'
 
 import { normalizeSubmissionCreditHandle, type SubmissionCreditPlatform } from '@/lib/submission-credit'
-import { CREDIT_PLATFORM_OPTIONS } from '@/lib/editor-types'
+import { CREDIT_PLATFORM_OPTIONS } from '@/lib/editor-constants'
 
 interface CreditSectionProps {
   canEdit: boolean
