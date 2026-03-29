@@ -6,178 +6,27 @@ import { notifyNewSubmission } from '@/lib/discord'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { makeUniqueSlug } from '@/lib/slug'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { isValidGrade } from '@/lib/grade-constants'
 import { revalidatePath } from 'next/cache'
 import { getMediaModerationConfig } from '@/lib/media/config'
+import { getSubmissionInfo, MAX_ROUTES_PER_DAY } from '@/features/submissions/server/submissions/submit-route-info'
+import { getRegionData } from '@/features/submissions/server/submissions/submission-route-shared'
+import { buildSubmissionSuccessResponse, cleanupUploadedBlobs, submissionErrorResponse, type SubmissionExecutionResult } from '@/features/submissions/server/submissions/submit-shared'
+import { executeExistingImageSubmission } from '@/features/submissions/server/submissions/submit-existing-image'
+import { executeNewImageSubmission } from '@/features/submissions/server/submissions/submit-new-image'
+import { resolveCragImageToImageId } from '@/features/submissions/server/submissions/submit-crag-image'
+import {
+  validateAndPrepareRoutes,
+  validateNewSubmissionInput,
+  type NewSubmissionImage,
+  type SubmissionRequest,
+} from '@/features/submissions/server/submissions/submit-route-validation'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 const INTERNAL_MODERATION_SECRET = process.env.INTERNAL_MODERATION_SECRET
 
-const MAX_ROUTES_PER_DAY = 5
-
-const VALID_ROUTE_TYPES = ['sport', 'boulder', 'trad', 'deep-water-solo'] as const
-const VALID_FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
-
-interface NewImageSubmission {
-  mode: 'new'
-  images: NewSubmissionImage[]
-  primaryIndex: number
-  cragId: string
-  faceDirectionsByImage?: Record<string, Array<(typeof VALID_FACE_DIRECTIONS)[number]>>
-  faceDirections?: Array<(typeof VALID_FACE_DIRECTIONS)[number]>
-  routes: NewRouteData[]
-  routeType?: (typeof VALID_ROUTE_TYPES)[number]
-  sectorId?: string | null
-}
-
-interface NewSubmissionImage {
-  uploadedBucket: string
-  uploadedPath: string
-  uploadedUrl?: string
-  width: number
-  height: number
-  naturalWidth: number
-  naturalHeight: number
-  captureDate: string | null
-  gpsData: {
-    latitude: number
-    longitude: number
-  } | null
-  sectorId?: string | null
-}
-
-interface ExistingImageSubmission {
-  mode: 'existing'
-  imageId: string
-  routes: NewRouteData[]
-  routeType?: (typeof VALID_ROUTE_TYPES)[number]
-}
-
-interface CragImageSubmission {
-  mode: 'crag_image'
-  cragImageId: string
-  routes: NewRouteData[]
-  routeType?: (typeof VALID_ROUTE_TYPES)[number]
-}
-
-interface CragImageRow {
-  id: string
-  url: string
-  crag_id: string | null
-  width: number | null
-  height: number | null
-  latitude: number | null
-  longitude: number | null
-  source_image_id: string | null
-  linked_image_id: string | null
-  source_image: {
-    id: string
-    latitude: number | null
-    longitude: number | null
-    capture_date: string | null
-  } | Array<{
-    id: string
-    latitude: number | null
-    longitude: number | null
-    capture_date: string | null
-  }> | null
-}
-
-interface NewRouteData {
-  id: string
-  name: string
-  grade: string
-  description?: string
-  points: RoutePoint[]
-  sequenceOrder: number
-  imageWidth: number
-  imageHeight: number
-  imageNaturalWidth: number
-  imageNaturalHeight: number
-}
-
 interface RoutePoint {
   x: number
   y: number
-}
-
-interface PreparedRoute {
-  name: string
-  grade: string
-  description: string | null
-  points: RoutePoint[]
-  sequenceOrder: number
-  imageWidth: number
-  imageHeight: number
-  slug: string | null
-}
-
-interface AtomicSubmissionRouteResult {
-  climb_id: string
-  name: string
-  grade: string
-}
-
-interface UnifiedSubmissionResult {
-  image_id: string
-  crag_id: string
-  climb_ids: string[]
-  route_line_ids: string[]
-  crag_image_ids: string[]
-  climbs_created: number
-  route_lines_created: number
-  supplementary_created: number
-}
-
-type SubmissionRequest = NewImageSubmission | ExistingImageSubmission | CragImageSubmission
-
-function parsePrivateStorageUrl(url: string): { bucket: string; path: string } | null {
-  if (!url.startsWith('private://')) return null
-  const withoutScheme = url.slice('private://'.length)
-  const slashIndex = withoutScheme.indexOf('/')
-  if (slashIndex <= 0) return null
-
-  const bucket = withoutScheme.slice(0, slashIndex)
-  const path = withoutScheme.slice(slashIndex + 1)
-  if (!bucket || !path) return null
-
-  return { bucket, path }
-}
-
-function normalizeRouteType(value: unknown): (typeof VALID_ROUTE_TYPES)[number] | null {
-  if (typeof value !== 'string') return null
-
-  if (!value) return null
-
-  const normalized = value.trim().toLowerCase().replace(/_/g, '-')
-  if (normalized === 'bouldering') return 'boulder'
-
-  if (!VALID_ROUTE_TYPES.includes(normalized as (typeof VALID_ROUTE_TYPES)[number])) {
-    return null
-  }
-
-  return normalized as (typeof VALID_ROUTE_TYPES)[number]
-}
-
-function normalizeFaceDirectionsByImage(
-  value: unknown,
-  imageCount: number
-): Record<number, Array<(typeof VALID_FACE_DIRECTIONS)[number]>> {
-  const normalized: Record<number, Array<(typeof VALID_FACE_DIRECTIONS)[number]>> = {}
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return normalized
-
-  for (const [rawIndex, rawDirections] of Object.entries(value)) {
-    const index = Number(rawIndex)
-    if (!Number.isInteger(index) || index < 0 || index >= imageCount) continue
-    if (!Array.isArray(rawDirections) || rawDirections.length === 0) continue
-    const unique = Array.from(new Set(rawDirections))
-      .filter((direction): direction is (typeof VALID_FACE_DIRECTIONS)[number] => VALID_FACE_DIRECTIONS.includes(direction as (typeof VALID_FACE_DIRECTIONS)[number]))
-    if (unique.length > 0) {
-      normalized[index] = unique
-    }
-  }
-
-  return normalized
 }
 
 export async function POST(request: NextRequest) {
@@ -280,117 +129,14 @@ export async function POST(request: NextRequest) {
       return response
     }
 
-    let normalizedFaceDirectionsByImage: Record<number, Array<(typeof VALID_FACE_DIRECTIONS)[number]>> = {}
-    if (body.mode === 'new') {
-      if (!Array.isArray(body.images) || body.images.length === 0) {
-        response = NextResponse.json({ error: 'At least one image is required' }, { status: 400 })
-        return response
-      }
+    const routeValidation = validateAndPrepareRoutes(body)
+    if (routeValidation.error) return routeValidation.error
+    const preparedRoutes = routeValidation.preparedRoutes
+    const normalizedRouteType = routeValidation.normalizedRouteType
 
-      normalizedFaceDirectionsByImage = normalizeFaceDirectionsByImage(body.faceDirectionsByImage, body.images.length)
-
-      if (Object.keys(normalizedFaceDirectionsByImage).length === 0 && Array.isArray(body.faceDirections)) {
-        const legacyDirections = Array.from(new Set(body.faceDirections))
-          .filter((direction): direction is (typeof VALID_FACE_DIRECTIONS)[number] => VALID_FACE_DIRECTIONS.includes(direction as (typeof VALID_FACE_DIRECTIONS)[number]))
-        if (
-          legacyDirections.length > 0
-          && Number.isInteger(body.primaryIndex)
-          && body.primaryIndex >= 0
-          && body.primaryIndex < body.images.length
-        ) {
-          normalizedFaceDirectionsByImage[body.primaryIndex] = legacyDirections
-        }
-      }
-
-      if (Object.keys(normalizedFaceDirectionsByImage).length === 0) {
-        response = NextResponse.json({ error: 'At least one face direction is required' }, { status: 400 })
-        return response
-      }
-    }
-
-    const normalizedRouteType = normalizeRouteType(body.routeType)
-
-    if (body.routeType !== undefined && body.routeType !== null && !normalizedRouteType) {
-      response = NextResponse.json({ error: 'Invalid route type' }, { status: 400 })
-      return response
-    }
-
-    const preparedRoutes: PreparedRoute[] = []
-    for (const route of body.routes) {
-      if (!route || typeof route !== 'object') {
-        response = NextResponse.json({ error: 'Invalid route payload' }, { status: 400 })
-        return response
-      }
-
-      if (typeof route.name !== 'string') {
-        response = NextResponse.json({ error: 'Route name is required' }, { status: 400 })
-        return response
-      }
-
-      const trimmedRouteName = route.name.trim()
-      if (!trimmedRouteName) {
-        response = NextResponse.json({ error: 'Route name is required' }, { status: 400 })
-        return response
-      }
-
-      if (route.description !== undefined && route.description !== null && typeof route.description !== 'string') {
-        response = NextResponse.json({ error: 'Route description must be a string' }, { status: 400 })
-        return response
-      }
-
-      const trimmedDescription = typeof route.description === 'string' ? route.description.trim() : null
-      if (trimmedDescription !== null && trimmedDescription.length > 500) {
-        response = NextResponse.json({ error: 'Route description must be 500 characters or less' }, { status: 400 })
-        return response
-      }
-
-      if (!isValidGrade(route.grade)) {
-        response = NextResponse.json({ error: `Invalid grade: ${route.grade}` }, { status: 400 })
-        return response
-      }
-
-      if (!Array.isArray(route.points) || route.points.length < 2) {
-        response = NextResponse.json({ error: 'Route must have at least 2 points' }, { status: 400 })
-        return response
-      }
-
-      if (
-        typeof route.sequenceOrder !== 'number' ||
-        !Number.isFinite(route.sequenceOrder) ||
-        typeof route.imageWidth !== 'number' ||
-        !Number.isFinite(route.imageWidth) ||
-        typeof route.imageHeight !== 'number' ||
-        !Number.isFinite(route.imageHeight)
-      ) {
-        response = NextResponse.json({ error: 'Route dimensions and sequenceOrder must be valid numbers' }, { status: 400 })
-        return response
-      }
-
-      for (const point of route.points) {
-        if (
-          !point ||
-          typeof point !== 'object' ||
-          typeof point.x !== 'number' ||
-          !Number.isFinite(point.x) ||
-          typeof point.y !== 'number' ||
-          !Number.isFinite(point.y)
-        ) {
-          response = NextResponse.json({ error: 'Route points must contain valid x/y coordinates' }, { status: 400 })
-          return response
-        }
-      }
-
-      preparedRoutes.push({
-        name: trimmedRouteName,
-        grade: route.grade,
-        description: trimmedDescription,
-        points: route.points,
-        sequenceOrder: route.sequenceOrder,
-        imageWidth: route.imageWidth,
-        imageHeight: route.imageHeight,
-        slug: null,
-      })
-    }
+    const newSubmissionValidation = validateNewSubmissionInput(body)
+    if (newSubmissionValidation.error) return newSubmissionValidation.error
+    const normalizedFaceDirectionsByImage = newSubmissionValidation.normalizedFaceDirectionsByImage
 
     const today = new Date().toISOString().split('T')[0]
     const { count: todayRoutes } = await supabase
@@ -409,214 +155,9 @@ export async function POST(request: NextRequest) {
 
     let imageId: string | null = null
     let existingCragId: string | null = null
-    let notificationClimbs: Array<{ id: string; name: string; grade: string }> = []
-    let climbsCreatedCount = 0
-    let routeLinesCreatedCount = 0
-    let supplementaryCreatedCount = 0
-    let supplementaryCragImageIds: string[] = []
-    let firstClimbId: string | undefined
-    let firstRouteId: string | undefined
-    let primaryNewImage: NewSubmissionImage | null = null
-    let validatedNewImages: NewSubmissionImage[] = []
-
-    if (body.mode === 'new') {
-      if (!body.cragId) {
-        response = NextResponse.json({ error: 'Crag ID is required' }, { status: 400 })
-        return response
-      }
-
-      if (!Array.isArray(body.images) || body.images.length === 0) {
-        response = NextResponse.json({ error: 'At least one image is required' }, { status: 400 })
-        return response
-      }
-
-      if (!Number.isInteger(body.primaryIndex) || body.primaryIndex < 0 || body.primaryIndex >= body.images.length) {
-        response = NextResponse.json({ error: 'Invalid primary index' }, { status: 400 })
-        return response
-      }
-
-      validatedNewImages = []
-
-      for (const image of body.images) {
-        if (!image || typeof image !== 'object') {
-          response = NextResponse.json({ error: 'Invalid image payload' }, { status: 400 })
-          return response
-        }
-
-        if (!image.uploadedBucket || typeof image.uploadedBucket !== 'string') {
-          response = NextResponse.json({ error: 'Image uploadedBucket is required' }, { status: 400 })
-          return response
-        }
-
-        if (!image.uploadedPath || typeof image.uploadedPath !== 'string') {
-          response = NextResponse.json({ error: 'Image uploadedPath is required' }, { status: 400 })
-          return response
-        }
-
-        if (!(await userOwnsUploadedObject(ownershipClient, userId, image.uploadedBucket, image.uploadedPath))) {
-          response = NextResponse.json({ error: 'Invalid image path owner' }, { status: 403 })
-          return response
-        }
-
-        if (
-          !Number.isFinite(image.width) ||
-          !Number.isFinite(image.height) ||
-          !Number.isFinite(image.naturalWidth) ||
-          !Number.isFinite(image.naturalHeight)
-        ) {
-          response = NextResponse.json({ error: 'Image dimensions are required' }, { status: 400 })
-          return response
-        }
-
-        validatedNewImages.push(image)
-      }
-
-      primaryNewImage = validatedNewImages[body.primaryIndex]
-
-      const allImagesHaveDirections = validatedNewImages.every((_, index) => {
-        const directions = normalizedFaceDirectionsByImage[index] || []
-        return directions.length > 0
-      })
-
-      if (!allImagesHaveDirections) {
-        response = NextResponse.json({ error: 'Each image must include at least one face direction' }, { status: 400 })
-        return response
-      }
-    } else if (body.mode === 'existing') {
-      if (!body.imageId) {
-        response = NextResponse.json({ error: 'Image ID is required' }, { status: 400 })
-        return response
-      }
-
-      const { data: existingImage, error: imageError } = await supabase
-        .from('images')
-        .select('id, crag_id')
-        .eq('id', body.imageId)
-        .single()
-
-      if (imageError || !existingImage) {
-        response = NextResponse.json({ error: 'Image not found' }, { status: 404 })
-        return response
-      }
-
-      imageId = existingImage.id
-      existingCragId = existingImage.crag_id
-    } else {
-      if (!body.cragImageId) {
-        response = NextResponse.json({ error: 'Crag image ID is required' }, { status: 400 })
-        return response
-      }
-
-      const { data: cragImage, error: cragImageError } = await supabase
-        .from('crag_images')
-        .select('id, url, crag_id, width, height, latitude, longitude, source_image_id, linked_image_id, source_image:source_image_id(id, latitude, longitude, capture_date)')
-        .eq('id', body.cragImageId)
-        .single()
-
-      if (cragImageError || !cragImage) {
-        response = NextResponse.json({ error: 'Crag image not found' }, { status: 404 })
-        return response
-      }
-
-      const cragImageRow = cragImage as CragImageRow
-
-      existingCragId = cragImageRow.crag_id
-
-      if (!existingCragId) {
-        response = NextResponse.json({ error: 'Crag image is not attached to a crag' }, { status: 400 })
-        return response
-      }
-
-      let resolvedImageId = cragImageRow.linked_image_id
-      const shouldCreateLinkedImage = !resolvedImageId || (cragImageRow.source_image_id && resolvedImageId === cragImageRow.source_image_id)
-
-      if (shouldCreateLinkedImage) {
-        const parsedStorage = parsePrivateStorageUrl(cragImageRow.url)
-        const sourceImage = Array.isArray(cragImageRow.source_image)
-          ? cragImageRow.source_image[0] || null
-          : cragImageRow.source_image
-        const latitude = typeof cragImageRow.latitude === 'number'
-          ? cragImageRow.latitude
-          : typeof sourceImage?.latitude === 'number'
-            ? sourceImage.latitude
-            : null
-        const longitude = typeof cragImageRow.longitude === 'number'
-          ? cragImageRow.longitude
-          : typeof sourceImage?.longitude === 'number'
-            ? sourceImage.longitude
-            : null
-        const captureDate = typeof sourceImage?.capture_date === 'string' && sourceImage.capture_date
-          ? sourceImage.capture_date
-          : null
-
-        // Extract upload session UUID from storage path to use as images.id
-        // This ensures images.id matches the UUID in the URL, so the CDN can serve it
-        const uploadSessionUuid = parsedStorage?.path?.match(/images\/originals\/([0-9a-fA-F-]{36})/)?.[1]
-
-        const insertPayload: Record<string, unknown> = {
-          url: cragImageRow.url,
-          crag_id: existingCragId,
-          width: cragImageRow.width,
-          height: cragImageRow.height,
-          natural_width: cragImageRow.width,
-          natural_height: cragImageRow.height,
-          created_by: userId,
-          latitude,
-          longitude,
-          capture_date: captureDate,
-        }
-
-        if (uploadSessionUuid) {
-          insertPayload.id = uploadSessionUuid
-        }
-
-        if (parsedStorage) {
-          insertPayload.storage_bucket = parsedStorage.bucket
-          insertPayload.storage_path = parsedStorage.path
-        }
-
-        const imageClient = supabaseAdmin || supabase
-        const { data: createdImage, error: createImageError } = await imageClient
-          .from('images')
-          .insert(insertPayload)
-          .select('id')
-          .single()
-
-        if (createImageError || !createdImage) {
-          return createErrorResponse(createImageError || new Error('Failed to create linked image'), 'Error creating linked image')
-        }
-
-        resolvedImageId = createdImage.id
-
-        const linkingClient = supabaseAdmin || supabase
-        const { error: linkError } = await linkingClient
-          .from('crag_images')
-          .update({ linked_image_id: resolvedImageId })
-          .eq('id', cragImage.id)
-
-        if (linkError) {
-          return createErrorResponse(linkError, 'Error linking crag image to created image')
-        }
-
-        const { data: latestCragImage, error: latestCragImageError } = await linkingClient
-          .from('crag_images')
-          .select('linked_image_id')
-          .eq('id', cragImage.id)
-          .single()
-
-        if (latestCragImageError) {
-          return createErrorResponse(latestCragImageError, 'Error verifying linked crag image')
-        }
-
-        if (latestCragImage?.linked_image_id) {
-          resolvedImageId = latestCragImage.linked_image_id
-        } else {
-          return NextResponse.json({ error: 'Failed to persist crag image link' }, { status: 500 })
-        }
-      }
-
-      imageId = resolvedImageId
-    }
+    let executionResult: SubmissionExecutionResult | null = null
+    const primaryNewImage: NewSubmissionImage | null = newSubmissionValidation.primaryNewImage
+    const validatedNewImages: NewSubmissionImage[] = newSubmissionValidation.validatedNewImages
 
     const cragId = body.mode === 'new' ? body.cragId : existingCragId
 
@@ -670,116 +211,94 @@ export async function POST(request: NextRequest) {
         return response
       }
 
-      uploadedBlobsToCleanup = validatedNewImages.map((img) => ({
-        bucket: img.uploadedBucket,
-        path: img.uploadedPath,
-      }))
-      shouldCleanupUploadedBlobs = true
-
-      const primaryPayload = {
-        url: `private://${primaryNewImage.uploadedBucket}/${primaryNewImage.uploadedPath}`,
-        storage_bucket: primaryNewImage.uploadedBucket,
-        storage_path: primaryNewImage.uploadedPath,
-        image_lat: primaryNewImage.gpsData?.latitude ?? null,
-        image_lng: primaryNewImage.gpsData?.longitude ?? null,
-        capture_date: primaryNewImage.captureDate,
-        width: primaryNewImage.width,
-        height: primaryNewImage.height,
-        natural_width: primaryNewImage.naturalWidth,
-        natural_height: primaryNewImage.naturalHeight,
-        face_directions: normalizedFaceDirectionsByImage[body.primaryIndex] || [],
-        sector_id: body.sectorId || null,
-      }
-
-      const supplementaryPayload = validatedNewImages
-        .map((img, index) => ({
-          img,
-          index,
-        }))
-        .filter(({ index }) => index !== body.primaryIndex)
-        .map(({ img, index }) => ({
-          url: `private://${img.uploadedBucket}/${img.uploadedPath}`,
-          width: img.width,
-          height: img.height,
-          face_directions: normalizedFaceDirectionsByImage[index] || [],
-          sector_id: img.sectorId || null,
-        }))
-
-      const { data: unifiedData, error: unifiedError } = await supabase.rpc('create_unified_submission_atomic', {
-        p_crag_id: body.cragId,
-        p_primary_image: primaryPayload,
-        p_supplementary_images: supplementaryPayload,
-        p_routes: routePayload,
-        p_route_type: normalizedRouteType || 'sport',
-      })
-
-      if (unifiedError) {
-        throw unifiedError
-      }
-
-      const unifiedResult = (Array.isArray(unifiedData) ? unifiedData[0] : unifiedData) as UnifiedSubmissionResult | null
-      if (!unifiedResult?.image_id) {
-        throw new Error('Unified submission did not return image_id')
-      }
-
-      imageId = unifiedResult.image_id
-      climbsCreatedCount = unifiedResult.climbs_created || 0
-      routeLinesCreatedCount = unifiedResult.route_lines_created || routePayload.length
-      supplementaryCreatedCount = unifiedResult.supplementary_created || 0
-      supplementaryCragImageIds = Array.isArray(unifiedResult.crag_image_ids) ? unifiedResult.crag_image_ids : []
-
-      if (supplementaryCragImageIds.length > 0) {
-        const imageClient = supabaseAdmin || supabase
-        const updates = supplementaryPayload
-          .map((supplementary, index) => {
-            const cragImageId = supplementaryCragImageIds[index]
-            if (!cragImageId) return null
-            return {
-              id: cragImageId,
-              face_directions: supplementary.face_directions,
-            }
-          })
-          .filter((item): item is { id: string; face_directions: Array<(typeof VALID_FACE_DIRECTIONS)[number]> } => item !== null)
-
-        for (const update of updates) {
-          const { error: updateFaceDirectionsError } = await imageClient
-            .from('crag_images')
-            .update({ face_directions: update.face_directions })
-            .eq('id', update.id)
-
-          if (updateFaceDirectionsError) {
-            return createErrorResponse(updateFaceDirectionsError, 'Error applying face directions to supplementary image')
-          }
+      for (const image of body.images) {
+        if (!(await userOwnsUploadedObject(ownershipClient, userId, image.uploadedBucket, image.uploadedPath))) {
+          response = NextResponse.json({ error: 'Invalid image path owner' }, { status: 403 })
+          return response
         }
       }
 
-      const createdClimbIds = Array.isArray(unifiedResult.climb_ids) ? unifiedResult.climb_ids : []
-      const createdRouteLineIds = Array.isArray(unifiedResult.route_line_ids) ? unifiedResult.route_line_ids : []
-      firstClimbId = createdClimbIds[0]
-      firstRouteId = createdRouteLineIds[0]
-      if (createdClimbIds.length > 0) {
-        const { data: createdClimbsRows } = await supabase
-          .from('climbs')
-          .select('id, name, grade')
-          .in('id', createdClimbIds)
-
-        notificationClimbs = (createdClimbsRows || []).map((row) => ({
-          id: row.id,
-          name: row.name || 'Unnamed',
-          grade: row.grade,
-        }))
+      const newResult = await executeNewImageSubmission({
+        supabase,
+        supabaseAdmin,
+        createErrorResponse,
+        body,
+        validatedNewImages,
+        primaryNewImage,
+        normalizedFaceDirectionsByImage,
+        routePayload,
+        normalizedRouteType,
+        preparedRoutes,
+      })
+      if (newResult.error) return newResult.error
+      executionResult = newResult.result
+      uploadedBlobsToCleanup = executionResult.cleanupUploadedBlobs || []
+      shouldCleanupUploadedBlobs = uploadedBlobsToCleanup.length > 0
+    } else if (body.mode === 'existing') {
+      if (!body.imageId) {
+        response = NextResponse.json({ error: 'Image ID is required' }, { status: 400 })
+        return response
       }
 
-      if (notificationClimbs.length === 0) {
-        notificationClimbs = preparedRoutes.map((route, index) => ({
-          id: `route-${index + 1}`,
-          name: route.name,
-          grade: route.grade,
-        }))
+      const { data: existingImage, error: imageError } = await supabase
+        .from('images')
+        .select('id, crag_id')
+        .eq('id', body.imageId)
+        .single()
+
+      if (imageError || !existingImage) {
+        response = NextResponse.json({ error: 'Image not found' }, { status: 404 })
+        return response
       }
 
-      await getRegionData(supabase, imageId)
+      imageId = existingImage.id
+      existingCragId = existingImage.crag_id
+    } else {
+      if (!body.cragImageId) {
+        response = NextResponse.json({ error: 'Crag image ID is required' }, { status: 400 })
+        return response
+      }
 
+      const cragResolution = await resolveCragImageToImageId({
+        supabase,
+        supabaseAdmin,
+        createErrorResponse,
+        cragImageId: body.cragImageId,
+        userId,
+      })
+      if (cragResolution.error) return cragResolution.error
+      imageId = cragResolution.imageId
+      existingCragId = cragResolution.cragId
+    }
+
+    if (body.mode !== 'new') {
+      if (!imageId) {
+        response = NextResponse.json({ error: 'Failed to resolve image for submission' }, { status: 500 })
+        return response
+      }
+
+      const existingResult = await executeExistingImageSubmission({
+        supabase,
+        supabaseAdmin,
+        createErrorResponse,
+        imageId,
+        cragId,
+        routePayload,
+        normalizedRouteType,
+      })
+      if (existingResult.error) return existingResult.error
+      executionResult = existingResult.result
+    }
+
+    if (!executionResult) {
+      response = NextResponse.json({ error: 'Submission execution failed' }, { status: 500 })
+      return response
+    }
+
+    imageId = executionResult.imageId
+    await getRegionData(supabase, imageId)
+
+    if (body.mode === 'new') {
       const moderationConfig = getMediaModerationConfig()
       if (INTERNAL_MODERATION_SECRET && moderationConfig.enabled) {
         const csrfToken = request.headers.get('x-csrf-token')
@@ -813,58 +332,6 @@ export async function POST(request: NextRequest) {
           })
           .catch((err) => console.error('Failed to queue moderation:', { imageId, error: err }))
       }
-    } else {
-      if (!imageId) {
-        response = NextResponse.json({ error: 'Failed to resolve image for submission' }, { status: 500 })
-        return response
-      }
-
-      await getRegionData(supabase, imageId)
-
-      const { data: climbs, error: atomicError } = await supabase.rpc('create_submission_routes_atomic', {
-        p_image_id: imageId,
-        p_crag_id: cragId,
-        p_route_type: normalizedRouteType || 'sport',
-        p_routes: routePayload,
-      })
-
-      if (atomicError) {
-        return createErrorResponse(atomicError, 'Error creating submission routes')
-      }
-
-      const createdClimbs = (climbs || []) as AtomicSubmissionRouteResult[]
-      if (!Array.isArray(createdClimbs) || createdClimbs.length === 0) {
-        response = NextResponse.json({ error: 'Failed to create climbs' }, { status: 500 })
-        return response
-      }
-
-      notificationClimbs = createdClimbs.map((climb) => ({
-        id: climb.climb_id,
-        name: climb.name,
-        grade: climb.grade,
-      }))
-      climbsCreatedCount = createdClimbs.length
-      routeLinesCreatedCount = routePayload.length
-
-      const createdClimbIds = createdClimbs.map((climb) => climb.climb_id)
-      firstClimbId = createdClimbIds[0]
-      if (imageId && createdClimbIds.length > 0) {
-        const { data: createdRouteRows } = await supabase
-          .from('route_lines')
-          .select('id, climb_id')
-          .eq('image_id', imageId)
-          .in('climb_id', createdClimbIds)
-          .order('sequence_order', { ascending: true, nullsFirst: false })
-          .order('created_at', { ascending: true })
-
-        const firstRouteRow = (createdRouteRows || [])[0]
-        if (firstRouteRow?.id) {
-          firstRouteId = firstRouteRow.id
-          if (!firstClimbId && firstRouteRow.climb_id) {
-            firstClimbId = firstRouteRow.climb_id
-          }
-        }
-      }
     }
 
     if (cragId) {
@@ -876,7 +343,7 @@ export async function POST(request: NextRequest) {
 
       const cragName = cragData?.name || 'Unknown Crag'
 
-      await notifyNewSubmission(supabase, notificationClimbs, cragName, cragId, userId).catch(err => {
+      await notifyNewSubmission(supabase, executionResult.notificationClimbs, cragName, cragId, userId).catch(err => {
         console.error('Discord notification error:', err)
       })
 
@@ -886,72 +353,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    response = NextResponse.json({
-      success: true,
-      climbsCreated: climbsCreatedCount,
-      routeLinesCreated: routeLinesCreatedCount,
-      supplementaryImagesCreated: supplementaryCreatedCount,
-      supplementaryCragImageIds,
-      imageId: imageId || undefined,
-      climbId: firstClimbId,
-      routeId: firstRouteId,
-    })
+    const successPayload: SubmissionExecutionResult = {
+      ...executionResult,
+    }
+
+    response = buildSubmissionSuccessResponse(successPayload)
     shouldCleanupUploadedBlobs = false
     return response
   } catch (error) {
     if (shouldCleanupUploadedBlobs && uploadedBlobsToCleanup.length > 0) {
-      const pathsByBucket = new Map<string, string[]>()
-
-      for (const item of uploadedBlobsToCleanup) {
-        if (!item.bucket || !item.path) continue
-        const current = pathsByBucket.get(item.bucket) || []
-        current.push(item.path)
-        pathsByBucket.set(item.bucket, current)
-      }
-
-      for (const [bucket, paths] of pathsByBucket.entries()) {
-        if (paths.length === 0) continue
-        await supabase.storage.from(bucket).remove(Array.from(new Set(paths))).catch(() => {})
-      }
+      await cleanupUploadedBlobs(supabase, uploadedBlobsToCleanup)
     }
 
-    return createErrorResponse(error, 'Submission error')
-  }
-}
-
-async function getRegionData(supabase: ReturnType<typeof createServerClient>, imageId: string) {
-  try {
-    const { data } = await supabase
-      .from('images')
-      .select(`
-        crags:crag_id (
-          climbing_areas:region_id (
-            name
-          )
-        )
-      `)
-      .eq('id', imageId)
-      .single()
-
-    if (data?.crags?.climbing_areas) {
-      return data.crags.climbing_areas.name
-    }
-    return ''
-  } catch {
-    return ''
+    return submissionErrorResponse(error)
   }
 }
 
 export async function GET() {
-  return NextResponse.json({
-    message: 'Submission endpoint',
-    method: 'POST',
-    required_fields: {
-      common: ['routes (array with name, grade, points, sequenceOrder)'],
-      new_image_mode: ['mode: "new"', 'images[]', 'primaryIndex', 'faceDirectionsByImage', 'cragId'],
-      existing_image_mode: ['mode: "existing"', 'imageId'],
-      crag_image_mode: ['mode: "crag_image"', 'cragImageId']
-    },
-    rate_limit: `${MAX_ROUTES_PER_DAY} routes per day`
-  })
+  return getSubmissionInfo()
 }

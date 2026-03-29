@@ -5,31 +5,26 @@ import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import type { Database } from '@/types/database'
+import {
+  buildDraftConflictResponse,
+  buildDraftImageProxyUrl,
+  normalizeJsonRecord,
+  normalizePatchImages,
+  resolveDisplayName,
+  resolveDraftImageReadinessStatus,
+  type DraftImageRow,
+  type DraftPatchImage,
+  type DraftRouteRow,
+  type ProfileRow,
+} from '@/features/submissions/server/drafts/draft-route-shared'
 
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-interface DraftPatchImage {
-  id: string
-  display_order: number
-  route_data: unknown
-}
 
 interface DraftPatchBody {
   images: DraftPatchImage[]
   expected_updated_at?: string
   metadata?: Record<string, unknown>
   cragId?: string | null
-}
-
-interface DraftConflictResponse {
-  code: 'draft_conflict'
-  message: string
-  current_updated_at: string
-  current_data: {
-    updated_at: string
-    last_updated_by: string | null
-    last_updated_by_display_name: string | null
-  }
 }
 
 interface DraftPatchResult {
@@ -39,13 +34,6 @@ interface DraftPatchResult {
   images: Array<Record<string, unknown>>
 }
 
-interface ProfileRow {
-  id: string
-  username: string | null
-  display_name: string | null
-}
-
-type DraftImageProcessingStatus = 'pending' | 'queued' | 'processing' | 'ready' | 'failed'
 type DraftImageReadinessStatus = 'processing' | 'ready' | 'error'
 
 type DraftStorageRow = Pick<
@@ -53,86 +41,9 @@ type DraftStorageRow = Pick<
   'storage_provider' | 'storage_bucket' | 'storage_path'
 >
 
-interface DraftImageRow {
-  id: string
-  draft_id: string
-  display_order: number
-  storage_bucket: string | null
-  storage_path: string | null
-  width: number | null
-  height: number | null
-  route_data: unknown
-  latitude: number | null
-  longitude: number | null
-  created_at: string
-  updated_at: string
-  processing_status: DraftImageProcessingStatus | null
-  preview_variants: unknown
-}
-
 interface DraftImageResponse extends DraftImageRow {
   proxy_url: string | null
   readiness_status: DraftImageReadinessStatus
-}
-
-interface DraftRouteRow {
-  id: string
-  draft_image_id: string
-  name: string
-  grade: string
-  description: string | null
-  climb_type: string
-  points: unknown
-  sequence_order: number
-  image_width: number | null
-  image_height: number | null
-  created_at: string
-  updated_at: string
-}
-
-function buildDraftImageProxyUrl(draftId: string, path: string): string {
-  const searchParams = new URLSearchParams({ draftId, path })
-  return `/api/media/private?${searchParams.toString()}`
-}
-
-function resolveDisplayName(profile: ProfileRow | null): string | null {
-  if (!profile) return null
-  if (profile.display_name) return profile.display_name
-  if (profile.username) return profile.username
-  return null
-}
-
-function normalizeJsonRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-  return value as Record<string, unknown>
-}
-
-function normalizePatchImages(value: unknown): DraftPatchImage[] | null {
-  if (!Array.isArray(value) || value.length === 0) return null
-
-  const images: DraftPatchImage[] = []
-  for (const item of value) {
-    if (!item || typeof item !== 'object') return null
-    const candidate = item as Partial<DraftPatchImage>
-    if (typeof candidate.id !== 'string' || !candidate.id) return null
-    if (typeof candidate.display_order !== 'number' || !Number.isInteger(candidate.display_order) || candidate.display_order < 0) {
-      return null
-    }
-
-    images.push({
-      id: candidate.id,
-      display_order: candidate.display_order,
-      route_data: candidate.route_data ?? {},
-    })
-  }
-
-  return images
-}
-
-function resolveDraftImageReadinessStatus(image: DraftImageRow): DraftImageReadinessStatus {
-  if (image.storage_bucket && image.storage_path && image.processing_status === 'ready') return 'ready'
-  if (!image.storage_bucket || !image.storage_path || image.processing_status === 'failed') return 'error'
-  return 'processing'
 }
 
 export async function GET(
@@ -321,17 +232,11 @@ export async function PATCH(
         lastUpdatedByDisplayName = resolveDisplayName((profile || null) as ProfileRow | null)
       }
 
-      const conflictPayload: DraftConflictResponse = {
-        code: 'draft_conflict',
-        message: 'This draft was updated by another collaborator. Reload to continue editing.',
-        current_updated_at: draft.updated_at,
-        current_data: {
-          updated_at: draft.updated_at,
-          last_updated_by: draft.last_edited_by,
-          last_updated_by_display_name: lastUpdatedByDisplayName,
-        },
-      }
-      return NextResponse.json(conflictPayload, { status: 409 })
+      return buildDraftConflictResponse({
+        updatedAt: draft.updated_at,
+        lastEditedBy: draft.last_edited_by,
+        lastUpdatedByDisplayName,
+      })
     }
 
     const { data: patchResultRaw, error: patchError } = await supabase.rpc('patch_submission_draft_images_atomic', {
@@ -359,17 +264,11 @@ export async function PATCH(
         }
 
         const fallbackUpdatedAt = currentDraft?.updated_at || expectedUpdatedAt
-        const conflictPayload: DraftConflictResponse = {
-          code: 'draft_conflict',
-          message: 'This draft was updated by another collaborator. Reload to continue editing.',
-          current_updated_at: fallbackUpdatedAt,
-          current_data: {
-            updated_at: fallbackUpdatedAt,
-            last_updated_by: currentDraft?.last_edited_by || null,
-            last_updated_by_display_name: lastUpdatedByDisplayName,
-          },
-        }
-        return NextResponse.json(conflictPayload, { status: 409 })
+        return buildDraftConflictResponse({
+          updatedAt: fallbackUpdatedAt,
+          lastEditedBy: currentDraft?.last_edited_by || null,
+          lastUpdatedByDisplayName,
+        })
       }
       return createErrorResponse(patchError, 'Failed to patch submission draft')
     }

@@ -13,23 +13,23 @@ Draft-based submission system for route submissions.
 
 ## Components
 
-- `components/SubmissionWorkstation.tsx` — main workstation UI
-- `components/RouteEditorRail.tsx` — route editor sidebar
-- `components/RouteEditSidebar.tsx` — route editing controls
-- `components/UnifiedRouteCanvas.tsx` — canvas-based route drawing
-- `components/submissions/DraftIntakeView.tsx` — draft intake
-- `components/submissions/SubmissionManager.tsx` — submission management
-- `components/submissions/SubmissionListView.tsx` — list view
+- `features/submissions/components/SubmissionWorkstation.tsx` — main workstation UI
+- `features/route-editor/components/RouteEditorRail.tsx` — route editor sidebar
+- `features/route-editor/components/RouteEditSidebar.tsx` — route editing controls
+- `features/route-editor/components/UnifiedRouteCanvas.tsx` — canvas-based route drawing
+- `features/submissions/components/DraftIntakeView.tsx` — draft intake
+- `features/submissions/components/SubmissionManager.tsx` — submission management
+- `features/submissions/components/SubmissionListView.tsx` — list view
 
 ## Libraries
 
-- `lib/draft-metadata.ts` — draft metadata utilities
+- `features/submissions/lib/draft-metadata.ts` — draft metadata utilities
 - `lib/media/draft-storage.ts` — draft image storage
-- `lib/submission-types.ts` — submission type definitions
-- `lib/submissions/fetch-own-submissions.ts` — fetch user's submissions
-- `lib/submissions/group-submitted-images.ts` — group images by submission
-- `lib/submissions/use-submissions.ts` — submission hooks
-- `lib/submit-context.tsx` — submit context provider
+- `features/submissions/lib/submission-types.ts` — submission type definitions
+- `features/submissions/lib/fetch-own-submissions.ts` — fetch user's submissions
+- `features/submissions/lib/group-submitted-images.ts` — group images by submission
+- `features/submissions/hooks/useSubmissions.ts` — submission hooks
+- `features/submissions/providers/submit-context.tsx` — submit context provider
 
 ## Database Tables
 
@@ -42,8 +42,15 @@ Draft-based submission system for route submissions.
 
 ## API Routes
 
-- `/api/submissions/` — draft CRUD, promotion
-- `/api/submissions/drafts/[id]/routes` — draft route read + image-scoped bulk sync
+- `/api/submissions` — published submission creation and metadata helpers; thin route handlers backed by `features/submissions/server/submissions/*`
+- `/api/submissions/[imageId]/routes` — thin POST/PUT/DELETE wrappers for route-line mutations backed by `features/submissions/server/submissions/*`
+- `/api/submissions/drafts` — draft creation backed by `features/submissions/server/drafts/*`
+- `/api/submissions/drafts/[id]` — draft metadata/image ordering backed by `features/submissions/server/drafts/*`
+- `/api/submissions/drafts/[id]/images` — draft image append/conflict handling backed by `features/submissions/server/drafts/*`
+- `/api/submissions/drafts/[id]/routes` — draft route read + image-scoped bulk sync backed by `features/submissions/server/drafts/*`
+- `/api/submissions/drafts/[id]/promote` — draft publish flow backed by `features/submissions/server/drafts/*`
+- `/api/submissions/drafts/[id]/collaborators` — draft collaborator/invite management backed by `features/submissions/server/drafts/*`
+- `/api/submissions/drafts/collaborate/[token]` — invite-claim redirect flow backed by `features/submissions/server/drafts/*`
 - `/api/uploads/signed-url/` — presigned upload URLs
 - `/api/media/` — media sessions, private media proxy
 
@@ -59,3 +66,9 @@ Draft-based submission system for route submissions.
 - Route drawing persists immediately via image-scoped bulk sync with last-write-wins per image
 - Autosave during editing remains for draft metadata and image ordering
 - Draft state persists across sessions
+
+## Server Ownership
+
+- `app/api/submissions/**` should stay focused on request wiring: auth, CSRF, rate limits, and parameter extraction.
+- `features/submissions/server/submissions/**` owns submission validation, route-line mutations, and per-mode submission execution.
+- `features/submissions/server/drafts/**` owns draft lifecycle operations, image append flows, collaborator management, and draft promotion.

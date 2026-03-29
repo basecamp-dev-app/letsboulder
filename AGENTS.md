@@ -62,5 +62,5 @@ npm run supabase:doctor  # Verify Supabase CLI
 <next_steps>
   - Keep schema.md and patterns.md in sync with code changes
   - Regenerate `types/database.ts` via `supabase gen types` after any schema change
-  - Prioritize Supabase-generated type migration in `types/database.ts`, `lib/submission-types.ts`, and ranking/community query surfaces.
+  - Prioritize Supabase-generated type migration in `types/database.ts`, `features/submissions/lib/submission-types.ts`, and ranking/community query surfaces.
 </next_steps>

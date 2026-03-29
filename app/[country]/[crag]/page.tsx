@@ -2,10 +2,10 @@ import type { Metadata } from 'next'
 import { createServerClient } from '@supabase/ssr'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
-import CragPageClient from '@/app/crag/components/CragPageClient'
-import { loadInitialCragRouteData } from '@/app/crag/components/crag-page-server'
-import CragStructuredData from '@/app/crag/components/CragStructuredData'
-import type { BreadcrumbItem, Crag } from '@/app/crag/components/crag-page-types'
+import CragPageClient from '@/features/crags/components/CragPageClient'
+import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
+import CragStructuredData from '@/features/crags/components/CragStructuredData'
+import type { BreadcrumbItem, Crag } from '@/features/crags/lib/crag-page-types'
 
 export const revalidate = 60
 

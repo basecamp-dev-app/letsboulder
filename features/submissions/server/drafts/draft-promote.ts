@@ -1,0 +1,149 @@
+import { NextResponse } from 'next/server'
+import { createErrorResponse } from '@/lib/errors'
+import { getMediaModerationConfig } from '@/lib/media/config'
+import { extractDraftLocation, isPermissionDeniedError } from '@/features/submissions/server/drafts/draft-route-shared'
+
+const INTERNAL_MODERATION_SECRET = process.env.INTERNAL_MODERATION_SECRET
+
+interface PromoteResult {
+  success?: boolean
+  status?: string
+  image_id?: string
+  default_image_id?: string
+  image_ids?: string[]
+  climb_ids?: string[]
+  route_line_ids?: string[]
+  published_at?: string
+}
+
+export async function promoteDraftToSubmission(input: {
+  supabase: ReturnType<typeof import('@supabase/ssr').createServerClient>
+  request: Request
+  draftId: string
+  userId: string
+}) {
+  const { supabase, request, draftId, userId } = input
+  const { data: draft, error: draftError } = await supabase
+    .from('submission_drafts')
+    .select('id, user_id, metadata')
+    .eq('id', draftId)
+    .maybeSingle()
+
+  if (draftError) {
+    return createErrorResponse(draftError, 'Failed to validate draft before publish')
+  }
+
+  if (!draft) {
+    return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+  }
+
+  if (draft.user_id !== userId) {
+    return NextResponse.json({ error: 'Only the draft owner can publish this draft' }, { status: 403 })
+  }
+
+  const { latitude, longitude } = extractDraftLocation(draft.metadata)
+  const hasValidLocation =
+    typeof latitude === 'number' && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
+    typeof longitude === 'number' && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180 &&
+    !(latitude === 0 && longitude === 0)
+
+  if (!hasValidLocation) {
+    return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
+  }
+
+  const { data, error } = await supabase.rpc('promote_draft_to_submission', { p_draft_id: draftId })
+  if (error) {
+    if (typeof error.message === 'string' && error.message.includes('Draft location is required before publishing')) {
+      return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
+    }
+    if (typeof error.message === 'string' && error.message.includes('Default draft image must contain at least one route before publishing')) {
+      return NextResponse.json({ error: 'Draw at least one route on the default image before publishing this draft' }, { status: 400 })
+    }
+    if (isPermissionDeniedError(error)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    return createErrorResponse(error, 'Failed to publish draft')
+  }
+
+  const result = (Array.isArray(data) ? data[0] : data) as PromoteResult | null
+  if (!result?.success || !result.image_id) {
+    return NextResponse.json({ error: 'Failed to publish draft' }, { status: 500 })
+  }
+
+  const defaultImageId = result.default_image_id || result.image_id
+  const { data: canonicalImage, error: canonicalImageError } = await supabase
+    .from('images')
+    .select('id, crag_id, crags(country_code, slug), route_lines(id, climb_id, sequence_order, created_at)')
+    .eq('id', defaultImageId)
+    .maybeSingle()
+
+  if (canonicalImageError || !canonicalImage) {
+    return createErrorResponse(canonicalImageError || new Error('Failed to resolve canonical image path after publish'), 'Failed to resolve publish destination')
+  }
+
+  const crag = Array.isArray(canonicalImage.crags) ? canonicalImage.crags[0] : canonicalImage.crags
+  if (!crag?.country_code || !crag?.slug) {
+    return NextResponse.json({ error: 'Failed to resolve canonical crag path after publish' }, { status: 500 })
+  }
+
+  const routeLines = Array.isArray(canonicalImage.route_lines) ? canonicalImage.route_lines : []
+  const defaultRoute = routeLines.slice().sort((left: { sequence_order: number | null; created_at: string | null }, right: { sequence_order: number | null; created_at: string | null }) => {
+    const leftSequence = typeof left.sequence_order === 'number' ? left.sequence_order : Number.MAX_SAFE_INTEGER
+    const rightSequence = typeof right.sequence_order === 'number' ? right.sequence_order : Number.MAX_SAFE_INTEGER
+    if (leftSequence !== rightSequence) return leftSequence - rightSequence
+    return String(left.created_at || '').localeCompare(String(right.created_at || ''))
+  })[0] || null
+
+  const canonicalPath = `/${crag.country_code.toLowerCase()}/${crag.slug}/i/${defaultImageId}`
+
+  const moderationConfig = getMediaModerationConfig()
+  if (INTERNAL_MODERATION_SECRET && moderationConfig.enabled) {
+    const csrfToken = request.headers.get('x-csrf-token')
+    const cookieHeader = request.headers.get('cookie')
+    const moderationHeaders: Record<string, string> = {
+      'content-type': 'application/json',
+      'x-internal-secret': INTERNAL_MODERATION_SECRET,
+    }
+
+    if (csrfToken) moderationHeaders['x-csrf-token'] = csrfToken
+    if (cookieHeader) moderationHeaders.cookie = cookieHeader
+
+    fetch(new URL('/api/moderation/check', request.url), {
+      method: 'POST',
+      headers: moderationHeaders,
+      body: JSON.stringify({ imageId: result.image_id }),
+    })
+      .then(async (res) => {
+        if (res.ok) return
+        const text = await res.text().catch(() => '')
+        console.error('Failed to queue moderation for published draft:', {
+          draftId,
+          imageId: result.image_id,
+          status: res.status,
+          body: text.slice(0, 500),
+        })
+      })
+      .catch((queueError) => console.error('Failed to queue moderation for published draft:', {
+        draftId,
+        imageId: result.image_id,
+        error: queueError,
+      }))
+  }
+
+  return NextResponse.json({
+    success: true,
+    status: result.status || 'submitted',
+    published: {
+      defaultImageId,
+      imageId: result.image_id,
+      imageIds: Array.isArray(result.image_ids) ? result.image_ids : (result.image_id ? [result.image_id] : []),
+      climbIds: Array.isArray(result.climb_ids) ? result.climb_ids : [],
+      routeLineIds: Array.isArray(result.route_line_ids) ? result.route_line_ids : [],
+      publishedAt: result.published_at || null,
+      canonicalPath,
+      countryCode: crag.country_code.toLowerCase(),
+      cragSlug: crag.slug,
+      defaultRouteId: defaultRoute?.id || null,
+    },
+  })
+}

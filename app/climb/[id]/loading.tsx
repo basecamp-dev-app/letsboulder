@@ -1,4 +1,4 @@
-import ClimbPageSkeleton from '@/app/climb/components/ClimbPageSkeleton'
+import ClimbPageSkeleton from '@/features/climb/components/ClimbPageSkeleton'
 
 export default function Loading() {
   return <ClimbPageSkeleton />

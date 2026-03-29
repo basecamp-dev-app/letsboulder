@@ -21,10 +21,10 @@ This library contains the "how-to" for unique climbing features.
 ```typescript
 'use client'
 import { useRef, useEffect } from 'react'
-import { useRouteDrawing } from '@/hooks/useRouteDrawing'
-import { useHitTesting } from '@/hooks/useHitTesting'
-import { useRouteStore } from '@/store/routeStore'
-import { drawRoutes } from '@/lib/route-renderer'
+import { useRouteDrawing } from '@/features/route-editor/hooks/useRouteDrawing'
+import { useHitTesting } from '@/features/route-editor/hooks/useHitTesting'
+import { useRouteStore } from '@/features/route-editor/store'
+import { drawRoute } from '@/lib/route-renderer'
 
 export default function UnifiedRouteCanvas({ imageId }: { imageId: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -51,10 +51,10 @@ export default function UnifiedRouteCanvas({ imageId }: { imageId: string }) {
 ```
 
 ### Key Files
-- `components/UnifiedRouteCanvas.tsx` — main canvas component
-- `hooks/useRouteDrawing.ts` — route drawing state and point management
-- `hooks/useHitTesting.ts` — hit testing for selecting/editing route points
-- `store/routeStore.ts` — Zustand store for route selection state
+- `features/route-editor/components/UnifiedRouteCanvas.tsx` — main canvas component
+- `features/route-editor/hooks/useRouteDrawing.ts` — route drawing state and point management
+- `features/route-editor/hooks/useHitTesting.ts` — hit testing for selecting/editing route points
+- `features/route-editor/store/index.ts` — Zustand store for route selection state
 - `lib/route-renderer.ts` — canvas rendering (Path2D, DPR-aware)
 - `lib/canvasMath.ts` — coordinate transforms and math utilities
 - `types/domain.ts` — `RoutePoint`, `RouteLine`, `DrawingRoute`, `CanvasDimensions`
