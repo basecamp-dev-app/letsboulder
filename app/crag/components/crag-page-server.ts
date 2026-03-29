@@ -1,9 +1,9 @@
-import { normalizeGrade } from '@/lib/grades'
-import { dedupeCanonicalRoutes, remapRoutePreviewsByEffectiveClimbId } from '@/lib/climb/canonical-logic'
 import { buildSelectableImageIdByImageId } from '@/lib/image-identity'
 import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
+import { dedupeCragRoutes, formatCragRoutes, getAverageCoordinates, remapRoutePreviewsByEffectiveClimbId } from '@/app/crag/components/crag-page-domain'
+import type { ClimbIdentityRow } from '@/app/crag/components/crag-page-domain'
+import type { RoutePreview } from '@/app/crag/components/crag-page-types'
 import type { Database } from '@/types/database'
-import type { CragRoute, RoutePreview } from '@/app/crag/components/CragPageClient'
 
 type SupabaseClientLike = {
   rpc: (fn: 'get_crag_route_intelligence', args: { p_crag_id: string }) => Promise<{ data: Database['public']['Functions']['get_crag_route_intelligence']['Returns'] | null; error: unknown }>
@@ -23,8 +23,6 @@ type OrderedQueryResult = Promise<{ data: unknown[] | null; error: unknown }> & 
   order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => OrderedQueryResult
 }
 
-type CragRouteIntelligenceRow = Database['public']['Functions']['get_crag_route_intelligence']['Returns'][number]
-
 interface ImageRow {
   id: string
   url: string
@@ -42,59 +40,9 @@ interface RouteLineTargetRow {
   climb_id: string
 }
 
-interface ClimbIdentityRow {
-  id: string
-  shared_climb_id: string | null
-}
-
-const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
-const faceDirectionIndex = new Map(FACE_DIRECTIONS.map((direction, index) => [direction, index]))
-
-function sortDirections(directions: string[]) {
-  return [...new Set(directions.filter(Boolean))].sort((a, b) => {
-    const aIndex = faceDirectionIndex.get(a as typeof FACE_DIRECTIONS[number])
-    const bIndex = faceDirectionIndex.get(b as typeof FACE_DIRECTIONS[number])
-    if (aIndex === undefined && bIndex === undefined) return a.localeCompare(b)
-    if (aIndex === undefined) return 1
-    if (bIndex === undefined) return -1
-    return aIndex - bIndex
-  })
-}
-
-function mapRouteRow(route: CragRouteIntelligenceRow): CragRoute {
-  return {
-    id: route.id,
-    name: (route.name || '').trim() || 'Unnamed route',
-    grade: normalizeGrade(route.grade) || 'Unknown',
-    slug: route.slug,
-    routeType: route.route_type,
-    directions: sortDirections(route.directions || []),
-    hasTopo: Boolean(route.has_topo),
-    topoImageCount: typeof route.topo_image_count === 'number' ? route.topo_image_count : 0,
-    ratingAvg: typeof route.rating_avg === 'number' ? route.rating_avg : null,
-    ratingCount: typeof route.rating_count === 'number' ? route.rating_count : 0,
-    weightedRating: typeof route.weighted_rating === 'number' ? route.weighted_rating : null,
-    sendCount: typeof route.send_count === 'number' ? route.send_count : 0,
-    recentSendCount60d: typeof route.recent_send_count_60d === 'number' ? route.recent_send_count_60d : 0,
-  }
-}
-
-function getAverageCoordinates(images: ImageRow[]): [number, number] | null {
-  if (images.length === 0) return null
-  const sum = images.reduce(
-    (acc, image) => {
-      acc.lat += image.latitude || 0
-      acc.lng += image.longitude || 0
-      return acc
-    },
-    { lat: 0, lng: 0 }
-  )
-  return [sum.lat / images.length, sum.lng / images.length]
-}
-
 export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cragId: string, cragCoords?: { latitude: number | null; longitude: number | null }) {
   const { data: routeData } = await supabase.rpc('get_crag_route_intelligence', { p_crag_id: cragId })
-  const baseRoutes = (routeData || []).map(mapRouteRow)
+  const baseRoutes = formatCragRoutes(routeData || [])
 
   const climbIds = baseRoutes.map((route) => route.id)
   let effectiveClimbIdByClimbId: Record<string, string> = {}
@@ -182,13 +130,15 @@ export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cra
     }
   }
 
-  const initialRoutes = dedupeCanonicalRoutes(baseRoutes, effectiveClimbIdByClimbId)
+  const initialRoutes = dedupeCragRoutes(baseRoutes, effectiveClimbIdByClimbId)
   const dedupedRoutePreviewByClimbId = remapRoutePreviewsByEffectiveClimbId(initialRoutePreviewByClimbId, effectiveClimbIdByClimbId)
 
-  const withCoords = images.filter((image) => typeof image.latitude === 'number' && typeof image.longitude === 'number')
+  const withCoords = images.filter(
+    (image): image is ImageRow & { latitude: number; longitude: number } => typeof image.latitude === 'number' && typeof image.longitude === 'number'
+  )
   const initialCragCenter = typeof cragCoords?.latitude === 'number' && typeof cragCoords?.longitude === 'number'
     ? [cragCoords.latitude, cragCoords.longitude] as [number, number]
-    : getAverageCoordinates(withCoords)
+    : withCoords.length > 0 ? getAverageCoordinates(withCoords) : null
 
   return {
     initialRoutes,
