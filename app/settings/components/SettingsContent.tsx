@@ -9,12 +9,12 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { updateGradePreferences } from '@/hooks/useGradeSystem'
+import { updateGradePreferences } from '@/features/grades/hooks/useGradeSystem'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { GradeSystem } from '@/lib/grade-display'
-import { CREDIT_PLATFORM_OPTIONS } from '@/lib/editor-constants'
+import { CREDIT_PLATFORM_OPTIONS } from '@/features/submissions/lib/editor-constants'
 import { fetchSettings, settingsQueryKey, type SettingsPayload } from '@/lib/settings/queries'
-import { normalizeSubmissionCreditHandle, type SubmissionCreditPlatform } from '@/lib/submission-credit'
+import { normalizeSubmissionCreditHandle, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 
 interface SettingsContentProps {
   user: User

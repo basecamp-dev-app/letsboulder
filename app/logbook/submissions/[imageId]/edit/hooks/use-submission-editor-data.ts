@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useRouteStore } from '@/features/route-editor/store'
+import { buildMapPins, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
+import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
+import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/features/submissions/lib/submission-types'
 import { normalizePoints } from '@/lib/canvasMath'
+import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { createClient } from '@/lib/supabase'
-import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
-import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
-import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
-import { buildMapPins, resolveLocationMode } from '@/lib/editor-image-state'
-import { useRouteStore } from '@/store/route-store'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 
 interface ImageRouteLineQuery {
@@ -203,7 +203,7 @@ export function useSubmissionEditorData() {
       setLocationMode(resolvedLocationMode)
       setInitialLocationMode(resolvedLocationMode)
       const submittedDirections = Array.isArray(submission.face_directions) ? submission.face_directions : []
-      const normalizedDirections = FACE_DIRECTIONS.filter((direction) => submittedDirections.includes(direction))
+      const normalizedDirections = FACE_DIRECTIONS.filter((direction: FaceDirection) => submittedDirections.includes(direction))
       const linkedCrag = pickOne(submission.crags)
       setFaceDirections(normalizedDirections)
       setInitialFaceDirections(normalizedDirections)

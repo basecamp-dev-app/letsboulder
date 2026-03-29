@@ -1,7 +1,7 @@
 'use client'
 
 import { PUBLIC_GRADES, clampGradeToPublicRange } from '@/lib/grades'
-import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface GradePyramidProps {

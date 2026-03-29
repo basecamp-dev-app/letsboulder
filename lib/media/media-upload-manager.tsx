@@ -1,65 +1,14 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import imageCompression from 'browser-image-compression'
-import { csrfFetch } from '@/lib/csrf-client'
-import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { extractGpsFromFile } from '@/lib/image-gps'
-
-import { isHeicFile } from '@/lib/image-utils'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
+import { createAttachUpload } from '@/lib/media/upload-manager/attachments'
+import { buildPreviewUrl, getImageDimensions, preprocessFile } from '@/lib/media/upload-manager/preprocessing'
+import { createClientId, ensureFileName, isSameTarget, MAX_UPLOADS_PER_TARGET, type MediaUploadItem, type MediaUploadTarget, type QueueEntry, type UploadCompleteCallback } from '@/lib/media/upload-manager/types'
 import { uploadDebug } from '@/lib/media/upload-debug'
 
-const MAX_UPLOADS_PER_TARGET = 20
-const THUMBNAIL_MAX_WIDTH = 320
-
-export type MediaUploadStatus = 'QUEUED' | 'PREPROCESSING' | 'UPLOADING' | 'SUCCESS' | 'FAILED'
-
-export type MediaUploadTarget =
-  | { kind: 'draft'; draftId: string }
-  | { kind: 'crag'; cragId: string }
-
-export interface MediaUploadItem {
-  clientId: string
-  target: MediaUploadTarget
-  fileName: string
-  status: MediaUploadStatus
-  progress: number
-  previewUrl: string
-  width: number | null
-  height: number | null
-  uploadedImageId: string | null
-  uploadedBucket: string | null
-  uploadedPath: string | null
-  gpsData: { latitude: number; longitude: number } | null
-  captureDate: string | null
-  error: string | null
-  attachedRecordId: string | null
-  startedAt: number
-}
-
-interface QueueEntry {
-  clientId: string
-  target: MediaUploadTarget
-  file: File
-}
-
-interface DraftAttachResponse {
-  error?: string
-  code?: string
-  current_updated_at?: string
-  draft?: {
-    updated_at?: string
-    appended_image_ids?: string[]
-  } | null
-}
-
-interface CragAttachResponse {
-  error?: string
-  images?: Array<{ id?: string | null }>
-}
-
-export type UploadCompleteCallback = (target: MediaUploadTarget, clientId: string, attachedRecordId: string | null, newUpdatedAt?: string | null) => void
+export type { MediaUploadItem, MediaUploadTarget, UploadCompleteCallback } from '@/lib/media/upload-manager/types'
 
 interface MediaUploadManagerValue {
   uploads: MediaUploadItem[]
@@ -81,66 +30,6 @@ interface MediaUploadManagerValue {
 
 const MediaUploadManagerContext = createContext<MediaUploadManagerValue | null>(null)
 
-function createClientId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-
-  return `media-upload-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-function ensureFileName(file: Blob, fallbackName: string) {
-  return file instanceof File ? file.name : fallbackName
-}
-
-function isSameTarget(left: MediaUploadTarget, right: MediaUploadTarget) {
-  if (left.kind !== right.kind) return false
-  if (left.kind === 'draft' && right.kind === 'draft') {
-    return left.draftId === right.draftId
-  }
-  if (left.kind === 'crag' && right.kind === 'crag') {
-    return left.cragId === right.cragId
-  }
-  return false
-}
-
-async function getImageDimensions(source: Blob) {
-  return new Promise<{ width: number; height: number }>((resolve) => {
-    const objectUrl = URL.createObjectURL(source)
-    const image = new window.Image()
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl)
-      resolve({ width: image.naturalWidth || 1200, height: image.naturalHeight || 1200 })
-    }
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      resolve({ width: 1200, height: 1200 })
-    }
-    image.src = objectUrl
-  })
-}
-
-async function buildPreviewUrl(file: File) {
-  const previewBlob = await imageCompression(file, {
-    maxWidthOrHeight: THUMBNAIL_MAX_WIDTH,
-    initialQuality: 0.7,
-    fileType: 'image/jpeg',
-    useWebWorker: true,
-  }).catch(() => file)
-
-  return URL.createObjectURL(previewBlob)
-}
-
-async function preprocessFile(file: File) {
-  if (isHeicFile(file)) {
-    return new File(
-      [await convertHeicToJpegBlob(file)],
-      file.name.replace(/\.(heic|heif)$/i, '.jpg'),
-      { type: 'image/jpeg', lastModified: Date.now() }
-    )
-  }
-  return file
-}
 
 export function MediaUploadManagerProvider({ children }: { children: ReactNode }) {
   const [uploads, setUploads] = useState<Record<string, MediaUploadItem>>({})
@@ -225,82 +114,13 @@ export function MediaUploadManagerProvider({ children }: { children: ReactNode }
     return matching.some((upload) => upload.status === 'FAILED')
   }, [getUploadsForCrag, getUploadsForDraft])
 
-  const attachUpload = useCallback(async (clientId: string) => {
-    if (alreadyAttachedRef.current.has(clientId)) return
-    alreadyAttachedRef.current.add(clientId)
-
-    const upload = uploadsRef.current[clientId]
-    if (!upload || !upload.uploadedBucket || !upload.uploadedPath || !upload.uploadedImageId) {
-      alreadyAttachedRef.current.delete(clientId)
-      throw new Error('Upload is not ready to attach yet')
-    }
-
-    if (upload.target.kind === 'draft') {
-      let attempts = 0
-      while (attempts < 2) {
-        attempts += 1
-        const expectedUpdatedAt = draftUpdatedAtRef.current.get(upload.target.draftId)
-        if (!expectedUpdatedAt) {
-          throw new Error('Draft is not ready to receive uploads yet')
-        }
-
-        const response = await csrfFetch(`/api/submissions/drafts/${upload.target.draftId}/images`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            expected_updated_at: expectedUpdatedAt,
-            images: [{
-              storage_bucket: upload.uploadedBucket,
-              storage_path: upload.uploadedPath,
-              gps_data: upload.gpsData,
-              capture_date: upload.captureDate,
-              width: upload.width,
-              height: upload.height,
-              route_data: {},
-            }],
-          }),
-        })
-
-        const payload = await response.json().catch(() => ({} as DraftAttachResponse))
-        if (response.ok) {
-          if (payload.draft?.updated_at) {
-            draftUpdatedAtRef.current.set(upload.target.draftId, payload.draft.updated_at)
-          }
-          const attachedRecordId = Array.isArray(payload.draft?.appended_image_ids) ? payload.draft?.appended_image_ids[0] || null : null
-          updateUpload(clientId, (current) => ({ ...current, status: 'SUCCESS', progress: 100, error: null, attachedRecordId }))
-          const newUpdatedAt = payload.draft?.updated_at || null
-          subscribersRef.current.forEach((cb) => {
-            try { cb(upload.target, clientId, attachedRecordId, newUpdatedAt) } catch {}
-          })
-          return
-        }
-
-        if (response.status === 409 && payload.code === 'draft_conflict' && payload.current_updated_at) {
-          draftUpdatedAtRef.current.set(upload.target.draftId, payload.current_updated_at)
-          continue
-        }
-
-        throw new Error(payload.error || 'Failed to attach upload to draft')
-      }
-
-      throw new Error('Draft changed while attaching upload. Please retry.')
-    }
-
-    const response = await csrfFetch(`/api/crags/${upload.target.cragId}/images/attach`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ images: [{ uploaded_image_id: upload.uploadedImageId }] }),
-    })
-    const payload = await response.json().catch(() => ({} as CragAttachResponse))
-    if (!response.ok) {
-      throw new Error(payload.error || 'Failed to attach upload to crag')
-    }
-    const attachedRecordId = Array.isArray(payload.images) ? payload.images[0]?.id || null : null
-    updateUpload(clientId, (current) => ({ ...current, status: 'SUCCESS', progress: 100, error: null, attachedRecordId }))
-    subscribersRef.current.forEach((cb) => {
-      try { cb(upload.target, clientId, attachedRecordId) } catch {}
-    })
-  }, [updateUpload])
+  const attachUpload = useMemo(() => createAttachUpload({
+    uploadsRef,
+    alreadyAttachedRef,
+    draftUpdatedAtRef,
+    subscribersRef,
+    updateUpload,
+  }), [updateUpload])
 
   const startNextUploadRef = useRef<() => void>(() => {})
 

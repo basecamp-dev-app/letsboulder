@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import NextImage from 'next/image'
-import type { NewImageSelection, GpsData } from '@/lib/submission-types'
+import type { NewImageSelection, GpsData } from '@/features/submissions/lib/submission-types'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { stripExifMetadataFromFile } from '@/lib/image-metadata'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'

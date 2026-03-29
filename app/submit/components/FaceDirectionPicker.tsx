@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import 'leaflet/dist/leaflet.css'
-import { FACE_DIRECTIONS } from '@/lib/submission-types'
-import type { FaceDirection, FaceDirectionsByImage, GpsData, NewUploadedImage } from '@/lib/submission-types'
+import { FACE_DIRECTIONS } from '@/features/submissions/lib/submission-types'
+import type { FaceDirection, FaceDirectionsByImage, GpsData, NewUploadedImage } from '@/features/submissions/lib/submission-types'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })

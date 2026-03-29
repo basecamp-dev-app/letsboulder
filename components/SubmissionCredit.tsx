@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import { SubmissionCreditPlatform, normalizeSubmissionCreditHandle, formatSubmissionCreditHandle } from '@/lib/submission-credit'
+import { SubmissionCreditPlatform, normalizeSubmissionCreditHandle, formatSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { CREDIT_PLATFORM_OPTIONS } from '@/lib/editor-constants'
+import { CREDIT_PLATFORM_OPTIONS } from '@/features/submissions/lib/editor-constants'
 
 interface SubmissionCreditProps {
   imageId: string

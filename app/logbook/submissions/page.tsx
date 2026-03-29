@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import SubmissionManager from '@/components/submissions/SubmissionManager'
+import SubmissionManager from '@/features/submissions/components/SubmissionManager'
 
 function LoadingFallback() {
   return <div className="min-h-screen bg-white dark:bg-gray-950" />

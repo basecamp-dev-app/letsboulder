@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import DraftIntakeView from '@/components/submissions/DraftIntakeView'
+import DraftIntakeView from '@/features/submissions/components/DraftIntakeView'
 import { getServerClient } from '@/lib/supabase-server'
 
 export default async function SubmitPage() {

@@ -1,6 +1,6 @@
 'use client'
 
-import type { MediaUploadItem } from '@/lib/media/media-upload-manager'
+import type { MediaUploadItem } from '@/lib/media/upload-manager/types'
 
 interface DraftUploadQueueProps {
   pendingDraftUploads: MediaUploadItem[]

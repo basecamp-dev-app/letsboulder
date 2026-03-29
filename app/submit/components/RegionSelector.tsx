@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { Region } from '@/lib/submission-types'
+import type { Region } from '@/features/submissions/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 
 interface RegionSelectorProps {

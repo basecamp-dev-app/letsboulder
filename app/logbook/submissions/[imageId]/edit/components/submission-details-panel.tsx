@@ -1,11 +1,11 @@
 'use client'
 
 import { Users } from 'lucide-react'
-import { CollapsiblePanel } from '@/components/editor/collapsible-panel'
-import { OrientationPicker } from '@/components/editor/orientation-picker'
-import { CreditSection } from '@/components/editor/credit-section'
-import type { SubmissionCreditPlatform } from '@/lib/submission-credit'
-import type { FaceDirection } from '@/lib/submission-types'
+import { CollapsiblePanel } from '@/features/submissions/components/editor/collapsible-panel'
+import { CreditSection } from '@/features/submissions/components/editor/credit-section'
+import { OrientationPicker } from '@/features/submissions/components/editor/orientation-picker'
+import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
+import type { FaceDirection } from '@/features/submissions/lib/submission-types'
 
 interface SubmissionDetailsPanelProps {
   detailsOpen: boolean

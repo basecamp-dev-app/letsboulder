@@ -1,4 +1,4 @@
-import type { RoutePoint } from '@/lib/submission-types'
+import type { RoutePoint } from '@/features/submissions/lib/submission-types'
 
 export interface RouteSerializerInput {
   id: string

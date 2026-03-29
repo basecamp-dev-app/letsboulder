@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { SELECTABLE_GRADES, GradeVotingProps } from '@/lib/verification-types'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 
 const GRADE_COLORS: Record<string, string> = {
