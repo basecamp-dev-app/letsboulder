@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Loader2, Search, Edit2, Trash2, Mountain } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Loader2, Search, Edit2, Trash2, Mountain, ArrowRightLeft } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
 import RenameCragModal from './components/RenameCragModal'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
@@ -21,6 +21,19 @@ interface Crag {
   route_type_counts?: Array<{ type: string; count: number }>
 }
 
+interface CragImageRouteCandidate {
+  imageId: string
+  imageUrl: string | null
+  createdAt: string | null
+  climbCount: number
+  climbNames: string[]
+}
+
+interface MoveImageState {
+  sourceCrag: Crag
+  imageId: string
+}
+
 function formatRouteTypeLabel(value: string): string {
   const normalized = value.trim().toLowerCase().replace(/_/g, '-').replace('bouldering', 'boulder')
   return normalized
@@ -38,6 +51,11 @@ export default function AdminCragsPage() {
   const [toast, setToast] = useState<string | null>(null)
   const [renamingCrag, setRenamingCrag] = useState<Crag | null>(null)
   const [removingCrag, setRemovingCrag] = useState<Crag | null>(null)
+  const [movingImage, setMovingImage] = useState<MoveImageState | null>(null)
+  const [moveCandidates, setMoveCandidates] = useState<CragImageRouteCandidate[]>([])
+  const [loadingMoveCandidates, setLoadingMoveCandidates] = useState(false)
+  const [selectedTargetCragId, setSelectedTargetCragId] = useState('')
+  const [movingPublishedImage, setMovingPublishedImage] = useState(false)
   const [confirmCount, setConfirmCount] = useState('')
   const [deleting, setDeleting] = useState(false)
 
@@ -46,7 +64,14 @@ export default function AdminCragsPage() {
     setConfirmCount('')
   }
 
+  const closeMoveDialog = () => {
+    setMovingImage(null)
+    setMoveCandidates([])
+    setSelectedTargetCragId('')
+  }
+
   useOverlayHistory({ open: Boolean(removingCrag), onClose: closeDeleteConfirm, id: 'admin-delete-crag' })
+  useOverlayHistory({ open: Boolean(movingImage), onClose: closeMoveDialog, id: 'admin-move-published-image' })
 
   useEffect(() => {
     loadCrags()
@@ -127,6 +152,93 @@ export default function AdminCragsPage() {
     }
   }
 
+  const handleOpenMoveDialog = async (crag: Crag) => {
+    setMovingImage({ sourceCrag: crag, imageId: '' })
+    setMoveCandidates([])
+    setSelectedTargetCragId('')
+    setLoadingMoveCandidates(true)
+
+    try {
+      const response = await fetch(`/api/crags/${crag.id}/images`, { cache: 'no-store' })
+      const data = await response.json().catch(() => ({})) as {
+        images?: Array<{ id?: string; signed_url?: string | null; created_at?: string | null }>
+      }
+
+      if (!response.ok || !Array.isArray(data.images)) {
+        setToast('Failed to load published route images for this crag')
+        setTimeout(() => setToast(null), 3000)
+        return
+      }
+
+      const candidateRequests = data.images
+        .map((image) => (typeof image.id === 'string' && image.id
+          ? { imageId: image.id, imageUrl: image.signed_url ?? null, createdAt: image.created_at ?? null }
+          : null))
+        .filter((image): image is { imageId: string; imageUrl: string | null; createdAt: string | null } => image !== null)
+
+      const candidateResults = await Promise.all(candidateRequests.map(async (candidate) => {
+        const routeResponse = await fetch(`/api/image/${candidate.imageId}/routes`, { cache: 'no-store' })
+        const routeData = await routeResponse.json().catch(() => ({})) as {
+          routes?: Array<{ climb?: { name?: string | null } | null }>
+        }
+        const routes = Array.isArray(routeData.routes) ? routeData.routes : []
+        if (!routeResponse.ok || routes.length === 0) return null
+        return {
+          imageId: candidate.imageId,
+          imageUrl: candidate.imageUrl,
+          createdAt: candidate.createdAt,
+          climbCount: routes.length,
+          climbNames: routes
+            .map((route) => route.climb?.name?.trim() || 'Unnamed route')
+            .slice(0, 3),
+        } satisfies CragImageRouteCandidate
+      }))
+
+      const nextCandidates = candidateResults.filter((candidate): candidate is CragImageRouteCandidate => candidate !== null)
+      setMoveCandidates(nextCandidates)
+      if (nextCandidates.length > 0) {
+        setMovingImage({ sourceCrag: crag, imageId: nextCandidates[0].imageId })
+      }
+    } catch (error) {
+      console.error('Error loading move candidates:', error)
+      setToast('Failed to load published route images for this crag')
+      setTimeout(() => setToast(null), 3000)
+    } finally {
+      setLoadingMoveCandidates(false)
+    }
+  }
+
+  const handleMovePublishedImage = async () => {
+    if (!movingImage?.imageId || !selectedTargetCragId) return
+
+    setMovingPublishedImage(true)
+    try {
+      const response = await csrfFetch(`/api/admin/images/${movingImage.imageId}/move-crag`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetCragId: selectedTargetCragId }),
+      })
+      const payload = await response.json().catch(() => ({})) as { message?: string; error?: string }
+
+      if (!response.ok) {
+        setToast(payload.error || 'Failed to move published image')
+        setTimeout(() => setToast(null), 4000)
+        return
+      }
+
+      setToast(payload.message || 'Published image moved')
+      setTimeout(() => setToast(null), 4000)
+      closeMoveDialog()
+      void loadCrags()
+    } catch (error) {
+      console.error('Error moving published image:', error)
+      setToast('Failed to move published image')
+      setTimeout(() => setToast(null), 4000)
+    } finally {
+      setMovingPublishedImage(false)
+    }
+  }
+
   const missingRegionCount = crags.filter((crag) => !crag.has_primary_region_tag).length
 
   const filteredCrags = crags
@@ -146,6 +258,13 @@ export default function AdminCragsPage() {
       return a.name.localeCompare(b.name)
     })
 
+  const targetCragOptions = useMemo(() => {
+    if (!movingImage) return []
+    return crags.filter((crag) => crag.id !== movingImage.sourceCrag.id)
+  }, [crags, movingImage])
+
+  const selectedMoveCandidate = moveCandidates.find((candidate) => candidate.imageId === movingImage?.imageId) || null
+
   return (
     <div>
       {toast && (
@@ -160,6 +279,99 @@ export default function AdminCragsPage() {
           onClose={() => setRenamingCrag(null)}
           onSave={handleRename}
         />
+      )}
+
+      {movingImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4">
+            <div className="flex items-center gap-3 text-blue-400 mb-4">
+              <ArrowRightLeft className="w-6 h-6" />
+              <h2 className="text-xl font-bold text-white">Move Published Route Image</h2>
+            </div>
+
+            <p className="text-sm text-gray-300 mb-4">
+              Move one published route image and its linked climbs from <span className="font-semibold text-white">{movingImage.sourceCrag.name}</span> to another crag.
+            </p>
+
+            {loadingMoveCandidates ? (
+              <div className="flex items-center gap-2 text-sm text-gray-400 py-8">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading published route images...
+              </div>
+            ) : moveCandidates.length === 0 ? (
+              <div className="rounded-lg border border-gray-800 bg-gray-950 px-4 py-6 text-sm text-gray-400">
+                No published route images with routes were found for this crag.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-200 mb-2">Published route image</label>
+                  <select
+                    value={movingImage.imageId}
+                    onChange={(event) => setMovingImage((current) => current ? { ...current, imageId: event.target.value } : current)}
+                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white"
+                  >
+                    {moveCandidates.map((candidate, index) => (
+                      <option key={candidate.imageId} value={candidate.imageId}>
+                        {`Image ${index + 1} • ${candidate.climbCount} routes`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedMoveCandidate ? (
+                  <div className="rounded-lg border border-gray-800 bg-gray-950 p-4">
+                    <div className="flex gap-4">
+                      <div className="h-28 w-28 overflow-hidden rounded-lg bg-gray-800 shrink-0">
+                        {selectedMoveCandidate.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={selectedMoveCandidate.imageUrl} alt="Published route preview" className="h-full w-full object-cover" />
+                        ) : null}
+                      </div>
+                      <div className="space-y-2 text-sm text-gray-300">
+                        <p><span className="font-medium text-white">Routes:</span> {selectedMoveCandidate.climbCount}</p>
+                        <p><span className="font-medium text-white">Names:</span> {selectedMoveCandidate.climbNames.join(', ')}</p>
+                        <p><span className="font-medium text-white">Image ID:</span> <span className="text-gray-400">{selectedMoveCandidate.imageId}</span></p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-200 mb-2">Target crag</label>
+                  <select
+                    value={selectedTargetCragId}
+                    onChange={(event) => setSelectedTargetCragId(event.target.value)}
+                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-white"
+                  >
+                    <option value="">Select target crag</option>
+                    {targetCragOptions.map((crag) => (
+                      <option key={crag.id} value={crag.id}>
+                        {crag.name}{crag.region_tag ? ` • ${crag.region_tag}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={closeMoveDialog}
+                className="flex-1 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMovePublishedImage}
+                disabled={loadingMoveCandidates || moveCandidates.length === 0 || !movingImage.imageId || !selectedTargetCragId || movingPublishedImage}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {movingPublishedImage ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Move image and routes'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {removingCrag && (
@@ -327,6 +539,13 @@ export default function AdminCragsPage() {
                   <td className="px-4 py-3 text-gray-300">{crag.image_count}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => void handleOpenMoveDialog(crag)}
+                        className="p-2 text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
+                        title="Move published route image"
+                      >
+                        <ArrowRightLeft className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => setRenamingCrag(crag)}
                         className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
