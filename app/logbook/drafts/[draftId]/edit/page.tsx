@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronDown, Link2, Loader2, MapPin, Search, Trash2, Users } from 'lucide-react'
+import { ChevronDown, Loader2, MapPin, Search, Trash2, Users } from 'lucide-react'
 import { useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import type { UserResponse } from '@supabase/supabase-js'
@@ -28,6 +28,9 @@ import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLin
 import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirection } from '@/lib/draft-metadata'
 import { createClient } from '@/lib/supabase'
 import { buildMapPins, reorderItemsByIds, resequenceRoutes, resolveLocationMode } from '@/lib/editor-image-state'
+import type { CollaboratorItem, InviteItem } from '@/lib/editor-types'
+import { sortFaceDirections, normalizePointForCompare, coordinateKey } from '@/lib/editor-helpers'
+import { CollaboratorDialog } from '@/components/editor/collaborator-dialog'
 
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false })
@@ -70,26 +73,6 @@ interface CragImagePayload {
   height: number | null
   latitude?: number | null
   longitude?: number | null
-}
-
-interface CollaboratorItem {
-  userId: string
-  role: string
-  createdAt: string
-  profile: {
-    displayName: string
-    username: string | null
-    avatarUrl: string | null
-  }
-}
-
-interface InviteItem {
-  id: string
-  token: string
-  maxUses: number | null
-  usedCount: number
-  expiresAt: string | null
-  createdAt: string
 }
 
 interface DraftSavePayload {
@@ -295,14 +278,6 @@ function resolveDraftClimbType(value: string): ClimbType {
   return 'boulder'
 }
 
-function sortFaceDirections(directions: FaceDirection[]): FaceDirection[] {
-  return [...directions].sort((a, b) => FACE_DIRECTIONS.indexOf(a) - FACE_DIRECTIONS.indexOf(b))
-}
-
-function coordinateKey(latitude: number, longitude: number) {
-  return `${latitude.toFixed(5)}:${longitude.toFixed(5)}`
-}
-
 function isValidLocationCoordinate(latitude: number | null | undefined, longitude: number | null | undefined): latitude is number {
   return typeof latitude === 'number'
     && Number.isFinite(latitude)
@@ -366,10 +341,6 @@ function MapRecenter({ position }: { position: [number, number] | null }) {
     }
   }, [map, position])
   return null
-}
-
-function normalizePointForCompare(value: number): number {
-  return Math.round(value * 1_000_000) / 1_000_000
 }
 
 function areDraftRoutesEqual(a: DraftRoute[], b: DraftRoute[]): boolean {
@@ -2984,148 +2955,32 @@ export default function EditDraftPage() {
           ) : null}
         </div>
 
-        <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Draft collaborators</DialogTitle>
-              <DialogDescription>
-                {isOwner
-                  ? 'Create a link for collaborators to help edit this draft before publishing.'
-                  : 'You can view collaborators. Only the owner can manage invites.'}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-3">
-              <div className="rounded-md border border-gray-200 p-3 dark:border-gray-800">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-                  <Link2 className="h-4 w-4" />
-                  Invite link
-                </div>
-                {isOwner ? (
-                  <button
-                    type="button"
-                    onClick={() => { void handleCreateInvite() }}
-                    disabled={creatingInvite}
-                    className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    {creatingInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Create new link
-                  </button>
-                ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Only the owner can create invite links.</p>
-                )}
-
-                {latestInviteUrl ? (
-                  <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-2 text-xs dark:border-gray-700 dark:bg-gray-900">
-                    <p className="break-all text-gray-700 dark:text-gray-200">{latestInviteUrl}</p>
-                    <button
-                      type="button"
-                      onClick={() => { void handleCopyInvite(latestInviteUrl) }}
-                      className="mt-2 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                    >
-                      Copy link
-                    </button>
-                  </div>
-                ) : null}
-
-                {activeInvites.length > 0 ? (
-                  <div className="mt-3 space-y-2">
-                    {activeInvites.map((invite) => {
-                      const origin = typeof window !== 'undefined' ? window.location.origin : ''
-                      const inviteUrl = `${origin}/api/submissions/drafts/collaborate/${invite.token}`
-                      return (
-                        <div key={invite.id} className="rounded-md border border-gray-200 p-2 text-xs dark:border-gray-700">
-                          <p className="break-all text-gray-600 dark:text-gray-300">{inviteUrl}</p>
-                          <div className="mt-2 flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => { void handleCopyInvite(inviteUrl) }}
-                              className="rounded-md border border-gray-300 px-2 py-1 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                            >
-                              Copy
-                            </button>
-                            {isOwner ? (
-                              <button
-                                type="button"
-                                onClick={() => { void handleRevokeInvite(invite.id) }}
-                                disabled={revokingInviteId === invite.id}
-                                className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-                              >
-                                {revokingInviteId === invite.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                Revoke
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-md border border-gray-200 p-3 dark:border-gray-800">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-                  <Users className="h-4 w-4" />
-                  Collaborators
-                </div>
-
-                {loadingCollaborators ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading collaborators...
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {ownerUserId && ownerProfile ? (
-                      <div className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-2 dark:border-gray-700">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{ownerProfile.displayName} (Owner)</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{ownerProfile.username ? `@${ownerProfile.username}` : 'No username'}</p>
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {collaborators.length === 0 ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">No collaborators yet.</p>
-                    ) : (
-                      collaborators.map((collaborator) => (
-                        <div key={collaborator.userId} className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-2 dark:border-gray-700">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{collaborator.profile.displayName}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{collaborator.profile.username ? `@${collaborator.profile.username}` : 'No username'}</p>
-                          </div>
-                          {isOwner ? (
-                            <button
-                              type="button"
-                              onClick={() => { void handleRemoveCollaborator(collaborator.userId) }}
-                              disabled={removingCollaboratorId === collaborator.userId}
-                              className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-                            >
-                              {removingCollaboratorId === collaborator.userId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                              Remove
-                            </button>
-                          ) : null}
-                        </div>
-                      ))
-                    )}
-
-                    {!isOwner && currentUserId ? (
-                      <button
-                        type="button"
-                        onClick={() => { void handleRemoveCollaborator(currentUserId) }}
-                        disabled={removingCollaboratorId === currentUserId}
-                        className="mt-2 inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-                      >
-                        {removingCollaboratorId === currentUserId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                        Leave draft
-                      </button>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <CollaboratorDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          title="Draft collaborators"
+          description={isOwner
+            ? 'Create a link for collaborators to help edit this draft before publishing.'
+            : 'You can view collaborators. Only the owner can manage invites.'}
+          isOwner={isOwner}
+          ownerUserId={ownerUserId}
+          ownerProfile={ownerProfile}
+          collaborators={collaborators}
+          activeInvites={activeInvites}
+          loadingCollaborators={loadingCollaborators}
+          creatingInvite={creatingInvite}
+          revokingInviteId={revokingInviteId}
+          removingCollaboratorId={removingCollaboratorId}
+          latestInviteUrl={latestInviteUrl}
+          inviteUrlPrefix="/api/submissions/drafts/collaborate"
+          onCreateInvite={() => { void handleCreateInvite() }}
+          onCopyInvite={(url) => { void handleCopyInvite(url) }}
+          onRevokeInvite={(inviteId) => { void handleRevokeInvite(inviteId) }}
+          onRemoveCollaborator={(userId) => { void handleRemoveCollaborator(userId) }}
+          showLeaveButton
+          currentUserId={currentUserId}
+          onLeave={() => { if (currentUserId) void handleRemoveCollaborator(currentUserId) }}
+        />
 
         <Dialog open={!!conflict} onOpenChange={() => {}}>
           <DialogContent>

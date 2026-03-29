@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronDown, Loader2, Link2, MapPin, Search, Trash2, Users } from 'lucide-react'
+import { Loader2, MapPin, Search } from 'lucide-react'
 import { SubmissionWorkstation } from '@/components/SubmissionWorkstation'
 import { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
 import { useRouteStore } from '@/store/routeStore'
@@ -20,9 +20,13 @@ import {
   type SubmissionCreditPlatform,
 } from '@/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import type { UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
+import type { CollaboratorItem, InviteItem } from '@/lib/editor-types'
+import { sortFaceDirections, normalizePointForCompare } from '@/lib/editor-helpers'
+import { CollaboratorDialog } from '@/components/editor/collaborator-dialog'
+import { SubmissionDetailsPanel } from './components/submission-details-panel'
+import { DeleteRouteTransferDialog } from './components/delete-route-transfer-dialog'
 
 interface EditableRoute {
   id: string
@@ -31,26 +35,6 @@ interface EditableRoute {
   description?: string
   points: RoutePoint[]
   sequenceOrder?: number
-}
-
-interface CollaboratorItem {
-  userId: string
-  role: string
-  createdAt: string
-  profile: {
-    displayName: string
-    username: string | null
-    avatarUrl: string | null
-  }
-}
-
-interface InviteItem {
-  id: string
-  token: string
-  maxUses: number | null
-  usedCount: number
-  expiresAt: string | null
-  createdAt: string
 }
 
 interface DeleteTransferCandidate {
@@ -134,42 +118,6 @@ interface ManageFaceTab {
   locationMode?: 'shared' | 'custom'
 }
 
-interface CollapsiblePanelProps {
-  title: string
-  subtitle?: string
-  open: boolean
-  onToggle: () => void
-  children: ReactNode
-}
-
-function CollapsiblePanel({ title, subtitle, open, onToggle, children }: CollapsiblePanelProps) {
-  return (
-    <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-3 text-left"
-        aria-expanded={open}
-      >
-        <div>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
-          {subtitle ? <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{subtitle}</p> : null}
-        </div>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open ? <div className="mt-3">{children}</div> : null}
-    </div>
-  )
-}
-
-const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'tiktok', label: 'TikTok' },
-  { value: 'youtube', label: 'YouTube' },
-  { value: 'x', label: 'X' },
-  { value: 'other', label: 'Other' },
-]
-
 function parsePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[] {
   if (!raw) return []
   if (Array.isArray(raw)) {
@@ -200,14 +148,6 @@ function parseCoordinate(value: string): number | null {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return Number.NaN
   return parsed
-}
-
-function sortFaceDirections(directions: FaceDirection[]): FaceDirection[] {
-  return [...directions].sort((a, b) => FACE_DIRECTIONS.indexOf(a) - FACE_DIRECTIONS.indexOf(b))
-}
-
-function normalizePointForCompare(value: number): number {
-  return Math.round(value * 1_000_000) / 1_000_000
 }
 
 function routeEditSignature(route: EditableRoute): string {
@@ -1488,323 +1428,63 @@ export default function EditSubmittedRoutesPage() {
           />
         ) : null}
 
-        <CollapsiblePanel
-          title="More details"
-          subtitle="Orientation, collaborators, and credit settings."
-          open={detailsOpen}
-          onToggle={() => setDetailsOpen((prev) => !prev)}
-        >
-          <CollapsiblePanel
-            title="Set Orientation"
-            subtitle="Optional metadata for this image."
-            open={orientationOpen}
-            onToggle={() => setOrientationOpen((prev) => !prev)}
-          >
-            <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-              {FACE_DIRECTIONS.map((direction) => {
-                const selected = faceDirections.includes(direction)
-                return (
-                  <button
-                    key={direction}
-                    type="button"
-                    onClick={() => toggleFaceDirection(direction)}
-                    className={`rounded-md border px-2 py-2 text-xs font-semibold transition ${
-                      selected
-                        ? 'border-blue-600 bg-blue-600 text-white'
-                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                    }`}
-                  >
-                    {direction}
-                  </button>
-                )
-              })}
-            </div>
-          </CollapsiblePanel>
+        <SubmissionDetailsPanel
+          detailsOpen={detailsOpen}
+          onDetailsToggle={() => setDetailsOpen((prev) => !prev)}
+          orientationOpen={orientationOpen}
+          onOrientationToggle={() => setOrientationOpen((prev) => !prev)}
+          faceDirections={faceDirections}
+          onToggleFaceDirection={toggleFaceDirection}
+          onShareOpen={() => setShareOpen(true)}
+          canEditCredit={canEditContributionCredit}
+          isAnonymous={isAnonymousSubmission}
+          onAnonymousChange={setIsAnonymousSubmission}
+          creditPlatform={creditPlatform}
+          onCreditPlatformChange={setCreditPlatform}
+          creditHandle={creditHandle}
+          onCreditHandleChange={setCreditHandle}
+        />
 
-          <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-gray-500" />
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Collaborators</h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShareOpen(true)}
-                className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
-              >
-                Manage collaborators
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-            <div className="mb-3 flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Contribution credit</h2>
-            </div>
-
-            {canEditContributionCredit ? (
-              <>
-                <label className="mb-3 flex items-start gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-200">
-                  <input
-                    type="checkbox"
-                    checked={isAnonymousSubmission}
-                    onChange={(event) => setIsAnonymousSubmission(event.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
-                  />
-                  <span>
-                    <span className="block font-medium text-gray-900 dark:text-gray-100">Keep this submission anonymous</span>
-                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                      This removes the upload from your public profile and hides your submitter name and credit link on the climb page.
-                    </span>
-                  </span>
-                </label>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <label className="text-xs text-gray-600 dark:text-gray-300">
-                    Platform
-                    <select
-                      value={creditPlatform}
-                      onChange={(event) => setCreditPlatform(event.target.value as SubmissionCreditPlatform)}
-                      disabled={isAnonymousSubmission}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                    >
-                      {CREDIT_PLATFORM_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="text-xs text-gray-600 dark:text-gray-300 md:col-span-2">
-                    Handle
-                    <input
-                      value={creditHandle}
-                      onChange={(event) => setCreditHandle(event.target.value)}
-                      placeholder="handle"
-                      disabled={isAnonymousSubmission}
-                      className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                    />
-                  </label>
-                </div>
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  {isAnonymousSubmission
-                    ? 'Credit is hidden while anonymous mode is on.'
-                    : `Shown publicly as @${normalizeSubmissionCreditHandle(creditHandle) || 'handle'}`}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Only the original contributor can edit contribution credit.
-              </p>
-            )}
-          </div>
-        </CollapsiblePanel>
-
-        <Dialog
+        <DeleteRouteTransferDialog
           open={deleteTransferCandidates.length > 0 && !!deleteTransferSourceRouteLineId}
-          onOpenChange={(open) => {
-            if (open) return
+          sourceRouteName={deleteTransferSourceName}
+          candidates={deleteTransferCandidates}
+          selectedTargetRouteLineId={selectedTransferTargetRouteLineId}
+          onSelectedTargetChange={setSelectedTransferTargetRouteLineId}
+          deleting={!!deleteTransferSourceRouteLineId && deletingExistingRouteId === deleteTransferSourceRouteLineId}
+          onConfirm={() => {
+            if (!deleteTransferSourceRouteLineId || !selectedTransferTargetRouteLineId) return
+            void handleDeleteExistingRoute(deleteTransferSourceRouteLineId, selectedTransferTargetRouteLineId)
+          }}
+          onCancel={() => {
             setDeleteTransferSourceRouteLineId(null)
             setDeleteTransferSourceName('')
             setDeleteTransferCandidates([])
             setSelectedTransferTargetRouteLineId('')
           }}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Choose route to inherit logs</DialogTitle>
-              <DialogDescription>
-                Multiple routes named {deleteTransferSourceName ? `"${deleteTransferSourceName}"` : 'the same'} were found on this image. Pick one target before deleting.
-              </DialogDescription>
-            </DialogHeader>
+        />
 
-            <div className="space-y-3">
-              <label className="text-xs text-gray-600 dark:text-gray-300">
-                Transfer logs to
-                <select
-                  value={selectedTransferTargetRouteLineId}
-                  onChange={(event) => setSelectedTransferTargetRouteLineId(event.target.value)}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                >
-                  {deleteTransferCandidates.map((candidate) => (
-                    <option key={candidate.routeLineId} value={candidate.routeLineId}>
-                      {candidate.climbName}{candidate.grade ? ` (${candidate.grade})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDeleteTransferSourceRouteLineId(null)
-                    setDeleteTransferSourceName('')
-                    setDeleteTransferCandidates([])
-                    setSelectedTransferTargetRouteLineId('')
-                  }}
-                  className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!deleteTransferSourceRouteLineId || !selectedTransferTargetRouteLineId) return
-                    void handleDeleteExistingRoute(deleteTransferSourceRouteLineId, selectedTransferTargetRouteLineId)
-                  }}
-                  disabled={!deleteTransferSourceRouteLineId || !selectedTransferTargetRouteLineId || deletingExistingRouteId === deleteTransferSourceRouteLineId}
-                  className="flex-1 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
-                >
-                  {deletingExistingRouteId === deleteTransferSourceRouteLineId ? 'Deleting...' : 'Transfer and delete'}
-                </button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={shareOpen} onOpenChange={setShareOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Collaborators</DialogTitle>
-              <DialogDescription>
-                Create a link for collaborators to edit routes, location, and face directions.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-3">
-              <div className="rounded-md border border-gray-200 p-3 dark:border-gray-800">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-                  <Link2 className="h-4 w-4" />
-                  Invite link
-                </div>
-                {isOwner ? (
-                  <button
-                    type="button"
-                    onClick={handleCreateInvite}
-                    disabled={creatingInvite}
-                    className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    {creatingInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Create new link
-                  </button>
-                ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Only the owner can create invite links.</p>
-                )}
-
-                {latestInviteUrl && (
-                  <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-2 text-xs dark:border-gray-700 dark:bg-gray-900">
-                    <p className="break-all text-gray-700 dark:text-gray-200">{latestInviteUrl}</p>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyInvite(latestInviteUrl)}
-                      className="mt-2 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                    >
-                      Copy link
-                    </button>
-                  </div>
-                )}
-
-                {activeInvites.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {activeInvites.map((invite) => {
-                      const origin = typeof window !== 'undefined' ? window.location.origin : ''
-                      const inviteUrl = `${origin}/api/submissions/collaborate/${invite.token}`
-                      return (
-                        <div key={invite.id} className="rounded-md border border-gray-200 p-2 text-xs dark:border-gray-700">
-                          <p className="break-all text-gray-600 dark:text-gray-300">{inviteUrl}</p>
-                          <div className="mt-2 flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleCopyInvite(inviteUrl)}
-                              className="rounded-md border border-gray-300 px-2 py-1 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                            >
-                              Copy
-                            </button>
-                            {isOwner && (
-                              <button
-                                type="button"
-                                onClick={() => handleRevokeInvite(invite.id)}
-                                disabled={revokingInviteId === invite.id}
-                                className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-                              >
-                                {revokingInviteId === invite.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                Revoke
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-md border border-gray-200 p-3 dark:border-gray-800">
-                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-                  <Users className="h-4 w-4" />
-                  Collaborators
-                </div>
-
-                {loadingCollaborators ? (
-                  <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading collaborators...
-                  </div>
-                ) : collaborators.length === 0 ? (
-                  <div className="space-y-2">
-                    {ownerUserId && ownerProfile ? (
-                      <div className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-2 dark:border-gray-700">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {ownerProfile.displayName} (Owner)
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{ownerProfile.username ? `@${ownerProfile.username}` : 'No username'}</p>
-                        </div>
-                      </div>
-                    ) : null}
-                    <p className="text-sm text-gray-500 dark:text-gray-400">No collaborators yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {ownerUserId && ownerProfile ? (
-                      <div className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-2 dark:border-gray-700">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {ownerProfile.displayName} (Owner)
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{ownerProfile.username ? `@${ownerProfile.username}` : 'No username'}</p>
-                        </div>
-                      </div>
-                    ) : null}
-                    {collaborators.map((collaborator) => {
-                      const isOwnerRow = ownerUserId === collaborator.userId
-                      return (
-                        <div key={collaborator.userId} className="flex items-center justify-between rounded-md border border-gray-200 px-2 py-2 dark:border-gray-700">
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {collaborator.profile.displayName}
-                              {isOwnerRow ? ' (Owner)' : ''}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">{collaborator.profile.username ? `@${collaborator.profile.username}` : 'No username'}</p>
-                          </div>
-                          {isOwner && !isOwnerRow ? (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveCollaborator(collaborator.userId)}
-                              disabled={removingCollaboratorId === collaborator.userId}
-                              className="inline-flex items-center gap-1 rounded-md border border-red-300 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-                            >
-                              {removingCollaboratorId === collaborator.userId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                              Remove
-                            </button>
-                          ) : null}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <CollaboratorDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          title="Collaborators"
+          description="Create a link for collaborators to edit routes, location, and face directions."
+          isOwner={isOwner}
+          ownerUserId={ownerUserId}
+          ownerProfile={ownerProfile}
+          collaborators={collaborators}
+          activeInvites={activeInvites}
+          loadingCollaborators={loadingCollaborators}
+          creatingInvite={creatingInvite}
+          revokingInviteId={revokingInviteId}
+          removingCollaboratorId={removingCollaboratorId}
+          latestInviteUrl={latestInviteUrl}
+          inviteUrlPrefix="/api/submissions/collaborate"
+          onCreateInvite={handleCreateInvite}
+          onCopyInvite={handleCopyInvite}
+          onRevokeInvite={handleRevokeInvite}
+          onRemoveCollaborator={handleRemoveCollaborator}
+        />
       </div>
     </div>
   )
