@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
-import { SubmitProvider } from '@/features/submissions/providers/submit-context'
-import { MediaUploadManagerProvider } from '@/features/submissions/upload/providers/MediaUploadManagerProvider'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -42,14 +40,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [hideFooter, hideHeader])
 
   return (
-    <SubmitProvider>
-      <MediaUploadManagerProvider>
-        {!hideHeader && <Header />}
-        <main id="main-content" className="min-h-screen">
-          {children}
-        </main>
-        {!hideFooter && <Footer />}
-      </MediaUploadManagerProvider>
-    </SubmitProvider>
+    <>
+      {!hideHeader && <Header />}
+      <main id="main-content" className="min-h-screen">
+        {children}
+      </main>
+      {!hideFooter && <Footer />}
+    </>
   )
 }
