@@ -12,6 +12,7 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { updateGradePreferences } from '@/hooks/useGradeSystem'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { GradeSystem } from '@/lib/grade-display'
+import { CREDIT_PLATFORM_OPTIONS } from '@/lib/editor-constants'
 import { fetchSettings, settingsQueryKey, type SettingsPayload } from '@/lib/settings/queries'
 import { normalizeSubmissionCreditHandle, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 
@@ -60,14 +61,6 @@ const TRAD_GRADE_OPTIONS: Array<{ value: GradeSystem; label: string; sample: str
   { value: 'yds_equivalent', label: 'YDS (USA)', sample: '5.10c' },
   { value: 'french_equivalent', label: 'French (Europe)', sample: '6b+' },
   { value: 'british_equivalent', label: 'British (E-grades)', sample: 'E3' },
-]
-
-const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'tiktok', label: 'TikTok' },
-  { value: 'youtube', label: 'YouTube' },
-  { value: 'x', label: 'X' },
-  { value: 'other', label: 'Other' },
 ]
 
 export default function SettingsContent({ user }: SettingsContentProps) {
