@@ -6,7 +6,7 @@ const notFoundMock = vi.fn(() => {
   throw new Error('notFound')
 })
 
-vi.mock('@/app/[country]/[crag]/i/[imageId]/image-page-server', () => ({
+vi.mock('@/features/image-first/server/load-image-first-page', () => ({
   getImageByDisplayId: getImageByDisplayIdMock,
 }))
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import useEmblaCarousel from 'embla-carousel-react'
 
-import type { ImageFirstRouteLine } from '@/app/[country]/[crag]/i/[imageId]/image-page-server'
+import type { ImageFirstRouteLine } from '@/features/image-first/types'
 
 export function useImageNavigation({
   orderedImageIds,

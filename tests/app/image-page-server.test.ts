@@ -110,7 +110,7 @@ describe('image-page-server raw image fallback', () => {
   })
 
   test('builds payload for raw images.id image-first route', async () => {
-    const { buildImageFirstPayload } = await import('../../app/[country]/[crag]/i/[imageId]/image-page-server')
+    const { buildImageFirstPayload } = await import('../../features/image-first/server/load-image-first-page')
 
     const result = await buildImageFirstPayload({
       country: 'gg',

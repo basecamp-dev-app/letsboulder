@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import type { ImageFirstPayload } from '@/app/[country]/[crag]/i/[imageId]/image-page-server'
+import type { ImageFirstPayload } from '@/features/image-first/types'
 
 const ImageFirstClient = dynamic(
   () =>
