@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createErrorResponse } from '@/lib/errors'
+import { notifyNewSubmission } from '@/lib/discord'
 import { getMediaModerationConfig } from '@/lib/media/config'
 import { extractDraftLocation, isPermissionDeniedError } from '@/features/submissions/server/drafts/draft-route-shared'
 
@@ -73,7 +74,7 @@ export async function promoteDraftToSubmission(input: {
   const defaultImageId = result.default_image_id || result.image_id
   const { data: canonicalImage, error: canonicalImageError } = await supabase
     .from('images')
-    .select('id, crag_id, crags(country_code, slug), route_lines(id, climb_id, sequence_order, created_at)')
+    .select('id, crag_id, crags(name, country_code, slug), route_lines(id, climb_id, sequence_order, created_at)')
     .eq('id', defaultImageId)
     .maybeSingle()
 
@@ -84,6 +85,44 @@ export async function promoteDraftToSubmission(input: {
   const crag = Array.isArray(canonicalImage.crags) ? canonicalImage.crags[0] : canonicalImage.crags
   if (!crag?.country_code || !crag?.slug) {
     return NextResponse.json({ error: 'Failed to resolve canonical crag path after publish' }, { status: 500 })
+  }
+
+  const cragId = typeof canonicalImage.crag_id === 'string' ? canonicalImage.crag_id : null
+
+  const climbIds = Array.isArray(result.climb_ids)
+    ? result.climb_ids.filter((climbId): climbId is string => typeof climbId === 'string' && climbId.length > 0)
+    : []
+
+  const notificationClimbs = climbIds.length > 0
+    ? await (async () => {
+      const { data: climbRows } = await supabase
+        .from('climbs')
+        .select('id, name, grade')
+        .in('id', climbIds)
+
+      const climbMap = new Map<string, { id: string; name: string; grade: string }>()
+      for (const row of (climbRows || []) as Array<{ id: string; name: string | null; grade: string }>) {
+        climbMap.set(row.id, {
+          id: row.id,
+          name: row.name || 'Unnamed',
+          grade: row.grade,
+        })
+      }
+
+      return climbIds.map((climbId, index) => climbMap.get(climbId) || {
+        id: climbId,
+        name: `Route ${index + 1}`,
+        grade: 'Unknown',
+      })
+    })()
+    : []
+
+  if (notificationClimbs.length > 0 && cragId) {
+    const cragName = typeof crag.name === 'string' && crag.name.trim().length > 0 ? crag.name : 'Unknown Crag'
+
+    await notifyNewSubmission(supabase, notificationClimbs, cragName, cragId, userId).catch((error) => {
+      console.error('Discord notification error:', error)
+    })
   }
 
   const routeLines = Array.isArray(canonicalImage.route_lines) ? canonicalImage.route_lines : []
