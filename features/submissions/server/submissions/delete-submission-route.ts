@@ -14,6 +14,12 @@ interface TransferTargetCandidate {
   grade: string | null
 }
 
+interface SiblingRouteLineRow {
+  id: string
+  climb_id: string
+  climbs: { name: string | null; grade: string | null } | Array<{ name: string | null; grade: string | null }> | null
+}
+
 export async function deleteSubmissionRoute(
   deps: SubmissionRouteMutationDeps,
   body: unknown
@@ -61,7 +67,7 @@ export async function deleteSubmissionRoute(
     if (siblingError) return createErrorResponse(siblingError, 'Delete route error')
 
     const sourceName = normalizeRouteNameForMatch(currentRouteName)
-    const candidates: TransferTargetCandidate[] = (siblingRouteLines || []).map((routeLine) => {
+    const candidates: TransferTargetCandidate[] = (siblingRouteLines || []).map((routeLine: SiblingRouteLineRow) => {
       const climb = pickOne(routeLine.climbs as { name: string | null; grade: string | null } | Array<{ name: string | null; grade: string | null }> | null)
       return {
         routeLineId: routeLine.id,
@@ -69,7 +75,7 @@ export async function deleteSubmissionRoute(
         climbName: climb?.name || '',
         grade: climb?.grade || null,
       }
-    }).filter((candidate) => normalizeRouteNameForMatch(candidate.climbName) === sourceName)
+    }).filter((candidate: TransferTargetCandidate) => normalizeRouteNameForMatch(candidate.climbName) === sourceName)
 
     if (payload.targetRouteLineId) {
       const selectedTarget = candidates.find((candidate) => candidate.routeLineId === payload.targetRouteLineId)
@@ -121,7 +127,9 @@ export async function deleteSubmissionRoute(
       if (targetLogsError) return createErrorResponse(targetLogsError, 'Delete route error')
 
       const usersWithTargetLog = new Set(
-        (targetLogs || []).map((row) => row.user_id).filter((userId): userId is string => typeof userId === 'string')
+        (targetLogs || [])
+          .map((row: { user_id: string | null }) => row.user_id)
+          .filter((userId: string | null): userId is string => typeof userId === 'string')
       )
 
       for (const [oldUserId, oldLogId] of oldLogsByUserId.entries()) {
