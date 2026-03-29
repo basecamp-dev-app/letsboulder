@@ -709,6 +709,29 @@ export default function EditDraftPage() {
     return [...manageImages, ...optimisticTabs, ...pendingTabs].sort((a, b) => a.index - b.index)
   }, [draftId, manageImages, pendingDraftUploads])
 
+  const averagedRouteImageLocation = useMemo<[number, number] | null>(() => {
+    const qualifyingCoordinates = mergedManageImages
+      .filter((image) => {
+        const routes = routesByImageId[image.imageId] || []
+        if (routes.length === 0) return false
+        if (resolveLocationMode(locationModeByImageId[image.imageId]) === 'custom') return false
+        return isValidLocationCoordinate(image.latitude, image.longitude)
+      })
+      .map((image) => [image.latitude as number, image.longitude as number] as const)
+
+    if (qualifyingCoordinates.length === 0) return null
+
+    const totals = qualifyingCoordinates.reduce((acc, [lat, lng]) => ({
+      latitude: acc.latitude + lat,
+      longitude: acc.longitude + lng,
+    }), { latitude: 0, longitude: 0 })
+
+    return [
+      totals.latitude / qualifyingCoordinates.length,
+      totals.longitude / qualifyingCoordinates.length,
+    ]
+  }, [locationModeByImageId, mergedManageImages, routesByImageId])
+
   const stableCanvasUrlRef = useRef<{ imageId: string | null; imageUrl: string }>({ imageId: null, imageUrl: '' })
 
   const hasInFlightDraftUploads = useMemo(() => {
@@ -1014,6 +1037,23 @@ export default function EditDraftPage() {
     if (!draft || isInitialLoading) return
     hasHydratedLocationRef.current = true
   }, [draft, isInitialLoading])
+
+  useEffect(() => {
+    if (!hasHydratedLocationRef.current || !averagedRouteImageLocation) return
+
+    const [nextLatitude, nextLongitude] = averagedRouteImageLocation
+    const currentLatitude = Number(latitude)
+    const currentLongitude = Number(longitude)
+    const hasSameLocation = Number.isFinite(currentLatitude)
+      && Number.isFinite(currentLongitude)
+      && Math.abs(currentLatitude - nextLatitude) < 0.000001
+      && Math.abs(currentLongitude - nextLongitude) < 0.000001
+
+    if (hasSameLocation) return
+
+    setLatitude(formatCoordinate(nextLatitude))
+    setLongitude(formatCoordinate(nextLongitude))
+  }, [averagedRouteImageLocation, latitude, longitude, setLatitude, setLongitude])
 
   useEffect(() => {
     if (!hasHydratedLocationRef.current) return

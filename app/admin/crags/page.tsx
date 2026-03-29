@@ -38,12 +38,12 @@ export default function AdminCragsPage() {
   const [toast, setToast] = useState<string | null>(null)
   const [renamingCrag, setRenamingCrag] = useState<Crag | null>(null)
   const [removingCrag, setRemovingCrag] = useState<Crag | null>(null)
-  const [confirmName, setConfirmName] = useState('')
+  const [confirmCount, setConfirmCount] = useState('')
   const [deleting, setDeleting] = useState(false)
 
   const closeDeleteConfirm = () => {
     setRemovingCrag(null)
-    setConfirmName('')
+    setConfirmCount('')
   }
 
   useOverlayHistory({ open: Boolean(removingCrag), onClose: closeDeleteConfirm, id: 'admin-delete-crag' })
@@ -95,8 +95,8 @@ export default function AdminCragsPage() {
 
   const handleRemove = async () => {
     if (!removingCrag) return
-    if (confirmName !== removingCrag.name) {
-      setToast('Type the crag name exactly to confirm')
+    if (confirmCount !== String(removingCrag.climb_count)) {
+      setToast('Type the climb count exactly to confirm')
       setTimeout(() => setToast(null), 3000)
       return
     }
@@ -111,7 +111,7 @@ export default function AdminCragsPage() {
         setToast(`Crag "${removingCrag.name}" deleted`)
         setTimeout(() => setToast(null), 3000)
         setRemovingCrag(null)
-        setConfirmName('')
+        setConfirmCount('')
         loadCrags()
       } else {
         const errorData = await response.json()
@@ -178,21 +178,25 @@ export default function AdminCragsPage() {
               </div>
             </div>
 
-            <p className="text-gray-300 mb-4">
-              This will <span className="text-red-500 font-bold">permanently delete</span> this crag and all associated climbs and images. This action cannot be undone.
-            </p>
+              <p className="text-gray-300 mb-4">
+               This will <span className="text-red-500 font-bold">permanently delete</span> the crag <span className="font-semibold text-white">{removingCrag.name}</span>,
+               {' '}
+               <span className="font-semibold text-white">{removingCrag.climb_count} climbs</span>, and
+               {' '}
+               <span className="font-semibold text-white">{removingCrag.image_count} images</span>. This action cannot be undone.
+              </p>
 
-            <p className="text-white mb-2">
-              Type <span className="font-bold text-yellow-500">{removingCrag.name}</span> to confirm:
-            </p>
+              <p className="text-white mb-2">
+               Type <span className="font-bold text-yellow-500">{removingCrag.climb_count}</span> to confirm:
+              </p>
 
-            <input
-              type="text"
-              value={confirmName}
-              onChange={(e) => setConfirmName(e.target.value)}
-              placeholder="Type crag name..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 mb-4"
-            />
+              <input
+                type="text"
+                value={confirmCount}
+                onChange={(e) => setConfirmCount(e.target.value)}
+                placeholder="Type climb count..."
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 mb-4"
+              />
 
             <div className="flex gap-3">
               <button
@@ -205,7 +209,7 @@ export default function AdminCragsPage() {
               </button>
               <button
                 onClick={handleRemove}
-                disabled={confirmName !== removingCrag.name || deleting}
+                disabled={confirmCount !== String(removingCrag.climb_count) || deleting}
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {deleting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Delete'}
