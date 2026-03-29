@@ -1,7 +1,13 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import {
+  createSubmissionInvite,
+  fetchSubmissionCollaborators,
+  removeSubmissionCollaborator,
+  revokeSubmissionInvite,
+} from '@/features/editor/collaboration/collaboration-api'
+import { useInviteLinkCopy } from '@/features/editor/collaboration/use-invite-link-copy'
 import type { CollaboratorItem, InviteItem } from '@/lib/editor-types'
 
 export function useSubmissionCollaborators(activeImageId: string | null, addToast: (message: string, tone: 'success' | 'error') => void, setError: (message: string | null) => void) {
@@ -16,19 +22,18 @@ export function useSubmissionCollaborators(activeImageId: string | null, addToas
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null)
   const [removingCollaboratorId, setRemovingCollaboratorId] = useState<string | null>(null)
   const [latestInviteUrl, setLatestInviteUrl] = useState<string | null>(null)
+  const handleCopyInvite = useInviteLinkCopy(addToast, (message) => setError(message))
 
   const loadCollaborators = useCallback(async () => {
     if (!activeImageId) return
     setLoadingCollaborators(true)
     try {
-      const response = await fetch(`/api/submissions/${activeImageId}/collaborators`, { cache: 'no-store' })
-      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data?.error || 'Failed to load collaborators') }
-      const data = await response.json() as { owner: { userId: string; profile: { displayName: string; username: string | null } } | null; collaborators: CollaboratorItem[]; isOwner: boolean; activeInvites?: InviteItem[] }
-      setOwnerUserId(data.owner?.userId || null)
-      setOwnerProfile(data.owner?.profile || null)
-      setCollaborators(Array.isArray(data.collaborators) ? data.collaborators : [])
-      setIsOwner(Boolean(data.isOwner))
-      setActiveInvites(Array.isArray(data.activeInvites) ? data.activeInvites : [])
+      const data = await fetchSubmissionCollaborators(activeImageId)
+      setOwnerUserId(data.ownerUserId)
+      setOwnerProfile(data.ownerProfile)
+      setCollaborators(data.collaborators)
+      setIsOwner(data.isOwner)
+      setActiveInvites(data.activeInvites)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load collaborators')
     } finally {
@@ -41,10 +46,7 @@ export function useSubmissionCollaborators(activeImageId: string | null, addToas
     setCreatingInvite(true)
     setError(null)
     try {
-      const response = await csrfFetch(`/api/submissions/${activeImageId}/collaborators`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ maxUses: null, expiresAt: null }) })
-      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data?.error || 'Failed to create invite link') }
-      const data = await response.json() as { invite?: { inviteUrl?: string } }
-      const inviteUrl = data.invite?.inviteUrl || null
+      const inviteUrl = await createSubmissionInvite(activeImageId)
       setLatestInviteUrl(inviteUrl)
       if (inviteUrl) addToast('Invite link created and copied', 'success')
       else addToast('Invite link created', 'success')
@@ -57,17 +59,12 @@ export function useSubmissionCollaborators(activeImageId: string | null, addToas
     }
   }, [activeImageId, addToast, creatingInvite, isOwner, loadCollaborators, setError])
 
-  const handleCopyInvite = useCallback(async (inviteUrl: string) => {
-    try { await navigator.clipboard.writeText(inviteUrl); addToast('Invite link copied', 'success') } catch { setError('Failed to copy invite link'); addToast('Failed to copy invite link', 'error') }
-  }, [addToast, setError])
-
   const handleRevokeInvite = useCallback(async (inviteId: string) => {
     if (!activeImageId || !isOwner || revokingInviteId) return
     setRevokingInviteId(inviteId)
     setError(null)
     try {
-      const response = await csrfFetch(`/api/submissions/${activeImageId}/collaborators`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inviteId }) })
-      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data?.error || 'Failed to revoke invite') }
+      await revokeSubmissionInvite(activeImageId, inviteId)
       await loadCollaborators()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to revoke invite')
@@ -81,8 +78,7 @@ export function useSubmissionCollaborators(activeImageId: string | null, addToas
     setRemovingCollaboratorId(collaboratorUserId)
     setError(null)
     try {
-      const response = await csrfFetch(`/api/submissions/${activeImageId}/collaborators/${collaboratorUserId}`, { method: 'DELETE' })
-      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data?.error || 'Failed to remove collaborator') }
+      await removeSubmissionCollaborator(activeImageId, collaboratorUserId)
       await loadCollaborators()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove collaborator')

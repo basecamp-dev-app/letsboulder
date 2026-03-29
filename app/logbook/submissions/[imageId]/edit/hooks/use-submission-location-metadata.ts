@@ -1,15 +1,13 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { sortFaceDirections } from '@/lib/editor-helpers'
+import {
+  formatCoordinate,
+  isCragMetadataDirty,
+  isImageMetadataDirty,
+} from '@/features/editor/location/location-metadata'
+import { useLocationSearch } from '@/features/editor/location/use-location-search'
 import type { FaceDirection } from '@/lib/submission-types'
-
-function parseCoordinate(value: string): number | null {
-  if (value.trim() === '') return null
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return Number.NaN
-  return parsed
-}
 
 export function useSubmissionLocationMetadata(input: {
   currentUserId: string | null
@@ -30,9 +28,6 @@ export function useSubmissionLocationMetadata(input: {
   const [subArea, setSubArea] = useState('')
   const [faceDirections, setFaceDirections] = useState<FaceDirection[]>([])
   const [locationMode, setLocationMode] = useState<'shared' | 'custom'>('custom')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchingLocation, setSearchingLocation] = useState(false)
-  const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
   const [initialLatitude, setInitialLatitude] = useState(input.initialLatitude)
   const [initialLongitude, setInitialLongitude] = useState(input.initialLongitude)
   const [initialCragName, setInitialCragName] = useState(input.initialCragName)
@@ -42,42 +37,44 @@ export function useSubmissionLocationMetadata(input: {
   const [initialLocationMode, setInitialLocationMode] = useState<'shared' | 'custom'>(input.initialLocationMode)
 
   const canEditCragMetadata = !!input.currentUserId && !!input.ownerUserId && input.currentUserId === input.ownerUserId && !!input.cragId
-  const imageMetadataDirty = useMemo(() => {
-    const initialLat = parseCoordinate(initialLatitude)
-    const initialLng = parseCoordinate(initialLongitude)
-    const currentLat = parseCoordinate(latitude)
-    const currentLng = parseCoordinate(longitude)
-    return initialLat !== currentLat || initialLng !== currentLng || sortFaceDirections(initialFaceDirections).join('|') !== sortFaceDirections(faceDirections).join('|') || initialLocationMode !== locationMode
-  }, [faceDirections, initialFaceDirections, initialLatitude, initialLocationMode, initialLongitude, latitude, locationMode, longitude])
-  const cragMetadataDirty = useMemo(() => canEditCragMetadata && (cragName.trim() !== initialCragName.trim() || regionTag.trim() !== initialRegionTag.trim() || subArea.trim() !== initialSubArea.trim()), [canEditCragMetadata, cragName, initialCragName, initialRegionTag, initialSubArea, regionTag, subArea])
+  const imageMetadataDirty = useMemo(() => isImageMetadataDirty({
+    initialLatitude,
+    initialLongitude,
+    latitude,
+    longitude,
+    initialFaceDirections,
+    faceDirections,
+    initialLocationMode,
+    locationMode,
+  }), [faceDirections, initialFaceDirections, initialLatitude, initialLocationMode, initialLongitude, latitude, locationMode, longitude])
+  const cragMetadataDirty = useMemo(() => isCragMetadataDirty({
+    canEditCragMetadata,
+    cragName,
+    initialCragName,
+    regionTag,
+    initialRegionTag,
+    subArea,
+    initialSubArea,
+  }), [canEditCragMetadata, cragName, initialCragName, initialRegionTag, initialSubArea, regionTag, subArea])
 
   const toggleFaceDirection = useCallback((direction: FaceDirection) => {
     setFaceDirections((prev) => (prev.includes(direction) ? prev.filter((value) => value !== direction) : [...prev, direction]))
   }, [])
 
   const updateLocation = useCallback((nextLatitude: number, nextLongitude: number) => {
-    setLatitude(nextLatitude.toFixed(6))
-    setLongitude(nextLongitude.toFixed(6))
-    setLocationSearchError(null)
+    setLatitude(formatCoordinate(nextLatitude))
+    setLongitude(formatCoordinate(nextLongitude))
   }, [])
 
-  const handleSearchLocation = useCallback(async () => {
-    if (!searchQuery.trim()) return
-    setSearchingLocation(true)
-    setLocationSearchError(null)
-    try {
-      const response = await fetch(`/api/locations/search?q=${encodeURIComponent(searchQuery)}`)
-      if (!response.ok) { setLocationSearchError('Search failed'); return }
-      const data = await response.json() as Array<{ lat?: number; lon?: number }> | null
-      const first = Array.isArray(data) ? data[0] : null
-      if (!first || typeof first.lat !== 'number' || typeof first.lon !== 'number') { setLocationSearchError('Location not found'); return }
-      updateLocation(first.lat, first.lon)
-    } catch {
-      setLocationSearchError('Failed to search location')
-    } finally {
-      setSearchingLocation(false)
-    }
-  }, [searchQuery, updateLocation])
+  const {
+    searchQuery,
+    setSearchQuery,
+    searchingLocation,
+    setSearchingLocation,
+    locationSearchError,
+    setLocationSearchError,
+    handleSearchLocation,
+  } = useLocationSearch(updateLocation)
 
   return {
     latitude,

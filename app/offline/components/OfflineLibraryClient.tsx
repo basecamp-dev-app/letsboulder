@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import type { StoredClimbManifest, StoredCragManifest } from '@/lib/offline/storage'
 import { listOfflinePacksForLaunch } from '@/lib/offline/packs'
-import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
+import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 
 function getOfflineClimbLaunchHref(climb: StoredClimbManifest) {
   return `/climb/${climb.climbId}`

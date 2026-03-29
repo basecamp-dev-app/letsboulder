@@ -8,7 +8,7 @@ import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/lib/submission-types'
 import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { buildMapPins, resolveLocationMode } from '@/lib/editor-image-state'
-import { useRouteStore } from '@/store/routeStore'
+import { useRouteStore } from '@/store/route-store'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 
 interface ImageRouteLineQuery {

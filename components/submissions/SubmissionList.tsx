@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
+import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { formatSubmissionCreditHandle } from '@/lib/submission-credit'
 import type { Submission } from '@/types/submissions'
 

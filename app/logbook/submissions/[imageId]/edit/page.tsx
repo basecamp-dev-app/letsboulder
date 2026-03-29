@@ -4,9 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
-import { areSerializedRoutesEqual, serializeRouteEditorRoutes, type RouteEditorRouteInput } from '@/features/route-editor/route-editor-utils'
+import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-utils'
+import { haveStoredRoutesChanged, serializeStoredRoutes } from '@/features/editor/route-store-sync'
 import { createClient } from '@/lib/supabase'
-import { useRouteStore } from '@/store/routeStore'
+import { useRouteStore } from '@/store/route-store'
 import type { UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
 import type { RouteLine } from '@/types/domain'
 import { SubmissionWorkstation } from '@/components/SubmissionWorkstation'
@@ -50,19 +51,6 @@ export default function EditSubmittedRoutesPage() {
     undoLastPoint,
     setInteractionTool,
   } = useRouteStore()
-  function serializeStoredRoutes(routes: RouteLine[]) {
-    return serializeRouteEditorRoutes(routes.map((route): RouteEditorRouteInput => ({
-    id: route.id,
-    name: route.climb?.name,
-    grade: route.climb?.grade,
-    description: route.climb?.description,
-    climbType: route.climb?.route_type,
-    points: route.points,
-    sequenceOrder: route.sequence_order,
-    imageWidth: route.image_width,
-    imageHeight: route.image_height,
-    })))
-  }
   const syncLocationFromEditor = useCallback(() => {
     location.setLatitude(editor.latitude)
     location.setLongitude(editor.longitude)
@@ -98,14 +86,14 @@ export default function EditSubmittedRoutesPage() {
     if (!editor.activeImageId) return
     if (lastSeededRouteImageIdRef.current === editor.activeImageId) return
     lastSeededRouteImageIdRef.current = editor.activeImageId
-    if (!areSerializedRoutesEqual(serializeStoredRoutes(routeStoreRoutes), serializeStoredRoutes(editor.existingRouteLines))) {
+    if (haveStoredRoutesChanged(routeStoreRoutes, editor.existingRouteLines)) {
       setRouteStoreRoutes(editor.existingRouteLines)
     }
   }, [editor.activeImageId, editor.existingRouteLines, routeStoreRoutes, setRouteStoreRoutes])
 
   useEffect(() => {
     if (!editor.activeImageId) return
-    if (areSerializedRoutesEqual(serializeStoredRoutes(routeStoreRoutes), serializeStoredRoutes(editor.existingRouteLines))) return
+    if (!haveStoredRoutesChanged(routeStoreRoutes, editor.existingRouteLines)) return
     editor.setEditedRoutes(routeStoreRoutes)
   }, [editor, routeStoreRoutes])
 

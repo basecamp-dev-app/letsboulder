@@ -1,7 +1,13 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import {
+  createDraftInvite,
+  fetchDraftCollaborators,
+  removeDraftCollaborator,
+  revokeDraftInvite,
+} from '@/features/editor/collaboration/collaboration-api'
+import { useInviteLinkCopy } from '@/features/editor/collaboration/use-invite-link-copy'
 import type { CollaboratorItem, InviteItem } from '@/lib/editor-types'
 
 export function useDraftCollaborators(draftId: string | null, isOwner: boolean, addToast: (message: string, tone: 'success' | 'error') => void, setError: (message: string) => void) {
@@ -13,16 +19,15 @@ export function useDraftCollaborators(draftId: string | null, isOwner: boolean, 
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null)
   const [removingCollaboratorId, setRemovingCollaboratorId] = useState<string | null>(null)
   const [latestInviteUrl, setLatestInviteUrl] = useState<string | null>(null)
+  const handleCopyInvite = useInviteLinkCopy(addToast, setError)
 
   const loadCollaborators = useCallback(async () => {
     if (!draftId) return
     setLoadingCollaborators(true)
     try {
-      const response = await fetch(`/api/submissions/drafts/${draftId}/collaborators`, { cache: 'no-store' })
-      const data = await response.json() as { collaborators?: CollaboratorItem[]; invites?: InviteItem[]; error?: string }
-      if (!response.ok) throw new Error(data.error || 'Failed to load draft collaborators')
-      setCollaborators(Array.isArray(data.collaborators) ? data.collaborators : [])
-      setActiveInvites(Array.isArray(data.invites) ? data.invites : [])
+      const data = await fetchDraftCollaborators(draftId)
+      setCollaborators(data.collaborators)
+      setActiveInvites(data.activeInvites)
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to load draft collaborators')
     } finally {
@@ -34,10 +39,7 @@ export function useDraftCollaborators(draftId: string | null, isOwner: boolean, 
     if (!draftId || !isOwner) return
     setCreatingInvite(true)
     try {
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/collaborators`, { method: 'POST' })
-      const data = await response.json() as { invite?: { inviteUrl?: string }; error?: string }
-      if (!response.ok) throw new Error(data.error || 'Failed to create draft invite link')
-      const inviteUrl = data.invite?.inviteUrl || null
+      const inviteUrl = await createDraftInvite(draftId)
       setLatestInviteUrl(inviteUrl)
       if (inviteUrl && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) await navigator.clipboard.writeText(inviteUrl)
       addToast('Invite link created', 'success')
@@ -49,22 +51,11 @@ export function useDraftCollaborators(draftId: string | null, isOwner: boolean, 
     }
   }, [addToast, draftId, isOwner, setError])
 
-  const handleCopyInvite = useCallback(async (inviteUrl: string) => {
-    try {
-      await navigator.clipboard.writeText(inviteUrl)
-      addToast('Invite link copied', 'success')
-    } catch {
-      setError('Failed to copy invite link')
-      addToast('Failed to copy invite link', 'error')
-    }
-  }, [addToast, setError])
-
   const handleRevokeInvite = useCallback(async (inviteId: string) => {
     if (!draftId || !isOwner) return
     setRevokingInviteId(inviteId)
     try {
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/collaborators`, { method: 'DELETE', body: JSON.stringify({ inviteId }) })
-      if (!response.ok) throw new Error('Failed to revoke invite')
+      await revokeDraftInvite(draftId, inviteId)
       setActiveInvites((current) => current.filter((invite) => invite.id !== inviteId))
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to revoke invite')
@@ -77,8 +68,7 @@ export function useDraftCollaborators(draftId: string | null, isOwner: boolean, 
     if (!draftId) return
     setRemovingCollaboratorId(collaboratorUserId)
     try {
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/collaborators/${collaboratorUserId}`, { method: 'DELETE' })
-      if (!response.ok) throw new Error('Failed to remove collaborator')
+      await removeDraftCollaborator(draftId, collaboratorUserId)
       setCollaborators((current) => current.filter((collaborator) => collaborator.userId !== collaboratorUserId))
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to remove collaborator')

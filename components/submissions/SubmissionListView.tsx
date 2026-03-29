@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useMemo } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import SubmissionList from '@/components/submissions/SubmissionList'
-import { useSubmissions } from '@/lib/submissions/useSubmissions'
+import { useSubmissions } from '@/hooks/useSubmissions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 type SubmissionsTab = 'all' | 'drafts' | 'pending-review' | 'published'
