@@ -75,9 +75,6 @@ export default function DraftIntakeView() {
 
         <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Start a new draft.</h1>
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Select up to 20 photos.
-          </p>
         </div>
 
         <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
