@@ -24,6 +24,60 @@ export interface DraftRouteLike {
   imageHeight?: number | undefined
 }
 
+export interface RouteEditorSerializableRoute {
+  id: string
+  name: string
+  grade: string
+  description?: string | undefined
+  climbType?: string | undefined
+  points: RoutePoint[]
+  sequenceOrder: number
+  imageWidth: number
+  imageHeight: number
+}
+
+export interface RouteEditorRouteAdapter {
+  id: string
+  name: string | null | undefined
+  grade: string | null | undefined
+  description?: string | null | undefined
+  climbType?: string | null | undefined
+  points: RoutePoint[] | string | null | undefined
+  sequenceOrder: number
+  imageWidth?: number | null | undefined
+  imageHeight?: number | null | undefined
+}
+
+export interface RouteEditorRouteInput {
+  id: string
+  name: string | null | undefined
+  grade: string | null | undefined
+  description?: string | null | undefined
+  climbType?: string | null | undefined
+  points: RoutePoint[]
+  sequenceOrder: number
+  imageWidth?: number | null | undefined
+  imageHeight?: number | null | undefined
+}
+
+export function serializeRouteEditorRoute(route: RouteEditorRouteInput, fallbackImageWidth = 0, fallbackImageHeight = 0): RouteEditorSerializableRoute {
+  return {
+    id: route.id,
+    name: route.name?.trim() || 'Unnamed',
+    grade: route.grade?.trim() || '6A',
+    description: typeof route.description === 'string' ? route.description : undefined,
+    climbType: typeof route.climbType === 'string' ? route.climbType : undefined,
+    points: parseRoutePoints(route.points),
+    sequenceOrder: route.sequenceOrder,
+    imageWidth: route.imageWidth || fallbackImageWidth || 1200,
+    imageHeight: route.imageHeight || fallbackImageHeight || 1200,
+  }
+}
+
+export function serializeRouteEditorRoutes(routes: RouteEditorRouteInput[], fallbackImageWidth = 0, fallbackImageHeight = 0): RouteEditorSerializableRoute[] {
+  return routes.map((route) => serializeRouteEditorRoute(route, fallbackImageWidth, fallbackImageHeight))
+}
+
 export function parseRoutePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[] {
   if (!raw) return []
   if (Array.isArray(raw)) {
@@ -52,7 +106,7 @@ export function areRoutePointsEqual(a: RoutePoint[], b: RoutePoint[]): boolean {
   return true
 }
 
-export function areSerializedRoutesEqual(a: DraftRouteLike[], b: DraftRouteLike[]): boolean {
+export function areSerializedRoutesEqual(a: RouteEditorSerializableRoute[], b: RouteEditorSerializableRoute[]): boolean {
   if (a === b) return true
   if (a.length !== b.length) return false
 
@@ -101,17 +155,7 @@ export function buildRouteCompletionPayload<T extends { id: string; display_orde
     })
     .map((image, index) => {
       const routes = routesByImageId[image.id] || []
-      const completedRoutes = routes.map((route, routeIndex) => ({
-        id: route.id,
-        name: route.name,
-        grade: route.grade,
-        description: route.description,
-        climbType: route.climbType || routeType,
-        points: route.points,
-        sequenceOrder: routeIndex,
-        imageWidth: route.imageWidth || image.width || 1200,
-        imageHeight: route.imageHeight || image.height || 1200,
-      }))
+      const completedRoutes = serializeRouteEditorRoutes(routes.map((route, routeIndex) => ({ ...route, sequenceOrder: routeIndex, climbType: route.climbType || routeType })), image.width || 1200, image.height || 1200)
 
       const baseRouteData = image.route_data && typeof image.route_data === 'object' ? image.route_data : {}
 
@@ -136,17 +180,17 @@ export function parseSerializedRouteData(routeData: Record<string, unknown> | nu
       const points = parseRoutePoints((item.points as RoutePoint[] | string | null | undefined) || null)
       if (points.length < 2) return null
 
-      return {
+      return serializeRouteEditorRoute({
         id: typeof item.id === 'string' && item.id ? item.id : `route-${index + 1}`,
-        name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : `Route ${index + 1}`,
-        grade: typeof item.grade === 'string' && item.grade ? item.grade : '6A',
+        name: typeof item.name === 'string' ? item.name : `Route ${index + 1}`,
+        grade: typeof item.grade === 'string' ? item.grade : '6A',
         description: typeof item.description === 'string' ? item.description : undefined,
         climbType: typeof item.climbType === 'string' ? item.climbType : undefined,
         points,
         sequenceOrder: typeof item.sequenceOrder === 'number' ? item.sequenceOrder : index,
         imageWidth: typeof item.imageWidth === 'number' ? item.imageWidth : fallbackWidth,
         imageHeight: typeof item.imageHeight === 'number' ? item.imageHeight : fallbackHeight,
-      }
+      })
     })
   return parsedRoutes.filter((route): route is RouteSerializerInput => route !== null)
 }

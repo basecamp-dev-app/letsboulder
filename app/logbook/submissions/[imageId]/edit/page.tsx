@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
-import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-utils'
+import { areSerializedRoutesEqual, serializeRouteEditorRoutes, type RouteEditorRouteInput } from '@/features/route-editor/route-editor-utils'
 import { createClient } from '@/lib/supabase'
 import { useRouteStore } from '@/store/routeStore'
 import type { UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
@@ -19,20 +19,6 @@ import { CollaboratorDialog } from '@/components/editor/collaborator-dialog'
 import { useSubmissionEditorData } from '@/app/logbook/submissions/[imageId]/edit/hooks/use-submission-editor-data'
 import { useSubmissionLocationMetadata } from '@/app/logbook/submissions/[imageId]/edit/hooks/use-submission-location-metadata'
 import { useSubmissionCollaborators } from '@/app/logbook/submissions/[imageId]/edit/hooks/use-submission-collaborators'
-
-function serializeRoutes(routes: RouteLine[]) {
-  return routes.map((route) => ({
-    id: route.id,
-    name: route.climb?.name || 'Unnamed',
-    grade: route.climb?.grade || '6A',
-    description: route.climb?.description ?? undefined,
-    climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : undefined,
-    points: route.points,
-    sequenceOrder: route.sequence_order,
-    imageWidth: route.image_width ?? 0,
-    imageHeight: route.image_height ?? 0,
-  }))
-}
 
 export default function EditSubmittedRoutesPage() {
   const { toasts, addToast, removeToast } = useToast()
@@ -64,6 +50,19 @@ export default function EditSubmittedRoutesPage() {
     undoLastPoint,
     setInteractionTool,
   } = useRouteStore()
+  function serializeStoredRoutes(routes: RouteLine[]) {
+    return serializeRouteEditorRoutes(routes.map((route): RouteEditorRouteInput => ({
+    id: route.id,
+    name: route.climb?.name,
+    grade: route.climb?.grade,
+    description: route.climb?.description,
+    climbType: route.climb?.route_type,
+    points: route.points,
+    sequenceOrder: route.sequence_order,
+    imageWidth: route.image_width,
+    imageHeight: route.image_height,
+    })))
+  }
   const syncLocationFromEditor = useCallback(() => {
     location.setLatitude(editor.latitude)
     location.setLongitude(editor.longitude)
@@ -99,14 +98,14 @@ export default function EditSubmittedRoutesPage() {
     if (!editor.activeImageId) return
     if (lastSeededRouteImageIdRef.current === editor.activeImageId) return
     lastSeededRouteImageIdRef.current = editor.activeImageId
-    if (!areSerializedRoutesEqual(serializeRoutes(routeStoreRoutes), serializeRoutes(editor.existingRouteLines))) {
+    if (!areSerializedRoutesEqual(serializeStoredRoutes(routeStoreRoutes), serializeStoredRoutes(editor.existingRouteLines))) {
       setRouteStoreRoutes(editor.existingRouteLines)
     }
   }, [editor.activeImageId, editor.existingRouteLines, routeStoreRoutes, setRouteStoreRoutes])
 
   useEffect(() => {
     if (!editor.activeImageId) return
-    if (areSerializedRoutesEqual(serializeRoutes(routeStoreRoutes), serializeRoutes(editor.existingRouteLines))) return
+    if (areSerializedRoutesEqual(serializeStoredRoutes(routeStoreRoutes), serializeStoredRoutes(editor.existingRouteLines))) return
     editor.setEditedRoutes(routeStoreRoutes)
   }, [editor, routeStoreRoutes])
 
@@ -164,7 +163,7 @@ export default function EditSubmittedRoutesPage() {
         if (updateCragError) throw updateCragError
       }
 
-      if (!areSerializedRoutesEqual(serializeRoutes(editor.editedRoutes), serializeRoutes(editor.initialEditedRoutes))) {
+      if (!areSerializedRoutesEqual(serializeStoredRoutes(editor.editedRoutes), serializeStoredRoutes(editor.initialEditedRoutes))) {
         const response = await csrfFetch(`/api/submissions/${editor.activeImageId}/routes`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -238,7 +237,7 @@ export default function EditSubmittedRoutesPage() {
     <div className="min-h-screen bg-white dark:bg-gray-950">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div className="mx-auto max-w-6xl px-4 py-4">
-        <SubmissionToolbar hasPendingChanges={location.imageMetadataDirty || location.cragMetadataDirty || editor.creditDirty || editor.anonymityDirty || !areSerializedRoutesEqual(serializeRoutes(editor.editedRoutes), serializeRoutes(editor.initialEditedRoutes))} savingAllChanges={savingAllChanges} onSaveAllChanges={() => { void handleSaveAllChanges() }} />
+        <SubmissionToolbar hasPendingChanges={location.imageMetadataDirty || location.cragMetadataDirty || editor.creditDirty || editor.anonymityDirty || !areSerializedRoutesEqual(serializeStoredRoutes(editor.editedRoutes), serializeStoredRoutes(editor.initialEditedRoutes))} savingAllChanges={savingAllChanges} onSaveAllChanges={() => { void handleSaveAllChanges() }} />
         {editor.error ? <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">{editor.error}</div> : null}
         {editor.success ? <div className="mb-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">{editor.success}</div> : null}
         <SubmissionLocationPanel atlasSync={atlasSync} canEditCragMetadata={location.canEditCragMetadata} cragName={location.cragName} onCragNameChange={(value) => { location.setCragName(value); editor.setCragName(value) }} regionTag={location.regionTag} onRegionTagChange={(value) => { location.setRegionTag(value); editor.setRegionTag(value) }} subArea={location.subArea} onSubAreaChange={(value) => { location.setSubArea(value); editor.setSubArea(value) }} latitude={location.latitude} onLatitudeChange={(value) => { location.setLatitude(value); editor.setLatitude(value) }} longitude={location.longitude} onLongitudeChange={(value) => { location.setLongitude(value); editor.setLongitude(value) }} searchQuery={location.searchQuery} onSearchQueryChange={location.setSearchQuery} onSearchLocation={() => { void location.handleSearchLocation() }} searchingLocation={location.searchingLocation} locationSearchError={location.locationSearchError} />

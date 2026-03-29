@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { serializeRouteEditorRoutes, type RouteEditorRouteInput } from '@/features/route-editor/route-editor-utils'
 
 export interface DraftImagePayload {
   id: string
@@ -64,7 +65,7 @@ export function buildDraftImagesPayload(
     })
     .map((image, index) => {
       const routes = routesByImageId[image.id] || []
-      const completedRoutes = routes.map((route, routeIndex) => ({
+      const completedRoutes = serializeRouteEditorRoutes(routes.map((route, routeIndex): RouteEditorRouteInput => ({
         id: route.id,
         name: route.name,
         grade: route.grade,
@@ -72,9 +73,9 @@ export function buildDraftImagesPayload(
         climbType: route.climbType || routeType,
         points: route.points,
         sequenceOrder: routeIndex,
-        imageWidth: route.imageWidth || image.width || 1200,
-        imageHeight: route.imageHeight || image.height || 1200,
-      }))
+        imageWidth: route.imageWidth,
+        imageHeight: route.imageHeight,
+      })), image.width || 1200, image.height || 1200)
 
       const baseRouteData = image.route_data && typeof image.route_data === 'object' ? image.route_data : {}
 
