@@ -1,4 +1,4 @@
-import type { RoutePoint } from '@/features/climb/hooks/use-route-selection'
+import type { RoutePoint } from '@/types/domain'
 
 export interface ClimbPackPublicSubmitter {
   id: string

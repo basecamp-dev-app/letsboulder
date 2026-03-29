@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
-import type { RoutePoint } from '@/features/climb/hooks/use-route-selection'
+import type { RoutePoint } from '@/types/domain'
 import { getCanonicalRouteFaces } from '@/lib/climb/canonical-logic'
 import { buildMediaProxyUrl, estimateCompressedImageBytes, parsePrivateMediaRef } from '@/lib/media-proxy'
 import type { ClimbPackResponse, OfflineMapPin } from '@/lib/climb/queries'
