@@ -35,6 +35,12 @@ const faceDirectionIndex = new Map(FACE_DIRECTIONS.map((direction, index) => [di
 const CRAG_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000
 const cragImageCache = new Map<string, CachedCragImageData>()
 
+function getFreshCachedCragData(id: string) {
+  const cached = cragImageCache.get(id)
+  if (!cached) return null
+  return Date.now() - cached.cachedAt <= CRAG_IMAGE_CACHE_TTL_MS ? cached : null
+}
+
 interface ClusteredImageData extends ClusterableCragImage {
   id: string
   url: string
@@ -166,7 +172,10 @@ interface CragPageClientProps {
   initialRoutes?: CragRoute[] | null
   initialRouteImageIdsByClimbId?: Record<string, string[]>
   initialRoutePreviewByClimbId?: Record<string, RoutePreview>
+  initialDefaultRouteTargetByImageId?: Record<string, ImageRouteTarget>
+  initialRouteNavigationTargetByClimbId?: Record<string, RouteNavigationTarget>
   initialCragCenter?: [number, number] | null
+  initialPayloadLoadedAt?: number
   communityPlaceSlug?: string | null
 }
 
@@ -177,7 +186,10 @@ export default function CragPageClient({
   initialRoutes = null,
   initialRouteImageIdsByClimbId = {},
   initialRoutePreviewByClimbId = {},
+  initialDefaultRouteTargetByImageId = {},
+  initialRouteNavigationTargetByClimbId = {},
   initialCragCenter = null,
+  initialPayloadLoadedAt,
   communityPlaceSlug,
 }: CragPageClientProps) {
   const router = useRouter()
@@ -217,10 +229,40 @@ export default function CragPageClient({
   const [offlineError, setOfflineError] = useState<string | null>(null)
   const [offlinePreview, setOfflinePreview] = useState<Awaited<ReturnType<typeof getCragOfflinePreview>> | null>(null)
   const [offlineProgress, setOfflineProgress] = useState<OfflineJobProgressEvent | null>(null)
-  const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>({})
-  const [routeNavigationTargetByClimbId, setRouteNavigationTargetByClimbId] = useState<Record<string, RouteNavigationTarget>>({})
+  const [defaultRouteTargetByImageId, setDefaultRouteTargetByImageId] = useState<Record<string, ImageRouteTarget>>(initialDefaultRouteTargetByImageId)
+  const [routeNavigationTargetByClimbId, setRouteNavigationTargetByClimbId] = useState<Record<string, RouteNavigationTarget>>(initialRouteNavigationTargetByClimbId)
 
   const initialRouteSource = useMemo(() => initialRoutes || [], [initialRoutes])
+  const hasFreshInitialPayload = useMemo(() => {
+    if (!initialCrag || initialImages.length === 0 || !initialPayloadLoadedAt) return false
+    return Date.now() - initialPayloadLoadedAt <= CRAG_IMAGE_CACHE_TTL_MS
+  }, [initialCrag, initialImages.length, initialPayloadLoadedAt])
+
+  useEffect(() => {
+    if (!hasFreshInitialPayload) return
+
+    cragImageCache.set(id, {
+      crag: initialCrag,
+      images: initialImages,
+      cragCenter: initialCragCenter,
+      defaultRouteTargetByImageId: initialDefaultRouteTargetByImageId,
+      routeImageIdsByClimbId: initialRouteImageIdsByClimbId,
+      routePreviewByClimbId: initialRoutePreviewByClimbId,
+      routeNavigationTargetByClimbId: initialRouteNavigationTargetByClimbId,
+      cachedAt: initialPayloadLoadedAt || Date.now(),
+    })
+  }, [
+    hasFreshInitialPayload,
+    id,
+    initialCrag,
+    initialCragCenter,
+    initialDefaultRouteTargetByImageId,
+    initialImages,
+    initialPayloadLoadedAt,
+    initialRouteImageIdsByClimbId,
+    initialRouteNavigationTargetByClimbId,
+    initialRoutePreviewByClimbId,
+  ])
 
   const refreshCragOfflinePreview = useCallback(async () => {
     setOfflinePreviewLoading(true)
@@ -333,22 +375,8 @@ export default function CragPageClient({
         return true
       }
 
-      setImages([])
-      if (!hasInitialRouteData) {
-        setRoutes([])
-        setRouteImageIdsByClimbId({})
-      }
-      setDefaultRouteTargetByImageId({})
-      setRouteNavigationTargetByClimbId({})
-      if (!hasInitialRouteData) {
-        setRoutePreviewByClimbId({})
-      }
-      if (!initialCragCenter) {
-        setCragCenter(null)
-      }
-
-      const cached = cragImageCache.get(id)
-      if (cached && Date.now() - cached.cachedAt <= CRAG_IMAGE_CACHE_TTL_MS) {
+      const cached = getFreshCachedCragData(id)
+      if (cached) {
         setCrag(cached.crag)
         setImages(cached.images)
         setCragCenter(cached.cragCenter)
@@ -358,13 +386,21 @@ export default function CragPageClient({
         setRoutePreviewByClimbId(cached.routePreviewByClimbId)
         setLoading(false)
       } else {
-      if (!initialCrag) {
-        setLoading(true)
-      }
+        if (!initialCrag) {
+          setLoading(true)
+        }
       }
 
       if (!hasInitialRouteData) {
         setRoutesLoadState('idle')
+      }
+
+      if (hasFreshInitialPayload) {
+        setLoading(false)
+        if (offlineOnly && applyOfflineHydratedState()) {
+          return
+        }
+        return
       }
 
       if (offlineOnly && applyOfflineHydratedState()) {
@@ -614,7 +650,7 @@ export default function CragPageClient({
     return () => {
       ignore = true
     }
-  }, [hasInitialRouteData, id, initialCrag, initialCragCenter, initialRouteSource, routes])
+  }, [hasFreshInitialPayload, hasInitialRouteData, id, initialCrag, initialCragCenter, initialRouteSource, routes])
 
   useEffect(() => {
     let ignore = false
@@ -942,8 +978,19 @@ export default function CragPageClient({
       .join(',')
   }, [routes])
 
+  const hasCompleteInitialRouteTargets = useMemo(() => {
+    if (routes.length === 0) return true
+
+    return routes.every((route) => {
+      const hasImageIds = (routeImageIdsByClimbId[route.id] || []).length > 0
+      const hasPreview = Boolean(routePreviewByClimbId[route.id])
+      const hasNavigationTarget = Boolean(routeNavigationTargetByClimbId[route.id])
+      return hasImageIds && hasPreview && hasNavigationTarget
+    })
+  }, [routeImageIdsByClimbId, routeNavigationTargetByClimbId, routePreviewByClimbId, routes])
+
   useEffect(() => {
-    if (!climbIdsFingerprint || isOfflineDocumentNavigationPreferred()) return
+    if (!climbIdsFingerprint || hasCompleteInitialRouteTargets || isOfflineDocumentNavigationPreferred()) return
 
     let ignore = false
 
@@ -1022,7 +1069,7 @@ export default function CragPageClient({
     return () => {
       ignore = true
     }
-  }, [climbIdsFingerprint, id, imageById])
+  }, [climbIdsFingerprint, hasCompleteInitialRouteTargets, id, imageById])
 
   const routeTypeChips = useMemo(() => {
     const uniqueTypes = new Set<string>()

@@ -1,3 +1,5 @@
+import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
+
 export interface BreadcrumbItem {
   label: string
   href?: string
@@ -68,6 +70,17 @@ export interface RouteNavigationTarget {
   imageId: string
   displayImageId: string
   displayImageUrl: string
+}
+
+export interface InitialCragRouteData {
+  initialRoutes: CragRoute[]
+  initialRouteImageIdsByClimbId: Record<string, string[]>
+  initialRoutePreviewByClimbId: Record<string, RoutePreview>
+  initialDefaultRouteTargetByImageId: Record<string, ImageRouteTarget>
+  initialRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
+  initialImages: ImageData[]
+  initialCragCenter: [number, number] | null
+  loadedAt: number
 }
 
 export interface CragPageServerCrag {
