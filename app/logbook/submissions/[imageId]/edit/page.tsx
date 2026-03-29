@@ -1,14 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, MapPin, Search } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { SubmissionWorkstation } from '@/components/SubmissionWorkstation'
 import { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
 import { useRouteStore } from '@/store/routeStore'
 import { normalizePoints } from '@/lib/canvasMath'
-import AtlasContextCard from '@/components/submissions/atlas-context-card'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
 import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
@@ -26,6 +24,8 @@ import type { CollaboratorItem, InviteItem } from '@/lib/editor-types'
 import { sortFaceDirections, normalizePointForCompare } from '@/lib/editor-helpers'
 import { CollaboratorDialog } from '@/components/editor/collaborator-dialog'
 import { SubmissionDetailsPanel } from './components/submission-details-panel'
+import { SubmissionToolbar } from './components/submission-toolbar'
+import { SubmissionLocationPanel } from './components/submission-location-panel'
 import { DeleteRouteTransferDialog } from './components/delete-route-transfer-dialog'
 
 interface EditableRoute {
@@ -1220,27 +1220,11 @@ export default function EditSubmittedRoutesPage() {
     <div className="min-h-screen bg-white dark:bg-gray-950">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div className="mx-auto max-w-6xl px-4 py-4">
-        <div className="sticky top-0 z-30 -mx-4 mb-3 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:border-gray-800 dark:bg-gray-950/95 dark:supports-[backdrop-filter]:bg-gray-950/80 md:static md:mx-0 md:border-b-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none">
-          <div className="flex items-center justify-between gap-3">
-          <Link
-            href="/logbook"
-            className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            ← Back to logbook
-          </Link>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleSaveAllChanges}
-              disabled={!hasPendingChanges || savingAllChanges}
-              className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-            >
-              {savingAllChanges ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-              Save all changes
-            </button>
-          </div>
-          </div>
-        </div>
+        <SubmissionToolbar
+          hasPendingChanges={hasPendingChanges}
+          savingAllChanges={savingAllChanges}
+          onSaveAllChanges={handleSaveAllChanges}
+        />
 
         {collaborationAdded && (
           <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
@@ -1260,109 +1244,25 @@ export default function EditSubmittedRoutesPage() {
           </div>
         )}
 
-        <details className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900" open={cragMetadataDirty}>
-          <summary className="cursor-pointer text-sm font-semibold text-gray-900 dark:text-gray-100">Location details</summary>
-          <div className="mt-3 space-y-3">
-            <AtlasContextCard result={atlasSync} />
-            {canEditCragMetadata ? (
-              <>
-                <label className="text-xs text-gray-600 dark:text-gray-300">
-                  Crag name
-                  <input
-                    value={cragName}
-                    onChange={(event) => setCragName(event.target.value)}
-                    placeholder="e.g. Leaning Tower"
-                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                  />
-                </label>
-                <label className="text-xs text-gray-600 dark:text-gray-300">
-                  Region tag
-                  <input
-                    value={regionTag}
-                    onChange={(event) => setRegionTag(event.target.value)}
-                    placeholder="e.g. Yosemite Valley"
-                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                  />
-                </label>
-                <label className="text-xs text-gray-600 dark:text-gray-300">
-                  Sub-area (optional)
-                  <input
-                    value={subArea}
-                    onChange={(event) => setSubArea(event.target.value)}
-                    placeholder="e.g. Valley S Side"
-                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                  />
-                </label>
-              </>
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Only the submission owner can edit crag and region details.
-              </p>
-            )}
-          </div>
-        </details>
-
-        <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-          <div className="mb-3 flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-gray-500" />
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Image location</h2>
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label className="text-xs text-gray-600 dark:text-gray-300">
-              Latitude
-              <input
-                value={latitude}
-                onChange={(event) => setLatitude(event.target.value)}
-                placeholder="e.g. 48.4049"
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-              />
-            </label>
-            <label className="text-xs text-gray-600 dark:text-gray-300">
-              Longitude
-              <input
-                value={longitude}
-                onChange={(event) => setLongitude(event.target.value)}
-                placeholder="e.g. 2.6920"
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-              />
-            </label>
-          </div>
-
-          <div className="mt-3 flex gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    void handleSearchLocation()
-                  }
-                }}
-                placeholder="Search for a location..."
-                className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                void handleSearchLocation()
-              }}
-              disabled={searchingLocation}
-              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-            >
-              {searchingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Search
-            </button>
-          </div>
-
-          {locationSearchError ? (
-            <p className="mt-2 text-xs text-red-600 dark:text-red-400">{locationSearchError}</p>
-          ) : null}
-
-        </div>
+        <SubmissionLocationPanel
+          atlasSync={atlasSync}
+          canEditCragMetadata={canEditCragMetadata}
+          cragName={cragName}
+          onCragNameChange={setCragName}
+          regionTag={regionTag}
+          onRegionTagChange={setRegionTag}
+          subArea={subArea}
+          onSubAreaChange={setSubArea}
+          latitude={latitude}
+          onLatitudeChange={setLatitude}
+          longitude={longitude}
+          onLongitudeChange={setLongitude}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          onSearchLocation={handleSearchLocation}
+          searchingLocation={searchingLocation}
+          locationSearchError={locationSearchError}
+        />
 
         {hasReadyData && activeImageUrl ? (
           <SubmissionWorkstation
