@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react'
 
-import { pointToLineDistance, generateCurvePoints, findRouteAtPoint, generateRouteId, type RouteWithLabels } from '@/lib/route-geometry'
+import { pointToLineDistance, generateCurvePoints, findRouteAtPoint, generateRouteId } from '@/lib/route-geometry'
 import type { RoutePoint } from '@/types/domain'
+import type { RouteWithLabels } from '@/lib/route-geometry'
 
 interface UseRouteSelectionReturn {
   selectedIds: string[]
@@ -54,5 +55,3 @@ export function useRouteSelection(): UseRouteSelectionReturn {
     toggleSelection
   }
 }
-
-export { pointToLineDistance, generateCurvePoints, findRouteAtPoint, generateRouteId, type RouteWithLabels, type RoutePoint } from '@/lib/route-geometry'

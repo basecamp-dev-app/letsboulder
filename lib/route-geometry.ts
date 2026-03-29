@@ -71,14 +71,6 @@ export function generateCurvePoints(points: RoutePoint[], segmentsPerCurve: numb
   return curvePoints
 }
 
-export interface RouteWithLabels {
-  id: string
-  points: RoutePoint[]
-  grade: string
-  name: string
-  logged?: boolean
-}
-
 export function findRouteAtPoint(
   routes: RouteWithLabels[],
   point: RoutePoint,

@@ -66,6 +66,11 @@ export interface Climb {
   created_at: string
 }
 
+export interface RoutePoint {
+  x: number
+  y: number
+}
+
 export interface RouteLine {
   id: string
   image_id: string
@@ -84,11 +89,6 @@ export interface RouteLine {
     route_type?: string | null
     description?: string | null
   }
-}
-
-export interface RoutePoint {
-  x: number
-  y: number
 }
 
 export interface NewRouteData {

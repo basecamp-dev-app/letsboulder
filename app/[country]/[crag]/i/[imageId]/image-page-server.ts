@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { getDisplayImageId } from '@/lib/image-identity'
 import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
-import type { RoutePoint } from '@/features/climb/hooks/use-route-selection'
+import type { RoutePoint } from '@/types/domain'
 
 interface CragRow {
   id: string
