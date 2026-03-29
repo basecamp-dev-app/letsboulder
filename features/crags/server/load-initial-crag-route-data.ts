@@ -1,8 +1,9 @@
+import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import { buildSelectableImageIdByImageId } from '@/lib/image-identity'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
-import { dedupeCragRoutes, formatCragRoutes, getAverageCoordinates, remapRoutePreviewsByEffectiveClimbId } from '@/features/crags/lib/crag-page-domain'
-import type { ClimbIdentityRow } from '@/features/crags/lib/crag-page-domain'
-import type { RoutePreview } from '@/features/crags/lib/crag-page-types'
+import { dedupeCragRoutes, formatCragRoutes, getAverageCoordinates, mapRouteTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId } from '@/features/crags/lib/crag-page-domain'
+import type { ClimbIdentityRow, RouteLineTargetRow } from '@/features/crags/lib/crag-page-domain'
+import type { InitialCragRouteData, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { Database } from '@/types/database'
 
 type SupabaseClientLike = {
@@ -35,12 +36,11 @@ interface CragImageLinkRow {
   source_image_id: string | null
 }
 
-interface RouteLineTargetRow {
-  image_id: string
-  climb_id: string
-}
-
-export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cragId: string, cragCoords?: { latitude: number | null; longitude: number | null }) {
+export async function loadInitialCragRouteData(
+  supabase: SupabaseClientLike,
+  cragId: string,
+  cragCoords?: { latitude: number | null; longitude: number | null }
+): Promise<InitialCragRouteData> {
   const { data: routeData } = await supabase.rpc('get_crag_route_intelligence', { p_crag_id: cragId })
   const baseRoutes = formatCragRoutes(routeData || [])
 
@@ -93,20 +93,32 @@ export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cra
     ...image,
     url: resolveRouteImageUrl(image.url),
   }))
+  const initialImages = images.map((image) => ({
+    id: image.id,
+    url: image.url,
+    latitude: image.latitude,
+    longitude: image.longitude,
+    route_lines_count: 0,
+    is_verified: false,
+    verification_count: 0,
+    supplementary_faces_count: 0,
+  }))
   const selectableImageIdByImageId = buildSelectableImageIdByImageId(
     images,
     ((cragImageLinkData || []) as CragImageLinkRow[])
   )
 
-  const imageById = new Map(images.map((image) => [image.id, image]))
+  const imageById = new Map(initialImages.map((image) => [image.id, image]))
   const imageIds = images.map((image) => image.id)
   const initialRoutePreviewByClimbId: Record<string, RoutePreview> = {}
   const initialRouteImageIdsByClimbId: Record<string, string[]> = {}
+  const initialDefaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
+  const initialRouteNavigationTargetByClimbId: Record<string, InitialCragRouteData['initialRouteNavigationTargetByClimbId'][string]> = {}
 
   if (imageIds.length > 0) {
     const { data: routeLineData } = await supabase
       .from('route_lines')
-      .select('image_id, climb_id')
+      .select('id, image_id, climb_id, climbs(slug)')
       .in('image_id', imageIds)
       .order('image_id', { ascending: true })
       .order('sequence_order', { ascending: true, nullsFirst: false })
@@ -127,7 +139,26 @@ export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cra
         imageId: selectableImageId,
         imageUrl: image.url,
       }
+
+      if (!initialDefaultRouteTargetByImageId[selectableImageId]) {
+        const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
+        initialDefaultRouteTargetByImageId[selectableImageId] = {
+          climbId: row.climb_id,
+          routeId: row.id,
+          climbSlug: climb?.slug || null,
+          imageId: selectableImageId,
+        }
+      }
     }
+
+    const mappedTargets = mapRouteTargetsByEffectiveClimbId(
+      (routeLineData || []) as RouteLineTargetRow[],
+      imageById,
+      effectiveClimbIdByClimbId,
+      selectableImageIdByImageId
+    )
+
+    Object.assign(initialRouteNavigationTargetByClimbId, mappedTargets.nextRouteNavigationTargetByClimbId)
   }
 
   const initialRoutes = dedupeCragRoutes(baseRoutes, effectiveClimbIdByClimbId)
@@ -144,16 +175,10 @@ export async function loadInitialCragRouteData(supabase: SupabaseClientLike, cra
     initialRoutes,
     initialRouteImageIdsByClimbId,
     initialRoutePreviewByClimbId: dedupedRoutePreviewByClimbId,
-    initialImages: images.map((image) => ({
-      id: image.id,
-      url: image.url,
-      latitude: image.latitude,
-      longitude: image.longitude,
-      route_lines_count: 0,
-      is_verified: false,
-      verification_count: 0,
-      supplementary_faces_count: 0,
-    })),
+    initialDefaultRouteTargetByImageId,
+    initialRouteNavigationTargetByClimbId,
+    initialImages,
     initialCragCenter,
+    loadedAt: Date.now(),
   }
 }
