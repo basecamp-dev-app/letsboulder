@@ -3,6 +3,73 @@ export interface BreadcrumbItem {
   href?: string
 }
 
+export interface Crag {
+  id: string
+  name: string
+  slug: string | null
+  country_id?: string | null
+  country_code: string | null
+  region_name?: string | null
+  sub_area?: string | null
+  country_name?: string | null
+  admin_region_name?: string | null
+  un_region_name?: string | null
+  continent_name?: string | null
+  latitude: number | null
+  longitude: number | null
+  region_id: string | null
+  description: string | null
+  access_notes: string | null
+  rock_type: string | null
+  type: string | null
+  climbing_areas?: {
+    id: string
+    name: string
+  }
+}
+
+export interface ImageData {
+  id: string
+  url: string
+  latitude: number | null
+  longitude: number | null
+  created_at?: string | null
+  route_lines_count: number
+  is_verified: boolean
+  verification_count: number
+  supplementary_faces_count: number
+}
+
+export interface CragRoute {
+  id: string
+  name: string
+  grade: string
+  slug: string | null
+  routeType: string | null
+  directions: string[]
+  hasTopo: boolean
+  topoImageCount: number
+  ratingAvg: number | null
+  ratingCount: number
+  weightedRating: number | null
+  sendCount: number
+  recentSendCount60d: number
+}
+
+export interface RoutePreview {
+  imageId: string
+  imageUrl: string
+}
+
+export interface RouteNavigationTarget {
+  climbId: string
+  routeId: string
+  climbSlug: string | null
+  imageId: string
+  displayImageId: string
+  displayImageUrl: string
+}
+
 export interface CragPageServerCrag {
   id: string
   name: string

@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { notFound, permanentRedirect } from 'next/navigation'
 import CragPageClient from '@/app/crag/components/CragPageClient'
 import { loadInitialCragRouteData } from '@/app/crag/components/crag-page-server'
-import type { Crag } from '@/app/crag/components/CragPageClient'
+import type { Crag } from '@/app/crag/components/crag-page-types'
 
 export const revalidate = 300
 

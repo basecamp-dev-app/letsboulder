@@ -4,9 +4,8 @@ import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import CragPageClient from '@/app/crag/components/CragPageClient'
 import { loadInitialCragRouteData } from '@/app/crag/components/crag-page-server'
-import type { Crag } from '@/app/crag/components/CragPageClient'
 import CragStructuredData from '@/app/crag/components/CragStructuredData'
-import type { BreadcrumbItem } from '@/app/crag/components/crag-page-types'
+import type { BreadcrumbItem, Crag } from '@/app/crag/components/crag-page-types'
 
 export const revalidate = 60
 
