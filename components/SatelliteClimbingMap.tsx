@@ -143,10 +143,22 @@ function MapStateWatcher({
   return null
 }
 
+function MapInteractionWatcher({ onInteract }: { onInteract: () => void }) {
+  useMapEvents({
+    click: onInteract,
+    mousedown: onInteract,
+    zoomstart: onInteract,
+    movestart: onInteract,
+  })
+
+  return null
+}
+
 export default function SatelliteClimbingMap() {
   const router = useRouter()
   const mapRef = useRef<L.Map | null>(null)
   const [isClient, setIsClient] = useState(false)
+  const [hasUserInteracted, setHasUserInteracted] = useState(false)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
   const [mapLoaded, setMapLoaded] = useState(false)
@@ -162,6 +174,10 @@ export default function SatelliteClimbingMap() {
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
     setMapZoom(state.zoom)
     setMapBounds(state.bounds)
+  }, [])
+
+  const markMapInteracted = useCallback(() => {
+    setHasUserInteracted(true)
   }, [])
 
   const pinFeatures = useMemo<PinFeature[]>(() => {
@@ -245,14 +261,14 @@ export default function SatelliteClimbingMap() {
   }, [isClient])
 
   useEffect(() => {
-    if (!isClient || !mapLoaded) return
+    if (!isClient || !mapLoaded || !hasUserInteracted) return
     return runWhenIdle(() => {
       void loadPlacePins()
     }, 150)
-  }, [isClient, loadPlacePins, mapLoaded])
+  }, [hasUserInteracted, isClient, loadPlacePins, mapLoaded])
 
   useEffect(() => {
-    if (!isClient || !mapLoaded) return
+    if (!isClient || !mapLoaded || !hasUserInteracted) return
 
     if (!navigator.geolocation) return
 
@@ -269,10 +285,10 @@ export default function SatelliteClimbingMap() {
         { enableHighAccuracy: true, timeout: 15000 }
       )
     }, 400)
-  }, [isClient, mapLoaded])
+  }, [hasUserInteracted, isClient, mapLoaded])
 
   useEffect(() => {
-    if (!isClient || !mapLoaded) return
+    if (!isClient || !mapLoaded || !hasUserInteracted) return
 
     let ignore = false
 
@@ -319,7 +335,7 @@ export default function SatelliteClimbingMap() {
       cancelIdle()
       window.removeEventListener('focus', handleFocus)
     }
-    }, [isClient, mapLoaded])
+    }, [hasUserInteracted, isClient, mapLoaded])
 
   const handleSaveAsDefault = async () => {
     if (!mapRef.current || !user) {
@@ -407,6 +423,7 @@ export default function SatelliteClimbingMap() {
       >
         <DefaultLocationWatcher defaultLocation={defaultLocation} mapRef={mapRef} />
         <MapStateWatcher onStateChange={handleMapStateChange} />
+        <MapInteractionWatcher onInteract={markMapInteracted} />
         <TileLayer
           url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
           attribution='Imagery © Esri'
