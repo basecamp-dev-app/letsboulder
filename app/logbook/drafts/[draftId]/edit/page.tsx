@@ -21,13 +21,14 @@ import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirec
 import { createClient } from '@/lib/supabase'
 import { buildMapPins, reorderItemsByIds, resequenceRoutes, resolveLocationMode } from '@/lib/editor-image-state'
 import type { EditableRoute } from '@/lib/editor-types'
-import { sortFaceDirections, normalizePointForCompare, coordinateKey } from '@/lib/editor-helpers'
+import { sortFaceDirections, coordinateKey } from '@/lib/editor-helpers'
 import { CollaboratorDialog } from '@/components/editor/collaborator-dialog'
 import { useDraftEditorData } from './hooks/use-draft-editor-data'
 import { useDraftConflictResolution } from './hooks/use-draft-conflict-resolution'
 import { useDraftCollaborators } from './hooks/use-draft-collaborators'
 import { useDraftLocationMetadata } from './hooks/use-draft-location-metadata'
 import { useDraftRouteEditing } from './hooks/use-draft-route-editing'
+import { areSerializedRoutesEqual, buildHighResCanvasUrl, buildRouteCompletionPayload, buildRouteWorkflowSignature, parseSerializedRouteData } from '@/features/route-editor/route-editor-utils'
 import { DraftToolbar } from './components/draft-toolbar'
 import { DraftMetadataPanel } from './components/draft-metadata-panel'
 import { DraftDetailsPanel } from './components/draft-details-panel'
@@ -149,97 +150,6 @@ interface PublishedCragImagePin {
   longitude: number
 }
 
-function parseRoutesFromRouteData(routeData: Record<string, unknown> | null, fallbackWidth: number, fallbackHeight: number): DraftRoute[] {
-  const raw = routeData && typeof routeData === 'object'
-    ? (routeData as { completedRoutes?: unknown }).completedRoutes
-    : null
-  if (!Array.isArray(raw)) return []
-
-  const routes: DraftRoute[] = []
-  raw.forEach((item, index) => {
-    if (!item || typeof item !== 'object') return
-    const candidate = item as {
-      id?: unknown
-      name?: unknown
-      grade?: unknown
-      description?: unknown
-      climbType?: unknown
-      points?: unknown
-      sequenceOrder?: unknown
-      imageWidth?: unknown
-      imageHeight?: unknown
-    }
-
-    const points = Array.isArray(candidate.points)
-      ? candidate.points
-        .filter((point) => point && typeof point === 'object' && typeof (point as { x?: unknown }).x === 'number' && typeof (point as { y?: unknown }).y === 'number')
-        .map((point) => ({ x: (point as { x: number }).x, y: (point as { y: number }).y }))
-      : []
-
-    if (points.length < 2) return
-
-    routes.push({
-      id: typeof candidate.id === 'string' && candidate.id ? candidate.id : `route-${index + 1}`,
-      name: typeof candidate.name === 'string' && candidate.name.trim() ? candidate.name.trim() : `Route ${index + 1}`,
-      grade: typeof candidate.grade === 'string' && candidate.grade ? candidate.grade : '6A',
-      description: typeof candidate.description === 'string' ? candidate.description : undefined,
-      climbType: typeof candidate.climbType === 'string' ? candidate.climbType : undefined,
-      points,
-      sequenceOrder: typeof candidate.sequenceOrder === 'number' ? candidate.sequenceOrder : index,
-      imageWidth: typeof candidate.imageWidth === 'number' ? candidate.imageWidth : fallbackWidth,
-      imageHeight: typeof candidate.imageHeight === 'number' ? candidate.imageHeight : fallbackHeight,
-    })
-  })
-
-  return routes
-}
-
-function buildDraftImagesPayload(
-  images: DraftImagePayload[],
-  routesByImageId: Record<string, DraftRoute[]>,
-  routeType: string,
-  orderedManageImages?: ManageImageTab[]
-): DraftSavePayload['images'] {
-  const imageOrderLookup = new Map((orderedManageImages || []).map((image, index) => [image.imageId, index]))
-  return images
-    .slice()
-    .sort((a, b) => {
-      const left = imageOrderLookup.get(a.id)
-      const right = imageOrderLookup.get(b.id)
-      if (typeof left === 'number' && typeof right === 'number') return left - right
-      if (typeof left === 'number') return -1
-      if (typeof right === 'number') return 1
-      return a.display_order - b.display_order
-    })
-    .map((image, index) => {
-      const routes = routesByImageId[image.id] || []
-      const completedRoutes = routes.map((route, routeIndex) => ({
-        id: route.id,
-        name: route.name,
-        grade: route.grade,
-        description: route.description,
-        climbType: route.climbType || routeType,
-        points: route.points,
-        sequenceOrder: routeIndex,
-        imageWidth: route.imageWidth || image.width || 1200,
-        imageHeight: route.imageHeight || image.height || 1200,
-      }))
-
-      const baseRouteData = image.route_data && typeof image.route_data === 'object'
-        ? image.route_data
-        : {}
-
-      return {
-        id: image.id,
-        display_order: index,
-        route_data: {
-          ...baseRouteData,
-          completedRoutes,
-        },
-      }
-    })
-}
-
 function buildManageImageLabel(index: number, imageId: string, defaultImageId: string | null, directions?: OrientationDirection[]): string {
   const directionsLabel = Array.isArray(directions) && directions.length > 0 ? ` (${directions.join('/')})` : ''
   return imageId === defaultImageId ? `Default${directionsLabel}` : `Image ${index + 1}${directionsLabel}`
@@ -264,183 +174,6 @@ function isValidLocationCoordinate(latitude: number | null | undefined, longitud
     && !(latitude === 0 && longitude === 0)
 }
 
-function buildHighResCanvasUrl(url: string): string {
-  const trimmedUrl = url.trim()
-  if (!trimmedUrl) return ''
-  if (trimmedUrl.startsWith('blob:')) return trimmedUrl
-
-  try {
-    const parsedUrl = new URL(trimmedUrl, 'http://placeholder')
-
-    // Handle media worker URLs with ?variant= query param
-    const variant = parsedUrl.searchParams.get('variant')
-    if (variant && variant !== 'topo' && variant !== 'full') {
-      parsedUrl.searchParams.set('variant', 'topo')
-      if (!parsedUrl.searchParams.has('format')) {
-        parsedUrl.searchParams.set('format', 'jpeg')
-      }
-      return trimmedUrl.startsWith('/') ? `${parsedUrl.pathname}${parsedUrl.search}` : parsedUrl.toString()
-    }
-    if (variant === 'topo' || variant === 'full') {
-      return trimmedUrl
-    }
-
-    // Handle legacy /thumbnail or /preview path-based variants
-    const pathLower = parsedUrl.pathname.toLowerCase()
-    const isLowResVariant = pathLower.includes('/thumbnail') || pathLower.includes('/preview')
-    if (!isLowResVariant) {
-      return trimmedUrl
-    }
-
-    const width = Number(parsedUrl.searchParams.get('w') || parsedUrl.searchParams.get('width') || '0')
-    parsedUrl.searchParams.set('w', String(Math.max(width, 2048)))
-    parsedUrl.searchParams.set('q', '90')
-    parsedUrl.searchParams.delete('width')
-    return trimmedUrl.startsWith('/') ? `${parsedUrl.pathname}${parsedUrl.search}` : parsedUrl.toString()
-  } catch {
-    return trimmedUrl
-  }
-}
-
-function areDraftRoutesEqual(a: DraftRoute[], b: DraftRoute[]): boolean {
-  if (a === b) return true
-  if (a.length !== b.length) return false
-
-  for (let i = 0; i < a.length; i += 1) {
-    const left = a[i]
-    const right = b[i]
-
-    if (
-      left.id !== right.id ||
-      left.name !== right.name ||
-      left.grade !== right.grade ||
-      (left.description || '') !== (right.description || '') ||
-      (left.climbType || '') !== (right.climbType || '') ||
-      left.sequenceOrder !== right.sequenceOrder ||
-      left.imageWidth !== right.imageWidth ||
-      left.imageHeight !== right.imageHeight
-    ) {
-      return false
-    }
-
-    if (left.points.length !== right.points.length) return false
-
-    for (let pointIndex = 0; pointIndex < left.points.length; pointIndex += 1) {
-      const leftPoint = left.points[pointIndex]
-      const rightPoint = right.points[pointIndex]
-      if (
-        normalizePointForCompare(leftPoint.x) !== normalizePointForCompare(rightPoint.x) ||
-        normalizePointForCompare(leftPoint.y) !== normalizePointForCompare(rightPoint.y)
-      ) {
-        return false
-      }
-    }
-  }
-
-  return true
-}
-
-function areRouteLinesEqual(a: RouteLine[], b: RouteLine[]): boolean {
-  if (a === b) return true
-  if (a.length !== b.length) return false
-
-  for (let i = 0; i < a.length; i += 1) {
-    const left = a[i]
-    const right = b[i]
-    if (
-      left.id !== right.id ||
-      left.image_id !== right.image_id ||
-      left.climb_id !== right.climb_id ||
-      left.color !== right.color ||
-      left.sequence_order !== right.sequence_order ||
-      left.image_width !== right.image_width ||
-      left.image_height !== right.image_height ||
-      (left.climb?.id || '') !== (right.climb?.id || '') ||
-      (left.climb?.name || '') !== (right.climb?.name || '') ||
-      (left.climb?.grade || '') !== (right.climb?.grade || '') ||
-      (left.climb?.status || '') !== (right.climb?.status || '') ||
-      (left.climb?.route_type || '') !== (right.climb?.route_type || '') ||
-      (left.climb?.description || '') !== (right.climb?.description || '')
-    ) {
-      return false
-    }
-
-    if (left.points.length !== right.points.length) return false
-    for (let pointIndex = 0; pointIndex < left.points.length; pointIndex += 1) {
-      const leftPoint = left.points[pointIndex]
-      const rightPoint = right.points[pointIndex]
-      if (
-        normalizePointForCompare(leftPoint.x) !== normalizePointForCompare(rightPoint.x) ||
-        normalizePointForCompare(leftPoint.y) !== normalizePointForCompare(rightPoint.y)
-      ) {
-        return false
-      }
-    }
-  }
-
-  return true
-}
-
-function buildDraftAutosaveSignature(input: {
-  imagesPayloadSignature: string
-  defaultImageId: string | null
-  routeType: string
-  markerLatitude: number | null
-  markerLongitude: number | null
-  cragId: string | null
-  isAnonymousSubmission: boolean
-  creditPlatform: string
-  creditHandle: string | null
-  sectorId: string | null
-  canvasSource: { kind?: 'draft-image' | 'crag-image'; draftImageId?: string; cragImageId?: string; cragId?: string } | null
-  orientationByImageId: Record<string, OrientationDirection[]>
-  locationModeByImageId: Record<string, 'shared' | 'custom'>
-  customGpsByImageId: Record<string, { latitude: number | null; longitude: number | null }>
-}): string {
-  const imageIds = Array.from(new Set([
-    ...Object.keys(input.orientationByImageId),
-    ...Object.keys(input.locationModeByImageId),
-    ...Object.keys(input.customGpsByImageId),
-  ])).sort()
-
-  return JSON.stringify({
-    imagesPayloadSignature: input.imagesPayloadSignature,
-    defaultImageId: input.defaultImageId,
-    submission: {
-      routeType: input.routeType,
-      location: {
-        latitude: input.markerLatitude,
-        longitude: input.markerLongitude,
-      },
-      isAnonymousSubmission: input.isAnonymousSubmission,
-      contributionCreditPlatform: input.creditPlatform,
-      contributionCreditHandle: input.creditHandle,
-      sectorId: input.sectorId,
-      canvasSource: input.canvasSource?.kind === 'crag-image'
-        ? {
-            kind: 'crag-image',
-            cragImageId: input.canvasSource.cragImageId,
-            cragId: input.canvasSource.cragId,
-          }
-        : input.canvasSource?.kind === 'draft-image'
-          ? {
-              kind: 'draft-image',
-              draftImageId: input.canvasSource.draftImageId,
-            }
-          : null,
-    },
-    images: imageIds.map((imageId) => ({
-      imageId,
-      orientation: input.orientationByImageId[imageId] || [],
-      locationMode: input.locationModeByImageId[imageId] === 'custom' ? 'custom' : 'shared',
-      gps: {
-        latitude: input.customGpsByImageId[imageId]?.latitude ?? null,
-        longitude: input.customGpsByImageId[imageId]?.longitude ?? null,
-      },
-    })),
-    cragId: input.cragId,
-  })
-}
 
 export default function EditDraftPage() {
   const params = useParams()
@@ -541,7 +274,7 @@ export default function EditDraftPage() {
   const nearbyCragId = atlasSync.nearbyCrag?.id ?? null
   const nearbyCragName = atlasSync.nearbyCrag?.name ?? null
   const { imagesPayload, imagesPayloadSignature } = useDraftEditorData({ draft, routeType, routesByImageId, manageImages })
-  const autosaveSignature = useMemo(() => buildDraftAutosaveSignature({
+  const autosaveSignature = useMemo(() => buildRouteWorkflowSignature({
     imagesPayloadSignature,
     defaultImageId,
     routeType,
@@ -612,7 +345,7 @@ export default function EditDraftPage() {
 
       const nextRoutesByImageId: Record<string, DraftRoute[]> = {}
       persistedImages.forEach((image) => {
-        nextRoutesByImageId[image.id] = parseRoutesFromRouteData(image.route_data, image.width || 1200, image.height || 1200)
+        nextRoutesByImageId[image.id] = parseSerializedRouteData(image.route_data, image.width || 1200, image.height || 1200)
       })
       const nextManageImages = sortedImages.map<ManageImageTab>((image, index) => {
         const directions = nextOrientationByImageId[image.id]
@@ -672,8 +405,8 @@ export default function EditDraftPage() {
       setRoutesByImageId(nextRoutesByImageId)
       hasLoadedRoutesRef.current = true
       const savedCanvasSource = canvasMetadata.submission?.canvasSource
-      lastPersistedRoutesRef.current = buildDraftAutosaveSignature({
-        imagesPayloadSignature: JSON.stringify(buildDraftImagesPayload(nextDraft.images, nextRoutesByImageId, normalizedRouteType, nextManageImages)),
+      lastPersistedRoutesRef.current = buildRouteWorkflowSignature({
+        imagesPayloadSignature: JSON.stringify(buildRouteCompletionPayload(nextDraft.images, nextRoutesByImageId, normalizedRouteType, nextManageImages.map((image) => image.imageId))),
         defaultImageId: nextDefaultImageId,
         routeType: normalizedRouteType,
         markerLatitude: typeof metadataLatitude === 'number' ? metadataLatitude : null,
@@ -1613,7 +1346,7 @@ export default function EditDraftPage() {
     }
 
     try {
-      const nextImagesPayload = buildDraftImagesPayload(draft.images, resolvedRoutesByImageId, routeType, manageImages)
+      const nextImagesPayload = buildRouteCompletionPayload(draft.images, resolvedRoutesByImageId, routeType, manageImages.map((image) => image.imageId))
       const normalizedHandle = normalizeSubmissionCreditHandle(creditHandle)
       if (creditHandle.trim().length > 0 && !normalizedHandle) {
         throw new Error('Invalid credit handle format')
@@ -1696,8 +1429,8 @@ export default function EditDraftPage() {
               setAutosaveState('syncing')
               if (!isSelfConflict) {
               autosavePausedRef.current = true
-              autosavePausedSnapshotRef.current = buildDraftAutosaveSignature({
-                imagesPayloadSignature: JSON.stringify(buildDraftImagesPayload(draft.images, resolvedRoutesByImageId, routeType, manageImages)),
+              autosavePausedSnapshotRef.current = buildRouteWorkflowSignature({
+                imagesPayloadSignature: JSON.stringify(buildRouteCompletionPayload(draft.images, resolvedRoutesByImageId, routeType, manageImages.map((image) => image.imageId))),
                 defaultImageId,
                 routeType,
                 markerLatitude: markerPosition ? markerPosition[0] : null,
@@ -1737,7 +1470,7 @@ export default function EditDraftPage() {
         },
       } : prev)
       setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
-      lastPersistedRoutesRef.current = buildDraftAutosaveSignature({
+      lastPersistedRoutesRef.current = buildRouteWorkflowSignature({
         imagesPayloadSignature: JSON.stringify(savePayload.images),
         defaultImageId,
         routeType,
@@ -1855,7 +1588,7 @@ export default function EditDraftPage() {
         }
       })
 
-      if (areDraftRoutesEqual(current, mapped)) return prev
+      if (areSerializedRoutesEqual(current, mapped)) return prev
 
       const nextRoutesByImageId = {
         ...prev,
@@ -1885,7 +1618,7 @@ export default function EditDraftPage() {
     if (lastSeededRouteImageIdRef.current === activeDraftImageId) return
 
     lastSeededRouteImageIdRef.current = activeDraftImageId
-    if (!areRouteLinesEqual(routeStoreRoutes, existingRouteLines)) {
+    if (!areSerializedRoutesEqual(routeStoreRoutes.map((route) => ({ id: route.id, name: route.climb?.name || 'Unnamed', grade: route.climb?.grade || '6A', description: route.climb?.description ?? undefined, climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : undefined, points: route.points, sequenceOrder: route.sequence_order, imageWidth: route.image_width ?? 0, imageHeight: route.image_height ?? 0 })), existingRouteLines.map((route) => ({ id: route.id, name: route.climb?.name || 'Unnamed', grade: route.climb?.grade || '6A', description: route.climb?.description ?? undefined, climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : undefined, points: route.points, sequenceOrder: route.sequence_order, imageWidth: route.image_width ?? 0, imageHeight: route.image_height ?? 0 })))) {
       skipRouteStoreSyncRef.current = activeDraftImageId
       setRouteStoreRoutes(existingRouteLines)
     }
@@ -1897,7 +1630,7 @@ export default function EditDraftPage() {
       skipRouteStoreSyncRef.current = null
       return
     }
-    if (areRouteLinesEqual(routeStoreRoutes, existingRouteLines)) return
+    if (areSerializedRoutesEqual(routeStoreRoutes.map((route) => ({ id: route.id, name: route.climb?.name || 'Unnamed', grade: route.climb?.grade || '6A', description: route.climb?.description ?? undefined, climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : undefined, points: route.points, sequenceOrder: route.sequence_order, imageWidth: route.image_width ?? 0, imageHeight: route.image_height ?? 0 })), existingRouteLines.map((route) => ({ id: route.id, name: route.climb?.name || 'Unnamed', grade: route.climb?.grade || '6A', description: route.climb?.description ?? undefined, climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : undefined, points: route.points, sequenceOrder: route.sequence_order, imageWidth: route.image_width ?? 0, imageHeight: route.image_height ?? 0 })))) return
     handleCanvasRoutesUpdate(routeStoreRoutes)
   }, [activeDraftImageId, existingRouteLines, handleCanvasRoutesUpdate, routeStoreRoutes])
 

@@ -17,25 +17,7 @@ import ClimbInfoPanel from '@/app/climb/components/ClimbInfoPanel'
 import { useGradeSystem } from '@/hooks/useGradeSystem'
 import { csrfFetch } from '@/hooks/useCsrf'
 import type { GradeOpinion } from '@/lib/grade-feedback'
-
-function parsePoints(raw: RoutePoint[] | string | null | undefined): RoutePoint[] {
-  if (!raw) return []
-  if (Array.isArray(raw)) {
-    return raw
-      .filter((point) => typeof point?.x === 'number' && typeof point?.y === 'number')
-      .map((point) => ({ x: point.x, y: point.y }))
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as RoutePoint[]
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .filter((point) => typeof point?.x === 'number' && typeof point?.y === 'number')
-      .map((point) => ({ x: point.x, y: point.y }))
-  } catch {
-    return []
-  }
-}
+import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 
 type UserClimbRow = Database['public']['Tables']['user_climbs']['Row']
 
@@ -350,7 +332,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     })
 
     return filteredRoutes.map((route) => {
-      const rawPoints = parsePoints(route.pathData)
+      const rawPoints = parseRoutePoints(route.pathData)
       const normalized = normalizePoints(rawPoints, {
         width: activeImageMeta.width,
         height: activeImageMeta.height,
