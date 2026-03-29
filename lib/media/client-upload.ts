@@ -1,4 +1,4 @@
-import { csrfFetch } from '@/hooks/useCsrf'
+import { csrfFetch } from '@/lib/csrf-client'
 import { uploadDebug } from '@/lib/media/upload-debug'
 
 interface UploadSessionRequest {

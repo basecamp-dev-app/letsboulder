@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import imageCompression from 'browser-image-compression'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { csrfFetch } from '@/lib/csrf-client'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { extractGpsFromFile } from '@/lib/image-gps'
 
