@@ -1,4 +1,4 @@
-import CragPageSkeleton from '@/app/crag/components/CragPageSkeleton'
+import CragPageSkeleton from '@/features/crags/components/CragPageSkeleton'
 
 export default function Loading() {
   return <CragPageSkeleton />

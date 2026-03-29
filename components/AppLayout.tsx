@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { SubmitProvider } from '@/features/submissions/providers/submit-context'
-import { MediaUploadManagerProvider } from '@/lib/media/media-upload-manager'
+import { MediaUploadManagerProvider } from '@/features/submissions/upload/providers/MediaUploadManagerProvider'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

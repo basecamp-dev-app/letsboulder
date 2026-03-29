@@ -29,7 +29,7 @@ Bouldering topo and climbing logbook web app.
 - **Location**: Root of repo
 - **Deploy**: Vercel, auto-deploys from `dev` and `main` branches
 - **Router**: App Router (`app/`) with Server Components and Server Actions
-- **Client State**: Zustand (`store/routeStore.ts`) for route drawing state
+- **Client State**: feature route editor store (`features/route-editor/store/index.ts`) for route drawing state
 - **Server State**: TanStack React Query with 12-hour IndexedDB persistence (`lib/query-persistence.ts`)
 - **Images**: Custom Cloudflare image loader (`lib/media/cloudflare-loader.ts`)
 
@@ -93,6 +93,7 @@ The web app is standardizing on feature-first product boundaries.
 - `lib/` owns cross-feature technical utilities and platform integrations.
 - `hooks/` should be limited to cross-feature generic hooks; domain hooks should live under their feature.
 - `store/` should only hold shared app-wide stores; feature-specific stores should move under the owning feature.
+- Submission and draft route handlers should stay thin in `app/api/**`; validation, orchestration, and response shaping should live under `features/submissions/server/**`.
 
 ### Import Rules
 
@@ -114,6 +115,8 @@ The web app is standardizing on feature-first product boundaries.
 | `lib/media/r2.ts` | Cloudflare R2 S3 operations |
 | `lib/grades.ts` | Grade conversion engine (3A-9C+) |
 | `public/sw.js` | Service worker for offline PWA |
-| `components/UnifiedRouteCanvas.tsx` | Canvas-based route drawing |
-| `store/routeStore.ts` | Zustand store for route selection |
+| `features/route-editor/components/UnifiedRouteCanvas.tsx` | Canvas-based route drawing |
+| `features/route-editor/store/index.ts` | Zustand store for route selection |
+| `features/submissions/server/submissions/` | Submission API validation and mode executors |
+| `features/submissions/server/drafts/` | Draft API orchestration, collaboration, and promotion helpers |
 | `supabase/migrations/` | 205+ SQL migration files |

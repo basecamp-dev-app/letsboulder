@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { buildCragImageDestination } from '@/app/crag/components/crag-image-destination'
+import { buildCragImageDestination } from '@/features/crags/lib/build-crag-image-destination'
 
 describe('buildCragImageDestination', () => {
   test('preserves image and route params for slug routes', () => {

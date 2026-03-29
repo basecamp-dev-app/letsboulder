@@ -2,58 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
-import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { buildUploadSignature, normalizeCreateImages, validateDraftImageOwnership } from '@/features/submissions/server/drafts/draft-route-helpers'
 
 export const runtime = 'nodejs'
-
-interface DraftCreateImageInput {
-  uploadedBucket: string
-  uploadedPath: string
-  gpsData?: {
-    latitude: number
-    longitude: number
-  } | null
-  captureDate?: string | null
-  width?: number
-  height?: number
-}
-
-function normalizeCreateImages(value: unknown): DraftCreateImageInput[] | null {
-  if (value == null) return []
-  if (!Array.isArray(value)) return null
-
-  const images: DraftCreateImageInput[] = []
-  for (const item of value) {
-    if (!item || typeof item !== 'object') return null
-    const candidate = item as Partial<DraftCreateImageInput>
-    if (typeof candidate.uploadedBucket !== 'string' || !candidate.uploadedBucket) return null
-    if (typeof candidate.uploadedPath !== 'string' || !candidate.uploadedPath) return null
-
-    images.push({
-      uploadedBucket: candidate.uploadedBucket,
-      uploadedPath: candidate.uploadedPath,
-      gpsData: candidate.gpsData && typeof candidate.gpsData === 'object' && typeof candidate.gpsData.latitude === 'number' && typeof candidate.gpsData.longitude === 'number'
-        ? {
-            latitude: candidate.gpsData.latitude,
-            longitude: candidate.gpsData.longitude,
-          }
-        : null,
-      captureDate: typeof candidate.captureDate === 'string' && candidate.captureDate ? candidate.captureDate : null,
-      width: typeof candidate.width === 'number' ? candidate.width : undefined,
-      height: typeof candidate.height === 'number' ? candidate.height : undefined,
-    })
-  }
-
-  return images
-}
-
-function buildUploadSignature(images: DraftCreateImageInput[]): string {
-  return images
-    .map((image) => `${image.uploadedBucket}/${image.uploadedPath}`)
-    .sort()
-    .join('|')
-}
 
 export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
@@ -72,7 +24,6 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const ownershipClient = supabase as unknown as Parameters<typeof userOwnsUploadedObject>[0]
     const [authResult, body] = await Promise.all([
       resolveUserIdWithFallback(request, supabase),
       request.json().catch(() => null),
@@ -88,11 +39,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'images must be an array when provided' }, { status: 400 })
     }
 
-    for (const image of images) {
-      if (!(await userOwnsUploadedObject(ownershipClient, userId, image.uploadedBucket, image.uploadedPath))) {
-        return NextResponse.json({ error: 'Invalid uploaded path owner' }, { status: 403 })
-      }
-    }
+    const ownershipError = await validateDraftImageOwnership(
+      supabase as unknown as Parameters<typeof import('@/lib/media/ownership').userOwnsUploadedObject>[0],
+      userId,
+      images
+    )
+    if (ownershipError) return ownershipError
 
     const uploadSignature = images.length > 0 ? buildUploadSignature(images) : null
     const metadataBase = body?.metadata && typeof body.metadata === 'object' ? body.metadata : {}
@@ -120,13 +72,7 @@ export async function POST(request: NextRequest) {
           .order('display_order', { ascending: true })
 
         if (!existingImagesError) {
-          return NextResponse.json({
-            success: true,
-            draft: {
-              ...existingDraft,
-              images: existingImages || [],
-            },
-          })
+          return NextResponse.json({ success: true, draft: { ...existingDraft, images: existingImages || [] } })
         }
       }
     }

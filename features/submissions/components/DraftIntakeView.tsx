@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ToastContainer, useToast } from '@/features/logbook/components/toast'
 import ImagePicker from '@/features/submissions/components/ImagePicker'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { useDraftUploadManager } from '@/lib/media/media-upload-manager'
+import { useDraftUploadManager } from '@/features/submissions/upload/hooks/use-draft-upload-manager'
 
 interface DraftCreateResponse {
   draft?: {

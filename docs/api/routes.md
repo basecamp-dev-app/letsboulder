@@ -161,6 +161,10 @@ User settings management. Requires authentication. Uses CSRF protection.
 
 Draft management, collaboration, image submission, and durable draft route syncing. Requires authentication. Uses CSRF protection.
 
+- Route handlers under `app/api/submissions/**` are intentionally thin wrappers.
+- Submission execution lives in `features/submissions/server/submissions/**`.
+- Draft lifecycle and collaboration flows live in `features/submissions/server/drafts/**`.
+
 ### test
 
 Test-only endpoints for auth and other testing utilities. No authentication or CSRF protection. Not available in production.
