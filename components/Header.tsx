@@ -6,8 +6,8 @@ import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
-import type { Session, User } from '@supabase/supabase-js'
 import { DESKTOP_MORE_MENU_ITEMS } from '@/lib/nav-items'
+import { useLazyAuthUser } from '@/components/use-lazy-auth-user'
 
 interface SearchResult {
   type: 'crag' | 'climb'
@@ -41,7 +41,7 @@ interface ClimbSearchRow {
 
 export default function Header() {
   const headerRef = useRef<HTMLElement>(null)
-  const [user, setUser] = useState<User | null>(null)
+  const { user, load: loadAuthUser } = useLazyAuthUser()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
@@ -76,22 +76,6 @@ export default function Header() {
       window.removeEventListener('resize', updateOffset)
     }
   }, [pathname])
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-    }
-    getUser()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event: string, session: Session | null) => {
-        setUser(session?.user ?? null)
-      }
-    )
-
-    return () => subscription.unsubscribe()
-  }, [supabase])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -233,8 +217,15 @@ export default function Header() {
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    await fetch('/api/auth/signout', { method: 'POST' })
     window.location.href = '/'
+  }
+
+  const handleMoreMenuToggle = () => {
+    if (!showMoreDropdown) {
+      void loadAuthUser()
+    }
+    setShowMoreDropdown(!showMoreDropdown)
   }
 
   return (
@@ -314,7 +305,7 @@ export default function Header() {
           </Link>
           <div ref={moreRef} className="relative hidden md:block">
             <button
-              onClick={() => setShowMoreDropdown(!showMoreDropdown)}
+              onClick={handleMoreMenuToggle}
               className="flex items-center px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="Menu"
             >
