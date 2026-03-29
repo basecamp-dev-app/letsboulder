@@ -4,12 +4,12 @@ import { useEffect, Suspense } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import LogbookView from '@/components/logbook/LogbookView'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { LogbookSkeleton } from '@/components/logbook/logbook-states'
-import { useToast } from '@/components/logbook/toast'
-import { fetchOwnLogbookData, ownLogbookQueryKey } from '@/lib/logbook/queries'
+import LogbookView from '@/features/logbook/components/LogbookView'
+import { LogbookSkeleton } from '@/features/logbook/components/logbook-states'
+import { useToast } from '@/features/logbook/components/toast'
+import { fetchOwnLogbookData, ownLogbookQueryKey } from '@/features/logbook/lib/queries'
 
 function LoadingFallback() {
   return (

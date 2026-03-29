@@ -2,7 +2,7 @@
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { getGradeFromPoints } from '@/lib/grades'
-import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface GradeHistoryChartProps {

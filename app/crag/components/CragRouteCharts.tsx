@@ -1,7 +1,7 @@
 'use client'
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface GradeDistributionDatum {

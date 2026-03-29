@@ -8,7 +8,7 @@ import {
   revokeSubmissionInvite,
 } from '@/features/editor/collaboration/collaboration-api'
 import { useInviteLinkCopy } from '@/features/editor/collaboration/use-invite-link-copy'
-import type { CollaboratorItem, InviteItem } from '@/lib/editor-types'
+import type { CollaboratorItem, InviteItem } from '@/features/submissions/lib/editor-types'
 
 export function useSubmissionCollaborators(activeImageId: string | null, addToast: (message: string, tone: 'success' | 'error') => void, setError: (message: string | null) => void) {
   const [shareOpen, setShareOpen] = useState(false)

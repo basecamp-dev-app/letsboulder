@@ -1,7 +1,7 @@
 'use client'
 
 import { csrfFetch } from '@/hooks/useCsrf'
-import type { CollaboratorItem, InviteItem } from '@/lib/editor-types'
+import type { CollaboratorItem, InviteItem } from '@/features/submissions/lib/editor-types'
 
 interface OwnerProfile {
   displayName: string

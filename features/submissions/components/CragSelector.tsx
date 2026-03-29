@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { Crag } from '@/lib/submission-types'
+import type { Crag } from '@/features/submissions/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/hooks/use-atlas-auto-sync'
-import AtlasContextCard from '@/components/submissions/atlas-context-card'
+import AtlasContextCard from '@/features/submissions/components/atlas-context-card'
 
 interface CragSelectorProps {
   latitude?: number | null

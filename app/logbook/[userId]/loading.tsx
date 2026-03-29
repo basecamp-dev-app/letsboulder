@@ -1,4 +1,4 @@
-import { LogbookSkeleton } from '@/components/logbook/logbook-states'
+import { LogbookSkeleton } from '@/features/logbook/components/logbook-states'
 
 export default function Loading() {
   return (

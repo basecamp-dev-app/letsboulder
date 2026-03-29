@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import type { Session, User } from '@supabase/supabase-js'
 import { Card, CardContent } from '@/components/ui/card'
-import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface LeaderboardEntry {

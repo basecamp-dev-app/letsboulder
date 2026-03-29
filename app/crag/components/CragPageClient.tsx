@@ -10,7 +10,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { GRADES, PUBLIC_GRADES } from '@/lib/grades'
-import { useGradeSystem } from '@/hooks/useGradeSystem'
+import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import CragCommunitySidebar from '@/app/crag/components/CragCommunitySidebar'
 import CragPageSkeleton from '@/app/crag/components/CragPageSkeleton'

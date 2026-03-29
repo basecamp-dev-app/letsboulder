@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { MapPin, Search, Loader2 } from 'lucide-react'
-import type { GpsData } from '@/lib/submission-types'
+import type { GpsData } from '@/features/submissions/lib/submission-types'
 import dynamic from 'next/dynamic'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'

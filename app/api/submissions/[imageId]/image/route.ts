@@ -5,7 +5,7 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { revalidatePath } from 'next/cache'
-import { FACE_DIRECTIONS, type FaceDirection } from '@/lib/submission-types'
+import { FACE_DIRECTIONS, type FaceDirection } from '@/features/submissions/lib/submission-types'
 
 interface UpdateImageMetadataPayload {
   latitude: number | null

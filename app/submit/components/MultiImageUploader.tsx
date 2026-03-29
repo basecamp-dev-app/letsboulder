@@ -11,7 +11,7 @@ import { stripExifMetadataFromFile } from '@/lib/image-metadata'
 import { extractGpsFromFile } from '@/lib/image-gps'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { isHeicFile } from '@/lib/image-utils'
-import type { NewImageSelection, NewUploadedImage } from '@/lib/submission-types'
+import type { NewImageSelection, NewUploadedImage } from '@/features/submissions/lib/submission-types'
 
 interface MultiImageUploaderProps {
   onComplete: (result: NewImageSelection) => void

@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import LogbookView from '@/components/logbook/LogbookView'
 import { Card, CardContent } from '@/components/ui/card'
+import LogbookView from '@/features/logbook/components/LogbookView'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Lock, ArrowLeft } from 'lucide-react'
