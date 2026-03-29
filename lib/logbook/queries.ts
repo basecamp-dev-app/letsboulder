@@ -1,6 +1,6 @@
 import type { User } from '@supabase/supabase-js'
 import { getGradePoints } from '@/lib/grades'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { csrfFetch } from '@/lib/csrf-client'
 import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
 import { createClient } from '@/lib/supabase'
 import type { Submission } from '@/types/submissions'

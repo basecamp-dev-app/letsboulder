@@ -3,6 +3,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { uploadDebug } from '@/lib/media/upload-debug'
+import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -10,15 +11,6 @@ const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.Map
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false })
 const ZoomControl = dynamic(() => import('react-leaflet').then((mod) => mod.ZoomControl), { ssr: false })
-
-export interface LightweightCragMapPin {
-  id: string
-  latitude: number
-  longitude: number
-  label?: string
-  interactive?: boolean
-  tone?: 'draft' | 'published'
-}
 
 function pinVisualStyles(active: boolean) {
   return {

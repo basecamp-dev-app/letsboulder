@@ -1,4 +1,4 @@
-import type { LightweightCragMapPin } from '@/components/lightweight-crag-map'
+import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import type { RoutePoint } from '@/lib/submission-types'
 
 export type EditorLocationMode = 'shared' | 'custom'

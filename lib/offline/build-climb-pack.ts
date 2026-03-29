@@ -6,7 +6,7 @@ import { buildMediaProxyUrl, estimateCompressedImageBytes, parsePrivateMediaRef 
 import type { ClimbPackResponse, OfflineMapPin } from '@/lib/climb/queries'
 import { getDisplayImageId } from '@/lib/image-identity'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
-import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
+import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 
 interface ImageInfoRow {
   id: string

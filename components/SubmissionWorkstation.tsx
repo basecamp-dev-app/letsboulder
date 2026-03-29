@@ -2,7 +2,8 @@
 
 import { useMemo, useState, type DragEvent } from 'react'
 import { GripHorizontal, ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react'
-import LightweightCragMap, { type LightweightCragMapPin } from '@/components/lightweight-crag-map'
+import LightweightCragMap from '@/components/lightweight-crag-map'
+import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { RouteEditorRail } from '@/components/RouteEditorRail'
 import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
 import type { ClimbType } from '@/lib/submission-types'
