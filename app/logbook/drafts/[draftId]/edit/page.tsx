@@ -7,7 +7,7 @@ import type { UserResponse } from '@supabase/supabase-js'
 import { type UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
 import { type LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { SubmissionWorkstation } from '@/components/SubmissionWorkstation'
-import { useRouteStore } from '@/store/routeStore'
+import { useRouteStore } from '@/store/route-store'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { csrfFetch } from '@/hooks/useCsrf'
@@ -28,6 +28,8 @@ import { useDraftConflictResolution } from './hooks/use-draft-conflict-resolutio
 import { useDraftCollaborators } from './hooks/use-draft-collaborators'
 import { useDraftLocationMetadata } from './hooks/use-draft-location-metadata'
 import { useDraftRouteEditing } from './hooks/use-draft-route-editing'
+import { formatCoordinate } from '@/features/editor/location/location-metadata'
+import { haveStoredRoutesChanged } from '@/features/editor/route-store-sync'
 import { areSerializedRoutesEqual, buildHighResCanvasUrl, buildRouteCompletionPayload, buildRouteWorkflowSignature, parseSerializedRouteData } from '@/features/route-editor/route-editor-utils'
 import { DraftToolbar } from './components/draft-toolbar'
 import { DraftMetadataPanel } from './components/draft-metadata-panel'
@@ -1017,8 +1019,8 @@ export default function EditDraftPage() {
     if (!hasHydratedLocationRef.current) return
     if (effectiveMarkerPosition || !fallbackLocation) return
 
-    setLatitude(fallbackLocation[0].toFixed(6))
-    setLongitude(fallbackLocation[1].toFixed(6))
+    setLatitude(formatCoordinate(fallbackLocation[0]))
+    setLongitude(formatCoordinate(fallbackLocation[1]))
   }, [effectiveMarkerPosition, fallbackLocation, setLatitude, setLongitude])
 
   useEffect(() => {
@@ -1618,7 +1620,7 @@ export default function EditDraftPage() {
     if (lastSeededRouteImageIdRef.current === activeDraftImageId) return
 
     lastSeededRouteImageIdRef.current = activeDraftImageId
-    if (!areSerializedRoutesEqual(routeStoreRoutes.map((route) => ({ id: route.id, name: route.climb?.name || 'Unnamed', grade: route.climb?.grade || '6A', description: route.climb?.description ?? undefined, climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : undefined, points: route.points, sequenceOrder: route.sequence_order, imageWidth: route.image_width ?? 0, imageHeight: route.image_height ?? 0 })), existingRouteLines.map((route) => ({ id: route.id, name: route.climb?.name || 'Unnamed', grade: route.climb?.grade || '6A', description: route.climb?.description ?? undefined, climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : undefined, points: route.points, sequenceOrder: route.sequence_order, imageWidth: route.image_width ?? 0, imageHeight: route.image_height ?? 0 })))) {
+    if (haveStoredRoutesChanged(routeStoreRoutes, existingRouteLines)) {
       skipRouteStoreSyncRef.current = activeDraftImageId
       setRouteStoreRoutes(existingRouteLines)
     }
@@ -1630,7 +1632,7 @@ export default function EditDraftPage() {
       skipRouteStoreSyncRef.current = null
       return
     }
-    if (areSerializedRoutesEqual(routeStoreRoutes.map((route) => ({ id: route.id, name: route.climb?.name || 'Unnamed', grade: route.climb?.grade || '6A', description: route.climb?.description ?? undefined, climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : undefined, points: route.points, sequenceOrder: route.sequence_order, imageWidth: route.image_width ?? 0, imageHeight: route.image_height ?? 0 })), existingRouteLines.map((route) => ({ id: route.id, name: route.climb?.name || 'Unnamed', grade: route.climb?.grade || '6A', description: route.climb?.description ?? undefined, climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : undefined, points: route.points, sequenceOrder: route.sequence_order, imageWidth: route.image_width ?? 0, imageHeight: route.image_height ?? 0 })))) return
+    if (!haveStoredRoutesChanged(routeStoreRoutes, existingRouteLines)) return
     handleCanvasRoutesUpdate(routeStoreRoutes)
   }, [activeDraftImageId, existingRouteLines, handleCanvasRoutesUpdate, routeStoreRoutes])
 

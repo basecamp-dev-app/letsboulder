@@ -1,19 +1,26 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { formatCoordinate } from '@/features/editor/location/location-metadata'
+import { useLocationSearch } from '@/features/editor/location/use-location-search'
 
 export function useDraftLocationMetadata() {
   const [showCragSelector, setShowCragSelector] = useState(false)
   const [latitude, setLatitude] = useState('')
   const [longitude, setLongitude] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchingLocation, setSearchingLocation] = useState(false)
   const [mapOpen, setMapOpen] = useState(false)
 
   const updateDraftLocation = useCallback((nextLatitude: number, nextLongitude: number) => {
-    setLatitude(String(nextLatitude))
-    setLongitude(String(nextLongitude))
+    setLatitude(formatCoordinate(nextLatitude))
+    setLongitude(formatCoordinate(nextLongitude))
   }, [])
+
+  const {
+    searchQuery,
+    setSearchQuery,
+    searchingLocation,
+    setSearchingLocation,
+  } = useLocationSearch(updateDraftLocation)
 
   return {
     showCragSelector,

@@ -6,6 +6,7 @@ import { useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { useEffect } from 'react'
 import AtlasContextCard from '@/components/submissions/atlas-context-card'
+import { parseOptionalCoordinate } from '@/features/editor/location/location-metadata'
 import CragSelector from '@/features/submissions/components/CragSelector'
 import SectorSelector from '@/features/submissions/components/SectorSelector'
 import { LocationSearchBar } from '@/components/editor/location-search-bar'
@@ -211,7 +212,7 @@ export function DraftMetadataPanel({
                   if (activeImageLocationMode === 'custom' && activeDraftImageId) {
                     const nextLatitude = event.target.value
                     onCustomGpsChange(activeDraftImageId, {
-                      latitude: nextLatitude.trim() === '' ? null : Number(nextLatitude),
+                        latitude: parseOptionalCoordinate(nextLatitude),
                       longitude: customGpsByImageId[activeDraftImageId]?.longitude ?? null,
                     })
                     return
@@ -231,7 +232,7 @@ export function DraftMetadataPanel({
                     const nextLongitude = event.target.value
                     onCustomGpsChange(activeDraftImageId, {
                       latitude: customGpsByImageId[activeDraftImageId]?.latitude ?? null,
-                      longitude: nextLongitude.trim() === '' ? null : Number(nextLongitude),
+                        longitude: parseOptionalCoordinate(nextLongitude),
                     })
                     return
                   }

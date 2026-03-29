@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { createServerClient } from '@supabase/ssr'
 import { getDisplayImageId } from '@/lib/image-identity'
-import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
+import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import type { RoutePoint } from '@/types/domain'
 

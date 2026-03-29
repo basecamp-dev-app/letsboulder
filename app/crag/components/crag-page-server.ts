@@ -1,5 +1,5 @@
 import { buildSelectableImageIdByImageId } from '@/lib/image-identity'
-import { resolveRouteImageUrl } from '@/features/media/utils/route-image-url'
+import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { dedupeCragRoutes, formatCragRoutes, getAverageCoordinates, remapRoutePreviewsByEffectiveClimbId } from '@/app/crag/components/crag-page-domain'
 import type { ClimbIdentityRow } from '@/app/crag/components/crag-page-domain'
 import type { RoutePreview } from '@/app/crag/components/crag-page-types'
