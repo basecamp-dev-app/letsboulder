@@ -20,6 +20,7 @@ import { type FaceDirection, type ImageSelection, type RouteLine, type RoutePoin
 import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirection } from '@/lib/draft-metadata'
 import { createClient } from '@/lib/supabase'
 import { buildMapPins, reorderItemsByIds, resequenceRoutes, resolveLocationMode } from '@/lib/editor-image-state'
+import type { EditableRoute } from '@/lib/editor-types'
 import type { CollaboratorItem, InviteItem } from '@/lib/editor-types'
 import { sortFaceDirections, normalizePointForCompare, coordinateKey } from '@/lib/editor-helpers'
 import { CollaboratorDialog } from '@/components/editor/collaborator-dialog'
@@ -124,15 +125,6 @@ interface DraftRoute {
   sequenceOrder: number
   imageWidth: number
   imageHeight: number
-}
-
-interface EditableRoute {
-  id: string
-  name: string
-  grade: string
-  climbType?: string
-  description?: string
-  points: RoutePoint[]
 }
 
 interface ManageImageTab {

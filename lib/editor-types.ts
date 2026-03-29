@@ -1,3 +1,5 @@
+import type { RoutePoint } from '@/types/domain'
+
 export interface CollaboratorItem {
   userId: string
   role: string
@@ -24,6 +26,6 @@ export interface EditableRoute {
   grade: string
   climbType?: string
   description?: string
-  points: Array<{ x: number; y: number }>
+  points: RoutePoint[]
   sequenceOrder?: number
 }

@@ -4,14 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { SubmissionCreditPlatform, normalizeSubmissionCreditHandle, formatSubmissionCreditHandle } from '@/lib/submission-credit'
 import { csrfFetch } from '@/hooks/useCsrf'
-
-const CREDIT_PLATFORM_OPTIONS: Array<{ value: SubmissionCreditPlatform; label: string }> = [
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'tiktok', label: 'TikTok' },
-  { value: 'youtube', label: 'YouTube' },
-  { value: 'x', label: 'X' },
-  { value: 'other', label: 'Other' },
-]
+import { CREDIT_PLATFORM_OPTIONS } from '@/lib/editor-constants'
 
 interface SubmissionCreditProps {
   imageId: string

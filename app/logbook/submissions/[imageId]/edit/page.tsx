@@ -23,19 +23,11 @@ import type { UnifiedRouteCanvasRef } from '@/components/UnifiedRouteCanvas'
 import type { CollaboratorItem, InviteItem } from '@/lib/editor-types'
 import { sortFaceDirections, normalizePointForCompare } from '@/lib/editor-helpers'
 import { CollaboratorDialog } from '@/components/editor/collaborator-dialog'
+import type { EditableRoute } from '@/lib/editor-types'
 import { SubmissionDetailsPanel } from './components/submission-details-panel'
 import { SubmissionToolbar } from './components/submission-toolbar'
 import { SubmissionLocationPanel } from './components/submission-location-panel'
 import { DeleteRouteTransferDialog } from './components/delete-route-transfer-dialog'
-
-interface EditableRoute {
-  id: string
-  name: string
-  grade: string
-  description?: string
-  points: RoutePoint[]
-  sequenceOrder?: number
-}
 
 interface DeleteTransferCandidate {
   routeLineId: string
