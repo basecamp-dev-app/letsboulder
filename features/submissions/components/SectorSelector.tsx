@@ -45,8 +45,8 @@ export default function SectorSelector({
         const data = await response.json()
         setSectors(data)
       }
-    } catch (error) {
-      console.error('Failed to fetch sectors:', error)
+    } catch {
+      console.error('Failed to fetch sectors')
     } finally {
       setLoading(false)
     }
@@ -74,9 +74,7 @@ export default function SectorSelector({
     try {
       const response = await csrfFetch(`/api/crags/${cragId}/sectors`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newSectorName.trim() }),
       })
 
@@ -88,8 +86,8 @@ export default function SectorSelector({
         setShowCreateInput(false)
         setIsOpen(false)
       }
-    } catch (error) {
-      console.error('Failed to create sector:', error)
+    } catch {
+      console.error('Failed to create sector')
     } finally {
       setIsCreating(false)
     }
@@ -103,25 +101,25 @@ export default function SectorSelector({
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "w-full flex items-center justify-between px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800",
-          "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500",
-          "focus:outline-none focus:ring-2 focus:ring-blue-500",
-          selectedSector ? "text-gray-900 dark:text-gray-100" : "text-gray-500"
+          'w-full flex items-center justify-between px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-800',
+          'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500',
+          'focus:outline-none focus:ring-2 focus:ring-blue-500',
+          selectedSector ? 'text-gray-900 dark:text-gray-100' : 'text-gray-500'
         )}
       >
         <span>{selectedSector ? selectedSector.name : placeholder}</span>
         <ChevronDown className="h-4 w-4 opacity-50" />
       </button>
 
-      {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
+      {isOpen ? (
+        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
           {loading ? (
             <div className="px-3 py-2 text-sm text-gray-500">Loading...</div>
           ) : sectors.length === 0 && !showCreateInput ? (
             <button
               type="button"
               onClick={() => setShowCreateInput(true)}
-              className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               <Plus className="h-4 w-4" />
               Add new sector
@@ -137,22 +135,22 @@ export default function SectorSelector({
                     setIsOpen(false)
                   }}
                   className={cn(
-                    "w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700",
-                    value === sector.id && "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                    'w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700',
+                    value === sector.id && 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
                   )}
                 >
                   {sector.name}
                 </button>
               ))}
               {showCreateInput ? (
-                <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700">
+                <div className="border-t border-gray-200 px-3 py-2 dark:border-gray-700">
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={newSectorName}
                       onChange={(e) => setNewSectorName(e.target.value)}
                       placeholder="Sector name"
-                      className="flex-1 px-2 py-1 text-sm border rounded bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600"
+                      className="flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-900"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleCreateSector()
@@ -163,7 +161,7 @@ export default function SectorSelector({
                       type="button"
                       onClick={handleCreateSector}
                       disabled={isCreating || !newSectorName.trim()}
-                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                      className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
                     >
                       {isCreating ? '...' : 'Add'}
                     </button>
@@ -173,7 +171,7 @@ export default function SectorSelector({
                 <button
                   type="button"
                   onClick={() => setShowCreateInput(true)}
-                  className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 border-t border-gray-200 dark:border-gray-700"
+                  className="flex w-full items-center gap-2 border-t border-gray-200 px-3 py-2 text-left text-sm hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700"
                 >
                   <Plus className="h-4 w-4" />
                   Add new sector
@@ -182,7 +180,7 @@ export default function SectorSelector({
             </>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

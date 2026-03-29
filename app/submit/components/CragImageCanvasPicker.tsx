@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import NextImage from 'next/image'
-import CragSelector from './CragSelector'
+import CragSelector from '@/features/submissions/components/CragSelector'
 import type { Crag, CragImageSelection } from '@/lib/submission-types'
 
 interface CragImageApiItem {

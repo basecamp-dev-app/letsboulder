@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import ImagePicker from '@/app/submit/components/ImagePicker'
+import ImagePicker from '@/components/submissions/ImagePicker'
 import { ToastContainer, useToast } from '@/components/logbook/toast'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useDraftUploadManager } from '@/lib/media/media-upload-manager'
