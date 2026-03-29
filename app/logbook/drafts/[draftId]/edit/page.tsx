@@ -1369,9 +1369,10 @@ export default function EditDraftPage() {
     }
   }, [searchQuery, setMapOpen, setSearchingLocation, updateDraftLocation])
 
-  const saveDraft = useCallback(async (options?: { silent?: boolean; overrideRoutesByImageId?: Record<string, DraftRoute[]> }) => {
+  const saveDraft = useCallback(async (options?: { silent?: boolean; overrideRoutesByImageId?: Record<string, DraftRoute[]>; overrideCragId?: string | null }) => {
     const silent = options?.silent === true
     const resolvedRoutesByImageId = options?.overrideRoutesByImageId ?? routesByImageId
+    const resolvedCragId = options?.overrideCragId ?? cragId
     if (!draft || !draftUpdatedAt) return false
 
     if (autosaveTimeoutRef.current) {
@@ -1394,54 +1395,54 @@ export default function EditDraftPage() {
         throw new Error('Invalid credit handle format')
       }
 
-          const fullV2Metadata = serializeDraftMetadataV2({
-            version: 2,
-            navigation: {
-              defaultImageId,
+      const fullV2Metadata = serializeDraftMetadataV2({
+        version: 2,
+        navigation: {
+          defaultImageId,
+        },
+        images: nextImagesPayload.reduce<Record<string, { imageId: string; displayOrder: number; orientation?: OrientationDirection[]; locationMode: 'shared' | 'custom'; gps: { latitude: number | null; longitude: number | null } }>>((acc, image) => {
+          acc[image.id] = {
+            imageId: image.id,
+            displayOrder: image.display_order,
+            orientation: orientationByImageId[image.id] || [],
+            locationMode: locationModeByImageId[image.id] === 'custom' ? 'custom' : 'shared',
+            gps: {
+              latitude: customGpsByImageId[image.id]?.latitude ?? null,
+              longitude: customGpsByImageId[image.id]?.longitude ?? null,
             },
-            images: nextImagesPayload.reduce<Record<string, { imageId: string; displayOrder: number; orientation?: OrientationDirection[]; locationMode: 'shared' | 'custom'; gps: { latitude: number | null; longitude: number | null } }>>((acc, image) => {
-              acc[image.id] = {
-                imageId: image.id,
-                displayOrder: image.display_order,
-                orientation: orientationByImageId[image.id] || [],
-                locationMode: locationModeByImageId[image.id] === 'custom' ? 'custom' : 'shared',
-                gps: {
-                  latitude: customGpsByImageId[image.id]?.latitude ?? null,
-                  longitude: customGpsByImageId[image.id]?.longitude ?? null,
-                },
-              }
-              return acc
-            }, {}),
-            submission: {
-              routeType,
-              location: {
-                latitude: markerPosition ? markerPosition[0] : null,
-                longitude: markerPosition ? markerPosition[1] : null,
-              },
-              isAnonymousSubmission,
-              contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
-              contributionCreditHandle: normalizedHandle,
-              sectorId,
-              canvasSource: canvasSource?.kind === 'crag-image'
-                ? {
-                    kind: 'crag-image',
-                    cragImageId: canvasSource.cragImageId,
-                    cragId: canvasSource.cragId,
-                  }
-                : canvasSource?.kind === 'draft-image'
-                  ? {
-                      kind: 'draft-image',
-                      draftImageId: canvasSource.draftImageId,
-                    }
-                  : null,
-            },
-          })
-
-          const savePayload: DraftSavePayload = {
-            images: nextImagesPayload,
-            cragId,
-            metadata: fullV2Metadata as unknown as Record<string, unknown>,
           }
+          return acc
+        }, {}),
+        submission: {
+          routeType,
+          location: {
+            latitude: markerPosition ? markerPosition[0] : null,
+            longitude: markerPosition ? markerPosition[1] : null,
+          },
+          isAnonymousSubmission,
+          contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
+          contributionCreditHandle: normalizedHandle,
+          sectorId,
+          canvasSource: canvasSource?.kind === 'crag-image'
+            ? {
+                kind: 'crag-image',
+                cragImageId: canvasSource.cragImageId,
+                cragId: canvasSource.cragId,
+              }
+            : canvasSource?.kind === 'draft-image'
+              ? {
+                  kind: 'draft-image',
+                  draftImageId: canvasSource.draftImageId,
+                }
+              : null,
+        },
+      })
+
+      const savePayload: DraftSavePayload = {
+        images: nextImagesPayload,
+        cragId: resolvedCragId,
+        metadata: fullV2Metadata as unknown as Record<string, unknown>,
+      }
 
       const response = await csrfFetch(`/api/submissions/drafts/${draft.id}`, {
         method: 'PATCH',
@@ -1470,23 +1471,23 @@ export default function EditDraftPage() {
             if (silent) {
               setAutosaveState('syncing')
               if (!isSelfConflict) {
-              autosavePausedRef.current = true
-              autosavePausedSnapshotRef.current = buildRouteWorkflowSignature({
-                imagesPayloadSignature: JSON.stringify(buildRouteCompletionPayload(draft.images, resolvedRoutesByImageId, routeType, manageImages.map((image) => image.imageId))),
-                defaultImageId,
-                routeType,
-                markerLatitude: markerPosition ? markerPosition[0] : null,
-                markerLongitude: markerPosition ? markerPosition[1] : null,
-                cragId,
-                isAnonymousSubmission,
-                creditPlatform,
-                creditHandle: normalizedHandle,
-                sectorId,
-                canvasSource,
-                orientationByImageId,
-                locationModeByImageId,
-                customGpsByImageId,
-              })
+                autosavePausedRef.current = true
+                autosavePausedSnapshotRef.current = buildRouteWorkflowSignature({
+                  imagesPayloadSignature: JSON.stringify(buildRouteCompletionPayload(draft.images, resolvedRoutesByImageId, routeType, manageImages.map((image) => image.imageId))),
+                  defaultImageId,
+                  routeType,
+                  markerLatitude: markerPosition ? markerPosition[0] : null,
+                  markerLongitude: markerPosition ? markerPosition[1] : null,
+                  cragId: resolvedCragId,
+                  isAnonymousSubmission,
+                  creditPlatform,
+                  creditHandle: normalizedHandle,
+                  sectorId,
+                  canvasSource,
+                  orientationByImageId,
+                  locationModeByImageId,
+                  customGpsByImageId,
+                })
               }
             } else {
               setAutosaveState('idle')
@@ -1518,7 +1519,7 @@ export default function EditDraftPage() {
         routeType,
         markerLatitude: markerPosition ? markerPosition[0] : null,
         markerLongitude: markerPosition ? markerPosition[1] : null,
-        cragId,
+        cragId: resolvedCragId,
         isAnonymousSubmission,
         creditPlatform,
         creditHandle: normalizedHandle,
@@ -2019,7 +2020,7 @@ export default function EditDraftPage() {
             setCragCanvasImages([])
             setShowCragSelector(false)
             setSuccess('Crag selected for this draft.')
-            void saveDraft({ silent: true })
+            void saveDraft({ silent: true, overrideCragId: crag.id })
           }}
           onCreateCrag={(crag) => {
             setCragId(crag.id)
@@ -2028,7 +2029,7 @@ export default function EditDraftPage() {
             setCanvasSource(null)
             setSuccess(`Crag "${crag.name}" created. Upload up to 20 photos and the first ready image can be used as your canvas.`)
             setShowCragSelector(false)
-            void saveDraft({ silent: true })
+            void saveDraft({ silent: true, overrideCragId: crag.id })
           }}
           onSectorChange={setSectorId}
           onLocationModeChange={(mode) => {

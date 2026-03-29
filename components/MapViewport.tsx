@@ -51,6 +51,7 @@ export default function MapViewport() {
           onClick={activateMap}
           onPointerDown={activateMap}
           onTouchStart={activateMap}
+          onFocus={activateMap}
           className="block h-full w-full text-left"
           aria-label="Load interactive climbing map"
         >
