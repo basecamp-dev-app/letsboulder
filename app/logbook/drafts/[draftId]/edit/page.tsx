@@ -21,9 +21,13 @@ import { normalizeDraftMetadata, serializeDraftMetadataV2, type OrientationDirec
 import { createClient } from '@/lib/supabase'
 import { buildMapPins, reorderItemsByIds, resequenceRoutes, resolveLocationMode } from '@/lib/editor-image-state'
 import type { EditableRoute } from '@/lib/editor-types'
-import type { CollaboratorItem, InviteItem } from '@/lib/editor-types'
 import { sortFaceDirections, normalizePointForCompare, coordinateKey } from '@/lib/editor-helpers'
 import { CollaboratorDialog } from '@/components/editor/collaborator-dialog'
+import { useDraftEditorData } from './hooks/use-draft-editor-data'
+import { useDraftConflictResolution } from './hooks/use-draft-conflict-resolution'
+import { useDraftCollaborators } from './hooks/use-draft-collaborators'
+import { useDraftLocationMetadata } from './hooks/use-draft-location-metadata'
+import { useDraftRouteEditing } from './hooks/use-draft-route-editing'
 import { DraftToolbar } from './components/draft-toolbar'
 import { DraftMetadataPanel } from './components/draft-metadata-panel'
 import { DraftDetailsPanel } from './components/draft-details-panel'
@@ -107,12 +111,6 @@ interface DraftDeleteImageResponse {
     updated_at?: string
     metadata?: Record<string, unknown> | null
   } | null
-}
-
-interface ConflictState {
-  serverUpdatedAt: string
-  lastEditorName: string | null
-  pendingChanges: DraftSavePayload
 }
 
 interface DraftRoute {
@@ -450,6 +448,8 @@ export default function EditDraftPage() {
   const searchParams = useSearchParams()
   const { toasts, addToast, removeToast } = useToast()
   const draftId = params.draftId as string
+  const { conflict, setConflict, clearConflict } = useDraftConflictResolution()
+  const { detailsOpen, setDetailsOpen, orientationOpen, setOrientationOpen } = useDraftRouteEditing()
 
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [, setIsRefreshingDraft] = useState(false)
@@ -457,7 +457,6 @@ export default function EditDraftPage() {
   const [publishingDraft, setPublishingDraft] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-
   const [draft, setDraft] = useState<DraftPayload | null>(null)
   const [manageImages, setManageImages] = useState<ManageImageTab[]>([])
   const [activeImageId, setActiveImageId] = useState<string | null>(null)
@@ -471,8 +470,7 @@ export default function EditDraftPage() {
   const [creditPlatform, setCreditPlatform] = useState<SubmissionCreditPlatform>('instagram')
   const [creditHandle, setCreditHandle] = useState('')
   const [isAnonymousSubmission, setIsAnonymousSubmission] = useState(false)
-  const [latitude, setLatitude] = useState('')
-  const [longitude, setLongitude] = useState('')
+  const { showCragSelector, setShowCragSelector, latitude, setLatitude, longitude, setLongitude, searchQuery, setSearchQuery, searchingLocation, setSearchingLocation, mapOpen, setMapOpen, updateDraftLocation } = useDraftLocationMetadata()
   const markerPosition = useMemo<[number, number] | null>(() => {
     const parsedLatitude = Number(latitude)
     const parsedLongitude = Number(longitude)
@@ -490,23 +488,13 @@ export default function EditDraftPage() {
     latitude: number | null
     longitude: number | null
   } | null>(null)
-  const [showCragSelector, setShowCragSelector] = useState(false)
   const [canvasSource, setCanvasSource] = useState<DraftCanvasSource | null>(null)
   const [cragCanvasImages, setCragCanvasImages] = useState<CragImagePayload[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [draftUpdatedAt, setDraftUpdatedAt] = useState<string | null>(null)
-  const [conflict, setConflict] = useState<ConflictState | null>(null)
-  const [shareOpen, setShareOpen] = useState(false)
-  const [loadingCollaborators, setLoadingCollaborators] = useState(false)
-  const [collaborators, setCollaborators] = useState<CollaboratorItem[]>([])
-  const [activeInvites, setActiveInvites] = useState<InviteItem[]>([])
   const [isOwner, setIsOwner] = useState(false)
-  const [ownerUserId, setOwnerUserId] = useState<string | null>(null)
-  const [ownerProfile, setOwnerProfile] = useState<{ displayName: string; username: string | null } | null>(null)
-  const [creatingInvite, setCreatingInvite] = useState(false)
-  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null)
-  const [removingCollaboratorId, setRemovingCollaboratorId] = useState<string | null>(null)
-  const [latestInviteUrl, setLatestInviteUrl] = useState<string | null>(null)
+  const [ownerUserId] = useState<string | null>(null)
+  const [ownerProfile] = useState<{ displayName: string; username: string | null } | null>(null)
   const [addingImages, setAddingImages] = useState(false)
   const [removingImageId, setRemovingImageId] = useState<string | null>(null)
   const addImageInputRef = useRef<HTMLInputElement | null>(null)
@@ -532,19 +520,14 @@ export default function EditDraftPage() {
   const draftRef = useRef<DraftPayload | null>(null)
   const [autosaveState, setAutosaveState] = useState<'idle' | 'pending' | 'saving' | 'syncing' | 'saved'>('idle')
   const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-
   const { setMode, setInteractionTool, reset, clearCanvasState, selectedRouteId, routes: routeStoreRoutes, setRoutes: setRouteStoreRoutes, setSelectedRoute, setActiveRoute, setEditorPanelOpen, currentPoints, interactionTool, undoLastPoint } = useRouteStore()
   const { uploads, hasPendingUploads, hasFailedUploads, retryUpload, removeUpload, registerDraftUpdatedAt, queueDraftUploads, resumeQueue, isQueuePaused, subscribeToUploadComplete } = useDraftUploadManager()
   const { getUploadsForCrag } = useMediaUploadManager()
+  const { shareOpen, setShareOpen, loadingCollaborators, collaborators, activeInvites, creatingInvite, revokingInviteId, removingCollaboratorId, latestInviteUrl, loadCollaborators, handleCreateInvite, handleCopyInvite, handleRevokeInvite, handleRemoveCollaborator } = useDraftCollaborators(draftId, isOwner, addToast, setError)
   const uploadsRef = useRef<MediaUploadItem[]>([])
 
-  const [searchingLocation, setSearchingLocation] = useState(false)
   const [locationSearchError, setLocationSearchError] = useState<string | null>(null)
-  const [mapOpen, setMapOpen] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
-  const [orientationOpen, setOrientationOpen] = useState(false)
-  const [detailsOpen, setDetailsOpen] = useState(false)
   const [publishedCragPins, setPublishedCragPins] = useState<PublishedCragImagePin[]>([])
   const atlasSync = useAtlasAutoSync(markerPosition?.[0] ?? null, markerPosition?.[1] ?? null)
   const markerLatitude = markerPosition?.[0] ?? null
@@ -557,11 +540,7 @@ export default function EditDraftPage() {
   const atlasContinentName = atlasSync.atlas?.continentName ?? null
   const nearbyCragId = atlasSync.nearbyCrag?.id ?? null
   const nearbyCragName = atlasSync.nearbyCrag?.name ?? null
-  const imagesPayload = useMemo(() => {
-    if (!draft) return []
-    return buildDraftImagesPayload(draft.images, routesByImageId, routeType, manageImages)
-  }, [draft, manageImages, routeType, routesByImageId])
-  const imagesPayloadSignature = useMemo(() => JSON.stringify(imagesPayload), [imagesPayload])
+  const { imagesPayload, imagesPayloadSignature } = useDraftEditorData({ draft, routeType, routesByImageId, manageImages })
   const autosaveSignature = useMemo(() => buildDraftAutosaveSignature({
     imagesPayloadSignature,
     defaultImageId,
@@ -679,7 +658,7 @@ export default function EditDraftPage() {
       setDraft(nextDraft)
       setDraftUpdatedAt(nextDraft.updated_at)
       registerDraftUpdatedAt(nextDraft.id, nextDraft.updated_at)
-      setConflict(null)
+      clearConflict()
       setManageImages(nextManageImages)
       setDefaultImageId(nextDefaultImageId)
       setActiveImageId((current) => {
@@ -777,7 +756,7 @@ export default function EditDraftPage() {
         setIsRefreshingDraft(false)
       }
     }
-  }, [registerDraftUpdatedAt, sectorId])
+  }, [clearConflict, registerDraftUpdatedAt, sectorId, setLatitude, setLongitude, setShowCragSelector])
 
   const syncUploadedImages = useCallback(async () => {
     const currentDraftId = draftIdRef.current
@@ -878,42 +857,6 @@ export default function EditDraftPage() {
   useEffect(() => {
     import('leaflet').then((lib) => setLeaflet(lib))
   }, [])
-
-  const loadCollaborators = useCallback(async () => {
-    if (!draftId) return
-
-    setLoadingCollaborators(true)
-    try {
-      const response = await fetch(`/api/submissions/drafts/${draftId}/collaborators`, { cache: 'no-store' })
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({} as { error?: string }))
-        throw new Error(data.error || 'Failed to load draft collaborators')
-      }
-
-      const data = await response.json() as {
-        owner: {
-          userId: string
-          profile: {
-            displayName: string
-            username: string | null
-          }
-        } | null
-        collaborators: CollaboratorItem[]
-        isOwner: boolean
-        activeInvites?: InviteItem[]
-      }
-
-      setOwnerUserId(data.owner?.userId || null)
-      setOwnerProfile(data.owner?.profile || null)
-      setCollaborators(Array.isArray(data.collaborators) ? data.collaborators : [])
-      setIsOwner(Boolean(data.isOwner))
-      setActiveInvites(Array.isArray(data.activeInvites) ? data.activeInvites : [])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load draft collaborators')
-    } finally {
-      setLoadingCollaborators(false)
-    }
-  }, [draftId])
 
   useEffect(() => {
     void loadCollaborators()
@@ -1343,7 +1286,7 @@ export default function EditDraftPage() {
 
     setLatitude(fallbackLocation[0].toFixed(6))
     setLongitude(fallbackLocation[1].toFixed(6))
-  }, [effectiveMarkerPosition, fallbackLocation])
+  }, [effectiveMarkerPosition, fallbackLocation, setLatitude, setLongitude])
 
   useEffect(() => {
     if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) return
@@ -1574,108 +1517,7 @@ export default function EditDraftPage() {
     } finally {
       setRemovingImageId(null)
     }
-  }, [activeImageId, cragId, defaultImageId, draft, draftUpdatedAt, loadDraft, mergedManageImages, pendingDraftUploads, removeUpload, removingImageId])
-
-  const handleCreateInvite = useCallback(async () => {
-    if (!draftId || creatingInvite || !isOwner) return
-
-    setCreatingInvite(true)
-    setError(null)
-    try {
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/collaborators`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ maxUses: null, expiresAt: null }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({} as { error?: string }))
-        throw new Error(data.error || 'Failed to create draft invite link')
-      }
-
-      const data = await response.json() as { invite?: { inviteUrl?: string } }
-      const inviteUrl = data.invite?.inviteUrl || null
-      setLatestInviteUrl(inviteUrl)
-      setSuccess('Invite link created')
-      await loadCollaborators()
-
-      if (inviteUrl && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(inviteUrl)
-        addToast('Invite link copied', 'success')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create draft invite link')
-    } finally {
-      setCreatingInvite(false)
-    }
-  }, [draftId, creatingInvite, isOwner, loadCollaborators, addToast])
-
-  const handleCopyInvite = useCallback(async (inviteUrl: string) => {
-    try {
-      await navigator.clipboard.writeText(inviteUrl)
-      setSuccess('Invite link copied')
-      addToast('Invite link copied', 'success')
-    } catch {
-      setError('Failed to copy invite link')
-      addToast('Failed to copy invite link', 'error')
-    }
-  }, [addToast])
-
-  const handleRevokeInvite = useCallback(async (inviteId: string) => {
-    if (!draftId || !isOwner || revokingInviteId) return
-
-    setRevokingInviteId(inviteId)
-    setError(null)
-    try {
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/collaborators`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inviteId }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({} as { error?: string }))
-        throw new Error(data.error || 'Failed to revoke invite')
-      }
-
-      setSuccess('Invite revoked')
-      await loadCollaborators()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to revoke invite')
-    } finally {
-      setRevokingInviteId(null)
-    }
-  }, [draftId, isOwner, revokingInviteId, loadCollaborators])
-
-  const handleRemoveCollaborator = useCallback(async (collaboratorUserId: string) => {
-    if (!draftId || removingCollaboratorId) return
-
-    setRemovingCollaboratorId(collaboratorUserId)
-    setError(null)
-    try {
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/collaborators/${collaboratorUserId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({} as { error?: string }))
-        throw new Error(data.error || 'Failed to remove collaborator')
-      }
-
-      if (currentUserId && collaboratorUserId === currentUserId && !isOwner) {
-        addToast('You left this draft', 'success')
-        router.push('/logbook')
-        return
-      }
-
-      setSuccess('Collaborator removed')
-      await loadCollaborators()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove collaborator')
-    } finally {
-      setRemovingCollaboratorId(null)
-    }
-  }, [draftId, removingCollaboratorId, currentUserId, isOwner, addToast, router, loadCollaborators])
+  }, [activeImageId, cragId, defaultImageId, draft, draftUpdatedAt, loadDraft, mergedManageImages, pendingDraftUploads, removeUpload, removingImageId, setConflict])
 
   const handleDeleteDraft = useCallback(async () => {
     if (!draftId || !isOwner) return
@@ -1692,30 +1534,35 @@ export default function EditDraftPage() {
     router.push('/logbook')
   }, [draftId, isOwner, addToast, router])
 
-  const updateDraftLocation = useCallback((nextLatitude: number, nextLongitude: number) => {
+  const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
     if (activeDraftImageId && activeImageLocationMode === 'custom') {
       setCustomGpsByImageId((prev) => ({
         ...prev,
         [activeDraftImageId]: {
-          latitude: nextLatitude,
-          longitude: nextLongitude,
+          latitude: event.latlng.lat,
+          longitude: event.latlng.lng,
         },
       }))
       return
     }
-    setLatitude(nextLatitude.toFixed(6))
-    setLongitude(nextLongitude.toFixed(6))
-  }, [activeDraftImageId, activeImageLocationMode])
-
-  const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
     updateDraftLocation(event.latlng.lat, event.latlng.lng)
-  }, [updateDraftLocation])
+  }, [activeDraftImageId, activeImageLocationMode, updateDraftLocation])
 
   const handleMarkerDragEnd = useCallback((event: L.LeafletEvent) => {
     const marker = event.target as L.Marker
     const position = marker.getLatLng()
+    if (activeDraftImageId && activeImageLocationMode === 'custom') {
+      setCustomGpsByImageId((prev) => ({
+        ...prev,
+        [activeDraftImageId]: {
+          latitude: position.lat,
+          longitude: position.lng,
+        },
+      }))
+      return
+    }
     updateDraftLocation(position.lat, position.lng)
-  }, [updateDraftLocation])
+  }, [activeDraftImageId, activeImageLocationMode, updateDraftLocation])
 
   const handleSearchLocation = useCallback(async () => {
     const query = searchQuery.trim()
@@ -1745,7 +1592,7 @@ export default function EditDraftPage() {
     } finally {
       setSearchingLocation(false)
     }
-  }, [searchQuery, updateDraftLocation])
+  }, [searchQuery, setMapOpen, setSearchingLocation, updateDraftLocation])
 
   const saveDraft = useCallback(async (options?: { silent?: boolean; overrideRoutesByImageId?: Record<string, DraftRoute[]> }) => {
     const silent = options?.silent === true
@@ -1923,7 +1770,7 @@ export default function EditDraftPage() {
     } finally {
       setSavingDraft(false)
     }
-  }, [canvasSource, cragId, creditHandle, creditPlatform, currentUserId, customGpsByImageId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, locationModeByImageId, manageImages, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId])
+  }, [canvasSource, cragId, creditHandle, creditPlatform, currentUserId, customGpsByImageId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, locationModeByImageId, manageImages, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId, setConflict])
 
   const scheduleDraftPersist = useCallback((nextRoutesByImageId: Record<string, DraftRoute[]>) => {
     const currentDraftId = draftIdRef.current
@@ -2195,7 +2042,7 @@ export default function EditDraftPage() {
     setSuccess(null)
     await loadDraft()
     await loadCollaborators()
-  }, [loadDraft, loadCollaborators])
+  }, [loadDraft, loadCollaborators, setConflict])
 
   const handleCopyUnsavedEdits = useCallback(async () => {
     if (!conflict) return
