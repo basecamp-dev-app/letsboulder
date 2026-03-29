@@ -83,6 +83,24 @@ Bouldering topo and climbing logbook web app.
 4. CSRF protection via JWT tokens in httpOnly cookies (`lib/csrf.ts`)
 5. Internal header `x-internal-user-id` for trusted server-to-server calls
 
+## Module Boundaries
+
+The web app is standardizing on feature-first product boundaries.
+
+- `app/` owns route entrypoints only: page/layout/loading/template/metadata files and route-local wrappers.
+- `features/` owns product-domain code: domain components, hooks, server loaders, actions, types, and feature-local utilities.
+- `components/` owns shared app shell and reusable UI, especially `components/ui/`.
+- `lib/` owns cross-feature technical utilities and platform integrations.
+- `hooks/` should be limited to cross-feature generic hooks; domain hooks should live under their feature.
+- `store/` should only hold shared app-wide stores; feature-specific stores should move under the owning feature.
+
+### Import Rules
+
+- Do not import reusable logic from `app/**`.
+- Route files in `app/` may import from `features/**`, `components/**`, `lib/**`, `hooks/**`, `store/**`, and `types/**`.
+- Code outside `app/` must not import from `@/app/**`; if something needs to be reused, move it into `features/**` or another shared layer first.
+- New product-domain code should default to `features/<domain>/` rather than the root `components/`, `hooks/`, or `lib/` folders.
+
 ## Key Files
 
 | File | Purpose |
