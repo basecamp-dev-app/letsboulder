@@ -1,16 +1,15 @@
 -- Fix: Ensure submission_id is always set when creating images
 -- This prevents orphaned images without a submission_id
 
--- 1. Fix create_unified_submission_atomic to include submission_id
--- The original function creates images without submission_id
+-- Fix create_unified_submission_atomic to include submission_id in INSERT
+-- CRITICAL: Match the actual function signature from production
 
 CREATE OR REPLACE FUNCTION public.create_unified_submission_atomic(
-  p_user_id UUID,
   p_crag_id UUID,
   p_primary_image JSONB,
+  p_supplementary_images JSONB[],
   p_routes JSONB,
-  p_supplementary_images JSONB DEFAULT '[]'::JSONB,
-  p_route_type TEXT DEFAULT 'sport'
+  p_route_type TEXT
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -33,8 +32,8 @@ DECLARE
   route_description TEXT;
   route_type_normalized TEXT;
   route_points JSONB;
-  image_width INTEGER;
-  image_height INTEGER;
+  route_image_width INTEGER;
+  route_image_height INTEGER;
   primary_url TEXT;
   primary_storage_bucket TEXT;
   primary_storage_path TEXT;
@@ -111,8 +110,8 @@ BEGIN
   )
   RETURNING id INTO created_image_id;
 
-  IF p_supplementary_images IS NOT NULL THEN
-    FOREACH supplementary_item IN ARRAY p_supplementary_images
+  IF p_supplementary_images IS NOT NULL AND array_length(p_supplementary_images, 1) > 0 THEN
+    FOR supplementary_item IN SELECT * FROM unnest(p_supplementary_images) WITH ORDINALITY AS sup(item, ord)
     LOOP
       IF supplementary_item IS NULL OR jsonb_typeof(supplementary_item) <> 'object' THEN
         RAISE EXCEPTION 'Each supplementary image must be a JSON object';
@@ -153,8 +152,8 @@ BEGIN
     route_description := NULLIF(btrim(COALESCE(route_item->>'description', '')), '');
     route_type_normalized := COALESCE(NULLIF(btrim(LOWER(route_item->>'route_type')), ''), p_route_type);
     route_points := COALESCE(route_item->'points', '[]'::jsonb);
-    image_width := NULLIF(route_item->>'imageWidth', '')::INTEGER;
-    image_height := NULLIF(route_item->>'imageHeight', '')::INTEGER;
+    route_image_width := NULLIF(route_item->>'imageWidth', '')::INTEGER;
+    route_image_height := NULLIF(route_item->>'imageHeight', '')::INTEGER;
 
     base_route_slug := COALESCE(NULLIF(public.slugify(route_name), 'unnamed'), 'route');
     route_slug := base_route_slug;
@@ -195,8 +194,8 @@ BEGIN
       created_climb_id,
       route_points,
       'red',
-      COALESCE(image_width, 1200),
-      COALESCE(image_height, 1200)
+      COALESCE(route_image_width, 1200),
+      COALESCE(route_image_height, 1200)
     );
   END LOOP;
 
@@ -210,6 +209,5 @@ BEGIN
 END;
 $$;
 
--- Grant permissions
-GRANT EXECUTE ON FUNCTION public.create_unified_submission_atomic(UUID, UUID, JSONB, JSONB, JSONB, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.create_unified_submission_atomic(UUID, UUID, JSONB, JSONB, JSONB, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.create_unified_submission_atomic(UUID, JSONB, JSONB[], JSONB, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_unified_submission_atomic(UUID, JSONB, JSONB[], JSONB, TEXT) TO service_role;
