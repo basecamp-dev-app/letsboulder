@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { StoredClimbManifest, StoredCragManifest } from '@/lib/offline/storage'
 import { listOfflinePacksForLaunch } from '@/lib/offline/packs'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
@@ -30,9 +31,17 @@ function getOfflineThumbnailUrl(url: string | null | undefined) {
 }
 
 export default function OfflineLibraryClient() {
+  const searchParams = useSearchParams()
   const [state, setState] = useState<OfflineLibraryState>({ climbs: [], crags: [] })
   const [status, setStatus] = useState('Loading saved climbs on this device...')
   const [error, setError] = useState<string | null>(null)
+
+  const reason = searchParams.get('reason')
+  const reasonMessage = reason === 'weak-signal'
+    ? 'Optimizing for offline use due to weak signal.'
+    : reason === 'offline'
+      ? 'You are offline. Open saved downloads stored on this device.'
+      : null
 
   useEffect(() => {
     let cancelled = false
@@ -115,6 +124,11 @@ export default function OfflineLibraryClient() {
           </div>
 
           <div className="mt-6 grid gap-3 md:grid-cols-2">
+            {reasonMessage ? (
+              <div className="md:col-span-2 rounded-2xl border border-cyan-200 bg-cyan-50/80 px-4 py-4 text-sm text-cyan-900 dark:border-cyan-900/60 dark:bg-cyan-950/30 dark:text-cyan-100">
+                {reasonMessage}
+              </div>
+            ) : null}
             <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
               <p className="text-xs font-semibold uppercase tracking-[0.2em]">Crag folders</p>
               <p className="mt-2">Browse saved crags by thumbnail, then open individual climb pages.</p>
