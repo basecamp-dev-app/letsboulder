@@ -17,8 +17,8 @@ import CragFilterDialog from '@/features/crags/components/CragFilterDialog'
 import CragActiveFilterChips from '@/features/crags/components/CragActiveFilterChips'
 import CragOfflineDialog from '@/features/crags/components/CragOfflineDialog'
 import CragSortDialog from '@/features/crags/components/CragSortDialog'
-import { buildActiveRouteFilterChips, buildCragRouteStats, buildEffectiveClimbLookup, buildRouteNavigationDisplayByClimbId, buildRoutePreviewDisplayByClimbId, buildRouteTargetMaps, dedupeCragRoutes, filterAndSortCragRoutes, formatCragRoutes, getAvailableDirections, getAverageCoordinates, getHighlightedRouteIds, getOfflineCragState, getSearchModalResults, getSelectedImageIds, getStoredCragClimbPayloadsSafely, getRouteTypeChips, hasCompleteRouteTargets, hydrateOfflineCragData, remapRoutePreviewsByEffectiveClimbId, resolveCragRouteDestination, sortImagesByViewCenter, sortPinClusters } from '@/features/crags/lib/crag-page-domain'
-import type { ActiveRouteFilterChip, CachedCragImageData, ClimbIdentityRow, CragRouteIntelligenceRow, RawImageRow, ResolvedRouteDestination, RouteLineTargetRow } from '@/features/crags/lib/crag-page-domain'
+import { buildActiveRouteFilterChips, buildCragRouteStats, buildRouteNavigationDisplayByClimbId, buildRoutePreviewDisplayByClimbId, dedupeCragRoutes, fetchRouteTargetMapsForClimbIds, filterAndSortCragRoutes, formatCragRoutes, getAvailableDirections, getAverageCoordinates, getHighlightedRouteIds, getOfflineCragState, getSearchModalResults, getSelectedImageIds, getStoredCragClimbPayloadsSafely, getRouteTypeChips, hasCompleteRouteTargets, hydrateOfflineCragData, remapRouteNavigationTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId, resolveCragRouteDestination, sortImagesByViewCenter, sortPinClusters } from '@/features/crags/lib/crag-page-domain'
+import type { ActiveRouteFilterChip, CachedCragImageData, CragRouteIntelligenceRow, RawImageRow, ResolvedRouteDestination } from '@/features/crags/lib/crag-page-domain'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { buildSelectableImageIdByImageId } from '@/lib/image-identity'
 import LightweightCragMap from '@/components/lightweight-crag-map'
@@ -443,64 +443,20 @@ export default function CragPageClient({
       const nextRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget> = {}
 
       if (routeClimbIds.length > 0) {
-        const { data: climbIdentityData, error: climbIdentityError } = await supabase
-          .from('climbs')
-          .select('id, shared_climb_id')
-          .or(`id.in.(${routeClimbIds.join(',')}),shared_climb_id.in.(${routeClimbIds.join(',')})`)
-
-        if (climbIdentityError) {
-          console.error('Error fetching climb identities for route targets:', climbIdentityError)
-        }
-
-        const { effectiveClimbIdByClimbId, climbIdsByEffectiveClimbId } = buildEffectiveClimbLookup(
-          (climbIdentityData || []) as ClimbIdentityRow[]
-        )
-        const routeLineClimbIds = Array.from(new Set([
-          ...routeClimbIds,
-          ...routeClimbIds.flatMap((climbId) => climbIdsByEffectiveClimbId[climbId] || []),
-        ]))
-
-        const { data: routeTargetsData, error: routeTargetsError } = await supabase
-          .from('route_lines')
-          .select('id, image_id, climb_id, climbs(slug)')
-          .in('climb_id', routeLineClimbIds)
-          .order('climb_id', { ascending: true })
-          .order('sequence_order', { ascending: true, nullsFirst: false })
-          .order('created_at', { ascending: true })
-
-        if (routeTargetsError) {
-          console.error('Error fetching image route targets:', routeTargetsError)
-        } else {
-          for (const row of (routeTargetsData || []) as RouteLineTargetRow[]) {
-            const effectiveClimbId = effectiveClimbIdByClimbId[row.climb_id] || row.climb_id
-            const selectableImageId = selectableImageIdByImageId[row.image_id] || row.image_id
-            const climbImageIds = nextRouteImageIdsByClimbId[effectiveClimbId] || []
-            if (!climbImageIds.includes(selectableImageId)) {
-              climbImageIds.push(selectableImageId)
-              nextRouteImageIdsByClimbId[effectiveClimbId] = climbImageIds
-            }
-            if (nextDefaultRouteTargetByImageId[selectableImageId]) continue
-            const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
-            nextDefaultRouteTargetByImageId[selectableImageId] = {
-              climbId: row.climb_id,
-              routeId: row.id,
-              climbSlug: climb?.slug || null,
-              imageId: selectableImageId,
-            }
-          }
-
-          const targetMaps = buildRouteTargetMaps(
-            (routeTargetsData || []) as RouteLineTargetRow[],
-            effectiveClimbIdByClimbId,
+        try {
+          const { targetMaps } = await fetchRouteTargetMapsForClimbIds(
+            supabase,
+            routeClimbIds,
             imageById,
             selectableImageIdByImageId
           )
-
           Object.assign(nextDefaultRouteTargetByImageId, targetMaps.nextDefaultRouteTargetByImageId)
           Object.assign(nextRouteImageIdsByClimbId, targetMaps.nextRouteImageIdsByClimbId)
           Object.assign(nextRoutePreviewByClimbId, targetMaps.nextRoutePreviewByClimbId)
           Object.assign(nextRouteNavigationTargetByClimbId, targetMaps.nextRouteNavigationTargetByClimbId)
           console.debug('[Router Debug] Target Map populated with keys:', Object.keys(targetMaps.nextRouteNavigationTargetByClimbId))
+        } catch (error) {
+          console.error('Error fetching image route targets:', error)
         }
       }
 
@@ -667,23 +623,7 @@ export default function CragPageClient({
       )
       setRoutes(dedupeCragRoutes(nextRoutes, effectiveClimbIdByClimbId))
       setRoutePreviewByClimbId((prev) => remapRoutePreviewsByEffectiveClimbId(prev, effectiveClimbIdByClimbId))
-      setRouteNavigationTargetByClimbId((prev) => {
-        const nextTargets: Record<string, RouteNavigationTarget> = {}
-
-        for (const [climbId, target] of Object.entries(prev)) {
-          const effectiveClimbId = effectiveClimbIdByClimbId[climbId] || climbId
-          if (!nextTargets[effectiveClimbId]) {
-            nextTargets[effectiveClimbId] = target.climbId === effectiveClimbId
-              ? target
-              : {
-                  ...target,
-                  climbId: effectiveClimbId,
-                }
-          }
-        }
-
-        return nextTargets
-      })
+      setRouteNavigationTargetByClimbId((prev) => remapRouteNavigationTargetsByEffectiveClimbId(prev, effectiveClimbIdByClimbId))
       setRoutesLoadState('loaded')
     }
 
@@ -820,41 +760,17 @@ export default function CragPageClient({
       const climbIds = climbIdsFingerprint.split(',').filter(Boolean)
       if (climbIds.length === 0) return
 
-      const { data: climbIdentityData, error: climbIdentityError } = await supabase
-        .from('climbs')
-        .select('id, shared_climb_id')
-        .or(`id.in.(${climbIds.join(',')}),shared_climb_id.in.(${climbIds.join(',')})`)
-
-      if (climbIdentityError) {
-        console.error('Error fetching climb identities while rebuilding route navigation targets:', climbIdentityError)
-      }
-
-      const { effectiveClimbIdByClimbId, climbIdsByEffectiveClimbId } = buildEffectiveClimbLookup(
-        (climbIdentityData || []) as ClimbIdentityRow[]
-      )
-      const routeLineClimbIds = Array.from(new Set([
-        ...climbIds,
-        ...climbIds.flatMap((climbId) => climbIdsByEffectiveClimbId[climbId] || []),
-      ]))
-
-      const { data: routeTargetsData, error: routeTargetsError } = await supabase
-        .from('route_lines')
-        .select('id, image_id, climb_id, climbs(slug)')
-        .in('climb_id', routeLineClimbIds)
-        .order('climb_id', { ascending: true })
-        .order('sequence_order', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: true })
-
-      if (routeTargetsError) {
-        console.error('Error rebuilding route navigation targets:', routeTargetsError)
+      let targetMaps
+      try {
+        ;({ targetMaps } = await fetchRouteTargetMapsForClimbIds(
+          supabase,
+          climbIds,
+          imageById
+        ))
+      } catch (error) {
+        console.error('Error rebuilding route navigation targets:', error)
         return
       }
-
-      const targetMaps = buildRouteTargetMaps(
-        (routeTargetsData || []) as RouteLineTargetRow[],
-        effectiveClimbIdByClimbId,
-        imageById
-      )
 
       if (ignore) return
 
