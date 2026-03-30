@@ -238,6 +238,10 @@ export function useEditDraftActions({
           const conflictPayload = payload as DraftConflictResponse
           const isSelfConflict = conflictPayload.current_data?.last_updated_by === currentUserId
           if (silent || isSelfConflict) {
+            if (autosaveTimeoutRef.current) {
+              window.clearTimeout(autosaveTimeoutRef.current)
+              autosaveTimeoutRef.current = null
+            }
             setDraftUpdatedAt(conflictPayload.current_updated_at)
             if (silent) {
               setAutosaveState('syncing')
