@@ -127,6 +127,14 @@ export async function getOfflinePackStatus(climbId: string): Promise<OfflinePack
   }
 }
 
+export async function hasOfflineLaunchPacks(): Promise<boolean> {
+  const [crags, climbs] = await Promise.all([
+    listStoredCragManifests(),
+    listStoredClimbManifests(),
+  ])
+  return crags.length > 0 || climbs.some((entry) => entry.pinnedStandalone)
+}
+
 export async function getCragOfflineStatus(cragId: string): Promise<CragOfflineStatus> {
   const [pack, usageBytes] = await Promise.all([
     getOfflineCragPack(cragId),
