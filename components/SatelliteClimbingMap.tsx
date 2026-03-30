@@ -11,7 +11,7 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { useMapEvents } from 'react-leaflet'
 import MapLoadingShell from '@/components/map/MapLoadingShell'
 import { runWhenIdle } from '@/lib/run-when-idle'
-import type Supercluster from 'supercluster'
+import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult, type PinFeature, type PlacePin } from '@/lib/map/place-pins'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -56,44 +56,11 @@ function DefaultLocationWatcher({ defaultLocation, mapRef }: { defaultLocation: 
   return null
 }
 
-interface PlacePin {
-  id: string
-  name: string
-  type: 'crag' | 'gym'
-  latitude: number
-  longitude: number
-  slug: string | null
-  country_code: string | null
-  image_count: number | null
-  route_count: number | null
-}
-
 interface MapBounds {
   north: number
   south: number
   east: number
   west: number
-}
-
-interface ClusterProperties extends PlacePin {
-  cluster: false
-  placeCount: 1
-}
-
-interface ClusterPointProperties {
-  cluster: true
-  cluster_id: number
-  point_count: number
-  point_count_abbreviated: string | number
-}
-
-type ClusterFeature = GeoJSON.Feature<GeoJSON.Point, ClusterPointProperties>
-type PinFeature = GeoJSON.Feature<GeoJSON.Point, ClusterProperties>
-type ClusterResult = ClusterFeature | PinFeature
-type ClusterIndex = Supercluster<ClusterProperties, ClusterPointProperties>
-
-function isClusterFeature(feature: ClusterResult): feature is ClusterFeature {
-  return feature.properties.cluster === true
 }
 
 function MapStateWatcher({
@@ -155,7 +122,7 @@ function MapInteractionWatcher({ onInteract }: { onInteract: () => void }) {
   return null
 }
 
-export default function SatelliteClimbingMap() {
+export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initialPlacePins?: PlacePin[] }) {
   const router = useRouter()
   const mapRef = useRef<L.Map | null>(null)
   const [isClient, setIsClient] = useState(false)
@@ -166,7 +133,7 @@ export default function SatelliteClimbingMap() {
   const [user, setUser] = useState<User | null>(null)
   const [defaultLocation, setDefaultLocation] = useState<{lat: number; lng: number; zoom: number} | null>(null)
   const [, setIsAtDefaultLocation] = useState(true)
-  const [placePins, setPlacePins] = useState<PlacePin[]>([])
+  const [placePins, setPlacePins] = useState<PlacePin[]>(initialPlacePins)
   const [mapZoom, setMapZoom] = useState(WORLD_DEFAULT_ZOOM)
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -182,20 +149,7 @@ export default function SatelliteClimbingMap() {
     setHasUserInteracted(true)
   }, [])
 
-  const pinFeatures = useMemo<PinFeature[]>(() => {
-    return placePins.map((pin) => ({
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [pin.longitude, pin.latitude],
-      },
-      properties: {
-        ...pin,
-        cluster: false,
-        placeCount: 1,
-      },
-    }))
-  }, [placePins])
+  const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
 
   useEffect(() => {
     let cancelled = false
@@ -209,12 +163,12 @@ export default function SatelliteClimbingMap() {
       if (cancelled) return
 
       const SuperclusterLib = mod.default
-      const index = new SuperclusterLib<ClusterProperties, ClusterPointProperties>({
+      const index = new SuperclusterLib({
         radius: 56,
         maxZoom: 16,
         minZoom: 0,
         minPoints: 2,
-      })
+      }) as ClusterIndex
       index.load(pinFeatures)
       setClusterIndex(index)
     }).catch(() => {
@@ -262,7 +216,7 @@ export default function SatelliteClimbingMap() {
   }, [toast])
 
   const loadPlacePins = useCallback(async () => {
-    if (!isClient) {
+    if (!isClient || initialPlacePins.length > 0) {
       return
     }
 
@@ -280,7 +234,7 @@ export default function SatelliteClimbingMap() {
       console.error('Error loading place pins:', err)
       setPlacePins([])
     }
-  }, [isClient])
+  }, [initialPlacePins.length, isClient])
 
   useEffect(() => {
     if (!isClient || !mapLoaded || !hasUserInteracted) return

@@ -1,19 +1,42 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
 import MapLoadingShell from '@/components/map/MapLoadingShell'
-import { runWhenIdle } from '@/lib/run-when-idle'
+import WeakSignalSearchSheet from '@/components/map/WeakSignalSearchSheet'
+import { Button } from '@/components/ui/button'
+import { hasOfflineLaunchPacks } from '@/lib/offline/packs'
+import { loadPlacePins } from '@/lib/map/load-place-pins'
+import type { PlacePin } from '@/lib/map/place-pins'
 
 const SatelliteClimbingMap = dynamic(() => import('@/components/SatelliteClimbingMap'), {
   ssr: false,
   loading: () => <MapLoadingShell />,
 })
 
+type LaunchState = 'loading-shell' | 'slow-connection' | 'redirecting-offline' | 'live-map-ready' | 'no-downloads-fallback'
+
+const SLOW_CONNECTION_MS = 1500
+const OFFLINE_REDIRECT_MS = 3000
+
 export default function MapViewport() {
-  const [shouldLoadMap, setShouldLoadMap] = useState(false)
+  const router = useRouter()
+  const mountedRef = useRef(true)
+  const offlinePackAvailabilityRef = useRef<boolean | null>(null)
+  const [attempt, setAttempt] = useState(0)
   const [isOnline, setIsOnline] = useState(true)
+  const [launchState, setLaunchState] = useState<LaunchState>('loading-shell')
+  const [placePins, setPlacePins] = useState<PlacePin[] | null>(null)
+  const [redirectMessageVisible, setRedirectMessageVisible] = useState(false)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -30,89 +53,129 @@ export default function MapViewport() {
   }, [])
 
   useEffect(() => {
-    if (shouldLoadMap || !isOnline) return
+    if (!isOnline) {
+      router.replace('/offline/library?reason=offline')
+      return
+    }
 
-    let frameId = 0
-    let timeoutId = 0
-    let cancelIdle: (() => void) | undefined
+    const abortController = new AbortController()
+    offlinePackAvailabilityRef.current = null
 
-    frameId = window.requestAnimationFrame(() => {
-      cancelIdle = runWhenIdle(() => {
-        setShouldLoadMap(true)
-      }, 1200)
+    void hasOfflineLaunchPacks().then((value) => {
+      if (!mountedRef.current) return
+      offlinePackAvailabilityRef.current = value
+    }).catch(() => {
+      if (!mountedRef.current) return
+      offlinePackAvailabilityRef.current = false
     })
 
-    timeoutId = window.setTimeout(() => {
-      setShouldLoadMap(true)
-    }, 2500)
+    void loadPlacePins(abortController.signal).then((pins) => {
+      if (!mountedRef.current) return
+      setPlacePins(pins)
+      setLaunchState('live-map-ready')
+    }).catch(() => {
+      if (!mountedRef.current) return
+      setPlacePins(null)
+    })
+
+    const slowTimer = window.setTimeout(() => {
+      if (!mountedRef.current) return
+      setLaunchState((current) => current === 'loading-shell' ? 'slow-connection' : current)
+    }, SLOW_CONNECTION_MS)
+
+    const redirectTimer = window.setTimeout(() => {
+      if (!mountedRef.current) return
+
+      if (offlinePackAvailabilityRef.current) {
+        setLaunchState('redirecting-offline')
+        setRedirectMessageVisible(true)
+        window.setTimeout(() => {
+          if (!mountedRef.current) return
+          router.replace('/offline/library?reason=weak-signal')
+        }, 250)
+        return
+      }
+
+      setLaunchState('no-downloads-fallback')
+    }, OFFLINE_REDIRECT_MS)
 
     return () => {
-      window.cancelAnimationFrame(frameId)
-      cancelIdle?.()
-      window.clearTimeout(timeoutId)
+      abortController.abort()
+      window.clearTimeout(slowTimer)
+      window.clearTimeout(redirectTimer)
     }
-  }, [isOnline, shouldLoadMap])
+  }, [attempt, isOnline, router])
 
-  const activateMap = () => {
-    if (!isOnline) return
-    setShouldLoadMap(true)
+  const retryLaunch = () => {
+    offlinePackAvailabilityRef.current = null
+    setLaunchState('loading-shell')
+    setPlacePins(null)
+    setRedirectMessageVisible(false)
+    setAttempt((current) => current + 1)
   }
+
+  const showSlowCta = launchState === 'slow-connection'
+  const showNoDownloadsFallback = launchState === 'no-downloads-fallback'
+
+  const overlay = useMemo(() => {
+    if (launchState === 'live-map-ready' && placePins) return null
+
+    return (
+      <div className="pointer-events-none absolute inset-0 z-[950]">
+        <MapLoadingShell />
+        <div className="pointer-events-auto absolute inset-x-0 bottom-0 p-4 sm:p-6">
+          {showSlowCta ? (
+            <div className="mx-auto max-w-xl rounded-3xl border border-amber-400/25 bg-gray-950/88 p-5 text-white shadow-2xl backdrop-blur-md">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-amber-400/15 p-2 text-amber-200">
+                  <AlertTriangle className="size-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">Connection is slow.</p>
+                  <p className="mt-1 text-sm text-white/75">Switch to Offline Downloads if you already saved climbs on this device.</p>
+                </div>
+                <Button type="button" onClick={() => window.location.assign('/offline/library')} className="bg-emerald-500 text-white hover:bg-emerald-400">
+                  Switch to Offline Downloads
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {showNoDownloadsFallback ? (
+            <div className="mx-auto max-w-3xl space-y-4">
+              <div className="rounded-3xl border border-cyan-400/20 bg-gray-950/88 p-5 text-white shadow-2xl backdrop-blur-md">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">The live map is taking longer than expected.</p>
+                    <p className="mt-1 text-sm text-white/75">No offline downloads were found on this device, so we are keeping you on the live path.</p>
+                  </div>
+                  <Button type="button" onClick={retryLaunch} className="bg-white text-gray-950 hover:bg-white/90">
+                    <RefreshCw className="mr-2 size-4" />
+                    Retry live map
+                  </Button>
+                </div>
+              </div>
+              <WeakSignalSearchSheet />
+            </div>
+          ) : null}
+
+          {launchState === 'redirecting-offline' && redirectMessageVisible ? (
+            <div className="mx-auto max-w-xl rounded-3xl border border-emerald-400/25 bg-gray-950/88 p-5 text-white shadow-2xl backdrop-blur-md">
+              <div className="flex items-center gap-3 text-sm font-medium">
+                <Loader2 className="size-4 animate-spin" />
+                Optimizing for offline use due to weak signal.
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    )
+  }, [launchState, placePins, redirectMessageVisible, showNoDownloadsFallback, showSlowCta])
 
   return (
     <div className="fixed inset-0 overflow-visible pt-[var(--app-header-offset)] md:pt-0">
-      {!isOnline ? (
-        <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef2f7_100%)] px-4 py-10 text-gray-900 dark:bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.15),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#111827_100%)] dark:text-gray-100">
-          <div className="w-full max-w-3xl rounded-3xl border border-white/70 bg-white/90 p-6 shadow-xl shadow-emerald-950/5 backdrop-blur dark:border-white/10 dark:bg-gray-950/80 dark:shadow-black/30">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-300">Offline</p>
-                <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-950 dark:text-white">Open saved downloads</h1>
-                <p className="mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-300">
-                  The live map stays unloaded while you are offline. Open saved crags and climbs from this device, then come back online for the full map.
-                </p>
-              </div>
-              <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-200">
-                Offline
-              </span>
-            </div>
-
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <Link
-                href="/offline/library"
-                className="rounded-3xl border border-amber-200 bg-amber-50/80 p-5 text-left transition hover:-translate-y-0.5 hover:border-amber-300 dark:border-amber-900/60 dark:bg-amber-950/30 dark:hover:border-amber-800"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700 dark:text-amber-300">Saved packs</p>
-                <h2 className="mt-3 text-xl font-semibold text-gray-950 dark:text-white">Open offline library</h2>
-                <p className="mt-2 text-sm text-amber-900/80 dark:text-amber-100/80">
-                  Browse saved crag maps, tiles, topo images, and route lines stored on this device.
-                </p>
-              </Link>
-
-              <div className="rounded-3xl border border-gray-200 bg-gray-50/80 p-5 text-left dark:border-gray-800 dark:bg-gray-900/70">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Live app</p>
-                <h2 className="mt-3 text-xl font-semibold text-gray-950 dark:text-white">Live map paused</h2>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                  Reconnect to load satellite tiles, live crag pins, and map clustering.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : shouldLoadMap ? (
-        <SatelliteClimbingMap />
-      ) : (
-        <button
-          type="button"
-          onClick={activateMap}
-          onPointerDown={activateMap}
-          onTouchStart={activateMap}
-          onFocus={activateMap}
-          className="block h-full w-full text-left"
-          aria-label="Load interactive climbing map"
-        >
-          <MapLoadingShell />
-        </button>
-      )}
+      {launchState === 'live-map-ready' && placePins ? <SatelliteClimbingMap initialPlacePins={placePins} /> : null}
+      {overlay}
     </div>
   )
 }
