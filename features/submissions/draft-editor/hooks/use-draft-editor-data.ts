@@ -2,42 +2,7 @@
 
 import { useMemo } from 'react'
 import { serializeRouteEditorRoutes, type RouteEditorRouteInput } from '@/features/route-editor/route-editor-utils'
-
-export interface DraftImagePayload {
-  id: string
-  display_order: number
-  route_data: Record<string, unknown> | null
-  proxy_url: string | null
-  readiness_status: 'ready' | 'processing' | 'error'
-  width: number | null
-  height: number | null
-  latitude: number | null
-  longitude: number | null
-}
-
-export interface DraftPayload {
-  id: string
-  user_id: string
-  crag_id: string | null
-  status: string
-  updated_at: string
-  last_edited_by: string | null
-  metadata: Record<string, unknown> | null
-  crags: { name?: string; latitude?: number | null; longitude?: number | null } | Array<{ name?: string; latitude?: number | null; longitude?: number | null }> | null
-  images: DraftImagePayload[]
-}
-
-export interface DraftRoute {
-  id: string
-  name: string
-  grade: string
-  description?: string
-  climbType?: string
-  points: { x: number; y: number }[]
-  sequenceOrder: number
-  imageWidth: number
-  imageHeight: number
-}
+import type { DraftImagePayload, DraftPayload, DraftRoute } from '@/features/submissions/draft-editor/lib/edit-draft-types'
 
 export interface DraftEditorDataInput {
   draft: DraftPayload | null
