@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import OfflineLibraryClient from '@/app/offline/components/OfflineLibraryClient'
 
@@ -11,5 +12,9 @@ export const metadata: Metadata = {
 }
 
 export default function OfflineLibraryPage() {
-  return <OfflineLibraryClient />
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 dark:bg-gray-900" />}>
+      <OfflineLibraryClient />
+    </Suspense>
+  )
 }
