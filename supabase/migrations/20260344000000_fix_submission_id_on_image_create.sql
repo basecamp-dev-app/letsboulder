@@ -1,9 +1,6 @@
 -- Fix: Ensure submission_id is always set when creating images
 -- This prevents orphaned images without a submission_id
 
--- Fix create_unified_submission_atomic to include submission_id in INSERT
--- CRITICAL: Match the actual function signature from production
-
 CREATE OR REPLACE FUNCTION public.create_unified_submission_atomic(
   p_crag_id UUID,
   p_primary_image JSONB,
@@ -73,34 +70,17 @@ BEGIN
     RAISE EXCEPTION 'Primary image face_directions must be a non-empty array';
   END IF;
 
-  -- INSERT with submission_id
   INSERT INTO public.images (
-    url,
-    storage_bucket,
-    storage_path,
-    latitude,
-    longitude,
-    capture_date,
-    face_direction,
-    face_directions,
-    crag_id,
-    submission_id,
-    width,
-    height,
-    natural_width,
-    natural_height,
-    created_by
+    url, storage_bucket, storage_path, latitude, longitude, capture_date,
+    face_direction, face_directions, crag_id, submission_id, width, height,
+    natural_width, natural_height, created_by
   )
   VALUES (
-    primary_url,
-    primary_storage_bucket,
-    primary_storage_path,
+    primary_url, primary_storage_bucket, primary_storage_path,
     NULLIF(p_primary_image->>'image_lat', '')::NUMERIC,
     NULLIF(p_primary_image->>'image_lng', '')::NUMERIC,
     NULLIF(p_primary_image->>'capture_date', '')::TIMESTAMPTZ,
-    primary_face_directions->>0,
-    primary_face_directions,
-    p_crag_id,
+    primary_face_directions->>0, primary_face_directions, p_crag_id,
     unified_submission_id,
     NULLIF(p_primary_image->>'width', '')::INTEGER,
     NULLIF(p_primary_image->>'height', '')::INTEGER,
@@ -118,36 +98,24 @@ BEGIN
       END IF;
 
       INSERT INTO public.images (
-        url,
-        storage_bucket,
-        storage_path,
-        crag_id,
-        submission_id,
-        face_directions,
-        created_by
+        url, storage_bucket, storage_path, crag_id, submission_id, face_directions, created_by
       )
       VALUES (
         NULLIF(btrim(COALESCE(supplementary_item->>'url', '')), ''),
         NULLIF(btrim(COALESCE(supplementary_item->>'storage_bucket', '')), ''),
         NULLIF(btrim(COALESCE(supplementary_item->>'storage_path', '')), ''),
-        p_crag_id,
-        unified_submission_id,
+        p_crag_id, unified_submission_id,
         COALESCE(supplementary_item->'face_directions', '[]'::jsonb),
         current_user_id
       )
       RETURNING id INTO created_supplementary_image_id;
-
       supplementary_image_ids := array_append(supplementary_image_ids, created_supplementary_image_id);
     END LOOP;
   END IF;
 
   FOR route_item IN SELECT * FROM jsonb_array_elements(p_routes)
   LOOP
-    route_name := COALESCE(NULLIF(btrim(route_item->>'name')), '');
-    IF route_name IS NULL OR length(route_name) = 0 THEN
-      route_name := 'Unnamed';
-    END IF;
-
+    route_name := COALESCE(NULLIF(btrim(route_item->>'name')), 'Unnamed');
     route_grade := COALESCE(NULLIF(btrim(route_item->>'grade')), '5C');
     route_description := NULLIF(btrim(COALESCE(route_item->>'description', '')), '');
     route_type_normalized := COALESCE(NULLIF(btrim(LOWER(route_item->>'route_type')), ''), p_route_type);
@@ -161,51 +129,20 @@ BEGIN
       route_slug := base_route_slug || '-' || substring(replace(gen_random_uuid()::TEXT, '-', ''), 1, 6);
     END LOOP;
 
-    INSERT INTO climbs (
-      name,
-      grade,
-      route_type,
-      description,
-      crag_id,
-      user_id,
-      slug
-    )
-    VALUES (
-      route_name,
-      route_grade,
-      route_type_normalized,
-      route_description,
-      p_crag_id,
-      current_user_id,
-      route_slug
-    )
+    INSERT INTO climbs (name, grade, route_type, description, crag_id, user_id, slug)
+    VALUES (route_name, route_grade, route_type_normalized, route_description, p_crag_id, current_user_id, route_slug)
     RETURNING id INTO created_climb_id;
 
-    INSERT INTO route_lines (
-      image_id,
-      climb_id,
-      points,
-      color,
-      image_width,
-      image_height
-    )
-    VALUES (
-      created_image_id,
-      created_climb_id,
-      route_points,
-      'red',
-      COALESCE(route_image_width, 1200),
-      COALESCE(route_image_height, 1200)
-    );
+    INSERT INTO route_lines (image_id, climb_id, points, color, image_width, image_height)
+    VALUES (created_image_id, created_climb_id, route_points, 'red',
+      COALESCE(route_image_width, 1200), COALESCE(route_image_height, 1200));
   END LOOP;
 
-  result := jsonb_build_object(
+  RETURN jsonb_build_object(
     'submission_id', unified_submission_id,
     'image_id', created_image_id,
     'image_ids', array_prepend(created_image_id, supplementary_image_ids)
   );
-
-  RETURN result;
 END;
 $$;
 
