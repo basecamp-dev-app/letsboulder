@@ -18,7 +18,7 @@ const SatelliteClimbingMap = dynamic(() => import('@/components/SatelliteClimbin
 type LaunchState = 'loading-shell' | 'slow-connection' | 'live-map-ready' | 'no-downloads-fallback'
 
 const SLOW_CONNECTION_MS = 1500
-const OFFLINE_REDIRECT_MS = 3000
+const OFFLINE_REDIRECT_MS = 12000
 
 export default function MapViewport() {
   const router = useRouter()
