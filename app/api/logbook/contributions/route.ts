@@ -42,10 +42,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const limitParam = Number(new URL(request.url).searchParams.get('limit') || 24)
+    const limitParam = Number(new URL(request.url).searchParams.get('limit') || 200)
     const limit = Number.isFinite(limitParam)
-      ? Math.max(1, Math.min(Math.trunc(limitParam), 100))
-      : 24
+      ? Math.max(1, Math.min(Math.trunc(limitParam), 500))
+      : 200
 
     const readClient = SUPABASE_SERVICE_ROLE_KEY
       ? createServerClient(
