@@ -569,7 +569,7 @@ async function extractGpsFromBlob(blob: Blob, debugLabel?: string): Promise<GpsD
   return null
 }
 
-async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string, mimeType?: string): Promise<GpsData | null> {
+export async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: string, mimeType?: string): Promise<GpsData | null> {
   const exifr = (await import('exifr')).default
   gpsDebug('start', { file: debugLabel || 'unknown', bytes: buffer.byteLength })
 
