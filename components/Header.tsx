@@ -49,6 +49,7 @@ export default function Header() {
   const [isSearching, setIsSearching] = useState(false)
   const latestSearchRequestRef = useRef(0)
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchAbortRef = useRef<AbortController | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
   const moreRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
@@ -94,6 +95,8 @@ export default function Header() {
     const trimmedQuery = query.trim()
     if (!trimmedQuery || trimmedQuery.length < 2) {
       latestSearchRequestRef.current += 1
+      searchAbortRef.current?.abort()
+      searchAbortRef.current = null
       setSearchResults([])
       setIsSearching(false)
       return
@@ -101,6 +104,9 @@ export default function Header() {
 
     const requestId = latestSearchRequestRef.current + 1
     latestSearchRequestRef.current = requestId
+    searchAbortRef.current?.abort()
+    const abortController = new AbortController()
+    searchAbortRef.current = abortController
     setIsSearching(true)
     try {
       const [cragsResponse, climbsResponse] = await Promise.all([
@@ -108,13 +114,15 @@ export default function Header() {
           .from('crags')
           .select('id, name, latitude, longitude, slug, country_code')
           .ilike('name', `%${trimmedQuery}%`)
-          .limit(5),
+          .limit(5)
+          .abortSignal(abortController.signal),
         supabase
           .from('climbs')
           .select('id, name, crags!inner(name, latitude, longitude)')
           .ilike('name', `%${trimmedQuery}%`)
           .eq('status', 'approved')
           .limit(10)
+          .abortSignal(abortController.signal)
       ])
 
       if (requestId !== latestSearchRequestRef.current) {
@@ -162,6 +170,9 @@ export default function Header() {
     } finally {
       if (requestId === latestSearchRequestRef.current) {
         setIsSearching(false)
+        if (searchAbortRef.current === abortController) {
+          searchAbortRef.current = null
+        }
       }
     }
   }, [supabase])
@@ -182,7 +193,7 @@ export default function Header() {
 
     searchTimeoutRef.current = setTimeout(() => {
       void searchClimbsAndCrags(searchQuery)
-    }, 250)
+    }, 300)
 
     return () => {
       if (searchTimeoutRef.current) {
