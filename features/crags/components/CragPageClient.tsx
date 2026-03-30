@@ -5,32 +5,29 @@ import { useCallback, useEffect, useMemo, useState, startTransition } from 'reac
 import type { MouseEvent } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { ChevronRight, X } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { PUBLIC_GRADES } from '@/lib/grades'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import CragPageToolbar, { type CragSwitcherOption } from '@/features/crags/components/CragPageToolbar'
 import CragCommunitySidebar from '@/features/crags/components/CragCommunitySidebar'
 import CragPageSkeleton from '@/features/crags/components/CragPageSkeleton'
 import CragRouteList from '@/features/crags/components/CragRouteList'
-import { buildCragRouteStats, buildEffectiveClimbLookup, buildRouteNavigationDisplayByClimbId, buildRoutePreviewDisplayByClimbId, dedupeCragRoutes, filterAndSortCragRoutes, formatBytes, formatCragRoutes, formatRouteTypeLabel, getAvailableDirections, getAverageCoordinates, getSearchModalResults, getStoredCragClimbPayloadsSafely, getRouteTypeChips, hydrateOfflineCragData, mapRouteTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId, sortImagesByViewCenter, sortPinClusters } from '@/features/crags/lib/crag-page-domain'
-import type { CachedCragImageData, ClimbIdentityRow, CragRouteIntelligenceRow, RawImageRow, RouteLineTargetRow } from '@/features/crags/lib/crag-page-domain'
+import CragSearchDialog from '@/features/crags/components/CragSearchDialog'
+import CragFilterDialog from '@/features/crags/components/CragFilterDialog'
+import CragOfflineDialog from '@/features/crags/components/CragOfflineDialog'
+import { buildActiveRouteFilterChips, buildCragRouteStats, buildEffectiveClimbLookup, buildRouteNavigationDisplayByClimbId, buildRoutePreviewDisplayByClimbId, buildRouteTargetMaps, dedupeCragRoutes, filterAndSortCragRoutes, formatCragRoutes, getAvailableDirections, getAverageCoordinates, getHighlightedRouteIds, getOfflineCragState, getSearchModalResults, getSelectedImageIds, getStoredCragClimbPayloadsSafely, getRouteTypeChips, hasCompleteRouteTargets, hydrateOfflineCragData, remapRoutePreviewsByEffectiveClimbId, resolveCragRouteDestination, sortImagesByViewCenter, sortPinClusters } from '@/features/crags/lib/crag-page-domain'
+import type { ActiveRouteFilterChip, CachedCragImageData, ClimbIdentityRow, CragRouteIntelligenceRow, RawImageRow, ResolvedRouteDestination, RouteLineTargetRow } from '@/features/crags/lib/crag-page-domain'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { buildSelectableImageIdByImageId } from '@/lib/image-identity'
-import { Button } from '@/components/ui/button'
 import LightweightCragMap from '@/components/lightweight-crag-map'
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { buildCragImageDestination, type ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
 import type { ClimbPackResponse } from '@/lib/climb/queries'
-import { Input } from '@/components/ui/input'
 import { buildCragPinClusters, type ClusterableCragImage } from '@/lib/crag-pin-clusters'
 import type { Crag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
-
-const FILTER_GRADES = PUBLIC_GRADES
 
 interface ClusteredImageData extends ClusterableCragImage {
   id: string
@@ -44,11 +41,6 @@ interface ClusteredImageData extends ClusterableCragImage {
   supplementary_faces_count: number
 }
 
-
-interface ResolvedRouteDestination {
-  href: string
-  ready: boolean
-}
 
 const CRAG_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000
 const cragImageCache = new Map<string, CachedCragImageData>()
@@ -497,16 +489,18 @@ export default function CragPageClient({
             }
           }
 
-          const mappedTargets = mapRouteTargetsByEffectiveClimbId(
+          const targetMaps = buildRouteTargetMaps(
             (routeTargetsData || []) as RouteLineTargetRow[],
-            imageById,
             effectiveClimbIdByClimbId,
+            imageById,
             selectableImageIdByImageId
           )
 
-          Object.assign(nextRoutePreviewByClimbId, mappedTargets.nextRoutePreviewByClimbId)
-          Object.assign(nextRouteNavigationTargetByClimbId, mappedTargets.nextRouteNavigationTargetByClimbId)
-          console.debug('[Router Debug] Target Map populated with keys:', Object.keys(mappedTargets.nextRouteNavigationTargetByClimbId))
+          Object.assign(nextDefaultRouteTargetByImageId, targetMaps.nextDefaultRouteTargetByImageId)
+          Object.assign(nextRouteImageIdsByClimbId, targetMaps.nextRouteImageIdsByClimbId)
+          Object.assign(nextRoutePreviewByClimbId, targetMaps.nextRoutePreviewByClimbId)
+          Object.assign(nextRouteNavigationTargetByClimbId, targetMaps.nextRouteNavigationTargetByClimbId)
+          console.debug('[Router Debug] Target Map populated with keys:', Object.keys(targetMaps.nextRouteNavigationTargetByClimbId))
         }
       }
 
@@ -775,41 +769,16 @@ export default function CragPageClient({
     return buildRouteNavigationDisplayByClimbId(routeNavigationTargetByClimbId, imageById)
   }, [imageById, routeNavigationTargetByClimbId])
 
-  const selectedImageIds = useMemo(() => {
-    if (!selectedImageId) return new Set<string>()
+  const selectedImageIds = useMemo(() => getSelectedImageIds(selectedImageId, clusteredPins), [clusteredPins, selectedImageId])
 
-    const selectedClusterId = clusteredPins.clusterIdByImageId.get(selectedImageId)
-    if (!selectedClusterId) return new Set([selectedImageId])
-
-    const selectedCluster = clusteredPins.clusters.find((cluster) => cluster.id === selectedClusterId)
-    if (!selectedCluster) return new Set([selectedImageId])
-
-    return new Set(selectedCluster.images.map((image) => image.id))
-  }, [clusteredPins.clusterIdByImageId, clusteredPins.clusters, selectedImageId])
-
-  const highlightedRouteIds = useMemo(() => {
-    if (!selectedImageId) return new Set<string>()
-
-    const matches = new Set<string>()
-    for (const route of routes) {
-      const routeImageIds = routeImageIdsByClimbId[route.id] || []
-      if (routeImageIds.some((imageId) => selectedImageIds.has(imageId))) {
-        matches.add(route.id)
-        continue
-      }
-
-      if (routePreviewDisplayByClimbId[route.id]?.imageId && selectedImageIds.has(routePreviewDisplayByClimbId[route.id].imageId)) {
-        matches.add(route.id)
-        continue
-      }
-
-      if (routeNavigationDisplayByClimbId[route.id]?.displayImageId && selectedImageIds.has(routeNavigationDisplayByClimbId[route.id].displayImageId)) {
-        matches.add(route.id)
-      }
-    }
-
-    return matches
-  }, [routeImageIdsByClimbId, routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId, routes, selectedImageIds, selectedImageId])
+  const highlightedRouteIds = useMemo(() => getHighlightedRouteIds(
+    routes,
+    selectedImageId,
+    selectedImageIds,
+    routeImageIdsByClimbId,
+    routePreviewDisplayByClimbId,
+    routeNavigationDisplayByClimbId
+  ), [routeImageIdsByClimbId, routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId, routes, selectedImageIds, selectedImageId])
 
   const selectedRouteCount = useMemo(() => {
     if (!selectedImageId) return 0
@@ -834,16 +803,12 @@ export default function CragPageClient({
       .join(',')
   }, [routes])
 
-  const hasCompleteInitialRouteTargets = useMemo(() => {
-    if (routes.length === 0) return true
-
-    return routes.every((route) => {
-      const hasImageIds = (routeImageIdsByClimbId[route.id] || []).length > 0
-      const hasPreview = Boolean(routePreviewByClimbId[route.id])
-      const hasNavigationTarget = Boolean(routeNavigationTargetByClimbId[route.id])
-      return hasImageIds && hasPreview && hasNavigationTarget
-    })
-  }, [routeImageIdsByClimbId, routeNavigationTargetByClimbId, routePreviewByClimbId, routes])
+  const hasCompleteInitialRouteTargets = useMemo(() => hasCompleteRouteTargets(
+    routes,
+    routeImageIdsByClimbId,
+    routePreviewByClimbId,
+    routeNavigationTargetByClimbId
+  ), [routeImageIdsByClimbId, routeNavigationTargetByClimbId, routePreviewByClimbId, routes])
 
   useEffect(() => {
     if (!climbIdsFingerprint || hasCompleteInitialRouteTargets || isOfflineDocumentNavigationPreferred()) return
@@ -885,37 +850,27 @@ export default function CragPageClient({
         return
       }
 
-      const mappedTargets = mapRouteTargetsByEffectiveClimbId(
+      const targetMaps = buildRouteTargetMaps(
         (routeTargetsData || []) as RouteLineTargetRow[],
-        imageById,
-        effectiveClimbIdByClimbId
+        effectiveClimbIdByClimbId,
+        imageById
       )
-
-      const nextRouteImageIdsByClimbId: Record<string, string[]> = {}
-      for (const row of (routeTargetsData || []) as RouteLineTargetRow[]) {
-        const effectiveClimbId = effectiveClimbIdByClimbId[row.climb_id] || row.climb_id
-        const climbImageIds = nextRouteImageIdsByClimbId[effectiveClimbId] || []
-        if (!climbImageIds.includes(row.image_id)) {
-          climbImageIds.push(row.image_id)
-          nextRouteImageIdsByClimbId[effectiveClimbId] = climbImageIds
-        }
-      }
 
       if (ignore) return
 
-      setRouteImageIdsByClimbId(nextRouteImageIdsByClimbId)
-      setRoutePreviewByClimbId((prev) => ({ ...prev, ...mappedTargets.nextRoutePreviewByClimbId }))
-      setRouteNavigationTargetByClimbId((prev) => ({ ...prev, ...mappedTargets.nextRouteNavigationTargetByClimbId }))
+      setRouteImageIdsByClimbId(targetMaps.nextRouteImageIdsByClimbId)
+      setRoutePreviewByClimbId((prev) => ({ ...prev, ...targetMaps.nextRoutePreviewByClimbId }))
+      setRouteNavigationTargetByClimbId((prev) => ({ ...prev, ...targetMaps.nextRouteNavigationTargetByClimbId }))
 
-      console.debug('[Router Debug] Target Map populated with keys:', Object.keys(mappedTargets.nextRouteNavigationTargetByClimbId))
+      console.debug('[Router Debug] Target Map populated with keys:', Object.keys(targetMaps.nextRouteNavigationTargetByClimbId))
 
       const cached = cragImageCache.get(id)
       if (cached) {
         cragImageCache.set(id, {
           ...cached,
-          routeImageIdsByClimbId: nextRouteImageIdsByClimbId,
-          routePreviewByClimbId: { ...cached.routePreviewByClimbId, ...mappedTargets.nextRoutePreviewByClimbId },
-          routeNavigationTargetByClimbId: { ...cached.routeNavigationTargetByClimbId, ...mappedTargets.nextRouteNavigationTargetByClimbId },
+          routeImageIdsByClimbId: targetMaps.nextRouteImageIdsByClimbId,
+          routePreviewByClimbId: { ...cached.routePreviewByClimbId, ...targetMaps.nextRoutePreviewByClimbId },
+          routeNavigationTargetByClimbId: { ...cached.routeNavigationTargetByClimbId, ...targetMaps.nextRouteNavigationTargetByClimbId },
         })
       }
     }
@@ -993,148 +948,55 @@ export default function CragPageClient({
     return getSearchModalResults(routes, searchQuery)
   }, [routes, searchQuery])
 
-  const activeRouteFilterChips = useMemo(() => {
-    const chips: Array<{ key: string; label: string; onRemove: () => void }> = []
+  const activeRouteFilterChips = useMemo(() => buildActiveRouteFilterChips({
+    selectedImageId,
+    minGrade,
+    maxGrade,
+    minRating,
+    minSends,
+    searchQuery,
+    selectedDirections,
+    selectedRouteTypes,
+    topoOnly,
+  }, (grade) => formatGradeForDisplay(grade, gradeSystem)), [gradeSystem, maxGrade, minGrade, minRating, minSends, searchQuery, selectedDirections, selectedRouteTypes, selectedImageId, topoOnly])
 
-    if (minGrade) {
-      chips.push({
-        key: 'min-grade',
-        label: `Min ${formatGradeForDisplay(minGrade, gradeSystem)}`,
-        onRemove: () => setMinGrade(''),
-      })
+  const activeRouteFilterChipActions = useMemo(() => {
+    const actions = new Map<string, () => void>()
+    const registerChip = (chip: ActiveRouteFilterChip) => {
+      if (chip.key === 'min-grade') actions.set(chip.key, () => setMinGrade(''))
+      if (chip.key === 'max-grade') actions.set(chip.key, () => setMaxGrade(''))
+      if (chip.key === 'min-rating') actions.set(chip.key, () => setMinRating(''))
+      if (chip.key === 'min-sends') actions.set(chip.key, () => setMinSends(''))
+      if (chip.key === 'search') actions.set(chip.key, () => setSearchQuery(''))
+      if (chip.key === 'topo-only') actions.set(chip.key, () => setTopoOnly(false))
+      if (chip.key.startsWith('direction-')) {
+        const direction = chip.key.replace('direction-', '')
+        actions.set(chip.key, () => setSelectedDirections((prev) => prev.filter((item) => item !== direction)))
+      }
+      if (chip.key.startsWith('route-type-')) {
+        const routeType = chip.key.replace('route-type-', '')
+        actions.set(chip.key, () => setSelectedRouteTypes((prev) => prev.filter((item) => item !== routeType)))
+      }
     }
 
-    if (maxGrade) {
-      chips.push({
-        key: 'max-grade',
-        label: `Max ${formatGradeForDisplay(maxGrade, gradeSystem)}`,
-        onRemove: () => setMaxGrade(''),
-      })
-    }
-
-    if (minRating) {
-      chips.push({
-        key: 'min-rating',
-        label: `${minRating}+ stars`,
-        onRemove: () => setMinRating(''),
-      })
-    }
-
-    if (minSends) {
-      chips.push({
-        key: 'min-sends',
-        label: `${minSends}+ sends`,
-        onRemove: () => setMinSends(''),
-      })
-    }
-
-    if (searchQuery.trim()) {
-      chips.push({
-        key: 'search',
-        label: `Search: ${searchQuery.trim()}`,
-        onRemove: () => setSearchQuery(''),
-      })
-    }
-
-    if (topoOnly) {
-      chips.push({
-        key: 'topo-only',
-        label: 'Topo only',
-        onRemove: () => setTopoOnly(false),
-      })
-    }
-
-    for (const direction of selectedDirections) {
-      chips.push({
-        key: `direction-${direction}`,
-        label: `Face ${direction}`,
-        onRemove: () => setSelectedDirections((prev) => prev.filter((item) => item !== direction)),
-      })
-    }
-
-    for (const routeType of selectedRouteTypes) {
-      chips.push({
-        key: `route-type-${routeType}`,
-        label: formatRouteTypeLabel(routeType),
-        onRemove: () => setSelectedRouteTypes((prev) => prev.filter((item) => item !== routeType)),
-      })
-    }
-
-    return chips
-  }, [gradeSystem, maxGrade, minGrade, minRating, minSends, searchQuery, selectedDirections, selectedRouteTypes, topoOnly])
+    activeRouteFilterChips.forEach(registerChip)
+    return actions
+  }, [activeRouteFilterChips])
 
   const getRouteDestination = useCallback((route: CragRoute): ResolvedRouteDestination => {
     const offlineOnly = isOfflineDocumentNavigationPreferred()
-    const routeTarget = routeNavigationDisplayByClimbId[route.id]
-    if (routeTarget) {
-      const routeClimbId = routeTarget.climbId || route.id
-      return {
-        href: buildCragImageDestination({
-          imageId: routeTarget.displayImageId,
-          target: {
-            ...routeTarget,
-            climbId: routeClimbId,
-            climbSlug: route.slug || routeTarget.climbSlug,
-          },
-          routeHrefBase,
-          offlineOnly,
-        }),
-        ready: true,
-      }
+    const destination = resolveCragRouteDestination(
+      route,
+      routeNavigationDisplayByClimbId,
+      routePreviewDisplayByClimbId,
+      defaultRouteTargetByImageId,
+      routeHrefBase,
+      offlineOnly
+    )
+    if (!destination.ready) {
+      console.warn(`[Router Debug] Route target miss for climb_id: ${route.id}. Falling back to slug.`)
     }
-
-    const preview = routePreviewDisplayByClimbId[route.id]
-    const fallbackImageId = preview?.imageId
-    const fallbackTarget = fallbackImageId ? defaultRouteTargetByImageId[fallbackImageId] : undefined
-
-    if (fallbackImageId && fallbackTarget) {
-      return {
-        href: buildCragImageDestination({
-          imageId: fallbackImageId,
-          target: {
-            ...fallbackTarget,
-            climbId: fallbackTarget.climbId || route.id,
-            routeId: fallbackTarget.routeId || route.id,
-            climbSlug: route.slug || fallbackTarget.climbSlug,
-          },
-          routeHrefBase,
-          offlineOnly,
-        }),
-        ready: true,
-      }
-    }
-
-    if (!offlineOnly && fallbackImageId) {
-      return {
-        href: buildCragImageDestination({
-          imageId: fallbackImageId,
-          routeHrefBase,
-          offlineOnly: false,
-        }),
-        ready: false,
-      }
-    }
-
-    console.warn(`[Router Debug] Route target miss for climb_id: ${route.id}. Falling back to slug.`)
-
-    if (offlineOnly) {
-      return {
-        href: `/climb/${route.id}`,
-        ready: true,
-      }
-    }
-
-    if (route.slug && routeHrefBase) {
-      return {
-        href: `${routeHrefBase}/${route.slug}`,
-        ready: false,
-      }
-    }
-
-    return {
-      href: `/climb/${route.id}`,
-      ready: false,
-    }
+    return destination
   }, [defaultRouteTargetByImageId, routeHrefBase, routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId])
 
   const handlePendingRouteNavigation = useCallback((event: MouseEvent<HTMLButtonElement>, route: CragRoute) => {
@@ -1177,6 +1039,12 @@ export default function CragPageClient({
     })
   }, [id, pathname, router])
 
+  const { overOfflineBudget, canSaveCragOffline } = useMemo(() => getOfflineCragState(
+    offlinePreview,
+    offlineDialogLoading,
+    offlinePreviewLoading
+  ), [offlineDialogLoading, offlinePreview, offlinePreviewLoading])
+
   if (loading) {
     return <CragPageSkeleton />
   }
@@ -1190,11 +1058,6 @@ export default function CragPageClient({
   }
 
   const canDownloadCrag = !offlineDialogLoading
-  const projectedUsage = offlinePreview
-    ? offlinePreview.usageBytes - (offlinePreview.existingPack?.estimatedBytes || 0) + (offlinePreview.deltaBytes || 0)
-    : 0
-  const overOfflineBudget = !!offlinePreview && projectedUsage > offlinePreview.budgetBytes
-  const canSaveCragOffline = !offlineDialogLoading && !offlinePreviewLoading && !overOfflineBudget && !offlinePreview?.isUpToDate
 
   const handleOpenOfflineDialog = async () => {
     setOfflineDialogOpen(true)
@@ -1335,10 +1198,10 @@ export default function CragPageClient({
             {activeRouteFilterChips.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {activeRouteFilterChips.map((chip) => (
-                  <button key={chip.key} type="button" onClick={chip.onRemove} className="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-400 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
-                    {chip.label} ×
-                  </button>
-                ))}
+                    <button key={chip.key} type="button" onClick={activeRouteFilterChipActions.get(chip.key)} className="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-400 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                      {chip.label} ×
+                    </button>
+                  ))}
               </div>
             ) : null}
 
@@ -1358,126 +1221,34 @@ export default function CragPageClient({
         <CragCommunitySidebar communityPlaceSlug={communityPlaceSlug} />
       </div>
 
-      <Dialog open={searchModalOpen} onOpenChange={setSearchModalOpen}>
-        <DialogContent showCloseButton={false} className="max-w-2xl rounded-[28px] border-stone-200 bg-white p-0 dark:border-gray-800 dark:bg-gray-900">
-          <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3 dark:border-gray-800">
-            <DialogClose className="rounded-full border border-stone-200 p-2 text-stone-600 dark:border-gray-700 dark:text-gray-300"><X className="size-4" /></DialogClose>
-            <DialogTitle className="text-base">Search climbs, areas, subareas</DialogTitle>
-            <div className="size-9" />
-          </div>
-          <div className="p-4">
-            <Input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search climbs here" className="border-stone-300 bg-white dark:border-gray-700 dark:bg-gray-800" />
-            <div className="mt-4 space-y-4">
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Climbs</p>
-                <div className="space-y-2">
-                  {searchModalResults.length === 0 ? <p className="text-sm text-stone-500 dark:text-gray-400">No climbs match yet.</p> : searchModalResults.map((route) => {
-                    const destination = getRouteDestination(route)
-                    const content = (
-                      <>
-                        <span>{route.name} <span className="text-stone-500">{formatGradeForDisplay(route.grade, gradeSystem)}</span></span>
-                        <ChevronRight className="size-4 text-stone-400" />
-                      </>
-                    )
+      <CragSearchDialog
+        open={searchModalOpen}
+        onOpenChange={setSearchModalOpen}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        searchModalResults={searchModalResults}
+        routeLocationLabel={routeLocationLabel}
+        gradeSystem={gradeSystem}
+        getRouteDestination={getRouteDestination}
+        onPendingRouteNavigation={handlePendingRouteNavigation}
+      />
 
-                    if (!destination.ready) {
-                      return (
-                        <button key={route.id} type="button" onClick={(event) => handlePendingRouteNavigation(event, route)} className="flex w-full items-center justify-between rounded-xl border border-stone-200 px-3 py-2 text-left text-sm hover:bg-stone-50 dark:border-gray-700 dark:hover:bg-gray-800">
-                          {content}
-                        </button>
-                      )
-                    }
-
-                    return (
-                      <a key={route.id} href={destination.href} className="flex items-center justify-between rounded-xl border border-stone-200 px-3 py-2 text-sm hover:bg-stone-50 dark:border-gray-700 dark:hover:bg-gray-800">
-                        {content}
-                      </a>
-                    )
-                  })}
-                </div>
-              </div>
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Area</p>
-                <p className="rounded-xl border border-stone-200 px-3 py-2 text-sm text-stone-700 dark:border-gray-700 dark:text-gray-300">{routeLocationLabel}</p>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
-        <DialogContent showCloseButton={false} className="max-w-2xl rounded-[28px] border-stone-200 bg-white p-0 dark:border-gray-800 dark:bg-gray-900">
-          <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3 dark:border-gray-800">
-            <DialogClose className="rounded-full border border-stone-200 p-2 text-stone-600 dark:border-gray-700 dark:text-gray-300"><X className="size-4" /></DialogClose>
-            <DialogTitle className="text-base">Filter climbs</DialogTitle>
-            <div className="size-9" />
-          </div>
-          <div className="max-h-[75vh] overflow-y-auto p-4 pb-24">
-            <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4 dark:border-gray-700 dark:bg-gray-800/60">
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-semibold text-stone-900 dark:text-gray-100">Grade distribution</p>
-                <span className="text-xs text-stone-500 dark:text-gray-400">Median {routeStats.medianGrade ? formatGradeForDisplay(routeStats.medianGrade, gradeSystem) : '—'}</span>
-              </div>
-              <div className="h-48 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={routeStats.gradeDistribution}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e5e4" />
-                    <XAxis dataKey="grade" tickFormatter={(value: string) => formatGradeForDisplay(value, gradeSystem)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <Tooltip labelFormatter={(value) => typeof value === 'string' ? formatGradeForDisplay(value, gradeSystem) : ''} formatter={(value) => {
-                      const count = typeof value === 'number' ? value : Number(value || 0)
-                      return [`${count} climbs`, 'Climbs']
-                    }} />
-                    <Bar dataKey="count" fill="#0f766e" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="text-sm text-stone-700 dark:text-gray-300">
-                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Min grade</span>
-                <select value={minGrade} onChange={(event) => setMinGrade(event.target.value)} className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800">
-                  <option value="">Any</option>
-                  {FILTER_GRADES.map((grade) => <option key={`modal-min-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>)}
-                </select>
-              </label>
-              <label className="text-sm text-stone-700 dark:text-gray-300">
-                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Max grade</span>
-                <select value={maxGrade} onChange={(event) => setMaxGrade(event.target.value)} className="w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800">
-                  <option value="">Any</option>
-                  {FILTER_GRADES.map((grade) => <option key={`modal-max-${grade}`} value={grade}>{formatGradeForDisplay(grade, gradeSystem)}</option>)}
-                </select>
-              </label>
-            </div>
-
-            <div className="mt-4">
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Climb type</p>
-              <div className="flex flex-wrap gap-2">
-                {routeTypeChips.map((routeType) => (
-                  <button key={routeType} type="button" onClick={() => setSelectedRouteTypes((prev) => prev.includes(routeType) ? prev.filter((item) => item !== routeType) : [...prev, routeType])} className={`rounded-full border px-3 py-1 text-xs font-medium ${selectedRouteTypes.includes(routeType) ? 'border-orange-600 bg-orange-600 text-white' : 'border-stone-300 bg-white text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>
-                    {formatRouteTypeLabel(routeType)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Face direction</p>
-              <div className="flex flex-wrap gap-2">
-                {availableDirections.map((direction) => (
-                  <button key={direction} type="button" onClick={() => setSelectedDirections((prev) => prev.includes(direction) ? prev.filter((item) => item !== direction) : [...prev, direction])} className={`rounded-full border px-3 py-1 text-xs font-medium ${selectedDirections.includes(direction) ? 'border-stone-900 bg-stone-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900' : 'border-stone-300 bg-white text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>
-                    {direction}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="sticky bottom-0 border-t border-stone-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <Button className="w-full" onClick={() => setFilterModalOpen(false)}>Show results</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CragFilterDialog
+        open={filterModalOpen}
+        onOpenChange={setFilterModalOpen}
+        routeStats={routeStats}
+        gradeSystem={gradeSystem}
+        minGrade={minGrade}
+        maxGrade={maxGrade}
+        onMinGradeChange={setMinGrade}
+        onMaxGradeChange={setMaxGrade}
+        routeTypeChips={routeTypeChips}
+        selectedRouteTypes={selectedRouteTypes}
+        onToggleRouteType={(routeType) => setSelectedRouteTypes((prev) => prev.includes(routeType) ? prev.filter((item) => item !== routeType) : [...prev, routeType])}
+        availableDirections={availableDirections}
+        selectedDirections={selectedDirections}
+        onToggleDirection={(direction) => setSelectedDirections((prev) => prev.includes(direction) ? prev.filter((item) => item !== direction) : [...prev, direction])}
+      />
 
       <Dialog open={sortModalOpen} onOpenChange={setSortModalOpen}>
         <DialogContent showCloseButton={false} className="max-w-sm rounded-[28px] border-stone-200 bg-white p-0 dark:border-gray-800 dark:bg-gray-900">
@@ -1499,102 +1270,21 @@ export default function CragPageClient({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={offlineDialogOpen} onOpenChange={setOfflineDialogOpen}>
-        <DialogContent className="border-gray-200 bg-white text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-white">
-          <DialogHeader>
-            <DialogTitle>{offlinePreview?.existingPack ? 'Update offline crag pack' : 'Download crag offline'}</DialogTitle>
-            <DialogDescription className="text-gray-500 dark:text-gray-400">
-              Save this crag and its climb topos for offline viewing. Individually saved climbs stay pinned if you remove the crag pack later.
-            </DialogDescription>
-          </DialogHeader>
-
-          {offlinePreviewLoading && !offlinePreview && (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-6 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-950/70 dark:text-gray-300">
-              Preparing offline pack details...
-            </div>
-          )}
-
-          {offlinePreview && (
-            <div className="space-y-3 text-sm">
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/70">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-gray-500 dark:text-gray-400">Climbs</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{offlinePreview.manifest.climbCount}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-4">
-                  <span className="text-gray-500 dark:text-gray-400">Changed climbs</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{offlinePreview.changedClimbs}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-4">
-                  <span className="text-gray-500 dark:text-gray-400">Total size</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePreview.totalBytes)}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-4">
-                  <span className="text-gray-500 dark:text-gray-400">Cached tiles</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{offlinePreview.tileCount}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-4">
-                  <span className="text-gray-500 dark:text-gray-400">Delta size</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePreview.deltaBytes)}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-4">
-                  <span className="text-gray-500 dark:text-gray-400">Storage used</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePreview.usageBytes)} of {formatBytes(offlinePreview.budgetBytes)}</span>
-                </div>
-              </div>
-
-              {offlinePreview.warning && (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-                  {offlinePreview.warning}
-                </p>
-              )}
-
-              {offlineProgress && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
-                  <p className="font-medium">{offlineProgress.completedClimbs} / {offlineProgress.totalClimbs} climbs synced</p>
-                  <p className="mt-1 text-sm">{formatBytes(offlineProgress.completedBytes)} / {formatBytes(offlineProgress.totalBytes)} cached</p>
-                  <p className="mt-1 text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{offlineProgress.phase}{offlineProgress.currentClimbName ? ` · ${offlineProgress.currentClimbName}` : ''}{offlinePreview.tileCount > 0 ? ` · ${offlinePreview.tileCount} tiles` : ''}</p>
-                </div>
-              )}
-
-              {offlinePreview.isUpToDate && !offlineProgress && (
-                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
-                  This crag pack is already up to date.
-                </p>
-              )}
-
-              {overOfflineBudget && (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-                  This update would exceed your 250 MB offline storage budget. Remove another pack first.
-                </p>
-              )}
-
-              {offlineError && (
-                <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">
-                  {offlineError}
-                </p>
-              )}
-            </div>
-          )}
-
-          <DialogFooter>
-            {offlinePreview?.existingPack && (
-              <Button variant="ghost" onClick={handleRemoveCragOffline} disabled={offlineDialogLoading} className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
-                {offlineDialogLoading ? 'Removing...' : 'Remove offline pack'}
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => setOfflineDialogOpen(false)} disabled={offlineDialogLoading}>Close</Button>
-            {offlineError && !offlinePreview && (
-              <Button variant="outline" onClick={() => void refreshCragOfflinePreview()} disabled={offlinePreviewLoading || offlineDialogLoading}>
-                {offlinePreviewLoading ? 'Retrying...' : 'Retry'}
-              </Button>
-            )}
-            <Button onClick={handleSaveCragOffline} disabled={!canSaveCragOffline}>
-              {offlineDialogLoading ? 'Syncing...' : offlinePreview?.existingPack ? 'Update offline pack' : 'Download crag'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CragOfflineDialog
+        open={offlineDialogOpen}
+        onOpenChange={setOfflineDialogOpen}
+        offlineDialogLoading={offlineDialogLoading}
+        offlinePreviewLoading={offlinePreviewLoading}
+        offlinePreview={offlinePreview}
+        offlineProgress={offlineProgress}
+        offlineError={offlineError}
+        overOfflineBudget={overOfflineBudget}
+        canSaveCragOffline={canSaveCragOffline}
+        onClose={() => setOfflineDialogOpen(false)}
+        onRetry={() => void refreshCragOfflinePreview()}
+        onRemove={() => void handleRemoveCragOffline()}
+        onSave={() => void handleSaveCragOffline()}
+      />
     </div>
   )
 }

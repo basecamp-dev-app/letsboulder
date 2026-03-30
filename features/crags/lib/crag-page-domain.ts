@@ -2,6 +2,7 @@ import { GRADES, normalizeGrade } from '@/lib/grades'
 import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
 import type { ClimbPackResponse } from '@/lib/climb/queries'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
+import { buildCragImageDestination } from '@/features/crags/lib/build-crag-image-destination'
 import type { Crag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { Database } from '@/types/database'
 import type { ClusterableCragImage, CragPinCluster } from '@/lib/crag-pin-clusters'
@@ -48,6 +49,22 @@ export interface CachedCragImageData {
   routePreviewByClimbId: Record<string, RoutePreview>
   routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
   cachedAt: number
+}
+
+export interface ResolvedRouteDestination {
+  href: string
+  ready: boolean
+}
+
+export interface ActiveRouteFilterChip {
+  key: string
+  label: string
+}
+
+export interface OfflineCragState {
+  projectedUsage: number
+  overOfflineBudget: boolean
+  canSaveCragOffline: boolean
 }
 
 export type CragRouteIntelligenceRow = Database['public']['Functions']['get_crag_route_intelligence']['Returns'][number]
@@ -363,6 +380,273 @@ export function buildRouteNavigationDisplayByClimbId(
   }
 
   return nextTargets
+}
+
+export function getSelectedImageIds(
+  selectedImageId: string | null,
+  clusteredPins: {
+    clusterIdByImageId: Map<string, string>
+    clusters: Array<{ id: string; images: Array<{ id: string }> }>
+  }
+) {
+  if (!selectedImageId) return new Set<string>()
+
+  const selectedClusterId = clusteredPins.clusterIdByImageId.get(selectedImageId)
+  if (!selectedClusterId) return new Set([selectedImageId])
+
+  const selectedCluster = clusteredPins.clusters.find((cluster) => cluster.id === selectedClusterId)
+  if (!selectedCluster) return new Set([selectedImageId])
+
+  return new Set(selectedCluster.images.map((image) => image.id))
+}
+
+export function getHighlightedRouteIds(
+  routes: CragRoute[],
+  selectedImageId: string | null,
+  selectedImageIds: Set<string>,
+  routeImageIdsByClimbId: Record<string, string[]>,
+  routePreviewDisplayByClimbId: Record<string, RoutePreview>,
+  routeNavigationDisplayByClimbId: Record<string, RouteNavigationTarget>
+) {
+  if (!selectedImageId) return new Set<string>()
+
+  const matches = new Set<string>()
+  for (const route of routes) {
+    const routeImageIds = routeImageIdsByClimbId[route.id] || []
+    if (routeImageIds.some((imageId) => selectedImageIds.has(imageId))) {
+      matches.add(route.id)
+      continue
+    }
+
+    if (routePreviewDisplayByClimbId[route.id]?.imageId && selectedImageIds.has(routePreviewDisplayByClimbId[route.id].imageId)) {
+      matches.add(route.id)
+      continue
+    }
+
+    if (routeNavigationDisplayByClimbId[route.id]?.displayImageId && selectedImageIds.has(routeNavigationDisplayByClimbId[route.id].displayImageId)) {
+      matches.add(route.id)
+    }
+  }
+
+  return matches
+}
+
+export function hasCompleteRouteTargets(
+  routes: CragRoute[],
+  routeImageIdsByClimbId: Record<string, string[]>,
+  routePreviewByClimbId: Record<string, RoutePreview>,
+  routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
+) {
+  if (routes.length === 0) return true
+
+  return routes.every((route) => {
+    const hasImageIds = (routeImageIdsByClimbId[route.id] || []).length > 0
+    const hasPreview = Boolean(routePreviewByClimbId[route.id])
+    const hasNavigationTarget = Boolean(routeNavigationTargetByClimbId[route.id])
+    return hasImageIds && hasPreview && hasNavigationTarget
+  })
+}
+
+export function buildActiveRouteFilterChips(
+  filterState: CragRouteFilterState,
+  gradeFormatter: (grade: string) => string
+) {
+  const chips: ActiveRouteFilterChip[] = []
+
+  if (filterState.minGrade) {
+    chips.push({
+      key: 'min-grade',
+      label: `Min ${gradeFormatter(filterState.minGrade)}`,
+    })
+  }
+
+  if (filterState.maxGrade) {
+    chips.push({
+      key: 'max-grade',
+      label: `Max ${gradeFormatter(filterState.maxGrade)}`,
+    })
+  }
+
+  if (filterState.minRating) {
+    chips.push({
+      key: 'min-rating',
+      label: `${filterState.minRating}+ stars`,
+    })
+  }
+
+  if (filterState.minSends) {
+    chips.push({
+      key: 'min-sends',
+      label: `${filterState.minSends}+ sends`,
+    })
+  }
+
+  if (filterState.searchQuery.trim()) {
+    chips.push({
+      key: 'search',
+      label: `Search: ${filterState.searchQuery.trim()}`,
+    })
+  }
+
+  if (filterState.topoOnly) {
+    chips.push({
+      key: 'topo-only',
+      label: 'Topo only',
+    })
+  }
+
+  for (const direction of filterState.selectedDirections) {
+    chips.push({
+      key: `direction-${direction}`,
+      label: `Face ${direction}`,
+    })
+  }
+
+  for (const routeType of filterState.selectedRouteTypes) {
+    chips.push({
+      key: `route-type-${routeType}`,
+      label: formatRouteTypeLabel(routeType),
+    })
+  }
+
+  return chips
+}
+
+export function getOfflineCragState(
+  offlinePreview: Awaited<ReturnType<typeof import('@/lib/offline/packs').getCragOfflinePreview>> | null,
+  offlineDialogLoading: boolean,
+  offlinePreviewLoading: boolean
+): OfflineCragState {
+  const projectedUsage = offlinePreview
+    ? offlinePreview.usageBytes - (offlinePreview.existingPack?.estimatedBytes || 0) + (offlinePreview.deltaBytes || 0)
+    : 0
+  const overOfflineBudget = !!offlinePreview && projectedUsage > offlinePreview.budgetBytes
+
+  return {
+    projectedUsage,
+    overOfflineBudget,
+    canSaveCragOffline: !offlineDialogLoading && !offlinePreviewLoading && !overOfflineBudget && !offlinePreview?.isUpToDate,
+  }
+}
+
+export function resolveCragRouteDestination(
+  route: CragRoute,
+  routeNavigationDisplayByClimbId: Record<string, RouteNavigationTarget>,
+  routePreviewDisplayByClimbId: Record<string, RoutePreview>,
+  defaultRouteTargetByImageId: Record<string, ImageRouteTarget>,
+  routeHrefBase: string | null,
+  offlineOnly: boolean
+): ResolvedRouteDestination {
+  const routeTarget = routeNavigationDisplayByClimbId[route.id]
+  if (routeTarget) {
+    const routeClimbId = routeTarget.climbId || route.id
+    return {
+      href: buildCragImageDestination({
+        imageId: routeTarget.displayImageId,
+        target: {
+          ...routeTarget,
+          climbId: routeClimbId,
+          climbSlug: route.slug || routeTarget.climbSlug,
+        },
+        routeHrefBase,
+        offlineOnly,
+      }),
+      ready: true,
+    }
+  }
+
+  const preview = routePreviewDisplayByClimbId[route.id]
+  const fallbackImageId = preview?.imageId
+  const fallbackTarget = fallbackImageId ? defaultRouteTargetByImageId[fallbackImageId] : undefined
+
+  if (fallbackImageId && fallbackTarget) {
+    return {
+      href: buildCragImageDestination({
+        imageId: fallbackImageId,
+        target: {
+          ...fallbackTarget,
+          climbId: fallbackTarget.climbId || route.id,
+          routeId: fallbackTarget.routeId || route.id,
+          climbSlug: route.slug || fallbackTarget.climbSlug,
+        },
+        routeHrefBase,
+        offlineOnly,
+      }),
+      ready: true,
+    }
+  }
+
+  if (!offlineOnly && fallbackImageId) {
+    return {
+      href: buildCragImageDestination({
+        imageId: fallbackImageId,
+        routeHrefBase,
+        offlineOnly: false,
+      }),
+      ready: false,
+    }
+  }
+
+  if (offlineOnly) {
+    return {
+      href: `/climb/${route.id}`,
+      ready: true,
+    }
+  }
+
+  if (route.slug && routeHrefBase) {
+    return {
+      href: `${routeHrefBase}/${route.slug}`,
+      ready: false,
+    }
+  }
+
+  return {
+    href: `/climb/${route.id}`,
+    ready: false,
+  }
+}
+
+export function buildRouteTargetMaps(
+  routeTargetsData: RouteLineTargetRow[],
+  effectiveClimbIdByClimbId: Record<string, string>,
+  imageById: Map<string, ImageData>,
+  selectableImageIdByImageId: Record<string, string> = {}
+) {
+  const nextDefaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
+  const nextRouteImageIdsByClimbId: Record<string, string[]> = {}
+
+  for (const row of routeTargetsData) {
+    const effectiveClimbId = effectiveClimbIdByClimbId[row.climb_id] || row.climb_id
+    const selectableImageId = selectableImageIdByImageId[row.image_id] || row.image_id
+    const climbImageIds = nextRouteImageIdsByClimbId[effectiveClimbId] || []
+    if (!climbImageIds.includes(selectableImageId)) {
+      climbImageIds.push(selectableImageId)
+      nextRouteImageIdsByClimbId[effectiveClimbId] = climbImageIds
+    }
+    if (nextDefaultRouteTargetByImageId[selectableImageId]) continue
+    const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
+    nextDefaultRouteTargetByImageId[selectableImageId] = {
+      climbId: row.climb_id,
+      routeId: row.id,
+      climbSlug: climb?.slug || null,
+      imageId: selectableImageId,
+    }
+  }
+
+  const mappedTargets = mapRouteTargetsByEffectiveClimbId(
+    routeTargetsData,
+    imageById,
+    effectiveClimbIdByClimbId,
+    selectableImageIdByImageId
+  )
+
+  return {
+    nextDefaultRouteTargetByImageId,
+    nextRouteImageIdsByClimbId,
+    nextRoutePreviewByClimbId: mappedTargets.nextRoutePreviewByClimbId,
+    nextRouteNavigationTargetByClimbId: mappedTargets.nextRouteNavigationTargetByClimbId,
+  }
 }
 
 export function sortImagesByViewCenter(images: ImageData[], viewCenter: [number, number] | null) {
