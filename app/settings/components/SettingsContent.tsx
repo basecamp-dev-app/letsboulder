@@ -3,18 +3,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { User } from '@supabase/supabase-js'
-import { Loader2, AlertTriangle } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import SupportCard from '@/components/SupportCard'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Checkbox } from '@/components/ui/checkbox'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { updateGradePreferences } from '@/features/grades/hooks/useGradeSystem'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { GradeSystem } from '@/lib/grade-display'
-import { CREDIT_PLATFORM_OPTIONS } from '@/features/submissions/lib/editor-constants'
 import { fetchSettings, settingsQueryKey, type SettingsPayload } from '@/lib/settings/queries'
 import { normalizeSubmissionCreditHandle, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
+import { AppearanceSettingsSection } from '@/app/settings/components/appearance-settings-section'
+import { PrivacySettingsSection } from '@/app/settings/components/privacy-settings-section'
+import { ProfileSettingsSection } from '@/app/settings/components/profile-settings-section'
+import { SettingsTabs } from '@/app/settings/components/settings-tabs'
+import type { GradeOption, SettingsProfileFormData, SettingsTab } from '@/app/settings/components/settings-content.types'
+import { UnitsSettingsSection } from '@/app/settings/components/units-settings-section'
 
 interface SettingsContentProps {
   user: User
@@ -39,25 +42,25 @@ function Toast({ message, onClose }: { message: string | null; onClose: () => vo
   )
 }
 
-const TABS = [
+const TABS: SettingsTab[] = [
   { id: 'profile', label: 'Profile' },
   { id: 'units', label: 'Units' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'privacy', label: 'Privacy' },
 ]
 
-const BOULDER_GRADE_OPTIONS: Array<{ value: GradeSystem; label: string; sample: string }> = [
+const BOULDER_GRADE_OPTIONS: GradeOption[] = [
   { value: 'v_scale', label: 'V Scale (USA)', sample: 'V5' },
   { value: 'font_scale', label: 'Font (Europe)', sample: '6C+' },
 ]
 
-const ROUTE_GRADE_OPTIONS: Array<{ value: GradeSystem; label: string; sample: string }> = [
+const ROUTE_GRADE_OPTIONS: GradeOption[] = [
   { value: 'yds_equivalent', label: 'YDS (USA)', sample: '5.12a' },
   { value: 'french_equivalent', label: 'French (Europe)', sample: '7a' },
   { value: 'british_equivalent', label: 'British (E-grades)', sample: 'E5' },
 ]
 
-const TRAD_GRADE_OPTIONS: Array<{ value: GradeSystem; label: string; sample: string }> = [
+const TRAD_GRADE_OPTIONS: GradeOption[] = [
   { value: 'yds_equivalent', label: 'YDS (USA)', sample: '5.10c' },
   { value: 'french_equivalent', label: 'French (Europe)', sample: '6b+' },
   { value: 'british_equivalent', label: 'British (E-grades)', sample: 'E3' },
@@ -69,7 +72,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('profile')
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<SettingsProfileFormData>({
     firstName: '',
     lastName: '',
     gender: 'prefer_not_to_say',
@@ -178,9 +181,26 @@ export default function SettingsContent({ user }: SettingsContentProps) {
     })
   }
 
-  const handleFormChange = (field: string, value: string | boolean) => {
+  const handleFormChange = (field: keyof SettingsProfileFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     setIsDirty(true)
+  }
+
+  const handleUnitsChange = (nextUnits: 'metric' | 'imperial') => {
+    setUnits(nextUnits)
+    setIsDirty(true)
+  }
+
+  const handleDeleteModalOpenChange = (open: boolean) => {
+    setDeleteModalOpen(open)
+    if (!open) {
+      setConfirmText('')
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false)
+    setConfirmText('')
   }
 
   const handleSave = async () => {
@@ -367,365 +387,50 @@ export default function SettingsContent({ user }: SettingsContentProps) {
         </h1>
 
         <div className="bg-white dark:bg-gray-900 border-x-0 border-t-0 rounded-none">
-          <div className="border-b border-gray-200 dark:border-gray-700">
-            <nav className="flex -mb-px overflow-x-auto">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-6 py-4 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                    activeTab === tab.id
-                      ? 'border-gray-900 dark:border-gray-100 text-gray-900 dark:text-white'
-                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </nav>
-          </div>
+          <SettingsTabs activeTab={activeTab} tabs={TABS} onTabChange={setActiveTab} />
 
           <div className="p-6">
             {activeTab === 'profile' && (
-              <div className="space-y-6 max-w-xl">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="first-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
-                    <input
-                      id="first-name"
-                      type="text"
-                      value={formData.firstName}
-                      onChange={(e) => handleFormChange('firstName', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="last-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
-                    <input
-                      id="last-name"
-                      type="text"
-                      value={formData.lastName}
-                      onChange={(e) => handleFormChange('lastName', e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="gender" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gender</label>
-                  <select
-                    id="gender"
-                    value={formData.gender}
-                    onChange={(e) => handleFormChange('gender', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                  >
-                    <option value="prefer_not_to_say">Prefer not to say</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Used for segmented leaderboards</p>
-                </div>
-
-                <div>
-                  <label htmlFor="bio" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bio</label>
-                  <textarea
-                    id="bio"
-                    value={formData.bio}
-                    onChange={(e) => handleFormChange('bio', e.target.value)}
-                    rows={4}
-                    maxLength={500}
-                    placeholder="Tell us about yourself..."
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent resize-none"
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{formData.bio.length}/500 characters</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="height-cm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Height (cm)</label>
-                    <input
-                      id="height-cm"
-                      type="number"
-                      min={100}
-                      max={250}
-                      value={formData.heightCm}
-                      onChange={(e) => handleFormChange('heightCm', e.target.value)}
-                      placeholder="Optional"
-                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="reach-cm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reach (cm)</label>
-                    <input
-                      id="reach-cm"
-                      type="number"
-                      min={100}
-                      max={260}
-                      value={formData.reachCm}
-                      onChange={(e) => handleFormChange('reachCm', e.target.value)}
-                      placeholder="Optional"
-                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                <p className="text-xs text-gray-500 dark:text-gray-400 -mt-3">
-                  Optional, but adding these helps other climbers find beta videos from people with a similar build.
-                </p>
-
-                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">Default contribution credit</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                    Used when a submission has no per-submission credit. Submission credit always takes priority.
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <select
-                      value={formData.contributionCreditPlatform}
-                      onChange={(e) => handleFormChange('contributionCreditPlatform', e.target.value)}
-                      className="sm:col-span-1 w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                    >
-                      {CREDIT_PLATFORM_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      value={formData.contributionCreditHandle}
-                      onChange={(e) => handleFormChange('contributionCreditHandle', e.target.value)}
-                      placeholder="handle"
-                      className="sm:col-span-2 w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    Shows as @{normalizeSubmissionCreditHandle(formData.contributionCreditHandle) || 'handle'}
-                  </p>
-                </div>
-              </div>
+              <ProfileSettingsSection formData={formData} onFieldChange={handleFormChange} />
             )}
 
             {activeTab === 'units' && (
-              <div className="space-y-8 max-w-xl">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Measurement Units</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Choose your preferred measurement system.</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setUnits('metric')}
-                      className={`px-4 py-3 border rounded-lg text-left transition-colors ${
-                        units === 'metric'
-                          ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      <p className="text-sm font-medium">Metric</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">kg, cm</p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setUnits('imperial')}
-                      className={`px-4 py-3 border rounded-lg text-left transition-colors ${
-                        units === 'imperial'
-                          ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      <p className="text-sm font-medium">Imperial</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">lbs, in</p>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">Grade Display by Climb Type</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Choose how grades are shown for each discipline.</p>
-                  
-                  {/* Bouldering */}
-                  <div className="mb-4">
-                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Bouldering</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {BOULDER_GRADE_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => handleBoulderSystemChange(option.value)}
-                          className={`px-3 py-2 border rounded-lg text-left transition-colors text-xs ${
-                            boulderSystem === option.value
-                              ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                              : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                          }`}
-                        >
-                          <p className="font-medium">{option.label}</p>
-                          <p className="text-gray-500 mt-0.5">Ex: {option.sample}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Sport / DWS */}
-                  <div className="mb-4">
-                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Sport & Deep Water Solo</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {ROUTE_GRADE_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => handleRouteSystemChange(option.value)}
-                          className={`px-3 py-2 border rounded-lg text-left transition-colors text-xs ${
-                            routeSystem === option.value
-                              ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                              : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                          }`}
-                        >
-                          <p className="font-medium">{option.label}</p>
-                          <p className="text-gray-500 mt-0.5">Ex: {option.sample}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Trad */}
-                  <div>
-                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Trad</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {TRAD_GRADE_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => handleTradSystemChange(option.value)}
-                          className={`px-3 py-2 border rounded-lg text-left transition-colors text-xs ${
-                            tradSystem === option.value
-                              ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                              : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                          }`}
-                        >
-                          <p className="font-medium">{option.label}</p>
-                          <p className="text-gray-500 mt-0.5">Ex: {option.sample}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <UnitsSettingsSection
+                units={units}
+                onUnitsChange={handleUnitsChange}
+                boulderSystem={boulderSystem}
+                routeSystem={routeSystem}
+                tradSystem={tradSystem}
+                boulderOptions={BOULDER_GRADE_OPTIONS}
+                routeOptions={ROUTE_GRADE_OPTIONS}
+                tradOptions={TRAD_GRADE_OPTIONS}
+                onBoulderSystemChange={handleBoulderSystemChange}
+                onRouteSystemChange={handleRouteSystemChange}
+                onTradSystemChange={handleTradSystemChange}
+              />
             )}
 
             {activeTab === 'appearance' && (
-              <div className="space-y-6 max-w-xl">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Choose your preferred appearance.</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { value: 'light', label: 'Light', icon: '☀️' },
-                    { value: 'dark', label: 'Dark', icon: '🌙' },
-                    { value: 'system', label: 'System', icon: '💻' }
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => handleThemeChange(option.value)}
-                      className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-lg transition-colors ${
-                        themePreference === option.value
-                          ? 'border-gray-900 dark:border-gray-100 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      <span>{option.icon}</span>
-                      <span className="text-sm font-medium">{option.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <AppearanceSettingsSection themePreference={themePreference} onThemeChange={handleThemeChange} />
             )}
 
             {activeTab === 'privacy' && (
-              <div className="space-y-8 max-w-xl">
-                <div className="space-y-4">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Profile Visibility</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Your profile is currently {isPublic ? 'public' : 'private'}.
-                  </p>
-                  <div>
-                    <Button variant="outline" onClick={handleVisibilityToggle} className="bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/10 dark:text-red-400 dark:hover:bg-red-900/20">
-                      {isPublic ? 'Make Private' : 'Make Public'}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-                  <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
-                    <DialogTrigger asChild>
-                      <button className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">
-                        <AlertTriangle className="w-4 h-4" />
-                        Delete Account
-                      </button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Delete Account?</DialogTitle>
-                        <DialogDescription className="text-left">
-                          This will permanently delete your account and all of your data, including:
-                          <ul className="list-disc pl-5 mt-2 space-y-1 text-sm">
-                            <li>Your profile and climb logs</li>
-                            <li>Grade votes and verifications</li>
-                            <li>Climb corrections and reports</li>
-                            <li>Your avatar image</li>
-                          </ul>
-
-                          <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                            <label className="flex items-start gap-3 cursor-pointer">
-                              <Checkbox
-                                checked={deleteRouteUploads}
-                                onCheckedChange={(checked) => setDeleteRouteUploads(checked === true)}
-                              />
-                              <div className="text-sm">
-                                <span className="font-medium text-gray-900 dark:text-white">Also delete my uploaded images</span>
-                                {imageCount !== null && imageCount > 0 && (
-                                  <p className="text-gray-500 dark:text-gray-400 mt-0.5">{imageCount} images will be permanently deleted</p>
-                                )}
-                                {imageCount === 0 && (
-                                  <p className="text-gray-500 dark:text-gray-400 mt-0.5">No images to delete</p>
-                                )}
-                                {!deleteRouteUploads && imageCount !== null && imageCount > 0 && (
-                                  <p className="text-gray-500 dark:text-gray-400 mt-0.5">Your images will remain but become anonymous</p>
-                                )}
-                              </div>
-                            </label>
-                          </div>
-
-                          <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                            <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                              To confirm, type: <code className="bg-red-100 dark:bg-red-800 px-2 py-0.5 rounded">{CONFIRMATION_TEXT}</code>
-                            </p>
-                            <input
-                              type="text"
-                              value={confirmText}
-                              onChange={(e) => setConfirmText(e.target.value)}
-                              placeholder={CONFIRMATION_TEXT}
-                              className="w-full px-3 py-2 border border-red-300 dark:border-red-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400"
-                            />
-                          </div>
-
-                          <p className="mt-4 font-medium text-red-600 dark:text-red-400">
-                            This action cannot be undone. A confirmation email will be sent.
-                          </p>
-                        </DialogDescription>
-                      </DialogHeader>
-                      <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
-                        <Button variant="outline" onClick={() => { setDeleteModalOpen(false); setConfirmText('') }}>
-                          Cancel
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          onClick={handleInitiateDelete}
-                          disabled={!isConfirmed || deleteLoading}
-                        >
-                          {deleteLoading ? 'Sending...' : 'Send Confirmation Email'}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </div>
+              <PrivacySettingsSection
+                isPublic={isPublic}
+                onToggleVisibility={handleVisibilityToggle}
+                deleteModalOpen={deleteModalOpen}
+                onDeleteModalOpenChange={handleDeleteModalOpenChange}
+                deleteRouteUploads={deleteRouteUploads}
+                onDeleteRouteUploadsChange={setDeleteRouteUploads}
+                imageCount={imageCount}
+                confirmationText={CONFIRMATION_TEXT}
+                confirmText={confirmText}
+                onConfirmTextChange={setConfirmText}
+                isConfirmed={isConfirmed}
+                deleteLoading={deleteLoading}
+                onInitiateDelete={handleInitiateDelete}
+                onCancelDelete={handleDeleteCancel}
+              />
             )}
 
             <div className="mt-10 max-w-xl border-t border-gray-200 pt-8 dark:border-gray-700">
