@@ -1,4 +1,10 @@
 -- Fix: Ensure submission_id is always set when creating images
+-- This prevents orphaned images without a submission_id
+
+-- Drop old function first to ensure clean state
+DROP FUNCTION IF EXISTS public.create_unified_submission_atomic(UUID, JSONB, JSONB[], JSONB, TEXT);
+
+-- Create new function with submission_id fix
 CREATE OR REPLACE FUNCTION public.create_unified_submission_atomic(
   p_crag_id UUID,
   p_primary_image JSONB,
@@ -10,7 +16,7 @@ RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $function$
+AS $$
 DECLARE
   current_user_id UUID := auth.uid();
   created_image_id UUID;
@@ -142,11 +148,7 @@ BEGIN
     'image_ids', array_prepend(created_image_id, supplementary_image_ids)
   );
 END;
-$function$;
+$$;
 
-DO $$
-BEGIN
-  EXECUTE 'REVOKE ALL ON FUNCTION public.create_unified_submission_atomic(UUID, JSONB, JSONB[], JSONB, TEXT) FROM PUBLIC';
-  EXECUTE 'GRANT EXECUTE ON FUNCTION public.create_unified_submission_atomic(UUID, JSONB, JSONB[], JSONB, TEXT) TO authenticated';
-  EXECUTE 'GRANT EXECUTE ON FUNCTION public.create_unified_submission_atomic(UUID, JSONB, JSONB[], JSONB, TEXT) TO service_role';
-END $$;
+GRANT EXECUTE ON FUNCTION public.create_unified_submission_atomic(UUID, JSONB, JSONB[], JSONB, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_unified_submission_atomic(UUID, JSONB, JSONB[], JSONB, TEXT) TO service_role;
