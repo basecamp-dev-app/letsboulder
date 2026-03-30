@@ -4,7 +4,6 @@
 import { useCallback, useEffect, useMemo, useState, startTransition } from 'react'
 import type { MouseEvent } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { ChevronRight, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
@@ -15,13 +14,14 @@ import CragPageSkeleton from '@/features/crags/components/CragPageSkeleton'
 import CragRouteList from '@/features/crags/components/CragRouteList'
 import CragSearchDialog from '@/features/crags/components/CragSearchDialog'
 import CragFilterDialog from '@/features/crags/components/CragFilterDialog'
+import CragActiveFilterChips from '@/features/crags/components/CragActiveFilterChips'
 import CragOfflineDialog from '@/features/crags/components/CragOfflineDialog'
+import CragSortDialog from '@/features/crags/components/CragSortDialog'
 import { buildActiveRouteFilterChips, buildCragRouteStats, buildEffectiveClimbLookup, buildRouteNavigationDisplayByClimbId, buildRoutePreviewDisplayByClimbId, buildRouteTargetMaps, dedupeCragRoutes, filterAndSortCragRoutes, formatCragRoutes, getAvailableDirections, getAverageCoordinates, getHighlightedRouteIds, getOfflineCragState, getSearchModalResults, getSelectedImageIds, getStoredCragClimbPayloadsSafely, getRouteTypeChips, hasCompleteRouteTargets, hydrateOfflineCragData, remapRoutePreviewsByEffectiveClimbId, resolveCragRouteDestination, sortImagesByViewCenter, sortPinClusters } from '@/features/crags/lib/crag-page-domain'
 import type { ActiveRouteFilterChip, CachedCragImageData, ClimbIdentityRow, CragRouteIntelligenceRow, RawImageRow, ResolvedRouteDestination, RouteLineTargetRow } from '@/features/crags/lib/crag-page-domain'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { buildSelectableImageIdByImageId } from '@/lib/image-identity'
 import LightweightCragMap from '@/components/lightweight-crag-map'
-import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
@@ -960,28 +960,46 @@ export default function CragPageClient({
     topoOnly,
   }, (grade) => formatGradeForDisplay(grade, gradeSystem)), [gradeSystem, maxGrade, minGrade, minRating, minSends, searchQuery, selectedDirections, selectedRouteTypes, selectedImageId, topoOnly])
 
-  const activeRouteFilterChipActions = useMemo(() => {
-    const actions = new Map<string, () => void>()
-    const registerChip = (chip: ActiveRouteFilterChip) => {
-      if (chip.key === 'min-grade') actions.set(chip.key, () => setMinGrade(''))
-      if (chip.key === 'max-grade') actions.set(chip.key, () => setMaxGrade(''))
-      if (chip.key === 'min-rating') actions.set(chip.key, () => setMinRating(''))
-      if (chip.key === 'min-sends') actions.set(chip.key, () => setMinSends(''))
-      if (chip.key === 'search') actions.set(chip.key, () => setSearchQuery(''))
-      if (chip.key === 'topo-only') actions.set(chip.key, () => setTopoOnly(false))
-      if (chip.key.startsWith('direction-')) {
-        const direction = chip.key.replace('direction-', '')
-        actions.set(chip.key, () => setSelectedDirections((prev) => prev.filter((item) => item !== direction)))
-      }
-      if (chip.key.startsWith('route-type-')) {
-        const routeType = chip.key.replace('route-type-', '')
-        actions.set(chip.key, () => setSelectedRouteTypes((prev) => prev.filter((item) => item !== routeType)))
-      }
+  const handleRemoveActiveRouteFilterChip = useCallback((chip: ActiveRouteFilterChip) => {
+    if (chip.key === 'min-grade') {
+      setMinGrade('')
+      return
     }
+    if (chip.key === 'max-grade') {
+      setMaxGrade('')
+      return
+    }
+    if (chip.key === 'min-rating') {
+      setMinRating('')
+      return
+    }
+    if (chip.key === 'min-sends') {
+      setMinSends('')
+      return
+    }
+    if (chip.key === 'search') {
+      setSearchQuery('')
+      return
+    }
+    if (chip.key === 'topo-only') {
+      setTopoOnly(false)
+      return
+    }
+    if (chip.key.startsWith('direction-')) {
+      const direction = chip.key.replace('direction-', '')
+      setSelectedDirections((prev) => prev.filter((item) => item !== direction))
+      return
+    }
+    if (chip.key.startsWith('route-type-')) {
+      const routeType = chip.key.replace('route-type-', '')
+      setSelectedRouteTypes((prev) => prev.filter((item) => item !== routeType))
+    }
+  }, [])
 
-    activeRouteFilterChips.forEach(registerChip)
-    return actions
-  }, [activeRouteFilterChips])
+  const handleRouteSortChange = useCallback((sort: 'sends' | 'grade') => {
+    setRouteSort(sort)
+    setSortModalOpen(false)
+  }, [])
 
   const getRouteDestination = useCallback((route: CragRoute): ResolvedRouteDestination => {
     const offlineOnly = isOfflineDocumentNavigationPreferred()
@@ -1195,15 +1213,7 @@ export default function CragPageClient({
                 Route intelligence is unavailable right now. Crag stats and sorting signals will appear again once the route metrics query is reachable.
               </div>
             ) : null}
-            {activeRouteFilterChips.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {activeRouteFilterChips.map((chip) => (
-                    <button key={chip.key} type="button" onClick={activeRouteFilterChipActions.get(chip.key)} className="rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-medium text-stone-700 shadow-sm transition hover:border-stone-400 hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
-                      {chip.label} ×
-                    </button>
-                  ))}
-              </div>
-            ) : null}
+            <CragActiveFilterChips chips={activeRouteFilterChips} onRemoveChip={handleRemoveActiveRouteFilterChip} />
 
             <CragRouteList
               filteredRoutes={filteredRoutes}
@@ -1250,25 +1260,12 @@ export default function CragPageClient({
         onToggleDirection={(direction) => setSelectedDirections((prev) => prev.includes(direction) ? prev.filter((item) => item !== direction) : [...prev, direction])}
       />
 
-      <Dialog open={sortModalOpen} onOpenChange={setSortModalOpen}>
-        <DialogContent showCloseButton={false} className="max-w-sm rounded-[28px] border-stone-200 bg-white p-0 dark:border-gray-800 dark:bg-gray-900">
-          <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3 dark:border-gray-800">
-            <DialogClose className="rounded-full border border-stone-200 p-2 text-stone-600 dark:border-gray-700 dark:text-gray-300"><X className="size-4" /></DialogClose>
-            <DialogTitle className="text-base">Sort climbs</DialogTitle>
-            <div className="size-9" />
-          </div>
-          <div className="p-4 space-y-2">
-            <button type="button" onClick={() => { setRouteSort('sends'); setSortModalOpen(false) }} className={`flex w-full items-center justify-between rounded-xl border px-3 py-3 text-sm ${routeSort === 'sends' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>
-              <span>Ascents</span>
-              <ChevronRight className="size-4" />
-            </button>
-            <button type="button" onClick={() => { setRouteSort('grade'); setSortModalOpen(false) }} className={`flex w-full items-center justify-between rounded-xl border px-3 py-3 text-sm ${routeSort === 'grade' ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>
-              <span>Grade</span>
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CragSortDialog
+        open={sortModalOpen}
+        onOpenChange={setSortModalOpen}
+        routeSort={routeSort}
+        onRouteSortChange={handleRouteSortChange}
+      />
 
       <CragOfflineDialog
         open={offlineDialogOpen}
