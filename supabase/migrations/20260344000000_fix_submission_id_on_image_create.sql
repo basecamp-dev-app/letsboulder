@@ -1,5 +1,5 @@
--- Fix: Ensure submission_id is always set when creating images
--- This prevents orphaned images without a submission_id
+-- Fix: Ensure submission_id is set when creating images
+-- Part 1: Create function only (no GRANT statements)
 
 CREATE OR REPLACE FUNCTION public.create_unified_submission_atomic(
   p_crag_id UUID,
@@ -145,6 +145,3 @@ BEGIN
   );
 END;
 $$;
-
-GRANT EXECUTE ON FUNCTION public.create_unified_submission_atomic(UUID, JSONB, JSONB[], JSONB, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.create_unified_submission_atomic(UUID, JSONB, JSONB[], JSONB, TEXT) TO service_role;
