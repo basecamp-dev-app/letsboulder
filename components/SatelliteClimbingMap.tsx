@@ -9,7 +9,6 @@ import { Bookmark } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useMapEvents } from 'react-leaflet'
-import MapLoadingShell from '@/components/map/MapLoadingShell'
 import { runWhenIdle } from '@/lib/run-when-idle'
 import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult, type PinFeature, type PlacePin } from '@/lib/map/place-pins'
 
@@ -375,9 +374,6 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
         mapRef.current.setView(WORLD_DEFAULT_VIEW, WORLD_DEFAULT_ZOOM)
       }
     }, [mapLoaded, defaultLocation])
-  if (!isClient) {
-    return <MapLoadingShell />
-  }
 
   return (
     <div className="h-screen w-full relative">
@@ -495,11 +491,6 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
           )
         })}
       </MapContainer>
-      {!mapLoaded ? (
-        <div className="pointer-events-none absolute inset-0 z-[900] transition-opacity duration-300">
-          <MapLoadingShell />
-        </div>
-      ) : null}
       <button
         onClick={handleSaveAsDefault}
         disabled={saveLocationLoading}

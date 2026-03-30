@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import MapViewport from '@/components/MapViewport'
 import { SITE_URL } from '@/lib/site'
+import { fetchMapPins } from '@/lib/supabase-server'
 
 export const revalidate = 60
 
@@ -63,13 +64,15 @@ export default async function Home() {
     description: 'Interactive climbing map with photo topos and route beta for crags from Guernsey to Skye and beyond.',
   }
 
+  const placePins = await fetchMapPins()
+
   return (
     <>
       <section className="sr-only">
         <h1>Climbing map and photo topos</h1>
         <p>Browse climbing areas, route beta, and community updates while the interactive map loads.</p>
       </section>
-      <MapViewport />
+      <MapViewport initialPlacePins={placePins} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify([siteNavigation, webSite]) }}
