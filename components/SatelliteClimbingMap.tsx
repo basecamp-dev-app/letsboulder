@@ -6,12 +6,12 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import L from 'leaflet'
 import { Bookmark } from 'lucide-react'
-import Supercluster from 'supercluster'
 import type { User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useMapEvents } from 'react-leaflet'
 import MapLoadingShell from '@/components/map/MapLoadingShell'
 import { runWhenIdle } from '@/lib/run-when-idle'
+import type Supercluster from 'supercluster'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -90,6 +90,7 @@ interface ClusterPointProperties {
 type ClusterFeature = GeoJSON.Feature<GeoJSON.Point, ClusterPointProperties>
 type PinFeature = GeoJSON.Feature<GeoJSON.Point, ClusterProperties>
 type ClusterResult = ClusterFeature | PinFeature
+type ClusterIndex = Supercluster<ClusterProperties, ClusterPointProperties>
 
 function isClusterFeature(feature: ClusterResult): feature is ClusterFeature {
   return feature.properties.cluster === true
@@ -170,6 +171,7 @@ export default function SatelliteClimbingMap() {
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [saveLocationLoading, setSaveLocationLoading] = useState(false)
+  const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
 
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
     setMapZoom(state.zoom)
@@ -195,19 +197,39 @@ export default function SatelliteClimbingMap() {
     }))
   }, [placePins])
 
-  const clusterIndex = useMemo(() => {
-    const index = new Supercluster<ClusterProperties, ClusterPointProperties>({
-      radius: 56,
-      maxZoom: 16,
-      minZoom: 0,
-      minPoints: 2,
+  useEffect(() => {
+    let cancelled = false
+
+    if (pinFeatures.length === 0) {
+      setClusterIndex(null)
+      return
+    }
+
+    void import('supercluster').then((mod) => {
+      if (cancelled) return
+
+      const SuperclusterLib = mod.default
+      const index = new SuperclusterLib<ClusterProperties, ClusterPointProperties>({
+        radius: 56,
+        maxZoom: 16,
+        minZoom: 0,
+        minPoints: 2,
+      })
+      index.load(pinFeatures)
+      setClusterIndex(index)
+    }).catch(() => {
+      if (!cancelled) {
+        setClusterIndex(null)
+      }
     })
-    index.load(pinFeatures)
-    return index
+
+    return () => {
+      cancelled = true
+    }
   }, [pinFeatures])
 
   const clusteredPlaces = useMemo<ClusterResult[]>(() => {
-    if (pinFeatures.length === 0) return []
+    if (pinFeatures.length === 0 || !clusterIndex) return pinFeatures
 
     const zoom = Math.max(0, Math.floor(mapZoom))
     const worldBounds: [number, number, number, number] = [-180, -85, 180, 85]
@@ -226,7 +248,7 @@ export default function SatelliteClimbingMap() {
     const westClusters = clusterIndex.getClusters([mapBounds.west, south, 180, north], zoom) as ClusterResult[]
     const eastClusters = clusterIndex.getClusters([-180, south, mapBounds.east, north], zoom) as ClusterResult[]
     return [...westClusters, ...eastClusters]
-  }, [clusterIndex, mapBounds, mapZoom, pinFeatures.length])
+  }, [clusterIndex, mapBounds, mapZoom, pinFeatures])
 
   useEffect(() => {
     setupLeafletIcons()
@@ -507,7 +529,8 @@ export default function SatelliteClimbingMap() {
               eventHandlers={{
                 click: () => {
                   if (!mapRef.current) return
-                  const expansionZoom = Math.min(clusterIndex.getClusterExpansionZoom(feature.properties.cluster_id), 17)
+                    if (!clusterIndex) return
+                    const expansionZoom = Math.min(clusterIndex.getClusterExpansionZoom(feature.properties.cluster_id), 17)
                   mapRef.current.setView([latitude, longitude], expansionZoom, {
                     animate: true,
                     duration: 0.5
