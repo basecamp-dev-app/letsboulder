@@ -1,9 +1,10 @@
-import { normalizeGrade } from '@/lib/grades'
+import { GRADES, normalizeGrade } from '@/lib/grades'
 import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
 import type { ClimbPackResponse } from '@/lib/climb/queries'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import type { Crag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { Database } from '@/types/database'
+import type { ClusterableCragImage, CragPinCluster } from '@/lib/crag-pin-clusters'
 
 export interface RawImageRow {
   id: string
@@ -53,6 +54,369 @@ export type CragRouteIntelligenceRow = Database['public']['Functions']['get_crag
 
 const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
 const faceDirectionIndex = new Map(FACE_DIRECTIONS.map((direction, index) => [direction, index]))
+const gradeOrderIndex = new Map(GRADES.map((grade, index) => [grade, index]))
+
+function toRad(deg: number) {
+  return (deg * Math.PI) / 180
+}
+
+function bearingDegrees(from: [number, number], to: [number, number]) {
+  const [lat1, lon1] = from.map(toRad)
+  const [lat2, lon2] = to.map(toRad)
+  const dLon = lon2 - lon1
+  const y = Math.sin(dLon) * Math.cos(lat2)
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon)
+  const brng = (Math.atan2(y, x) * 180) / Math.PI
+  return (brng + 360) % 360
+}
+
+function haversineMeters(from: [number, number], to: [number, number]) {
+  const R = 6371000
+  const [lat1, lon1] = from.map(toRad)
+  const [lat2, lon2] = to.map(toRad)
+  const dLat = lat2 - lat1
+  const dLon = lon2 - lon1
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+function getGradeIndex(grade: string) {
+  return gradeOrderIndex.get(grade)
+}
+
+export function compareGrades(a: string, b: string) {
+  const aIndex = getGradeIndex(a)
+  const bIndex = getGradeIndex(b)
+  if (aIndex === undefined && bIndex === undefined) return a.localeCompare(b)
+  if (aIndex === undefined) return 1
+  if (bIndex === undefined) return -1
+  return aIndex - bIndex
+}
+
+export function normalizeRouteType(value: string): string {
+  return value.trim().toLowerCase().replace(/_/g, '-')
+}
+
+export function formatRouteTypeLabel(value: string): string {
+  return normalizeRouteType(value)
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+export function formatRatingValue(value: number | null) {
+  return value === null ? 'Unrated' : value.toFixed(1)
+}
+
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB'
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+export function getAvailableDirections(routes: CragRoute[]) {
+  const seen = new Set<string>()
+  for (const route of routes) {
+    if (route.directions.length === 0) {
+      seen.add('Unknown')
+      continue
+    }
+
+    for (const direction of route.directions) {
+      seen.add(direction)
+    }
+  }
+
+  return [...seen].sort((a, b) => {
+    if (a === 'Unknown' && b !== 'Unknown') return 1
+    if (a !== 'Unknown' && b === 'Unknown') return -1
+    const aIndex = faceDirectionIndex.get(a as typeof FACE_DIRECTIONS[number])
+    const bIndex = faceDirectionIndex.get(b as typeof FACE_DIRECTIONS[number])
+    if (aIndex === undefined && bIndex === undefined) return a.localeCompare(b)
+    if (aIndex === undefined) return 1
+    if (bIndex === undefined) return -1
+    return aIndex - bIndex
+  })
+}
+
+export function getRouteTypeChips(routes: CragRoute[]) {
+  const uniqueTypes = new Set<string>()
+  for (const route of routes) {
+    if (!route.routeType) continue
+    uniqueTypes.add(normalizeRouteType(route.routeType))
+  }
+
+  return [...uniqueTypes].sort((a, b) => a.localeCompare(b))
+}
+
+export interface CragRouteFilterState {
+  selectedImageId: string | null
+  minGrade: string
+  maxGrade: string
+  minRating: string
+  minSends: string
+  searchQuery: string
+  selectedDirections: string[]
+  selectedRouteTypes: string[]
+  topoOnly: boolean
+}
+
+export function filterAndSortCragRoutes(
+  routes: CragRoute[],
+  highlightedRouteIds: Set<string>,
+  routeSort: 'sends' | 'rating' | 'grade' | 'name',
+  filterState: CragRouteFilterState,
+) {
+  const minIndex = filterState.minGrade ? getGradeIndex(filterState.minGrade) : undefined
+  const maxIndex = filterState.maxGrade ? getGradeIndex(filterState.maxGrade) : undefined
+  const normalizedSearchQuery = filterState.searchQuery.trim().toLowerCase()
+  const minimumRating = filterState.minRating ? Number(filterState.minRating) : null
+  const minimumSends = filterState.minSends ? Number(filterState.minSends) : null
+
+  return routes
+    .filter((route) => {
+      if (filterState.selectedImageId && !highlightedRouteIds.has(route.id)) return false
+
+      const routeGradeIndex = getGradeIndex(route.grade)
+      if (minIndex !== undefined) {
+        if (routeGradeIndex === undefined || routeGradeIndex < minIndex) return false
+      }
+      if (maxIndex !== undefined) {
+        if (routeGradeIndex === undefined || routeGradeIndex > maxIndex) return false
+      }
+
+      if (filterState.selectedDirections.length > 0) {
+        const routeDirections = route.directions.length > 0 ? route.directions : ['Unknown']
+        if (!routeDirections.some((direction) => filterState.selectedDirections.includes(direction))) return false
+      }
+
+      if (filterState.selectedRouteTypes.length > 0) {
+        const normalizedRouteType = route.routeType ? normalizeRouteType(route.routeType) : ''
+        if (!normalizedRouteType || !filterState.selectedRouteTypes.includes(normalizedRouteType)) return false
+      }
+
+      if (filterState.topoOnly && !route.hasTopo) return false
+      if (minimumRating !== null && (route.weightedRating === null || route.weightedRating < minimumRating)) return false
+      if (minimumSends !== null && route.sendCount < minimumSends) return false
+
+      if (normalizedSearchQuery.length > 0) {
+        const searchable = `${route.name} ${route.grade} ${route.routeType || ''}`.toLowerCase()
+        if (!searchable.includes(normalizedSearchQuery)) return false
+      }
+
+      return true
+    })
+    .sort((a, b) => {
+      if (routeSort === 'sends') {
+        const aHighlighted = highlightedRouteIds.has(a.id)
+        const bHighlighted = highlightedRouteIds.has(b.id)
+        if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
+        if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
+        if ((a.weightedRating ?? -1) !== (b.weightedRating ?? -1)) return (b.weightedRating ?? -1) - (a.weightedRating ?? -1)
+        const gradeCompare = compareGrades(a.grade, b.grade)
+        if (gradeCompare !== 0) return gradeCompare
+        return a.name.localeCompare(b.name)
+      }
+
+      if (routeSort === 'rating') {
+        const aHighlighted = highlightedRouteIds.has(a.id)
+        const bHighlighted = highlightedRouteIds.has(b.id)
+        if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
+        if (a.weightedRating === null && b.weightedRating !== null) return 1
+        if (a.weightedRating !== null && b.weightedRating === null) return -1
+        if (a.weightedRating !== null && b.weightedRating !== null && a.weightedRating !== b.weightedRating) {
+          return b.weightedRating - a.weightedRating
+        }
+        if (a.ratingCount !== b.ratingCount) return b.ratingCount - a.ratingCount
+        if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
+        return a.name.localeCompare(b.name)
+      }
+
+      if (routeSort === 'name') {
+        const aHighlighted = highlightedRouteIds.has(a.id)
+        const bHighlighted = highlightedRouteIds.has(b.id)
+        if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
+        return a.name.localeCompare(b.name)
+      }
+
+      const aHighlighted = highlightedRouteIds.has(a.id)
+      const bHighlighted = highlightedRouteIds.has(b.id)
+      if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
+      const gradeCompare = compareGrades(a.grade, b.grade)
+      if (gradeCompare !== 0) return gradeCompare
+      if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
+      return a.name.localeCompare(b.name)
+    })
+}
+
+export interface CragRouteStats {
+  totalRoutes: number
+  totalSendsAcrossRoutes: number
+  averageRating: number | null
+  mostCommonGrade: { grade: string; count: number } | null
+  medianGrade: string | null
+  routeTypeMix: Array<{ routeType: string; count: number }>
+  gradeDistribution: Array<{ grade: string; count: number }>
+  sendsByGrade: Array<{ grade: string; sends: number }>
+  topoCoverageCount: number
+  ratedRoutesCount: number
+}
+
+export function buildCragRouteStats(routes: CragRoute[]): CragRouteStats {
+  const gradeCounts = new Map<string, number>()
+  const sendsByGradeMap = new Map<string, number>()
+  const routeTypeCounts = new Map<string, number>()
+  let totalSendsAcrossRoutes = 0
+  let ratingsWeightedTotal = 0
+  let ratingsCountTotal = 0
+
+  for (const route of routes) {
+    gradeCounts.set(route.grade, (gradeCounts.get(route.grade) || 0) + 1)
+    sendsByGradeMap.set(route.grade, (sendsByGradeMap.get(route.grade) || 0) + route.sendCount)
+    totalSendsAcrossRoutes += route.sendCount
+
+    if (route.routeType) {
+      const normalizedRouteType = normalizeRouteType(route.routeType)
+      routeTypeCounts.set(normalizedRouteType, (routeTypeCounts.get(normalizedRouteType) || 0) + 1)
+    }
+
+    if (route.ratingAvg !== null && route.ratingCount > 0) {
+      ratingsWeightedTotal += route.ratingAvg * route.ratingCount
+      ratingsCountTotal += route.ratingCount
+    }
+  }
+
+  const gradeDistribution = Array.from(gradeCounts.entries())
+    .map(([grade, count]) => ({ grade, count }))
+    .sort((a, b) => compareGrades(a.grade, b.grade))
+
+  const sendsByGrade = Array.from(sendsByGradeMap.entries())
+    .map(([grade, sends]) => ({ grade, sends }))
+    .sort((a, b) => compareGrades(a.grade, b.grade))
+
+  const sortedByGrade = [...routes].sort((a, b) => compareGrades(a.grade, b.grade))
+  const medianRoute = sortedByGrade.length > 0 ? sortedByGrade[Math.floor((sortedByGrade.length - 1) / 2)] : null
+  const mostCommonGrade = gradeDistribution.reduce<{ grade: string; count: number } | null>((best, current) => {
+    if (!best || current.count > best.count) return current
+    return best
+  }, null)
+
+  const routeTypeMix = Array.from(routeTypeCounts.entries())
+    .map(([routeType, count]) => ({ routeType, count }))
+    .sort((a, b) => b.count - a.count || a.routeType.localeCompare(b.routeType))
+
+  return {
+    totalRoutes: routes.length,
+    totalSendsAcrossRoutes,
+    averageRating: ratingsCountTotal > 0 ? ratingsWeightedTotal / ratingsCountTotal : null,
+    mostCommonGrade,
+    medianGrade: medianRoute?.grade || null,
+    routeTypeMix,
+    gradeDistribution,
+    sendsByGrade,
+    topoCoverageCount: routes.filter((route) => route.hasTopo).length,
+    ratedRoutesCount: routes.filter((route) => route.ratingCount > 0).length,
+  }
+}
+
+export function getSearchModalResults(routes: CragRoute[], searchQuery: string) {
+  const query = searchQuery.trim().toLowerCase()
+  if (!query) return [] as CragRoute[]
+  return routes.filter((route) => `${route.name} ${route.grade} ${route.routeType || ''}`.toLowerCase().includes(query)).slice(0, 12)
+}
+
+export function buildRoutePreviewDisplayByClimbId(
+  routePreviewByClimbId: Record<string, RoutePreview>,
+  imageById: Map<string, ImageData>
+) {
+  const nextPreviews: Record<string, RoutePreview> = {}
+
+  for (const [climbId, preview] of Object.entries(routePreviewByClimbId)) {
+    const image = imageById.get(preview.imageId)
+    nextPreviews[climbId] = {
+      imageId: image?.id || preview.imageId,
+      imageUrl: image?.url || preview.imageUrl,
+    }
+  }
+
+  return nextPreviews
+}
+
+export function buildRouteNavigationDisplayByClimbId(
+  routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>,
+  imageById: Map<string, ImageData>
+) {
+  const nextTargets: Record<string, RouteNavigationTarget> = {}
+
+  for (const [climbId, target] of Object.entries(routeNavigationTargetByClimbId)) {
+    const displayImage = imageById.get(target.displayImageId)
+
+    nextTargets[climbId] = {
+      ...target,
+      displayImageId: target.displayImageId,
+      displayImageUrl: displayImage?.url || target.displayImageUrl,
+    }
+  }
+
+  return nextTargets
+}
+
+export function sortImagesByViewCenter(images: ImageData[], viewCenter: [number, number] | null) {
+  if (!viewCenter) return images
+
+  const withGeo = images
+    .map((img) => {
+      if (img.latitude == null || img.longitude == null) return null
+      const pos: [number, number] = [img.latitude, img.longitude]
+      return {
+        img,
+        bearing: bearingDegrees(viewCenter, pos),
+        dist: haversineMeters(viewCenter, pos),
+      }
+    })
+    .filter((value): value is { img: ImageData; bearing: number; dist: number } => value !== null)
+
+  withGeo.sort((a, b) => {
+    if (a.bearing !== b.bearing) return a.bearing - b.bearing
+    return a.dist - b.dist
+  })
+
+  const sorted = withGeo.map((x) => x.img)
+  const missing = images.filter((img) => img.latitude == null || img.longitude == null)
+  return [...sorted, ...missing]
+}
+
+export function sortPinClusters<TImage extends ClusterableCragImage>(
+  clusters: Array<CragPinCluster<TImage> & { badgeNumber: number }>,
+  center: [number, number] | null
+) {
+  const sortable = [...clusters]
+
+  sortable.sort((a, b) => {
+    if (center) {
+      const aBearing = bearingDegrees(center, [a.latitude, a.longitude])
+      const bBearing = bearingDegrees(center, [b.latitude, b.longitude])
+      if (aBearing !== bBearing) return aBearing - bBearing
+
+      const aDistance = haversineMeters(center, [a.latitude, a.longitude])
+      const bDistance = haversineMeters(center, [b.latitude, b.longitude])
+      if (aDistance !== bDistance) return aDistance - bDistance
+    }
+
+    if (a.latitude !== b.latitude) return b.latitude - a.latitude
+    if (a.longitude !== b.longitude) return a.longitude - b.longitude
+    return a.id.localeCompare(b.id)
+  })
+
+  return sortable.map((cluster, index) => ({
+    ...cluster,
+    badgeNumber: index + 1,
+  }))
+}
 
 export function getAverageCoordinates(images: { latitude: number; longitude: number }[]): [number, number] {
   const totalLat = images.reduce((sum, img) => sum + img.latitude, 0)
