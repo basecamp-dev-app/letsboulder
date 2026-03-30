@@ -3,14 +3,7 @@
 import { useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
-
-interface Crag {
-  id: string
-  name: string
-  rock_type: string | null
-  region_tag: string | null
-  sub_area: string | null
-}
+import type { Crag } from '@/app/admin/crags/types'
 
 interface RenameCragModalProps {
   crag: Crag
