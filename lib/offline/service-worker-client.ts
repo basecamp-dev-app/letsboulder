@@ -15,7 +15,7 @@ export function getServiceWorkerDisabledReason() {
 }
 
 export function shouldEnableServiceWorker() {
-  return getServiceWorkerDisabledReason() === null
+  return false
 }
 
 export async function clearRegisteredServiceWorkers() {
