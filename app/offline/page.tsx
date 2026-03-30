@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
-import OfflineModeChooser from '@/app/offline/components/OfflineModeChooser'
+import OfflineDispatcher from '@/app/offline/components/OfflineDispatcher'
 
 export const metadata: Metadata = {
   title: 'Offline Climbs',
-  description: 'Choose between saved offline packs and the live map.',
+  description: 'Route to live map or saved offline downloads based on connectivity.',
   robots: {
     index: false,
     follow: false,
@@ -11,5 +11,5 @@ export const metadata: Metadata = {
 }
 
 export default function OfflinePage() {
-  return <OfflineModeChooser />
+  return <OfflineDispatcher />
 }
