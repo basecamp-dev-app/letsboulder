@@ -1,5 +1,6 @@
 'use client'
 
+import type { RouteLine } from '@/features/submissions/lib/submission-types'
 import type { ClimbType, RoutePoint } from '@/features/submissions/lib/submission-types'
 import type { OrientationDirection } from '@/features/submissions/lib/draft-metadata'
 
@@ -91,6 +92,13 @@ export interface DraftRoute {
   imageHeight: number
 }
 
+export interface DraftLocationSearchResponse {
+  results?: Array<{
+    lat?: string
+    lon?: string
+  }>
+}
+
 export interface ManageImageTab {
   imageId: string
   sourceKind: 'draft-image' | 'crag-image'
@@ -141,4 +149,40 @@ export function isValidLocationCoordinate(latitude: number | null | undefined, l
     && longitude >= -180
     && longitude <= 180
     && !(latitude === 0 && longitude === 0)
+}
+
+export function parseDraftMarkerPosition(latitude: string, longitude: string): [number, number] | null {
+  const parsedLatitude = Number(latitude)
+  const parsedLongitude = Number(longitude)
+  if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) return null
+  if (parsedLatitude < -90 || parsedLatitude > 90) return null
+  if (parsedLongitude < -180 || parsedLongitude > 180) return null
+  if (parsedLatitude === 0 && parsedLongitude === 0) return null
+  return [parsedLatitude, parsedLongitude]
+}
+
+export function buildDraftRouteLines(
+  activeRoutes: DraftRoute[],
+  activeDraftImageId: string | null,
+  routeType: string,
+): RouteLine[] {
+  return activeRoutes.map((route) => ({
+    id: route.id,
+    image_id: activeDraftImageId || 'draft-image',
+    climb_id: route.id,
+    points: route.points,
+    color: 'red',
+    sequence_order: route.sequenceOrder,
+    image_width: route.imageWidth,
+    image_height: route.imageHeight,
+    created_at: 'draft-hydrated',
+    climb: {
+      id: route.id,
+      name: route.name,
+      grade: route.grade,
+      status: 'draft',
+      route_type: route.climbType || routeType,
+      description: route.description || null,
+    },
+  }))
 }

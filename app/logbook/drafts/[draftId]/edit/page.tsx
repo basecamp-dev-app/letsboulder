@@ -3,39 +3,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
-import type { UserResponse } from '@supabase/supabase-js'
 import { ToastContainer, useToast } from '@/features/logbook/components/toast'
 import { SubmissionWorkstation } from '@/features/submissions/components/SubmissionWorkstation'
 import { buildMapPins, reorderItemsByIds, resequenceRoutes, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
 import { sortFaceDirections, coordinateKey } from '@/features/submissions/lib/editor-helpers'
-import type { EditableRoute } from '@/features/submissions/lib/editor-types'
 import type { FaceDirection, ImageSelection, RouteLine } from '@/features/submissions/lib/submission-types'
 import { type LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { type UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
 import { useRouteStore } from '@/features/route-editor/store'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/features/editor/location/use-atlas-auto-sync'
 import { useDraftUploadManager } from '@/features/submissions/upload/hooks/use-draft-upload-manager'
 import { useMediaUploadManager } from '@/features/submissions/upload/hooks/use-media-upload-manager'
 import { uploadDebug } from '@/lib/media/upload-debug'
-import { createClient } from '@/lib/supabase'
 import { CollaboratorDialog } from '@/features/submissions/components/editor/collaborator-dialog'
 import { useDraftEditorData } from '@/features/submissions/draft-editor/hooks/use-draft-editor-data'
 import { useEditDraftActions } from '@/features/submissions/draft-editor/hooks/use-edit-draft-actions'
 import { useDraftConflictResolution } from '@/features/submissions/draft-editor/hooks/use-draft-conflict-resolution'
 import { useEditDraftData } from '@/features/submissions/draft-editor/hooks/use-edit-draft-data'
+import { useEditDraftHydration } from '@/features/submissions/draft-editor/hooks/use-edit-draft-hydration'
+import { useEditDraftLocationSync } from '@/features/submissions/draft-editor/hooks/use-edit-draft-location-sync'
+import { useEditDraftRouteSync } from '@/features/submissions/draft-editor/hooks/use-edit-draft-route-sync'
 import { useEditDraftUploads } from '@/features/submissions/draft-editor/hooks/use-edit-draft-uploads'
 import { useDraftCollaborators } from '@/features/submissions/editor/collaboration/use-draft-collaborators'
 import { useDraftLocationMetadata } from '@/features/submissions/editor/location/use-draft-location-metadata'
 import { useDraftRouteEditing } from '@/features/submissions/draft-editor/hooks/use-draft-route-editing'
-import { formatCoordinate } from '@/features/editor/location/location-metadata'
-import { haveStoredRoutesChanged } from '@/features/editor/route-store-sync'
-import { areSerializedRoutesEqual, buildHighResCanvasUrl } from '@/features/route-editor/route-editor-utils'
+import { buildHighResCanvasUrl } from '@/features/route-editor/route-editor-utils'
 import {
+  buildDraftRouteLines,
   isValidLocationCoordinate,
+  parseDraftMarkerPosition,
   resolveDraftClimbType,
-  type DraftRoute,
   type ManageImageTab,
 } from '@/features/submissions/draft-editor/lib/edit-draft-types'
 import { DraftToolbar } from '@/features/submissions/draft-editor/components/DraftToolbar'
@@ -54,17 +52,8 @@ export default function EditDraftPage() {
 
   const [success, setSuccess] = useState<string | null>(null)
   const { showCragSelector, setShowCragSelector, latitude, setLatitude, longitude, setLongitude, searchQuery, setSearchQuery, searchingLocation, setSearchingLocation, mapOpen, setMapOpen, updateDraftLocation } = useDraftLocationMetadata()
-  const markerPosition = useMemo<[number, number] | null>(() => {
-    const parsedLatitude = Number(latitude)
-    const parsedLongitude = Number(longitude)
-    if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) return null
-    if (parsedLatitude < -90 || parsedLatitude > 90) return null
-    if (parsedLongitude < -180 || parsedLongitude > 180) return null
-    if (parsedLatitude === 0 && parsedLongitude === 0) return null
-    return [parsedLatitude, parsedLongitude]
-  }, [latitude, longitude])
+  const markerPosition = useMemo<[number, number] | null>(() => parseDraftMarkerPosition(latitude, longitude), [latitude, longitude])
   const [sectorId, setSectorId] = useState<string | null>(null)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [ownerUserId] = useState<string | null>(null)
   const [ownerProfile] = useState<{ displayName: string; username: string | null } | null>(null)
   const [addingImages, setAddingImages] = useState(false)
@@ -74,15 +63,10 @@ export default function EditDraftPage() {
   const cragSectionRef = useRef<HTMLDivElement | null>(null)
   const locationSectionRef = useRef<HTMLDivElement | null>(null)
   const drawingAreaRef = useRef<HTMLDivElement | null>(null)
-  const hasShownCollabToastRef = useRef(false)
   const autosaveTimeoutRef = useRef<number | null>(null)
-  const previousActiveImageIdRef = useRef<string | null>(null)
-  const lastSeededRouteImageIdRef = useRef<string | null>(null)
-  const skipRouteStoreSyncRef = useRef<string | null>(null)
   const routeCanvasRef = useRef<UnifiedRouteCanvasRef>(null)
   const isFetchingRef = useRef(false)
   const needsRefetchRef = useRef(false)
-  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const { setMode, setInteractionTool, reset, clearCanvasState, selectedRouteId, routes: routeStoreRoutes, setRoutes: setRouteStoreRoutes, setSelectedRoute, setActiveRoute, setEditorPanelOpen, currentPoints, interactionTool, undoLastPoint } = useRouteStore()
   const { uploads, hasPendingUploads, hasFailedUploads, retryUpload, removeUpload, registerDraftUpdatedAt, queueDraftUploads, resumeQueue, isQueuePaused, subscribeToUploadComplete } = useDraftUploadManager()
   const { getUploadsForCrag } = useMediaUploadManager()
@@ -156,13 +140,18 @@ export default function EditDraftPage() {
     },
   })
   const { shareOpen, setShareOpen, loadingCollaborators, collaborators, activeInvites, creatingInvite, revokingInviteId, removingCollaboratorId, latestInviteUrl, loadCollaborators, handleCreateInvite, handleCopyInvite, handleRevokeInvite, handleRemoveCollaborator } = useDraftCollaborators(draftId, isOwner, addToast, setError)
+  const collaborationAdded = searchParams.get('collab') === 'added'
+  const { currentUserId, leaflet } = useEditDraftHydration({
+    collaborationAdded,
+    activeImageId,
+    loadCollaborators,
+    addToast,
+    setMode,
+    setInteractionTool,
+    reset,
+    clearCanvasState,
+  })
   const atlasSync = useAtlasAutoSync(markerPosition?.[0] ?? null, markerPosition?.[1] ?? null)
-  const atlasCountryId = atlasSync.atlas?.countryId ?? null
-  const atlasCountryCode = atlasSync.atlas?.countryCode ?? null
-  const atlasCountryName = atlasSync.atlas?.countryName ?? null
-  const atlasAdminRegionName = atlasSync.atlas?.adminRegionName ?? null
-  const atlasUnRegionName = atlasSync.atlas?.unRegionName ?? null
-  const atlasContinentName = atlasSync.atlas?.continentName ?? null
   const nearbyCragId = atlasSync.nearbyCrag?.id ?? null
   const nearbyCragName = atlasSync.nearbyCrag?.name ?? null
   const { imagesPayload, imagesPayloadSignature } = useDraftEditorData({ draft, routeType, routesByImageId, manageImages })
@@ -213,54 +202,6 @@ export default function EditDraftPage() {
     removeUpload,
   })
 
-  useEffect(() => {
-    const supabase = createClient()
-    void supabase.auth.getUser().then(({ data }: UserResponse) => {
-      setCurrentUserId(data.user?.id || null)
-    })
-  }, [])
-
-  useEffect(() => {
-    import('leaflet').then((lib) => setLeaflet(lib))
-  }, [])
-
-  useEffect(() => {
-    void loadCollaborators()
-  }, [loadCollaborators])
-
-  const collaborationAdded = searchParams.get('collab') === 'added'
-
-  useEffect(() => {
-    if (!collaborationAdded || hasShownCollabToastRef.current) return
-    addToast('You were added as a draft collaborator', 'success')
-    hasShownCollabToastRef.current = true
-  }, [collaborationAdded, addToast])
-
-
-  const averagedRouteImageLocation = useMemo<[number, number] | null>(() => {
-    const qualifyingCoordinates = mergedManageImages
-      .filter((image) => {
-        const routes = routesByImageId[image.imageId] || []
-        if (routes.length === 0) return false
-        if (resolveLocationMode(locationModeByImageId[image.imageId]) === 'custom') return false
-        return isValidLocationCoordinate(image.latitude, image.longitude)
-      })
-      .map((image) => [image.latitude as number, image.longitude as number] as const)
-
-    if (qualifyingCoordinates.length === 0) return null
-
-    const totals = qualifyingCoordinates.reduce((acc, [lat, lng]) => ({
-      latitude: acc.latitude + lat,
-      longitude: acc.longitude + lng,
-    }), { latitude: 0, longitude: 0 })
-
-    return [
-      totals.latitude / qualifyingCoordinates.length,
-      totals.longitude / qualifyingCoordinates.length,
-    ]
-  }, [locationModeByImageId, mergedManageImages, routesByImageId])
-
-  const stableCanvasUrlRef = useRef<{ imageId: string | null; imageUrl: string }>({ imageId: null, imageUrl: '' })
 
 
   const activeImageTab = useMemo(() => {
@@ -270,33 +211,19 @@ export default function EditDraftPage() {
   }, [activeImageId, canvasSource, mergedCragCanvasImages, mergedManageImages])
   const activeDraftImageId = activeImageTab?.imageId || null
   const activeImageLocationMode = activeDraftImageId ? (resolveLocationMode(locationModeByImageId[activeDraftImageId])) : 'shared'
+  const pendingActiveImageCustomGps = activeDraftImageId ? customGpsByImageId[activeDraftImageId] : undefined
+  const pendingActiveImageCustomPosition = useMemo<[number, number] | null>(() => {
+    if (!activeDraftImageId || activeImageLocationMode !== 'custom') return null
+    if (!pendingActiveImageCustomGps || !isValidLocationCoordinate(pendingActiveImageCustomGps.latitude, pendingActiveImageCustomGps.longitude)) return null
+    return [pendingActiveImageCustomGps.latitude as number, pendingActiveImageCustomGps.longitude as number]
+  }, [activeDraftImageId, activeImageLocationMode, pendingActiveImageCustomGps])
 
   const activeRoutes = useMemo(() => {
     if (!activeDraftImageId) return []
     return routesByImageId[activeDraftImageId] || []
   }, [activeDraftImageId, routesByImageId])
 
-  const existingRouteLines = useMemo(() => {
-    return activeRoutes.map((route) => ({
-      id: route.id,
-      image_id: activeDraftImageId || 'draft-image',
-      climb_id: route.id,
-      points: route.points,
-      color: 'red',
-      sequence_order: route.sequenceOrder,
-      image_width: route.imageWidth,
-      image_height: route.imageHeight,
-      created_at: 'draft-hydrated',
-      climb: {
-        id: route.id,
-        name: route.name,
-        grade: route.grade,
-        status: 'draft',
-        route_type: route.climbType || routeType,
-        description: route.description || null,
-      },
-    } as RouteLine))
-  }, [activeRoutes, activeDraftImageId, routeType])
+  const existingRouteLines = useMemo(() => buildDraftRouteLines(activeRoutes, activeDraftImageId, routeType), [activeRoutes, activeDraftImageId, routeType])
 
   const imageSelection = useMemo<ImageSelection | null>(() => {
     if (!activeImageTab) return null
@@ -318,26 +245,7 @@ export default function EditDraftPage() {
     }
   }, [activeImageTab, cragCanvasImages])
 
-  const stableActiveImageUrl = useMemo(() => {
-    if (!imageSelection || !('imageUrl' in imageSelection)) {
-      stableCanvasUrlRef.current = { imageId: null, imageUrl: '' }
-      return ''
-    }
-
-    const nextImageId = imageSelection.mode === 'crag-image'
-      ? imageSelection.cragImageId
-      : imageSelection.imageId
-
-    if (stableCanvasUrlRef.current.imageId === nextImageId && stableCanvasUrlRef.current.imageUrl === imageSelection.imageUrl) {
-      return stableCanvasUrlRef.current.imageUrl
-    }
-
-    stableCanvasUrlRef.current = {
-      imageId: nextImageId,
-      imageUrl: imageSelection.imageUrl,
-    }
-    return imageSelection.imageUrl
-  }, [imageSelection])
+  const stableActiveImageUrl = imageSelection && 'imageUrl' in imageSelection ? imageSelection.imageUrl : ''
 
   useEffect(() => {
     if (!imageSelection || !('imageUrl' in imageSelection)) return
@@ -351,16 +259,6 @@ export default function EditDraftPage() {
 
   const activeImageReady = Boolean(activeImageTab?.signedUrl) && activeImageTab?.status !== 'FAILED'
 
-  const activeImageCustomPosition = useMemo<[number, number] | null>(() => {
-    if (!activeDraftImageId || activeImageLocationMode !== 'custom') return null
-    const gps = customGpsByImageId[activeDraftImageId]
-    if (!gps || !isValidLocationCoordinate(gps.latitude, gps.longitude)) return null
-    return [gps.latitude as number, gps.longitude as number]
-  }, [activeDraftImageId, activeImageLocationMode, customGpsByImageId])
-
-  const effectiveMarkerPosition = activeImageCustomPosition || markerPosition
-  const hasValidLocation = effectiveMarkerPosition !== null
-
   const defaultImageTab = useMemo(() => {
     if (!defaultImageId) return null
     return mergedManageImages.find((image) => image.imageId === defaultImageId) || null
@@ -369,6 +267,108 @@ export default function EditDraftPage() {
     if (!defaultImageId) return []
     return routesByImageId[defaultImageId] || []
   }, [defaultImageId, routesByImageId])
+  const quickSwitcherImages = useMemo(() => {
+    const sourceImages = canvasSource?.kind === 'crag-image' ? mergedCragCanvasImages : mergedManageImages
+    const pendingUploads = canvasSource?.kind === 'crag-image' ? pendingCragUploads : pendingDraftUploads
+
+    return sourceImages
+      .slice()
+      .sort((a, b) => a.index - b.index)
+      .map((image: ManageImageTab) => ({
+        ...image,
+        badgeNumber: image.index + 1,
+        isDefault: image.sourceKind === 'draft-image' && image.imageId === defaultImageId,
+        progress: image.pendingClientId ? (pendingUploads.find((upload) => upload.clientId === image.pendingClientId)?.progress || 0) : undefined,
+      }))
+  }, [canvasSource, defaultImageId, mergedCragCanvasImages, mergedManageImages, pendingCragUploads, pendingDraftUploads])
+
+  const draftMapPins = useMemo<LightweightCragMapPin[]>(() => {
+    return buildMapPins(quickSwitcherImages.map((image) => ({
+      imageId: image.imageId,
+      order: image.badgeNumber - 1,
+      label: image.label,
+      latitude: image.latitude,
+      longitude: image.longitude,
+      locationMode: resolveLocationMode(image.locationMode),
+    }))).map((pin) => {
+      const sourceImage = quickSwitcherImages.find((image) => image.imageId === pin.id)
+      return {
+        ...pin,
+        tone: sourceImage?.sourceKind === 'crag-image' ? 'published' : 'draft',
+      }
+    })
+  }, [quickSwitcherImages])
+
+  const publishedMapPins = useMemo<LightweightCragMapPin[]>(() => {
+    const draftCoordinateKeys = new Set(
+      quickSwitcherImages
+        .filter((image: ManageImageTab & { badgeNumber: number; isDefault: boolean }) => typeof image.latitude === 'number' && typeof image.longitude === 'number')
+        .map((image: ManageImageTab & { badgeNumber: number; isDefault: boolean }) => coordinateKey(image.latitude as number, image.longitude as number))
+    )
+    const seenPublishedCoordinates = new Set<string>()
+
+    return publishedCragPins.reduce<LightweightCragMapPin[]>((acc, image) => {
+      const key = coordinateKey(image.latitude, image.longitude)
+      if (draftCoordinateKeys.has(key) || seenPublishedCoordinates.has(key)) return acc
+      seenPublishedCoordinates.add(key)
+      acc.push({
+        id: `published-${image.id}`,
+        latitude: image.latitude,
+        longitude: image.longitude,
+        interactive: false,
+        tone: 'published',
+      })
+      return acc
+    }, [])
+  }, [publishedCragPins, quickSwitcherImages])
+
+  const {
+    activeImageCustomPosition,
+    handleMapClick,
+    handleMarkerDragEnd,
+    handleSearchLocation,
+  } = useEditDraftLocationSync({
+    draft,
+    draftId,
+    draftUpdatedAt,
+    routeType,
+    isAnonymousSubmission,
+    creditPlatform,
+    creditHandle,
+    latitude,
+    longitude,
+    effectiveMarkerPosition: pendingActiveImageCustomPosition || markerPosition,
+    activeDraftImageId,
+    activeImageLocationMode,
+    customGpsByImageId,
+    locationModeByImageId,
+    mergedManageImages,
+    imagesPayload,
+    imagesPayloadSignature,
+    routesByImageId,
+    selectedCrag,
+    cragId,
+    nearbyCragId,
+    nearbyCragName,
+    atlasSync,
+    hasHydratedLocationRef,
+    lastLocationSyncRef,
+    setLatitude,
+    setLongitude,
+    setDraftUpdatedAt,
+    setCragId,
+    setSelectedCrag,
+    setCustomGpsByImageId,
+    updateDraftLocation,
+    setMapOpen,
+    searchQuery,
+    setSearchingLocation,
+    setLocationSearchError,
+  })
+
+  const effectiveMarkerPosition = activeImageCustomPosition || markerPosition
+  const hasValidLocation = effectiveMarkerPosition !== null
+
   const {
     autosaveState,
     setAutosaveState,
@@ -429,79 +429,11 @@ export default function EditDraftPage() {
     setActiveImageId,
   })
 
-  const quickSwitcherImages = useMemo(() => {
-    const sourceImages = canvasSource?.kind === 'crag-image' ? mergedCragCanvasImages : mergedManageImages
-    const pendingUploads = canvasSource?.kind === 'crag-image' ? pendingCragUploads : pendingDraftUploads
-
-    return sourceImages
-      .slice()
-      .sort((a, b) => a.index - b.index)
-      .map((image: ManageImageTab) => ({
-        ...image,
-        badgeNumber: image.index + 1,
-        isDefault: image.sourceKind === 'draft-image' && image.imageId === defaultImageId,
-        progress: image.pendingClientId ? (pendingUploads.find((upload) => upload.clientId === image.pendingClientId)?.progress || 0) : undefined,
-      }))
-  }, [canvasSource, defaultImageId, mergedCragCanvasImages, mergedManageImages, pendingCragUploads, pendingDraftUploads])
-
-  const draftMapPins = useMemo<LightweightCragMapPin[]>(() => {
-    return buildMapPins(quickSwitcherImages.map((image) => ({
-      imageId: image.imageId,
-      order: image.badgeNumber - 1,
-      label: image.label,
-      latitude: image.latitude,
-      longitude: image.longitude,
-      locationMode: resolveLocationMode(image.locationMode),
-    }))).map((pin) => {
-      const sourceImage = quickSwitcherImages.find((image) => image.imageId === pin.id)
-      return {
-        ...pin,
-        tone: sourceImage?.sourceKind === 'crag-image' ? 'published' : 'draft',
-      }
-    })
-  }, [quickSwitcherImages])
-
-  const fallbackLocation = useMemo<[number, number] | null>(() => {
-    const firstImagePin = draftMapPins.find((pin) => isValidLocationCoordinate(pin.latitude, pin.longitude)) || null
-    if (firstImagePin) {
-      return [firstImagePin.latitude, firstImagePin.longitude as number]
-    }
-
-    if (selectedCrag && isValidLocationCoordinate(selectedCrag.latitude, selectedCrag.longitude)) {
-      return [selectedCrag.latitude, selectedCrag.longitude as number]
-    }
-
-    return null
-  }, [draftMapPins, selectedCrag])
-
-  const publishedMapPins = useMemo<LightweightCragMapPin[]>(() => {
-    const draftCoordinateKeys = new Set(
-      quickSwitcherImages
-        .filter((image: ManageImageTab & { badgeNumber: number; isDefault: boolean }) => typeof image.latitude === 'number' && typeof image.longitude === 'number')
-        .map((image: ManageImageTab & { badgeNumber: number; isDefault: boolean }) => coordinateKey(image.latitude as number, image.longitude as number))
-    )
-    const seenPublishedCoordinates = new Set<string>()
-
-    return publishedCragPins.reduce<LightweightCragMapPin[]>((acc, image) => {
-      const key = coordinateKey(image.latitude, image.longitude)
-      if (draftCoordinateKeys.has(key) || seenPublishedCoordinates.has(key)) return acc
-      seenPublishedCoordinates.add(key)
-      acc.push({
-        id: `published-${image.id}`,
-        latitude: image.latitude,
-        longitude: image.longitude,
-        interactive: false,
-        tone: 'published',
-      })
-      return acc
-    }, [])
-  }, [publishedCragPins, quickSwitcherImages])
-
   useEffect(() => {
     if (!activeImageId) return
     const activeQuickSwitchImage = quickSwitcherImages.find((image) => image.imageId === activeImageId) || null
-      const latitude = activeImageCustomPosition?.[0] ?? activeQuickSwitchImage?.latitude ?? null
-      const longitude = activeImageCustomPosition?.[1] ?? activeQuickSwitchImage?.longitude ?? null
+    const latitude = activeImageCustomPosition?.[0] ?? activeQuickSwitchImage?.latitude ?? null
+    const longitude = activeImageCustomPosition?.[1] ?? activeQuickSwitchImage?.longitude ?? null
     if (latitude === null && longitude === null) return
     uploadDebug('editor-active-image-map-data', {
       activeImageId,
@@ -510,129 +442,6 @@ export default function EditDraftPage() {
       longitude,
     })
   }, [activeImageCustomPosition, activeImageId, quickSwitcherImages])
-
-  useEffect(() => {
-    setMode('edit-existing')
-    setInteractionTool('draw')
-    return () => {
-      reset()
-    }
-  }, [setMode, setInteractionTool, reset])
-
-  useEffect(() => {
-    const previousActiveImageId = previousActiveImageIdRef.current
-
-    if (previousActiveImageId && activeImageId && previousActiveImageId !== activeImageId) {
-      clearCanvasState()
-    }
-
-    previousActiveImageIdRef.current = activeImageId
-  }, [activeImageId, clearCanvasState])
-
-  useEffect(() => {
-    if (!draft || isInitialLoading) return
-    hasHydratedLocationRef.current = true
-  }, [draft, hasHydratedLocationRef, isInitialLoading])
-
-  useEffect(() => {
-    if (!hasHydratedLocationRef.current || !averagedRouteImageLocation) return
-
-    const [nextLatitude, nextLongitude] = averagedRouteImageLocation
-    const currentLatitude = Number(latitude)
-    const currentLongitude = Number(longitude)
-    const hasSameLocation = Number.isFinite(currentLatitude)
-      && Number.isFinite(currentLongitude)
-      && Math.abs(currentLatitude - nextLatitude) < 0.000001
-      && Math.abs(currentLongitude - nextLongitude) < 0.000001
-
-    if (hasSameLocation) return
-
-    setLatitude(formatCoordinate(nextLatitude))
-    setLongitude(formatCoordinate(nextLongitude))
-  }, [averagedRouteImageLocation, hasHydratedLocationRef, latitude, longitude, setLatitude, setLongitude])
-
-  useEffect(() => {
-    if (!hasHydratedLocationRef.current) return
-    if (effectiveMarkerPosition || !fallbackLocation) return
-
-    setLatitude(formatCoordinate(fallbackLocation[0]))
-    setLongitude(formatCoordinate(fallbackLocation[1]))
-  }, [effectiveMarkerPosition, fallbackLocation, hasHydratedLocationRef, setLatitude, setLongitude])
-
-  useEffect(() => {
-    if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) return
-
-    const latitudeValue = effectiveMarkerPosition[0]
-    const longitudeValue = effectiveMarkerPosition[1]
-    const nextCragId = cragId ?? nearbyCragId
-    const signature = JSON.stringify({
-      latitude: latitudeValue,
-      longitude: longitudeValue,
-      countryId: atlasCountryId,
-      countryCode: atlasCountryCode,
-      countryName: atlasCountryName,
-      adminRegionName: atlasAdminRegionName,
-      unRegionName: atlasUnRegionName,
-      continentName: atlasContinentName,
-      cragId: nextCragId,
-    })
-
-    if (signature === lastLocationSyncRef.current) return
-
-    const timer = window.setTimeout(async () => {
-      lastLocationSyncRef.current = signature
-      const atlasForPatch = atlasSync.atlas
-
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          expected_updated_at: draftUpdatedAt,
-          images: imagesPayload,
-          metadata: {
-            submission: {
-              routeType,
-              isAnonymousSubmission,
-              contributionCreditPlatform: creditPlatform,
-              contributionCreditHandle: creditHandle,
-              location: {
-                latitude: latitudeValue,
-                longitude: longitudeValue,
-                countryId: atlasForPatch?.countryId ?? null,
-                countryCode: atlasForPatch?.countryCode ?? null,
-                countryName: atlasForPatch?.countryName ?? null,
-                adminRegionName: atlasForPatch?.adminRegionName ?? null,
-                unRegionName: atlasForPatch?.unRegionName ?? null,
-                continentName: atlasForPatch?.continentName ?? null,
-              },
-            },
-          },
-          cragId: nextCragId,
-        }),
-      })
-
-      const payload = await response.json().catch(() => ({}))
-      if (response.ok && payload?.draft?.updated_at) {
-        setDraftUpdatedAt(payload.draft.updated_at)
-      } else {
-        lastLocationSyncRef.current = null
-      }
-      if (!cragId && nearbyCragId) {
-        setCragId(nearbyCragId)
-        setSelectedCrag((current) => current || {
-          id: nearbyCragId,
-          name: nearbyCragName || 'Suggested crag',
-          latitude: latitudeValue ?? 0,
-          longitude: longitudeValue ?? 0,
-        })
-      }
-    }, 400)
-
-    return () => window.clearTimeout(timer)
-  // draftUpdatedAt and atlasSync.atlas are intentionally read at execution time
-  // to avoid retriggering this sync effect after a successful PATCH.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atlasAdminRegionName, atlasContinentName, atlasCountryCode, atlasCountryId, atlasCountryName, atlasUnRegionName, cragId, draft, draftId, effectiveMarkerPosition, imagesPayload.length, imagesPayloadSignature, isInitialLoading, nearbyCragId, nearbyCragName, hasHydratedLocationRef])
 
   const toggleImageOrientation = useCallback((direction: FaceDirection) => {
     if (!activeDraftImageId) return
@@ -666,106 +475,18 @@ export default function EditDraftPage() {
   }, [cragId, focusDrawingArea, quickSwitcherImages, setActiveImageId, setCanvasSource])
 
 
-  const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
-    if (activeDraftImageId && activeImageLocationMode === 'custom') {
-      setCustomGpsByImageId((prev) => ({
-        ...prev,
-        [activeDraftImageId]: {
-          latitude: event.latlng.lat,
-          longitude: event.latlng.lng,
-        },
-      }))
-      return
-    }
-    updateDraftLocation(event.latlng.lat, event.latlng.lng)
-  }, [activeDraftImageId, activeImageLocationMode, updateDraftLocation, setCustomGpsByImageId])
-
-  const handleMarkerDragEnd = useCallback((event: L.LeafletEvent) => {
-    const marker = event.target as L.Marker
-    const position = marker.getLatLng()
-    if (activeDraftImageId && activeImageLocationMode === 'custom') {
-      setCustomGpsByImageId((prev) => ({
-        ...prev,
-        [activeDraftImageId]: {
-          latitude: position.lat,
-          longitude: position.lng,
-        },
-      }))
-      return
-    }
-    updateDraftLocation(position.lat, position.lng)
-  }, [activeDraftImageId, activeImageLocationMode, updateDraftLocation, setCustomGpsByImageId])
-
-  const handleSearchLocation = useCallback(async () => {
-    const query = searchQuery.trim()
-    if (!query) return
-
-    setSearchingLocation(true)
-    setLocationSearchError(null)
-    try {
-      const response = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}`)
-      const payload = await response.json().catch(() => ({} as { results?: Array<{ lat?: string; lon?: string }> }))
-      const firstResult = Array.isArray(payload.results) ? payload.results[0] : null
-
-      if (!response.ok || !firstResult?.lat || !firstResult?.lon) {
-        throw new Error('No location found')
-      }
-
-      const lat = Number(firstResult.lat)
-      const lng = Number(firstResult.lon)
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        throw new Error('Invalid location coordinates')
-      }
-
-      updateDraftLocation(lat, lng)
-      setMapOpen(true)
-    } catch (err) {
-      setLocationSearchError(err instanceof Error ? err.message : 'Failed to search location')
-    } finally {
-      setSearchingLocation(false)
-    }
-  }, [searchQuery, setMapOpen, setSearchingLocation, updateDraftLocation])
-
-  const scheduleDraftPersist = useCallback((nextRoutesByImageId: Record<string, DraftRoute[]>) => {
-    const currentDraftId = draftIdRef.current
-    if (!currentDraftId || !activeDraftImageId) return
-
-    const currentImageRoutes = nextRoutesByImageId[activeDraftImageId] || []
-    setAutosaveState('saving')
-    void csrfFetch(`/api/submissions/drafts/${currentDraftId}/routes`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        draftImageId: activeDraftImageId,
-        routes: currentImageRoutes.map((route, index) => ({
-          id: route.id,
-          name: route.name,
-          grade: route.grade,
-          description: route.description,
-          climbType: route.climbType || routeType,
-          points: route.points,
-          sequenceOrder: index,
-          imageWidth: route.imageWidth,
-          imageHeight: route.imageHeight,
-        })),
-      }),
-    })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({} as { result?: { updated_at?: string } }))
-        if (!response.ok) {
-          throw new Error('Failed to sync draft routes')
-        }
-        const nextUpdatedAt = payload.result?.updated_at
-        if (typeof nextUpdatedAt === 'string' && nextUpdatedAt) {
-          setDraftUpdatedAt(nextUpdatedAt)
-          registerDraftUpdatedAt(currentDraftId, nextUpdatedAt)
-        }
-        setAutosaveState('saved')
-      })
-      .catch(() => {
-        setAutosaveState('idle')
-      })
-  }, [activeDraftImageId, draftIdRef, registerDraftUpdatedAt, routeType, setAutosaveState, setDraftUpdatedAt])
+  const { handleCanvasRoutesUpdate, scheduleDraftPersist, skipRouteStoreSyncRef } = useEditDraftRouteSync({
+    activeDraftImageId,
+    routeType,
+    draftIdRef,
+    registerDraftUpdatedAt,
+    setAutosaveState,
+    setDraftUpdatedAt,
+    routeStoreRoutes,
+    existingRouteLines,
+    setRouteStoreRoutes,
+    setRoutesByImageId,
+  })
 
   const setActiveAsDefault = useCallback(() => {
     if (!activeImageTab || activeImageTab.sourceKind !== 'draft-image') return
@@ -775,71 +496,6 @@ export default function EditDraftPage() {
     })
   }, [activeImageTab, persistMetadataImmediately, setCanvasSource, setDefaultImageId])
 
-  const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
-    if (!activeDraftImageId) return
-    setRoutesByImageId((prev) => {
-      const current = prev[activeDraftImageId] || []
-      const previousById = new Map(current.map((route) => [route.id, route]))
-      const mapped = routes.map((route, index) => {
-        const previous = previousById.get(route.id)
-        return {
-          id: route.id,
-          name: route.name,
-          grade: route.grade || previous?.grade || '6A',
-          description: route.description,
-          climbType: route.climbType || previous?.climbType || routeType,
-          points: route.points,
-          sequenceOrder: index,
-          imageWidth: previous?.imageWidth || 1200,
-          imageHeight: previous?.imageHeight || 1200,
-        }
-      })
-
-      if (areSerializedRoutesEqual(current, mapped)) return prev
-
-      const nextRoutesByImageId = {
-        ...prev,
-        [activeDraftImageId]: mapped,
-      }
-
-      scheduleDraftPersist(nextRoutesByImageId)
-      return nextRoutesByImageId
-    })
-  }, [activeDraftImageId, routeType, scheduleDraftPersist, setRoutesByImageId])
-
-  const handleCanvasRoutesUpdate = useCallback((routes: RouteLine[]) => {
-    setRouteStoreRoutes(routes)
-    const editableRoutes = routes.map((route) => ({
-      id: route.id,
-      name: route.climb?.name || 'Unnamed',
-      grade: route.climb?.grade || '6A',
-      climbType: typeof route.climb?.route_type === 'string' ? route.climb.route_type : undefined,
-      description: route.climb?.description ?? undefined,
-      points: route.points,
-    }))
-    handleEditRoutesUpdate(editableRoutes)
-  }, [handleEditRoutesUpdate, setRouteStoreRoutes])
-
-  useEffect(() => {
-    if (!activeDraftImageId) return
-    if (lastSeededRouteImageIdRef.current === activeDraftImageId) return
-
-    lastSeededRouteImageIdRef.current = activeDraftImageId
-    if (haveStoredRoutesChanged(routeStoreRoutes, existingRouteLines)) {
-      skipRouteStoreSyncRef.current = activeDraftImageId
-      setRouteStoreRoutes(existingRouteLines)
-    }
-  }, [activeDraftImageId, existingRouteLines, routeStoreRoutes, setRouteStoreRoutes])
-
-  useEffect(() => {
-    if (!activeDraftImageId) return
-    if (skipRouteStoreSyncRef.current === activeDraftImageId) {
-      skipRouteStoreSyncRef.current = null
-      return
-    }
-    if (!haveStoredRoutesChanged(routeStoreRoutes, existingRouteLines)) return
-    handleCanvasRoutesUpdate(routeStoreRoutes)
-  }, [activeDraftImageId, existingRouteLines, handleCanvasRoutesUpdate, routeStoreRoutes])
 
 
   const handleCopyUnsavedEdits = useCallback(async () => {
