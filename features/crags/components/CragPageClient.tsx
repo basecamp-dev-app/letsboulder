@@ -3,18 +3,19 @@
 
 import { useCallback, useEffect, useMemo, useState, startTransition } from 'react'
 import type { MouseEvent } from 'react'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, ChevronRight, Download, Filter, Loader2, Search, ArrowUpDown, X } from 'lucide-react'
+import { ChevronRight, X } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { GRADES, PUBLIC_GRADES } from '@/lib/grades'
+import { PUBLIC_GRADES } from '@/lib/grades'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
+import CragPageToolbar, { type CragSwitcherOption } from '@/features/crags/components/CragPageToolbar'
 import CragCommunitySidebar from '@/features/crags/components/CragCommunitySidebar'
 import CragPageSkeleton from '@/features/crags/components/CragPageSkeleton'
-import { buildEffectiveClimbLookup, dedupeCragRoutes, formatCragRoutes, getAverageCoordinates, getStoredCragClimbPayloadsSafely, hydrateOfflineCragData, mapRouteTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId } from '@/features/crags/lib/crag-page-domain'
+import CragRouteList from '@/features/crags/components/CragRouteList'
+import { buildCragRouteStats, buildEffectiveClimbLookup, buildRouteNavigationDisplayByClimbId, buildRoutePreviewDisplayByClimbId, dedupeCragRoutes, filterAndSortCragRoutes, formatBytes, formatCragRoutes, formatRouteTypeLabel, getAvailableDirections, getAverageCoordinates, getSearchModalResults, getStoredCragClimbPayloadsSafely, getRouteTypeChips, hydrateOfflineCragData, mapRouteTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId, sortImagesByViewCenter, sortPinClusters } from '@/features/crags/lib/crag-page-domain'
 import type { CachedCragImageData, ClimbIdentityRow, CragRouteIntelligenceRow, RawImageRow, RouteLineTargetRow } from '@/features/crags/lib/crag-page-domain'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { buildSelectableImageIdByImageId } from '@/lib/image-identity'
@@ -26,20 +27,10 @@ import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
 import type { ClimbPackResponse } from '@/lib/climb/queries'
 import { Input } from '@/components/ui/input'
-import { buildCragPinClusters, type ClusterableCragImage, type CragPinCluster } from '@/lib/crag-pin-clusters'
+import { buildCragPinClusters, type ClusterableCragImage } from '@/lib/crag-pin-clusters'
 import type { Crag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 
-const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
-const faceDirectionIndex = new Map(FACE_DIRECTIONS.map((direction, index) => [direction, index]))
-
-const CRAG_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000
-const cragImageCache = new Map<string, CachedCragImageData>()
-
-function getFreshCachedCragData(id: string) {
-  const cached = cragImageCache.get(id)
-  if (!cached) return null
-  return Date.now() - cached.cachedAt <= CRAG_IMAGE_CACHE_TTL_MS ? cached : null
-}
+const FILTER_GRADES = PUBLIC_GRADES
 
 interface ClusteredImageData extends ClusterableCragImage {
   id: string
@@ -54,115 +45,22 @@ interface ClusteredImageData extends ClusterableCragImage {
 }
 
 
-type OrderedPinCluster = CragPinCluster<ClusteredImageData> & {
-  badgeNumber: number
-}
-
 interface ResolvedRouteDestination {
   href: string
   ready: boolean
 }
 
-interface CragSwitcherOption {
-  id: string
-  name: string
-  regionName: string | null
-  subArea: string | null
-  countryCode: string | null
+const CRAG_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000
+const cragImageCache = new Map<string, CachedCragImageData>()
+
+function getFreshCachedCragData(id: string) {
+  const cached = cragImageCache.get(id)
+  if (!cached) return null
+  return Date.now() - cached.cachedAt <= CRAG_IMAGE_CACHE_TTL_MS ? cached : null
 }
 
 function isOfflineDocumentNavigationPreferred() {
   return typeof navigator !== 'undefined' && navigator.onLine === false
-}
-
-const gradeOrderIndex = new Map(GRADES.map((grade, index) => [grade, index]))
-const FILTER_GRADES = PUBLIC_GRADES
-
-function normalizeRouteType(value: string): string {
-  return value.trim().toLowerCase().replace(/_/g, '-')
-}
-
-function formatRouteTypeLabel(value: string): string {
-  return normalizeRouteType(value)
-    .split('-')
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
-
-function getGradeIndex(grade: string) {
-  return gradeOrderIndex.get(grade)
-}
-
-function compareGrades(a: string, b: string) {
-  const aIndex = getGradeIndex(a)
-  const bIndex = getGradeIndex(b)
-  if (aIndex === undefined && bIndex === undefined) return a.localeCompare(b)
-  if (aIndex === undefined) return 1
-  if (bIndex === undefined) return -1
-  return aIndex - bIndex
-}
-
-function formatRatingValue(value: number | null) {
-  return value === null ? 'Unrated' : value.toFixed(1)
-}
-
-function toRad(deg: number) {
-  return (deg * Math.PI) / 180
-}
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB'
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function bearingDegrees(from: [number, number], to: [number, number]) {
-  const [lat1, lon1] = from.map(toRad)
-  const [lat2, lon2] = to.map(toRad)
-  const dLon = lon2 - lon1
-  const y = Math.sin(dLon) * Math.cos(lat2)
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon)
-  const brng = (Math.atan2(y, x) * 180) / Math.PI
-  return (brng + 360) % 360
-}
-
-function haversineMeters(from: [number, number], to: [number, number]) {
-  const R = 6371000
-  const [lat1, lon1] = from.map(toRad)
-  const [lat2, lon2] = to.map(toRad)
-  const dLat = lat2 - lat1
-  const dLon = lon2 - lon1
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return R * c
-}
-
-function sortPinClusters(clusters: OrderedPinCluster[], center: [number, number] | null) {
-  const sortable = [...clusters]
-
-  sortable.sort((a, b) => {
-    if (center) {
-      const aBearing = bearingDegrees(center, [a.latitude, a.longitude])
-      const bBearing = bearingDegrees(center, [b.latitude, b.longitude])
-      if (aBearing !== bBearing) return aBearing - bBearing
-
-      const aDistance = haversineMeters(center, [a.latitude, a.longitude])
-      const bDistance = haversineMeters(center, [b.latitude, b.longitude])
-      if (aDistance !== bDistance) return aDistance - bDistance
-    }
-
-    if (a.latitude !== b.latitude) return b.latitude - a.latitude
-    if (a.longitude !== b.longitude) return a.longitude - b.longitude
-    return a.id.localeCompare(b.id)
-  })
-
-  return sortable.map((cluster, index) => ({
-    ...cluster,
-    badgeNumber: index + 1,
-  }))
 }
 
 interface CragPageClientProps {
@@ -832,27 +730,7 @@ export default function CragPageClient({
   const viewCenter = cragCenter
 
   const orderedImages = useMemo(() => {
-    if (!viewCenter) return images
-    const withGeo = images
-      .map((img) => {
-        if (img.latitude == null || img.longitude == null) return null
-        const pos: [number, number] = [img.latitude, img.longitude]
-        return {
-          img,
-          bearing: bearingDegrees(viewCenter, pos),
-          dist: haversineMeters(viewCenter, pos),
-        }
-      })
-      .filter(Boolean) as Array<{ img: ImageData; bearing: number; dist: number }>
-
-    withGeo.sort((a, b) => {
-      if (a.bearing !== b.bearing) return a.bearing - b.bearing
-      return a.dist - b.dist
-    })
-
-    const sorted = withGeo.map((x) => x.img)
-    const missing = images.filter((img) => img.latitude == null || img.longitude == null)
-    return [...sorted, ...missing]
+    return sortImagesByViewCenter(images, viewCenter)
   }, [images, viewCenter])
 
   const imageById = useMemo(() => {
@@ -890,33 +768,11 @@ export default function CragPageClient({
   }, [orderedPinClusters])
 
   const routePreviewDisplayByClimbId = useMemo(() => {
-    const nextPreviews: Record<string, RoutePreview> = {}
-
-    for (const [climbId, preview] of Object.entries(routePreviewByClimbId)) {
-      const image = imageById.get(preview.imageId)
-      nextPreviews[climbId] = {
-        imageId: image?.id || preview.imageId,
-        imageUrl: image?.url || preview.imageUrl,
-      }
-    }
-
-    return nextPreviews
+    return buildRoutePreviewDisplayByClimbId(routePreviewByClimbId, imageById)
   }, [imageById, routePreviewByClimbId])
 
   const routeNavigationDisplayByClimbId = useMemo(() => {
-    const nextTargets: Record<string, RouteNavigationTarget> = {}
-
-    for (const [climbId, target] of Object.entries(routeNavigationTargetByClimbId)) {
-      const displayImage = imageById.get(target.displayImageId)
-
-      nextTargets[climbId] = {
-        ...target,
-        displayImageId: target.displayImageId,
-        displayImageUrl: displayImage?.url || target.displayImageUrl,
-      }
-    }
-
-    return nextTargets
+    return buildRouteNavigationDisplayByClimbId(routeNavigationTargetByClimbId, imageById)
   }, [imageById, routeNavigationTargetByClimbId])
 
   const selectedImageIds = useMemo(() => {
@@ -1072,12 +928,7 @@ export default function CragPageClient({
   }, [climbIdsFingerprint, hasCompleteInitialRouteTargets, id, imageById])
 
   const routeTypeChips = useMemo(() => {
-    const uniqueTypes = new Set<string>()
-    for (const route of routes) {
-      if (!route.routeType) continue
-      uniqueTypes.add(normalizeRouteType(route.routeType))
-    }
-    return [...uniqueTypes].sort((a, b) => a.localeCompare(b))
+    return getRouteTypeChips(routes)
   }, [routes])
 
   const clearAllRouteFilters = useCallback(() => {
@@ -1112,167 +963,25 @@ export default function CragPageClient({
   }, [crag?.country_code, crag?.slug])
 
   const availableDirections = useMemo(() => {
-    const seen = new Set<string>()
-    for (const route of routes) {
-      if (route.directions.length === 0) {
-        seen.add('Unknown')
-        continue
-      }
-      for (const direction of route.directions) {
-        seen.add(direction)
-      }
-    }
-
-    return [...seen].sort((a, b) => {
-      if (a === 'Unknown' && b !== 'Unknown') return 1
-      if (a !== 'Unknown' && b === 'Unknown') return -1
-      const aIndex = faceDirectionIndex.get(a as typeof FACE_DIRECTIONS[number])
-      const bIndex = faceDirectionIndex.get(b as typeof FACE_DIRECTIONS[number])
-      if (aIndex === undefined && bIndex === undefined) return a.localeCompare(b)
-      if (aIndex === undefined) return 1
-      if (bIndex === undefined) return -1
-      return aIndex - bIndex
-    })
+    return getAvailableDirections(routes)
   }, [routes])
 
   const filteredRoutes = useMemo(() => {
-    const minIndex = minGrade ? getGradeIndex(minGrade) : undefined
-    const maxIndex = maxGrade ? getGradeIndex(maxGrade) : undefined
-    const normalizedSearchQuery = searchQuery.trim().toLowerCase()
-    const minimumRating = minRating ? Number(minRating) : null
-    const minimumSends = minSends ? Number(minSends) : null
-
-    return routes
-      .filter((route) => {
-        if (selectedImageId && !highlightedRouteIds.has(route.id)) return false
-
-        const routeGradeIndex = getGradeIndex(route.grade)
-        if (minIndex !== undefined) {
-          if (routeGradeIndex === undefined || routeGradeIndex < minIndex) return false
-        }
-        if (maxIndex !== undefined) {
-          if (routeGradeIndex === undefined || routeGradeIndex > maxIndex) return false
-        }
-
-        if (selectedDirections.length > 0) {
-          const routeDirections = route.directions.length > 0 ? route.directions : ['Unknown']
-          if (!routeDirections.some((direction) => selectedDirections.includes(direction))) return false
-        }
-
-        if (selectedRouteTypes.length > 0) {
-          const normalizedRouteType = route.routeType ? normalizeRouteType(route.routeType) : ''
-          if (!normalizedRouteType || !selectedRouteTypes.includes(normalizedRouteType)) return false
-        }
-
-        if (topoOnly && !route.hasTopo) return false
-        if (minimumRating !== null && (route.weightedRating === null || route.weightedRating < minimumRating)) return false
-        if (minimumSends !== null && route.sendCount < minimumSends) return false
-
-        if (normalizedSearchQuery.length > 0) {
-          const searchable = `${route.name} ${route.grade} ${route.routeType || ''}`.toLowerCase()
-          if (!searchable.includes(normalizedSearchQuery)) return false
-        }
-
-        return true
-      })
-      .sort((a, b) => {
-        if (routeSort === 'sends') {
-          const aHighlighted = highlightedRouteIds.has(a.id)
-          const bHighlighted = highlightedRouteIds.has(b.id)
-          if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
-          if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
-          if ((a.weightedRating ?? -1) !== (b.weightedRating ?? -1)) return (b.weightedRating ?? -1) - (a.weightedRating ?? -1)
-          const gradeCompare = compareGrades(a.grade, b.grade)
-          if (gradeCompare !== 0) return gradeCompare
-          return a.name.localeCompare(b.name)
-        }
-
-        if (routeSort === 'rating') {
-          const aHighlighted = highlightedRouteIds.has(a.id)
-          const bHighlighted = highlightedRouteIds.has(b.id)
-          if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
-          if (a.weightedRating === null && b.weightedRating !== null) return 1
-          if (a.weightedRating !== null && b.weightedRating === null) return -1
-          if (a.weightedRating !== null && b.weightedRating !== null && a.weightedRating !== b.weightedRating) {
-            return b.weightedRating - a.weightedRating
-          }
-          if (a.ratingCount !== b.ratingCount) return b.ratingCount - a.ratingCount
-          if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
-          return a.name.localeCompare(b.name)
-        }
-
-        if (routeSort === 'name') {
-          const aHighlighted = highlightedRouteIds.has(a.id)
-          const bHighlighted = highlightedRouteIds.has(b.id)
-          if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
-          return a.name.localeCompare(b.name)
-        }
-
-        const aHighlighted = highlightedRouteIds.has(a.id)
-        const bHighlighted = highlightedRouteIds.has(b.id)
-        if (aHighlighted !== bHighlighted) return aHighlighted ? -1 : 1
-        const gradeCompare = compareGrades(a.grade, b.grade)
-        if (gradeCompare !== 0) return gradeCompare
-        if (a.sendCount !== b.sendCount) return b.sendCount - a.sendCount
-        return a.name.localeCompare(b.name)
-      })
+    return filterAndSortCragRoutes(routes, highlightedRouteIds, routeSort, {
+      selectedImageId,
+      minGrade,
+      maxGrade,
+      minRating,
+      minSends,
+      searchQuery,
+      selectedDirections,
+      selectedRouteTypes,
+      topoOnly,
+    })
   }, [highlightedRouteIds, maxGrade, minGrade, minRating, minSends, routeSort, routes, searchQuery, selectedDirections, selectedImageId, selectedRouteTypes, topoOnly])
 
   const routeStats = useMemo(() => {
-    const gradeCounts = new Map<string, number>()
-    const sendsByGradeMap = new Map<string, number>()
-    const routeTypeCounts = new Map<string, number>()
-    let totalSendsAcrossRoutes = 0
-    let ratingsWeightedTotal = 0
-    let ratingsCountTotal = 0
-
-    for (const route of routes) {
-      gradeCounts.set(route.grade, (gradeCounts.get(route.grade) || 0) + 1)
-      sendsByGradeMap.set(route.grade, (sendsByGradeMap.get(route.grade) || 0) + route.sendCount)
-      totalSendsAcrossRoutes += route.sendCount
-
-      if (route.routeType) {
-        const normalizedRouteType = normalizeRouteType(route.routeType)
-        routeTypeCounts.set(normalizedRouteType, (routeTypeCounts.get(normalizedRouteType) || 0) + 1)
-      }
-
-      if (route.ratingAvg !== null && route.ratingCount > 0) {
-        ratingsWeightedTotal += route.ratingAvg * route.ratingCount
-        ratingsCountTotal += route.ratingCount
-      }
-    }
-
-    const gradeDistribution = Array.from(gradeCounts.entries())
-      .map(([grade, count]) => ({ grade, count }))
-      .sort((a, b) => compareGrades(a.grade, b.grade))
-
-    const sendsByGrade = Array.from(sendsByGradeMap.entries())
-      .map(([grade, sends]) => ({ grade, sends }))
-      .sort((a, b) => compareGrades(a.grade, b.grade))
-
-    const sortedByGrade = [...routes].sort((a, b) => compareGrades(a.grade, b.grade))
-    const medianRoute = sortedByGrade.length > 0 ? sortedByGrade[Math.floor((sortedByGrade.length - 1) / 2)] : null
-    const mostCommonGrade = gradeDistribution.reduce<{ grade: string; count: number } | null>((best, current) => {
-      if (!best || current.count > best.count) return current
-      return best
-    }, null)
-
-    const routeTypeMix = Array.from(routeTypeCounts.entries())
-      .map(([routeType, count]) => ({ routeType, count }))
-      .sort((a, b) => b.count - a.count || a.routeType.localeCompare(b.routeType))
-
-    return {
-      totalRoutes: routes.length,
-      totalSendsAcrossRoutes,
-      averageRating: ratingsCountTotal > 0 ? ratingsWeightedTotal / ratingsCountTotal : null,
-      mostCommonGrade,
-      medianGrade: medianRoute?.grade || null,
-      routeTypeMix,
-      gradeDistribution,
-      sendsByGrade,
-      topoCoverageCount: routes.filter((route) => route.hasTopo).length,
-      ratedRoutesCount: routes.filter((route) => route.ratingCount > 0).length,
-    }
+    return buildCragRouteStats(routes)
   }, [routes])
 
   const routeInsightsState = routesLoadState
@@ -1281,11 +990,7 @@ export default function CragPageClient({
   const routeLocationLabel = crag?.sub_area || crag?.region_name || crag?.climbing_areas?.name || 'Area details pending'
 
   const searchModalResults = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase()
-    if (!query) return [] as CragRoute[]
-    return routes
-      .filter((route) => `${route.name} ${route.grade} ${route.routeType || ''}`.toLowerCase().includes(query))
-      .slice(0, 12)
+    return getSearchModalResults(routes, searchQuery)
   }, [routes, searchQuery])
 
   const activeRouteFilterChips = useMemo(() => {
@@ -1599,54 +1304,27 @@ export default function CragPageClient({
 
       <div className="relative max-w-5xl mx-auto px-4 py-4 space-y-6">
         <section className="space-y-3">
-          <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex items-center gap-2">
-              <div className="relative min-w-0 flex-1 max-w-sm">
-                <button type="button" onClick={() => setCragSwitcherOpen((prev) => !prev)} className="flex w-full items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-left text-sm text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                  <span className="truncate font-medium">{crag.name}</span>
-                  <ChevronDown className="size-4 shrink-0" />
-                </button>
-                {cragSwitcherOpen ? (
-                  <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[1300] rounded-2xl border border-stone-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-900">
-                    <Input value={cragSwitcherQuery} onChange={(event) => setCragSwitcherQuery(event.target.value)} placeholder="Search another crag" className="border-stone-300 bg-white dark:border-gray-700 dark:bg-gray-800" />
-                    <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
-                      {cragSwitcherOptions.map((option) => {
-                        const href = option.countryCode ? `/${option.countryCode.toLowerCase()}/${option.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}` : `/crag/${option.id}`
-                        return (
-                          <a key={option.id} href={option.id === crag.id ? `/crag/${option.id}` : href} className={`block rounded-xl px-3 py-2 text-sm transition hover:bg-stone-50 dark:hover:bg-gray-800 ${option.id === crag.id ? 'bg-stone-100 font-medium text-stone-900 dark:bg-gray-800 dark:text-gray-100' : 'text-stone-700 dark:text-gray-200'}`} onClick={() => setCragSwitcherOpen(false)}>
-                            <div>{option.name}</div>
-                            <div className="text-xs text-stone-500 dark:text-gray-400">{option.subArea || option.regionName || 'Crag'}</div>
-                          </a>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              <button type="button" onClick={handleOpenOfflineDialog} disabled={!canDownloadCrag} className="rounded-full border border-stone-200 bg-white p-2.5 text-stone-700 shadow-sm transition hover:bg-stone-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
-                {offlineDialogLoading || offlinePreviewLoading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-              </button>
-              <button type="button" onClick={() => setSearchModalOpen(true)} className="rounded-full border border-stone-200 bg-stone-50 p-2 text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                <Search className="size-4" />
-              </button>
-              <button type="button" onClick={() => setFilterModalOpen(true)} className="rounded-full border border-stone-200 bg-stone-50 p-2 text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                <Filter className="size-4" />
-              </button>
-              <button type="button" onClick={() => setSortModalOpen(true)} className="rounded-full border border-stone-200 bg-stone-50 p-2 text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                <ArrowUpDown className="size-4" />
-              </button>
-              {hasActiveRouteFilters ? (
-                <button type="button" onClick={clearAllRouteFilters} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
-                  Clear filters
-                </button>
-              ) : null}
-              <div className="ml-auto text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">
-                {selectedImageId ? `${selectedRouteCount} / ${routes.length} selected` : ''}
-                {selectedImageId ? ' · ' : ''}
-                {filteredRoutes.length} routes
-              </div>
-            </div>
-          </div>
+          <CragPageToolbar
+            crag={crag}
+            cragSwitcherOpen={cragSwitcherOpen}
+            cragSwitcherQuery={cragSwitcherQuery}
+            cragSwitcherOptions={cragSwitcherOptions}
+            canDownloadCrag={canDownloadCrag}
+            offlineDialogLoading={offlineDialogLoading}
+            offlinePreviewLoading={offlinePreviewLoading}
+            hasActiveRouteFilters={hasActiveRouteFilters}
+            selectedImageId={selectedImageId}
+            selectedRouteCount={selectedRouteCount}
+            routesCount={routes.length}
+            onToggleCragSwitcher={() => setCragSwitcherOpen((prev) => !prev)}
+            onCragSwitcherQueryChange={setCragSwitcherQuery}
+            onCloseCragSwitcher={() => setCragSwitcherOpen(false)}
+            onOpenOfflineDialog={handleOpenOfflineDialog}
+            onOpenSearchModal={() => setSearchModalOpen(true)}
+            onOpenFilterModal={() => setFilterModalOpen(true)}
+            onOpenSortModal={() => setSortModalOpen(true)}
+            onClearRouteFilters={clearAllRouteFilters}
+          />
 
           <div className="space-y-4">
             {routeInsightsUnavailable ? (
@@ -1664,67 +1342,16 @@ export default function CragPageClient({
               </div>
             ) : null}
 
-            <div className="overflow-hidden rounded-[28px] border border-stone-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-              {routesLoadState === 'loading' ? (
-                <div className="px-4 py-6">
-                  <div className="h-16 animate-pulse rounded-2xl bg-stone-100 dark:bg-gray-800" />
-                </div>
-              ) : routesLoadState === 'error' ? (
-                <p className="px-4 py-4 text-sm text-stone-500 dark:text-gray-400">Route intelligence is unavailable right now.</p>
-              ) : filteredRoutes.length === 0 ? (
-                <p className="px-4 py-4 text-sm text-stone-500 dark:text-gray-400">No routes match this filter combination.</p>
-              ) : (
-                <div className="divide-y divide-stone-100 dark:divide-gray-800">
-                  {filteredRoutes.map((route) => {
-                    const destination = getRouteDestination(route)
-                    const className = `flex items-center gap-3 px-4 py-3 transition hover:bg-stone-50 dark:hover:bg-gray-800/50 ${highlightedRouteIds.has(route.id) ? 'bg-teal-50/80 ring-1 ring-inset ring-teal-200 dark:bg-teal-950/20 dark:ring-teal-900' : ''}`
-
-                    const content = (
-                      <>
-                        {routePreviewDisplayByClimbId[route.id] ? (
-                          <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                            <Image src={routePreviewDisplayByClimbId[route.id].imageUrl} alt={`${route.name} topo preview`} fill className="object-cover" sizes="64px" />
-                            {pinNumberByImageId.get(routePreviewDisplayByClimbId[route.id].imageId) ? (
-                              <div className="absolute left-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-white/95 text-[10px] font-semibold text-stone-900 shadow-sm dark:bg-gray-900/95 dark:text-gray-100">
-                                {pinNumberByImageId.get(routePreviewDisplayByClimbId[route.id].imageId)}
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 text-[10px] font-medium uppercase tracking-wide text-stone-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">No topo</div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                            <span className="truncate text-sm font-semibold text-stone-900 dark:text-gray-100">{route.name}</span>
-                            <span className="text-sm font-medium text-stone-600 dark:text-gray-300">{formatGradeForDisplay(route.grade, gradeSystem)}</span>
-                          </div>
-                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-stone-600 dark:text-gray-300">
-                            <span>{formatRatingValue(route.weightedRating)}{route.ratingCount > 0 ? ` (${route.ratingCount})` : ''}</span>
-                            <span>{route.sendCount} ascents</span>
-                            {route.routeType ? <span>{formatRouteTypeLabel(route.routeType)}</span> : null}
-                          </div>
-                        </div>
-                        <ChevronRight className="size-4 shrink-0 text-stone-400" />
-                      </>
-                    )
-
-                    if (!destination.ready) {
-                      return (
-                        <button key={route.id} type="button" onClick={(event) => handlePendingRouteNavigation(event, route)} className={`${className} w-full text-left`}>
-                          {content}
-                        </button>
-                      )
-                    }
-
-                    return (
-                      <a key={route.id} href={destination.href} className={className}>
-                        {content}
-                      </a>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+            <CragRouteList
+              filteredRoutes={filteredRoutes}
+              routesLoadState={routesLoadState}
+              highlightedRouteIds={highlightedRouteIds}
+              routePreviewDisplayByClimbId={routePreviewDisplayByClimbId}
+              pinNumberByImageId={pinNumberByImageId}
+              gradeSystem={gradeSystem}
+              onPendingRouteNavigation={handlePendingRouteNavigation}
+              getRouteDestination={getRouteDestination}
+            />
           </div>
         </section>
 
