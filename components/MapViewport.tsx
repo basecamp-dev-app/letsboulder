@@ -3,11 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Download, RefreshCw } from 'lucide-react'
 import MapLoadingShell from '@/components/map/MapLoadingShell'
 import WeakSignalSearchSheet from '@/components/map/WeakSignalSearchSheet'
 import { Button } from '@/components/ui/button'
-import { hasOfflineLaunchPacks } from '@/lib/offline/packs'
 import { loadPlacePins } from '@/lib/map/load-place-pins'
 import type { PlacePin } from '@/lib/map/place-pins'
 
@@ -16,7 +15,7 @@ const SatelliteClimbingMap = dynamic(() => import('@/components/SatelliteClimbin
   loading: () => <MapLoadingShell />,
 })
 
-type LaunchState = 'loading-shell' | 'slow-connection' | 'redirecting-offline' | 'live-map-ready' | 'no-downloads-fallback'
+type LaunchState = 'loading-shell' | 'slow-connection' | 'live-map-ready' | 'no-downloads-fallback'
 
 const SLOW_CONNECTION_MS = 1500
 const OFFLINE_REDIRECT_MS = 3000
@@ -24,12 +23,10 @@ const OFFLINE_REDIRECT_MS = 3000
 export default function MapViewport() {
   const router = useRouter()
   const mountedRef = useRef(true)
-  const offlinePackAvailabilityRef = useRef<boolean | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [isOnline, setIsOnline] = useState(true)
   const [launchState, setLaunchState] = useState<LaunchState>('loading-shell')
   const [placePins, setPlacePins] = useState<PlacePin[] | null>(null)
-  const [redirectMessageVisible, setRedirectMessageVisible] = useState(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -53,21 +50,9 @@ export default function MapViewport() {
   }, [])
 
   useEffect(() => {
-    if (!isOnline) {
-      router.replace('/offline/library?reason=offline')
-      return
-    }
+    if (!isOnline) return
 
     const abortController = new AbortController()
-    offlinePackAvailabilityRef.current = null
-
-    void hasOfflineLaunchPacks().then((value) => {
-      if (!mountedRef.current) return
-      offlinePackAvailabilityRef.current = value
-    }).catch(() => {
-      if (!mountedRef.current) return
-      offlinePackAvailabilityRef.current = false
-    })
 
     void loadPlacePins(abortController.signal).then((pins) => {
       if (!mountedRef.current) return
@@ -83,34 +68,21 @@ export default function MapViewport() {
       setLaunchState((current) => current === 'loading-shell' ? 'slow-connection' : current)
     }, SLOW_CONNECTION_MS)
 
-    const redirectTimer = window.setTimeout(() => {
+    const fallbackTimer = window.setTimeout(() => {
       if (!mountedRef.current) return
-
-      if (offlinePackAvailabilityRef.current) {
-        setLaunchState('redirecting-offline')
-        setRedirectMessageVisible(true)
-        window.setTimeout(() => {
-          if (!mountedRef.current) return
-          router.replace('/offline/library?reason=weak-signal')
-        }, 250)
-        return
-      }
-
       setLaunchState('no-downloads-fallback')
     }, OFFLINE_REDIRECT_MS)
 
     return () => {
       abortController.abort()
       window.clearTimeout(slowTimer)
-      window.clearTimeout(redirectTimer)
+      window.clearTimeout(fallbackTimer)
     }
-  }, [attempt, isOnline, router])
+  }, [attempt, isOnline])
 
   const retryLaunch = () => {
-    offlinePackAvailabilityRef.current = null
     setLaunchState('loading-shell')
     setPlacePins(null)
-    setRedirectMessageVisible(false)
     setAttempt((current) => current + 1)
   }
 
@@ -118,6 +90,28 @@ export default function MapViewport() {
   const showNoDownloadsFallback = launchState === 'no-downloads-fallback'
 
   const overlay = useMemo(() => {
+    if (!isOnline) {
+      return (
+        <div className="pointer-events-none absolute inset-0 z-[950]">
+          <MapLoadingShell />
+          <div className="pointer-events-auto absolute inset-x-0 bottom-0 p-4 sm:p-6">
+            <div className="mx-auto max-w-xl rounded-3xl border border-cyan-400/20 bg-gray-950/88 p-5 text-white shadow-2xl backdrop-blur-md">
+              <div className="flex items-center gap-3">
+                <Download className="size-5 text-cyan-300" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">You are offline.</p>
+                  <p className="mt-1 text-sm text-white/75">View your saved route images and downloads.</p>
+                </div>
+                <Button type="button" onClick={() => router.push('/offline/library')} className="bg-emerald-500 text-white hover:bg-emerald-400">
+                  View saved downloads
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     if (launchState === 'live-map-ready' && placePins) return null
 
     return (
@@ -158,19 +152,10 @@ export default function MapViewport() {
               <WeakSignalSearchSheet />
             </div>
           ) : null}
-
-          {launchState === 'redirecting-offline' && redirectMessageVisible ? (
-            <div className="mx-auto max-w-xl rounded-3xl border border-emerald-400/25 bg-gray-950/88 p-5 text-white shadow-2xl backdrop-blur-md">
-              <div className="flex items-center gap-3 text-sm font-medium">
-                <Loader2 className="size-4 animate-spin" />
-                Optimizing for offline use due to weak signal.
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
     )
-  }, [launchState, placePins, redirectMessageVisible, showNoDownloadsFallback, showSlowCta])
+  }, [isOnline, launchState, placePins, router, showNoDownloadsFallback, showSlowCta])
 
   return (
     <div className="fixed inset-0 overflow-visible pt-[var(--app-header-offset)] md:pt-0">
