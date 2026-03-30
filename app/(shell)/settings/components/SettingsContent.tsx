@@ -12,12 +12,12 @@ import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { GradeSystem } from '@/lib/grade-display'
 import { fetchSettings, settingsQueryKey, type SettingsPayload } from '@/lib/settings/queries'
 import { normalizeSubmissionCreditHandle, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
-import { AppearanceSettingsSection } from '@/app/settings/components/appearance-settings-section'
-import { PrivacySettingsSection } from '@/app/settings/components/privacy-settings-section'
-import { ProfileSettingsSection } from '@/app/settings/components/profile-settings-section'
-import { SettingsTabs } from '@/app/settings/components/settings-tabs'
-import type { GradeOption, SettingsProfileFormData, SettingsTab } from '@/app/settings/components/settings-content.types'
-import { UnitsSettingsSection } from '@/app/settings/components/units-settings-section'
+import { AppearanceSettingsSection } from '@/app/(shell)/settings/components/appearance-settings-section'
+import { PrivacySettingsSection } from '@/app/(shell)/settings/components/privacy-settings-section'
+import { ProfileSettingsSection } from '@/app/(shell)/settings/components/profile-settings-section'
+import { SettingsTabs } from '@/app/(shell)/settings/components/settings-tabs'
+import type { GradeOption, SettingsProfileFormData, SettingsTab } from '@/app/(shell)/settings/components/settings-content.types'
+import { UnitsSettingsSection } from '@/app/(shell)/settings/components/units-settings-section'
 
 interface SettingsContentProps {
   user: User

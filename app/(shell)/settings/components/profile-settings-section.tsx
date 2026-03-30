@@ -2,7 +2,7 @@
 
 import { CREDIT_PLATFORM_OPTIONS } from '@/features/submissions/lib/editor-constants'
 import { normalizeSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
-import type { SettingsProfileFormData } from '@/app/settings/components/settings-content.types'
+import type { SettingsProfileFormData } from '@/app/(shell)/settings/components/settings-content.types'
 
 interface ProfileSettingsSectionProps {
   formData: SettingsProfileFormData

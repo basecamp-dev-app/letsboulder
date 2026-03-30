@@ -1,6 +1,6 @@
 'use client'
 
-import type { SettingsTab } from '@/app/settings/components/settings-content.types'
+import type { SettingsTab } from '@/app/(shell)/settings/components/settings-content.types'
 
 interface SettingsTabsProps {
   activeTab: string
