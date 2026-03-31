@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation'
 import LogbookView from '@/features/logbook/components/LogbookView'
 import { LogbookSkeleton } from '@/features/logbook/components/logbook-states'
 import { useToast } from '@/features/logbook/components/toast'
-import { fetchOwnLogbookData, ownLogbookQueryKey } from '@/features/logbook/lib/queries'
+import { fetchOwnLogbookData, ownLogbookQueryKey, type OwnLogbookData } from '@/features/logbook/lib/queries'
 
 function LoadingFallback() {
   return (
@@ -17,32 +17,32 @@ function LoadingFallback() {
   )
 }
 
-export default function LogbookClient({ user }: { user: User }) {
+interface LogbookClientProps {
+  user: User
+  initialData?: OwnLogbookData
+}
+
+export default function LogbookClient({ user, initialData }: LogbookClientProps) {
   return (
     <Suspense fallback={<LoadingFallback />}>
-      <LogbookContent user={user} />
+      <LogbookContent user={user} initialData={initialData} />
     </Suspense>
   )
 }
 
-function LogbookContent({ user }: { user: User }) {
+function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLogbookData }) {
   const searchParams = useSearchParams()
   const { addToast } = useToast()
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ownLogbookQueryKey,
     queryFn: () => fetchOwnLogbookData(user),
+    initialData,
     staleTime: 60 * 1000,
     gcTime: 30 * 60 * 1000,
     meta: {
       persist: true,
     },
   })
-
-  useEffect(() => {
-    if (error) {
-      console.error('Failed to load logbook:', error)
-    }
-  }, [error])
 
   useEffect(() => {
     if (searchParams.get('success')) {

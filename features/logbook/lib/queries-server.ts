@@ -1,11 +1,22 @@
 import type { User } from '@supabase/supabase-js'
+import { getServerClient } from '@/lib/supabase-server'
 import { getGradePoints } from '@/lib/grades'
-import { csrfFetch } from '@/lib/csrf-client'
-import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
-import { createClient } from '@/lib/supabase'
 import type { Submission } from '@/types/submissions'
 
-export interface LoggedClimb {
+interface RawLogbookRow {
+  id: string
+  climb_id: string
+  style: string
+  created_at: string
+  climbs: {
+    id: string
+    name: string
+    grade: string
+    route_lines?: Array<{ images?: { url?: string; crags?: { name?: string } } }>
+  }
+}
+
+interface LoggedClimb {
   id: string
   climb_id: string
   style: string
@@ -22,7 +33,7 @@ export interface LoggedClimb {
   }
 }
 
-export interface LogbookProfile {
+interface LogbookProfile {
   id: string
   username: string
   display_name?: string
@@ -40,47 +51,9 @@ export interface OwnLogbookData {
   submissions: Submission[]
 }
 
-interface RawLogbookRow {
-  id: string
-  climb_id: string
-  style: string
-  created_at: string
-  climbs: {
-    id: string
-    name: string
-    grade: string
-    route_lines?: Array<{ images?: { url?: string; crags?: { name?: string } } }>
-  }
-}
-
-export const ownLogbookQueryKey = ['logbook', 'own'] as const
-
-export async function fetchOwnLogbookData(passedUser?: User | null): Promise<OwnLogbookData> {
-  let user: User | null = passedUser ?? null
-
-  if (!user) {
-    const supabase = createClient()
-    const {
-      data: { user: authUser },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError) {
-      if (userError.name === 'AuthSessionMissingError' || userError.message.includes('session')) {
-        return { user: null, logs: [], profile: null, submissions: [] }
-      }
-      throw userError
-    }
-
-    user = authUser
-  }
-
-  if (!user) {
-    return { user: null, logs: [], profile: null, submissions: [] }
-  }
-
+export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData> {
+  const supabase = await getServerClient()
   const userId = user.id
-  const supabase = createClient()
 
   const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }] = await Promise.all([
     supabase
@@ -125,7 +98,15 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
       : getGradePoints(log.climbs?.grade),
   })) as LoggedClimb[]
 
-  const submissions = await fetchOwnSubmissions(supabase, userId, csrfFetch, 24)
+  const submissionsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/logbook/contributions?limit=24`)
+  let submissions: Submission[] = []
+  if (submissionsRes.ok) {
+    const payload = await submissionsRes.json().catch(() => ({ submissions: [] as Submission[] }))
+    submissions = (payload.submissions || []).map((s: Submission) => ({
+      ...s,
+      status: s.status === 'published' || s.status === 'pending_review' ? s.status : 'pending_review',
+    }))
+  }
 
   return {
     user,
