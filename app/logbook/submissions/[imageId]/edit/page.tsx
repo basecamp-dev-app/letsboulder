@@ -169,8 +169,8 @@ export default function EditSubmittedRoutesPage() {
               description: route.climb?.description ?? null,
               points: route.points,
               sequenceOrder: route.sequence_order,
-              imageWidth: route.image_width ?? 0,
-              imageHeight: route.image_height ?? 0,
+              imageWidth: route.image_width,
+              imageHeight: route.image_height,
             })),
           }),
         })
