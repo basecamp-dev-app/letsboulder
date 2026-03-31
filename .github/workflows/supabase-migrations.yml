@@ -55,11 +55,11 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
 
       - name: Dry run migrations
-        run: supabase db push --linked --dry-run --include-all
+        run: supabase db push --linked --dry-run --include-all --debug
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Apply migrations
-        run: supabase db push --linked --include-all --yes
+        run: supabase db push --linked --include-all --yes --debug
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
