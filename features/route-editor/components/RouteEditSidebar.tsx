@@ -87,7 +87,6 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
     if (!selectedRouteId || !routeEditorDraft || routeEditorDraft.routeId !== selectedRouteId) return
     updateRoute(selectedRouteId, {
       climb: {
-        ...selectedRoute?.climb,
         id: selectedRoute?.climb?.id || '',
         name: routeEditorDraft.name,
         grade: routeEditorDraft.grade,
@@ -126,7 +125,11 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
     }
 
     if (editorIntent === 'name') {
-      nameInputRef.current?.focus()
+      setEditorPanelOpen(true)
+      queueMicrotask(() => {
+        nameInputRef.current?.focus()
+        nameInputRef.current?.select()
+      })
     }
 
     if (editorIntent === 'type') {

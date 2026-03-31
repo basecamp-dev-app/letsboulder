@@ -387,7 +387,7 @@ export function useEditDraftActions({
     autosaveTimeoutRef.current = window.setTimeout(() => {
       autosaveTimeoutRef.current = null
       void saveDraft({ silent: true })
-    }, 1000)
+    }, 1500)
 
     return () => {
       if (autosaveTimeoutRef.current) {
