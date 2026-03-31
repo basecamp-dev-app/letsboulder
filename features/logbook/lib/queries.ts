@@ -55,34 +55,43 @@ interface RawLogbookRow {
 
 export const ownLogbookQueryKey = ['logbook', 'own'] as const
 
-export async function fetchOwnLogbookData(): Promise<OwnLogbookData> {
+export async function fetchOwnLogbookData(passedUser?: User | null): Promise<OwnLogbookData> {
   const supabase = createClient()
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
 
-  if (userError) {
-    if (userError.name === 'AuthSessionMissingError' || userError.message.includes('session')) {
-      return { user: null, logs: [], profile: null, submissions: [] }
+  let user: User | null = passedUser ?? null
+
+  if (!user) {
+    const {
+      data: { user: authUser },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError) {
+      if (userError.name === 'AuthSessionMissingError' || userError.message.includes('session')) {
+        return { user: null, logs: [], profile: null, submissions: [] }
+      }
+      throw userError
     }
-    throw userError
+
+    user = authUser
   }
 
   if (!user) {
     return { user: null, logs: [], profile: null, submissions: [] }
   }
 
+  const userId = user.id
+
   const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single(),
     supabase
       .from('user_climbs')
       .select('*, climbs(id, name, grade, route_lines!inner(images!inner(url, crags!inner(name))))')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false }),
   ])
 
@@ -116,7 +125,7 @@ export async function fetchOwnLogbookData(): Promise<OwnLogbookData> {
       : getGradePoints(log.climbs?.grade),
   })) as LoggedClimb[]
 
-  const submissions = await fetchOwnSubmissions(supabase, user.id, csrfFetch, 24)
+  const submissions = await fetchOwnSubmissions(supabase, userId, csrfFetch, 24)
 
   return {
     user,
