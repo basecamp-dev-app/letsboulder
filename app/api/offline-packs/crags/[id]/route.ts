@@ -7,6 +7,8 @@ import type { CragOfflinePackManifest, OfflineMapPin } from '@/lib/climb/queries
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { estimateCompressedImageBytes } from '@/lib/media-proxy'
 
+export const revalidate = 3600
+
 interface ClimbRow {
   id: string
   name: string
