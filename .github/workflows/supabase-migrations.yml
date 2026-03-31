@@ -66,8 +66,6 @@ jobs:
 
       - name: Apply migrations with psql
         run: |
-          set -euo pipefail
-
           DB_URL=$(supabase db remote url --linked)
           if [ -z "$DB_URL" ]; then
             echo "Failed to retrieve database connection URL"
@@ -91,7 +89,8 @@ jobs:
             fi
 
             already_applied=$(psql "$DB_URL" -t -c \
-              "SELECT EXISTS(SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '$version');" 2>/dev/null | tr -d ' ')
+              "SELECT EXISTS(SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '$version');" || true)
+            already_applied=$(echo "$already_applied" | tr -d '[:space:]')
 
             if [ "$already_applied" = "t" ]; then
               echo "Already applied: $filename"
@@ -99,7 +98,7 @@ jobs:
             fi
 
             echo "Applying: $filename"
-            psql "$DB_URL" -f "$migration" -v ON_ERROR_STOP=1
+            psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$migration"
 
             psql "$DB_URL" -c \
               "INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('$version') ON CONFLICT DO NOTHING;"
