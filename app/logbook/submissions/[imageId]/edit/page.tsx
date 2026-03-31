@@ -151,12 +151,44 @@ export default function EditSubmittedRoutesPage() {
         if (updateCragError) throw updateCragError
       }
 
-      if (!areSerializedRoutesEqual(serializeStoredRoutes(editor.editedRoutes), serializeStoredRoutes(editor.initialEditedRoutes))) {
+      const newRoutes = editor.editedRoutes.filter(
+        (route) => !route.climb_id || route.created_at === 'draft-created'
+      )
+      const existingRoutes = editor.editedRoutes.filter(
+        (route) => route.climb_id && route.created_at !== 'draft-created'
+      )
+
+      if (newRoutes.length > 0) {
+        const response = await csrfFetch(`/api/submissions/${editor.activeImageId}/routes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            routes: newRoutes.map((route) => ({
+              name: route.climb?.name || 'Unnamed',
+              grade: route.climb?.grade || '6A',
+              description: route.climb?.description ?? null,
+              points: route.points,
+              sequenceOrder: route.sequence_order,
+              imageWidth: route.image_width ?? 0,
+              imageHeight: route.image_height ?? 0,
+            })),
+          }),
+        })
+        const payload = await response.json().catch(() => null) as { error?: string } | null
+        if (!response.ok) throw new Error(payload?.error || 'Failed to create routes')
+      }
+
+      if (existingRoutes.length > 0 && !areSerializedRoutesEqual(
+        serializeStoredRoutes(existingRoutes),
+        serializeStoredRoutes(editor.initialEditedRoutes.filter(
+          (r) => r.climb_id && r.created_at !== 'draft-created'
+        ))
+      )) {
         const response = await csrfFetch(`/api/submissions/${editor.activeImageId}/routes`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            routes: editor.editedRoutes.map((route) => ({
+            routes: existingRoutes.map((route) => ({
               id: route.id,
               name: route.climb?.name || 'Unnamed',
               description: route.climb?.description ?? null,
@@ -167,6 +199,11 @@ export default function EditSubmittedRoutesPage() {
         })
         const payload = await response.json().catch(() => null) as { error?: string } | null
         if (!response.ok) throw new Error(payload?.error || 'Failed to save routes')
+      }
+
+      if (newRoutes.length > 0) {
+        window.location.reload()
+      } else {
         editor.setInitialEditedRoutes(editor.editedRoutes)
       }
 
