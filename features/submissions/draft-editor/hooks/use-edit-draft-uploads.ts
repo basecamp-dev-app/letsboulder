@@ -229,9 +229,16 @@ export function useEditDraftUploads({
     const hasActiveUploads = pendingDraftUploads.some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')
     if (hasActiveUploads) return
 
+    let pollCount = 0
+    const maxPolls = 60
+
     const timer = window.setInterval(() => {
+      pollCount++
       void loadDraft()
-    }, 5000)
+      if (pollCount >= maxPolls) {
+        window.clearInterval(timer)
+      }
+    }, 15000)
     return () => window.clearInterval(timer)
   }, [draftId, hasProcessingImages, loadDraft, pendingDraftUploads])
 
