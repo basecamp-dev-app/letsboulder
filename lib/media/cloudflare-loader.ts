@@ -77,6 +77,27 @@ export default function cloudflareLoader({ src, width, quality }: ImageLoaderPro
   const mediaHost = getMediaHost()
 
   if (isLocalApiMediaUrl(parsed)) {
+    const apiPath = parsed.pathname
+    const pathParts = apiPath.split('/').filter(Boolean)
+
+    const isCatchAllMedia =
+      pathParts[0] === 'api' &&
+      pathParts[1] === 'media' &&
+      pathParts.length >= 3 &&
+      pathParts[2] !== 'private' &&
+      pathParts[2] !== 'upload-sessions'
+
+    if (isCatchAllMedia && mediaHost) {
+      const bucket = decodeURIComponent(pathParts[2])
+      const objectPath = pathParts.slice(3).map(decodeURIComponent).join('/')
+
+      if (objectPath) {
+        const objectKey = `${bucket}/${objectPath}`
+        const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/')
+        return `${mediaHost}/${encodedKey}?variant=${variant}&format=webp`
+      }
+    }
+
     parsed.searchParams.set('w', String(width))
     return `${parsed.pathname}${parsed.search}`
   }
