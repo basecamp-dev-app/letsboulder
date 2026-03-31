@@ -26,5 +26,5 @@ export default function MapLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <>{children}</>
 }

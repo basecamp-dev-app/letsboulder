@@ -14,5 +14,5 @@ export default function RegisterLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <>{children}</>
 }

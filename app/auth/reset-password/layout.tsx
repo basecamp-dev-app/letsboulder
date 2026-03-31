@@ -14,5 +14,5 @@ export default function ResetPasswordLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <>{children}</>
 }

@@ -27,33 +27,18 @@ export default function DraftIntakeView() {
   const [phase, setPhase] = useState<UploadPhase>('idle')
   const [draftId, setDraftId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [uploads, setUploads] = useState<MediaUploadItem[]>([])
-  const draftIdRef = useRef<string | null>(null)
+
+  const uploads = draftId ? getUploadsForDraft(draftId) : []
 
   useEffect(() => {
-    draftIdRef.current = draftId
-  }, [draftId])
+    if (phase !== 'uploading' || uploads.length === 0) return
 
-  useEffect(() => {
-    if (!draftId || phase !== 'uploading') return
-
-    const unsubscribe = subscribeToUploadComplete((_target, _clientId, attachedRecordId) => {
-      const currentDraftId = draftIdRef.current
-      if (!currentDraftId) return
-      const currentUploads = getUploadsForDraft(currentDraftId)
-      setUploads([...currentUploads])
-
-      if (attachedRecordId) {
-        const allDone = currentUploads.every((u) => u.status === 'SUCCESS' || u.status === 'FAILED')
-        if (allDone) {
-          const allSuccess = currentUploads.every((u) => u.status === 'SUCCESS')
-          setPhase(allSuccess ? 'complete' : 'failed')
-        }
-      }
-    })
-
-    return unsubscribe
-  }, [draftId, phase, subscribeToUploadComplete, getUploadsForDraft])
+    const allDone = uploads.every((u) => u.status === 'SUCCESS' || u.status === 'FAILED')
+    if (allDone) {
+      const allSuccess = uploads.every((u) => u.status === 'SUCCESS')
+      setPhase(allSuccess ? 'complete' : 'failed')
+    }
+  }, [uploads, phase])
 
   const handleFilesSelected = useCallback(async (files: File[]) => {
     if (files.length === 0 || phase !== 'idle') return
@@ -87,7 +72,6 @@ export default function DraftIntakeView() {
       setDraftId(payload.draft.id)
       queueDraftUploads(files, payload.draft.id)
       setPhase('uploading')
-      setUploads(getUploadsForDraft(payload.draft.id))
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create draft'
       setError(message)
@@ -109,7 +93,6 @@ export default function DraftIntakeView() {
     if (!draftId) return
     uploads.forEach((u) => { void removeUpload(u.clientId) })
     setDraftId(null)
-    setUploads([])
     setPhase('idle')
     setError(null)
   }, [draftId, uploads, removeUpload])

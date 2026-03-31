@@ -26,5 +26,5 @@ export default function RankingsLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <>{children}</>
 }
