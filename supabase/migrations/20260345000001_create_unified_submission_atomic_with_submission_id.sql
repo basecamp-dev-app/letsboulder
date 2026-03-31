@@ -12,7 +12,7 @@ RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $function$
+AS $$
 DECLARE
   current_user_id UUID := auth.uid();
   created_image_id UUID;
@@ -280,4 +280,4 @@ BEGIN
     'supplementary_created', COALESCE(array_length(created_crag_image_ids, 1), 0)
   );
 END;
-$function$;
+$$;
