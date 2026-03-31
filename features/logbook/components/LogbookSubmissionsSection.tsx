@@ -19,9 +19,11 @@ interface LogbookSubmissionsSectionProps {
   ownerSubmissionCounts: OwnerSubmissionCounts
   deletingDraftId: string | null
   publishingDraftId: string | null
+  deletingSubmissionId: string | null
   onOwnerSubmissionTabChange: (tab: OwnerSubmissionsTab) => void
   onDeleteDraft: (draftId: string) => void
   onPublishDraft: (draftId: string) => void
+  onDeleteSubmission: (canonicalImageId: string) => void
 }
 
 export function LogbookSubmissionsSection({
@@ -32,9 +34,11 @@ export function LogbookSubmissionsSection({
   ownerSubmissionCounts,
   deletingDraftId,
   publishingDraftId,
+  deletingSubmissionId,
   onOwnerSubmissionTabChange,
   onDeleteDraft,
   onPublishDraft,
+  onDeleteSubmission,
 }: LogbookSubmissionsSectionProps) {
   return (
     <Card className="m-0 border-x-0 border-t-0 rounded-none">
@@ -84,8 +88,10 @@ export function LogbookSubmissionsSection({
           isOwnProfile={isOwnProfile}
           deletingDraftId={deletingDraftId}
           publishingDraftId={publishingDraftId}
+          deletingSubmissionId={deletingSubmissionId}
           onDeleteDraft={onDeleteDraft}
           onPublishDraft={onPublishDraft}
+          onDeleteSubmission={onDeleteSubmission}
         />
       </CardContent>
     </Card>

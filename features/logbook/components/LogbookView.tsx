@@ -44,6 +44,7 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
   const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
+  const [deletingSubmissionId, setDeletingSubmissionId] = useState<string | null>(null)
   const [publishingDraftId, setPublishingDraftId] = useState<string | null>(null)
   const [ownerSubmissionTab, setOwnerSubmissionTab] = useState<OwnerSubmissionsTab>('all')
   const [isMounted, setIsMounted] = useState(false)
@@ -114,6 +115,34 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
       addToast('Failed to delete draft', 'error')
     } finally {
       setDeletingDraftId(null)
+    }
+  }
+
+  const handleDeleteSubmission = async (canonicalImageId: string) => {
+    setDeletingSubmissionId(canonicalImageId)
+    const previousSubmissions = submissions
+    const nextSubmissions = previousSubmissions.filter((submission) => {
+      if (submission.id === canonicalImageId) return false
+      if (submission.canonical_image_id === canonicalImageId) return false
+      if (submission.image_ids?.includes(canonicalImageId)) return false
+      return true
+    })
+    applySubmissionsUpdate(nextSubmissions)
+
+    try {
+      const response = await csrfFetch(`/api/submissions/${canonicalImageId}`, { method: 'DELETE' })
+      if (response.status === 404) {
+        addToast('Submission already removed', 'success')
+        return
+      }
+
+      if (!response.ok) throw new Error()
+      addToast('Submission deleted', 'success')
+    } catch {
+      applySubmissionsUpdate(previousSubmissions)
+      addToast('Failed to delete submission', 'error')
+    } finally {
+      setDeletingSubmissionId(null)
     }
   }
 
@@ -269,9 +298,11 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
           ownerSubmissionCounts={ownerSubmissionCounts}
           deletingDraftId={deletingDraftId}
           publishingDraftId={publishingDraftId}
+          deletingSubmissionId={deletingSubmissionId}
           onOwnerSubmissionTabChange={(tab) => setOwnerSubmissionTab(tab)}
           onDeleteDraft={handleDeleteDraft}
           onPublishDraft={handlePublishDraft}
+          onDeleteSubmission={handleDeleteSubmission}
         />
       ) : null}
     </div>

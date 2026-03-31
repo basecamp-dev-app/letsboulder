@@ -25,7 +25,7 @@ export default function SubmissionListView() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { submissions, loading, error, deletingDraftId, publishingDraftId, deleteDraft, publishDraft } = useSubmissions()
+  const { submissions, loading, error, deletingDraftId, deletingSubmissionId, publishingDraftId, deleteDraft, deleteSubmission, publishDraft } = useSubmissions()
 
   const activeTab = normalizeTab(searchParams.get('tab'))
 
@@ -133,8 +133,12 @@ export default function SubmissionListView() {
                 isOwnProfile={true}
                 deletingDraftId={deletingDraftId}
                 publishingDraftId={publishingDraftId}
+                deletingSubmissionId={deletingSubmissionId}
                 onDeleteDraft={(draftIdToDelete) => {
                   void deleteDraft(draftIdToDelete)
+                }}
+                onDeleteSubmission={(imageIdToDelete) => {
+                  void deleteSubmission(imageIdToDelete)
                 }}
                 onPublishDraft={(draftIdToPublish) => {
                   void publishDraft(draftIdToPublish).then((result) => {
