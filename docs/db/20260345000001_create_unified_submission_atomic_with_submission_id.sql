@@ -1,5 +1,14 @@
--- Fix: Add submission_id to images insert in create_unified_submission_atomic
--- This prevents orphaned images without a submission_id
+-- Apply this manually when resetting local dev environment.
+-- Run in Supabase SQL Editor or via psql against your local database.
+--
+-- This function was applied to production via SQL Editor on 2026-03-31
+-- because the Supabase CLI cannot parse PL/pgSQL function bodies in
+-- migration files (SQLSTATE 42601: cannot insert multiple commands
+-- into a prepared statement).
+--
+-- After running this, also run the grants in:
+--   supabase/migrations/20260345000003_grant_authenticated.sql
+--   supabase/migrations/20260345000004_grant_service_role.sql
 
 CREATE OR REPLACE FUNCTION public.create_unified_submission_atomic(
   p_crag_id UUID,
@@ -90,35 +99,21 @@ BEGIN
   primary_upload_uuid := (regexp_match(primary_storage_path, 'images/originals/([0-9a-fA-F-]+)'))[1]::UUID;
 
   INSERT INTO public.images (
-    id,
-    url,
-    storage_bucket,
-    storage_path,
-    latitude,
-    longitude,
-    capture_date,
-    face_direction,
-    face_directions,
-    crag_id,
-    submission_id,
-    width,
-    height,
-    natural_width,
-    natural_height,
+    id, url, storage_bucket, storage_path,
+    latitude, longitude, capture_date,
+    face_direction, face_directions,
+    crag_id, submission_id,
+    width, height, natural_width, natural_height,
     created_by
   )
   VALUES (
-    primary_upload_uuid,
-    primary_url,
-    primary_storage_bucket,
-    primary_storage_path,
+    primary_upload_uuid, primary_url, primary_storage_bucket, primary_storage_path,
     NULLIF(p_primary_image->>'image_lat', '')::NUMERIC,
     NULLIF(p_primary_image->>'image_lng', '')::NUMERIC,
     NULLIF(p_primary_image->>'capture_date', '')::TIMESTAMPTZ,
     p_primary_image->'face_directions'->>0,
     ARRAY(SELECT jsonb_array_elements_text(p_primary_image->'face_directions')),
-    p_crag_id,
-    unified_submission_id,
+    p_crag_id, unified_submission_id,
     NULLIF(p_primary_image->>'width', '')::INTEGER,
     NULLIF(p_primary_image->>'height', '')::INTEGER,
     NULLIF(p_primary_image->>'natural_width', '')::INTEGER,
@@ -157,21 +152,15 @@ BEGIN
       supplementary_sector_id := NULLIF(supplementary_item->>'sector_id', '')::UUID;
 
       INSERT INTO public.crag_images (
-        crag_id,
-        url,
-        width,
-        height,
-        source_image_id,
-        linked_image_id,
-        sector_id
+        crag_id, url, width, height,
+        source_image_id, linked_image_id, sector_id
       )
       VALUES (
         p_crag_id,
         btrim(supplementary_item->>'url'),
         NULLIF(supplementary_item->>'width', '')::INTEGER,
         NULLIF(supplementary_item->>'height', '')::INTEGER,
-        created_image_id,
-        NULL,
+        created_image_id, NULL,
         supplementary_sector_id
       )
       RETURNING id INTO created_crag_image_id;
@@ -220,48 +209,25 @@ BEGIN
     END;
 
     INSERT INTO public.climbs (
-      name,
-      slug,
-      grade,
-      description,
-      route_type,
-      status,
-      user_id,
-      crag_id,
-      sector_id
+      name, slug, grade, description, route_type, status,
+      user_id, crag_id, sector_id
     )
     VALUES (
-      route_name,
-      route_slug,
-      route_grade,
-      route_description,
-      p_route_type,
-      'approved',
-      current_user_id,
-      p_crag_id,
-      sector_id
+      route_name, route_slug, route_grade, route_description,
+      p_route_type, 'approved',
+      current_user_id, p_crag_id, sector_id
     )
     RETURNING id INTO created_climb_id;
 
     created_climb_ids := array_append(created_climb_ids, created_climb_id);
 
     INSERT INTO public.route_lines (
-      image_id,
-      climb_id,
-      points,
-      color,
-      sequence_order,
-      image_width,
-      image_height
+      image_id, climb_id, points, color,
+      sequence_order, image_width, image_height
     )
     VALUES (
-      created_image_id,
-      created_climb_id,
-      route_points,
-      'red',
-      route_sequence_order,
-      route_image_width,
-      route_image_height
+      created_image_id, created_climb_id, route_points, 'red',
+      route_sequence_order, route_image_width, route_image_height
     )
     RETURNING id INTO created_route_line_id;
 
