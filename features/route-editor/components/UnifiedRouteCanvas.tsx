@@ -186,6 +186,8 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
       color: 'red',
       sequence_order: routes.length,
       created_at: 'draft-created',
+      image_width: naturalWidth || undefined,
+      image_height: naturalHeight || undefined,
       climb: {
         id: '',
         name: 'Unnamed route',
@@ -198,7 +200,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
 
     onRoutesUpdate([...routes, nextRoute])
     commitCurrentRoute()
-  }, [commitCurrentRoute, currentPoints, defaultClimbType, onRoutesUpdate, routes])
+  }, [commitCurrentRoute, currentPoints, defaultClimbType, naturalHeight, naturalWidth, onRoutesUpdate, routes])
 
   useImperativeHandle(ref, () => ({
     finishRoute: handleFinishRoute,
