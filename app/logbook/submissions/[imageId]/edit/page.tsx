@@ -84,12 +84,11 @@ export default function EditSubmittedRoutesPage() {
 
   useEffect(() => {
     if (!editor.activeImageId) return
+    if (!editor.existingRouteLines || editor.existingRouteLines.length === 0) return
     if (lastSeededRouteImageIdRef.current === editor.activeImageId) return
     lastSeededRouteImageIdRef.current = editor.activeImageId
-    if (haveStoredRoutesChanged(routeStoreRoutes, editor.existingRouteLines)) {
-      setRouteStoreRoutes(editor.existingRouteLines)
-    }
-  }, [editor.activeImageId, editor.existingRouteLines, routeStoreRoutes, setRouteStoreRoutes])
+    setRouteStoreRoutes(editor.existingRouteLines)
+  }, [editor.activeImageId, editor.existingRouteLines, setRouteStoreRoutes])
 
   useEffect(() => {
     if (!editor.activeImageId) return
