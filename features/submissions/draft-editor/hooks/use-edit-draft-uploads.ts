@@ -191,11 +191,6 @@ export function useEditDraftUploads({
     return pendingDraftUploads.some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')
   }, [pendingDraftUploads])
 
-  const hasProcessingImages = useMemo(() => {
-    if (!draft) return false
-    return draft.images.some((image) => image.readiness_status === 'processing')
-  }, [draft])
-
   useEffect(() => {
     if (!draftId) return
     const handleUploadComplete: UploadCompleteCallback = (_target, _clientId, attachedRecordId, newUpdatedAt) => {
@@ -223,24 +218,6 @@ export function useEditDraftUploads({
     }
     return subscribeToUploadComplete(handleUploadComplete)
   }, [draftId, isFetchingRef, needsRefetchRef, registerDraftUpdatedAt, setActiveImageId, setDefaultImageId, setDraftUpdatedAt, subscribeToUploadComplete, syncUploadedImages])
-
-  useEffect(() => {
-    if (!hasProcessingImages || !draftId) return
-    const hasActiveUploads = pendingDraftUploads.some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')
-    if (hasActiveUploads) return
-
-    let pollCount = 0
-    const maxPolls = 60
-
-    const timer = window.setInterval(() => {
-      pollCount++
-      void loadDraft()
-      if (pollCount >= maxPolls) {
-        window.clearInterval(timer)
-      }
-    }, 15000)
-    return () => window.clearInterval(timer)
-  }, [draftId, hasProcessingImages, loadDraft, pendingDraftUploads])
 
   useEffect(() => {
     if (!cragId || activeImageId || canvasSource?.kind === 'draft-image') return
