@@ -68,11 +68,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          DB_URL=$(supabase db remote url --linked 2>/dev/null)
+          DB_URL=$(supabase db remote url --linked)
           if [ -z "$DB_URL" ]; then
             echo "Failed to retrieve database connection URL"
             exit 1
           fi
+          echo "DB URL retrieved successfully"
 
           MIGRATIONS_DIR="supabase/migrations"
           if [ ! -d "$MIGRATIONS_DIR" ]; then
