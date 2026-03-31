@@ -98,15 +98,7 @@ export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData
       : getGradePoints(log.climbs?.grade),
   })) as LoggedClimb[]
 
-  const submissionsRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/logbook/contributions?limit=24`)
-  let submissions: Submission[] = []
-  if (submissionsRes.ok) {
-    const payload = await submissionsRes.json().catch(() => ({ submissions: [] as Submission[] }))
-    submissions = (payload.submissions || []).map((s: Submission) => ({
-      ...s,
-      status: s.status === 'published' || s.status === 'pending_review' ? s.status : 'pending_review',
-    }))
-  }
+  const submissions: Submission[] = []
 
   return {
     user,

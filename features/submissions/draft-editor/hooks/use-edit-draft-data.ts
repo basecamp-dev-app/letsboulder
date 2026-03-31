@@ -74,6 +74,7 @@ export function useEditDraftData({
   const autosavePausedSnapshotRef = useRef('')
   const hasHydratedLocationRef = useRef(false)
   const lastLocationSyncRef = useRef<string | null>(null)
+  const loadDraftRef = useRef<() => Promise<void>>(undefined)
 
   const loadDraft = useCallback(async () => {
     const currentDraftId = draftIdRef.current
@@ -270,11 +271,11 @@ export function useEditDraftData({
     if (!currentDraftId || !draft) return
 
     try {
-      await loadDraft()
+      await loadDraftRef.current?.()
     } catch (error) {
       uploadDebug('sync-uploaded-images-failed', { draftId: currentDraftId, error: String(error) })
     }
-  }, [draft, loadDraft])
+  }, [draft])
 
   useEffect(() => {
     draftIdRef.current = draftId
@@ -289,8 +290,12 @@ export function useEditDraftData({
   }, [uploads])
 
   useEffect(() => {
-    void loadDraft()
+    loadDraftRef.current = loadDraft
   }, [loadDraft])
+
+  useEffect(() => {
+    void loadDraft()
+  }, [])
 
   useEffect(() => {
     if (!cragId) {

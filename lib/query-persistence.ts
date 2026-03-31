@@ -6,14 +6,26 @@ const QUERY_CACHE_KEY = 'letsboulder-query-cache'
 export function createIdbPersister(): Persister {
   return {
     persistClient: async (client: PersistedClient) => {
-      await set(QUERY_CACHE_KEY, client)
+      try {
+        await set(QUERY_CACHE_KEY, client)
+      } catch {
+        // IndexedDB not available (e.g. private browsing, quota exceeded)
+      }
     },
     restoreClient: async () => {
-      const cached = await get<PersistedClient>(QUERY_CACHE_KEY)
-      return cached || undefined
+      try {
+        const cached = await get<PersistedClient>(QUERY_CACHE_KEY)
+        return cached || undefined
+      } catch {
+        return undefined
+      }
     },
     removeClient: async () => {
-      await del(QUERY_CACHE_KEY)
+      try {
+        await del(QUERY_CACHE_KEY)
+      } catch {
+        // IndexedDB not available
+      }
     },
   }
 }
