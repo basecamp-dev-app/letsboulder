@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { fileTypeFromBuffer } from 'file-type'
-import sharp from 'sharp'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
@@ -12,8 +11,6 @@ export const runtime = 'nodejs'
 const STORAGE_BUCKET = 'route-uploads'
 const MAX_FILES = 8
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-const MAX_IMAGE_PIXELS = 40_000_000
-const MAX_IMAGE_DIMENSION = 8_000
 const SIGNATURE_BYTES_TO_READ = 4_100
 const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
@@ -209,6 +206,100 @@ export async function GET(
   }
 }
 
+function readImageDimensions(buffer: Buffer, mime: AllowedImageMime): { width: number; height: number } | null {
+  try {
+    if (mime === 'image/jpeg') {
+      return readJpegDimensions(buffer)
+    }
+    if (mime === 'image/png') {
+      return readPngDimensions(buffer)
+    }
+    if (mime === 'image/webp') {
+      return readWebpDimensions(buffer)
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+function readUShort(buffer: Buffer, offset: number, littleEndian: boolean): number {
+  return littleEndian ? buffer.readUInt16LE(offset) : buffer.readUInt16BE(offset)
+}
+
+function readJpegDimensions(buffer: Buffer): { width: number; height: number } | null {
+  if (buffer[0] !== 0xFF || buffer[1] !== 0xD8) return null
+
+  let offset = 2
+  while (offset < buffer.length - 1) {
+    if (buffer[offset] !== 0xFF) {
+      offset++
+      continue
+    }
+
+    const marker = buffer[offset + 1]
+    offset += 2
+
+    if (marker === 0xFF) continue
+    if (marker === 0xD9) break
+
+    if (marker >= 0xC0 && marker <= 0xCF && marker !== 0xC4 && marker !== 0xC8 && marker !== 0xCC) {
+      if (offset + 7 <= buffer.length) {
+        const height = readUShort(buffer, offset + 3, false)
+        const width = readUShort(buffer, offset + 5, false)
+        return { width, height }
+      }
+    }
+
+    if (offset + 2 > buffer.length) break
+    const segmentLength = readUShort(buffer, offset, false)
+    offset += segmentLength
+  }
+
+  return null
+}
+
+function readPngDimensions(buffer: Buffer): { width: number; height: number } | null {
+  if (buffer[0] !== 0x89 || buffer[1] !== 0x50 || buffer[2] !== 0x4E || buffer[3] !== 0x47) return null
+
+  const ihdrOffset = buffer.indexOf(Buffer.from('IHDR'))
+  if (ihdrOffset < 0 || ihdrOffset + 12 > buffer.length) return null
+
+  const width = buffer.readUInt32BE(ihdrOffset + 4)
+  const height = buffer.readUInt32BE(ihdrOffset + 8)
+  return { width, height }
+}
+
+function readWebpDimensions(buffer: Buffer): { width: number; height: number } | null {
+  if (buffer.slice(0, 4).toString() !== 'RIFF' || buffer.slice(8, 12).toString() !== 'WEBP') return null
+
+  const fourCC = buffer.slice(12, 16).toString()
+
+  if (fourCC === 'VP8 ') {
+    if (buffer.length < 26) return null
+    const width = buffer.readUInt16LE(26) & 0x3FFF
+    const height = buffer.readUInt16LE(28) & 0x3FFF
+    return { width, height }
+  }
+
+  if (fourCC === 'VP8L') {
+    if (buffer.length < 25) return null
+    const bits = buffer.readUInt32LE(21)
+    const width = (bits & 0x3FFF) + 1
+    const height = ((bits >> 14) & 0x3FFF) + 1
+    return { width, height }
+  }
+
+  if (fourCC === 'VP8X') {
+    if (buffer.length < 30) return null
+    const width = (buffer.readUIntLE(24, 3) & 0xFFFFFF) + 1
+    const height = (buffer.readUIntLE(27, 3) & 0xFFFFFF) + 1
+    return { width, height }
+  }
+
+  return null
+}
+
 function getExtensionForMime(mime: AllowedImageMime): string {
   if (mime === 'image/jpeg') return 'jpg'
   if (mime === 'image/png') return 'png'
@@ -298,33 +389,18 @@ export async function POST(
         const extension = getExtensionForMime(mime)
         const fileBuffer = Buffer.from(await file.arrayBuffer())
 
-        try {
-          const metadata = await sharp(fileBuffer, {
-            failOn: 'error',
-            limitInputPixels: MAX_IMAGE_PIXELS,
-          }).metadata()
-
-          const width = metadata.width
-          const height = metadata.height
-
-          if (!width || !height) {
-            return NextResponse.json({ error: 'Could not read image dimensions' }, { status: 400 })
-          }
-
-          if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION || (width * height) > MAX_IMAGE_PIXELS) {
-            return NextResponse.json({ error: 'Image dimensions exceed upload limits' }, { status: 400 })
-          }
-
-          validatedFiles.push({
-            buffer: fileBuffer,
-            mime,
-            extension,
-            width,
-            height,
-          })
-        } catch {
-          return NextResponse.json({ error: 'Invalid image payload' }, { status: 400 })
+        const dims = readImageDimensions(fileBuffer, mime)
+        if (!dims) {
+          return NextResponse.json({ error: 'Could not read image dimensions' }, { status: 400 })
         }
+
+        validatedFiles.push({
+          buffer: fileBuffer,
+          mime,
+          extension,
+          width: dims.width,
+          height: dims.height,
+        })
       }
 
       for (const file of validatedFiles) {

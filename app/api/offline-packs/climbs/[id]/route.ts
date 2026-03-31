@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { buildClimbOfflinePack } from '@/lib/offline/build-climb-pack'
 
+export const revalidate = 3600
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
