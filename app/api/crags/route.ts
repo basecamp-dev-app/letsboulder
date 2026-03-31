@@ -280,6 +280,34 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         )
       }
+
+      const latRange = 0.002
+      const lngRange = 0.002
+      const { data: nearbyCrags } = await supabase
+        .from('crags')
+        .select('id, name, latitude, longitude')
+        .gte('latitude', latitude - latRange)
+        .lte('latitude', latitude + latRange)
+        .gte('longitude', longitude - lngRange)
+        .lte('longitude', longitude + lngRange)
+        .limit(10)
+
+      if (nearbyCrags && nearbyCrags.length > 0) {
+        for (const nearby of nearbyCrags) {
+          const distance = calculateDistance(latitude, longitude, nearby.latitude, nearby.longitude)
+          if (distance <= 200) {
+            return NextResponse.json(
+              {
+                error: `A crag already exists nearby: "${nearby.name}" (${Math.round(distance)}m away)`,
+                existingCragId: nearby.id,
+                existingCragName: nearby.name,
+                code: 'DUPLICATE'
+              },
+              { status: 409 }
+            )
+          }
+        }
+      }
     }
 
     // Validate coordinates against selected country's bounding box if provided
@@ -351,6 +379,27 @@ export async function POST(request: NextRequest) {
         { error: 'Could not determine country. Please provide coordinates or select a valid region.' },
         { status: 400 }
       )
+    }
+
+    if (countryCode) {
+      const { data: nameMatches } = await supabase
+        .from('crags')
+        .select('id, name')
+        .ilike('name', trimmedName)
+        .eq('country_code', countryCode)
+        .limit(1)
+
+      if (nameMatches && nameMatches.length > 0) {
+        return NextResponse.json(
+          {
+            error: `A crag with the same name already exists in this country: "${nameMatches[0].name}"`,
+            existingCragId: nameMatches[0].id,
+            existingCragName: nameMatches[0].name,
+            code: 'DUPLICATE_NAME'
+          },
+          { status: 409 }
+        )
+      }
     }
 
     let locationTagId: string | null = null
@@ -470,4 +519,19 @@ export async function POST(request: NextRequest) {
     console.error('POST /api/crags failed:', error)
     return createErrorResponse(error, 'Error creating crag')
   }
+}
+
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+function toRad(deg: number): number {
+  return deg * (Math.PI / 180)
 }
