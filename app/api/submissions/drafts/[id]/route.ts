@@ -5,8 +5,6 @@ import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import type { Database } from '@/types/database'
-export const revalidate = 5
-
 import {
   buildDraftConflictResponse,
   buildDraftImageProxyUrl,
