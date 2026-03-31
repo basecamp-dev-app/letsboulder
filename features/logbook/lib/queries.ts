@@ -56,11 +56,10 @@ interface RawLogbookRow {
 export const ownLogbookQueryKey = ['logbook', 'own'] as const
 
 export async function fetchOwnLogbookData(passedUser?: User | null): Promise<OwnLogbookData> {
-  const supabase = createClient()
-
   let user: User | null = passedUser ?? null
 
   if (!user) {
+    const supabase = createClient()
     const {
       data: { user: authUser },
       error: userError,
@@ -81,6 +80,7 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
   }
 
   const userId = user.id
+  const supabase = createClient()
 
   const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }] = await Promise.all([
     supabase
