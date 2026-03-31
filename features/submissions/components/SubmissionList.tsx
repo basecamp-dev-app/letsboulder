@@ -23,53 +23,83 @@ interface SubmissionListProps {
   isOwnProfile: boolean
   deletingDraftId: string | null
   publishingDraftId: string | null
+  deletingSubmissionId: string | null
   onDeleteDraft: (draftId: string) => void
   onPublishDraft: (draftId: string) => void
+  onDeleteSubmission: (canonicalImageId: string) => void
 }
 
 interface PendingAction {
-  draftId: string
-  type: 'publish' | 'delete'
+  id: string
+  type: 'publish' | 'delete-draft' | 'delete-submission'
 }
 
-export default function SubmissionList({ submissions, isOwnProfile, deletingDraftId, publishingDraftId, onDeleteDraft, onPublishDraft }: SubmissionListProps) {
+function isDeleteType(type: PendingAction['type']): boolean {
+  return type === 'delete-draft' || type === 'delete-submission'
+}
+
+export default function SubmissionList({ submissions, isOwnProfile, deletingDraftId, publishingDraftId, deletingSubmissionId, onDeleteDraft, onPublishDraft, onDeleteSubmission }: SubmissionListProps) {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [deleteRouteConfirmation, setDeleteRouteConfirmation] = useState('')
 
   const pendingSubmission = useMemo(
-    () => submissions.find((submission) => submission.id === pendingAction?.draftId) ?? null,
+    () => submissions.find((submission) => submission.id === pendingAction?.id) ?? null,
     [pendingAction, submissions]
   )
 
   const isConfirmLoading = pendingAction?.type === 'publish'
-    ? publishingDraftId === pendingAction.draftId
-    : pendingAction?.type === 'delete'
-      ? deletingDraftId === pendingAction.draftId
-      : false
+    ? publishingDraftId === pendingAction.id
+    : pendingAction?.type === 'delete-draft'
+      ? deletingDraftId === pendingAction.id
+      : pendingAction?.type === 'delete-submission'
+        ? deletingSubmissionId === pendingAction.id
+        : false
 
+  const isDeleteAction = pendingAction ? isDeleteType(pendingAction.type) : false
   const pendingDeleteRouteCount = pendingSubmission?.route_lines_count ?? 0
-  const requiresRouteConfirmation = pendingAction?.type === 'delete' && pendingDeleteRouteCount > 0
+  const requiresRouteConfirmation = isDeleteAction && pendingDeleteRouteCount > 0
   const isDeleteConfirmationValid = !requiresRouteConfirmation || deleteRouteConfirmation.trim() === String(pendingDeleteRouteCount)
 
   const handleConfirmAction = () => {
     if (!pendingAction) return
-    if (pendingAction.type === 'delete' && !isDeleteConfirmationValid) return
+    if (isDeleteType(pendingAction.type) && !isDeleteConfirmationValid) return
 
     const action = pendingAction
     setPendingAction(null)
 
     if (action.type === 'publish') {
-      onPublishDraft(action.draftId)
+      onPublishDraft(action.id)
       return
     }
 
-    onDeleteDraft(action.draftId)
+    if (action.type === 'delete-draft') {
+      onDeleteDraft(action.id)
+      return
+    }
+
+    onDeleteSubmission(action.id)
   }
 
   const openPendingAction = (action: PendingAction) => {
     setDeleteRouteConfirmation('')
     setPendingAction(action)
   }
+
+  const dialogTitle = pendingAction?.type === 'publish'
+    ? 'Publish this draft?'
+    : pendingAction?.type === 'delete-submission'
+      ? 'Delete this submission?'
+      : 'Delete this draft?'
+
+  const dialogDescription = pendingAction?.type === 'publish'
+    ? `This will submit ${pendingSubmission?.crag_name || 'this draft'} for review and move it out of drafts.`
+    : pendingAction?.type === 'delete-submission'
+      ? `This will permanently remove ${pendingSubmission?.crag_name || 'this submission'} and all its routes, images, and climb logs.`
+      : `This will permanently remove ${pendingSubmission?.crag_name || 'this draft'} from your drafts.`
+
+  const deleteBodyLabel = pendingAction?.type === 'delete-submission'
+    ? 'This submission has no routes, so you can confirm immediately.'
+    : 'This draft has no routes, so you can confirm immediately.'
 
   return (
     <>
@@ -80,6 +110,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
         const draftHref = `/logbook/drafts/${submission.id}/edit`
         const isOptimisticPublishing = submission.is_optimistic && submission.status === 'pending_review'
         const isDraftActionsVisible = submission.kind === 'draft' && submission.status === 'draft' && !isOptimisticPublishing
+        const isSubmittedActionsVisible = submission.kind === 'submitted' && !isOptimisticPublishing
         const statusLabel = isOptimisticPublishing
           ? 'Publishing'
           : submission.status === 'draft'
@@ -102,6 +133,8 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
         const manageHref = submission.canonical_image_id
           ? `/logbook/submissions/${submission.canonical_image_id}/edit`
           : `/logbook/submissions/${submission.id}/edit`
+        const submissionImageId = submission.canonical_image_id || submission.id
+        const isDeletingSubmission = deletingSubmissionId === submissionImageId
         const imageSrcRaw = resolveRouteImageUrl(submission.url)
         const imageSrc = typeof imageSrcRaw === 'string' && imageSrcRaw.trim().length > 0 ? imageSrcRaw : null
         const content = (
@@ -176,7 +209,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                         ) : (
                           <button
                             type="button"
-                            onClick={() => openPendingAction({ draftId: submission.id, type: 'publish' })}
+                            onClick={() => openPendingAction({ id: submission.id, type: 'publish' })}
                             className="text-xs font-medium text-green-700 hover:text-green-800 dark:text-green-300 dark:hover:text-green-200"
                           >
                             Publish
@@ -187,7 +220,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                         ) : (
                           <button
                             type="button"
-                            onClick={() => openPendingAction({ draftId: submission.id, type: 'delete' })}
+                            onClick={() => openPendingAction({ id: submission.id, type: 'delete-draft' })}
                             className="text-gray-400 hover:text-red-500 p-1 transition-colors"
                             title="Delete draft"
                             aria-label="Delete draft"
@@ -201,14 +234,29 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Publishing...
                       </div>
-                    ) : (
-                      <Link
-                        href={manageHref}
-                        className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
-                      >
-                        Manage
-                      </Link>
-                    )}
+                    ) : isSubmittedActionsVisible ? (
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={manageHref}
+                          className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
+                        >
+                          Manage
+                        </Link>
+                        {isDeletingSubmission ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openPendingAction({ id: submissionImageId, type: 'delete-submission' })}
+                            className="text-gray-400 hover:text-red-500 p-1 transition-colors"
+                            title="Delete submission"
+                            aria-label="Delete submission"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -227,16 +275,10 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {pendingAction?.type === 'publish' ? 'Publish this draft?' : 'Delete this draft?'}
-            </DialogTitle>
-            <DialogDescription>
-              {pendingAction?.type === 'publish'
-                ? `This will submit ${pendingSubmission?.crag_name || 'this draft'} for review and move it out of drafts.`
-                : `This will permanently remove ${pendingSubmission?.crag_name || 'this draft'} from your drafts.`}
-            </DialogDescription>
+            <DialogTitle>{dialogTitle}</DialogTitle>
+            <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
-          {pendingAction?.type === 'delete' ? (
+          {isDeleteAction ? (
             <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
               <div className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900/60">
                 <div className="font-medium text-gray-900 dark:text-gray-100">
@@ -261,7 +303,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                 </div>
               ) : (
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  This draft has no routes, so you can confirm immediately.
+                  {deleteBodyLabel}
                 </p>
               )}
             </div>
@@ -276,9 +318,9 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
             </Button>
             <Button
               type="button"
-              variant={pendingAction?.type === 'delete' ? 'destructive' : 'default'}
+              variant={isDeleteAction ? 'destructive' : 'default'}
               onClick={handleConfirmAction}
-              disabled={!pendingAction || isConfirmLoading || !isDeleteConfirmationValid}
+              disabled={!pendingAction || isConfirmLoading || (isDeleteAction && !isDeleteConfirmationValid)}
             >
               {pendingAction?.type === 'publish' ? 'Confirm publish' : 'Confirm delete'}
             </Button>
