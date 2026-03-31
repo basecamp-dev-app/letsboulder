@@ -25,19 +25,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
           version: 2.84.2
-
-      - name: Install psql
-        run: |
-          sudo apt-get update && sudo apt-get install -y postgresql-client
 
       - name: Validate migration environment
         run: |
@@ -58,52 +49,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
 
-      - name: Repair migration history
-        run: |
-          supabase db remote commit --linked --debug || true
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-
-      - name: Apply migrations with psql
-        run: |
-          DB_URL=$(supabase db remote url --linked)
-          if [ -z "$DB_URL" ]; then
-            echo "Failed to retrieve database connection URL"
-            exit 1
-          fi
-          echo "DB URL retrieved successfully"
-
-          MIGRATIONS_DIR="supabase/migrations"
-          if [ ! -d "$MIGRATIONS_DIR" ]; then
-            echo "Migrations directory not found"
-            exit 1
-          fi
-
-          for migration in $(ls "$MIGRATIONS_DIR"/*.sql 2>/dev/null | sort); do
-            filename=$(basename "$migration")
-            version="${filename%%_*}"
-
-            if [[ ! "$version" =~ ^[0-9]+$ ]]; then
-              echo "Skipping $filename (not a valid migration file)"
-              continue
-            fi
-
-            already_applied=$(psql "$DB_URL" -t -c \
-              "SELECT EXISTS(SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '$version');" || true)
-            already_applied=$(echo "$already_applied" | tr -d '[:space:]')
-
-            if [ "$already_applied" = "t" ]; then
-              echo "Already applied: $filename"
-              continue
-            fi
-
-            echo "Applying: $filename"
-            psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$migration"
-
-            psql "$DB_URL" -c \
-              "INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('$version') ON CONFLICT DO NOTHING;"
-          done
-
-          echo "All migrations applied successfully"
+      - name: Apply migrations
+        run: supabase db push --linked --include-all --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
