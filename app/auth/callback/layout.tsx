@@ -13,5 +13,5 @@ export default function CallbackLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <>{children}</>
 }

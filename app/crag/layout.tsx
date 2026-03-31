@@ -62,5 +62,5 @@ export default function CragLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <>{children}</>
 }

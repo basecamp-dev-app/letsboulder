@@ -13,5 +13,5 @@ export default function LogbookUserLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <>{children}</>
 }

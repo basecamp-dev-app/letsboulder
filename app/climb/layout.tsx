@@ -63,5 +63,5 @@ export default function ClimbLayout({
 }: {
   children: React.ReactNode
 }) {
-  return children
+  return <>{children}</>
 }
