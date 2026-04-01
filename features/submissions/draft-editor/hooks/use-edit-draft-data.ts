@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { normalizeDraftMetadata, type OrientationDirection } from '@/features/submissions/lib/draft-metadata'
+import { normalizeDraftMetadata, readDraftRouteType, type OrientationDirection } from '@/features/submissions/lib/draft-metadata'
 import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { parseSerializedRouteData } from '@/features/route-editor/route-editor-utils'
 import { uploadDebug } from '@/lib/media/upload-debug'
@@ -50,6 +50,7 @@ export function useEditDraftData({
   const [locationModeByImageId, setLocationModeByImageId] = useState<Record<string, 'shared' | 'custom'>>({})
   const [customGpsByImageId, setCustomGpsByImageId] = useState<Record<string, { latitude: number | null; longitude: number | null }>>({})
   const [routeType, setRouteType] = useState<string>('sport')
+  const [hasExplicitRouteType, setHasExplicitRouteType] = useState(false)
   const [creditPlatform, setCreditPlatform] = useState<SubmissionCreditPlatform>('instagram')
   const [creditHandle, setCreditHandle] = useState('')
   const [isAnonymousSubmission, setIsAnonymousSubmission] = useState(false)
@@ -136,6 +137,7 @@ export function useEditDraftData({
         locationMode: nextLocationModeByImageId[image.id] || 'shared',
       }))
 
+      const explicitRouteType = readDraftRouteType(metadata)
       const normalizedRouteType = typeof normalizedMetadata.submission.routeType === 'string' && normalizedMetadata.submission.routeType
         ? normalizedMetadata.submission.routeType
         : 'sport'
@@ -181,7 +183,8 @@ export function useEditDraftData({
 
       const savedCanvasSource = canvasMetadata.submission?.canvasSource
 
-      setRouteType(normalizedRouteType)
+      setRouteType(explicitRouteType || normalizedRouteType)
+      setHasExplicitRouteType(Boolean(explicitRouteType))
       setCreditPlatform(normalizedCreditPlatform || 'instagram')
       setCreditHandle(normalizedCreditHandle)
       setIsAnonymousSubmission(normalizedAnonymousSubmission)
@@ -351,6 +354,8 @@ export function useEditDraftData({
     setCustomGpsByImageId,
     routeType,
     setRouteType,
+    hasExplicitRouteType,
+    setHasExplicitRouteType,
     creditPlatform,
     setCreditPlatform,
     creditHandle,

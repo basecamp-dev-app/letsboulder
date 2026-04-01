@@ -4,6 +4,22 @@ import { sanitizeError } from '@/lib/errors'
 
 export const runtime = 'edge'
 
+function normalizeRouteType(value: string | null | undefined): string | null {
+  if (value === 'deep_water_solo') return 'deep-water-solo'
+  if (value === 'sport' || value === 'boulder' || value === 'trad' || value === 'deep-water-solo') {
+    return value
+  }
+  return null
+}
+
+function pickDominantRouteType(counts: Map<string, number>): string | null {
+  return Array.from(counts.entries())
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1]
+      return a[0].localeCompare(b[0])
+    })[0]?.[0] || null
+}
+
 export async function GET(request: NextRequest) {
   const cookies = request.cookies
   const supabase = createServerClient(
@@ -56,6 +72,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ atlas: null, nearbyCrag: null, error: 'Failed to resolve location' }, { status: 200 })
     }
 
+    let nearbyCragDominantRouteType: string | null = null
+    if (data?.crag?.id) {
+      const { data: climbs } = await supabase
+        .from('climbs')
+        .select('route_type, status, deleted_at')
+        .eq('crag_id', data.crag.id)
+
+      const routeTypeCounts = new Map<string, number>()
+      for (const climb of climbs || []) {
+        if (climb.deleted_at) continue
+        if (climb.status && climb.status !== 'approved') continue
+        const normalizedType = normalizeRouteType(climb.route_type)
+        if (!normalizedType) continue
+        routeTypeCounts.set(normalizedType, (routeTypeCounts.get(normalizedType) || 0) + 1)
+      }
+
+      nearbyCragDominantRouteType = pickDominantRouteType(routeTypeCounts)
+    }
+
     return NextResponse.json({
       atlas: data?.country ? {
         continentName: data.continent?.name ?? data.un_region?.continent_name ?? null,
@@ -69,6 +104,7 @@ export async function GET(request: NextRequest) {
         id: data.crag.id,
         name: data.crag.name,
         distanceMeters: data.crag.distance_meters ?? null,
+        dominantRouteType: nearbyCragDominantRouteType,
       } : null,
       error: null,
     })

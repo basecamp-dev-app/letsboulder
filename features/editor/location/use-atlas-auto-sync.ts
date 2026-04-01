@@ -15,6 +15,7 @@ export interface NearbyCragContext {
   id: string
   name: string
   distanceMeters: number | null
+  dominantRouteType: string | null
 }
 
 export interface AtlasAutoSyncResult {

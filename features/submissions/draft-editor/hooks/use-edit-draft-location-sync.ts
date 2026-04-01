@@ -29,6 +29,8 @@ interface UseEditDraftLocationSyncParams {
   cragId: string | null
   nearbyCragId: string | null
   nearbyCragName: string | null
+  nearbyCragDominantRouteType: string | null
+  hasExplicitRouteType: boolean
   atlasSync: {
     atlas?: {
       countryId?: string | null
@@ -44,6 +46,7 @@ interface UseEditDraftLocationSyncParams {
   setLatitude: (value: string) => void
   setLongitude: (value: string) => void
   setDraftUpdatedAt: (value: string | null) => void
+  setRouteType: (value: string) => void
   setCragId: (value: string | null) => void
   setSelectedCrag: React.Dispatch<React.SetStateAction<{ id: string; name: string; latitude: number | null; longitude: number | null } | null>>
   setCustomGpsByImageId: React.Dispatch<React.SetStateAction<Record<string, { latitude: number | null; longitude: number | null }>>>
@@ -77,12 +80,15 @@ export function useEditDraftLocationSync({
   cragId,
   nearbyCragId,
   nearbyCragName,
+  nearbyCragDominantRouteType,
+  hasExplicitRouteType,
   atlasSync,
   hasHydratedLocationRef,
   lastLocationSyncRef,
   setLatitude,
   setLongitude,
   setDraftUpdatedAt,
+  setRouteType,
   setCragId,
   setSelectedCrag,
   setCustomGpsByImageId,
@@ -189,6 +195,7 @@ export function useEditDraftLocationSync({
       lastLocationSyncRef.current = signature
       const atlasForPatch = atlasSync.atlas
 
+      const nextRouteType = !hasExplicitRouteType && nearbyCragDominantRouteType ? nearbyCragDominantRouteType : routeType
       const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -197,7 +204,7 @@ export function useEditDraftLocationSync({
           images: imagesPayload,
           metadata: {
             submission: {
-              routeType,
+              routeType: nextRouteType,
               isAnonymousSubmission,
               contributionCreditPlatform: creditPlatform,
               contributionCreditHandle: creditHandle,
@@ -223,6 +230,9 @@ export function useEditDraftLocationSync({
       } else {
         lastLocationSyncRef.current = null
       }
+      if (!hasExplicitRouteType && nearbyCragDominantRouteType && response.ok) {
+        setRouteType(nextRouteType)
+      }
       if (!cragId && nearbyCragId) {
         setCragId(nearbyCragId)
         setSelectedCrag((current) => current || {
@@ -238,7 +248,7 @@ export function useEditDraftLocationSync({
   // draftUpdatedAt and atlasSync.atlas are intentionally read at execution time
   // to avoid retriggering this sync effect after a successful PATCH.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cragId, draft, draftId, effectiveMarkerPosition, imagesPayload.length, imagesPayloadSignature, nearbyCragId, nearbyCragName, hasHydratedLocationRef, setDraftUpdatedAt])
+  }, [cragId, draft, draftId, effectiveMarkerPosition, hasExplicitRouteType, imagesPayload.length, imagesPayloadSignature, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, hasHydratedLocationRef, routeType, setDraftUpdatedAt, setRouteType])
 
   const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
     if (activeDraftImageId && activeImageLocationMode === 'custom') {
