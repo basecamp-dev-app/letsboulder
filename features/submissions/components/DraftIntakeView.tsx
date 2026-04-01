@@ -288,8 +288,10 @@ export default function DraftIntakeView() {
   const successCount = uploads.filter((u) => u.status === 'SUCCESS').length
   const failedCount = uploads.filter((u) => u.status === 'FAILED').length
   const totalCount = uploads.length
+  const hasInFlightUploads = uploads.some((upload) => upload.status === 'QUEUED' || upload.status === 'PREPROCESSING' || upload.status === 'UPLOADING')
   const hasAnyImages = galleryImages.length > 0
   const hasAttachedImages = draftImages.length > 0
+  const canContinueToEditor = hasAttachedImages && !hasInFlightUploads
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -359,10 +361,10 @@ export default function DraftIntakeView() {
                   <button
                     type="button"
                     onClick={handleOpenEditor}
-                    disabled={!hasAttachedImages}
+                    disabled={!canContinueToEditor}
                     className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Continue to editor
+                    {hasInFlightUploads ? 'Finish uploads to continue' : 'Continue to editor'}
                   </button>
                   <button
                     type="button"
