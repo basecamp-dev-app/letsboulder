@@ -1,7 +1,8 @@
 import type { User } from '@supabase/supabase-js'
 import { getServerClient } from '@/lib/supabase-server'
 import { getGradePoints } from '@/lib/grades'
-import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
+import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
+import { groupSubmittedImages } from '@/lib/submissions/group-submitted-images'
 import type { Submission } from '@/types/submissions'
 
 interface RawLogbookRow {
@@ -45,11 +46,118 @@ interface LogbookProfile {
   highest_grade?: string
 }
 
+interface ContributionRow {
+  id: string
+  url: string
+  created_at: string
+  submission_id: string | null
+  moderation_status?: string | null
+  is_anonymous_submission: boolean | null
+  contribution_credit_platform: string | null
+  contribution_credit_handle: string | null
+  crags: { name?: string } | Array<{ name?: string }> | null
+  route_lines: Array<{ count?: number }> | null
+}
+
+interface CragImageLinkRow {
+  source_image_id: string | null
+  linked_image_id: string | null
+}
+
+interface DraftSubmissionRow {
+  id: string
+  created_at: string
+  updated_at: string
+  crags: { name?: string } | Array<{ name?: string }> | null
+  submission_draft_images: Array<{
+    storage_bucket: string
+    storage_path: string
+    route_data?: unknown
+  }> | null
+  submission_draft_routes: Array<{ id: string }> | null
+}
+
 export interface OwnLogbookData {
   user: User | null
   logs: LoggedClimb[]
   profile: LogbookProfile | null
   submissions: Submission[]
+}
+
+async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerClient>>, userId: string, baseUrl?: string): Promise<Submission[]> {
+  const { data: draftSubmissions } = await supabase
+    .from('submission_drafts')
+    .select('id, created_at, updated_at, crags(name), submission_draft_images(storage_bucket, storage_path, route_data), submission_draft_routes(id)')
+    .eq('user_id', userId)
+    .eq('status', 'draft')
+    .order('updated_at', { ascending: false })
+    .limit(24)
+
+  const draftRows = (draftSubmissions || []) as DraftSubmissionRow[]
+  const firstDraftImageObjects = draftRows
+    .map((draft) => {
+      const draftImages = draft.submission_draft_images || []
+      const firstImage = draftImages[0]
+      if (!firstImage?.storage_bucket || !firstImage?.storage_path) return null
+      return { bucket: firstImage.storage_bucket, path: firstImage.storage_path }
+    })
+    .filter((item): item is { bucket: string; path: string } => !!item)
+
+  const signedByKey = new Map<string, string>()
+  if (firstDraftImageObjects.length > 0 && baseUrl) {
+    const signedUrlResponse = await fetch(`${baseUrl}/api/uploads/signed-urls/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ objects: firstDraftImageObjects }),
+    })
+
+    if (signedUrlResponse.ok) {
+      const signedData = await signedUrlResponse.json().catch(() => ({} as SignedUrlBatchResponse))
+      for (const item of signedData.results || []) {
+        if (!item?.signedUrl) continue
+        signedByKey.set(getSignedUrlBatchKey(item.bucket, item.path), item.signedUrl)
+      }
+    }
+  }
+
+  return draftRows.map((draft) => {
+    const cragRelation = draft.crags
+    const cragName = Array.isArray(cragRelation)
+      ? (cragRelation[0]?.name || null)
+      : (cragRelation?.name || null)
+
+    const draftImages = draft.submission_draft_images || []
+    const firstImage = draftImages[0]
+    const previewUrl = firstImage?.storage_bucket && firstImage?.storage_path
+      ? (signedByKey.get(getSignedUrlBatchKey(firstImage.storage_bucket, firstImage.storage_path)) || '')
+      : ''
+
+    const routeCountFromRows = Array.isArray(draft.submission_draft_routes) ? draft.submission_draft_routes.length : 0
+    const routeCountFromLegacy = draftImages.reduce((count, image) => {
+      const routeData = image.route_data
+      if (routeData && typeof routeData === 'object' && 'completedRoutes' in (routeData as Record<string, unknown>)) {
+        const completedRoutes = (routeData as { completedRoutes?: unknown[] }).completedRoutes
+        return count + (Array.isArray(completedRoutes) ? completedRoutes.length : 0)
+      }
+      return count
+    }, 0)
+    const routeCount = routeCountFromRows > 0 ? routeCountFromRows : routeCountFromLegacy
+
+    return {
+      id: draft.id,
+      canonical_image_id: null,
+      kind: 'draft' as const,
+      status: 'draft' as const,
+      is_anonymous_submission: false,
+      url: previewUrl,
+      created_at: draft.created_at,
+      updated_at: draft.updated_at,
+      crag_name: cragName,
+      route_lines_count: routeCount,
+      contribution_credit_platform: null,
+      contribution_credit_handle: null,
+    }
+  })
 }
 
 export async function fetchServerLogbookData(user: User, baseUrl?: string): Promise<OwnLogbookData> {
@@ -99,12 +207,36 @@ export async function fetchServerLogbookData(user: User, baseUrl?: string): Prom
       : getGradePoints(log.climbs?.grade),
   })) as LoggedClimb[]
 
-  const submissions = await fetchOwnSubmissions(supabase, userId, fetch, 24, baseUrl)
+  const { data: contributionRows, error: contribError } = await supabase
+    .from('images')
+    .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name), route_lines(count)')
+    .eq('created_by', userId)
+    .or('moderation_status.eq.approved,moderation_status.eq.pending,moderation_status.is.null')
+    .order('created_at', { ascending: false })
+    .limit(200)
+
+  let publishedSubmissions: Submission[] = []
+  if (!contribError && contributionRows) {
+    const imageIds = (contributionRows as ContributionRow[]).map((row) => row.id)
+    let links: CragImageLinkRow[] = []
+    if (imageIds.length > 0) {
+      const idsCsv = imageIds.join(',')
+      const { data: linksData } = await supabase
+        .from('crag_images')
+        .select('source_image_id, linked_image_id')
+        .or(`linked_image_id.in.(${idsCsv}),source_image_id.in.(${idsCsv})`)
+      links = (linksData || []) as CragImageLinkRow[]
+    }
+    publishedSubmissions = groupSubmittedImages(contributionRows as ContributionRow[], links)
+  }
+
+  const draftSubmissions = await fetchServerDrafts(supabase, userId, baseUrl)
 
   return {
     user,
     logs: logsWithPoints,
     profile: (profileData || null) as LogbookProfile | null,
-    submissions,
+    submissions: [...publishedSubmissions, ...draftSubmissions]
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
   }
 }
