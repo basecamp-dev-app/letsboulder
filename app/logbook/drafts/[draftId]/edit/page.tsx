@@ -359,7 +359,15 @@ export default function EditDraftPage() {
   })
 
   const effectiveMarkerPosition = activeImageCustomPosition || markerPosition
-  const hasValidLocation = effectiveMarkerPosition !== null
+  const effectivePublishLocation = useMemo<[number, number] | null>(() => {
+    if (effectiveMarkerPosition) return effectiveMarkerPosition
+
+    const fallbackImage = mergedManageImages.find((image) => isValidLocationCoordinate(image.latitude, image.longitude)) || null
+    if (!fallbackImage) return null
+
+    return [fallbackImage.latitude as number, fallbackImage.longitude as number]
+  }, [effectiveMarkerPosition, mergedManageImages])
+  const hasValidLocation = effectivePublishLocation !== null
 
   const {
     savingDraft,

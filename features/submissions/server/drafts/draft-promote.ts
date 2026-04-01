@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createErrorResponse } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
 import { getMediaModerationConfig } from '@/lib/media/config'
-import { extractDraftLocation, isPermissionDeniedError } from '@/features/submissions/server/drafts/draft-route-shared'
+import { isPermissionDeniedError, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
 
 const INTERNAL_MODERATION_SECRET = process.env.INTERNAL_MODERATION_SECRET
 
@@ -42,11 +42,20 @@ export async function promoteDraftToSubmission(input: {
     return NextResponse.json({ error: 'Only the draft owner can publish this draft' }, { status: 403 })
   }
 
-  const { latitude, longitude } = extractDraftLocation(draft.metadata)
-  const hasValidLocation =
-    typeof latitude === 'number' && Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
-    typeof longitude === 'number' && Number.isFinite(longitude) && longitude >= -180 && longitude <= 180 &&
-    !(latitude === 0 && longitude === 0)
+  const { data: draftImages, error: draftImagesError } = await supabase
+    .from('submission_draft_images')
+    .select('latitude, longitude')
+    .eq('draft_id', draftId)
+
+  if (draftImagesError) {
+    return createErrorResponse(draftImagesError, 'Failed to validate draft images before publish')
+  }
+
+  const { latitude, longitude } = resolveEffectiveDraftPublishLocation(
+    draft.metadata,
+    (draftImages || []) as Array<Pick<DraftImageRow, 'latitude' | 'longitude'>>,
+  )
+  const hasValidLocation = latitude !== null && longitude !== null
 
   if (!hasValidLocation) {
     return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
