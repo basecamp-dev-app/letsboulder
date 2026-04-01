@@ -164,7 +164,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {submission.route_lines_count} route{submission.route_lines_count === 1 ? '' : 's'}
-                {submission.kind === 'submitted' && (submission.image_count || 0) > 1
+                {(submission.image_count || 0) > 1
                   ? ` • ${submission.image_count} images`
                   : ''}
                 {' • '}

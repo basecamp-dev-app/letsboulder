@@ -62,12 +62,12 @@ export async function fetchOwnSubmissions(
   const draftRows = (draftSubmissions || []) as DraftSubmissionRow[]
   const firstDraftImageObjects = draftRows
     .map((draft) => {
-      const draftImages = draft.submission_draft_images || []
-      const firstImage = draftImages[0]
-      if (!firstImage?.storage_bucket || !firstImage?.storage_path) return null
+      const draftImages = ((draft.submission_draft_images || []) as DraftImagePreviewRef[]).slice().sort((a, b) => a.display_order - b.display_order)
+      const preferredImage = draftImages.find((image) => image.processing_status === 'ready') || draftImages[0]
+      if (!preferredImage?.storage_bucket || !preferredImage?.storage_path) return null
       return {
-        bucket: firstImage.storage_bucket,
-        path: firstImage.storage_path,
+        bucket: preferredImage.storage_bucket,
+        path: preferredImage.storage_path,
       }
     })
     .filter((item): item is SignedUrlObject => !!item)
@@ -125,6 +125,7 @@ export async function fetchOwnSubmissions(
       updated_at: draft.updated_at,
       crag_name: cragName,
       route_lines_count: routeCount,
+      image_count: draftImages.length,
       contribution_credit_platform: null,
       contribution_credit_handle: null,
     }
