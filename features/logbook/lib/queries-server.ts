@@ -228,6 +228,7 @@ export async function fetchServerLogbookData(user: User, baseUrl?: string): Prom
       links = (linksData || []) as CragImageLinkRow[]
     }
     publishedSubmissions = groupSubmittedImages(contributionRows as ContributionRow[], links)
+      .filter((s) => s.route_lines_count > 0)
   }
 
   const draftSubmissions = await fetchServerDrafts(supabase, userId, baseUrl)
