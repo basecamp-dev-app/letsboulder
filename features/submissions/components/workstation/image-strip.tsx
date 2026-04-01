@@ -26,6 +26,10 @@ interface WorkstationImageStripProps {
   removeAction?: { loading?: boolean; disabled?: boolean; onClick: () => void }
 }
 
+function isInternalImageDrag(event: DragEvent<HTMLElement>): boolean {
+  return Array.from(event.dataTransfer.types).includes('application/x-letsboulder-image-id')
+}
+
 export function WorkstationImageStrip({
   images,
   activeImageId,
@@ -38,19 +42,28 @@ export function WorkstationImageStrip({
   removeAction,
 }: WorkstationImageStripProps) {
   const handleQuickBarDragOver = (event: DragEvent<HTMLElement>) => {
-    if (!onQuickBarDropFiles) return
     event.preventDefault()
+
+    if (isInternalImageDrag(event)) {
+      event.dataTransfer.dropEffect = 'move'
+      onQuickBarDragStateChange(false)
+      return
+    }
+
+    if (!onQuickBarDropFiles) return
     event.dataTransfer.dropEffect = 'copy'
     onQuickBarDragStateChange(true)
   }
 
   const handleQuickBarDragEnter = (event: DragEvent<HTMLElement>) => {
-    if (!onQuickBarDropFiles) return
     event.preventDefault()
+    if (isInternalImageDrag(event)) return
+    if (!onQuickBarDropFiles) return
     onQuickBarDragStateChange(true)
   }
 
   const handleQuickBarDragLeave = (event: DragEvent<HTMLElement>) => {
+    if (isInternalImageDrag(event)) return
     if (!onQuickBarDropFiles) return
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
     onQuickBarDragStateChange(false)
@@ -60,6 +73,7 @@ export function WorkstationImageStrip({
     const sourceImageId = event.dataTransfer.getData('application/x-letsboulder-image-id')
     if (sourceImageId && onReorderImages) {
       event.preventDefault()
+      event.stopPropagation()
       onQuickBarDragStateChange(false)
       const target = event.target as HTMLElement | null
       const targetButton = target?.closest('[data-image-id]') as HTMLElement | null
@@ -122,6 +136,9 @@ export function WorkstationImageStrip({
                   event.dataTransfer.dropEffect = 'move'
                 }}
                 onDrop={(event) => handleQuickBarDrop(event)}
+                onDragEnd={() => {
+                  if (onReorderImages) onQuickBarDragStateChange(false)
+                }}
                 onClick={() => {
                   if (imageSwitchingDisabled) return
                   onSelectImage(image.imageId)
