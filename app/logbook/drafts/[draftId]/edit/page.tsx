@@ -490,6 +490,78 @@ export default function EditDraftPage() {
 
   const isImageSwitching = switchingImageId !== null || savingDraft
 
+  const handleReorderDraftImages = useCallback(async (imageIds: string[]) => {
+    if (!draft || !draftUpdatedAt) return
+
+    const previousManageImages = manageImages
+    const nextManageImages = reorderItemsByIds(manageImages, imageIds).map((image) => ({
+      ...image,
+      locationMode: resolveLocationMode(locationModeByImageId[image.imageId] || image.locationMode),
+    }))
+
+    setManageImages(nextManageImages)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/submissions/drafts/${draftId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          expected_updated_at: draftUpdatedAt,
+          images: nextManageImages
+            .filter((image) => image.sourceKind === 'draft-image')
+            .map((image, index) => {
+              const existingImage = draft.images.find((candidate) => candidate.id === image.imageId)
+              return {
+                id: image.imageId,
+                display_order: index,
+                route_data: existingImage?.route_data || {},
+              }
+            }),
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({ error: 'Failed to reorder draft images' })) as {
+        error?: string
+        draft?: { updated_at?: string }
+      }
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to reorder draft images')
+      }
+
+      if (payload.draft?.updated_at) {
+        setDraftUpdatedAt(payload.draft.updated_at)
+        registerDraftUpdatedAt(draftId, payload.draft.updated_at)
+      }
+
+      setDraft((current) => {
+        if (!current) return current
+        const imageById = new Map(current.images.map((image) => [image.id, image]))
+        const reorderedImages = imageIds
+          .map((imageId, index) => {
+            const image = imageById.get(imageId)
+            return image ? { ...image, display_order: index } : null
+          })
+          .filter((image): image is typeof current.images[number] => image !== null)
+
+        return {
+          ...current,
+          updated_at: payload.draft?.updated_at || current.updated_at,
+          images: reorderedImages,
+        }
+      })
+    } catch (error) {
+      setManageImages(previousManageImages)
+      const message = error instanceof Error ? error.message : 'Failed to reorder draft images'
+      setError(message)
+      addToast(message, 'error')
+    }
+  }, [addToast, draft, draftId, draftUpdatedAt, locationModeByImageId, manageImages, registerDraftUpdatedAt, setDraft, setDraftUpdatedAt, setError, setManageImages])
+
   const setActiveAsDefault = useCallback(() => {
     if (!activeImageTab || activeImageTab.sourceKind !== 'draft-image') return
     persistMetadataImmediately(() => {
@@ -612,12 +684,7 @@ export default function EditDraftPage() {
             initialCenter={markerPosition}
             hideRouteActions={mapOpen}
             onSelectImage={handleQuickSwitchImage}
-            onReorderImages={(imageIds) => {
-              setManageImages((prev) => reorderItemsByIds(prev, imageIds).map((image) => ({
-                ...image,
-                locationMode: resolveLocationMode(locationModeByImageId[image.imageId] || image.locationMode),
-              })))
-            }}
+            onReorderImages={(imageIds) => { void handleReorderDraftImages(imageIds) }}
             existingRouteLines={existingRouteLines}
             selectedRouteId={selectedRouteId}
             onSelectRoute={(routeId) => {
