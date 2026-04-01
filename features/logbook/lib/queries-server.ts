@@ -1,6 +1,7 @@
 import type { User } from '@supabase/supabase-js'
 import { getServerClient } from '@/lib/supabase-server'
 import { getGradePoints } from '@/lib/grades'
+import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
 import type { Submission } from '@/types/submissions'
 
 interface RawLogbookRow {
@@ -98,7 +99,7 @@ export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData
       : getGradePoints(log.climbs?.grade),
   })) as LoggedClimb[]
 
-  const submissions: Submission[] = []
+  const submissions = await fetchOwnSubmissions(supabase, userId, fetch, 24)
 
   return {
     user,
