@@ -52,7 +52,7 @@ export interface OwnLogbookData {
   submissions: Submission[]
 }
 
-export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData> {
+export async function fetchServerLogbookData(user: User, baseUrl?: string): Promise<OwnLogbookData> {
   const supabase = await getServerClient()
   const userId = user.id
 
@@ -99,7 +99,7 @@ export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData
       : getGradePoints(log.climbs?.grade),
   })) as LoggedClimb[]
 
-  const submissions = await fetchOwnSubmissions(supabase, userId, fetch, 24)
+  const submissions = await fetchOwnSubmissions(supabase, userId, fetch, 24, baseUrl)
 
   return {
     user,
