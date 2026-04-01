@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useRouteStore } from '@/features/route-editor/store'
-import { buildMapPins, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
+import { buildMapPins, reorderItemsByIds, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
 import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/features/submissions/lib/submission-types'
 import { normalizePoints } from '@/lib/canvasMath'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { createClient } from '@/lib/supabase'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface ImageRouteLineQuery {
   id: string
@@ -108,6 +109,11 @@ export function useSubmissionEditorData() {
   const [manageFaces, setManageFaces] = useState<ManageFaceTab[]>([])
   const [primaryManageImageId, setPrimaryManageImageId] = useState<string | null>(routeImageId)
   const initializedImageIdRef = useRef<string | null>(null)
+  const manageFacesRef = useRef<ManageFaceTab[]>([])
+
+  useEffect(() => {
+    manageFacesRef.current = manageFaces
+  }, [manageFaces])
 
   const canEditContributionCredit = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId
   const canEditCragMetadata = !!currentUserId && !!ownerUserId && currentUserId === ownerUserId && !!cragId
@@ -260,6 +266,28 @@ export function useSubmissionEditorData() {
     router.replace(buildEditUrl(primaryManageImageId || routeImageId, imageId))
   }, [activeImageId, buildEditUrl, primaryManageImageId, routeImageId, router])
 
+  const handleReorderImages = useCallback(async (imageIds: string[]) => {
+    if (!routeImageId) return
+
+    const previousManageFaces = manageFacesRef.current
+    setManageFaces((prev) => reorderItemsByIds(prev, imageIds))
+
+    try {
+      const response = await csrfFetch(`/api/submissions/${routeImageId}/faces`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageIds }),
+      })
+      const payload = await response.json().catch(() => null) as { error?: string } | null
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to reorder submission images')
+      }
+    } catch (error) {
+      setManageFaces(previousManageFaces)
+      setError(error instanceof Error ? error.message : 'Failed to reorder submission images')
+    }
+  }, [routeImageId])
+
   return {
     loading,
     error,
@@ -332,6 +360,7 @@ export function useSubmissionEditorData() {
     requestedFaceImageId,
     buildEditUrl,
     handleQuickSwitchImage,
+    handleReorderImages,
     toggleFaceDirection: (direction: FaceDirection) => setFaceDirections((prev) => prev.includes(direction) ? prev.filter((value) => value !== direction) : [...prev, direction]),
   }
 }

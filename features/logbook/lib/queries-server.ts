@@ -70,8 +70,11 @@ interface DraftSubmissionRow {
   updated_at: string
   crags: { name?: string } | Array<{ name?: string }> | null
   submission_draft_images: Array<{
+    id: string
     storage_bucket: string
     storage_path: string
+    display_order: number
+    processing_status: 'pending' | 'queued' | 'processing' | 'ready' | 'failed' | null
     route_data?: unknown
   }> | null
   submission_draft_routes: Array<{ id: string }> | null
@@ -87,7 +90,7 @@ export interface OwnLogbookData {
 async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerClient>>, userId: string, baseUrl?: string): Promise<Submission[]> {
   const { data: draftSubmissions } = await supabase
     .from('submission_drafts')
-    .select('id, created_at, updated_at, crags(name), submission_draft_images(storage_bucket, storage_path, route_data), submission_draft_routes(id)')
+    .select('id, created_at, updated_at, crags(name), submission_draft_images(id, storage_bucket, storage_path, display_order, processing_status, route_data), submission_draft_routes(id)')
     .eq('user_id', userId)
     .eq('status', 'draft')
     .order('updated_at', { ascending: false })
@@ -126,10 +129,10 @@ async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerCl
       ? (cragRelation[0]?.name || null)
       : (cragRelation?.name || null)
 
-    const draftImages = draft.submission_draft_images || []
-    const firstImage = draftImages[0]
-    const previewUrl = firstImage?.storage_bucket && firstImage?.storage_path
-      ? (signedByKey.get(getSignedUrlBatchKey(firstImage.storage_bucket, firstImage.storage_path)) || '')
+    const draftImages = (draft.submission_draft_images || []).slice().sort((a, b) => a.display_order - b.display_order)
+    const preferredImage = draftImages.find((image) => image.processing_status === 'ready') || draftImages[0]
+    const previewUrl = preferredImage?.storage_bucket && preferredImage?.storage_path
+      ? (signedByKey.get(getSignedUrlBatchKey(preferredImage.storage_bucket, preferredImage.storage_path)) || '')
       : ''
 
     const routeCountFromRows = Array.isArray(draft.submission_draft_routes) ? draft.submission_draft_routes.length : 0
