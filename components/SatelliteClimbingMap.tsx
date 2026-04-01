@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback, useMemo, useRef, type RefObject, star
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import L from 'leaflet'
 import { Bookmark } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
@@ -21,10 +20,10 @@ interface LeafletIconDefault {
   mergeOptions: (options: Record<string, string>) => void
 }
 
-function setupLeafletIcons() {
+function setupLeafletIcons(leaflet: typeof import('leaflet')) {
   if (typeof window !== 'undefined') {
-    delete (L.Icon.Default as unknown as LeafletIconDefault).prototype._getIconUrl
-    ;(L.Icon.Default as unknown as LeafletIconDefault).mergeOptions({
+    delete (leaflet.Icon.Default as unknown as LeafletIconDefault).prototype._getIconUrl
+    ;(leaflet.Icon.Default as unknown as LeafletIconDefault).mergeOptions({
       iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
       iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
       shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -125,6 +124,7 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
   const router = useRouter()
   const mapRef = useRef<L.Map | null>(null)
   const [isClient, setIsClient] = useState(false)
+  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
   const [hasUserInteracted, setHasUserInteracted] = useState(false)
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [locationStatus, setLocationStatus] = useState<'idle' | 'requesting' | 'tracking' | 'error'>('idle')
@@ -204,7 +204,10 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
   }, [clusterIndex, mapBounds, mapZoom, pinFeatures])
 
   useEffect(() => {
-    setupLeafletIcons()
+    import('leaflet').then(Lib => {
+      setLeaflet(Lib)
+      setupLeafletIcons(Lib)
+    })
   }, [])
 
   useEffect(() => {
@@ -407,10 +410,10 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
           maxZoom={19}
         />
 
-        {userLocation && (
+        {userLocation && leaflet && (
           <Marker
             position={userLocation}
-            icon={L.divIcon({
+            icon={leaflet.divIcon({
               className: 'user-location-dot',
               iconSize: [12, 12],
               iconAnchor: [6, 6]
@@ -418,7 +421,7 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
           />
         )}
 
-        {clusteredPlaces.map((feature) => {
+        {leaflet && clusteredPlaces.map((feature) => {
           const [longitude, latitude] = feature.geometry.coordinates
 
           if (!isClusterFeature(feature)) {
@@ -428,7 +431,7 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
               <Marker
                 key={place.id}
                 position={[latitude, longitude]}
-                icon={L.divIcon({
+                icon={leaflet.divIcon({
                   className: isGym ? 'gym-pin' : 'crag-pin',
                   html: `<div class="place-dot ${isGym ? 'gym-dot' : 'crag-dot'}"></div>`,
                   iconSize: [20, 20],
@@ -469,7 +472,7 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
             <Marker
               key={`cluster-${feature.properties.cluster_id}`}
               position={[latitude, longitude]}
-              icon={L.divIcon({
+              icon={leaflet.divIcon({
                 className: 'crag-cluster-wrapper',
                 html: `<div class="crag-cluster-pin">${feature.properties.point_count}</div>`,
                 iconSize: [36, 36],

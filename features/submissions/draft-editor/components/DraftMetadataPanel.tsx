@@ -3,7 +3,7 @@
 import { MapPin } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useMapEvents } from 'react-leaflet'
-import L from 'leaflet'
+import type { LeafletMouseEvent, LeafletEvent } from 'leaflet'
 import { useEffect } from 'react'
 import AtlasContextCard from '@/features/submissions/components/atlas-context-card'
 import { parseOptionalCoordinate } from '@/features/editor/location/location-metadata'
@@ -16,7 +16,7 @@ const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.Map
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false })
 
-function MapClickHandler({ onClick }: { onClick: (event: L.LeafletMouseEvent) => void }) {
+function MapClickHandler({ onClick }: { onClick: (event: LeafletMouseEvent) => void }) {
   useMapEvents({ click: onClick })
   return null
 }
@@ -57,8 +57,8 @@ interface DraftMetadataPanelProps {
   onLatitudeChange: (value: string) => void
   onLongitudeChange: (value: string) => void
   onCustomGpsChange: (imageId: string, gps: { latitude: number | null; longitude: number | null }) => void
-  onMapClick: (event: L.LeafletMouseEvent) => void
-  onMarkerDragEnd: (event: L.LeafletEvent) => void
+  onMapClick: (event: LeafletMouseEvent) => void
+  onMarkerDragEnd: (event: LeafletEvent) => void
   onMapOpenChange: (open: boolean) => void
   onSearchQueryChange: (value: string) => void
   onSearchLocation: () => void
