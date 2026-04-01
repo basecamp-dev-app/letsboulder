@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { MapPin, Search, Loader2 } from 'lucide-react'
 import type { GpsData } from '@/features/submissions/lib/submission-types'
 import dynamic from 'next/dynamic'
-import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useMapEvents } from 'react-leaflet'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -20,7 +19,7 @@ interface LocationPickerProps {
   cragName?: string
 }
 
-function MapClickHandler({ onClick }: { onClick: (e: L.LeafletMouseEvent) => void }) {
+function MapClickHandler({ onClick }: { onClick: (e: import('leaflet').LeafletMouseEvent) => void }) {
   useMapEvents({
     click: onClick
   })
@@ -34,7 +33,7 @@ export default function LocationPicker({ initialGps, onConfirm, regionName, crag
   const [searchError, setSearchError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
   const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null)
-  const mapRef = useRef<L.Map | null>(null)
+  const mapRef = useRef<import('leaflet').Map | null>(null)
   const hasGps = initialGps !== null
 
   useEffect(() => {
@@ -59,12 +58,12 @@ export default function LocationPicker({ initialGps, onConfirm, regionName, crag
     }
   }, [position])
   
-  const handlePositionChange = useCallback((e: L.LeafletEvent) => {
+  const handlePositionChange = useCallback((e: import('leaflet').LeafletEvent) => {
     const { lat, lng } = e.target.getLatLng()
     setPosition([lat, lng])
   }, [])
 
-  const handleMapClick = useCallback((e: L.LeafletMouseEvent) => {
+  const handleMapClick = useCallback((e: import('leaflet').LeafletMouseEvent) => {
     setPosition([e.latlng.lat, e.latlng.lng])
   }, [])
 

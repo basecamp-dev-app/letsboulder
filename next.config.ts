@@ -107,7 +107,7 @@ const nextConfig: NextConfig = {
   },
   transpilePackages: ['react-leaflet', '@react-leaflet/core'],
   experimental: {
-    optimizePackageImports: ['lucide-react', 'recharts'],
+    optimizePackageImports: ['lucide-react', 'recharts', 'date-fns', '@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
   },
 }
 

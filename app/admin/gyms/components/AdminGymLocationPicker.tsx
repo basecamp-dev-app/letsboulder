@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import 'leaflet/dist/leaflet.css'
 import { useMapEvents } from 'react-leaflet'
-import L from 'leaflet'
 import { Loader2, Search } from 'lucide-react'
 
 const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false })
@@ -23,7 +22,7 @@ interface LocationSearchResult {
   display_name: string
 }
 
-function MapClickHandler({ onClick }: { onClick: (event: L.LeafletMouseEvent) => void }) {
+function MapClickHandler({ onClick }: { onClick: (event: import('leaflet').LeafletMouseEvent) => void }) {
   useMapEvents({ click: onClick })
   return null
 }
@@ -50,12 +49,12 @@ export default function AdminGymLocationPicker({ value, onChange }: AdminGymLoca
     import('leaflet').then(lib => setLeaflet(lib))
   }, [])
 
-  const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
+  const handleMapClick = useCallback((event: import('leaflet').LeafletMouseEvent) => {
     onChange({ latitude: event.latlng.lat, longitude: event.latlng.lng })
   }, [onChange])
 
-  const handleDragEnd = useCallback((event: L.LeafletEvent) => {
-    const target = event.target as L.Marker
+  const handleDragEnd = useCallback((event: import('leaflet').LeafletEvent) => {
+    const target = event.target as import('leaflet').Marker
     const latLng = target.getLatLng()
     onChange({ latitude: latLng.lat, longitude: latLng.lng })
   }, [onChange])
