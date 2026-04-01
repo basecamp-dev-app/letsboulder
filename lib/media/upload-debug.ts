@@ -1,5 +1,7 @@
+import { clientEnv } from '@/lib/env-client'
+
 function isUploadDebugEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_DEBUG_IMAGE_UPLOADS === '1'
+  return clientEnv.NEXT_PUBLIC_DEBUG_IMAGE_UPLOADS
 }
 
 function sanitizeUrl(input: string): string {

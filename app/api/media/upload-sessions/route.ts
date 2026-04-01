@@ -7,13 +7,14 @@ import { getMediaModerationConfig, getMediaStorageConfig } from '@/lib/media/con
 import { createPrivateUploadUrl } from '@/lib/media/r2'
 import { buildOriginalObjectKey, normalizeUploadSessionRequest } from '@/lib/media/upload-session'
 import type { MediaUploadSessionResponse } from '@/lib/media/types'
+import { serverEnv } from '@/lib/env'
 
 function createAuthedClient(request: NextRequest) {
   const cookies = request.cookies
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {

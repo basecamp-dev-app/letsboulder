@@ -9,6 +9,7 @@ import { Lock, ArrowLeft } from 'lucide-react'
 import ProfileViewTracker from './components/ProfileViewTracker'
 import type { Submission } from '@/types/submissions'
 import { groupSubmittedImages } from '@/lib/submissions/group-submitted-images'
+import { serverEnv } from '@/lib/env'
 
 interface PublicContributionRow {
   id: string
@@ -67,8 +68,8 @@ const getProfile = cache(async function getProfile(userId: string): Promise<Prof
   const cookieStore = await cookies()
   
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookieStore.getAll() },
@@ -94,8 +95,8 @@ async function getPublicLogs(userId: string): Promise<Climb[]> {
   const cookieStore = await cookies()
   
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookieStore.getAll() },
@@ -135,8 +136,8 @@ async function getPublicSubmissions(userId: string): Promise<Submission[]> {
   const cookieStore = await cookies()
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookieStore.getAll() },

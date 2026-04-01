@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { serverEnv } from '@/lib/env'
 
 interface CragPinRow {
   id: string
@@ -38,11 +39,11 @@ interface PlacePin {
 }
 
 export async function GET() {
-  const includePending = process.env.NEXT_PUBLIC_ALLOW_PENDING_IMAGES === 'true'
+  const includePending = serverEnv.NEXT_PUBLIC_ALLOW_PENDING_IMAGES
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return [] },

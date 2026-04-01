@@ -7,9 +7,10 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { buildDeleteAccountEmail } from '@/lib/email/delete-account-email'
+import { serverEnv } from '@/lib/env'
 
 function getDeleteTokenSecret(): Uint8Array {
-  const secret = process.env.DELETE_ACCOUNT_SECRET
+  const secret = serverEnv.DELETE_ACCOUNT_SECRET
 
   if (secret) {
     return new TextEncoder().encode(secret)
@@ -33,8 +34,8 @@ export async function POST(request: NextRequest) {
   const deleteRouteUploads = searchParams.get('delete_route_uploads') === 'true'
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -74,10 +75,10 @@ export async function POST(request: NextRequest) {
       .setExpirationTime(Math.floor((Date.now() + DELETE_TOKEN_EXPIRY) / 1000))
       .sign(deleteTokenSecret)
 
-    const deleteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/settings/delete-confirm?token=${token}`
+    const deleteUrl = `${serverEnv.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/settings/delete-confirm?token=${token}`
     const deleteAccountEmail = buildDeleteAccountEmail({ deleteUrl })
 
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(serverEnv.RESEND_API_KEY)
 
     await resend.emails.send({
       from: 'letsboulder <noreply@letsboulder.com>',

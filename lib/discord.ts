@@ -1,9 +1,10 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { serverEnv } from '@/lib/env'
 import { BRAND_NAME, SITE_URL } from '@/lib/site'
 
-const DISCORD_SUBMISSIONS_WEBHOOK = process.env.DISCORD_SUBMISSIONS_WEBHOOK_URL
-const DISCORD_FLAGS_WEBHOOK = process.env.DISCORD_FLAGS_WEBHOOK_URL
-const DISCORD_GYM_OWNERS_WEBHOOK = process.env.DISCORD_GYM_OWNERS_WEBHOOK_URL
+const DISCORD_SUBMISSIONS_WEBHOOK = serverEnv.DISCORD_SUBMISSIONS_WEBHOOK_URL
+const DISCORD_FLAGS_WEBHOOK = serverEnv.DISCORD_FLAGS_WEBHOOK_URL
+const DISCORD_GYM_OWNERS_WEBHOOK = serverEnv.DISCORD_GYM_OWNERS_WEBHOOK_URL
 
 interface DiscordEmbed {
   title: string

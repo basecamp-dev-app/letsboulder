@@ -1,3 +1,4 @@
+import { serverEnv } from '@/lib/env'
 import { getMediaModerationConfig } from '@/lib/media/config'
 import type { MediaModerationProvider, MediaModerationStatus } from '@/lib/media/types'
 
@@ -27,9 +28,9 @@ async function getRekognitionClient(): Promise<RekognitionClientLike> {
     throw new Error('Moderation provider is disabled')
   }
 
-  const region = process.env.AWS_REGION
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
+  const region = serverEnv.AWS_REGION
+  const accessKeyId = serverEnv.AWS_ACCESS_KEY_ID
+  const secretAccessKey = serverEnv.AWS_SECRET_ACCESS_KEY
 
   if (!region || !accessKeyId || !secretAccessKey) {
     throw new Error('Missing AWS Rekognition environment variables')

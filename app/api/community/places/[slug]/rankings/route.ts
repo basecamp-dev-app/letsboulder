@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { FLASH_BONUS, getGradeFromPoints, getGradePoints } from '@/lib/grades'
+import { serverEnv } from '@/lib/env'
 
 type RankingSort = 'grade' | 'tops'
 type RankingWindow = '60d' | 'all-time'
@@ -77,8 +78,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },

@@ -5,6 +5,7 @@ import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import type { RoutePoint } from '@/types/domain'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
+import { serverEnv } from '@/lib/env'
 
 interface CragRow {
   id: string
@@ -82,8 +83,8 @@ interface RouteLineRow {
 
 async function getSupabase() {
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     { cookies: { getAll() { return [] }, setAll() {} } }
   )
 }

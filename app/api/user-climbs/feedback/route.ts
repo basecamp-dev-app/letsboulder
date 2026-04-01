@@ -5,6 +5,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { normalizeGrade, GRADES } from '@/lib/grades'
 import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
+import { serverEnv } from '@/lib/env'
 import {
   clampGradeIndex,
   GRADE_CONSENSUS_MIN_CONFIDENCE,
@@ -96,8 +97,8 @@ export async function PUT(request: NextRequest) {
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },

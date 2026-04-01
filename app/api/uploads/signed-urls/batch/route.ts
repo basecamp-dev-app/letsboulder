@@ -4,6 +4,7 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { createSignedObjectUrls, isR2ManagedBucket } from '@/lib/media/object-urls'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { getSignedUrlBatchKey, type BatchSignedUrlResult, type SignedUrlBatchRequestObject } from '@/lib/signed-url-batch'
+import { serverEnv } from '@/lib/env'
 
 function normalizeObjects(input: unknown): SignedUrlBatchRequestObject[] | null {
   if (!Array.isArray(input) || input.length === 0) return null
@@ -27,7 +28,7 @@ function getAllowedHosts(request: NextRequest): Set<string> {
     allowedHosts.add(requestHost)
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  const appUrl = serverEnv.NEXT_PUBLIC_APP_URL
   if (appUrl) {
     try {
       allowedHosts.add(new URL(appUrl).hostname.toLowerCase())
@@ -36,7 +37,7 @@ function getAllowedHosts(request: NextRequest): Set<string> {
     }
   }
 
-  const vercelUrl = process.env.VERCEL_URL
+  const vercelUrl = serverEnv.VERCEL_URL
   if (vercelUrl) {
     allowedHosts.add(vercelUrl.split(':')[0].trim().toLowerCase())
   }
@@ -104,8 +105,8 @@ export async function POST(request: NextRequest) {
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {

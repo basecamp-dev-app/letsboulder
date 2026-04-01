@@ -8,8 +8,9 @@ import { createSubmissionRoutes } from '@/features/submissions/server/submission
 import { deleteSubmissionRoute } from '@/features/submissions/server/submissions/delete-submission-route'
 import { updateSubmissionRoutes } from '@/features/submissions/server/submissions/update-submission-routes'
 import { type SubmissionRouteMutationDeps } from '@/features/submissions/server/submissions/route-line-shared'
+import { serverEnv } from '@/lib/env'
 
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const SUPABASE_SERVICE_ROLE_KEY = serverEnv.SUPABASE_SERVICE_ROLE_KEY
 
 export async function POST(
   request: NextRequest,
@@ -20,8 +21,8 @@ export async function POST(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -32,7 +33,7 @@ export async function POST(
 
   const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY
     ? createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
         SUPABASE_SERVICE_ROLE_KEY,
         { cookies: { getAll() { return [] }, setAll() {} } }
       )
@@ -72,8 +73,8 @@ export async function DELETE(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -84,7 +85,7 @@ export async function DELETE(
 
   const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY
     ? createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
         SUPABASE_SERVICE_ROLE_KEY,
         { cookies: { getAll() { return [] }, setAll() {} } }
       )
@@ -124,8 +125,8 @@ export async function PUT(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },

@@ -6,6 +6,7 @@ import { buildClimbOfflinePack } from '@/lib/offline/build-climb-pack'
 import type { CragOfflinePackManifest, OfflineMapPin } from '@/lib/climb/queries'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { estimateCompressedImageBytes } from '@/lib/media-proxy'
+import { serverEnv } from '@/lib/env'
 
 export const revalidate = 3600
 
@@ -22,8 +23,8 @@ interface FailedClimbSummary {
 }
 
 function getAdminClient() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = serverEnv.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseUrl = serverEnv.NEXT_PUBLIC_SUPABASE_URL
 
   if (!serviceRoleKey || !supabaseUrl) {
     throw new Error('Supabase service role is not configured')

@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { revalidatePath } from 'next/cache'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { serverEnv } from '@/lib/env'
 
 interface MoveImageCragRequest {
   targetCragId?: string
@@ -48,8 +49,8 @@ export async function POST(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },

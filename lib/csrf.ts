@@ -1,10 +1,11 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { NextRequest, NextResponse } from 'next/server'
+import { serverEnv } from '@/lib/env'
 
 const CSRF_COOKIE_NAME = 'csrf_token'
 
 function getCsrfSecret(): Uint8Array {
-  const csrfSecretValue = process.env.CSRF_SECRET?.trim()
+  const csrfSecretValue = serverEnv.CSRF_SECRET
 
   if (!csrfSecretValue && process.env.NODE_ENV === 'production') {
     throw new Error('FATAL: CSRF_SECRET missing')

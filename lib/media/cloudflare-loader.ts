@@ -1,5 +1,6 @@
 import type { ImageLoaderProps } from 'next/image'
 import { MEDIA_VARIANT_WIDTHS, type MediaVariantKey } from '@/apps/media-worker/src/config'
+import { clientEnv } from '@/lib/env-client'
 
 const API_MEDIA_PREFIX = '/api/media/'
 
@@ -13,7 +14,7 @@ function snapWidthToVariant(width: number): MediaVariantKey {
 }
 
 function getMediaHost(): string | null {
-  return process.env.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '') || null
+  return clientEnv.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '') || null
 }
 
 function isMediaWorkerUrl(url: URL): boolean {
@@ -121,7 +122,7 @@ export default function cloudflareLoader({ src, width, quality }: ImageLoaderPro
   let normalizedSrc = trimmed
   try {
     const normalizedUrl = new URL(trimmed)
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || null
+    const siteUrl = clientEnv.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || null
     const isSameOrigin = normalizedUrl.origin === 'http://localhost'
       || normalizedUrl.origin === siteUrl
 

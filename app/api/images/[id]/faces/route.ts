@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
+import { serverEnv } from '@/lib/env'
 
 interface FaceItem {
   id: string
@@ -348,15 +349,15 @@ export async function GET(
   }
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     { cookies: { getAll() { return [] }, setAll() {} } }
   )
 
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const serviceRoleKey = serverEnv.SUPABASE_SERVICE_ROLE_KEY
   const signingClient = serviceRoleKey
     ? createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
         serviceRoleKey,
         { cookies: { getAll() { return [] }, setAll() {} } }
       )

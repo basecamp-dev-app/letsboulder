@@ -14,6 +14,7 @@ import { buildSubmissionSuccessResponse, cleanupUploadedBlobs, submissionErrorRe
 import { executeExistingImageSubmission } from '@/features/submissions/server/submissions/submit-existing-image'
 import { executeNewImageSubmission } from '@/features/submissions/server/submissions/submit-new-image'
 import { resolveCragImageToImageId } from '@/features/submissions/server/submissions/submit-crag-image'
+import { serverEnv } from '@/lib/env'
 import {
   validateAndPrepareRoutes,
   validateNewSubmissionInput,
@@ -21,8 +22,8 @@ import {
   type SubmissionRequest,
 } from '@/features/submissions/server/submissions/submit-route-validation'
 
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-const INTERNAL_MODERATION_SECRET = process.env.INTERNAL_MODERATION_SECRET
+const SUPABASE_SERVICE_ROLE_KEY = serverEnv.SUPABASE_SERVICE_ROLE_KEY
+const INTERNAL_MODERATION_SECRET = serverEnv.INTERNAL_MODERATION_SECRET
 
 interface RoutePoint {
   x: number
@@ -35,14 +36,14 @@ export async function POST(request: NextRequest) {
 
   const cookies = request.cookies
 
-  const debugAuth = process.env.DEBUG_SUBMISSIONS_AUTH === '1'
+  const debugAuth = serverEnv.DEBUG_SUBMISSIONS_AUTH === '1'
   const requestUrl = new URL(request.url)
 
   let response = NextResponse.next({ request: { headers: request.headers } })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
 
   const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY
     ? createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
         SUPABASE_SERVICE_ROLE_KEY,
         { cookies: { getAll() { return [] }, setAll() {} } }
       )

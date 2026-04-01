@@ -3,8 +3,9 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { moderateImageFromBytes, moderateImageFromUrl } from '@/lib/image-moderation'
 import { withCsrfProtection } from '@/lib/csrf-server'
+import { serverEnv } from '@/lib/env'
 
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const SUPABASE_SERVICE_ROLE_KEY = serverEnv.SUPABASE_SERVICE_ROLE_KEY
 
 interface CheckRequestBody {
   imageId: string
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
   if (!csrfResult.valid) return csrfResult.response!
 
   const internalSecret = request.headers.get('x-internal-secret')
-  if (!internalSecret || internalSecret !== process.env.INTERNAL_MODERATION_SECRET) {
+  if (!internalSecret || internalSecret !== serverEnv.INTERNAL_MODERATION_SECRET) {
     console.error('Unauthorized moderation check request', {
       hasHeader: Boolean(internalSecret),
       headerLength: internalSecret ? internalSecret.length : 0,
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY,
     { cookies: { getAll() { return [] }, setAll() {} } }
   )

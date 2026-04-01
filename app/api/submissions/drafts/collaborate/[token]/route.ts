@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { claimDraftInvite } from '@/features/submissions/server/drafts/draft-collaborators'
+import { serverEnv } from '@/lib/env'
 
 export async function GET(
   request: NextRequest,
@@ -11,8 +12,8 @@ export async function GET(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },

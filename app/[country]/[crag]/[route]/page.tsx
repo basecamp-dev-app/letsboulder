@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createServerClient } from '@supabase/ssr'
 import { SITE_URL } from '@/lib/site'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
+import { serverEnv } from '@/lib/env'
 
 export const revalidate = 60
 
@@ -66,8 +67,8 @@ interface RouteLineWithImage {
 
 async function getSupabase() {
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     { cookies: { getAll() { return [] }, setAll() {} } }
   )
 }

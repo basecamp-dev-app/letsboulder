@@ -4,13 +4,14 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { getMediaModerationConfig } from '@/lib/media/config'
 import { ensurePrivateObjectExists } from '@/lib/media/r2'
+import { serverEnv } from '@/lib/env'
 
 function createAuthedClient(request: NextRequest) {
   const cookies = request.cookies
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
@@ -42,8 +43,8 @@ async function enqueueMediaIngest(payload: {
   triggeredByUserId: string
   trigger: 'upload'
 }) {
-  const workerUrl = process.env.CF_MEDIA_WORKER_URL?.trim()
-  const workerSecret = process.env.CF_MEDIA_WORKER_SECRET?.trim()
+  const workerUrl = serverEnv.CF_MEDIA_WORKER_URL?.trim()
+  const workerSecret = serverEnv.CF_MEDIA_WORKER_SECRET?.trim()
 
   if (!workerUrl || !workerSecret) {
     throw new Error('Cloudflare media worker ingress is not configured')

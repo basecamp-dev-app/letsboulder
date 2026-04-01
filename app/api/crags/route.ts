@@ -7,6 +7,7 @@ import { makeUniqueSlug } from '@/lib/slug'
 import { revalidatePath } from 'next/cache'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { getBoundingBoxesForCountry, validateCoordinatesInBoundingBox } from '@/lib/geo/bounding-boxes'
+import { serverEnv } from '@/lib/env'
 
 interface CreateCragRequest {
   name: string
@@ -76,8 +77,8 @@ export async function GET(request: NextRequest) {
   const cookies = request.cookies
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     { cookies: { getAll() { return cookies.getAll() }, setAll() {} } }
   )
 
@@ -222,8 +223,8 @@ export async function POST(request: NextRequest) {
   const cookies = request.cookies
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     { cookies: { getAll() { return cookies.getAll() }, setAll() {} } }
   )
 
