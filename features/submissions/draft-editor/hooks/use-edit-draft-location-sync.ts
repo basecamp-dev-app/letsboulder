@@ -98,6 +98,57 @@ export function useEditDraftLocationSync({
   setSearchingLocation,
   setLocationSearchError,
 }: UseEditDraftLocationSyncParams) {
+  const patchDraftLocation = useCallback(async ({
+    expectedUpdatedAt,
+    latitudeValue,
+    longitudeValue,
+    nextRouteType,
+    nextCragId,
+  }: {
+    expectedUpdatedAt: string
+    latitudeValue: number
+    longitudeValue: number
+    nextRouteType: string
+    nextCragId: string | null
+  }) => {
+    const atlasForPatch = atlasSync.atlas
+    const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        expected_updated_at: expectedUpdatedAt,
+        images: imagesPayload,
+        metadata: {
+          submission: {
+            routeType: nextRouteType,
+            isAnonymousSubmission,
+            contributionCreditPlatform: creditPlatform,
+            contributionCreditHandle: creditHandle,
+            location: {
+              latitude: latitudeValue,
+              longitude: longitudeValue,
+              countryId: atlasForPatch?.countryId ?? null,
+              countryCode: atlasForPatch?.countryCode ?? null,
+              countryName: atlasForPatch?.countryName ?? null,
+              adminRegionName: atlasForPatch?.adminRegionName ?? null,
+              unRegionName: atlasForPatch?.unRegionName ?? null,
+              continentName: atlasForPatch?.continentName ?? null,
+            },
+          },
+        },
+        cragId: nextCragId,
+      }),
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (response.ok && payload?.draft?.updated_at) {
+      setDraftUpdatedAt(payload.draft.updated_at)
+      return { ok: true as const, updatedAt: payload.draft.updated_at as string }
+    }
+
+    return { ok: false as const, updatedAt: null }
+  }, [atlasSync.atlas, creditHandle, creditPlatform, draftId, imagesPayload, isAnonymousSubmission, setDraftUpdatedAt])
+
   const averagedRouteImageLocation = useMemo<[number, number] | null>(() => {
     const qualifyingCoordinates = mergedManageImages
       .filter((image) => {
@@ -193,47 +244,22 @@ export function useEditDraftLocationSync({
 
     const timer = window.setTimeout(async () => {
       lastLocationSyncRef.current = signature
-      const atlasForPatch = atlasSync.atlas
-
       const nextRouteType = !hasExplicitRouteType && nearbyCragDominantRouteType ? nearbyCragDominantRouteType : routeType
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          expected_updated_at: draftUpdatedAt,
-          images: imagesPayload,
-          metadata: {
-            submission: {
-              routeType: nextRouteType,
-              isAnonymousSubmission,
-              contributionCreditPlatform: creditPlatform,
-              contributionCreditHandle: creditHandle,
-              location: {
-                latitude: latitudeValue,
-                longitude: longitudeValue,
-                countryId: atlasForPatch?.countryId ?? null,
-                countryCode: atlasForPatch?.countryCode ?? null,
-                countryName: atlasForPatch?.countryName ?? null,
-                adminRegionName: atlasForPatch?.adminRegionName ?? null,
-                unRegionName: atlasForPatch?.unRegionName ?? null,
-                continentName: atlasForPatch?.continentName ?? null,
-              },
-            },
-          },
-          cragId: nextCragId,
-        }),
+      const result = await patchDraftLocation({
+        expectedUpdatedAt: draftUpdatedAt,
+        latitudeValue,
+        longitudeValue,
+        nextRouteType,
+        nextCragId,
       })
 
-      const payload = await response.json().catch(() => ({}))
-      if (response.ok && payload?.draft?.updated_at) {
-        setDraftUpdatedAt(payload.draft.updated_at)
-      } else {
+      if (!result.ok) {
         lastLocationSyncRef.current = null
       }
-      if (!hasExplicitRouteType && nearbyCragDominantRouteType && response.ok) {
+      if (!hasExplicitRouteType && nearbyCragDominantRouteType && result.ok) {
         setRouteType(nextRouteType)
       }
-      if (!cragId && nearbyCragId) {
+      if (!cragId && nearbyCragId && result.ok) {
         setCragId(nearbyCragId)
         setSelectedCrag((current) => current || {
           id: nearbyCragId,
@@ -248,7 +274,42 @@ export function useEditDraftLocationSync({
   // draftUpdatedAt and atlasSync.atlas are intentionally read at execution time
   // to avoid retriggering this sync effect after a successful PATCH.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cragId, draft, draftId, effectiveMarkerPosition, hasExplicitRouteType, imagesPayload.length, imagesPayloadSignature, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, hasHydratedLocationRef, routeType, setDraftUpdatedAt, setRouteType])
+  }, [cragId, draft, draftId, effectiveMarkerPosition, hasExplicitRouteType, imagesPayload.length, imagesPayloadSignature, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, hasHydratedLocationRef, patchDraftLocation, routeType, setDraftUpdatedAt, setRouteType])
+
+  useEffect(() => {
+    if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) return
+    if (cragId || !nearbyCragId) return
+
+    const latitudeValue = effectiveMarkerPosition[0]
+    const longitudeValue = effectiveMarkerPosition[1]
+    const nextRouteType = !hasExplicitRouteType && nearbyCragDominantRouteType ? nearbyCragDominantRouteType : routeType
+
+    const timer = window.setTimeout(async () => {
+      const result = await patchDraftLocation({
+        expectedUpdatedAt: draftUpdatedAt,
+        latitudeValue,
+        longitudeValue,
+        nextRouteType,
+        nextCragId: nearbyCragId,
+      })
+
+      if (!result.ok) return
+
+      setCragId(nearbyCragId)
+      setSelectedCrag((current) => current || {
+        id: nearbyCragId,
+        name: nearbyCragName || 'Suggested crag',
+        latitude: latitudeValue,
+        longitude: longitudeValue,
+      })
+
+      if (!hasExplicitRouteType && nearbyCragDominantRouteType) {
+        setRouteType(nextRouteType)
+      }
+    }, 200)
+
+    return () => window.clearTimeout(timer)
+  }, [cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, setCragId, setRouteType, setSelectedCrag])
 
   const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
     if (activeDraftImageId && activeImageLocationMode === 'custom') {
