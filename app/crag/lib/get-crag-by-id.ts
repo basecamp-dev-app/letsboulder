@@ -1,10 +1,11 @@
 import { cache } from 'react'
 import { createServerClient } from '@supabase/ssr'
+import { serverEnv } from '@/lib/env'
 
 export const getCragById = cache(async function getCragById(id: string) {
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     { cookies: { getAll() { return [] }, setAll() {} } }
   )
 

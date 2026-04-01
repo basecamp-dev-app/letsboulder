@@ -5,8 +5,9 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { createDraftInvite, listDraftCollaborators, revokeDraftInvite } from '@/features/submissions/server/drafts/draft-collaborators'
+import { serverEnv } from '@/lib/env'
 
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const SUPABASE_SERVICE_ROLE_KEY = serverEnv.SUPABASE_SERVICE_ROLE_KEY
 
 export async function GET(
   request: NextRequest,
@@ -14,8 +15,8 @@ export async function GET(
 ) {
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -26,7 +27,7 @@ export async function GET(
 
   const readClient = SUPABASE_SERVICE_ROLE_KEY
     ? createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
         SUPABASE_SERVICE_ROLE_KEY,
         { cookies: { getAll() { return [] }, setAll() {} } }
       )
@@ -58,8 +59,8 @@ export async function POST(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -99,8 +100,8 @@ export async function DELETE(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },

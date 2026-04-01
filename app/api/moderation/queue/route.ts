@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { serverEnv } from '@/lib/env'
 
 interface QueueItem {
   id: string
@@ -23,8 +24,8 @@ export async function GET(request: NextRequest) {
   const cragId = searchParams.get('crag_id')
 
   const supabase = await createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     { cookies: { getAll() { return [] }, setAll() {} } }
   )
 

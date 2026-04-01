@@ -5,6 +5,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import type { Database } from '@/types/database'
+import { serverEnv } from '@/lib/env'
 import {
   buildDraftConflictResponse,
   buildDraftImageProxyUrl,
@@ -18,7 +19,7 @@ import {
   type ProfileRow,
 } from '@/features/submissions/server/drafts/draft-route-shared'
 
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+const SUPABASE_SERVICE_ROLE_KEY = serverEnv.SUPABASE_SERVICE_ROLE_KEY
 
 interface DraftPatchBody {
   images: DraftPatchImage[]
@@ -57,8 +58,8 @@ export async function GET(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -162,8 +163,8 @@ export async function PATCH(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -378,8 +379,8 @@ export async function DELETE(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -390,7 +391,7 @@ export async function DELETE(
 
   const storageClient = SUPABASE_SERVICE_ROLE_KEY
     ? createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
         SUPABASE_SERVICE_ROLE_KEY,
         {
           cookies: {

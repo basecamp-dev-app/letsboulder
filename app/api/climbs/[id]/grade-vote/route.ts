@@ -6,6 +6,7 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { isValidGrade } from '@/lib/grade-constants'
 import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
+import { serverEnv } from '@/lib/env'
 
 export async function POST(
   request: NextRequest,
@@ -16,8 +17,8 @@ export async function POST(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -130,8 +131,8 @@ export async function DELETE(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },

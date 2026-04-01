@@ -7,6 +7,7 @@ import type { ClimbPackResponse, OfflineMapPin } from '@/lib/climb/queries'
 import { getDisplayImageId } from '@/lib/image-identity'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
+import { serverEnv } from '@/lib/env'
 
 interface ImageInfoRow {
   id: string
@@ -229,8 +230,8 @@ function buildPrimaryFallbackFace(primaryImage: ImageInfoRow): CompleteSummaryFa
 }
 
 function getAdminClient() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = serverEnv.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseUrl = serverEnv.NEXT_PUBLIC_SUPABASE_URL
 
   if (!serviceRoleKey || !supabaseUrl) {
     throw new Error('Supabase service role is not configured')

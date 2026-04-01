@@ -1,4 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr'
+import { clientEnv } from '@/lib/env-client'
 
 let browserClient: ReturnType<typeof createBrowserClient> | null = null
 
@@ -8,8 +9,8 @@ export function createClient() {
   }
 
   const client = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    clientEnv.NEXT_PUBLIC_SUPABASE_URL,
+    clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       auth: {
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,

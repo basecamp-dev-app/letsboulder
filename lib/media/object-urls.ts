@@ -1,3 +1,4 @@
+import { serverEnv } from '@/lib/env'
 import { createPrivateReadUrl, createPrivateReadUrls } from '@/lib/media/r2'
 
 export interface StorageObjectRef {
@@ -28,9 +29,7 @@ export function parsePrivateStorageUrl(url: string | null | undefined): StorageO
 }
 
 export function isR2ManagedBucket(bucket: string): boolean {
-  const privateBucket = process.env.R2_PRIVATE_BUCKET?.trim()
-  const publicBucket = process.env.R2_PUBLIC_BUCKET?.trim()
-  return bucket === privateBucket || bucket === publicBucket
+  return bucket === serverEnv.R2_PRIVATE_BUCKET || bucket === serverEnv.R2_PUBLIC_BUCKET
 }
 
 export async function createSignedObjectUrl(

@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { createServerClient } from '@supabase/ssr'
 import { BRAND_NAME } from '@/lib/site'
+import { serverEnv } from '@/lib/env'
 
 export const revalidate = 300
 export const size = {
@@ -53,8 +54,8 @@ export default async function OpenGraphImage({ params }: { params: Promise<Image
   }
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     { cookies: { getAll() { return [] }, setAll() {} } }
   )
 

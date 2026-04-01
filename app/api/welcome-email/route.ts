@@ -5,6 +5,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { buildWelcomeEmail } from '@/lib/email/welcome-email'
+import { serverEnv } from '@/lib/env'
 
 export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
@@ -13,8 +14,8 @@ export async function POST(request: NextRequest) {
   const cookies = request.cookies
 
   const authClient = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -48,8 +49,8 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.SUPABASE_SERVICE_ROLE_KEY,
     {
       cookies: {
         getAll() { return [] },
@@ -74,8 +75,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'Welcome email already sent' })
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const resendApiKey = process.env.RESEND_API_KEY
+    const appUrl = serverEnv.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const resendApiKey = serverEnv.RESEND_API_KEY
     const welcomeEmail = buildWelcomeEmail({ appUrl, firstName })
 
     if (!resendApiKey) {

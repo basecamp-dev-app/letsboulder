@@ -4,9 +4,10 @@ import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 import { createR2Client } from '@/lib/media/r2'
+import { serverEnv } from '@/lib/env'
 
 function buildCdnUrl(objectPath: string): string | null {
-  const cdnBaseUrl = process.env.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '')
+  const cdnBaseUrl = serverEnv.NEXT_PUBLIC_MEDIA_CDN_URL
   if (!cdnBaseUrl || !objectPath) return null
   const normalizedPath = objectPath.split('/').filter(Boolean).map((segment) => encodeURIComponent(segment)).join('/')
   return `${cdnBaseUrl}/${normalizedPath}`
@@ -106,8 +107,8 @@ async function transformImage(
 }
 
 function getServiceRoleClient() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = serverEnv.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseUrl = serverEnv.NEXT_PUBLIC_SUPABASE_URL
 
   if (!serviceRoleKey || !supabaseUrl) {
     throw new Error('Supabase service role is not configured')
@@ -131,7 +132,7 @@ async function streamToBuffer(stream: AsyncIterable<Uint8Array>): Promise<Buffer
 }
 
 function isR2ManagedBucket(bucket: string): boolean {
-  return bucket === process.env.R2_PRIVATE_BUCKET || bucket === process.env.R2_PUBLIC_BUCKET
+  return bucket === serverEnv.R2_PRIVATE_BUCKET || bucket === serverEnv.R2_PUBLIC_BUCKET
 }
 
 async function canReadObject(bucket: string, path: string, userId: string | null) {
@@ -314,8 +315,8 @@ export async function GET(
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },

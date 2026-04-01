@@ -4,6 +4,7 @@ import CragPageClient from '@/features/crags/components/CragPageClient'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import { getCragById } from '../lib/get-crag-by-id'
 import type { Crag } from '@/features/crags/lib/crag-page-types'
+import { serverEnv } from '@/lib/env'
 
 export const revalidate = 300
 
@@ -32,8 +33,8 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
   }
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     { cookies: { getAll() { return [] }, setAll() {} } }
   )
   const initialRouteData = await loadInitialCragRouteData(supabase as never, id, {

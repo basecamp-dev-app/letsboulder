@@ -5,6 +5,7 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
+import { serverEnv } from '@/lib/env'
 
 export const runtime = 'nodejs'
 
@@ -63,8 +64,8 @@ export async function GET(
   const { id: cragId } = await params
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -73,10 +74,10 @@ export async function GET(
     }
   )
 
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const serviceRoleKey = serverEnv.SUPABASE_SERVICE_ROLE_KEY
   const supabaseAdmin = serviceRoleKey
     ? createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
         serviceRoleKey,
         { cookies: { getAll() { return [] }, setAll() {} } }
       )
@@ -317,8 +318,8 @@ export async function POST(
   const { id: cragId } = await params
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { validateCsrfToken } from '@/lib/csrf'
+import { serverEnv } from '@/lib/env'
 
 export async function POST(request: NextRequest) {
   const csrfValid = await validateCsrfToken(request)
@@ -11,8 +12,8 @@ export async function POST(request: NextRequest) {
 
   const cookieStore = await cookies()
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {

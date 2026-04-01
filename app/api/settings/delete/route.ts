@@ -5,9 +5,10 @@ import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse, sanitizeError } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { serverEnv } from '@/lib/env'
 
 function getDeleteTokenSecret(): Uint8Array {
-  const secret = process.env.DELETE_ACCOUNT_SECRET
+  const secret = serverEnv.DELETE_ACCOUNT_SECRET
 
   if (secret) {
     return new TextEncoder().encode(secret)
@@ -47,8 +48,8 @@ export async function POST(request: NextRequest) {
 
   const cookies = request.cookies
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },
@@ -58,8 +59,8 @@ export async function POST(request: NextRequest) {
   )
 
   const supabaseAdmin = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.SUPABASE_SERVICE_ROLE_KEY,
     {
       cookies: {
         getAll() { return cookies.getAll() },

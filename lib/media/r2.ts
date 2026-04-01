@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { serverEnv } from '@/lib/env'
 import { getMediaStorageConfig } from '@/lib/media/config'
 
 const R2_REGION = 'auto'
@@ -7,14 +8,7 @@ const UPLOAD_URL_TTL_SECONDS = 900
 const READ_URL_TTL_SECONDS = 3600
 
 function getR2Credentials() {
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID?.trim()
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY?.trim()
-
-  if (!accessKeyId || !secretAccessKey) {
-    throw new Error('Missing R2 credentials')
-  }
-
-  return { accessKeyId, secretAccessKey }
+  return { accessKeyId: serverEnv.R2_ACCESS_KEY_ID, secretAccessKey: serverEnv.R2_SECRET_ACCESS_KEY }
 }
 
 export function createR2Client(): S3Client {

@@ -6,6 +6,7 @@ import CragPageClient from '@/features/crags/components/CragPageClient'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import CragStructuredData from '@/features/crags/components/CragStructuredData'
 import type { BreadcrumbItem, Crag } from '@/features/crags/lib/crag-page-types'
+import { serverEnv } from '@/lib/env'
 
 export const revalidate = 60
 
@@ -65,8 +66,8 @@ interface CragSlugRow {
 
 async function getSupabase() {
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     { cookies: { getAll() { return [] }, setAll() {} } }
   )
 }

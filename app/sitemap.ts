@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { createServerClient } from '@supabase/ssr'
 import { SITE_URL } from '@/lib/site'
+import { serverEnv } from '@/lib/env'
 
 export const revalidate = 3600
 
@@ -27,8 +28,8 @@ interface SitemapClimbRow {
 
 function getSupabase() {
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     { cookies: { getAll() { return [] }, setAll() {} } }
   )
 }

@@ -1,13 +1,15 @@
+import { clientEnv } from '@/lib/env-client'
+
 const PRIVATE_URL_PREFIX = 'private://'
 
 function buildMediaHostUrl(path: string): string {
-  const cdnUrl = process.env.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '')
+  const cdnUrl = clientEnv.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '')
   if (!cdnUrl) return path
   return `${cdnUrl}${path}`
 }
 
 function buildCdnUrl(objectPath: string): string | null {
-  const cdnBaseUrl = process.env.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '')
+  const cdnBaseUrl = clientEnv.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '')
   if (!cdnBaseUrl || !objectPath) return null
   const normalizedPath = objectPath.split('/').filter(Boolean).map((segment) => encodeURIComponent(segment)).join('/')
   return `${cdnBaseUrl}/${normalizedPath}`

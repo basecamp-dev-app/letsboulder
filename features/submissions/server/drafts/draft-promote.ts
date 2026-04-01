@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
+import { serverEnv } from '@/lib/env'
 import { createErrorResponse } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
 import { getMediaModerationConfig } from '@/lib/media/config'
 import { isPermissionDeniedError, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
 
-const INTERNAL_MODERATION_SECRET = process.env.INTERNAL_MODERATION_SECRET
+const INTERNAL_MODERATION_SECRET = serverEnv.INTERNAL_MODERATION_SECRET
 
 interface PromoteResult {
   success?: boolean
