@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { normalizeDraftMetadata, type OrientationDirection } from '@/features/submissions/lib/draft-metadata'
 import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
-import { buildRouteCompletionPayload, buildRouteWorkflowSignature, parseSerializedRouteData } from '@/features/route-editor/route-editor-utils'
+import { parseSerializedRouteData } from '@/features/route-editor/route-editor-utils'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import type {
   CanvasSourceMetadata,
@@ -26,8 +26,6 @@ interface UseEditDraftDataParams {
   setLatitude: (value: string) => void
   setLongitude: (value: string) => void
   setShowCragSelector: (value: boolean) => void
-  clearAutosave: () => void
-  resetAutosaveState: () => void
 }
 
 export function useEditDraftData({
@@ -39,8 +37,6 @@ export function useEditDraftData({
   setLatitude,
   setLongitude,
   setShowCragSelector,
-  clearAutosave,
-  resetAutosaveState,
 }: UseEditDraftDataParams) {
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [, setIsRefreshingDraft] = useState(false)
@@ -69,9 +65,6 @@ export function useEditDraftData({
   const draftRef = useRef<DraftPayload | null>(null)
   const uploadsRef = useRef<MediaUploadItem[]>([])
   const hasLoadedRoutesRef = useRef(false)
-  const lastPersistedRoutesRef = useRef('')
-  const autosavePausedRef = useRef(false)
-  const autosavePausedSnapshotRef = useRef('')
   const hasHydratedLocationRef = useRef(false)
   const lastLocationSyncRef = useRef<string | null>(null)
   const loadDraftRef = useRef<() => Promise<void>>(undefined)
@@ -187,31 +180,7 @@ export function useEditDraftData({
       hasLoadedRoutesRef.current = true
 
       const savedCanvasSource = canvasMetadata.submission?.canvasSource
-      lastPersistedRoutesRef.current = buildRouteWorkflowSignature({
-        imagesPayloadSignature: JSON.stringify(buildRouteCompletionPayload(nextDraft.images, nextRoutesByImageId, normalizedRouteType, nextManageImages.map((image) => image.imageId))),
-        defaultImageId: nextDefaultImageId,
-        routeType: normalizedRouteType,
-        markerLatitude: typeof metadataLatitude === 'number' ? metadataLatitude : null,
-        markerLongitude: typeof metadataLongitude === 'number' ? metadataLongitude : null,
-        cragId: nextDraft.crag_id,
-        isAnonymousSubmission: normalizedAnonymousSubmission,
-        creditPlatform: normalizedCreditPlatform || 'instagram',
-        creditHandle: normalizedCreditHandle,
-        sectorId,
-        canvasSource: savedCanvasSource?.kind === 'crag-image'
-          ? { kind: 'crag-image', cragImageId: savedCanvasSource.cragImageId, cragId: savedCanvasSource.cragId }
-          : savedCanvasSource?.kind === 'draft-image'
-            ? { kind: 'draft-image', draftImageId: savedCanvasSource.draftImageId }
-            : null,
-        orientationByImageId: nextOrientationByImageId,
-        locationModeByImageId: nextLocationModeByImageId,
-        customGpsByImageId: nextCustomGpsByImageId,
-      })
 
-      autosavePausedRef.current = false
-      autosavePausedSnapshotRef.current = ''
-      clearAutosave()
-      resetAutosaveState()
       setRouteType(normalizedRouteType)
       setCreditPlatform(normalizedCreditPlatform || 'instagram')
       setCreditHandle(normalizedCreditHandle)
@@ -264,7 +233,7 @@ export function useEditDraftData({
         setIsRefreshingDraft(false)
       }
     }
-  }, [clearAutosave, clearConflict, registerDraftUpdatedAt, resetAutosaveState, sectorId, setLatitude, setLongitude, setShowCragSelector])
+  }, [clearConflict, registerDraftUpdatedAt, sectorId, setLatitude, setLongitude, setShowCragSelector])
 
   const syncUploadedImages = useCallback(async () => {
     const currentDraftId = draftIdRef.current
@@ -404,9 +373,6 @@ export function useEditDraftData({
     syncUploadedImages,
     draftIdRef,
     hasLoadedRoutesRef,
-    lastPersistedRoutesRef,
-    autosavePausedRef,
-    autosavePausedSnapshotRef,
     hasHydratedLocationRef,
     lastLocationSyncRef,
   }

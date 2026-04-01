@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-utils'
 import { haveStoredRoutesChanged } from '@/features/editor/route-store-sync'
-import { csrfFetch } from '@/hooks/useCsrf'
 import type { EditableRoute } from '@/features/submissions/lib/editor-types'
 import type { RouteLine } from '@/features/submissions/lib/submission-types'
 import type { DraftRoute } from '@/features/submissions/draft-editor/lib/edit-draft-types'
@@ -11,10 +10,6 @@ import type { DraftRoute } from '@/features/submissions/draft-editor/lib/edit-dr
 interface UseEditDraftRouteSyncParams {
   activeDraftImageId: string | null
   routeType: string
-  draftIdRef: React.MutableRefObject<string>
-  registerDraftUpdatedAt: (draftId: string, updatedAt: string) => void
-  setAutosaveState: (value: 'idle' | 'pending' | 'saving' | 'syncing' | 'saved') => void
-  setDraftUpdatedAt: (value: string | null) => void
   routeStoreRoutes: RouteLine[]
   existingRouteLines: RouteLine[]
   setRouteStoreRoutes: (routes: RouteLine[]) => void
@@ -24,10 +19,6 @@ interface UseEditDraftRouteSyncParams {
 export function useEditDraftRouteSync({
   activeDraftImageId,
   routeType,
-  draftIdRef,
-  registerDraftUpdatedAt,
-  setAutosaveState,
-  setDraftUpdatedAt,
   routeStoreRoutes,
   existingRouteLines,
   setRouteStoreRoutes,
@@ -36,46 +27,9 @@ export function useEditDraftRouteSync({
   const lastSeededRouteImageIdRef = useRef<string | null>(null)
   const skipRouteStoreSyncRef = useRef<string | null>(null)
 
-  const scheduleDraftPersist = useCallback((nextRoutesByImageId: Record<string, DraftRoute[]>) => {
-    const currentDraftId = draftIdRef.current
-    if (!currentDraftId || !activeDraftImageId) return
-
-    const currentImageRoutes = nextRoutesByImageId[activeDraftImageId] || []
-    setAutosaveState('saving')
-    void csrfFetch(`/api/submissions/drafts/${currentDraftId}/routes`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        draftImageId: activeDraftImageId,
-        routes: currentImageRoutes.map((route, index) => ({
-          id: route.id,
-          name: route.name,
-          grade: route.grade,
-          description: route.description,
-          climbType: route.climbType || routeType,
-          points: route.points,
-          sequenceOrder: index,
-          imageWidth: route.imageWidth,
-          imageHeight: route.imageHeight,
-        })),
-      }),
-    })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({} as { result?: { updated_at?: string } }))
-        if (!response.ok) {
-          throw new Error('Failed to sync draft routes')
-        }
-        const nextUpdatedAt = payload.result?.updated_at
-        if (typeof nextUpdatedAt === 'string' && nextUpdatedAt) {
-          setDraftUpdatedAt(nextUpdatedAt)
-          registerDraftUpdatedAt(currentDraftId, nextUpdatedAt)
-        }
-        setAutosaveState('saved')
-      })
-      .catch(() => {
-        setAutosaveState('idle')
-      })
-  }, [activeDraftImageId, draftIdRef, registerDraftUpdatedAt, routeType, setAutosaveState, setDraftUpdatedAt])
+  const scheduleDraftPersist = useCallback(() => {
+    // Routes are persisted when the user clicks "Save draft"
+  }, [])
 
   const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
     if (!activeDraftImageId) return
@@ -104,7 +58,7 @@ export function useEditDraftRouteSync({
         [activeDraftImageId]: mapped,
       }
 
-      scheduleDraftPersist(nextRoutesByImageId)
+      scheduleDraftPersist()
       return nextRoutesByImageId
     })
   }, [activeDraftImageId, routeType, scheduleDraftPersist, setRoutesByImageId])
