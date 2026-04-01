@@ -113,6 +113,39 @@ export function extractDraftLocation(metadata: unknown) {
   return { latitude, longitude }
 }
 
+export function hasValidDraftCoordinate(latitude: number | null, longitude: number | null): latitude is number {
+  return typeof latitude === 'number'
+    && Number.isFinite(latitude)
+    && latitude >= -90
+    && latitude <= 90
+    && typeof longitude === 'number'
+    && Number.isFinite(longitude)
+    && longitude >= -180
+    && longitude <= 180
+    && !(latitude === 0 && longitude === 0)
+}
+
+export function resolveEffectiveDraftPublishLocation(
+  metadata: unknown,
+  draftImages: Array<Pick<DraftImageRow, 'latitude' | 'longitude'>>,
+) {
+  const draftLocation = extractDraftLocation(metadata)
+  if (hasValidDraftCoordinate(draftLocation.latitude, draftLocation.longitude)) {
+    return draftLocation
+  }
+
+  for (const image of draftImages) {
+    if (hasValidDraftCoordinate(image.latitude, image.longitude)) {
+      return {
+        latitude: image.latitude,
+        longitude: image.longitude,
+      }
+    }
+  }
+
+  return { latitude: null, longitude: null }
+}
+
 export function normalizeJsonRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   return value as Record<string, unknown>
