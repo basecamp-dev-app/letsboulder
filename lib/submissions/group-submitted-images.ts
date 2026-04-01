@@ -33,6 +33,35 @@ interface SubmissionGroupAggregate {
   has_published_image: boolean
 }
 
+class LinkedImageGroups {
+  private parent = new Map<string, string>()
+
+  add(id: string) {
+    if (!this.parent.has(id)) this.parent.set(id, id)
+  }
+
+  find(id: string): string {
+    const existing = this.parent.get(id)
+    if (!existing) {
+      this.parent.set(id, id)
+      return id
+    }
+    if (existing === id) return id
+    const root = this.find(existing)
+    this.parent.set(id, root)
+    return root
+  }
+
+  union(a: string, b: string) {
+    const rootA = this.find(a)
+    const rootB = this.find(b)
+    if (rootA === rootB) return
+    const canonicalRoot = rootA.localeCompare(rootB) <= 0 ? rootA : rootB
+    const otherRoot = canonicalRoot === rootA ? rootB : rootA
+    this.parent.set(otherRoot, canonicalRoot)
+  }
+}
+
 function toSubmittedStatus(moderationStatus: string | null | undefined): 'pending_review' | 'published' {
   return moderationStatus === 'approved' ? 'published' : 'pending_review'
 }
@@ -51,14 +80,10 @@ function pickRouteLinesCount(value: SubmissionImageRow['route_lines']): number {
 function resolveGroupKey(
   imageId: string,
   submissionId: string | null | undefined,
-  linkedImageToSourceMap: Map<string, string>,
-  sourceImageIds: Set<string>
+  linkedGroups: LinkedImageGroups
 ): string {
   if (typeof submissionId === 'string' && submissionId) return submissionId
-  const sourceImageId = linkedImageToSourceMap.get(imageId)
-  if (sourceImageId) return sourceImageId
-  if (sourceImageIds.has(imageId)) return imageId
-  return imageId
+  return linkedGroups.find(imageId)
 }
 
 export function groupSubmittedImages(
@@ -68,27 +93,27 @@ export function groupSubmittedImages(
   if (rows.length === 0) return []
 
   const rowByImageId = new Map(rows.map((row) => [row.id, row]))
-  const linkedImageToSourceMap = new Map<string, string>()
-  const sourceImageIds = new Set<string>()
+  const linkedGroups = new LinkedImageGroups()
+
+  for (const row of rows) {
+    linkedGroups.add(row.id)
+  }
 
   for (const link of links) {
-    if (typeof link.source_image_id === 'string' && link.source_image_id) {
-      sourceImageIds.add(link.source_image_id)
-    }
     if (
-      typeof link.linked_image_id === 'string' &&
-      link.linked_image_id &&
       typeof link.source_image_id === 'string' &&
-      link.source_image_id
+      link.source_image_id &&
+      typeof link.linked_image_id === 'string' &&
+      link.linked_image_id
     ) {
-      linkedImageToSourceMap.set(link.linked_image_id, link.source_image_id)
+      linkedGroups.union(link.source_image_id, link.linked_image_id)
     }
   }
 
   const grouped = new Map<string, SubmissionGroupAggregate>()
 
   for (const row of rows) {
-    const groupKey = resolveGroupKey(row.id, row.submission_id, linkedImageToSourceMap, sourceImageIds)
+    const groupKey = resolveGroupKey(row.id, row.submission_id, linkedGroups)
     const existing = grouped.get(groupKey)
     const routeLinesCount = pickRouteLinesCount(row.route_lines)
     const cragName = pickCragName(row.crags)
