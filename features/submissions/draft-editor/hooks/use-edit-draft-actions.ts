@@ -92,6 +92,57 @@ export function useEditDraftActions({
   const [publishingDraft, setPublishingDraft] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
 
+  const buildSavePayload = useCallback((resolvedRoutesByImageId: Record<string, DraftRoute[]>, resolvedCragId: string | null) => {
+    const nextImagesPayload = buildRouteCompletionPayload(draft?.images || [], resolvedRoutesByImageId, routeType, manageImages.map((image) => image.imageId))
+    const normalizedHandle = normalizeSubmissionCreditHandle(creditHandle)
+    if (creditHandle.trim().length > 0 && !normalizedHandle) {
+      throw new Error('Invalid credit handle format')
+    }
+
+    const fullV2Metadata = serializeDraftMetadataV2({
+      version: 2,
+      navigation: { defaultImageId },
+      images: nextImagesPayload.reduce<Record<string, { imageId: string; displayOrder: number; orientation?: OrientationDirection[]; locationMode: 'shared' | 'custom'; gps: { latitude: number | null; longitude: number | null } }>>((acc, image) => {
+        acc[image.id] = {
+          imageId: image.id,
+          displayOrder: image.display_order,
+          orientation: orientationByImageId[image.id] || [],
+          locationMode: locationModeByImageId[image.id] === 'custom' ? 'custom' : 'shared',
+          gps: {
+            latitude: customGpsByImageId[image.id]?.latitude ?? null,
+            longitude: customGpsByImageId[image.id]?.longitude ?? null,
+          },
+        }
+        return acc
+      }, {}),
+      submission: {
+        routeType,
+        location: {
+          latitude: markerPosition ? markerPosition[0] : null,
+          longitude: markerPosition ? markerPosition[1] : null,
+        },
+        isAnonymousSubmission,
+        contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
+        contributionCreditHandle: normalizedHandle,
+        sectorId,
+        canvasSource: canvasSource?.kind === 'crag-image'
+          ? { kind: 'crag-image', cragImageId: canvasSource.cragImageId, cragId: canvasSource.cragId }
+          : canvasSource?.kind === 'draft-image'
+            ? { kind: 'draft-image', draftImageId: canvasSource.draftImageId }
+            : null,
+      },
+    })
+
+    return {
+      savePayload: {
+        images: nextImagesPayload,
+        cragId: resolvedCragId,
+        metadata: fullV2Metadata as unknown as Record<string, unknown>,
+      } satisfies DraftSavePayload,
+      fullV2Metadata,
+    }
+  }, [canvasSource, creditHandle, creditPlatform, customGpsByImageId, defaultImageId, draft?.images, isAnonymousSubmission, locationModeByImageId, manageImages, markerPosition, orientationByImageId, routeType, sectorId])
+
   const publishValidationMessage = useMemo(() => {
     const missingItems: string[] = []
 
@@ -128,81 +179,48 @@ export function useEditDraftActions({
     setSuccess(null)
 
     try {
-      const nextImagesPayload = buildRouteCompletionPayload(draft.images, resolvedRoutesByImageId, routeType, manageImages.map((image) => image.imageId))
-      const normalizedHandle = normalizeSubmissionCreditHandle(creditHandle)
-      if (creditHandle.trim().length > 0 && !normalizedHandle) {
-        throw new Error('Invalid credit handle format')
-      }
-
-      const fullV2Metadata = serializeDraftMetadataV2({
-        version: 2,
-        navigation: { defaultImageId },
-        images: nextImagesPayload.reduce<Record<string, { imageId: string; displayOrder: number; orientation?: OrientationDirection[]; locationMode: 'shared' | 'custom'; gps: { latitude: number | null; longitude: number | null } }>>((acc, image) => {
-          acc[image.id] = {
-            imageId: image.id,
-            displayOrder: image.display_order,
-            orientation: orientationByImageId[image.id] || [],
-            locationMode: locationModeByImageId[image.id] === 'custom' ? 'custom' : 'shared',
-            gps: {
-              latitude: customGpsByImageId[image.id]?.latitude ?? null,
-              longitude: customGpsByImageId[image.id]?.longitude ?? null,
-            },
-          }
-          return acc
-        }, {}),
-        submission: {
-          routeType,
-          location: {
-            latitude: markerPosition ? markerPosition[0] : null,
-            longitude: markerPosition ? markerPosition[1] : null,
-          },
-          isAnonymousSubmission,
-          contributionCreditPlatform: normalizedHandle ? creditPlatform : null,
-          contributionCreditHandle: normalizedHandle,
-          sectorId,
-          canvasSource: canvasSource?.kind === 'crag-image'
-            ? { kind: 'crag-image', cragImageId: canvasSource.cragImageId, cragId: canvasSource.cragId }
-            : canvasSource?.kind === 'draft-image'
-              ? { kind: 'draft-image', draftImageId: canvasSource.draftImageId }
-              : null,
-        },
-      })
-
-      const savePayload: DraftSavePayload = {
-        images: nextImagesPayload,
-        cragId: resolvedCragId,
-        metadata: fullV2Metadata as unknown as Record<string, unknown>,
-      }
-
-      const response = await csrfFetch(`/api/submissions/drafts/${draft.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...savePayload, expected_updated_at: draftUpdatedAt }),
-      })
-
-      const payload = await response.json().catch(() => ({} as {
+      const { savePayload, fullV2Metadata } = buildSavePayload(resolvedRoutesByImageId, resolvedCragId)
+      let expectedUpdatedAt = draftUpdatedAt
+      let response: Response | null = null
+      let payload: {
         error?: string
         code?: string
         draft?: { updated_at?: string }
         current_updated_at?: string
         current_data?: { last_updated_by?: string | null; last_updated_by_display_name?: string | null }
-      }))
+      } = {}
 
-      if (!response.ok) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        response = await csrfFetch(`/api/submissions/drafts/${draft.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...savePayload, expected_updated_at: expectedUpdatedAt }),
+        })
+
+        payload = await response.json().catch(() => ({}))
+
+        if (response.ok) break
         if (response.status === 409 && payload.code === 'draft_conflict') {
           const conflictPayload = payload as DraftConflictResponse
           const isSelfConflict = conflictPayload.current_data?.last_updated_by === currentUserId
-          if (isSelfConflict) {
+          if (isSelfConflict && attempt === 0) {
+            expectedUpdatedAt = conflictPayload.current_updated_at
             setDraftUpdatedAt(conflictPayload.current_updated_at)
+            continue
+          }
+          if (!isSelfConflict) {
+            setConflict({
+              serverUpdatedAt: conflictPayload.current_updated_at,
+              lastEditorName: conflictPayload.current_data?.last_updated_by_display_name || 'Another collaborator',
+              pendingChanges: savePayload,
+            })
             return false
           }
-          setConflict({
-            serverUpdatedAt: conflictPayload.current_updated_at,
-            lastEditorName: conflictPayload.current_data?.last_updated_by_display_name || 'Another collaborator',
-            pendingChanges: savePayload,
-          })
-          return false
         }
+        throw new Error(payload.error || 'Failed to save draft')
+      }
+
+      if (!response?.ok) {
         throw new Error(payload.error || 'Failed to save draft')
       }
 
@@ -222,7 +240,7 @@ export function useEditDraftActions({
     } finally {
       setSavingDraft(false)
     }
-  }, [canvasSource, cragId, creditHandle, creditPlatform, currentUserId, customGpsByImageId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, locationModeByImageId, manageImages, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess])
+  }, [buildSavePayload, cragId, currentUserId, draft, draftUpdatedAt, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess])
 
   const handleDeleteDraft = useCallback(async () => {
     if (!draftId || !isOwner) return
