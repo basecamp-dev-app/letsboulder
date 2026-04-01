@@ -1,10 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type RefObject } from 'react'
+import { useCallback, useMemo, useState, type RefObject } from 'react'
 import { useRouter } from 'next/navigation'
 import { serializeDraftMetadataV2, type OrientationDirection } from '@/features/submissions/lib/draft-metadata'
 import { normalizeSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
-import { buildRouteCompletionPayload, buildRouteWorkflowSignature } from '@/features/route-editor/route-editor-utils'
+import { buildRouteCompletionPayload } from '@/features/route-editor/route-editor-utils'
 import { csrfFetch } from '@/hooks/useCsrf'
 import type { DraftConflictState } from '@/features/submissions/draft-editor/hooks/use-draft-conflict-resolution'
 import type { DraftCanvasSource, DraftConflictResponse, DraftPayload, DraftRoute, DraftSavePayload, ManageImageTab } from '@/features/submissions/draft-editor/lib/edit-draft-types'
@@ -30,19 +30,11 @@ interface UseEditDraftActionsParams {
   locationModeByImageId: Record<string, 'shared' | 'custom'>
   customGpsByImageId: Record<string, { latitude: number | null; longitude: number | null }>
   markerPosition: [number, number] | null
-  imagesPayloadSignature: string
-  autosavePausedRef: MutableRefObject<boolean>
-  autosavePausedSnapshotRef: MutableRefObject<string>
-  hasLoadedRoutesRef: MutableRefObject<boolean>
-  lastPersistedRoutesRef: MutableRefObject<string>
   publishRequirementsRef: RefObject<HTMLDivElement | null>
   cragSectionRef: RefObject<HTMLDivElement | null>
   locationSectionRef: RefObject<HTMLDivElement | null>
-  hasInFlightDraftUploads: boolean
   hasPendingUploads: (draftId: string) => boolean
   hasFailedUploads: (draftId: string) => boolean
-  isInitialLoading: boolean
-  conflict: DraftConflictState | null
   defaultImageTab: ManageImageTab | null
   defaultImageRoutesLength: number
   hasValidLocation: boolean
@@ -77,19 +69,11 @@ export function useEditDraftActions({
   locationModeByImageId,
   customGpsByImageId,
   markerPosition,
-  imagesPayloadSignature,
-  autosavePausedRef,
-  autosavePausedSnapshotRef,
-  hasLoadedRoutesRef,
-  lastPersistedRoutesRef,
   publishRequirementsRef,
   cragSectionRef,
   locationSectionRef,
-  hasInFlightDraftUploads,
   hasPendingUploads,
   hasFailedUploads,
-  isInitialLoading,
-  conflict,
   defaultImageTab,
   defaultImageRoutesLength,
   hasValidLocation,
@@ -104,28 +88,9 @@ export function useEditDraftActions({
   setActiveImageId,
 }: UseEditDraftActionsParams) {
   const router = useRouter()
-  const autosaveTimeoutRef = useRef<number | null>(null)
   const [savingDraft, setSavingDraft] = useState(false)
   const [publishingDraft, setPublishingDraft] = useState(false)
-  const [autosaveState, setAutosaveState] = useState<'idle' | 'pending' | 'saving' | 'syncing' | 'saved'>('idle')
   const [publishAttempted, setPublishAttempted] = useState(false)
-
-  const autosaveSignature = useMemo(() => buildRouteWorkflowSignature({
-    imagesPayloadSignature,
-    defaultImageId,
-    routeType,
-    markerLatitude: markerPosition ? markerPosition[0] : null,
-    markerLongitude: markerPosition ? markerPosition[1] : null,
-    cragId,
-    isAnonymousSubmission,
-    creditPlatform,
-    creditHandle,
-    sectorId,
-    canvasSource,
-    orientationByImageId,
-    locationModeByImageId,
-    customGpsByImageId,
-  }), [canvasSource, creditHandle, creditPlatform, cragId, customGpsByImageId, defaultImageId, imagesPayloadSignature, isAnonymousSubmission, locationModeByImageId, markerPosition, orientationByImageId, routeType, sectorId])
 
   const publishValidationMessage = useMemo(() => {
     const missingItems: string[] = []
@@ -153,24 +118,14 @@ export function useEditDraftActions({
     return missingItems.length > 0 ? `Before publishing, ${missingItems.join(', ')}.` : null
   }, [cragId, defaultImageRoutesLength, defaultImageTab, draftId, hasFailedUploads, hasPendingUploads, hasValidLocation])
 
-  const saveDraft = useCallback(async (options?: { silent?: boolean; overrideRoutesByImageId?: Record<string, DraftRoute[]>; overrideCragId?: string | null }) => {
-    const silent = options?.silent === true
+  const saveDraft = useCallback(async (options?: { overrideRoutesByImageId?: Record<string, DraftRoute[]>; overrideCragId?: string | null }) => {
     const resolvedRoutesByImageId = options?.overrideRoutesByImageId ?? routesByImageId
     const resolvedCragId = options?.overrideCragId ?? cragId
     if (!draft || !draftUpdatedAt) return false
 
-    if (autosaveTimeoutRef.current) {
-      window.clearTimeout(autosaveTimeoutRef.current)
-      autosaveTimeoutRef.current = null
-    }
-
     setSavingDraft(true)
-    if (silent) {
-      setAutosaveState('saving')
-    } else {
-      setError(null)
-      setSuccess(null)
-    }
+    setError(null)
+    setSuccess(null)
 
     try {
       const nextImagesPayload = buildRouteCompletionPayload(draft.images, resolvedRoutesByImageId, routeType, manageImages.map((image) => image.imageId))
@@ -237,36 +192,8 @@ export function useEditDraftActions({
         if (response.status === 409 && payload.code === 'draft_conflict') {
           const conflictPayload = payload as DraftConflictResponse
           const isSelfConflict = conflictPayload.current_data?.last_updated_by === currentUserId
-          if (silent || isSelfConflict) {
-            if (autosaveTimeoutRef.current) {
-              window.clearTimeout(autosaveTimeoutRef.current)
-              autosaveTimeoutRef.current = null
-            }
+          if (isSelfConflict) {
             setDraftUpdatedAt(conflictPayload.current_updated_at)
-            if (silent) {
-              setAutosaveState('syncing')
-              if (!isSelfConflict) {
-                autosavePausedRef.current = true
-                autosavePausedSnapshotRef.current = buildRouteWorkflowSignature({
-                  imagesPayloadSignature: JSON.stringify(buildRouteCompletionPayload(draft.images, resolvedRoutesByImageId, routeType, manageImages.map((image) => image.imageId))),
-                  defaultImageId,
-                  routeType,
-                  markerLatitude: markerPosition ? markerPosition[0] : null,
-                  markerLongitude: markerPosition ? markerPosition[1] : null,
-                  cragId: resolvedCragId,
-                  isAnonymousSubmission,
-                  creditPlatform,
-                  creditHandle: normalizedHandle,
-                  sectorId,
-                  canvasSource,
-                  orientationByImageId,
-                  locationModeByImageId,
-                  customGpsByImageId,
-                })
-              }
-            } else {
-              setAutosaveState('idle')
-            }
             return false
           }
           setConflict({
@@ -286,40 +213,16 @@ export function useEditDraftActions({
         metadata: { ...fullV2Metadata },
       } : prev)
       setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
-      lastPersistedRoutesRef.current = buildRouteWorkflowSignature({
-        imagesPayloadSignature: JSON.stringify(savePayload.images),
-        defaultImageId,
-        routeType,
-        markerLatitude: markerPosition ? markerPosition[0] : null,
-        markerLongitude: markerPosition ? markerPosition[1] : null,
-        cragId: resolvedCragId,
-        isAnonymousSubmission,
-        creditPlatform,
-        creditHandle: normalizedHandle,
-        sectorId,
-        canvasSource,
-        orientationByImageId,
-        locationModeByImageId,
-        customGpsByImageId,
-      })
       setConflict(null)
-      if (silent) {
-        setAutosaveState('saved')
-      } else {
-        setAutosaveState('idle')
-        setSuccess('Draft saved. Not published to the map.')
-      }
+      setSuccess('Draft saved. Not published to the map.')
       return true
     } catch (saveError) {
-      setAutosaveState('idle')
-      if (!silent) {
-        setError(saveError instanceof Error ? saveError.message : 'Failed to save draft')
-      }
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save draft')
       return false
     } finally {
       setSavingDraft(false)
     }
-  }, [canvasSource, cragId, creditHandle, creditPlatform, currentUserId, customGpsByImageId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, locationModeByImageId, manageImages, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, autosavePausedRef, autosavePausedSnapshotRef, lastPersistedRoutesRef])
+  }, [canvasSource, cragId, creditHandle, creditPlatform, currentUserId, customGpsByImageId, defaultImageId, draft, draftUpdatedAt, isAnonymousSubmission, locationModeByImageId, manageImages, markerPosition, orientationByImageId, routeType, routesByImageId, sectorId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess])
 
   const handleDeleteDraft = useCallback(async () => {
     if (!draftId || !isOwner) return
@@ -338,73 +241,12 @@ export function useEditDraftActions({
 
   const persistMetadataImmediately = useCallback((applyChange: () => void) => {
     applyChange()
-
-    if (autosaveTimeoutRef.current) {
-      window.clearTimeout(autosaveTimeoutRef.current)
-      autosaveTimeoutRef.current = null
-    }
-
-    setAutosaveState('saving')
-    window.setTimeout(() => {
-      void saveDraft({ silent: true })
-    }, 0)
-  }, [saveDraft])
-
-  const handleManualSave = useCallback(() => {
-    if (autosaveTimeoutRef.current) {
-      window.clearTimeout(autosaveTimeoutRef.current)
-      autosaveTimeoutRef.current = null
-    }
     void saveDraft()
   }, [saveDraft])
 
-  useEffect(() => {
-    if (!hasLoadedRoutesRef.current) return
-    if (!draft || !draftUpdatedAt) return
-    if (isInitialLoading || publishingDraft || savingDraft || !!conflict) return
-    if (hasInFlightDraftUploads) return
-
-    if (autosavePausedRef.current) {
-      if (autosaveSignature === autosavePausedSnapshotRef.current) {
-        return
-      }
-      autosavePausedRef.current = false
-      autosavePausedSnapshotRef.current = ''
-    }
-
-    if (autosaveSignature === lastPersistedRoutesRef.current) {
-      if (autosaveState === 'pending' || autosaveState === 'syncing') {
-        setAutosaveState('idle')
-      }
-      return
-    }
-
-    if (autosaveTimeoutRef.current) {
-      window.clearTimeout(autosaveTimeoutRef.current)
-    }
-
-    setAutosaveState('pending')
-    autosaveTimeoutRef.current = window.setTimeout(() => {
-      autosaveTimeoutRef.current = null
-      void saveDraft({ silent: true })
-    }, 1500)
-
-    return () => {
-      if (autosaveTimeoutRef.current) {
-        window.clearTimeout(autosaveTimeoutRef.current)
-        autosaveTimeoutRef.current = null
-      }
-    }
-  }, [autosaveSignature, autosaveState, conflict, draft, draftUpdatedAt, hasInFlightDraftUploads, isInitialLoading, lastPersistedRoutesRef, publishingDraft, saveDraft, savingDraft, autosavePausedRef, autosavePausedSnapshotRef, hasLoadedRoutesRef])
-
-  useEffect(() => {
-    return () => {
-      if (autosaveTimeoutRef.current) {
-        window.clearTimeout(autosaveTimeoutRef.current)
-        autosaveTimeoutRef.current = null
-      }
-    }
-  }, [])
+  const handleManualSave = useCallback(() => {
+    void saveDraft()
+  }, [saveDraft])
 
   const publishDraft = useCallback(async () => {
     if (!draft || !isOwner) return
@@ -433,11 +275,6 @@ export function useEditDraftActions({
     }
 
     setPublishAttempted(false)
-
-    if (autosaveTimeoutRef.current) {
-      window.clearTimeout(autosaveTimeoutRef.current)
-      autosaveTimeoutRef.current = null
-    }
 
     setPublishingDraft(true)
     setError(null)
@@ -491,8 +328,6 @@ export function useEditDraftActions({
   }, [loadCollaborators, loadDraft, setConflict, setSuccess])
 
   return {
-    autosaveState,
-    setAutosaveState,
     savingDraft,
     publishingDraft,
     publishAttempted,

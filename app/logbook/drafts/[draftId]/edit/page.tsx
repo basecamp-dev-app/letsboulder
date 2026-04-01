@@ -63,7 +63,6 @@ export default function EditDraftPage() {
   const cragSectionRef = useRef<HTMLDivElement | null>(null)
   const locationSectionRef = useRef<HTMLDivElement | null>(null)
   const drawingAreaRef = useRef<HTMLDivElement | null>(null)
-  const autosaveTimeoutRef = useRef<number | null>(null)
   const routeCanvasRef = useRef<UnifiedRouteCanvasRef>(null)
   const isFetchingRef = useRef(false)
   const needsRefetchRef = useRef(false)
@@ -115,9 +114,6 @@ export default function EditDraftPage() {
     syncUploadedImages,
     draftIdRef,
     hasLoadedRoutesRef,
-    lastPersistedRoutesRef,
-    autosavePausedRef,
-    autosavePausedSnapshotRef,
     hasHydratedLocationRef,
     lastLocationSyncRef,
   } = useEditDraftData({
@@ -129,15 +125,6 @@ export default function EditDraftPage() {
     setLatitude,
     setLongitude,
     setShowCragSelector,
-    clearAutosave: () => {
-      if (autosaveTimeoutRef.current) {
-        window.clearTimeout(autosaveTimeoutRef.current)
-        autosaveTimeoutRef.current = null
-      }
-    },
-    resetAutosaveState: () => {
-      setAutosaveState('idle')
-    },
   })
   const { shareOpen, setShareOpen, loadingCollaborators, collaborators, activeInvites, creatingInvite, revokingInviteId, removingCollaboratorId, latestInviteUrl, loadCollaborators, handleCreateInvite, handleCopyInvite, handleRevokeInvite, handleRemoveCollaborator } = useDraftCollaborators(draftId, isOwner, addToast, setError)
   const collaborationAdded = searchParams.get('collab') === 'added'
@@ -370,8 +357,6 @@ export default function EditDraftPage() {
   const hasValidLocation = effectiveMarkerPosition !== null
 
   const {
-    autosaveState,
-    setAutosaveState,
     savingDraft,
     publishingDraft,
     publishAttempted,
@@ -402,19 +387,11 @@ export default function EditDraftPage() {
     locationModeByImageId,
     customGpsByImageId,
     markerPosition,
-    imagesPayloadSignature,
-    autosavePausedRef,
-    autosavePausedSnapshotRef,
-    hasLoadedRoutesRef,
-    lastPersistedRoutesRef,
     publishRequirementsRef,
     cragSectionRef,
     locationSectionRef,
-    hasInFlightDraftUploads,
     hasPendingUploads,
     hasFailedUploads,
-    isInitialLoading,
-    conflict,
     defaultImageTab,
     defaultImageRoutesLength: defaultImageRoutes.length,
     hasValidLocation,
@@ -478,10 +455,6 @@ export default function EditDraftPage() {
   const { handleCanvasRoutesUpdate, scheduleDraftPersist, skipRouteStoreSyncRef } = useEditDraftRouteSync({
     activeDraftImageId,
     routeType,
-    draftIdRef,
-    registerDraftUpdatedAt,
-    setAutosaveState,
-    setDraftUpdatedAt,
     routeStoreRoutes,
     existingRouteLines,
     setRouteStoreRoutes,
@@ -533,7 +506,6 @@ export default function EditDraftPage() {
           onManualSave={handleManualSave}
           onPublish={() => { void publishDraft() }}
           onDeleteDraft={() => { void handleDeleteDraft() }}
-          autosaveState={autosaveState}
         />
 
         {collaborationAdded ? (
@@ -634,7 +606,7 @@ export default function EditDraftPage() {
                 }
                 skipRouteStoreSyncRef.current = activeDraftImageId
                 setRouteStoreRoutes(resequenceRoutes(existingRouteLines, routeIds) as RouteLine[])
-                scheduleDraftPersist(nextRoutesByImageId)
+                scheduleDraftPersist()
                 return nextRoutesByImageId
               })
             }}
@@ -698,7 +670,7 @@ export default function EditDraftPage() {
             setCragCanvasImages([])
             setShowCragSelector(false)
             setSuccess('Crag selected for this draft.')
-            void saveDraft({ silent: true, overrideCragId: crag.id })
+            void saveDraft({ overrideCragId: crag.id })
           }}
           onCreateCrag={(crag) => {
             setCragId(crag.id)
@@ -707,7 +679,7 @@ export default function EditDraftPage() {
             setCanvasSource(null)
             setSuccess(`Crag "${crag.name}" created. Upload up to 20 photos and the first ready image can be used as your canvas.`)
             setShowCragSelector(false)
-            void saveDraft({ silent: true, overrideCragId: crag.id })
+            void saveDraft({ overrideCragId: crag.id })
           }}
           onSectorChange={setSectorId}
           onLocationModeChange={(mode) => {
@@ -738,7 +710,7 @@ export default function EditDraftPage() {
             if (open) {
               setMapOpen(true)
             } else {
-              void saveDraft({ silent: true }).then(() => setMapOpen(false))
+              void saveDraft().then(() => setMapOpen(false))
             }
           }}
           onSearchQueryChange={setSearchQuery}

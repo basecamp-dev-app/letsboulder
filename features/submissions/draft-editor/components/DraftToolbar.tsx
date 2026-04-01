@@ -14,7 +14,6 @@ interface DraftToolbarProps {
   onManualSave: () => void
   onPublish: () => void
   onDeleteDraft: () => void
-  autosaveState: 'idle' | 'pending' | 'saving' | 'syncing' | 'saved'
 }
 
 export function DraftToolbar({
@@ -28,7 +27,6 @@ export function DraftToolbar({
   onManualSave,
   onPublish,
   onDeleteDraft,
-  autosaveState,
 }: DraftToolbarProps) {
   return (
     <>
@@ -79,17 +77,9 @@ export function DraftToolbar({
         </div>
       </div>
 
-      {autosaveState !== 'idle' ? (
-        <div className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-          {autosaveState === 'pending'
-            ? 'Autosave queued...'
-            : autosaveState === 'saving'
-              ? 'Autosaving...'
-              : autosaveState === 'syncing'
-                ? 'Syncing...'
-                : 'Autosaved'}
-        </div>
-      ) : null}
+      <div className="mb-2 text-xs text-gray-400 dark:text-gray-500">
+        Changes are not saved automatically. Click &quot;Save draft&quot; to keep your progress.
+      </div>
     </>
   )
 }
