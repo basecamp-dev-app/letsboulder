@@ -1,21 +1,11 @@
 import { Metadata } from 'next'
-import { createServerClient } from '@supabase/ssr'
+import { getCragById } from './lib/get-crag-by-id'
 
 export const revalidate = 300
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
-
   const { id } = await params
-  const { data: crag } = await supabase
-    .from('crags')
-    .select('name, region_name, country, slug, country_code, climbing_areas:region_id(name), countries:country_id(name, regions:region_id(name, un_regions:un_region_name(name, continent_name)))')
-    .eq('id', id)
-    .single()
+  const crag = await getCragById(id)
 
   if (!crag) {
     return {
@@ -30,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const adminRegionRow = Array.isArray(adminRegionSource) ? adminRegionSource[0] : adminRegionSource
   const unRegionSource = adminRegionRow?.un_regions
   const unRegionRow = Array.isArray(unRegionSource) ? unRegionSource[0] : unRegionSource
-  const locationParts = [crag.region_name, climbingAreaName, countryRow?.name || crag.country, adminRegionRow?.name, unRegionRow?.continent_name].filter(Boolean) as string[]
+  const locationParts = [crag.region_name, climbingAreaName, countryRow?.name, adminRegionRow?.name, unRegionRow?.continent_name].filter(Boolean) as string[]
   const title = locationParts.length > 0 ? `${crag.name}, ${locationParts[0]}` : `${crag.name}`
   const locationSuffix = locationParts.length > 0 ? ` in ${locationParts.join(', ')}` : ''
   const canonicalPath = crag.slug && crag.country_code

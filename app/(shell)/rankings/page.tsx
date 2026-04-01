@@ -232,7 +232,7 @@ export default function LeaderboardPage() {
                   <RankBadge rank={entry.rank} />
                   <Link href={`/logbook/${entry.user_id}`} className="relative w-12 h-12 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 shrink-0">
                     {entry.avatar_url ? (
-                      <Image src={entry.avatar_url} alt={entry.username} fill className="object-cover" sizes="48px" />
+                      <Image src={entry.avatar_url} alt={entry.username} fill className="object-cover" sizes="48px" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-lg font-semibold text-gray-500 dark:text-gray-400">
                         {entry.username.charAt(0).toUpperCase()}
