@@ -146,6 +146,7 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
                 width={48}
                 height={48}
                 sizes="48px"
+                loading="lazy"
                 unoptimized={submission.kind === 'draft'}
                 className="h-12 w-12 rounded object-cover"
               />

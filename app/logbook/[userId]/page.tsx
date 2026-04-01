@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { Card, CardContent } from '@/components/ui/card'
@@ -62,7 +63,7 @@ interface Profile {
   last_name?: string
 }
 
-async function getProfile(userId: string): Promise<Profile | null> {
+const getProfile = cache(async function getProfile(userId: string): Promise<Profile | null> {
   const cookieStore = await cookies()
   
   const supabase = createServerClient(
@@ -87,7 +88,7 @@ async function getProfile(userId: string): Promise<Profile | null> {
   }
 
   return data as Profile
-}
+})
 
 async function getPublicLogs(userId: string): Promise<Climb[]> {
   const cookieStore = await cookies()
@@ -267,8 +268,10 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
     return <PrivateProfileCard username={profile.username} />
   }
 
-  const logs = await getPublicLogs(userId)
-  const submissions = await getPublicSubmissions(userId)
+  const [logs, submissions] = await Promise.all([
+    getPublicLogs(userId),
+    getPublicSubmissions(userId),
+  ])
 
   return (
     <>

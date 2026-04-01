@@ -2,47 +2,14 @@ import { createServerClient } from '@supabase/ssr'
 import { notFound, permanentRedirect } from 'next/navigation'
 import CragPageClient from '@/features/crags/components/CragPageClient'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
+import { getCragById } from '../lib/get-crag-by-id'
 import type { Crag } from '@/features/crags/lib/crag-page-types'
 
 export const revalidate = 300
 
 export default async function CragIdPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
-
-  const { data: crag } = await supabase
-    .from('crags')
-    .select(`
-      id,
-      name,
-      slug,
-      country_code,
-      region_name,
-      sub_area,
-      latitude,
-      longitude,
-      region_id,
-      country_id,
-      description,
-      access_notes,
-      rock_type,
-      type,
-      climbing_areas:region_id (id, name),
-      countries:country_id (
-        id,
-        name,
-        regions:region_id (
-          name,
-          un_regions:un_region_name (name, continent_name)
-        )
-      )
-    `)
-    .eq('id', id)
-    .single()
+  const crag = await getCragById(id)
 
   if (!crag) notFound()
 
@@ -64,6 +31,11 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
     continent_name: unRegionRow?.continent_name,
   }
 
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll() { return [] }, setAll() {} } }
+  )
   const initialRouteData = await loadInitialCragRouteData(supabase as never, id, {
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
