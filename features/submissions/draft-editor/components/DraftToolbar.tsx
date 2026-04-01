@@ -78,7 +78,7 @@ export function DraftToolbar({
       </div>
 
       <div className="mb-2 text-xs text-gray-400 dark:text-gray-500">
-        Changes are not saved automatically. Click &quot;Save draft&quot; to keep your progress.
+        Image changes save before switching. Click &quot;Save draft&quot; to save other edits.
       </div>
     </>
   )

@@ -31,6 +31,7 @@ interface SubmissionWorkstationProps {
   activeImageUrl: string
   activeImageReady?: boolean
   activeImageStatus?: WorkstationImage['status']
+  imageSwitchingDisabled?: boolean
   onRetryActiveImage?: () => void
   onDeleteActiveImage?: () => void
   draftPins?: LightweightCragMapPin[]
@@ -67,6 +68,7 @@ export function SubmissionWorkstation({
   activeImageUrl,
   activeImageReady = true,
   activeImageStatus,
+  imageSwitchingDisabled = false,
   onRetryActiveImage,
   onDeleteActiveImage,
   draftPins = [],
@@ -127,6 +129,7 @@ export function SubmissionWorkstation({
         images={quickSwitcherImages}
         activeImageId={activeImageId}
         isQuickBarDragOver={isQuickBarDragOver}
+        imageSwitchingDisabled={imageSwitchingDisabled}
         onSelectImage={onSelectImage}
         onReorderImages={onReorderImages}
         onQuickBarDropFiles={onQuickBarDropFiles}
@@ -172,6 +175,7 @@ export function SubmissionWorkstation({
         publishedPins={publishedPins}
         activeImageId={activeImageId}
         initialCenter={initialCenter}
+        imageSwitchingDisabled={imageSwitchingDisabled}
         onSelectImage={onSelectImage}
       />
     </div>
