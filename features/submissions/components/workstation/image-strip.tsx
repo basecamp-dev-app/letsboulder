@@ -18,6 +18,7 @@ interface WorkstationImageStripProps {
   images: WorkstationImage[]
   activeImageId: string | null
   isQuickBarDragOver: boolean
+  imageSwitchingDisabled?: boolean
   onSelectImage: (imageId: string) => void
   onReorderImages?: (imageIds: string[]) => void
   onQuickBarDropFiles?: (files: File[]) => void
@@ -29,6 +30,7 @@ export function WorkstationImageStrip({
   images,
   activeImageId,
   isQuickBarDragOver,
+  imageSwitchingDisabled = false,
   onSelectImage,
   onReorderImages,
   onQuickBarDropFiles,
@@ -120,7 +122,11 @@ export function WorkstationImageStrip({
                   event.dataTransfer.dropEffect = 'move'
                 }}
                 onDrop={(event) => handleQuickBarDrop(event)}
-                onClick={() => onSelectImage(image.imageId)}
+                onClick={() => {
+                  if (imageSwitchingDisabled) return
+                  onSelectImage(image.imageId)
+                }}
+                disabled={imageSwitchingDisabled}
                 className={`shrink-0 rounded-2xl border p-1.5 transition ${
                   isActive
                     ? 'border-blue-600 bg-blue-50 shadow-[0_0_0_1px_rgba(37,99,235,0.25)] dark:bg-blue-950/30'

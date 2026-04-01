@@ -8,6 +8,7 @@ interface WorkstationMapPanelProps {
   publishedPins: LightweightCragMapPin[]
   activeImageId: string | null
   initialCenter?: [number, number] | null
+  imageSwitchingDisabled?: boolean
   onSelectImage: (imageId: string) => void
 }
 
@@ -16,6 +17,7 @@ export function WorkstationMapPanel({
   publishedPins,
   activeImageId,
   initialCenter,
+  imageSwitchingDisabled = false,
   onSelectImage,
 }: WorkstationMapPanelProps) {
   return (
@@ -25,7 +27,7 @@ export function WorkstationMapPanel({
         publishedPins={publishedPins}
         activePinId={activeImageId}
         initialCenter={initialCenter}
-        onPinSelect={onSelectImage}
+        onPinSelect={imageSwitchingDisabled ? undefined : onSelectImage}
         heightClassName="h-[180px] min-h-[180px] md:h-[200px]"
       />
     </div>

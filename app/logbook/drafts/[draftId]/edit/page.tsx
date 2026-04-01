@@ -58,6 +58,8 @@ export default function EditDraftPage() {
   const [ownerProfile] = useState<{ displayName: string; username: string | null } | null>(null)
   const [addingImages, setAddingImages] = useState(false)
   const [removingImageId, setRemovingImageId] = useState<string | null>(null)
+  const [switchingImageId, setSwitchingImageId] = useState<string | null>(null)
+  const switchingImageLockRef = useRef(false)
   const addImageInputRef = useRef<HTMLInputElement | null>(null)
   const publishRequirementsRef = useRef<HTMLDivElement | null>(null)
   const cragSectionRef = useRef<HTMLDivElement | null>(null)
@@ -451,20 +453,6 @@ export default function EditDraftPage() {
     drawingAreaRef.current?.scrollIntoView({ behavior, block: 'start' })
   }, [])
 
-  const handleQuickSwitchImage = useCallback((imageId: string) => {
-    const targetImage = quickSwitcherImages.find((image) => image.imageId === imageId) || null
-    setActiveImageId(imageId)
-    if (targetImage?.sourceKind === 'crag-image' && cragId) {
-      setCanvasSource({ kind: 'crag-image', cragImageId: imageId, cragId })
-    } else {
-      setCanvasSource({ kind: 'draft-image', draftImageId: imageId })
-    }
-    window.setTimeout(() => {
-      focusDrawingArea('smooth')
-    }, 0)
-  }, [cragId, focusDrawingArea, quickSwitcherImages, setActiveImageId, setCanvasSource])
-
-
   const { handleCanvasRoutesUpdate, scheduleDraftPersist, skipRouteStoreSyncRef } = useEditDraftRouteSync({
     activeDraftImageId,
     routeType,
@@ -473,6 +461,34 @@ export default function EditDraftPage() {
     setRouteStoreRoutes,
     setRoutesByImageId,
   })
+
+  const handleQuickSwitchImage = useCallback(async (imageId: string) => {
+    if (imageId === activeImageId || switchingImageLockRef.current) return
+
+    const targetImage = quickSwitcherImages.find((image) => image.imageId === imageId) || null
+    switchingImageLockRef.current = true
+    setSwitchingImageId(imageId)
+
+    try {
+      const saved = await saveDraft()
+      if (!saved) return
+
+      setActiveImageId(imageId)
+      if (targetImage?.sourceKind === 'crag-image' && cragId) {
+        setCanvasSource({ kind: 'crag-image', cragImageId: imageId, cragId })
+      } else {
+        setCanvasSource({ kind: 'draft-image', draftImageId: imageId })
+      }
+      window.setTimeout(() => {
+        focusDrawingArea('smooth')
+      }, 0)
+    } finally {
+      switchingImageLockRef.current = false
+      setSwitchingImageId(null)
+    }
+  }, [activeImageId, cragId, focusDrawingArea, quickSwitcherImages, saveDraft, setActiveImageId, setCanvasSource])
+
+  const isImageSwitching = switchingImageId !== null || savingDraft
 
   const setActiveAsDefault = useCallback(() => {
     if (!activeImageTab || activeImageTab.sourceKind !== 'draft-image') return
@@ -588,6 +604,7 @@ export default function EditDraftPage() {
             activeImageUrl={stableActiveImageUrl}
             activeImageReady={activeImageReady}
             activeImageStatus={activeImageTab?.status}
+            imageSwitchingDisabled={isImageSwitching}
             onRetryActiveImage={activeImageTab?.status === 'FAILED' ? () => retryUpload(activeImageTab.imageId) : undefined}
             onDeleteActiveImage={activeImageTab?.status === 'FAILED' ? () => { void handleRemoveImage(activeImageTab.imageId) } : undefined}
             draftPins={draftMapPins}
