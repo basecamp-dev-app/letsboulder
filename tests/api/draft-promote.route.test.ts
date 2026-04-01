@@ -21,82 +21,118 @@ function makeThenableResult<T>(result: T) {
   }
 }
 
-describe('promoteDraftToSubmission', () => {
-  test('sends a Discord notification after publishing a draft', async () => {
-    const supabase = {
-      from: vi.fn((table: string) => {
-        if (table === 'submission_drafts') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                maybeSingle: vi.fn(async () => ({
-                  data: {
-                    id: 'draft-1',
-                    user_id: 'user-1',
-                    metadata: { location: { latitude: 49.45, longitude: -2.55 } },
-                  },
-                  error: null,
-                })),
-              })),
-            })),
-          }
-        }
+function makeSupabase(options?: { includeDefaultRoute?: boolean }) {
+  const includeDefaultRoute = options?.includeDefaultRoute ?? true
 
-        if (table === 'images') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                maybeSingle: vi.fn(async () => ({
-                  data: {
-                    id: 'image-1',
-                    crag_id: 'crag-1',
-                    crags: { name: 'Hidden Crag', country_code: 'GG', slug: 'hidden-crag' },
-                    route_lines: [
-                      { id: 'route-line-1', climb_id: 'climb-1', sequence_order: 0, created_at: '2026-03-01T00:00:00Z' },
-                    ],
+  return {
+    from: vi.fn((table: string) => {
+      if (table === 'submission_drafts') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: {
+                  id: 'draft-1',
+                  user_id: 'user-1',
+                  metadata: {
+                    navigation: { defaultImageId: 'draft-image-1' },
+                    submission: { location: { latitude: 49.45, longitude: -2.55 } },
                   },
-                  error: null,
-                })),
-              })),
-            })),
-          }
-        }
-
-        if (table === 'climbs') {
-          return {
-            select: vi.fn(() => ({
-              in: vi.fn(() => makeThenableResult({
-                data: [
-                  { id: 'climb-1', name: 'Test Route', grade: '6A' },
-                ],
+                },
                 error: null,
               })),
             })),
-          }
+          })),
         }
+      }
 
-        throw new Error(`Unexpected table: ${table}`)
-      }),
-      rpc: vi.fn(async (fnName: string) => {
-        if (fnName === 'promote_draft_to_submission') {
-          return {
-            data: {
-              success: true,
-              status: 'submitted',
-              image_id: 'image-1',
-              default_image_id: 'image-1',
-              image_ids: ['image-1'],
-              climb_ids: ['climb-1'],
-              route_line_ids: ['route-line-1'],
-              published_at: '2026-03-01T00:00:00Z',
-            },
-            error: null,
-          }
+      if (table === 'submission_draft_images') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => makeThenableResult({
+              data: [
+                { id: 'draft-image-1', latitude: 49.45, longitude: -2.55 },
+                { id: 'draft-image-2', latitude: 49.46, longitude: -2.54 },
+              ],
+              error: null,
+            })),
+          })),
         }
+      }
 
-        return { data: null, error: null }
-      }),
-    }
+      if (table === 'submission_draft_routes') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => makeThenableResult({
+              data: includeDefaultRoute
+                ? [{ id: 'draft-route-1', draft_image_id: 'draft-image-1' }]
+                : [{ id: 'draft-route-2', draft_image_id: 'draft-image-2' }],
+              error: null,
+            })),
+          })),
+        }
+      }
+
+      if (table === 'images') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: {
+                  id: 'image-1',
+                  crag_id: 'crag-1',
+                  crags: { name: 'Hidden Crag', country_code: 'GG', slug: 'hidden-crag' },
+                  route_lines: [
+                    { id: 'route-line-1', climb_id: 'climb-1', sequence_order: 0, created_at: '2026-03-01T00:00:00Z' },
+                  ],
+                },
+                error: null,
+              })),
+            })),
+          })),
+        }
+      }
+
+      if (table === 'climbs') {
+        return {
+          select: vi.fn(() => ({
+            in: vi.fn(() => makeThenableResult({
+              data: [
+                { id: 'climb-1', name: 'Test Route', grade: '6A' },
+              ],
+              error: null,
+            })),
+          })),
+        }
+      }
+
+      throw new Error(`Unexpected table: ${table}`)
+    }),
+    rpc: vi.fn(async (fnName: string) => {
+      if (fnName === 'promote_draft_to_submission') {
+        return {
+          data: {
+            success: true,
+            status: 'submitted',
+            image_id: 'image-1',
+            default_image_id: 'image-1',
+            image_ids: ['image-1'],
+            climb_ids: ['climb-1'],
+            route_line_ids: ['route-line-1'],
+            published_at: '2026-03-01T00:00:00Z',
+          },
+          error: null,
+        }
+      }
+
+      return { data: null, error: null }
+    }),
+  }
+}
+
+describe('promoteDraftToSubmission', () => {
+  test('sends a Discord notification after publishing a draft', async () => {
+    const supabase = makeSupabase()
 
     const response = await promoteDraftToSubmission({
       supabase: supabase as unknown as ReturnType<typeof createServerClient>,
@@ -114,5 +150,22 @@ describe('promoteDraftToSubmission', () => {
       'crag-1',
       'user-1'
     )
+  })
+
+  test('rejects publish when the default image has no durable draft routes', async () => {
+    const supabase = makeSupabase({ includeDefaultRoute: false })
+
+    const response = await promoteDraftToSubmission({
+      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
+      request: new Request('http://localhost:3000/api/submissions/drafts/draft-1/promote', { method: 'POST' }),
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Routes are still syncing for the default image. Save the draft again and retry publish.',
+    })
+    expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
   })
 })

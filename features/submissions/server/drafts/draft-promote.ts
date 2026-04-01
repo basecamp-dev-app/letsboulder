@@ -61,6 +61,35 @@ export async function promoteDraftToSubmission(input: {
     return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
   }
 
+  const defaultDraftImageId = draft.metadata
+    && typeof draft.metadata === 'object'
+    && !Array.isArray(draft.metadata)
+    && draft.metadata.navigation
+    && typeof draft.metadata.navigation === 'object'
+    && !Array.isArray(draft.metadata.navigation)
+    && typeof (draft.metadata.navigation as { defaultImageId?: unknown }).defaultImageId === 'string'
+      ? (draft.metadata.navigation as { defaultImageId: string }).defaultImageId
+      : (draftImages || [])[0]?.id || null
+
+  const { data: draftRoutes, error: draftRoutesError } = await supabase
+    .from('submission_draft_routes')
+    .select('id, draft_image_id')
+    .eq('draft_id', draftId)
+
+  if (draftRoutesError) {
+    return createErrorResponse(draftRoutesError, 'Failed to validate draft routes before publish')
+  }
+
+  const hasDefaultImageRoute = Boolean(
+    defaultDraftImageId
+      && Array.isArray(draftRoutes)
+      && draftRoutes.some((route) => route.draft_image_id === defaultDraftImageId)
+  )
+
+  if (!hasDefaultImageRoute) {
+    return NextResponse.json({ error: 'Routes are still syncing for the default image. Save the draft again and retry publish.' }, { status: 409 })
+  }
+
   const { data, error } = await supabase.rpc('promote_draft_to_submission', { p_draft_id: draftId })
   if (error) {
     if (typeof error.message === 'string' && error.message.includes('Draft location is required before publishing')) {
