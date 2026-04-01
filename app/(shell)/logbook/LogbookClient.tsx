@@ -36,7 +36,7 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
   const { data, isLoading } = useQuery({
     queryKey: ownLogbookQueryKey,
     queryFn: () => fetchOwnLogbookData(user),
-    initialData,
+    placeholderData: initialData,
     staleTime: 60 * 1000,
     gcTime: 30 * 60 * 1000,
     meta: {

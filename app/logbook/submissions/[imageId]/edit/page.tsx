@@ -84,17 +84,19 @@ export default function EditSubmittedRoutesPage() {
 
   useEffect(() => {
     if (!editor.activeImageId) return
-    if (!editor.existingRouteLines || editor.existingRouteLines.length === 0) return
-    if (lastSeededRouteImageIdRef.current === editor.activeImageId) return
+    if (!editor.existingRouteLines?.length) return
+
+    if (lastSeededRouteImageIdRef.current === editor.activeImageId) {
+      if (haveStoredRoutesChanged(routeStoreRoutes, editor.existingRouteLines)) {
+        editor.setEditedRoutes(routeStoreRoutes)
+      }
+      return
+    }
+
     lastSeededRouteImageIdRef.current = editor.activeImageId
     setRouteStoreRoutes(editor.existingRouteLines)
-  }, [editor.activeImageId, editor.existingRouteLines, setRouteStoreRoutes])
-
-  useEffect(() => {
-    if (!editor.activeImageId) return
-    if (!haveStoredRoutesChanged(routeStoreRoutes, editor.existingRouteLines)) return
-    editor.setEditedRoutes(routeStoreRoutes)
-  }, [editor, routeStoreRoutes])
+    editor.setEditedRoutes(editor.existingRouteLines)
+  }, [editor.activeImageId, editor.existingRouteLines, editor.setEditedRoutes, routeStoreRoutes, setRouteStoreRoutes])
 
   const handleSaveAllChanges = useCallback(async () => {
     if (savingAllChanges || !editor.activeImageId) return
