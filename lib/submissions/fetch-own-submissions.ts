@@ -30,6 +30,20 @@ export async function fetchOwnSubmissions(
 ): Promise<Submission[]> {
   const formattedSubmissions: Submission[] = []
 
+  const dedupeSubmissions = (items: Submission[]): Submission[] => {
+    const byKey = new Map<string, Submission>()
+    for (const item of items) {
+      const key = item.kind === 'submitted'
+        ? `submitted:${item.canonical_image_id || item.id}`
+        : `draft:${item.id}`
+      const existing = byKey.get(key)
+      if (!existing || new Date(item.updated_at).getTime() >= new Date(existing.updated_at).getTime()) {
+        byKey.set(key, item)
+      }
+    }
+    return [...byKey.values()]
+  }
+
   const contributionsUrl = baseUrl
     ? `${baseUrl}/api/logbook/contributions?limit=${limit}`
     : `/api/logbook/contributions?limit=${limit}`
@@ -131,6 +145,6 @@ export async function fetchOwnSubmissions(
     }
   })
 
-  return [...formattedDrafts, ...formattedSubmissions]
+  return dedupeSubmissions([...formattedDrafts, ...formattedSubmissions])
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
 }

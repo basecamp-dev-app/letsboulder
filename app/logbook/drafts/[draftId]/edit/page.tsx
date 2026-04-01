@@ -40,6 +40,7 @@ import { DraftToolbar } from '@/features/submissions/draft-editor/components/Dra
 import { DraftMetadataPanel } from '@/features/submissions/draft-editor/components/DraftMetadataPanel'
 import { DraftDetailsPanel } from '@/features/submissions/draft-editor/components/DraftDetailsPanel'
 import { DraftUploadQueue } from '@/features/submissions/upload/components/DraftUploadQueue'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 
 export default function EditDraftPage() {
@@ -503,9 +504,8 @@ export default function EditDraftPage() {
     setError(null)
 
     try {
-      const response = await fetch(`/api/submissions/drafts/${draftId}`, {
+      const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, {
         method: 'PATCH',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
