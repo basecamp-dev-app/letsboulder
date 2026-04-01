@@ -20,11 +20,16 @@ export async function fetchOwnSubmissions(
   supabase: SupabaseClient,
   userId: string,
   signedFetch: typeof fetch,
-  limit = 24
+  limit = 24,
+  baseUrl?: string
 ): Promise<Submission[]> {
   const formattedSubmissions: Submission[] = []
 
-  const submissionsResponse = await fetch(`/api/logbook/contributions?limit=${limit}`)
+  const contributionsUrl = baseUrl
+    ? `${baseUrl}/api/logbook/contributions?limit=${limit}`
+    : `/api/logbook/contributions?limit=${limit}`
+
+  const submissionsResponse = await fetch(contributionsUrl)
   if (submissionsResponse.ok) {
     const payload = await submissionsResponse.json().catch(() => ({ submissions: [] as Submission[] }))
     if (Array.isArray(payload.submissions)) {
@@ -64,7 +69,9 @@ export async function fetchOwnSubmissions(
 
   const signedByKey = new Map<string, string>()
   if (firstDraftImageObjects.length > 0) {
-    const signedUrlResponse = await signedFetch('/api/uploads/signed-urls/batch', {
+    const signedUrlResponse = await signedFetch(baseUrl
+    ? `${baseUrl}/api/uploads/signed-urls/batch`
+    : '/api/uploads/signed-urls/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ objects: firstDraftImageObjects }),
