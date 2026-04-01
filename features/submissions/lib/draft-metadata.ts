@@ -44,6 +44,23 @@ export interface DraftMetadataV2 {
   }
 }
 
+export function readDraftRouteType(rawMetadata: Record<string, unknown> | null | undefined): string | null {
+  const submission = rawMetadata && typeof rawMetadata === 'object' && 'submission' in rawMetadata
+    ? (rawMetadata as { submission?: unknown }).submission
+    : null
+
+  if (submission && typeof submission === 'object' && 'routeType' in submission) {
+    const routeType = (submission as { routeType?: unknown }).routeType
+    return typeof routeType === 'string' && routeType ? routeType : null
+  }
+
+  const legacyRouteType = rawMetadata && typeof rawMetadata === 'object' && 'routeType' in rawMetadata
+    ? (rawMetadata as { routeType?: unknown }).routeType
+    : null
+
+  return typeof legacyRouteType === 'string' && legacyRouteType ? legacyRouteType : null
+}
+
 export interface LegacyDraftMetadata {
   version?: 1
   primaryIndex?: number

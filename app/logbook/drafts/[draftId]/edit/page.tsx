@@ -92,6 +92,8 @@ export default function EditDraftPage() {
     setCustomGpsByImageId,
     routeType,
     setRouteType,
+    hasExplicitRouteType,
+    setHasExplicitRouteType,
     creditPlatform,
     setCreditPlatform,
     creditHandle,
@@ -337,12 +339,15 @@ export default function EditDraftPage() {
     cragId,
     nearbyCragId,
     nearbyCragName,
+    nearbyCragDominantRouteType: atlasSync.nearbyCrag?.dominantRouteType ?? null,
+    hasExplicitRouteType,
     atlasSync,
     hasHydratedLocationRef,
     lastLocationSyncRef,
     setLatitude,
     setLongitude,
     setDraftUpdatedAt,
+    setRouteType,
     setCragId,
     setSelectedCrag,
     setCustomGpsByImageId,
@@ -717,6 +722,7 @@ export default function EditDraftPage() {
           onSearchLocation={handleSearchLocation}
           onRouteTypeChange={(nextRouteType) => {
             persistMetadataImmediately(() => {
+              setHasExplicitRouteType(true)
               setRouteType(nextRouteType)
             })
           }}
