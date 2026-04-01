@@ -1,12 +1,17 @@
 'use client'
 
 import { X } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import dynamic from 'next/dynamic'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { PUBLIC_GRADES } from '@/lib/grades'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { formatRouteTypeLabel, type CragRouteStats } from '@/features/crags/lib/crag-page-domain'
+
+const GradeDistributionChart = dynamic(
+  () => import('@/features/crags/components/GradeDistributionChart'),
+  { ssr: false, loading: () => <div className="h-48 flex items-center justify-center text-gray-400">Loading chart...</div> }
+)
 
 interface CragFilterDialogProps {
   open: boolean
@@ -56,18 +61,7 @@ export default function CragFilterDialog({
               <span className="text-xs text-stone-500 dark:text-gray-400">Median {routeStats.medianGrade ? formatGradeForDisplay(routeStats.medianGrade, gradeSystem) : '—'}</span>
             </div>
             <div className="h-48 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={routeStats.gradeDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e5e4" />
-                  <XAxis dataKey="grade" tickFormatter={(value: string) => formatGradeForDisplay(value, gradeSystem)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip labelFormatter={(value) => typeof value === 'string' ? formatGradeForDisplay(value, gradeSystem) : ''} formatter={(value) => {
-                    const count = typeof value === 'number' ? value : Number(value || 0)
-                    return [`${count} climbs`, 'Climbs']
-                  }} />
-                  <Bar dataKey="count" fill="#0f766e" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <GradeDistributionChart data={routeStats.gradeDistribution} gradeSystem={gradeSystem} />
             </div>
           </div>
 
