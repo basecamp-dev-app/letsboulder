@@ -121,7 +121,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
         contentType: preparedFile.type || 'image/jpeg',
         fileName: ensureFileName(preparedFile, entry.file.name),
         byteSize: preparedFile.size,
-        gpsData: upload.gpsData,
+        gpsData,
         captureDate: upload.captureDate,
         draftId: entry.target.kind === 'draft' ? entry.target.draftId : undefined,
         cragId: entry.target.kind === 'crag' ? entry.target.cragId : undefined,
