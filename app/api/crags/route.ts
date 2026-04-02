@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { rateLimit, RATE_LIMITS, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
-import { withCsrfProtection } from '@/lib/csrf-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { makeUniqueSlug } from '@/lib/slug'
 import { revalidatePath } from 'next/cache'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
@@ -210,10 +210,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  if (!middlewareResult.ok) return middlewareResult.response
 
-  const supabase = getServerClientFromRequest(request)
+  const { supabase } = middlewareResult
 
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
