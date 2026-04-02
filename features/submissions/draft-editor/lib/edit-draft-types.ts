@@ -1,5 +1,3 @@
-'use client'
-
 import type { RouteLine } from '@/features/submissions/lib/submission-types'
 import type { ClimbType, RoutePoint } from '@/features/submissions/lib/submission-types'
 import type { OrientationDirection } from '@/features/submissions/lib/draft-metadata'
