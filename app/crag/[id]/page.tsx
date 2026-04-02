@@ -2,7 +2,7 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import CragPageClient from '@/features/crags/components/CragPageClient'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import { getCragById } from '../lib/get-crag-by-id'
-import type { Crag } from '@/features/crags/lib/crag-page-types'
+import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 export const revalidate = 300
@@ -21,7 +21,7 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
   const regionRow = Array.isArray(countryRow?.regions) ? countryRow.regions[0] : countryRow?.regions
   const unRegionRow = Array.isArray(regionRow?.un_regions) ? regionRow.un_regions[0] : regionRow?.un_regions
 
-  const initialCrag: Crag = {
+  const initialCrag: CragPageCrag = {
     ...crag,
     climbing_areas: Array.isArray(crag.climbing_areas) ? crag.climbing_areas[0] : crag.climbing_areas,
     country_id: crag.country_id,

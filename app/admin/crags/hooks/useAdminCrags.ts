@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { csrfFetch } from '@/hooks/useCsrf'
-import type { Crag } from '@/app/admin/crags/types'
+import type { AdminCrag } from '@/app/admin/crags/types'
 
 function getResponseError(payload: unknown, fallback: string): string {
   if (typeof payload === 'object' && payload !== null && 'error' in payload) {
@@ -16,7 +16,7 @@ function getResponseError(payload: unknown, fallback: string): string {
 }
 
 export function useAdminCrags() {
-  const [crags, setCrags] = useState<Crag[]>([])
+  const [crags, setCrags] = useState<AdminCrag[]>([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -36,7 +36,7 @@ export function useAdminCrags() {
         return
       }
 
-      const data = await response.json() as { crags?: Crag[] }
+      const data = await response.json() as { crags?: AdminCrag[] }
       setCrags(data.crags || [])
     } catch {
       showToast('Failed to load crags')
@@ -70,7 +70,7 @@ export function useAdminCrags() {
     }
   }, [loadCrags, showToast])
 
-  const deleteCrag = useCallback(async (crag: Crag, confirmCount: string) => {
+  const deleteCrag = useCallback(async (crag: AdminCrag, confirmCount: string) => {
     if (confirmCount !== String(crag.climb_count)) {
       showToast('Type the climb count exactly to confirm')
       return

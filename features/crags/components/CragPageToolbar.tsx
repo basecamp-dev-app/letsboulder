@@ -2,7 +2,7 @@
 
 import { ArrowUpDown, ChevronDown, Download, Filter, Loader2, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import type { Crag } from '@/features/crags/lib/crag-page-types'
+import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 
 export interface CragSwitcherOption {
   id: string
@@ -13,7 +13,7 @@ export interface CragSwitcherOption {
 }
 
 interface CragPageToolbarProps {
-  crag: Crag
+  crag: CragPageCrag
   cragSwitcherOpen: boolean
   cragSwitcherQuery: string
   cragSwitcherOptions: CragSwitcherOption[]

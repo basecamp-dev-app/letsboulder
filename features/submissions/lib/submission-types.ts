@@ -1,16 +1,10 @@
+import type { Database } from '@/types/database'
 import { VALID_GRADES, isValidGrade } from '@/lib/grade-constants'
 
 export { VALID_GRADES }
 export type { Grade } from '@/lib/grade-constants'
 
-export interface Region {
-  id: string
-  name: string
-  country_code: string | null
-  center_lat: number | null
-  center_lon: number | null
-  created_at: string
-}
+export type Region = Pick<Database['public']['Tables']['regions']['Row'], 'id' | 'name' | 'country_code' | 'center_lat' | 'center_lon' | 'created_at'>
 
 export interface AtlasCountryContext {
   countryId: string | null
@@ -21,7 +15,7 @@ export interface AtlasCountryContext {
   continentName: string | null
 }
 
-export interface Crag {
+export interface SubmissionCrag {
   id: string
   name: string
   latitude: number
@@ -36,33 +30,6 @@ export interface Crag {
   access_notes: string | null
   rock_type: string | null
   type: 'sport' | 'boulder' | 'trad' | 'mixed'
-  created_at: string
-}
-
-export interface Image {
-  id: string
-  url: string
-  latitude: number | null
-  longitude: number | null
-  capture_date: string | null
-  crag_id: string | null
-  width: number | null
-  height: number | null
-  natural_width: number | null
-  natural_height: number | null
-  created_by: string | null
-  created_at: string
-  route_lines_count?: number
-}
-
-export interface Climb {
-  id: string
-  name: string | null
-  grade: string
-  status: 'pending' | 'approved' | 'rejected'
-  route_type: string | null
-  description: string | null
-  user_id: string | null
   created_at: string
 }
 
@@ -158,7 +125,7 @@ export type ImageSelection = ExistingImageSelection | NewImageSelection | CragIm
 export type ClimbType = 'sport' | 'boulder' | 'trad' | 'deep-water-solo'
 
 export interface SubmissionContext {
-  crag: Pick<Crag, 'id' | 'name' | 'latitude' | 'longitude'> | null
+  crag: Pick<SubmissionCrag, 'id' | 'name' | 'latitude' | 'longitude'> | null
   image: ImageSelection | null
   imageGps: { latitude: number; longitude: number } | null
   faceDirectionsByImage: FaceDirectionsByImage

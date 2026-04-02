@@ -5,7 +5,7 @@ export interface BreadcrumbItem {
   href?: string
 }
 
-export interface Crag {
+export interface CragPageCrag {
   id: string
   name: string
   slug: string | null

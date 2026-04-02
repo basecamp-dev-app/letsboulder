@@ -6,8 +6,12 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Lock, ArrowLeft } from 'lucide-react'
 import ProfileViewTracker from './components/ProfileViewTracker'
+import type { LogbookClimb, LogbookProfile } from '@/features/logbook/lib/logbook-view'
+import type { Database } from '@/types/database'
 import type { Submission } from '@/types/submissions'
 import { groupSubmittedImages } from '@/lib/submissions/group-submitted-images'
+
+type PublicProfileRow = Pick<Database['public']['Tables']['profiles']['Row'], 'is_public'> & LogbookProfile
 
 interface PublicContributionRow {
   id: string
@@ -30,39 +34,7 @@ interface PublicLogbookPageProps {
   params: Promise<{ userId: string }>
 }
 
-interface Climb {
-  id: string
-  climb_id: string
-  style: string
-  created_at: string
-  notes?: string
-  date_climbed?: string
-  climbs: {
-    id: string
-    name: string
-    grade: string
-    image_url?: string
-    crags?: {
-      name: string
-    }
-  }
-}
-
-interface Profile {
-  id: string
-  username: string
-  display_name?: string
-  avatar_url?: string
-  bio?: string
-  total_climbs?: number
-  total_points?: number
-  highest_grade?: string
-  is_public?: boolean
-  first_name?: string
-  last_name?: string
-}
-
-const getProfile = cache(async function getProfile(userId: string): Promise<Profile | null> {
+const getProfile = cache(async function getProfile(userId: string): Promise<PublicProfileRow | null> {
   const supabase = await getServerClient()
 
   const { data, error } = await supabase
@@ -75,10 +47,10 @@ const getProfile = cache(async function getProfile(userId: string): Promise<Prof
     return null
   }
 
-  return data as Profile
+  return data as unknown as PublicProfileRow
 })
 
-async function getPublicLogs(userId: string): Promise<Climb[]> {
+async function getPublicLogs(userId: string): Promise<LogbookClimb[]> {
   const supabase = await getServerClient()
 
   const { data: logsData, error: logsError } = await supabase
@@ -103,9 +75,27 @@ async function getPublicLogs(userId: string): Promise<Climb[]> {
         }
       }
     }
-  }) as Climb[]
+  }) as LogbookClimb[]
 
   return logsWithCrags
+}
+
+interface Climb {
+  id: string
+  climb_id: string
+  style: string
+  created_at: string
+  notes?: string
+  date_climbed?: string
+  climbs: {
+    id: string
+    name: string
+    grade: string
+    image_url?: string
+    crags?: {
+      name: string
+    }
+  }
 }
 
 async function getPublicSubmissions(userId: string): Promise<Submission[]> {

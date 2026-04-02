@@ -25,7 +25,7 @@ import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-des
 import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
 import { buildCragPinClusters, type ClusterableCragImage } from '@/lib/crag-pin-clusters'
-import type { Crag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
+import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 
 interface ClusteredImageData extends ClusterableCragImage {
   id: string
@@ -41,7 +41,7 @@ interface ClusteredImageData extends ClusterableCragImage {
 
 interface CragPageClientProps {
   id: string
-  initialCrag?: Crag | null
+  initialCrag?: CragPageCrag | null
   initialImages?: ImageData[]
   initialRoutes?: CragRoute[] | null
   initialRouteImageIdsByClimbId?: Record<string, string[]>
