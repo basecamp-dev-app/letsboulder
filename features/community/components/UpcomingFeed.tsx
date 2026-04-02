@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { createCommunityCommentAction, deleteCommunityCommentAction, saveCommunityRsvpAction } from '@/features/community/actions'
 import { CommunitySessionPost } from '@/types/community'
 
 interface UpcomingFeedProps {
@@ -134,36 +134,25 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
     setError(null)
 
     try {
-      const response = await csrfFetch(`/api/community/posts/${post.id}/rsvp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: statusToSend }),
-      })
+      const result = await saveCommunityRsvpAction(post.id, statusToSend)
 
-      if (response.status === 401) {
+      if (result.status === 401) {
         if (previousEngagement) setEngagement(previousEngagement)
         setError('Sign in to RSVP.')
         return
       }
 
-      if (!response.ok) {
+      if (!result.success || !result.data) {
         if (previousEngagement) setEngagement(previousEngagement)
         setError('Could not update RSVP.')
         return
       }
 
-      const data = await response.json().catch(() => null as { rsvp_counts: { going: number; interested: number }; viewer_rsvp: RsvpStatus | null } | null)
-      if (!data) {
-        if (previousEngagement) setEngagement(previousEngagement)
-        setError('Could not update RSVP.')
-        return
-      }
+      const nextRsvp = result.data!
 
       setEngagement(prev => ({
-        rsvp_counts: data.rsvp_counts,
-        viewer_rsvp: data.viewer_rsvp,
+        rsvp_counts: nextRsvp.rsvp_counts,
+        viewer_rsvp: nextRsvp.viewer_rsvp,
         comments: prev?.comments || [],
       }))
     } catch {
@@ -200,15 +189,9 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
     setIsPostingComment(true)
     setError(null)
     try {
-      const response = await csrfFetch(`/api/community/posts/${post.id}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ body: trimmed }),
-      })
+      const result = await createCommunityCommentAction(post.id, trimmed)
 
-      if (response.status === 401) {
+      if (result.status === 401) {
         if (previousEngagement) {
           setEngagement(previousEngagement)
         } else {
@@ -225,7 +208,7 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
         return
       }
 
-      if (!response.ok) {
+      if (!result.success || !result.data) {
         if (previousEngagement) {
           setEngagement(previousEngagement)
         } else {
@@ -242,28 +225,12 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
         return
       }
 
-      const data = await response.json().catch(() => null as { comments: SessionComment[] } | null)
-      if (!data) {
-        if (previousEngagement) {
-          setEngagement(previousEngagement)
-        } else {
-          setEngagement(prev => {
-            if (!prev) return prev
-            return {
-              ...prev,
-              comments: prev.comments.filter(comment => comment.id !== optimisticCommentId),
-            }
-          })
-        }
-        setCommentBody(trimmed)
-        setError('Could not post comment.')
-        return
-      }
+      const nextComments = result.data!.comments
 
       setEngagement(prev => ({
         rsvp_counts: prev?.rsvp_counts || { going: 0, interested: 0 },
         viewer_rsvp: prev?.viewer_rsvp || null,
-        comments: data.comments,
+        comments: nextComments,
       }))
     } catch {
       if (previousEngagement) {
@@ -302,11 +269,9 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
     })
 
     try {
-      const response = await csrfFetch(`/api/community/posts/${post.id}/comments/${commentId}`, {
-        method: 'DELETE',
-      })
+      const result = await deleteCommunityCommentAction(post.id, commentId)
 
-      if (!response.ok) {
+      if (!result.success) {
         if (previousEngagement) setEngagement(previousEngagement)
         setError('Could not delete comment.')
         return

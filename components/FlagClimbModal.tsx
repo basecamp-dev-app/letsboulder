@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { submitClimbFlagAction } from '@/features/moderation/actions'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 const FLAG_TYPES = [
@@ -65,21 +65,10 @@ export default function FlagClimbModal({ climbId, climbName, onClose, onSubmitte
     setSubmitting(true)
 
     try {
-      const response = await csrfFetch(`/api/climbs/${climbId}/flag`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          flag_type: flagType,
-          comment: trimmedComment,
-        }),
-      })
+      const result = await submitClimbFlagAction(climbId, flagType, trimmedComment)
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to submit flag')
+      if (!result.success) {
+        setError(result.error || 'Failed to submit flag')
         return
       }
 

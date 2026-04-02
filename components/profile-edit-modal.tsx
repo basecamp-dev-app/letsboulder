@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { saveProfileAction } from '@/features/profile/actions/save-profile'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
-import { csrfFetch } from '@/hooks/useCsrf'
 
 interface ProfileEditModalProps {
   open: boolean
@@ -71,28 +71,22 @@ export function ProfileEditModal({
     setUsernameError(null)
 
     try {
-      const response = await csrfFetch('/api/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: editUsername,
-          first_name: editFirstName,
-          last_name: editLastName,
-          gender: editGender || null,
-        }),
+      const result = await saveProfileAction({
+        username: editUsername,
+        first_name: editFirstName,
+        last_name: editLastName,
+        gender: editGender || null,
       })
 
-      const data = await response.json() as { error?: string; suggestions?: string[] }
-
-      if (!response.ok) {
-        if (response.status === 409 && data.suggestions) {
+      if (!result.success) {
+        if (result.status === 409 && result.data?.suggestions) {
           setUsernameError('Username is already taken')
-          setUsernameSuggestions(data.suggestions)
+          setUsernameSuggestions(result.data.suggestions)
           setIsSavingProfile(false)
           return
         }
 
-        throw new Error(data.error || 'Failed to update profile')
+        throw new Error(result.error || 'Failed to update profile')
       }
 
       onUsernameUpdate?.(editUsername, editFirstName, editLastName, editGender)

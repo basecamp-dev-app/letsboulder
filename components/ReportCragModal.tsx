@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { submitCragReportAction } from '@/features/moderation/actions'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
-import { csrfFetch } from '@/hooks/useCsrf'
 
 interface ReportCragModalProps {
   cragId: string
@@ -46,26 +46,19 @@ export default function ReportCragModal({ cragId, cragName, onClose, onSubmitted
     setSubmitting(true)
 
     try {
-      const response = await csrfFetch('/api/crags/report', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          crag_id: cragId,
-          reason: reason === 'other' ? details : `${REPORT_REASONS.find(r => r.value === reason)?.label}: ${details}`,
-        }),
-      })
+      const result = await submitCragReportAction(
+        cragId,
+        reason === 'other' ? details : `${REPORT_REASONS.find(r => r.value === reason)?.label}: ${details}`
+      )
 
-      if (response.ok) {
+      if (result.success) {
         setSuccess(true)
         setTimeout(() => {
           onSubmitted?.()
           onClose()
         }, 2000)
       } else {
-        const data = await response.json()
-        setError(data.error || 'Failed to submit report')
+        setError(result.error || 'Failed to submit report')
       }
     } catch (error) {
       console.error('Error reporting crag:', error)

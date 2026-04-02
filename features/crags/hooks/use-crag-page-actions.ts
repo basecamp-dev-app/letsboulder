@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { submitCragFlagAction } from '@/features/moderation/actions'
 import { createClient } from '@/lib/supabase'
-import { csrfFetch } from '@/hooks/useCsrf'
 import type { CragSwitcherOption } from '@/features/crags/components/CragPageToolbar'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
 import { getOfflineCragState } from '@/features/crags/lib/crag-offline-domain'
@@ -192,14 +192,10 @@ export function useCragPageActions({
     setToast(null)
 
     try {
-      const response = await csrfFetch(`/api/crags/${cragId}/flag`, {
-        method: 'POST',
-      })
+      const result = await submitCragFlagAction(cragId)
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        setToast(data.error || 'Failed to flag crag')
+      if (!result.success) {
+        setToast(result.error || 'Failed to flag crag')
         return
       }
 

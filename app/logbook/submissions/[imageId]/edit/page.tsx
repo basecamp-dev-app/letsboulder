@@ -2,14 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import {
+  createPublishedSubmissionRoutesAction,
+  deletePublishedSubmissionRouteAction,
+  updatePublishedSubmissionRoutesAction,
+  updateSubmissionImageMetadataAction,
+} from '@/features/submissions/actions/editor-write-actions'
+import {
+  saveSubmissionGradeVotesAction,
+  updateSubmissionAnonymousAction,
+  updateSubmissionCragAction,
+  updateSubmissionCreditAction,
+} from '@/features/submissions/actions/submission-metadata-actions'
 import { useAtlasAutoSync } from '@/features/editor/location/use-atlas-auto-sync'
 import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-utils'
 import { ToastContainer, useToast } from '@/features/logbook/components/toast'
 import type { UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
 import { useRouteStore } from '@/features/route-editor/store'
 import { haveStoredRoutesChanged, serializeStoredRoutes } from '@/features/editor/route-store-sync'
-import { createClient } from '@/lib/supabase'
 import type { RouteLine } from '@/types/domain'
 import { SubmissionWorkstation } from '@/features/submissions/components/SubmissionWorkstation'
 import { SubmissionDetailsPanel } from '@/features/submissions/submission-editor/components/SubmissionDetailsPanel'
@@ -114,42 +124,33 @@ export default function EditSubmittedRoutesPage() {
       const imageMetadataChanged = location.imageMetadataDirty
       const creditChanged = editor.creditDirty || editor.anonymityDirty
       if (imageMetadataChanged || creditChanged) {
-        const response = await csrfFetch(`/api/submissions/${editor.activeImageId}/image`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            latitude,
-            longitude,
-            faceDirections: location.faceDirections,
-            locationMode: location.locationMode,
-          }),
+        const result = await updateSubmissionImageMetadataAction(editor.activeImageId, {
+          latitude,
+          longitude,
+          faceDirections: location.faceDirections,
+          locationMode: location.locationMode,
         })
-        const payload = await response.json().catch(() => null) as { error?: string } | null
-        if (!response.ok) throw new Error(payload?.error || 'Failed to save image metadata')
+        if (!result.success) throw new Error(result.error || 'Failed to save image metadata')
 
-        const supabase = createClient()
-        const { error: updateImageError } = await supabase
-          .from('images')
-          .update({
-            contribution_credit_platform: editor.creditPlatform,
-            contribution_credit_handle: editor.creditHandle.trim() || null,
-            is_anonymous_submission: editor.isAnonymousSubmission,
-          })
-          .eq('id', editor.activeImageId)
-        if (updateImageError) throw updateImageError
+        if (editor.creditDirty) {
+          const creditResult = await updateSubmissionCreditAction(editor.activeImageId, editor.creditPlatform, editor.creditHandle)
+          if (!creditResult.success) throw new Error(creditResult.error || 'Failed to save contribution credit')
+        }
+
+        if (editor.anonymityDirty) {
+          const anonymousResult = await updateSubmissionAnonymousAction(editor.activeImageId, editor.isAnonymousSubmission)
+          if (!anonymousResult.success) throw new Error(anonymousResult.error || 'Failed to save anonymity')
+        }
       }
 
       if (location.cragMetadataDirty && editor.cragId && location.canEditCragMetadata) {
-        const supabase = createClient()
-        const { error: updateCragError } = await supabase
-          .from('crags')
-          .update({
-            name: location.cragName.trim(),
-            region_name: location.regionTag.trim() || null,
-            sub_area: location.subArea.trim() || null,
-          })
-          .eq('id', editor.cragId)
-        if (updateCragError) throw updateCragError
+        const cragResult = await updateSubmissionCragAction(
+          editor.activeImageId,
+          location.cragName,
+          location.regionTag,
+          location.subArea
+        )
+        if (!cragResult.success) throw new Error(cragResult.error || 'Failed to update crag metadata')
       }
 
       const newRoutes = editor.editedRoutes.filter(
@@ -160,23 +161,18 @@ export default function EditSubmittedRoutesPage() {
       )
 
       if (newRoutes.length > 0) {
-        const response = await csrfFetch(`/api/submissions/${editor.activeImageId}/routes`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            routes: newRoutes.map((route) => ({
-              name: route.climb?.name || 'Unnamed',
-              grade: route.climb?.grade || '6A',
-              description: route.climb?.description ?? null,
-              points: route.points,
-              sequenceOrder: route.sequence_order,
-              imageWidth: route.image_width,
-              imageHeight: route.image_height,
-            })),
-          }),
+        const result = await createPublishedSubmissionRoutesAction(editor.activeImageId, {
+          routes: newRoutes.map((route) => ({
+            name: route.climb?.name || 'Unnamed',
+            grade: route.climb?.grade || '6A',
+            description: route.climb?.description ?? null,
+            points: route.points,
+            sequenceOrder: route.sequence_order,
+            imageWidth: route.image_width,
+            imageHeight: route.image_height,
+          })),
         })
-        const payload = await response.json().catch(() => null) as { error?: string } | null
-        if (!response.ok) throw new Error(payload?.error || 'Failed to create routes')
+        if (!result.success) throw new Error(result.error || 'Failed to create routes')
       }
 
       if (existingRoutes.length > 0 && !areSerializedRoutesEqual(
@@ -185,21 +181,27 @@ export default function EditSubmittedRoutesPage() {
           (r) => r.climb_id && r.created_at !== 'draft-created'
         ))
       )) {
-        const response = await csrfFetch(`/api/submissions/${editor.activeImageId}/routes`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            routes: existingRoutes.map((route) => ({
-              id: route.id,
-              name: route.climb?.name || 'Unnamed',
-              description: route.climb?.description ?? null,
-              points: route.points,
-              sequenceOrder: route.sequence_order,
-            })),
-          }),
+        const result = await updatePublishedSubmissionRoutesAction(editor.activeImageId, {
+          routes: existingRoutes.map((route) => ({
+            id: route.id,
+            name: route.climb?.name || 'Unnamed',
+            description: route.climb?.description ?? null,
+            points: route.points,
+            sequenceOrder: route.sequence_order,
+          })),
         })
-        const payload = await response.json().catch(() => null) as { error?: string } | null
-        if (!response.ok) throw new Error(payload?.error || 'Failed to save routes')
+        if (!result.success) throw new Error(result.error || 'Failed to save routes')
+      }
+
+      if (existingRoutes.length > 0) {
+        const gradeVotePayload = existingRoutes
+          .filter((route) => route.id && route.climb?.grade)
+          .map((route) => ({ routeLineId: route.id, grade: route.climb?.grade || '6A' }))
+
+        if (gradeVotePayload.length > 0) {
+          const gradeVotesResult = await saveSubmissionGradeVotesAction(editor.activeImageId, gradeVotePayload)
+          if (!gradeVotesResult.success) throw new Error(gradeVotesResult.error || 'Failed to save route grades')
+        }
       }
 
       if (newRoutes.length > 0) {
@@ -221,19 +223,19 @@ export default function EditSubmittedRoutesPage() {
     setDeletingRoute(true)
     editor.setError(null)
     try {
-      const response = await csrfFetch(`/api/submissions/${editor.activeImageId}/routes`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ routeLineId, transferLogsToSameName: true, targetRouteLineId: targetRouteLineId || null }),
+      const result = await deletePublishedSubmissionRouteAction(editor.activeImageId, {
+        routeLineId,
+        transferLogsToSameName: true,
+        targetRouteLineId: targetRouteLineId || null,
       })
-      const payload = await response.json().catch(() => null) as {
+      const payload = (result.data || null) as {
         error?: string
         code?: string
         sourceRouteName?: string
         candidates?: Array<{ routeLineId: string; climbName: string; grade: string | null }>
       } | null
 
-      if (response.status === 409 && payload?.code === 'multiple_transfer_targets' && payload.candidates && payload.candidates.length > 0) {
+      if (result.status === 409 && payload?.code === 'multiple_transfer_targets' && payload.candidates && payload.candidates.length > 0) {
         setPendingDeleteRouteLineId(routeLineId)
         setDeleteTransferSourceRouteName(payload.sourceRouteName || '')
         setDeleteTransferCandidates(payload.candidates)
@@ -242,7 +244,7 @@ export default function EditSubmittedRoutesPage() {
         return
       }
 
-      if (!response.ok) throw new Error(payload?.error || 'Failed to delete route')
+      if (!result.success) throw new Error(result.error || payload?.error || 'Failed to delete route')
         editor.setSuccess('Route deleted')
         editor.setCanvasKey((value) => value + 1)
         window.location.reload()

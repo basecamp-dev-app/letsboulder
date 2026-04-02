@@ -14,8 +14,8 @@ import type { Database } from '@/types/database'
 import { createClient } from '@/lib/supabase'
 import type { RouteLine, RoutePoint } from '@/types/domain'
 import ClimbInfoPanel from '@/features/climb/components/ClimbInfoPanel'
+import { saveClimbFeedbackAction } from '@/features/climb/actions/save-climb-feedback'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
-import { csrfFetch } from '@/hooks/useCsrf'
 import { logRoutesAction } from '@/features/logbook/actions/log-routes'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
@@ -374,19 +374,15 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
     setSavingFeedback(true)
     try {
-      const response = await csrfFetch('/api/user-climbs/feedback', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          climbId: activeClimbId,
-          gradeOpinion: pendingGradeOpinion,
-          starRating: pendingStarRating,
-        }),
+      const result = await saveClimbFeedbackAction({
+        climbId: activeClimbId,
+        gradeOpinion: pendingGradeOpinion,
+        starRating: pendingStarRating,
       })
 
-      if (!response.ok) return
+      if (!result.success) return
 
-      const payload = await response.json().catch(() => ({})) as {
+      const payload = (result.data || {}) as {
         updatedGrade?: string
         gradeUpdated?: boolean
         gradeOpinion?: GradeOpinion | null

@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { GripHorizontal, Loader2 } from 'lucide-react'
 import { ToastContainer, useToast } from '@/features/logbook/components/toast'
+import { createSubmissionDraftAction } from '@/features/submissions/actions/manage-submissions'
 import ImagePicker from '@/features/submissions/components/ImagePicker'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useDraftUploadManager } from '@/features/submissions/upload/hooks/use-draft-upload-manager'
@@ -195,23 +196,21 @@ export default function DraftIntakeView() {
     setError(null)
 
     try {
-      const response = await csrfFetch('/api/submissions/drafts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          images: [],
-          metadata: {
-            primaryIndex: 0,
-            intake: {
-              source: '/submit',
-              createdAt: new Date().toISOString(),
-            },
+      const result = await createSubmissionDraftAction({
+        images: [],
+        metadata: {
+          primaryIndex: 0,
+          intake: {
+            source: '/submit',
+            createdAt: new Date().toISOString(),
           },
-        }),
+        },
       })
 
-      const payload = await response.json().catch(() => ({} as DraftCreateResponse))
-      if (!response.ok || !payload.draft?.id) {
+      const payload = result.success && result.data
+        ? ({ draft: result.data } as DraftCreateResponse)
+        : ({ error: result.error } as DraftCreateResponse)
+      if (!result.success || !payload.draft?.id) {
         throw new Error(payload.error || 'Failed to create draft')
       }
 

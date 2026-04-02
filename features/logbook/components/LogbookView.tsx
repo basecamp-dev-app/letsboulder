@@ -27,6 +27,11 @@ import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
 import { deleteLogAction } from '@/features/logbook/actions/delete-log'
+import {
+  deletePublishedSubmissionAction,
+  deleteSubmissionDraftAction,
+  publishSubmissionDraftAction,
+} from '@/features/submissions/actions/manage-submissions'
 import type { Submission } from '@/types/submissions'
 
 interface LogbookViewProps {
@@ -112,13 +117,13 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
     applySubmissionsUpdate(nextSubmissions)
 
     try {
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, { method: 'DELETE' })
-      if (response.status === 404) {
+      const result = await deleteSubmissionDraftAction(draftId)
+      if (result.status === 404) {
         addToast('Draft already removed', 'success')
         return
       }
 
-      if (!response.ok) throw new Error()
+      if (!result.success) throw new Error()
       addToast('Draft deleted', 'success')
     } catch {
       applySubmissionsUpdate(previousSubmissions)
@@ -140,13 +145,13 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
     applySubmissionsUpdate(nextSubmissions)
 
     try {
-      const response = await csrfFetch(`/api/submissions/${canonicalImageId}`, { method: 'DELETE' })
-      if (response.status === 404) {
+      const result = await deletePublishedSubmissionAction(canonicalImageId)
+      if (result.status === 404) {
         addToast('Submission already removed', 'success')
         return
       }
 
-      if (!response.ok) throw new Error()
+      if (!result.success) throw new Error()
       addToast('Submission deleted', 'success')
     } catch {
       applySubmissionsUpdate(previousSubmissions)
@@ -173,15 +178,15 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
     applySubmissionsUpdate(optimisticSubmissions)
 
     try {
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/promote`, { method: 'POST' })
-      const payload = await response.json().catch(() => ({} as {
+      const result = await publishSubmissionDraftAction(draftId)
+      const payload = (result.data || {}) as {
         published?: {
           imageId?: string
           imageIds?: string[]
           routeLineIds?: string[]
         }
-      }))
-      if (!response.ok) throw new Error()
+      }
+      if (!result.success) throw new Error()
 
       const supabase = createClient()
       const refreshed = await fetchOwnSubmissions(supabase, userId, csrfFetch, 24)

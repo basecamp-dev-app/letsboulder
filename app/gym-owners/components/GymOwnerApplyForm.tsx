@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useMemo, useState } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { submitGymOwnerApplicationAction } from '@/features/gym-owners/actions'
 
 type Facility = 'sport' | 'boulder'
 type Role = 'owner' | 'manager' | 'head_setter'
@@ -73,28 +73,21 @@ export default function GymOwnerApplyForm() {
 
     setIsSubmitting(true)
     try {
-      const response = await csrfFetch('/api/gym-owners/applications', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          gym_name: gymName.trim(),
-          address: address.trim(),
-          city: city.trim(),
-          country: country.trim(),
-          postcode_or_zip: postcodeOrZip.trim(),
-          facilities,
-          contact_phone: contactPhone.trim(),
-          contact_email: trimmedEmail,
-          role,
-          additional_comments: additionalComments.trim() || null,
-        }),
+      const result = await submitGymOwnerApplicationAction({
+        gym_name: gymName.trim(),
+        address: address.trim(),
+        city: city.trim(),
+        country: country.trim(),
+        postcode_or_zip: postcodeOrZip.trim(),
+        facilities,
+        contact_phone: contactPhone.trim(),
+        contact_email: trimmedEmail,
+        role,
+        additional_comments: additionalComments.trim() || null,
       })
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({} as { error?: string }))
-        setError(payload.error || 'Could not submit your application right now.')
+      if (!result.success) {
+        setError(result.error || 'Could not submit your application right now.')
         return
       }
 

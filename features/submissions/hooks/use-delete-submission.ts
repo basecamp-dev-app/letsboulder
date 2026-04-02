@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { deletePublishedSubmissionAction } from '@/features/submissions/actions/manage-submissions'
 import type { Submission } from '@/types/submissions'
 
 export function useDeleteSubmission(refresh: () => Promise<void>, setSubmissions: React.Dispatch<React.SetStateAction<Submission[]>>) {
@@ -10,13 +10,13 @@ export function useDeleteSubmission(refresh: () => Promise<void>, setSubmissions
   const deleteSubmission = useCallback(async (canonicalImageId: string) => {
     setDeletingSubmissionId(canonicalImageId)
     try {
-      const response = await csrfFetch(`/api/submissions/${canonicalImageId}`, { method: 'DELETE' })
-      if (response.status === 404) {
+      const result = await deletePublishedSubmissionAction(canonicalImageId)
+      if (result.status === 404) {
         await refresh()
         return true
       }
 
-      if (!response.ok) {
+      if (!result.success) {
         throw new Error('Failed to delete submission')
       }
 
