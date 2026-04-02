@@ -35,8 +35,6 @@ interface UseEditDraftActionsParams {
   locationSectionRef: RefObject<HTMLDivElement | null>
   hasPendingUploads: (draftId: string) => boolean
   hasFailedUploads: (draftId: string) => boolean
-  defaultImageTab: ManageImageTab | null
-  defaultImageRoutesLength: number
   hasValidLocation: boolean
   loadDraft: () => Promise<void>
   loadCollaborators: () => Promise<void>
@@ -74,8 +72,6 @@ export function useEditDraftActions({
   locationSectionRef,
   hasPendingUploads,
   hasFailedUploads,
-  defaultImageTab,
-  defaultImageRoutesLength,
   hasValidLocation,
   loadDraft,
   loadCollaborators,
@@ -91,6 +87,36 @@ export function useEditDraftActions({
   const [savingDraft, setSavingDraft] = useState(false)
   const [publishingDraft, setPublishingDraft] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
+
+  const syncDraftRoutes = useCallback(async (resolvedRoutesByImageId: Record<string, DraftRoute[]>) => {
+    if (!draft?.id) {
+      throw new Error('Draft is not ready to save')
+    }
+
+    const draftImageIds = new Set((draft.images || []).map((image) => image.id))
+
+    await Promise.all(
+      [...draftImageIds].map(async (draftImageId) => {
+        const routes = resolvedRoutesByImageId[draftImageId] || []
+        const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/routes`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ draftImageId, routes }),
+        })
+
+        const payload = await response.json().catch(() => ({} as { error?: string }))
+        if (!response.ok) {
+          throw new Error(payload.error || 'Failed to sync draft routes')
+        }
+      })
+    )
+  }, [draft])
+
+  const getImagesMissingRoutes = useCallback((resolvedRoutesByImageId: Record<string, DraftRoute[]>) => {
+    return manageImages
+      .filter((image) => image.sourceKind === 'draft-image')
+      .filter((image) => (resolvedRoutesByImageId[image.imageId] || []).length === 0)
+  }, [manageImages])
 
   const buildSavePayload = useCallback((resolvedRoutesByImageId: Record<string, DraftRoute[]>, resolvedCragId: string | null) => {
     const nextImagesPayload = buildRouteCompletionPayload(draft?.images || [], resolvedRoutesByImageId, routeType, manageImages.map((image) => image.imageId))
@@ -145,6 +171,7 @@ export function useEditDraftActions({
 
   const publishValidationMessage = useMemo(() => {
     const missingItems: string[] = []
+    const imagesMissingRoutes = getImagesMissingRoutes(routesByImageId)
 
     if (draftId && hasPendingUploads(draftId)) {
       missingItems.push('wait for photo uploads to finish')
@@ -162,12 +189,12 @@ export function useEditDraftActions({
       missingItems.push('add climb location')
     }
 
-    if (!defaultImageTab || defaultImageRoutesLength === 0) {
-      missingItems.push(`draw at least one route on ${defaultImageTab?.label || 'the default image'}`)
+    if (imagesMissingRoutes.length > 0) {
+      missingItems.push('draw at least one route on every image or remove the images without routes')
     }
 
     return missingItems.length > 0 ? `Before publishing, ${missingItems.join(', ')}.` : null
-  }, [cragId, defaultImageRoutesLength, defaultImageTab, draftId, hasFailedUploads, hasPendingUploads, hasValidLocation])
+  }, [cragId, draftId, getImagesMissingRoutes, hasFailedUploads, hasPendingUploads, hasValidLocation, routesByImageId])
 
   const saveDraft = useCallback(async (options?: { overrideRoutesByImageId?: Record<string, DraftRoute[]>; overrideCragId?: string | null }) => {
     const resolvedRoutesByImageId = options?.overrideRoutesByImageId ?? routesByImageId
@@ -179,6 +206,7 @@ export function useEditDraftActions({
     setSuccess(null)
 
     try {
+      await syncDraftRoutes(resolvedRoutesByImageId)
       const { savePayload, fullV2Metadata } = buildSavePayload(resolvedRoutesByImageId, resolvedCragId)
       let expectedUpdatedAt = draftUpdatedAt
       let response: Response | null = null
@@ -240,7 +268,7 @@ export function useEditDraftActions({
     } finally {
       setSavingDraft(false)
     }
-  }, [buildSavePayload, cragId, currentUserId, draft, draftUpdatedAt, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess])
+  }, [buildSavePayload, cragId, currentUserId, draft, draftUpdatedAt, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, syncDraftRoutes])
 
   const handleDeleteDraft = useCallback(async () => {
     if (!draftId || !isOwner) return
@@ -283,9 +311,11 @@ export function useEditDraftActions({
         return
       }
 
-      if (!defaultImageTab || defaultImageRoutesLength === 0) {
-        if (defaultImageTab) {
-          setActiveImageId(defaultImageTab.imageId)
+      const imagesMissingRoutes = getImagesMissingRoutes(routesByImageId)
+      if (imagesMissingRoutes.length > 0) {
+        const firstMissingImage = imagesMissingRoutes[0] || null
+        if (firstMissingImage) {
+          setActiveImageId(firstMissingImage.imageId)
         }
         publishRequirementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }
@@ -336,7 +366,7 @@ export function useEditDraftActions({
     } finally {
       setPublishingDraft(false)
     }
-  }, [addToast, cragId, defaultImageRoutesLength, defaultImageTab, draft, hasValidLocation, isOwner, locationSectionRef, publishRequirementsRef, publishValidationMessage, router, saveDraft, setActiveImageId, setError, cragSectionRef])
+  }, [addToast, cragId, draft, getImagesMissingRoutes, hasValidLocation, isOwner, locationSectionRef, publishRequirementsRef, publishValidationMessage, router, routesByImageId, saveDraft, setActiveImageId, setError, cragSectionRef])
 
   const handleReloadLatestDraft = useCallback(async () => {
     setConflict(null)

@@ -246,15 +246,6 @@ export default function EditDraftPage() {
   }, [activeImageId, activeImageTab?.sourceKind, activeImageTab?.status, imageSelection])
 
   const activeImageReady = Boolean(activeImageTab?.signedUrl) && activeImageTab?.status !== 'FAILED'
-
-  const defaultImageTab = useMemo(() => {
-    if (!defaultImageId) return null
-    return mergedManageImages.find((image) => image.imageId === defaultImageId) || null
-  }, [defaultImageId, mergedManageImages])
-  const defaultImageRoutes = useMemo(() => {
-    if (!defaultImageId) return []
-    return routesByImageId[defaultImageId] || []
-  }, [defaultImageId, routesByImageId])
   const quickSwitcherImages = useMemo(() => {
     const sourceImages = canvasSource?.kind === 'crag-image' ? mergedCragCanvasImages : mergedManageImages
     const pendingUploads = canvasSource?.kind === 'crag-image' ? pendingCragUploads : pendingDraftUploads
@@ -404,8 +395,6 @@ export default function EditDraftPage() {
     locationSectionRef,
     hasPendingUploads,
     hasFailedUploads,
-    defaultImageTab,
-    defaultImageRoutesLength: defaultImageRoutes.length,
     hasValidLocation,
     loadDraft,
     loadCollaborators,

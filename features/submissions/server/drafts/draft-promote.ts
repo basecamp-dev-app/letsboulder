@@ -18,6 +18,11 @@ interface PromoteResult {
   published_at?: string
 }
 
+interface DraftRouteRef {
+  id: string
+  draft_image_id: string
+}
+
 export async function promoteDraftToSubmission(input: {
   supabase: ReturnType<typeof import('@supabase/ssr').createServerClient>
   request: Request
@@ -45,7 +50,7 @@ export async function promoteDraftToSubmission(input: {
 
   const { data: draftImages, error: draftImagesError } = await supabase
     .from('submission_draft_images')
-    .select('latitude, longitude')
+    .select('id, latitude, longitude')
     .eq('draft_id', draftId)
 
   if (draftImagesError) {
@@ -62,16 +67,6 @@ export async function promoteDraftToSubmission(input: {
     return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
   }
 
-  const defaultDraftImageId = draft.metadata
-    && typeof draft.metadata === 'object'
-    && !Array.isArray(draft.metadata)
-    && draft.metadata.navigation
-    && typeof draft.metadata.navigation === 'object'
-    && !Array.isArray(draft.metadata.navigation)
-    && typeof (draft.metadata.navigation as { defaultImageId?: unknown }).defaultImageId === 'string'
-      ? (draft.metadata.navigation as { defaultImageId: string }).defaultImageId
-      : (draftImages || [])[0]?.id || null
-
   const { data: draftRoutes, error: draftRoutesError } = await supabase
     .from('submission_draft_routes')
     .select('id, draft_image_id')
@@ -81,14 +76,13 @@ export async function promoteDraftToSubmission(input: {
     return createErrorResponse(draftRoutesError, 'Failed to validate draft routes before publish')
   }
 
-  const hasDefaultImageRoute = Boolean(
-    defaultDraftImageId
-      && Array.isArray(draftRoutes)
-      && draftRoutes.some((route) => route.draft_image_id === defaultDraftImageId)
-  )
+  const draftImageIds = ((draftImages || []) as Array<{ id: string }>).map((image) => image.id)
+  const routeRows = (draftRoutes || []) as DraftRouteRef[]
+  const routeImageIds = new Set(routeRows.map((route) => route.draft_image_id))
+  const imagesMissingRoutes = draftImageIds.filter((imageId) => !routeImageIds.has(imageId))
 
-  if (!hasDefaultImageRoute) {
-    return NextResponse.json({ error: 'Routes are still syncing for the default image. Save the draft again and retry publish.' }, { status: 409 })
+  if (imagesMissingRoutes.length > 0) {
+    return NextResponse.json({ error: 'Every image in the submission must have at least one route before publishing. Remove images without routes or add routes to them.' }, { status: 409 })
   }
 
   const { data, error } = await supabase.rpc('promote_draft_to_submission', { p_draft_id: draftId })
@@ -108,6 +102,10 @@ export async function promoteDraftToSubmission(input: {
   const result = (Array.isArray(data) ? data[0] : data) as PromoteResult | null
   if (!result?.success || !result.image_id) {
     return NextResponse.json({ error: 'Failed to publish draft' }, { status: 500 })
+  }
+
+  if (!Array.isArray(result.route_line_ids) || result.route_line_ids.length === 0) {
+    return NextResponse.json({ error: 'Failed to publish draft routes. Every image must have at least one route before publishing.' }, { status: 409 })
   }
 
   const defaultImageId = result.default_image_id || result.image_id
