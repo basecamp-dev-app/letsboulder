@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { withCsrfProtection } from '@/lib/csrf-server'
-import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { withApiMiddleware } from '@/lib/csrf-server'
 
 interface QueueItem {
   id: string
@@ -19,20 +17,16 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    unauthorizedMessage: 'Authentication required',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
   const { id: queueId } = await params
 
-  const supabase = getServerClientFromRequest(request)
+  const { supabase, userId } = middlewareResult
 
   try {
-    const { userId } = await resolveUserIdWithFallback(request, supabase)
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
     if (!queueId) {
       return NextResponse.json({ error: 'Queue ID required' }, { status: 400 })
     }

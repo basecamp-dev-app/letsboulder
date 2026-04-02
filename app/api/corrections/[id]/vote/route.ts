@@ -1,35 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest, getUnauthenticatedClient } from '@/lib/supabase-server'
-import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { withCsrfProtection } from '@/lib/csrf-server'
-import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { withApiMiddleware } from '@/lib/csrf-server'
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    rateLimitKey: 'authenticatedWrite',
+    unauthorizedMessage: 'Authentication required',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
-  const supabase = getServerClientFromRequest(request)
+  const { supabase, userId } = middlewareResult
 
   try {
-    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
-
-    if (authError || !userId) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
-    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
-    if (!rateLimitResult.success) {
-      return rateLimitResponse
-    }
-
     const { id: correctionId } = await params
     const body = await request.json()
     const { vote_type } = body
@@ -268,27 +254,15 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    rateLimitKey: 'authenticatedWrite',
+    unauthorizedMessage: 'Authentication required',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
-  const supabase = getServerClientFromRequest(request)
+  const { supabase, userId } = middlewareResult
 
   try {
-    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
-
-    if (authError || !userId) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
-    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
-    if (!rateLimitResult.success) {
-      return rateLimitResponse
-    }
-
     const { id: correctionId } = await params
 
     // Remove vote

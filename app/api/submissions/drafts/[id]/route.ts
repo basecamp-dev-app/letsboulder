@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
-import { withCsrfProtection } from '@/lib/csrf-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
@@ -140,22 +140,19 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    unauthorizedMessage: 'Authentication required',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
   const { id } = await params
   if (!id) {
     return NextResponse.json({ error: 'Draft ID is required' }, { status: 400 })
   }
 
-  const supabase = getServerClientFromRequest(request)
+  const { supabase, userId } = middlewareResult
 
   try {
-    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
-    if (authError || !userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
     const body = await request.json().catch(() => null) as DraftPatchBody | null
     const images = normalizePatchImages(body?.images)
     if (!images) {
@@ -346,24 +343,21 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    unauthorizedMessage: 'Authentication required',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
   const { id } = await params
   if (!id) {
     return NextResponse.json({ error: 'Draft ID is required' }, { status: 400 })
   }
 
-  const supabase = getServerClientFromRequest(request)
+  const { supabase, userId } = middlewareResult
 
   const storageClient = getAdminClient()
 
   try {
-    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
-    if (authError || !userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
     const { data: draft, error: draftError } = await supabase
       .from('submission_drafts')
       .select('id, user_id, status')

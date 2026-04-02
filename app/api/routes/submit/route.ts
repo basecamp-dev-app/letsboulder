@@ -1,24 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { withCsrfProtection } from '@/lib/csrf-server'
-import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { isValidGrade } from '@/lib/grade-constants'
 
 const MAX_ROUTES_PER_DAY = 5
 
 export async function POST(request: NextRequest) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    unauthorizedMessage: 'Authentication required',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
-
-  const supabase = getServerClientFromRequest(request)
-
-  const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
-
-  if (authError || !userId) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  }
+  const { supabase, userId } = middlewareResult
 
   try {
     const body = await request.json()

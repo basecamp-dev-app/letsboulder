@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { withCsrfProtection } from '@/lib/csrf-server'
-import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { GRADE_ORDER_INDEX, isValidGrade } from '@/lib/grade-constants'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 
 export async function GET(
   request: NextRequest,
@@ -72,24 +71,15 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    rateLimitKey: 'authenticatedWrite',
+    unauthorizedMessage: 'Authentication required',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
   const { id: routeId } = await params
 
-  const supabase = getServerClientFromRequest(request)
-  
-  const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
-  
-  if (authError || !userId) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  }
-
-  const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
-  const rateLimitResponse = createRateLimitResponse(rateLimitResult)
-  if (!rateLimitResult.success) {
-    return rateLimitResponse
-  }
+  const { supabase, userId } = middlewareResult
   
   try {
     const body = await request.json()

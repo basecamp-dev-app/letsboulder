@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
-import { withCsrfProtection } from '@/lib/csrf-server'
+import { getAdminClient } from '@/lib/supabase-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
-import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import type { Database } from '@/types/database'
 
 interface DraftConflictResponse {
@@ -39,8 +38,10 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; imageId: string }> }
 ) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    unauthorizedMessage: 'Authentication required',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
   const { id, imageId } = await params
   if (!id || !imageId) {
@@ -53,16 +54,11 @@ export async function DELETE(
     return NextResponse.json({ error: 'expected_updated_at is required and must be a valid ISO timestamp' }, { status: 400 })
   }
 
-  const supabase = getServerClientFromRequest(request)
+  const { supabase, userId } = middlewareResult
 
   const storageClient = getAdminClient()
 
   try {
-    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
-    if (authError || !userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
     const { data: draft, error: draftError } = await supabase
       .from('submission_drafts')
       .select('id, user_id, status, updated_at, last_edited_by, metadata')

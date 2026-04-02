@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
-import { withCsrfProtection } from '@/lib/csrf-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 const VALID_TARGET_TYPES = ['crag', 'image', 'climb'] as const
@@ -135,24 +134,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    rateLimitKey: 'authenticatedWrite',
+    unauthorizedMessage: 'Authentication required',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
-  const supabase = getSupabase(request)
+  const { supabase, userId } = middlewareResult
 
   try {
-    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
-
-    if (authError || !userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
-    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
-    if (!rateLimitResult.success) {
-      return rateLimitResponse
-    }
-
     const body = await request.json()
     const rawTargetType = typeof body?.targetType === 'string' ? body.targetType : null
     const rawTargetId = typeof body?.targetId === 'string' ? body.targetId : null

@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { SignJWT } from 'jose'
 import { Resend } from 'resend'
-import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
-import { withCsrfProtection } from '@/lib/csrf-server'
-import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { buildDeleteAccountEmail } from '@/lib/email/delete-account-email'
 import { serverEnv } from '@/lib/env'
 
@@ -26,30 +23,20 @@ function getDeleteTokenSecret(): Uint8Array {
 const DELETE_TOKEN_EXPIRY = 10 * 60 * 1000
 
 export async function POST(request: NextRequest) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    rateLimitKey: 'sensitive',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
   const { searchParams } = new URL(request.url)
   const deleteRouteUploads = searchParams.get('delete_route_uploads') === 'true'
 
-  const supabase = getServerClientFromRequest(request)
+  const { supabase, userId } = middlewareResult
 
   try {
-    const { userId } = await resolveUserIdWithFallback(request, supabase)
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !user.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const rateLimitResult = rateLimit(request, 'sensitive', userId)
-    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
-    if (!rateLimitResult.success) {
-      return rateLimitResponse
     }
 
     const deleteTokenSecret = getDeleteTokenSecret()
