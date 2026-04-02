@@ -1,14 +1,14 @@
 'use client'
 
 import { ArrowRightLeft, Edit2, Mountain, Trash2 } from 'lucide-react'
-import type { Crag } from '@/app/admin/crags/types'
+import type { AdminCrag } from '@/app/admin/crags/types'
 import { formatRouteTypeLabel } from '@/app/admin/crags/types'
 
 interface CragsTableProps {
-  crags: Crag[]
-  onMoveImage: (crag: Crag) => void
-  onRename: (crag: Crag) => void
-  onDelete: (crag: Crag) => void
+  crags: AdminCrag[]
+  onMoveImage: (crag: AdminCrag) => void
+  onRename: (crag: AdminCrag) => void
+  onDelete: (crag: AdminCrag) => void
 }
 
 export default function CragsTable({ crags, onDelete, onMoveImage, onRename }: CragsTableProps) {

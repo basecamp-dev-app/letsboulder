@@ -3,7 +3,7 @@ import { getStoredCragClimbPayloads } from '@/lib/offline/storage'
 import type { ClimbPackResponse } from '@/lib/climb/queries'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import { getAverageCoordinates, sortDirections } from '@/features/crags/lib/crag-geo'
-import type { Crag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
+import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 
 export interface OfflineHydratedCragData {
   images: ImageData[]
@@ -16,7 +16,7 @@ export interface OfflineHydratedCragData {
 }
 
 export interface CachedCragImageData {
-  crag: Crag | null
+  crag: CragPageCrag | null
   images: ImageData[]
   cragCenter: [number, number] | null
   defaultRouteTargetByImageId: Record<string, ImageRouteTarget>

@@ -2,7 +2,7 @@
 
 import { Loader2, ArrowRightLeft } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
-import type { Crag, CragImageRouteCandidate, MoveImageState } from '@/app/admin/crags/types'
+import type { AdminCrag, CragImageRouteCandidate, MoveImageState } from '@/app/admin/crags/types'
 
 interface MovePublishedImageDialogProps {
   movingImage: MoveImageState
@@ -10,7 +10,7 @@ interface MovePublishedImageDialogProps {
   loadingMoveCandidates: boolean
   selectedMoveCandidate: CragImageRouteCandidate | null
   selectedTargetCragId: string
-  targetCragOptions: Crag[]
+  targetCragOptions: AdminCrag[]
   movingPublishedImage: boolean
   onClose: () => void
   onMove: () => void

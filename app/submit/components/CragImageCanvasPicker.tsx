@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import NextImage from 'next/image'
 import CragSelector from '@/features/submissions/components/CragSelector'
-import type { Crag, CragImageSelection } from '@/features/submissions/lib/submission-types'
+import type { SubmissionCrag, CragImageSelection } from '@/features/submissions/lib/submission-types'
 
 interface CragImageApiItem {
   id: string
@@ -14,18 +14,18 @@ interface CragImageApiItem {
 }
 
 interface CragImageCanvasPickerProps {
-  onSelect: (selection: CragImageSelection, crag: Crag) => void
+  onSelect: (selection: CragImageSelection, crag: SubmissionCrag) => void
 }
 
 export default function CragImageCanvasPicker({ onSelect }: CragImageCanvasPickerProps) {
-  const [selectedCrag, setSelectedCrag] = useState<Crag | null>(null)
+  const [selectedCrag, setSelectedCrag] = useState<SubmissionCrag | null>(null)
   const [images, setImages] = useState<CragImageApiItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const hasImages = useMemo(() => images.length > 0, [images])
 
-  async function handleCragSelect(crag: Crag) {
+  async function handleCragSelect(crag: SubmissionCrag) {
     setSelectedCrag(crag)
     setError(null)
     setImages([])

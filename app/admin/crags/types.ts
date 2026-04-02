@@ -1,4 +1,4 @@
-export interface Crag {
+export interface AdminCrag {
   id: string
   name: string
   latitude: number | null
@@ -22,7 +22,7 @@ export interface CragImageRouteCandidate {
 }
 
 export interface MoveImageState {
-  sourceCrag: Crag
+  sourceCrag: AdminCrag
   imageId: string
 }
 

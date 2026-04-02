@@ -8,7 +8,7 @@ import type { ClimbPackResponse } from '@/lib/climb/queries'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import { dedupeCragRoutes, fetchRouteTargetMapsForClimbIds, formatCragRoutes, getAverageCoordinates, getStoredCragClimbPayloadsSafely, hasCompleteRouteTargets, hydrateOfflineCragData, remapRouteNavigationTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId } from '@/features/crags/lib/crag-page-domain'
 import type { CachedCragImageData, CragRouteIntelligenceRow, RawImageRow } from '@/features/crags/lib/crag-page-domain'
-import type { Crag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
+import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 
 const CRAG_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000
 const cragImageCache = new Map<string, CachedCragImageData>()
@@ -25,7 +25,7 @@ function isOfflineDocumentNavigationPreferred() {
 
 export interface UseCragDataParams {
   id: string
-  initialCrag?: Crag | null
+  initialCrag?: CragPageCrag | null
   initialImages?: ImageData[]
   initialRoutes?: CragRoute[] | null
   initialRouteImageIdsByClimbId?: Record<string, string[]>
@@ -37,7 +37,7 @@ export interface UseCragDataParams {
 }
 
 export interface UseCragDataResult {
-  crag: Crag | null
+  crag: CragPageCrag | null
   images: ImageData[]
   routes: CragRoute[]
   routeImageIdsByClimbId: Record<string, string[]>
@@ -61,7 +61,7 @@ export function useCragData({
   initialCragCenter = null,
   initialPayloadLoadedAt,
 }: UseCragDataParams): UseCragDataResult {
-  const [crag, setCrag] = useState<Crag | null>(initialCrag)
+  const [crag, setCrag] =     useState<CragPageCrag | null>(initialCrag)
   const hasInitialRouteData = initialRoutes !== null
   const [images, setImages] = useState<ImageData[]>(initialImages)
   const [routes, setRoutes] = useState<CragRoute[]>(initialRoutes || [])

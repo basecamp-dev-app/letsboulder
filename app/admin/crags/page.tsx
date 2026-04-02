@@ -9,7 +9,7 @@ import MovePublishedImageDialog from '@/app/admin/crags/components/MovePublished
 import RenameCragModal from '@/app/admin/crags/components/RenameCragModal'
 import { useAdminCrags } from '@/app/admin/crags/hooks/useAdminCrags'
 import { useMovePublishedImage } from '@/app/admin/crags/hooks/useMovePublishedImage'
-import type { Crag } from '@/app/admin/crags/types'
+import type { AdminCrag } from '@/app/admin/crags/types'
 
 export default function AdminCragsPage() {
   const {
@@ -24,8 +24,8 @@ export default function AdminCragsPage() {
   } = useAdminCrags()
   const [search, setSearch] = useState('')
   const [missingRegionOnly, setMissingRegionOnly] = useState(false)
-  const [renamingCrag, setRenamingCrag] = useState<Crag | null>(null)
-  const [removingCrag, setRemovingCrag] = useState<Crag | null>(null)
+  const [renamingCrag, setRenamingCrag] = useState<AdminCrag | null>(null)
+  const [removingCrag, setRemovingCrag] = useState<AdminCrag | null>(null)
   const {
     closeMoveDialog,
     loadingMoveCandidates,

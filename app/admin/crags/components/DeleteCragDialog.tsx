@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import { Loader2, Trash2 } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
-import type { Crag } from '@/app/admin/crags/types'
+import type { AdminCrag } from '@/app/admin/crags/types'
 
 interface DeleteCragDialogProps {
-  crag: Crag
+  crag: AdminCrag
   deleting: boolean
   onClose: () => void
   onConfirm: (confirmCount: string) => void

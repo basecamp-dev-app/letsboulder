@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { Crag } from '@/features/submissions/lib/submission-types'
+import type { SubmissionCrag } from '@/features/submissions/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useAtlasAutoSync } from '@/features/editor/location/use-atlas-auto-sync'
 import AtlasContextCard from '@/features/submissions/components/atlas-context-card'
@@ -9,16 +9,16 @@ import AtlasContextCard from '@/features/submissions/components/atlas-context-ca
 interface CragSelectorProps {
   latitude?: number | null
   longitude?: number | null
-  onSelect: (crag: Crag) => void
-  onCreateNew?: (crag: Crag) => void
+  onSelect: (crag: SubmissionCrag) => void
+  onCreateNew?: (crag: SubmissionCrag) => void
   selectedCragId?: string | null
 }
 
-interface CragSearchResult extends Crag {
+interface CragSearchResult extends SubmissionCrag {
   distance?: number | null
 }
 
-interface NearbyCragResult extends Crag {
+interface NearbyCragResult extends SubmissionCrag {
   distance?: number | null
 }
 
@@ -172,7 +172,7 @@ export default function CragSelector({
     }
   }, [newCragRegionTag, showCreate])
 
-  const handleSelect = (crag: Crag) => {
+  const handleSelect = (crag: SubmissionCrag) => {
     setQuery(crag.name)
     setResults([])
     setShowNearby(false)
