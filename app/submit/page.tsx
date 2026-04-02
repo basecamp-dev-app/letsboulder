@@ -1,11 +1,6 @@
 import { redirect } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import { getServerClient } from '@/lib/supabase-server'
-
-const DraftIntakeView = dynamic(
-  () => import('@/features/submissions/components/DraftIntakeView'),
-  { ssr: false, loading: () => <div className="min-h-screen bg-gray-50 dark:bg-gray-900" /> }
-)
+import DraftIntakeClient from '@/app/submit/components/DraftIntakeClient'
 
 export default async function SubmitPage() {
   const supabase = await getServerClient()
@@ -15,5 +10,5 @@ export default async function SubmitPage() {
     redirect(`/auth?redirect_to=${encodeURIComponent('/submit')}`)
   }
 
-  return <DraftIntakeView />
+  return <DraftIntakeClient />
 }
