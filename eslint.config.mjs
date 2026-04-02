@@ -7,7 +7,7 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
-    ignores: ['app/**', 'tests/**'],
+    ignores: ['app/**', 'tests/**', 'lib/supabase-server.ts', 'proxy.ts'],
     rules: {
       'no-restricted-imports': [
         'error',

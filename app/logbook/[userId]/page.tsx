@@ -80,24 +80,6 @@ async function getPublicLogs(userId: string): Promise<LogbookClimb[]> {
   return logsWithCrags
 }
 
-interface Climb {
-  id: string
-  climb_id: string
-  style: string
-  created_at: string
-  notes?: string
-  date_climbed?: string
-  climbs: {
-    id: string
-    name: string
-    grade: string
-    image_url?: string
-    crags?: {
-      name: string
-    }
-  }
-}
-
 async function getPublicSubmissions(userId: string): Promise<Submission[]> {
   const supabase = await getServerClient()
 

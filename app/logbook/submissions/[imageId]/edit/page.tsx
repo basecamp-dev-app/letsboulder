@@ -96,7 +96,7 @@ export default function EditSubmittedRoutesPage() {
     lastSeededRouteImageIdRef.current = editor.activeImageId
     setRouteStoreRoutes(editor.existingRouteLines)
     editor.setEditedRoutes(editor.existingRouteLines)
-  }, [editor.activeImageId, editor.existingRouteLines, editor.setEditedRoutes, routeStoreRoutes, setRouteStoreRoutes])
+  }, [editor, editor.activeImageId, editor.existingRouteLines, editor.setEditedRoutes, routeStoreRoutes, setRouteStoreRoutes])
 
   const handleSaveAllChanges = useCallback(async () => {
     if (savingAllChanges || !editor.activeImageId) return

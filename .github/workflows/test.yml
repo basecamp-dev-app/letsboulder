@@ -16,9 +16,53 @@ on:
 permissions:
   contents: read
   deployments: read
-  statuses: write
+  statuses: read
+  pull-requests: read
 
 jobs:
+  quality:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node20-modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Check type drift
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            MIGRATIONS_CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} -- supabase/migrations/ | wc -l)
+            TYPES_CHANGED=$(git diff --name-only ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} -- types/database.ts | wc -l)
+            if [ "$MIGRATIONS_CHANGED" -gt 0 ] && [ "$TYPES_CHANGED" -eq 0 ]; then
+              echo "::error::Migrations were changed but types/database.ts was not regenerated. Run 'supabase gen types typescript --local > types/database.ts' and commit the result."
+              exit 1
+            fi
+            echo "Type drift check passed (migrations: $MIGRATIONS_CHANGED changed, types: $TYPES_CHANGED changed)"
+          else
+            echo "Skipping type drift check (not a pull_request event)"
+          fi
+
   smoke:
     name: E2E Smoke
     if: |

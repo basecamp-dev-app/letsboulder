@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUnauthenticatedClient, getAdminClient } from '@/lib/supabase-server'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
-import type { createServerClient } from '@supabase/ssr'
+
+type SupabaseClient = ReturnType<typeof getUnauthenticatedClient>
 
 interface FaceItem {
   id: string
@@ -118,7 +119,7 @@ function pickClimb(value: RouteLineRaw['climbs']) {
 }
 
 async function fetchRoutesByImageIds(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: SupabaseClient,
   imageIds: string[]
 ): Promise<Map<string, CompleteSummaryRoute[]>> {
   const map = new Map<string, CompleteSummaryRoute[]>()
@@ -197,7 +198,7 @@ function parsePrivateStorageUrl(url: string): { bucket: string; path: string } |
 
 async function toViewableUrlMap(
   rawUrls: string[],
-  signer: ReturnType<typeof createServerClient>
+  signer: SupabaseClient
 ): Promise<Map<string, string | null>> {
   const map = new Map<string, string | null>()
   const groupedPaths = new Map<string, Set<string>>()
@@ -242,7 +243,7 @@ async function toViewableUrlMap(
 }
 
 async function fetchPrimaryImage(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: SupabaseClient,
   imageId: string
 ): Promise<{ data: PrimaryImageRow | null; error: unknown }> {
   const withDirections = await supabase
@@ -278,7 +279,7 @@ async function fetchPrimaryImage(
 }
 
 async function fetchRelatedFaces(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: SupabaseClient,
   cragId: string,
   primaryImageId: string
 ): Promise<{ data: RelatedFaceRow[]; error: unknown }> {
@@ -318,7 +319,7 @@ async function fetchRelatedFaces(
 }
 
 async function resolveCanonicalFaceImageId(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: SupabaseClient,
   imageId: string
 ): Promise<string> {
   const { data, error } = await supabase

@@ -19,7 +19,6 @@ import type { MediaUploadItem } from '@/features/submissions/upload/hooks/use-me
 
 interface UseEditDraftDataParams {
   draftId: string
-  sectorId: string | null
   uploads: MediaUploadItem[]
   registerDraftUpdatedAt: (draftId: string, updatedAt: string) => void
   clearConflict: () => void
@@ -30,7 +29,6 @@ interface UseEditDraftDataParams {
 
 export function useEditDraftData({
   draftId,
-  sectorId,
   uploads,
   registerDraftUpdatedAt,
   clearConflict,
@@ -236,7 +234,7 @@ export function useEditDraftData({
         setIsRefreshingDraft(false)
       }
     }
-  }, [clearConflict, registerDraftUpdatedAt, sectorId, setLatitude, setLongitude, setShowCragSelector])
+  }, [clearConflict, registerDraftUpdatedAt, setLatitude, setLongitude, setShowCragSelector])
 
   const syncUploadedImages = useCallback(async () => {
     const currentDraftId = draftIdRef.current
@@ -267,7 +265,7 @@ export function useEditDraftData({
 
   useEffect(() => {
     void loadDraft()
-  }, [])
+  }, [loadDraft])
 
   useEffect(() => {
     if (!cragId) {
