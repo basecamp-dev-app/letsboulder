@@ -66,6 +66,7 @@ export async function fetchOwnSubmissions(
 
   const publishedSubmissions: Submission[] = contributionRows
     ? groupSubmittedImages(contributionRows as ImageContributionRow[], [])
+      .filter((submission) => submission.route_lines_count > 0)
     : []
 
   const { data: draftSubmissions } = await supabase
