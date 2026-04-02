@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -26,6 +26,7 @@ import {
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
+import { deleteLogAction } from '@/features/logbook/actions/delete-log'
 import type { Submission } from '@/types/submissions'
 
 interface LogbookViewProps {
@@ -93,8 +94,8 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
     applyLogsUpdate(nextLogs)
 
     try {
-      const response = await csrfFetch(`/api/logs/${logId}`, { method: 'DELETE' })
-      if (!response.ok) throw new Error()
+      const result = await deleteLogAction(logId)
+      if (!result.success) throw new Error(result.error)
       addToast('Climb removed from logbook', 'success')
     } catch {
       applyLogsUpdate(previousLogs)
@@ -199,7 +200,9 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
           publishedFaces: String(imageCount),
           publishedRoutes: String(routeCount),
         })
-        router.push(`/logbook/submissions/${imageId}/edit?${query.toString()}`)
+        startTransition(() => {
+          router.push(`/logbook/submissions/${imageId}/edit?${query.toString()}`)
+        })
       }
     } catch {
       applySubmissionsUpdate(previousSubmissions)

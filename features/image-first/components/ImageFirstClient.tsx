@@ -16,6 +16,7 @@ import type { RouteLine, RoutePoint } from '@/types/domain'
 import ClimbInfoPanel from '@/features/climb/components/ClimbInfoPanel'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { logRoutesAction } from '@/features/logbook/actions/log-routes'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 
@@ -356,13 +357,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
     setLogging(true)
     try {
-      const response = await csrfFetch('/api/log-routes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ climbIds: [activeClimbId], style }),
-      })
-
-      if (!response.ok) return false
+      const result = await logRoutesAction([activeClimbId], style)
+      if (!result.success) return false
 
       setSelectedClimbLogged(true)
       setSelectedClimbFeedbackCollapsed(false)

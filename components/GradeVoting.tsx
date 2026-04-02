@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { SELECTABLE_GRADES, GradeVotingProps } from '@/lib/verification-types'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { submitGradeVoteAction } from '@/components/grade-voting-actions'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 
@@ -25,15 +25,8 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
     if (loading) return
     setLoading(true)
     try {
-      const response = await csrfFetch(`/api/climbs/${climbId}/grade-vote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grade })
-      })
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to vote')
-      }
+      const result = await submitGradeVoteAction(climbId, grade)
+      if (!result.success) throw new Error(result.error || 'Failed to vote')
       await onVote(grade)
     } catch (error) {
       console.error('Vote error:', error)

@@ -6,6 +6,7 @@ import { Loader2, MessageSquare, Trash2 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { createCommentAction, deleteCommentAction } from '@/components/comments/actions'
 
 type TargetType = 'crag' | 'image' | 'climb'
 type CommentCategory =
@@ -280,27 +281,18 @@ export default function CommentThread({ targetType, targetId, className, userId 
     setSubmitting(true)
 
     try {
-      const response = await csrfFetch('/api/comments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          targetType,
-          targetId,
-          body: trimmedBody,
-          category,
-        }),
+      const result = await createCommentAction({
+        targetType,
+        targetId,
+        body: trimmedBody,
+        category,
       })
 
-      const data = await response.json().catch(() => null as unknown)
-
-      if (!response.ok || !data || typeof data !== 'object') {
-        throw new Error('Failed to post comment')
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to post comment')
       }
 
-      const payload = data as { comment?: CommentItem }
-      const newComment = payload.comment
+      const newComment = result.data?.comment
       if (newComment) {
         if (categoryFilter === 'all' || newComment.category === categoryFilter) {
           setComments((prev) => [newComment, ...prev])
@@ -326,13 +318,8 @@ export default function CommentThread({ targetType, targetId, className, userId 
     setDeletingId(commentId)
 
     try {
-      const response = await csrfFetch(`/api/comments/${commentId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete comment')
-      }
+      const result = await deleteCommentAction(commentId)
+      if (!result.success) throw new Error(result.error || 'Failed to delete comment')
 
       setComments((prev) => prev.filter((comment) => comment.id !== commentId))
       setError(null)
