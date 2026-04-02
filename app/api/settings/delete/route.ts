@@ -4,6 +4,8 @@ import { createErrorResponse, sanitizeError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { getAdminClient } from '@/lib/supabase-server'
 import { serverEnv } from '@/lib/env'
+import { z } from 'zod'
+import { parseWithSchema } from '@/lib/api-validation'
 
 function getDeleteTokenSecret(): Uint8Array {
   const secret = serverEnv.DELETE_ACCOUNT_SECRET
@@ -19,18 +21,23 @@ function getDeleteTokenSecret(): Uint8Array {
   throw new Error('DELETE_ACCOUNT_SECRET is required in non-development environments')
 }
 
+const deleteSettingsQuerySchema = z.object({
+  token: z.string().min(1, 'Missing confirmation token'),
+})
+
 export async function POST(request: NextRequest) {
   const middlewareResult = await withApiMiddleware(request, {
     rateLimitKey: 'sensitive',
   })
   if (!middlewareResult.ok) return middlewareResult.response
 
-  const { searchParams } = new URL(request.url)
-  const token = searchParams.get('token')
+  const parsedQuery = parseWithSchema(
+    deleteSettingsQuerySchema,
+    Object.fromEntries(new URL(request.url).searchParams.entries())
+  )
+  if (!parsedQuery.success) return parsedQuery.response
 
-  if (!token) {
-    return NextResponse.json({ error: 'Missing confirmation token' }, { status: 400 })
-  }
+  const { token } = parsedQuery.data
 
   let payload
   try {

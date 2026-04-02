@@ -22,6 +22,8 @@ import {
   type SubmissionRequest,
 } from '@/features/submissions/server/submissions/submit-route-validation'
 import { getAdminClient } from '@/lib/supabase-server'
+import { parseWithSchema } from '@/lib/api-validation'
+import { submissionRequestSchema } from '@/features/submissions/server/submissions/submit-route-schema'
 
 const INTERNAL_MODERATION_SECRET = serverEnv.INTERNAL_MODERATION_SECRET
 
@@ -100,12 +102,9 @@ export async function POST(request: NextRequest) {
       return response
     }
 
-    const body: SubmissionRequest = await request.json()
-
-    if (!Array.isArray(body.routes) || body.routes.length === 0) {
-      response = NextResponse.json({ error: 'At least one route is required' }, { status: 400 })
-      return response
-    }
+    const parsedBody = parseWithSchema(submissionRequestSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+    const body: SubmissionRequest = parsedBody.data
 
     const routeValidation = validateAndPrepareRoutes(body)
     if (routeValidation.error) return routeValidation.error

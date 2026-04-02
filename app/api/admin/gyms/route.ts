@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { makeUniqueSlug } from '@/lib/slug'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
-
-interface CreateGymRequest {
-  name?: string
-  latitude?: number | null
-  longitude?: number | null
-  disciplines?: string[]
-  primary_discipline?: string | null
-}
+import { parseWithSchema } from '@/lib/api-validation'
 
 const ALLOWED_DISCIPLINES = new Set(['boulder', 'sport', 'trad', 'mixed', 'top_rope'])
+
+const createGymSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+  latitude: z.number(),
+  longitude: z.number(),
+  disciplines: z.array(z.string()).min(1, 'At least one discipline is required'),
+  primary_discipline: z.string().nullable().optional(),
+})
 
 async function requireAdmin(request: NextRequest) {
   const supabase = getServerClientFromRequest(request)
@@ -98,16 +100,15 @@ export async function POST(request: NextRequest) {
   const { supabase } = admin
 
   try {
-    const body = await request.json() as CreateGymRequest
-    const trimmedName = body.name?.trim() || ''
+    const parsedBody = parseWithSchema(createGymSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+
+    const body = parsedBody.data
+    const trimmedName = body.name
     const latitude = body.latitude
     const longitude = body.longitude
     const normalizedDisciplines = Array.from(new Set((body.disciplines || []).map(value => value.trim().toLowerCase()).filter(Boolean)))
     const normalizedPrimary = body.primary_discipline?.trim().toLowerCase() || null
-
-    if (!trimmedName) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
-    if (latitude == null || longitude == null) return NextResponse.json({ error: 'Latitude and longitude are required' }, { status: 400 })
-    if (normalizedDisciplines.length === 0) return NextResponse.json({ error: 'At least one discipline is required' }, { status: 400 })
 
     for (const discipline of normalizedDisciplines) {
       if (!ALLOWED_DISCIPLINES.has(discipline)) {

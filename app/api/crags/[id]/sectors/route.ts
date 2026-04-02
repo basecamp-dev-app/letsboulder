@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
+import { parseWithSchema } from '@/lib/api-validation'
 
 export const runtime = 'nodejs'
+
+const createSectorSchema = z.object({
+  name: z.string().trim().min(1, 'Sector name is required'),
+})
 
 // GET /api/crags/[id]/sectors
 export async function GET(
@@ -86,17 +92,14 @@ export async function POST(
       return NextResponse.json({ error: 'Crag not found' }, { status: 404 })
     }
 
-    const body = await request.json()
-    const { name } = body
-
-    if (!name || !name.trim()) {
-      return NextResponse.json({ error: 'Sector name is required' }, { status: 400 })
-    }
+    const parsedBody = parseWithSchema(createSectorSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+    const { name } = parsedBody.data
 
     const { data: createdSector, error: insertError } = await supabase
       .from('sectors')
       .insert({
-        name: name.trim(),
+        name,
         crag_id: cragId,
       })
       .select('id, name, crag_id')

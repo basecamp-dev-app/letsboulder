@@ -5,11 +5,11 @@ import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import type { Database } from '@/types/database'
+import { z } from 'zod'
 import {
   buildDraftConflictResponse,
   buildDraftImageProxyUrl,
   normalizeJsonRecord,
-  normalizePatchImages,
   resolveDisplayName,
   resolveDraftImageReadinessStatus,
   type DraftImageRow,
@@ -17,13 +17,20 @@ import {
   type DraftRouteRow,
   type ProfileRow,
 } from '@/features/submissions/server/drafts/draft-route-shared'
+import { parseWithSchema } from '@/lib/api-validation'
 
-interface DraftPatchBody {
-  images: DraftPatchImage[]
-  expected_updated_at?: string
-  metadata?: Record<string, unknown>
-  cragId?: string | null
-}
+const draftPatchImageSchema = z.object({
+  id: z.string().min(1),
+  display_order: z.number().int().min(0),
+  route_data: z.unknown().optional(),
+})
+
+const draftPatchSchema = z.object({
+  images: z.array(draftPatchImageSchema).min(1, 'images must be a non-empty array of {id, display_order, route_data}'),
+  expected_updated_at: z.string().datetime('expected_updated_at is required and must be a valid ISO timestamp'),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  cragId: z.string().nullable().optional(),
+})
 
 interface DraftPatchResult {
   draft_id: string
@@ -153,13 +160,17 @@ export async function PATCH(
   const { supabase, userId } = middlewareResult
 
   try {
-    const body = await request.json().catch(() => null) as DraftPatchBody | null
-    const images = normalizePatchImages(body?.images)
-    if (!images) {
-      return NextResponse.json({ error: 'images must be a non-empty array of {id, display_order, route_data}' }, { status: 400 })
-    }
+    const parsedBody = parseWithSchema(draftPatchSchema, await request.json().catch(() => null))
+    if (!parsedBody.success) return parsedBody.response
 
-    const expectedUpdatedAtRaw = typeof body?.expected_updated_at === 'string' ? body.expected_updated_at.trim() : ''
+    const body = parsedBody.data
+    const images: DraftPatchImage[] = body.images.map((image) => ({
+      id: image.id,
+      display_order: image.display_order,
+      route_data: image.route_data ?? {},
+    }))
+
+    const expectedUpdatedAtRaw = body.expected_updated_at.trim()
     const expectedUpdatedAtDate = expectedUpdatedAtRaw ? new Date(expectedUpdatedAtRaw) : null
     if (!expectedUpdatedAtDate || Number.isNaN(expectedUpdatedAtDate.getTime())) {
       return NextResponse.json({ error: 'expected_updated_at is required and must be a valid ISO timestamp' }, { status: 400 })

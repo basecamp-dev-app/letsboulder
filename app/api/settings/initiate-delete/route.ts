@@ -5,6 +5,8 @@ import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { buildDeleteAccountEmail } from '@/lib/email/delete-account-email'
 import { serverEnv } from '@/lib/env'
+import { z } from 'zod'
+import { parseWithSchema } from '@/lib/api-validation'
 
 function getDeleteTokenSecret(): Uint8Array {
   const secret = serverEnv.DELETE_ACCOUNT_SECRET
@@ -22,14 +24,23 @@ function getDeleteTokenSecret(): Uint8Array {
 
 const DELETE_TOKEN_EXPIRY = 10 * 60 * 1000
 
+const initiateDeleteQuerySchema = z.object({
+  delete_route_uploads: z.enum(['true', 'false']).optional(),
+})
+
 export async function POST(request: NextRequest) {
   const middlewareResult = await withApiMiddleware(request, {
     rateLimitKey: 'sensitive',
   })
   if (!middlewareResult.ok) return middlewareResult.response
 
-  const { searchParams } = new URL(request.url)
-  const deleteRouteUploads = searchParams.get('delete_route_uploads') === 'true'
+  const parsedQuery = parseWithSchema(
+    initiateDeleteQuerySchema,
+    Object.fromEntries(new URL(request.url).searchParams.entries())
+  )
+  if (!parsedQuery.success) return parsedQuery.response
+
+  const deleteRouteUploads = parsedQuery.data.delete_route_uploads === 'true'
 
   const { supabase, userId } = middlewareResult
 

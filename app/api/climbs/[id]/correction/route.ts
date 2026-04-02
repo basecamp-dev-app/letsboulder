@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
+import { parseWithSchema } from '@/lib/api-validation'
 
-const VALID_CORRECTION_TYPES = ['location', 'name', 'line', 'grade']
+const climbCorrectionSchema = z.object({
+  correction_type: z.enum(['location', 'name', 'line', 'grade']),
+  suggested_value: z.record(z.string(), z.unknown()),
+  reason: z.string().optional(),
+})
 
 export async function POST(
   request: NextRequest,
@@ -19,23 +25,9 @@ export async function POST(
 
   try {
     const { id: climbId } = await params
-    const body = await request.json()
-    const { correction_type, suggested_value, reason } = body
-
-    // Validate correction type
-    if (!correction_type || !VALID_CORRECTION_TYPES.includes(correction_type)) {
-      return NextResponse.json(
-        { error: 'Invalid correction type. Must be: location, name, line, or grade' },
-        { status: 400 }
-      )
-    }
-
-    if (!suggested_value || typeof suggested_value !== 'object') {
-      return NextResponse.json(
-        { error: 'Suggested value is required' },
-        { status: 400 }
-      )
-    }
+    const parsedBody = parseWithSchema(climbCorrectionSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+    const { correction_type, suggested_value, reason } = parsedBody.data
 
     // Check if climb exists
     const { data: climb, error: climbError } = await supabase

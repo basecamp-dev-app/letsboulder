@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { revalidatePath } from 'next/cache'
+import { parseWithSchema } from '@/lib/api-validation'
 
-interface UpdateCragRequest {
-  name?: string
-  rock_type?: string | null
-  region_tag?: string
-  sub_area?: string | null
-}
+const updateCragSchema = z.object({
+  name: z.string().optional(),
+  rock_type: z.string().nullable().optional(),
+  region_tag: z.string().optional(),
+  sub_area: z.string().nullable().optional(),
+})
 
 interface LocationTagRow {
   id: string
@@ -47,7 +49,9 @@ export async function PUT(
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    const body: UpdateCragRequest = await request.json()
+    const parsedBody = parseWithSchema(updateCragSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+    const body = parsedBody.data
     const trimmedName = body.name?.trim()
     const trimmedRegionTag = body.region_tag?.trim()
     const normalizedSubArea = body.sub_area === undefined

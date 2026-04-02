@@ -4,6 +4,12 @@ import { withApiMiddleware } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { GRADE_ORDER_INDEX, isValidGrade } from '@/lib/grade-constants'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { z } from 'zod'
+import { parseWithSchema } from '@/lib/api-validation'
+
+const gradeVoteSchema = z.object({
+  grade: z.string().min(1, 'Grade is required').refine(isValidGrade, 'Invalid grade'),
+})
 
 export async function GET(
   request: NextRequest,
@@ -82,16 +88,9 @@ export async function POST(
   const { supabase, userId } = middlewareResult
   
   try {
-    const body = await request.json()
-    const { grade } = body
-    
-    if (!grade) {
-      return NextResponse.json({ error: 'Grade is required' }, { status: 400 })
-    }
-    
-    if (typeof grade !== 'string' || !isValidGrade(grade)) {
-      return NextResponse.json({ error: 'Invalid grade' }, { status: 400 })
-    }
+    const parsedBody = parseWithSchema(gradeVoteSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+    const { grade } = parsedBody.data
     
     const { error: upsertError } = await supabase
       .from('route_grades')

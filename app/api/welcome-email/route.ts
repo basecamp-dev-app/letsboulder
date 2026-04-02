@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { Resend } from 'resend'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
@@ -6,6 +7,12 @@ import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { buildWelcomeEmail } from '@/lib/email/welcome-email'
 import { getAdminClient } from '@/lib/supabase-server'
 import { serverEnv } from '@/lib/env'
+import { parseWithSchema } from '@/lib/api-validation'
+
+const welcomeEmailSchema = z.object({
+  email: z.string().trim().min(1, 'Email is required'),
+  firstName: z.string().optional(),
+})
 
 export async function POST(request: NextRequest) {
   const middlewareResult = await withApiMiddleware(request, { requireUser: false })
@@ -25,13 +32,10 @@ export async function POST(request: NextRequest) {
     return rateLimitResponse
   }
 
-  const body = await request.json()
-  const email = typeof body?.email === 'string' ? body.email : null
-  const firstName = typeof body?.firstName === 'string' ? body.firstName : null
+  const parsedBody = parseWithSchema(welcomeEmailSchema, await request.json())
+  if (!parsedBody.success) return parsedBody.response
 
-  if (!email) {
-    return NextResponse.json({ error: 'Email is required' }, { status: 400 })
-  }
+  const { email, firstName } = parsedBody.data
 
   if (email !== user.email) {
     return NextResponse.json({ error: 'Email does not match authenticated user' }, { status: 403 })

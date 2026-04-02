@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
+import { parseWithSchema } from '@/lib/api-validation'
 
 interface QueueItem {
   id: string
@@ -12,6 +14,11 @@ interface QueueItem {
   climb: { id: string; name: string; grade: string } | null
   crag: { id: string; name: string } | null
 }
+
+const moderationQueueVoteSchema = z.object({
+  vote_type: z.enum(['verify', 'flag']),
+  reason: z.string().optional(),
+})
 
 export async function POST(
   request: NextRequest,
@@ -31,12 +38,9 @@ export async function POST(
       return NextResponse.json({ error: 'Queue ID required' }, { status: 400 })
     }
 
-    const body = await request.json()
-    const { vote_type, reason } = body
-
-    if (!vote_type || !['verify', 'flag'].includes(vote_type)) {
-      return NextResponse.json({ error: 'Vote type must be "verify" or "flag"' }, { status: 400 })
-    }
+    const parsedBody = parseWithSchema(moderationQueueVoteSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+    const { vote_type, reason } = parsedBody.data
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')

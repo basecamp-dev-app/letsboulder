@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
+import { parseWithSchema } from '@/lib/api-validation'
 
-const VALID_ACTIONS = ['keep', 'edit', 'remove']
+const flagResolveSchema = z.object({
+  action: z.enum(['keep', 'edit', 'remove']),
+  resolution_note: z.string().optional(),
+})
 
 interface FlagWithRelations {
   id: string
@@ -46,12 +51,9 @@ export async function POST(
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    const body = await request.json()
-    const { action, resolution_note } = body
-
-    if (!action || !VALID_ACTIONS.includes(action)) {
-      return NextResponse.json({ error: `Invalid action. Must be one of: ${VALID_ACTIONS.join(', ')}` }, { status: 400 })
-    }
+    const parsedBody = parseWithSchema(flagResolveSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+    const { action, resolution_note } = parsedBody.data
 
     const { data: flag, error: flagError } = await supabase
       .from('climb_flags')

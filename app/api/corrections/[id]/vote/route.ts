@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
+import { parseWithSchema } from '@/lib/api-validation'
+
+const correctionVoteSchema = z.object({
+  vote_type: z.enum(['approve', 'reject']),
+})
 
 export async function POST(
   request: NextRequest,
@@ -17,15 +23,9 @@ export async function POST(
 
   try {
     const { id: correctionId } = await params
-    const body = await request.json()
-    const { vote_type } = body
-
-    if (!vote_type || !['approve', 'reject'].includes(vote_type)) {
-      return NextResponse.json(
-        { error: 'Vote type must be "approve" or "reject"' },
-        { status: 400 }
-      )
-    }
+    const parsedBody = parseWithSchema(correctionVoteSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+    const { vote_type } = parsedBody.data
 
     // Check if correction exists
     const { data: correction, error: correctionError } = await supabase

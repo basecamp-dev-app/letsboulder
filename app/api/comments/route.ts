@@ -3,6 +3,8 @@ import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { z } from 'zod'
+import { parseWithSchema } from '@/lib/api-validation'
 
 const VALID_TARGET_TYPES = ['crag', 'image', 'climb'] as const
 const TARGET_CATEGORY_CONFIG = {
@@ -67,6 +69,23 @@ function normalizeOffset(rawOffset: string | null): number {
 function getSupabase(request: NextRequest) {
   return getServerClientFromRequest(request)
 }
+
+const createCommentSchema = z.object({
+  targetType: z.enum(VALID_TARGET_TYPES),
+  targetId: z.string().trim().min(1, 'targetId is required'),
+  body: z.string().trim().min(1, 'Comment cannot be empty').max(MAX_COMMENT_LENGTH, `Comment must be ${MAX_COMMENT_LENGTH} characters or less`),
+  category: z.string().optional(),
+}).superRefine((value, ctx) => {
+  const category = value.category ?? getDefaultCategory(value.targetType)
+
+  if (!isValidCategoryForTarget(value.targetType, category)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['category'],
+      message: 'Invalid category',
+    })
+  }
+})
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -143,52 +162,30 @@ export async function POST(request: NextRequest) {
   const { supabase, userId } = middlewareResult
 
   try {
-    const body = await request.json()
-    const rawTargetType = typeof body?.targetType === 'string' ? body.targetType : null
-    const rawTargetId = typeof body?.targetId === 'string' ? body.targetId : null
-    const rawCommentBody = typeof body?.body === 'string' ? body.body : ''
-    const rawCategory = typeof body?.category === 'string' ? body.category : getDefaultCategory(rawTargetType || 'climb')
+    const parsedBody = parseWithSchema(createCommentSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
 
-    if (!isValidTargetType(rawTargetType)) {
-      return NextResponse.json({ error: 'Invalid targetType' }, { status: 400 })
-    }
-
-    if (!rawTargetId) {
-      return NextResponse.json({ error: 'targetId is required' }, { status: 400 })
-    }
-
-    if (!isValidCategoryForTarget(rawTargetType, rawCategory)) {
-      return NextResponse.json({ error: 'Invalid category' }, { status: 400 })
-    }
-
-    const trimmedBody = rawCommentBody.trim()
-    if (!trimmedBody) {
-      return NextResponse.json({ error: 'Comment cannot be empty' }, { status: 400 })
-    }
-
-    if (trimmedBody.length > MAX_COMMENT_LENGTH) {
-      return NextResponse.json({ error: `Comment must be ${MAX_COMMENT_LENGTH} characters or less` }, { status: 400 })
-    }
-
-    const targetTable = rawTargetType === 'crag' ? 'crags' : rawTargetType === 'image' ? 'images' : 'climbs'
+    const body = parsedBody.data
+    const category = body.category ?? getDefaultCategory(body.targetType)
+    const targetTable = body.targetType === 'crag' ? 'crags' : body.targetType === 'image' ? 'images' : 'climbs'
     const { data: target, error: targetError } = await supabase
       .from(targetTable)
       .select('id')
-      .eq('id', rawTargetId)
+      .eq('id', body.targetId)
       .single()
 
     if (targetError || !target) {
-      return NextResponse.json({ error: `${rawTargetType} not found` }, { status: 404 })
+      return NextResponse.json({ error: `${body.targetType} not found` }, { status: 404 })
     }
 
     const { data: insertedComment, error: insertError } = await supabase
       .from('comments')
       .insert({
-        target_type: rawTargetType,
-        target_id: rawTargetId,
+        target_type: body.targetType,
+        target_id: body.targetId,
         author_id: userId,
-        body: trimmedBody,
-        category: rawCategory,
+        body: body.body,
+        category,
       })
       .select('id, target_type, target_id, author_id, body, category, created_at')
       .single()

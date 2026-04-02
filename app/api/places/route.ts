@@ -1,26 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { RATE_LIMITS } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { makeUniqueSlug } from '@/lib/slug'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
-
-type PlaceType = 'crag' | 'gym'
-
-interface CreatePlaceRequest {
-  name: string
-  type: PlaceType
-  latitude?: number | null
-  longitude?: number | null
-  rock_type?: string
-  description?: string
-  access_notes?: string
-  primary_discipline?: string | null
-  disciplines?: string[]
-}
+import { parseWithSchema } from '@/lib/api-validation'
 
 const ALLOWED_DISCIPLINES = new Set(['boulder', 'sport', 'trad', 'deep_water_solo', 'mixed', 'top_rope'])
 const DISALLOWED_GYM_DISCIPLINES = new Set(['trad', 'deep_water_solo'])
+
+const createPlaceSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+  type: z.enum(['crag', 'gym']),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  rock_type: z.string().optional(),
+  description: z.string().optional(),
+  access_notes: z.string().optional(),
+  primary_discipline: z.string().nullable().optional(),
+  disciplines: z.array(z.string()).min(1, 'At least one discipline is required'),
+}).superRefine((body, ctx) => {
+  if ((body.latitude == null && body.longitude != null) || (body.latitude != null && body.longitude == null)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['latitude'],
+      message: 'Both latitude and longitude must be provided together, or neither',
+    })
+  }
+
+  if (body.type === 'gym' && (body.latitude == null || body.longitude == null)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['latitude'],
+      message: 'Gyms require a precise location',
+    })
+  }
+})
 
 export async function GET() {
   return NextResponse.json({ message: 'Places endpoint', method: 'POST', rate_limit: `${RATE_LIMITS.authenticatedWrite.maxRequests} per ${RATE_LIMITS.authenticatedWrite.windowMs / 60000} hours` })
@@ -36,7 +52,10 @@ export async function POST(request: NextRequest) {
   const { supabase, userId } = middlewareResult
 
   try {
-    const body: CreatePlaceRequest = await request.json()
+    const parsedBody = parseWithSchema(createPlaceSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+
+    const body = parsedBody.data
     const {
       name,
       type,
@@ -49,26 +68,7 @@ export async function POST(request: NextRequest) {
       disciplines,
     } = body
 
-    const trimmedName = name?.trim() || ''
-
-    if (!trimmedName) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
-    }
-
-    if (type !== 'crag' && type !== 'gym') {
-      return NextResponse.json({ error: 'Type must be crag or gym' }, { status: 400 })
-    }
-
-    if ((latitude == null && longitude != null) || (latitude != null && longitude == null)) {
-      return NextResponse.json(
-        { error: 'Both latitude and longitude must be provided together, or neither' },
-        { status: 400 }
-      )
-    }
-
-    if (type === 'gym' && (latitude == null || longitude == null)) {
-      return NextResponse.json({ error: 'Gyms require a precise location' }, { status: 400 })
-    }
+    const trimmedName = name.trim()
 
     if (type === 'gym') {
       const { data: { user } } = await supabase.auth.getUser()

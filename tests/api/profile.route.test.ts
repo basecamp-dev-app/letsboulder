@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 import { describe, expect, test, vi } from 'vitest'
-import { createServerClient } from '@supabase/ssr'
 
 vi.mock('@/lib/csrf-server', () => ({
   withCsrfProtection: vi.fn(async () => ({ valid: true, response: null })),
+  withApiMiddleware: vi.fn(),
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -16,7 +16,38 @@ vi.mock('@/lib/auth-context', () => ({
 }))
 
 import { GET, PUT } from '@/app/api/profile/route'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+
+type ProfileMiddlewareResult = Awaited<ReturnType<typeof withApiMiddleware>>
+
+const profileSupabaseStub = {
+  auth: {
+    getUser: vi.fn(async () => ({ data: { user: { email: 'user@example.com' } }, error: null })),
+  },
+  from: vi.fn((table: string) => {
+    if (table === 'profiles') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({ data: { email: 'user@example.com' }, error: null })),
+          })),
+        })),
+        update: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            select: vi.fn(() => ({
+              single: vi.fn(async () => ({ data: { id: 'user-1' }, error: null })),
+            })),
+          })),
+        })),
+      }
+    }
+
+    return {
+      select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn(async () => ({ data: null, error: null })) })) })),
+    }
+  }),
+}
 
 function makePutRequest(body: unknown) {
   return new NextRequest('http://localhost:3000/api/profile', {
@@ -30,13 +61,23 @@ function makePutRequest(body: unknown) {
 }
 
 describe('Profile route validation', () => {
+  test.beforeEach(() => {
+    vi.resetAllMocks()
+    vi.mocked(withApiMiddleware).mockResolvedValue({
+      ok: true,
+      supabase: profileSupabaseStub as never,
+      userId: 'user-1',
+    } as unknown as ProfileMiddlewareResult)
+  })
+
   test('PUT returns 400 for invalid username format', async () => {
     const request = makePutRequest({ username: 'bad name with spaces' })
     const response = await PUT(request)
     const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(json.error).toContain('Username can only contain')
+    expect(json.error).toBe('Invalid request data')
+    expect(json.fieldErrors.username?.[0]).toContain('Username can only contain')
   })
 
   test('PUT returns 400 for invalid gender value', async () => {
@@ -45,7 +86,8 @@ describe('Profile route validation', () => {
     const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(json.error).toBe('Invalid gender value')
+    expect(json.error).toBe('Invalid request data')
+    expect(json.fieldErrors.gender?.[0]).toBeDefined()
   })
 
   test('GET returns 401 when user is not resolved', async () => {
@@ -59,36 +101,40 @@ describe('Profile route validation', () => {
   })
 
   test('PUT returns 409 when username is already taken', async () => {
-    vi.mocked(createServerClient).mockImplementationOnce(() => ({
-      auth: {
-        getUser: vi.fn(async () => ({ data: { user: { email: 'user@example.com' } }, error: null })),
-      },
-      from: vi.fn((table: string) => {
-        if (table === 'profiles') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: vi.fn(async () => ({ data: { email: 'user@example.com' }, error: null })),
+    vi.mocked(withApiMiddleware).mockResolvedValueOnce({
+      ok: true,
+      supabase: {
+        auth: {
+          getUser: vi.fn(async () => ({ data: { user: { email: 'user@example.com' } }, error: null })),
+        },
+        from: vi.fn((table: string) => {
+          if (table === 'profiles') {
+            return {
+              select: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  single: vi.fn(async () => ({ data: { email: 'user@example.com' }, error: null })),
+                })),
               })),
-            })),
-            update: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                select: vi.fn(() => ({
-                  single: vi.fn(async () => ({
-                    data: null,
-                    error: { code: '23505', message: 'duplicate key value violates unique constraint' },
+              update: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  select: vi.fn(() => ({
+                    single: vi.fn(async () => ({
+                      data: null,
+                      error: { code: '23505', message: 'duplicate key value violates unique constraint' },
+                    })),
                   })),
                 })),
               })),
-            })),
+            }
           }
-        }
 
-        return {
-          select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn(async () => ({ data: null, error: null })) })) })),
-        }
-      }),
-    }) as ReturnType<typeof createServerClient>)
+          return {
+            select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn(async () => ({ data: null, error: null })) })) })),
+          }
+        }),
+      } as never,
+      userId: 'user-1',
+    } as unknown as ProfileMiddlewareResult)
 
     const request = makePutRequest({ username: 'duplicate-user', first_name: 'Test', last_name: 'User' })
     const response = await PUT(request)

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
+import { parseWithSchema } from '@/lib/api-validation'
 
-interface MoveImageCragRequest {
-  targetCragId?: string
-}
+const moveImageCragSchema = z.object({
+  targetCragId: z.string().trim().min(1, 'Target crag is required'),
+})
 
 interface AdminProfileRow {
   is_admin: boolean | null
@@ -68,11 +70,9 @@ export async function POST(
       return NextResponse.json({ error: 'Image ID required' }, { status: 400 })
     }
 
-    const body = await request.json().catch(() => null) as MoveImageCragRequest | null
-    const targetCragId = body?.targetCragId?.trim()
-    if (!targetCragId) {
-      return NextResponse.json({ error: 'Target crag is required' }, { status: 400 })
-    }
+    const parsedBody = parseWithSchema(moveImageCragSchema, await request.json().catch(() => null))
+    if (!parsedBody.success) return parsedBody.response
+    const { targetCragId } = parsedBody.data
 
     const { data: image, error: imageError } = await supabase
       .from('images')
