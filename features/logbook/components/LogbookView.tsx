@@ -57,6 +57,15 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
   const stats = useMemo(() => getLogbookStats(logs), [logs])
   const lowestGrade = getLogbookLowestGrade(stats)
   const recentLogs = useMemo(() => getRecentLogbookLogs(logs), [logs])
+  const climbUrlMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const log of logs) {
+      if (log.canonical_url) {
+        map.set(log.climb_id, log.canonical_url)
+      }
+    }
+    return map
+  }, [logs])
 
   const syncOwnLogbookCache = (updater: (current: OwnLogbookData) => OwnLogbookData) => {
     if (!isOwnProfile) return
@@ -286,6 +295,7 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
           isOwnProfile={isOwnProfile}
           deletingId={deletingId}
           onDeleteLog={handleDeleteLog}
+          climbUrlMap={climbUrlMap}
         />
       ) : null}
 

@@ -24,6 +24,11 @@ interface LogbookStatsSectionProps {
   isOwnProfile: boolean
   deletingId: string | null
   onDeleteLog: (logId: string) => void | Promise<void>
+  climbUrlMap?: Map<string, string>
+}
+
+function getClimbUrl(climbId: string, climbUrlMap?: Map<string, string>): string {
+  return climbUrlMap?.get(climbId) || `/climb/${climbId}`
 }
 
 export function LogbookStatsSection({
@@ -34,6 +39,7 @@ export function LogbookStatsSection({
   isOwnProfile,
   deletingId,
   onDeleteLog,
+  climbUrlMap,
 }: LogbookStatsSectionProps) {
   return (
     <div className="space-y-0">
@@ -84,7 +90,7 @@ export function LogbookStatsSection({
                 <div key={log.id} className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-gray-500 dark:text-gray-400 w-6">{index + 1}.</span>
-                    <Link href={`/climb/${log.climb_id}`} className="flex items-center gap-3 min-w-0 hover:opacity-90 transition-opacity">
+                    <Link href={getClimbUrl(log.climb_id, climbUrlMap)} className="flex items-center gap-3 min-w-0 hover:opacity-90 transition-opacity">
                       {log.climbs?.image_url && (
                         <Image
                           src={resolveRouteImageUrl(log.climbs.image_url)}
@@ -123,7 +129,7 @@ export function LogbookStatsSection({
             {recentLogs.map((log) => (
                 <div key={log.id} className="flex items-center gap-2 sm:gap-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
                   {log.climbs?.image_url && (
-                    <Link href={`/climb/${log.climb_id}`} className="shrink-0">
+                    <Link href={getClimbUrl(log.climb_id, climbUrlMap)} className="shrink-0">
                     <Image
                       src={resolveRouteImageUrl(log.climbs.image_url)}
                       alt={log.climbs?.name || 'Climb image'}
@@ -135,7 +141,7 @@ export function LogbookStatsSection({
                   </Link>
                 )}
                 <div className="flex-1">
-                  <Link href={`/climb/${log.climb_id}`} className="hover:underline">
+                  <Link href={getClimbUrl(log.climb_id, climbUrlMap)} className="hover:underline">
                     <p className="font-medium text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
                   </Link>
                   <p className="text-sm text-gray-500 dark:text-gray-400">

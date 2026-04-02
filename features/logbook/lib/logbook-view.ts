@@ -9,6 +9,7 @@ export interface LogbookClimb {
   created_at: string
   notes?: string
   date_climbed?: string
+  canonical_url?: string | null
   climbs: {
     id: string
     name: string
