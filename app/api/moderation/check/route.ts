@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { moderateImageFromBytes, moderateImageFromUrl } from '@/lib/image-moderation'
-import { withCsrfProtection } from '@/lib/csrf-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { serverEnv } from '@/lib/env'
 
 interface CheckRequestBody {
@@ -10,8 +10,8 @@ interface CheckRequestBody {
 }
 
 export async function POST(request: NextRequest) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  if (!middlewareResult.ok) return middlewareResult.response
 
   const internalSecret = request.headers.get('x-internal-secret')
   if (!internalSecret || internalSecret !== serverEnv.INTERNAL_MODERATION_SECRET) {

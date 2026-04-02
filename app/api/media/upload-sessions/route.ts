@@ -1,23 +1,17 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { withCsrfProtection } from '@/lib/csrf-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { getMediaModerationConfig, getMediaStorageConfig } from '@/lib/media/config'
 import { createPrivateUploadUrl } from '@/lib/media/r2'
 import { buildOriginalObjectKey, normalizeUploadSessionRequest } from '@/lib/media/upload-session'
 import type { MediaUploadSessionResponse } from '@/lib/media/types'
 
-function createAuthedClient(request: NextRequest) {
-
-  return getServerClientFromRequest(request)
-}
-
 export async function POST(request: NextRequest) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  if (!middlewareResult.ok) return middlewareResult.response
 
-  const supabase = createAuthedClient(request)
+  const { supabase } = middlewareResult
 
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser()

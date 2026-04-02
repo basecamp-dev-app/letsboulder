@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
-import { withCsrfProtection } from '@/lib/csrf-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { createSignedObjectUrls, isR2ManagedBucket } from '@/lib/media/object-urls'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { getSignedUrlBatchKey, type BatchSignedUrlResult, type SignedUrlBatchRequestObject } from '@/lib/signed-url-batch'
@@ -83,8 +83,8 @@ function validateRequestOrigin(request: NextRequest): NextResponse | null {
 }
 
 export async function POST(request: NextRequest) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  if (!middlewareResult.ok) return middlewareResult.response
 
   const originError = validateRequestOrigin(request)
   if (originError) return originError
