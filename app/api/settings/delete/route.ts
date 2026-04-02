@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
-import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse, sanitizeError } from '@/lib/errors'
-import { withCsrfProtection } from '@/lib/csrf-server'
-import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
+import { getAdminClient } from '@/lib/supabase-server'
 import { serverEnv } from '@/lib/env'
 
 function getDeleteTokenSecret(): Uint8Array {
@@ -22,8 +20,10 @@ function getDeleteTokenSecret(): Uint8Array {
 }
 
 export async function POST(request: NextRequest) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    rateLimitKey: 'sensitive',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
   const { searchParams } = new URL(request.url)
   const token = searchParams.get('token')
@@ -46,26 +46,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid token purpose' }, { status: 400 })
   }
 
-  const supabase = getServerClientFromRequest(request)
+  const { supabase, userId } = middlewareResult
 
   const supabaseAdmin = getAdminClient()
 
   try {
-    const { userId } = await resolveUserIdWithFallback(request, supabase)
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const rateLimitResult = rateLimit(request, 'sensitive', userId)
-    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
-    if (!rateLimitResult.success) {
-      return rateLimitResponse
     }
 
     if (userId !== payload.userId) {

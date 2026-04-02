@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
-import { withCsrfProtection } from '@/lib/csrf-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
-import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
 interface AttachCragImageInput {
   uploaded_image_id: string
@@ -37,22 +35,19 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, {
+    unauthorizedMessage: 'Authentication required',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
 
   const { id: cragId } = await params
   if (!cragId) {
     return NextResponse.json({ error: 'Crag ID is required' }, { status: 400 })
   }
 
-  const supabase = getServerClientFromRequest(request)
+  const { supabase, userId } = middlewareResult
 
   try {
-    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
-    if (authError || !userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
     const body = await request.json().catch(() => null)
     const images = normalizeImages(body?.images)
     if (!images) {
