@@ -17,7 +17,6 @@ import type { getCragOfflinePreview } from '@/lib/offline/packs'
 
 interface CragRouteSectionProps {
   crag: CragPageCrag
-  routes: CragRoute[]
   filteredRoutes: CragRoute[]
   routesLoadState: 'idle' | 'loading' | 'loaded' | 'error'
   highlightedRouteIds: Set<string>
@@ -86,7 +85,6 @@ interface CragRouteSectionProps {
 
 export default function CragRouteSection({
   crag,
-  routes,
   filteredRoutes,
   routesLoadState,
   highlightedRouteIds,
