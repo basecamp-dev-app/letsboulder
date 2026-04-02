@@ -21,7 +21,7 @@ jobs:
   migrate:
     name: Apply Supabase migrations
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+    environment: ${{ github.ref_name == 'main' && 'Production' || 'Preview' }}
     steps:
       - uses: actions/checkout@v4
 
