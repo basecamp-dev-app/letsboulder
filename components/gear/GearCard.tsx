@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { GearProduct } from '@/lib/gear-data'
 import { ShieldCheck, HardHat, Link2, Scroll, Mountain, Footprints, CupSoda, Sun, Wrench, Tent, BookOpenText } from 'lucide-react'
 import { useEffect, useRef } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { recordGearClickAction } from '@/features/gear/actions'
 
 const categoryIcons: Record<string, typeof ShieldCheck> = {
   Guidebooks: BookOpenText,
@@ -34,11 +34,7 @@ export default function GearCard({ product }: GearCardProps) {
 
     const handleClick = () => {
 
-      csrfFetch('/api/gear-clicks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product.id })
-      }).catch((err) => {
+      recordGearClickAction(product.id).catch((err) => {
         console.warn('Failed to track click:', err)
       })
     }

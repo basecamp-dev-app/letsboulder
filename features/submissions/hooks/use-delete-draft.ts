@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { deleteSubmissionDraftAction } from '@/features/submissions/actions/manage-submissions'
 import type { Submission } from '@/types/submissions'
 
 export function useDeleteDraft(refresh: () => Promise<void>, setSubmissions: React.Dispatch<React.SetStateAction<Submission[]>>) {
@@ -10,13 +10,13 @@ export function useDeleteDraft(refresh: () => Promise<void>, setSubmissions: Rea
   const deleteDraft = useCallback(async (draftId: string) => {
     setDeletingDraftId(draftId)
     try {
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, { method: 'DELETE' })
-      if (response.status === 404) {
+      const result = await deleteSubmissionDraftAction(draftId)
+      if (result.status === 404) {
         await refresh()
         return true
       }
 
-      if (!response.ok) {
+      if (!result.success) {
         throw new Error('Failed to delete draft')
       }
 

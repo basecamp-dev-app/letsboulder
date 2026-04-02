@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react'
 import SupportCard from '@/components/SupportCard'
 import { Button } from '@/components/ui/button'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { saveSettingsAction } from '@/features/settings/actions/save-settings'
 import { updateGradePreferences } from '@/features/grades/hooks/useGradeSystem'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { GradeSystem } from '@/lib/grade-display'
@@ -206,34 +207,28 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const handleSave = async () => {
     setSaveLoading(true)
     try {
-      const response = await csrfFetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          gender: formData.gender,
-          heightCm: formData.heightCm === '' ? null : Number(formData.heightCm),
-          reachCm: formData.reachCm === '' ? null : Number(formData.reachCm),
-          bio: formData.bio,
-          contributionCreditPlatform: formData.contributionCreditHandle.trim()
-            ? formData.contributionCreditPlatform
-            : null,
-          contributionCreditHandle: formData.contributionCreditHandle,
-          isPublic,
-          themePreference,
-          units,
-          boulderSystem,
-          routeSystem,
-          tradSystem,
-        })
+      const result = await saveSettingsAction({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        gender: formData.gender,
+        heightCm: formData.heightCm === '' ? null : Number(formData.heightCm),
+        reachCm: formData.reachCm === '' ? null : Number(formData.reachCm),
+        bio: formData.bio,
+        contributionCreditPlatform: formData.contributionCreditHandle.trim()
+          ? formData.contributionCreditPlatform
+          : null,
+        contributionCreditHandle: formData.contributionCreditHandle,
+        isPublic,
+        themePreference,
+        units,
+        boulderSystem,
+        routeSystem,
+        tradSystem,
       })
 
-      const payload = await response.json().catch(() => ({} as { error?: string; warning?: string }))
-
-      if (!response.ok) {
-        if (payload.error) {
-          setToast(payload.error)
+      if (!result.success) {
+        if (result.error) {
+          setToast(result.error)
           return
         }
         throw new Error('Failed to save')
@@ -268,7 +263,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
       })
 
       setIsDirty(false)
-      setToast(payload.warning || 'Saved')
+      setToast(result.data?.warning || 'Saved')
     } catch {
       setToast('Failed to save')
     } finally {

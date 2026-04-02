@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { publishSubmissionDraftAction } from '@/features/submissions/actions/manage-submissions'
 
 interface PublishDraftResult {
   ok: boolean
@@ -16,15 +16,15 @@ export function usePublishDraft(refresh: () => Promise<void>) {
   const publishDraft = useCallback(async (draftId: string): Promise<PublishDraftResult> => {
     setPublishingDraftId(draftId)
     try {
-      const response = await csrfFetch(`/api/submissions/drafts/${draftId}/promote`, { method: 'POST' })
-      const payload = await response.json().catch(() => ({} as {
+      const result = await publishSubmissionDraftAction(draftId)
+      const payload = (result.data || {}) as {
         published?: {
           imageId?: string
           imageIds?: string[]
           routeLineIds?: string[]
         }
-      }))
-      if (!response.ok) {
+      }
+      if (!result.success) {
         throw new Error('Failed to publish draft')
       }
 

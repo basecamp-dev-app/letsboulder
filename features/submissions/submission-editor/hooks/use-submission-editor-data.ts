@@ -5,12 +5,12 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useRouteStore } from '@/features/route-editor/store'
 import { buildMapPins, reorderItemsByIds, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
 import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
+import { reorderSubmissionFacesAction } from '@/features/submissions/actions/editor-write-actions'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine, type RoutePoint } from '@/features/submissions/lib/submission-types'
 import { normalizePoints } from '@/lib/canvasMath'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { createClient } from '@/lib/supabase'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
-import { csrfFetch } from '@/hooks/useCsrf'
 
 interface ImageRouteLineQuery {
   id: string
@@ -273,14 +273,9 @@ export function useSubmissionEditorData() {
     setManageFaces((prev) => reorderItemsByIds(prev, imageIds))
 
     try {
-      const response = await csrfFetch(`/api/submissions/${routeImageId}/faces`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageIds }),
-      })
-      const payload = await response.json().catch(() => null) as { error?: string } | null
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to reorder submission images')
+      const result = await reorderSubmissionFacesAction(routeImageId, { imageIds })
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to reorder submission images')
       }
     } catch (error) {
       setManageFaces(previousManageFaces)

@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useMemo, useState } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { createCommunityPostAction } from '@/features/community/actions'
 import type { CommunitySessionPost } from '@/types/community'
 
 interface SessionComposerProps {
@@ -88,31 +88,24 @@ export default function SessionComposer({ placeId, onOptimisticCreate, onCreateS
     onOptimisticCreate?.(optimisticPost)
 
     try {
-      const response = await csrfFetch('/api/community/posts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'session',
-          place_id: placeId,
-          start_at: startIso,
-          end_at: endIso,
-          discipline: discipline || null,
-          grade_min: gradeMin.trim() || null,
-          grade_max: gradeMax.trim() || null,
-          body: body.trim(),
-        }),
+      const result = await createCommunityPostAction({
+        type: 'session',
+        place_id: placeId,
+        start_at: startIso,
+        end_at: endIso,
+        discipline: discipline || null,
+        grade_min: gradeMin.trim() || null,
+        grade_max: gradeMax.trim() || null,
+        body: body.trim(),
       })
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({} as { error?: string }))
+      if (!result.success) {
         onCreateError?.(optimisticId)
-        setError(payload.error || 'Failed to create session post.')
+        setError(result.error || 'Failed to create session post.')
         return
       }
 
-      const createdPost = await response.json().catch(() => null as CommunitySessionPost | null)
+      const createdPost = (result.data || null) as CommunitySessionPost | null
       if (!createdPost) {
         onCreateError?.(optimisticId)
         setError('Failed to create session post.')

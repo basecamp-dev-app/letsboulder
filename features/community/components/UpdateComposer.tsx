@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useMemo, useState } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { createCommunityPostAction } from '@/features/community/actions'
 import type { CommunityUpdatePost } from '@/types/community'
 
 interface UpdateComposerProps {
@@ -55,27 +55,20 @@ export default function UpdateComposer({ placeId, onOptimisticCreate, onCreateSu
     onOptimisticCreate?.(optimisticPost)
 
     try {
-      const response = await csrfFetch('/api/community/posts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type,
-          place_id: placeId,
-          title: trimmedTitle || null,
-          body: trimmedBody,
-        }),
+      const result = await createCommunityPostAction({
+        type,
+        place_id: placeId,
+        title: trimmedTitle || null,
+        body: trimmedBody,
       })
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({} as { error?: string }))
+      if (!result.success) {
         onCreateError?.(optimisticId)
-        setError(payload.error || 'Failed to publish update.')
+        setError(result.error || 'Failed to publish update.')
         return
       }
 
-      const createdPost = await response.json().catch(() => null as CommunityUpdatePost | null)
+      const createdPost = (result.data || null) as CommunityUpdatePost | null
       if (!createdPost) {
         onCreateError?.(optimisticId)
         setError('Failed to publish update.')

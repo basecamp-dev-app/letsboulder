@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import type { Region } from '@/features/submissions/lib/submission-types'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { createRegionAction } from '@/features/submissions/actions/regions'
 
 interface RegionSelectorProps {
   onSelect: (region: Region) => void
@@ -83,23 +83,15 @@ export default function RegionSelector({
     setErrorMessage('')
 
     try {
-      const response = await csrfFetch('/api/regions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: newRegionName.trim(),
-          country_code: newRegionCountry.trim().toUpperCase().slice(0, 2) || null
-        }),
-      })
+      const result = await createRegionAction(
+        newRegionName.trim(),
+        newRegionCountry.trim().toUpperCase().slice(0, 2) || null
+      )
 
-      if (response.ok) {
-        const newRegion = await response.json()
-        handleSelect(newRegion)
+      if (result.success && result.data) {
+        handleSelect(result.data as Region)
       } else {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to create region' }))
-        setErrorMessage(errorData.error || 'Failed to create region')
+        setErrorMessage(result.error || 'Failed to create region')
       }
     } catch {
       setErrorMessage('Failed to create region')

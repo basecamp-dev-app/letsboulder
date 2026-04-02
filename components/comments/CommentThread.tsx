@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { Loader2, MessageSquare, Trash2 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
-import { csrfFetch } from '@/hooks/useCsrf'
 import { createCommentAction, deleteCommentAction } from '@/components/comments/actions'
 
 type TargetType = 'crag' | 'image' | 'climb'

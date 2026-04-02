@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { submitImageFlagAction } from '@/features/moderation/actions'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 
 const FLAG_TYPES = [
@@ -63,21 +63,10 @@ export default function FlagImageModal({ imageId, onClose, onSubmitted }: FlagIm
     setSubmitting(true)
 
     try {
-      const response = await csrfFetch(`/api/images/${imageId}/flag`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          flag_type: flagType,
-          comment: trimmedComment,
-        }),
-      })
+      const result = await submitImageFlagAction(imageId, flagType, trimmedComment)
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Failed to submit flag')
+      if (!result.success) {
+        setError(result.error || 'Failed to submit flag')
         return
       }
 

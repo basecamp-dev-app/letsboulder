@@ -1,0 +1,221 @@
+'use server'
+
+import { headers } from 'next/headers'
+import { getActionAuth } from '@/lib/actions/action-auth'
+import { type ActionResult } from '@/lib/actions/action-result'
+import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
+import { getAdminClient, getServerClient } from '@/lib/supabase-server'
+import { deleteSubmission } from '@/features/submissions/server/submissions/delete-submission'
+import { promoteDraftToSubmission } from '@/features/submissions/server/drafts/draft-promote'
+import { buildUploadSignature, normalizeCreateImages, validateDraftImageOwnership } from '@/features/submissions/server/drafts/draft-route-helpers'
+import type { Database } from '@/types/database'
+
+type DraftStorageRow = Pick<
+  Database['public']['Tables']['submission_draft_images']['Row'],
+  'storage_provider' | 'storage_bucket' | 'storage_path'
+>
+
+interface DraftCreateInput {
+  images?: unknown
+  metadata?: Record<string, unknown>
+  cragId?: string | null
+}
+
+interface DraftCreateResult {
+  success: true
+  draft: {
+    id: string
+    user_id: string
+    crag_id: string | null
+    status: string
+    metadata: Record<string, unknown> | null
+    created_at: string
+    updated_at: string
+    images: Array<{ id: string; display_order: number }>
+  }
+}
+
+async function getActionRequest(): Promise<Request> {
+  const actionHeaders = new Headers()
+  const requestHeaders = await headers()
+  requestHeaders.forEach((value: string, key: string) => {
+    actionHeaders.set(key, value)
+  })
+
+  return new Request('http://localhost/server-action', {
+    method: 'POST',
+    headers: actionHeaders,
+  })
+}
+
+export async function createSubmissionDraftAction(input: DraftCreateInput): Promise<ActionResult<DraftCreateResult['draft']>> {
+  const auth = await getActionAuth()
+  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
+  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
+
+  const supabase = await getServerClient()
+  const images = normalizeCreateImages(input.images)
+  if (!images) {
+    return { success: false, error: 'images must be an array when provided', status: 400 }
+  }
+
+  const ownershipError = await validateDraftImageOwnership(
+    supabase as unknown as Parameters<typeof import('@/lib/media/ownership').userOwnsUploadedObject>[0],
+    auth.data.userId,
+    images
+  )
+
+  if (ownershipError) {
+    return { success: false, error: 'Failed to validate draft image ownership', status: ownershipError.status }
+  }
+
+  const uploadSignature = images.length > 0 ? buildUploadSignature(images) : null
+  const metadataBase = input.metadata && typeof input.metadata === 'object' ? input.metadata : {}
+  const metadata = {
+    ...metadataBase,
+    ...(uploadSignature ? { uploadSignature } : {}),
+  }
+
+  if (uploadSignature) {
+    const { data: existingDraft, error: existingDraftError } = await supabase
+      .from('submission_drafts')
+      .select('id, user_id, crag_id, status, metadata, created_at, updated_at')
+      .eq('user_id', auth.data.userId)
+      .eq('status', 'draft')
+      .contains('metadata', { uploadSignature })
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!existingDraftError && existingDraft) {
+      const { data: existingImages, error: existingImagesError } = await supabase
+        .from('submission_draft_images')
+        .select('id, display_order')
+        .eq('draft_id', existingDraft.id)
+        .order('display_order', { ascending: true })
+
+      if (!existingImagesError) {
+        return { success: true, data: { ...existingDraft, images: existingImages || [] } }
+      }
+    }
+  }
+
+  const { data: draft, error: draftError } = await supabase
+    .from('submission_drafts')
+    .insert({
+      user_id: auth.data.userId,
+      crag_id: typeof input.cragId === 'string' ? input.cragId : null,
+      status: 'draft',
+      metadata,
+    })
+    .select('id, user_id, crag_id, status, metadata, created_at, updated_at')
+    .single()
+
+  if (draftError || !draft) {
+    return { success: false, error: 'Failed to create submission draft', status: 500 }
+  }
+
+  const imageRows = images.map((image, index) => ({
+    draft_id: draft.id,
+    display_order: index,
+    storage_bucket: image.uploadedBucket,
+    storage_path: image.uploadedPath,
+    latitude: image.gpsData?.latitude ?? null,
+    longitude: image.gpsData?.longitude ?? null,
+    capture_date: image.captureDate ?? null,
+    width: image.width ?? null,
+    height: image.height ?? null,
+    route_data: {},
+  }))
+
+  if (imageRows.length === 0) {
+    return { success: true, data: { ...draft, images: [] } }
+  }
+
+  const { data: createdImages, error: imagesError } = await supabase
+    .from('submission_draft_images')
+    .insert(imageRows)
+    .select('id, display_order')
+    .order('display_order', { ascending: true })
+
+  if (imagesError) {
+    return { success: false, error: 'Failed to create submission draft images', status: 500 }
+  }
+
+  return { success: true, data: { ...draft, images: createdImages || [] } }
+}
+
+export async function deleteSubmissionDraftAction(draftId: string): Promise<ActionResult> {
+  const auth = await getActionAuth()
+  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
+  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
+  if (!draftId) return { success: false, error: 'Draft ID is required', status: 400 }
+
+  const supabase = await getServerClient()
+  const storageClient = getAdminClient()
+  const { data: draft, error: draftError } = await supabase
+    .from('submission_drafts')
+    .select('id, user_id, status')
+    .eq('id', draftId)
+    .single()
+
+  if (draftError || !draft) return { success: false, error: 'Draft not found', status: 404 }
+  if (draft.user_id !== auth.data.userId) return { success: false, error: 'Forbidden', status: 403 }
+  if (draft.status !== 'draft') return { success: false, error: 'Only draft submissions can be deleted', status: 400 }
+
+  const { data: draftImages, error: draftImagesError } = await supabase
+    .from('submission_draft_images')
+    .select('storage_provider, storage_bucket, storage_path')
+    .eq('draft_id', draftId)
+
+  if (draftImagesError) return { success: false, error: 'Failed to read draft image storage paths', status: 500 }
+
+  const { data: deletedDraft, error: deleteError } = await supabase
+    .from('submission_drafts')
+    .delete()
+    .eq('id', draftId)
+    .select('id')
+    .maybeSingle()
+
+  if (deleteError) return { success: false, error: 'Failed to delete submission draft', status: 500 }
+  if (!deletedDraft) return { success: false, error: 'Failed to delete submission draft', status: 500 }
+
+  await cleanupDraftStorageObjects(storageClient, (draftImages || []) as DraftStorageRow[])
+  return { success: true }
+}
+
+export async function publishSubmissionDraftAction(draftId: string): Promise<ActionResult<{ published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] } }>> {
+  const auth = await getActionAuth()
+  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
+  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
+  if (!draftId) return { success: false, error: 'Draft ID is required', status: 400 }
+
+  const supabase = await getServerClient()
+  const request = await getActionRequest()
+  const response = await promoteDraftToSubmission({ supabase, request, draftId, userId: auth.data.userId })
+  const payload = await response.json().catch(() => ({} as { error?: string; published?: { imageId?: string; imageIds?: string[]; routeLineIds?: string[] } }))
+
+  if (!response.ok) {
+    return { success: false, error: payload.error || 'Failed to publish draft', status: response.status }
+  }
+
+  return { success: true, data: { published: payload.published } }
+}
+
+export async function deletePublishedSubmissionAction(imageId: string): Promise<ActionResult> {
+  const auth = await getActionAuth()
+  if (!auth.success) return { success: false, error: auth.error, status: auth.status }
+  if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
+  if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
+
+  const supabase = await getServerClient()
+  const supabaseAdmin = getAdminClient()
+  const response = await deleteSubmission({ supabase, supabaseAdmin, userId: auth.data.userId, imageId })
+  const payload = await response.json().catch(() => ({} as { error?: string }))
+
+  if (!response.ok) {
+    return { success: false, error: payload.error || 'Delete submission error', status: response.status }
+  }
+
+  return { success: true }
+}
