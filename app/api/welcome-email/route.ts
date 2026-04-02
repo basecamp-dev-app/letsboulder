@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     const appUrl = serverEnv.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     const resendApiKey = serverEnv.RESEND_API_KEY
-    const welcomeEmail = buildWelcomeEmail({ appUrl, firstName })
+    const welcomeEmail = buildWelcomeEmail({ appUrl, firstName: firstName ?? null })
 
     if (!resendApiKey) {
       console.warn('RESEND_API_KEY missing, returning mock welcome email response')
