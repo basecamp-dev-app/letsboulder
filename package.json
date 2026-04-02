@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --webpack",
     "build": "NEXT_TELEMETRY_DISABLED=1 next build --webpack",
+    "analyze": "ANALYZE=true next build --webpack",
     "media-backfill": "node scripts/media/backfill-images.mjs",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",
     "lint": "eslint --cache --concurrency auto",
