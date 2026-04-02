@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
-import { withCsrfProtection } from '@/lib/csrf-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { notifyNewSubmission } from '@/lib/discord'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { makeUniqueSlug } from '@/lib/slug'
@@ -31,8 +31,8 @@ interface RoutePoint {
 }
 
 export async function POST(request: NextRequest) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  if (!middlewareResult.ok) return middlewareResult.response
 
   const cookies = request.cookies
   const debugAuth = serverEnv.DEBUG_SUBMISSIONS_AUTH === '1'
