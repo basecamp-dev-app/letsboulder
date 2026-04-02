@@ -219,9 +219,9 @@ export function ProfileAvatarUploadModal({
 
         <div className="flex flex-col items-center gap-4 mb-4">
           {preview ? (
-            <NextImage src={preview} alt="Preview" width={128} height={128} unoptimized className="w-32 h-32 rounded-full object-cover" />
+            <NextImage src={preview} alt="Preview" width={128} height={128} sizes="128px" unoptimized className="w-32 h-32 rounded-full object-cover" />
           ) : avatarUrl ? (
-            <NextImage src={avatarUrl} alt="Current avatar" width={128} height={128} unoptimized className="w-32 h-32 rounded-full object-cover" />
+            <NextImage src={avatarUrl} alt="Current avatar" width={128} height={128} sizes="128px" unoptimized className="w-32 h-32 rounded-full object-cover" />
           ) : (
             <div className="w-32 h-32 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-200 font-bold text-3xl">
               {initials}

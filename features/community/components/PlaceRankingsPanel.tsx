@@ -170,9 +170,9 @@ export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
               className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/60"
             >
               <span className="w-7 shrink-0 text-sm font-semibold text-gray-600 dark:text-gray-300">#{entry.rank}</span>
-              {entry.avatar_url ? (
-                <Image src={entry.avatar_url} alt={entry.username} width={32} height={32} className="h-8 w-8 rounded-full object-cover" />
-              ) : (
+                {entry.avatar_url ? (
+                  <Image src={entry.avatar_url} alt={entry.username} width={32} height={32} sizes="32px" className="h-8 w-8 rounded-full object-cover" />
+                ) : (
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-200">
                   {entry.username.slice(0, 2).toUpperCase()}
                 </div>

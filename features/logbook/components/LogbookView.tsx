@@ -242,6 +242,7 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
                   alt={profile.username}
                   width={40}
                   height={40}
+                  sizes="40px"
                   unoptimized
                   className="h-10 w-10 rounded-full object-cover"
                 />
@@ -269,6 +270,7 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
                 alt={profile.username}
                 width={80}
                 height={80}
+                sizes="80px"
                 unoptimized
                 className="h-20 w-20 rounded-full object-cover"
               />

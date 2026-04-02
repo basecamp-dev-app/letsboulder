@@ -423,6 +423,7 @@ export default function RouteDetailModal({
                               alt={t.profile.display_name}
                               width={36}
                               height={36}
+                              sizes="36px"
                               unoptimized
                               className="w-9 h-9 rounded-full object-cover"
                             />
