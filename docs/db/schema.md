@@ -79,19 +79,43 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `countries` | Country data with ISO codes and PostGIS boundaries |
 | `regions` | Regional groupings within countries |
 | `continents` | Continental groupings |
+| `comments` | User comments on crags, images, climbs (soft-deletable) |
+| `route_lines` | Route line geometry drawn on images |
+| `user_climbs` | User climb logs (flash/top/try) with star ratings and grade opinions |
+
+### Grade & Voting Tables
+| Table | Purpose |
+|-------|---------|
+| `grades` | Grade-to-points lookup table |
+| `grade_mappings` | Cross-system grade conversion (Font, V-scale, YDS, French, British) |
+| `grade_votes` | Community grade consensus voting on climbs |
+| `route_grades` | Per-user grade opinions on climbs (distinct from grade_votes) |
+| `climb_verifications` | User verifications that a climb exists/is accurate |
+
+### Location Taxonomy Tables
+| Table | Purpose |
+|-------|---------|
+| `location_tags` | Tag-based location taxonomy (region/sub_area kinds) |
+| `crag_location_tags` | Junction: crags ↔ location_tags (one primary region per crag) |
+| `un_regions` | UN region reference data |
 
 ### Community Tables
 | Table | Purpose |
 |-------|---------|
-| `grade_votes` | Community grade consensus voting |
-| `climb_flags` | Flagged climbs for moderation |
-| `image_flags` | Flagged images for moderation |
-| `climb_corrections` | Route correction requests |
-| `correction_votes` | Votes on corrections |
 | `community_posts` | Community session/conditions/question/update posts |
 | `community_post_comments` | Comments on community posts |
 | `community_post_rsvps` | RSVPs for session posts |
+| `community_place_follows` | User follows on places (crags/gyms) with notification levels |
 | `notifications` | User notifications |
+
+### Moderation Tables
+| Table | Purpose |
+|-------|---------|
+| `climb_flags` | Flagged climbs for moderation |
+| `climb_corrections` | Route correction requests with voting |
+| `correction_votes` | Votes on climb corrections |
+| `crag_reports` | User reports on crags (access, safety, etc.) |
+| `admin_actions` | Admin audit log of moderation actions |
 
 ### Submission Tables
 | Table | Purpose |
@@ -99,47 +123,101 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `submission_drafts` | Draft submissions with metadata |
 | `submission_draft_images` | Images attached to drafts (storage-aware) |
 | `submission_draft_routes` | Durable per-image draft routes for image-scoped sync |
-| `submissions` | Promoted/live submissions |
 | `crag_images` | Multi-image crag gallery |
+| `submission_collaborators` | Shared editing access on published submissions (image-level) |
+| `submission_collaborator_invites` | Token-based invites for submission collaboration |
+| `submission_draft_collaborators` | Shared editing access on drafts |
+| `submission_draft_collaborator_invites` | Token-based invites for draft collaboration |
 
 ### Gym Tables
 | Table | Purpose |
 |-------|---------|
 | `gym_owner_applications` | Gym owner application workflow |
-| `gym_memberships` | User gym memberships |
-| `gym_floor_plans` | Gym floor plan images |
+| `gym_memberships` | User gym memberships (owner/manager/setter roles) |
+| `gym_floor_plans` | Gym floor plan images (one active per gym) |
 | `gym_routes` | Indoor gym routes |
-| `gym_route_markers` | Route markers on floor plans |
+| `gym_route_markers` | Route markers on floor plans (normalized coordinates) |
 
-### Logging & Media
+### Account & Deletion Tables
 | Table | Purpose |
 |-------|---------|
-| `logs` | User climb log entries (flash/top/try) |
-| `media_jobs` | Legacy media processing queue (retired) |
+| `deletion_requests` | User account deletion workflow with scheduling |
+| `deleted_accounts` | Audit log of deleted user accounts |
+
+### Analytics & Misc Tables
+| Table | Purpose |
+|-------|---------|
+| `product_clicks` | Affiliate/product click tracking |
 | `climb_video_betas` | Video beta links for climbs |
+| `media_jobs` | Legacy media processing queue (retired) |
 
 ---
 
-## 3. Relational Map (Cascade Logic)
+## 3. Relational Map
 
-### Core Relationships
+### Key Relationships (ON DELETE behavior from prod)
 
 | Parent | Child | Delete Behavior |
 |--------|-------|-----------------|
-| `crags` | `climbs` | **Refer to** `supabase/migrations/` for ON DELETE policy |
-| `climbs` | `images` | **Refer to** `supabase/migrations/` for ON DELETE policy |
-| `climbs` | `grade_votes` | Cascade delete |
-| `crags` | `sectors` | **Refer to** `supabase/migrations/` |
-| `crags` | `crag_images` | **Refer to** `supabase/migrations/` |
-| `users` | `community_posts` | Cascade delete |
-| `users` | `logs` | Cascade delete |
-| `users` | `notifications` | Cascade delete |
-| `users` | `gym_memberships` | Cascade delete |
-| `submission_drafts` | `submission_draft_images` | Cascade delete |
-| `submission_draft_images` | `submission_draft_routes` | Cascade delete |
-| `submissions` | `images` | **Refer to** `supabase/migrations/` |
+| `auth.users` | `profiles` | CASCADE |
+| `auth.users` | `community_posts` | CASCADE |
+| `auth.users` | `community_post_comments` | CASCADE |
+| `auth.users` | `community_post_rsvps` | CASCADE |
+| `auth.users` | `notifications` | CASCADE |
+| `auth.users` | `gym_memberships` | CASCADE |
+| `auth.users` | `deletion_requests` | CASCADE |
+| `auth.users` | `climb_corrections` | CASCADE |
+| `auth.users` | `climb_verifications` | CASCADE |
+| `auth.users` | `climb_video_betas` | CASCADE |
+| `auth.users` | `correction_votes` | CASCADE |
+| `auth.users` | `grade_votes` | CASCADE |
+| `auth.users` | `route_grades` | CASCADE |
+| `auth.users` | `route_lines` | CASCADE |
+| `auth.users` | `user_climbs` | no action |
+| `crags` | `climbs` | CASCADE |
+| `crags` | `crag_images` | CASCADE |
+| `crags` | `crag_location_tags` | CASCADE |
+| `crags` | `crag_reports` | CASCADE |
+| `crags` | `sectors` | CASCADE |
+| `crags` | `submission_drafts` | SET NULL |
+| `places` | `climbs` | SET NULL |
+| `places` | `community_place_follows` | CASCADE |
+| `places` | `community_posts` | CASCADE |
+| `places` | `gym_floor_plans` | CASCADE |
+| `places` | `gym_memberships` | CASCADE |
+| `places` | `gym_routes` | CASCADE |
+| `places` | `images` | SET NULL |
+| `sectors` | `climbs` | SET NULL |
+| `sectors` | `crag_images` | SET NULL |
+| `images` | `climb_flags` | CASCADE |
+| `images` | `media_jobs` | CASCADE |
+| `images` | `route_lines` | CASCADE |
+| `images` | `submission_collaborators` | CASCADE |
+| `images` | `submission_collaborator_invites` | CASCADE |
+| `climbs` | `climb_corrections` | CASCADE |
+| `climbs` | `climb_flags` | CASCADE |
+| `climbs` | `climb_verifications` | CASCADE |
+| `climbs` | `climb_video_betas` | CASCADE |
+| `climbs` | `grade_votes` | CASCADE |
+| `climbs` | `route_grades` | CASCADE |
+| `climbs` | `route_lines` | CASCADE |
+| `climbs` | `user_climbs` | CASCADE |
+| `climbs` | `climbs` (self-ref via shared_climb_id) | SET NULL |
+| `submission_drafts` | `submission_draft_images` | CASCADE |
+| `submission_drafts` | `submission_draft_routes` | CASCADE |
+| `submission_drafts` | `submission_draft_collaborators` | CASCADE |
+| `submission_drafts` | `submission_draft_collaborator_invites` | CASCADE |
+| `submission_draft_images` | `submission_draft_routes` | CASCADE |
+| `countries` | `crags` | SET NULL |
+| `countries` | `places` | SET NULL |
+| `countries` | `images` | no action |
+| `regions` | `countries` | SET NULL |
+| `crags` | `climb_flags` | SET NULL |
+| `location_tags` | `crag_location_tags` | CASCADE |
+| `continents` | `un_regions` | no action |
+| `un_regions` | `regions` | no action |
 
-**Agent rule:** Before any DELETE operation, check the migration files in `supabase/migrations/` to confirm ON DELETE behavior. Never assume cascade behavior.
+**Agent rule:** Before any DELETE operation, check this table or the migration files in `supabase/migrations/` to confirm ON DELETE behavior. Never assume cascade behavior.
 
 ### Media Pipeline Tables
 - `images` carries media-pipeline state in addition to legacy `url` storage fields.
@@ -148,6 +226,30 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 - `submission_draft_routes` stores durable draft route geometry and metadata. Route drawing now persists per image via image-scoped bulk sync instead of relying on `submission_draft_images.route_data` as the primary store.
 - `media_jobs` and `claim_media_job(worker_name text)` are legacy artifacts from the retired polling Node worker.
 - Active ingest runs through Cloudflare Queue + the Worker in `apps/media-worker`; `images` remains the source of truth.
+
+### Collaboration Tables
+- `submission_collaborators` and `submission_collaborator_invites` enable shared editing on published submissions (image-level).
+- `submission_draft_collaborators` and `submission_draft_collaborator_invites` enable shared editing on drafts.
+- RLS helper functions: `is_submission_collaborator(image_id, user_id)` and `is_submission_draft_collaborator(draft_id, user_id)`.
+- Invite claims: `claim_submission_collaborator_invite(token)` and `claim_submission_draft_collaborator_invite(token)`.
+
+### Triggers
+| Trigger | Table | Purpose |
+|---------|-------|---------|
+| `climbs_recompute_crag_location_*` | climbs | Recompute crag centroid on climb changes |
+| `climbs_sync_crag_type_after_write` | climbs | Auto-derive crag type from climb route_types |
+| `comments_soft_delete_only_trigger` | comments | Prevent hard deletes |
+| `comments_validate_target_trigger` | comments | Validate target_type/target_id references |
+| `crags_sync_to_places_after_write` | crags | Sync crag → places table |
+| `images_trigger_on_crag_location` | images | Recompute crag location on image changes |
+| `places_sync_to_crags_after_write` | places | Sync place → crags table |
+| `route_lines_set_climb_gps` | route_lines | Inherit climb GPS from image |
+| `trg_grade_votes_sync_climb_grade` | grade_votes | Sync consensus to climb |
+| `trg_update_climb_consensus_on_vote` | grade_votes | Update consensus on vote changes |
+| `trigger_crag_counts_climbs` | climbs | Recompute crag route count |
+| `trigger_crag_counts_images` | images | Recompute crag image count |
+| `trg_submission_draft_promoted_handoff` | submission_drafts | Handle draft→submission promotion |
+| `*_updated_at` | media_jobs, submission_drafts, submission_draft_images | Timestamp touch |
 
 ### Auth Tables
 - **System tables:** Use RPC functions with `SECURITY DEFINER` for `auth.users` queries
@@ -158,31 +260,84 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 ## 4. RPC Functions
 
 ### Map & Discovery
-| Function | Returns |
+| Function | Purpose |
 |----------|---------|
-| `get_crag_pins()` | All crag pin locations for map clustering |
 | `get_crag_route_intelligence(p_crag_id)` | Per-route metrics: directions, topo coverage, weighted rating, unique sender counts |
 | `get_upload_context(lat, lng)` | Country/region context from coordinates |
+| `find_region_by_location(lat, lng)` | Find region by GPS coordinates |
+| `get_consensus_grade(p_climb_id)` | Compute consensus grade for a climb |
+| `get_climbs_with_consensus()` | Batch fetch climbs with consensus grades |
+| `get_climb_full_context(p_climb_id)` | Full climb data with faces, routes, stats |
+| `get_crag_faces_complete_summary(p_crag_id)` | Multi-face summary for a crag |
+| `get_image_faces_summary(p_image_id)` | Face data for an image |
+| `get_effective_climb_id(p_climb_id)` | Resolve climb ID through shared_climb_id chain |
+
+### Analytics
+| Function | Purpose |
+|----------|---------|
+| `get_star_rating_summary(p_climb_id)` | Per-route average star rating and count |
+| `get_grade_vote_distribution(p_climb_id)` | Grade vote distribution for a climb |
+| `get_verification_count(p_climb_id)` | Verification count for a climb |
+| `get_verified_routes_count(p_crag_id)` | Verified route count for a crag |
+| `get_user_count()` | Total user count (SECURITY DEFINER) |
+| `get_active_climbers_count()` | Active climber count |
+| `get_community_contributors_count()` | Community contributor count |
+| `get_community_photos_count()` | Community photo count |
+| `get_crags_mapped_count()` | Number of mapped crags |
+| `get_boulders_with_gps_count()` | Boulder count with GPS data |
+| `get_total_climbs_count()` | Total climbs count |
+| `get_total_sends_count()` | Total sends count |
+| `get_total_logs_count()` | Total logs count |
 
 ### Submissions
-| Function | Returns |
+| Function | Purpose |
 |----------|---------|
 | `create_unified_submission(...)` | Atomically create submission with images |
-| `promote_draft(draft_id)` | Promote draft to live submission |
+| `promote_draft_to_submission(draft_id)` | Promote draft to live submission |
 | `sync_submission_draft_routes(draft_id, draft_image_id, routes)` | Replace the durable draft route set for one image |
 | `user_can_edit_submission_draft(draft_id, user_id)` | Permission check for draft editing |
 | `handle_submission_draft_promoted(...)` | Trigger handler for draft promotion |
+| `claim_submission_collaborator_invite(token)` | Accept a submission collaboration invite |
+| `claim_submission_draft_collaborator_invite(token)` | Accept a draft collaboration invite |
+| `is_submission_collaborator(image_id, user_id)` | RLS helper: check submission collaboration |
+| `is_submission_draft_collaborator(draft_id, user_id)` | RLS helper: check draft collaboration |
+| `append_submission_draft_images_atomic(...)` | Atomic draft image append |
+| `create_submission_routes_atomic(...)` | Atomic route creation |
+| `insert_pin_images_atomic(...)` | Atomic pin image insertion |
 
-### Analytics
-| Function | Returns |
+### Grade Management
+| Function | Purpose |
 |----------|---------|
-| `get_star_rating_summary(p_climb_id)` | Per-route average star rating and count |
-| `get_user_count()` | Total user count (SECURITY DEFINER) |
+| `initialize_climb_consensus(p_climb_id)` | Initialize consensus grade for a climb |
+| `initialize_climb_grade_vote(p_climb_id, p_user_id)` | Initialize grade vote for a climb |
+| `insert_grade_vote(p_climb_id, p_user_id, p_grade)` | Insert or update grade vote |
+| `sync_climb_grade_from_votes(p_climb_id)` | Recompute climb grade from votes |
+| `add_correction_type_value(p_type, p_value)` | Dynamic correction type enum expansion |
+| `normalize_climb_route_type(p_route_type)` | Normalize route type string |
 
-### Geography
-| Function | Returns |
+### Crag Management
+| Function | Purpose |
 |----------|---------|
-| `get_upload_context(lat, lng)` | Country/region from coordinates (PostGIS) |
+| `recompute_crag_counts(p_crag_id)` | Recompute image/route counts for a crag |
+| `recompute_crag_location(p_crag_id)` | Recompute crag centroid from climbs/images |
+| `refresh_crag_type_from_climbs(p_crag_id)` | Refresh crag type from child climbs |
+| `increment_crag_report_count(p_crag_id)` | Increment crag report counter |
+| `delete_empty_crag(p_crag_id)` | Delete crag with no climbs/images |
+| `delete_empty_crags()` | Batch delete empty crags |
+
+### Utility
+| Function | Purpose |
+|----------|---------|
+| `slugify(p_text)` | Generate URL-safe slug |
+| `get_level(p_grade)` | Get difficulty level from grade |
+| `soft_delete_comment(p_comment_id)` | Soft delete a comment |
+| `cleanup_orphan_route_uploads()` | Clean up orphaned route uploads |
+| `update_own_profile_submission_credit(...)` | Update profile submission credit |
+| `update_own_submission_anonymity(...)` | Update submission anonymity |
+| `update_own_submission_credit(...)` | Update submission credit |
+| `update_own_submitted_routes(...)` | Update submitted routes |
+| `update_submission_crag_metadata(...)` | Update crag metadata on submission |
+| `update_submission_image_order(...)` | Update image display order |
 
 ---
 
@@ -244,8 +399,16 @@ const supabase = createBrowserClient(
 - Never query `auth.users` directly
 
 ### Type Generation
-After any schema change, regenerate types:
+After any schema change, regenerate types against prod:
 ```bash
-supabase gen types typescript --local > types/database.ts
+supabase link --project-ref glxnbxbkedeogtcivpsx
+supabase gen types typescript --linked > types/database.ts
 ```
 Always verify affected app types against the new schema before writing UI code.
+
+### Schema Drift Check
+Periodically verify prod matches what migrations produce:
+```bash
+supabase db diff --linked
+```
+Any diff indicates drift — backfill missing migrations immediately.

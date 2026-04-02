@@ -52,3 +52,37 @@ jobs:
         run: supabase db push --linked --include-all --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+  drift-check:
+    name: Check schema drift
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.84.2
+
+      - name: Link Supabase project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      - name: Check for schema drift
+        run: |
+          DIFF=$(supabase db diff --linked --use-migra 2>&1)
+          if [ -n "$DIFF" ]; then
+            echo "::warning::Schema drift detected between migrations and prod:"
+            echo "$DIFF"
+            echo ""
+            echo "Run: supabase db diff --linked"
+            echo "Then backfill any missing migrations."
+            exit 1
+          else
+            echo "No schema drift detected."
+          fi
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
