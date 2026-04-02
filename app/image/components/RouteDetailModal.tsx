@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { HelpCircle, Loader2, X } from 'lucide-react'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { submitGradeVoteAction } from '@/components/grade-voting-actions'
 import { GRADE_ORDER_INDEX, SELECTABLE_GRADES } from '@/lib/grade-constants'
 import type { ClimbStatusResponse, GradeVoteDistribution } from '@/lib/verification-types'
 import RoutePreviewThumb from '@/app/image/components/RoutePreviewThumb'
@@ -283,12 +283,8 @@ export default function RouteDetailModal({
 
     setSliderSubmitting(true)
     try {
-      const response = await csrfFetch(`/api/climbs/${climbId}/grade-vote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ grade: selectedGrade }),
-      })
-      if (!response.ok) throw new Error()
+      const result = await submitGradeVoteAction(climbId, selectedGrade)
+      if (!result.success) throw new Error(result.error)
 
       setDisplayedGrade(selectedGrade)
       setLastSubmittedGrade(selectedGrade)
