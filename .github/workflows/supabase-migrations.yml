@@ -57,6 +57,7 @@ jobs:
     name: Check schema drift
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    environment: Production
     steps:
       - uses: actions/checkout@v4
 
