@@ -27,8 +27,8 @@ export async function getRegionData(supabase: ReturnType<typeof getServerClientF
       .eq('id', imageId)
       .single()
 
-    if (data?.crags?.climbing_areas) {
-      return data.crags.climbing_areas.name
+    if (data?.crags?.[0]?.climbing_areas?.[0]) {
+      return data.crags[0].climbing_areas[0].name
     }
     return ''
   } catch {
