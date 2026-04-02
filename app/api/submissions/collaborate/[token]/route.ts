@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { serverEnv } from '@/lib/env'
 
 interface ClaimInviteResult {
   image_id?: string
@@ -18,17 +17,7 @@ export async function GET(
     return NextResponse.redirect(new URL('/logbook?error=invalid-collab-invite', request.url))
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 

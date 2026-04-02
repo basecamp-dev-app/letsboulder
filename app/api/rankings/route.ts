@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { getGradePoints, getGradeFromPoints, FLASH_BONUS } from '@/lib/grades'
 import { createErrorResponse } from '@/lib/errors'
-import { serverEnv } from '@/lib/env'
 
 export const revalidate = 60
 
@@ -40,7 +39,6 @@ interface ProfileRow {
 }
 
 export async function GET(request: NextRequest) {
-  const cookies = request.cookies
   const searchParams = request.nextUrl.searchParams
 
   const gender = searchParams.get('gender')
@@ -61,16 +59,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid sort parameter' }, { status: 400 })
   }
 
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const genderParam = gender === 'all' ? null : gender

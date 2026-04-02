@@ -1,11 +1,10 @@
 import { cache } from 'react'
-import { createServerClient } from '@supabase/ssr'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { getDisplayImageId } from '@/lib/image-identity'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import type { RoutePoint } from '@/types/domain'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
-import { serverEnv } from '@/lib/env'
 
 interface CragRow {
   id: string
@@ -82,11 +81,7 @@ interface RouteLineRow {
 }
 
 async function getSupabase() {
-  return createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
+  return getUnauthenticatedClient()
 }
 
 async function resolveCragImageRow(displayImageId: string): Promise<ResolvedImageRow | null> {

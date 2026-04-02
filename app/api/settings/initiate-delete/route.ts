@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { SignJWT } from 'jose'
 import { Resend } from 'resend'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
@@ -29,20 +29,10 @@ export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
-  const cookies = request.cookies
   const { searchParams } = new URL(request.url)
   const deleteRouteUploads = searchParams.get('delete_route_uploads') === 'true'
 
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId } = await resolveUserIdWithFallback(request, supabase)

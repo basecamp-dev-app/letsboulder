@@ -1,7 +1,6 @@
 import type { MetadataRoute } from 'next'
-import { createServerClient } from '@supabase/ssr'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { SITE_URL } from '@/lib/site'
-import { serverEnv } from '@/lib/env'
 
 export const revalidate = 3600
 
@@ -27,11 +26,7 @@ interface SitemapClimbRow {
 }
 
 function getSupabase() {
-  return createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
+  return getUnauthenticatedClient()
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

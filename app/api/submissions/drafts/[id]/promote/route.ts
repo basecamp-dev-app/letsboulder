@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { promoteDraftToSubmission } from '@/features/submissions/server/drafts/draft-promote'
-import { serverEnv } from '@/lib/env'
 
 export const runtime = 'nodejs'
 
@@ -20,17 +19,7 @@ export async function POST(
     return NextResponse.json({ error: 'Draft ID is required' }, { status: 400 })
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)

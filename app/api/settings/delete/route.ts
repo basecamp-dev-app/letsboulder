@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { jwtVerify } from 'jose'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse, sanitizeError } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
 import { serverEnv } from '@/lib/env'
 
 function getDeleteTokenSecret(): Uint8Array {
@@ -46,28 +46,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid token purpose' }, { status: 400 })
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
-  const supabaseAdmin = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.SUPABASE_SERVICE_ROLE_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabaseAdmin = getAdminClient()
 
   try {
     const { userId } = await resolveUserIdWithFallback(request, supabase)

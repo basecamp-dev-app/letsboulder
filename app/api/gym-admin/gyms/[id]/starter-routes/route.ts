@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { serverEnv } from '@/lib/env'
 
 interface StarterRouteInput {
   id?: string
@@ -29,12 +28,7 @@ const ALLOWED_STATUS = new Set(['active', 'retired'])
 const ROUTE_EDITOR_ROLES = new Set(['owner', 'manager', 'head_setter', 'setter'])
 
 async function requireGymRouteAccess(request: NextRequest, gymId: string) {
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return cookies.getAll() }, setAll() {} } }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   const { userId } = await resolveUserIdWithFallback(request, supabase)
   if (!userId) return { error: NextResponse.json({ error: 'Authentication required' }, { status: 401 }), supabase: null, role: null as string | null }

@@ -1,15 +1,10 @@
 import { Metadata } from 'next'
-import { createServerClient } from '@supabase/ssr'
-import { serverEnv } from '@/lib/env'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 export const revalidate = 300
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
+  const supabase = getUnauthenticatedClient()
 
   const { id } = await params
   const { data: climb } = await supabase

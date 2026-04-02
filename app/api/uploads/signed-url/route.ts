@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { createSignedObjectUrl } from '@/lib/media/object-urls'
-import { serverEnv } from '@/lib/env'
 
 export async function GET(request: NextRequest) {
   const bucket = request.nextUrl.searchParams.get('bucket')
@@ -12,19 +11,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Missing bucket or path' }, { status: 400 })
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookies.getAll()
-        },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getUnauthenticatedClient, getAdminClient } from '@/lib/supabase-server'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
-import { serverEnv } from '@/lib/env'
+import type { createServerClient } from '@supabase/ssr'
 
 interface FaceItem {
   id: string
@@ -348,20 +348,9 @@ export async function GET(
     return NextResponse.json({ error: 'Image ID is required' }, { status: 400 })
   }
 
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
+  const supabase = getUnauthenticatedClient()
 
-  const serviceRoleKey = serverEnv.SUPABASE_SERVICE_ROLE_KEY
-  const signingClient = serviceRoleKey
-    ? createServerClient(
-        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-        serviceRoleKey,
-        { cookies: { getAll() { return [] }, setAll() {} } }
-      )
-    : supabase
+  const signingClient = getAdminClient()
 
   try {
     const imageId = await resolveCanonicalFaceImageId(supabase, requestedImageId)

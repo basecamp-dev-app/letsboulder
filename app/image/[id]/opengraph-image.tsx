@@ -1,7 +1,6 @@
 import { ImageResponse } from 'next/og'
-import { createServerClient } from '@supabase/ssr'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { BRAND_NAME } from '@/lib/site'
-import { serverEnv } from '@/lib/env'
 
 export const revalidate = 300
 export const size = {
@@ -53,11 +52,7 @@ export default async function OpenGraphImage({ params }: { params: Promise<Image
     return fallbackCard('Route image', '')
   }
 
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
+  const supabase = getUnauthenticatedClient()
 
   const { data: imageData } = await supabase
     .from('images')

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
-import { serverEnv } from '@/lib/env'
 
 interface RouteParams {
   postId: string
@@ -27,7 +26,7 @@ interface ProfileRow {
 }
 
 async function buildCommentPayload(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof getServerClientFromRequest>,
   postId: string,
   viewerId: string | null
 ) {
@@ -68,17 +67,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
     return NextResponse.json({ error: 'Missing post id' }, { status: 400 })
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { data: post } = await supabase
@@ -111,17 +100,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     return NextResponse.json({ error: 'Missing post id' }, { status: 400 })
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const {

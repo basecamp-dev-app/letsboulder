@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { getMediaModerationConfig } from '@/lib/media/config'
@@ -7,20 +7,8 @@ import { ensurePrivateObjectExists } from '@/lib/media/r2'
 import { serverEnv } from '@/lib/env'
 
 function createAuthedClient(request: NextRequest) {
-  const cookies = request.cookies
 
-  return createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookies.getAll()
-        },
-        setAll() {},
-      },
-    }
-  )
+  return getServerClientFromRequest(request)
 }
 
 interface ImageRow {

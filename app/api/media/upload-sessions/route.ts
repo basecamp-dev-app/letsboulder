@@ -1,29 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { getMediaModerationConfig, getMediaStorageConfig } from '@/lib/media/config'
 import { createPrivateUploadUrl } from '@/lib/media/r2'
 import { buildOriginalObjectKey, normalizeUploadSessionRequest } from '@/lib/media/upload-session'
 import type { MediaUploadSessionResponse } from '@/lib/media/types'
-import { serverEnv } from '@/lib/env'
 
 function createAuthedClient(request: NextRequest) {
-  const cookies = request.cookies
 
-  return createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookies.getAll()
-        },
-        setAll() {},
-      },
-    }
-  )
+  return getServerClientFromRequest(request)
 }
 
 export async function POST(request: NextRequest) {

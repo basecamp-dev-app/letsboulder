@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import type { Database } from '@/types/database'
-import { serverEnv } from '@/lib/env'
 import {
   buildDraftConflictResponse,
   buildDraftImageProxyUrl,
@@ -18,8 +17,6 @@ import {
   type DraftRouteRow,
   type ProfileRow,
 } from '@/features/submissions/server/drafts/draft-route-shared'
-
-const SUPABASE_SERVICE_ROLE_KEY = serverEnv.SUPABASE_SERVICE_ROLE_KEY
 
 interface DraftPatchBody {
   images: DraftPatchImage[]
@@ -56,17 +53,7 @@ export async function GET(
     return NextResponse.json({ error: 'Draft ID is required' }, { status: 400 })
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
@@ -161,17 +148,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Draft ID is required' }, { status: 400 })
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
@@ -377,30 +354,9 @@ export async function DELETE(
     return NextResponse.json({ error: 'Draft ID is required' }, { status: 400 })
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
-  const storageClient = SUPABASE_SERVICE_ROLE_KEY
-    ? createServerClient(
-        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-        SUPABASE_SERVICE_ROLE_KEY,
-        {
-          cookies: {
-            getAll() { return [] },
-            setAll() {},
-          },
-        }
-      )
-    : supabase
+  const storageClient = getAdminClient()
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)

@@ -1,12 +1,11 @@
 import type { Metadata } from 'next'
-import { createServerClient } from '@supabase/ssr'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import CragPageClient from '@/features/crags/components/CragPageClient'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import CragStructuredData from '@/features/crags/components/CragStructuredData'
 import type { BreadcrumbItem, Crag } from '@/features/crags/lib/crag-page-types'
-import { serverEnv } from '@/lib/env'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 export const revalidate = 60
 
@@ -64,12 +63,8 @@ interface CragSlugRow {
     | null
 }
 
-async function getSupabase() {
-  return createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
+function getSupabase() {
+  return getUnauthenticatedClient()
 }
 
 // Temporarily removed cache() to test - will add back after debugging
