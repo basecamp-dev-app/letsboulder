@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
+import { groupSubmittedImages } from '@/lib/submissions/group-submitted-images'
 import type { DraftImageRef, Submission } from '@/types/submissions'
 
 interface DraftSubmissionRow {
@@ -21,6 +22,19 @@ interface SignedUrlObject {
   path: string
 }
 
+interface ImageContributionRow {
+  id: string
+  url: string
+  created_at: string
+  submission_id: string | null
+  moderation_status: string | null
+  is_anonymous_submission: boolean | null
+  contribution_credit_platform: string | null
+  contribution_credit_handle: string | null
+  crags: { name?: string } | Array<{ name?: string }> | null
+  route_lines: Array<{ count?: number }> | null
+}
+
 export async function fetchOwnSubmissions(
   supabase: SupabaseClient,
   userId: string,
@@ -28,8 +42,6 @@ export async function fetchOwnSubmissions(
   limit = 24,
   baseUrl?: string
 ): Promise<Submission[]> {
-  const formattedSubmissions: Submission[] = []
-
   const dedupeSubmissions = (items: Submission[]): Submission[] => {
     const byKey = new Map<string, Submission>()
     for (const item of items) {
@@ -44,26 +56,17 @@ export async function fetchOwnSubmissions(
     return [...byKey.values()]
   }
 
-  const contributionsUrl = baseUrl
-    ? `${baseUrl}/api/logbook/contributions?limit=${limit}`
-    : `/api/logbook/contributions?limit=${limit}`
+  const { data: contributionRows } = await supabase
+    .from('images')
+    .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name), route_lines(count)')
+    .eq('created_by', userId)
+    .or('moderation_status.eq.approved,moderation_status.eq.pending,moderation_status.is.null')
+    .order('created_at', { ascending: false })
+    .limit(200)
 
-  const submissionsResponse = await fetch(contributionsUrl)
-  if (submissionsResponse.ok) {
-    const payload = await submissionsResponse.json().catch(() => ({ submissions: [] as Submission[] }))
-    if (Array.isArray(payload.submissions)) {
-      for (const submission of payload.submissions) {
-        if (!submission || typeof submission !== 'object') continue
-        const candidate = submission as Submission
-        formattedSubmissions.push({
-          ...candidate,
-          status: candidate.status === 'published' || candidate.status === 'pending_review'
-            ? candidate.status
-            : 'pending_review',
-        })
-      }
-    }
-  }
+  const publishedSubmissions: Submission[] = contributionRows
+    ? groupSubmittedImages(contributionRows as ImageContributionRow[], [])
+    : []
 
   const { data: draftSubmissions } = await supabase
     .from('submission_drafts')
@@ -145,6 +148,6 @@ export async function fetchOwnSubmissions(
     }
   })
 
-  return dedupeSubmissions([...formattedDrafts, ...formattedSubmissions])
+  return dedupeSubmissions([...formattedDrafts, ...publishedSubmissions])
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
 }

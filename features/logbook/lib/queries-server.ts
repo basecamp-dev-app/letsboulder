@@ -14,6 +14,8 @@ interface RawLogbookRow {
     id: string
     name: string
     grade: string
+    slug?: string | null
+    crag_id?: string | null
     route_lines?: Array<{ images?: { url?: string; crags?: { name?: string } } }>
   }
 }
@@ -24,10 +26,13 @@ interface LoggedClimb {
   style: string
   created_at: string
   points?: number
+  canonical_url?: string | null
   climbs: {
     id: string
     name: string
     grade: string
+    slug?: string | null
+    crag_id?: string | null
     image_url?: string
     crags: {
       name: string
@@ -176,7 +181,7 @@ export async function fetchServerLogbookData(user: User, baseUrl?: string): Prom
       .single(),
     supabase
       .from('user_climbs')
-      .select('*, climbs(id, name, grade, route_lines!inner(images!inner(url, crags!inner(name))))')
+      .select('*, climbs(id, name, grade, slug, crag_id, route_lines!inner(images!inner(url, crags!inner(name))))')
       .eq('user_id', userId)
       .order('created_at', { ascending: false }),
   ])
@@ -211,6 +216,28 @@ export async function fetchServerLogbookData(user: User, baseUrl?: string): Prom
       : getGradePoints(log.climbs?.grade),
   })) as LoggedClimb[]
 
+  const cragIds = [...new Set(logsWithPoints.map((log) => log.climbs?.crag_id).filter((id): id is string => !!id))]
+  const cragMetaById = new Map<string, { country_code: string | null; slug: string | null }>()
+  if (cragIds.length > 0) {
+    const { data: cragRows } = await supabase
+      .from('crags')
+      .select('id, country_code, slug')
+      .in('id', cragIds)
+    for (const row of (cragRows || []) as Array<{ id: string; country_code: string | null; slug: string | null }>) {
+      cragMetaById.set(row.id, { country_code: row.country_code, slug: row.slug })
+    }
+  }
+
+  const logsWithUrls = logsWithPoints.map((log) => {
+    const cragId = log.climbs?.crag_id
+    const cragMeta = cragId ? cragMetaById.get(cragId) : null
+    const climbSlug = log.climbs?.slug
+    const canonicalUrl = cragMeta?.country_code && cragMeta?.slug && climbSlug
+      ? `/${cragMeta.country_code.toLowerCase()}/${cragMeta.slug}/${climbSlug}`
+      : null
+    return { ...log, canonical_url: canonicalUrl }
+  })
+
   const { data: contributionRows, error: contribError } = await supabase
     .from('images')
     .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name), route_lines(count)')
@@ -239,7 +266,7 @@ export async function fetchServerLogbookData(user: User, baseUrl?: string): Prom
 
   return {
     user,
-    logs: logsWithPoints,
+    logs: logsWithUrls,
     profile: (profileData || null) as LogbookProfile | null,
     submissions: [...publishedSubmissions, ...draftSubmissions]
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
