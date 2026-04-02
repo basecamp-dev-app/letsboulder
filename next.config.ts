@@ -72,6 +72,7 @@ const nextConfig: NextConfig = {
   images: {
     loader: 'custom',
     loaderFile: './lib/media/cloudflare-loader.ts',
+    minimumCacheTTL: 60 * 60 * 24 * 30,
     localPatterns: [
       {
         pathname: '/logo-light.png',
