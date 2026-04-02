@@ -144,12 +144,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
       if (cancelled || error || !data) return
 
-      console.log('[RouteDebug] Fetch routes:', {
-        queryImageIds: allRouteImageIds,
-        returnedCount: data.length,
-        routeImageIds: (data as Array<{id: string; image_id: string}>).map(r => r.image_id),
-      })
-
       const grouped: Record<string, ImageFirstRouteLine[]> = {}
       for (const row of data as Array<{
         id: string
@@ -205,10 +199,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       }
 
       if (cancelled) return
-      console.log('[RouteDebug] Storing routes:', {
-        keys: Object.keys(grouped),
-        routeCounts: Object.entries(grouped).map(([k, v]) => ({ key: k, count: v.length })),
-      })
       setRoutesByImageId((prev) => ({ ...prev, ...grouped }))
     }
 
@@ -320,16 +310,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     const primaryImageId = linkedImageIdByDisplayId[displayImageId] || displayImageId
     const rawRoutes = routesByImageId[primaryImageId] || []
     const filteredRoutes = rawRoutes.filter(route => route.imageId === primaryImageId)
-
-    console.log('[RouteDebug] Navigation:', {
-      activeImageId,
-      displayImageId,
-      primaryImageId,
-      linkedImageIdByDisplayId,
-      rawRoutesCount: rawRoutes.length,
-      filteredRoutesCount: filteredRoutes.length,
-      routeImageIds: filteredRoutes.map(r => r.imageId),
-    })
 
     return filteredRoutes.map((route) => {
       const rawPoints = parseRoutePoints(route.pathData)

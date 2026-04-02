@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-// eslint-disable-next-line no-restricted-imports -- cookie write-back required for submissions
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
@@ -80,12 +79,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      console.log('[submissions] request', {
-        host: requestUrl.host,
-        path: requestUrl.pathname,
-        hasAuthCookies: supabaseCookieNames.length > 0,
-        cookieNames: supabaseCookieNames,
-      })
+
     }
 
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
@@ -104,17 +98,6 @@ export async function POST(request: NextRequest) {
       }
       response = NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       return response
-    }
-
-    if (debugAuth) {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-      console.log('[submissions] session', {
-        userId,
-        hasSession: Boolean(sessionData?.session),
-        hasAccessToken: Boolean(sessionData?.session?.access_token),
-        sessionUserId: sessionData?.session?.user?.id || null,
-        sessionError: sessionError ? { name: sessionError.name, message: sessionError.message } : null,
-      })
     }
 
     const body: SubmissionRequest = await request.json()

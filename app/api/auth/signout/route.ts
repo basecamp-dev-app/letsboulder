@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-// eslint-disable-next-line no-restricted-imports -- cookie write-back required for signOut
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { validateCsrfToken } from '@/lib/csrf'

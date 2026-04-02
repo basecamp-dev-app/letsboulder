@@ -7,8 +7,9 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
-    ignores: ['app/**', 'tests/**', 'lib/supabase-server.ts', 'proxy.ts'],
+    ignores: ['app/**', 'tests/**'],
     rules: {
+      'no-console': 'warn',
       'no-restricted-imports': [
         'error',
         {
@@ -18,20 +19,14 @@ const eslintConfig = defineConfig([
               message: 'Do not import from app/** outside route files. Move reusable code into features/**, lib/**, or components/**.',
             },
           ],
-          paths: [
-            {
-              name: '@supabase/ssr',
-              importNames: ['createServerClient'],
-              message: 'Use getServerClient() or variants from @/lib/supabase-server',
-            },
-          ],
         },
       ],
     },
   },
-  // Enforce no-restricted-imports for @supabase/ssr in app/** files
+  // Enforce no-restricted-imports for @supabase/ssr in app page/component files (not API routes)
   {
     files: ['app/**/*.{ts,tsx}'],
+    ignores: ['app/api/**'],
     rules: {
       'no-restricted-imports': [
         'error',
