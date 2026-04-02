@@ -9,9 +9,10 @@ interface CragsTableProps {
   onMoveImage: (crag: AdminCrag) => void
   onRename: (crag: AdminCrag) => void
   onDelete: (crag: AdminCrag) => void
+  moveImageDisabled?: boolean
 }
 
-export default function CragsTable({ crags, onDelete, onMoveImage, onRename }: CragsTableProps) {
+export default function CragsTable({ crags, moveImageDisabled, onDelete, onMoveImage, onRename }: CragsTableProps) {
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
       <table className="w-full">
@@ -81,9 +82,10 @@ export default function CragsTable({ crags, onDelete, onMoveImage, onRename }: C
               <td className="px-4 py-3">
                 <div className="flex justify-end gap-2">
                   <button
+                    disabled={moveImageDisabled}
                     onClick={() => onMoveImage(crag)}
-                    className="p-2 text-gray-400 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition-colors"
-                    title="Move published route image"
+                    className="p-2 text-gray-500 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                    title={moveImageDisabled ? 'Temporarily unavailable' : 'Move published route image'}
                   >
                     <ArrowRightLeft className="w-4 h-4" />
                   </button>
