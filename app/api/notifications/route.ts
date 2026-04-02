@@ -5,6 +5,8 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { parsePagination } from '@/lib/pagination'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 
+const NOTIFICATION_COLUMNS = 'id, user_id, type, title, message, link, is_read, created_at'
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const unreadOnly = searchParams.get('unread_only') === 'true'
@@ -21,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('notifications')
-      .select('*')
+      .select(NOTIFICATION_COLUMNS)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -38,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     const { count } = await supabase
       .from('notifications')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('is_read', false)
 
