@@ -12,7 +12,6 @@ import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 
 export interface UseCragPageActionsParams {
   id: string
-  crag: CragPageCrag | null
   initialCrag: CragPageCrag | null
 }
 
@@ -43,7 +42,6 @@ export interface UseCragPageActionsResult {
 
 export function useCragPageActions({
   id,
-  crag,
   initialCrag,
 }: UseCragPageActionsParams): UseCragPageActionsResult {
   const router = useRouter()
