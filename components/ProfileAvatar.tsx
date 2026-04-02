@@ -90,7 +90,7 @@ const ProfileAvatarComponent = forwardRef<ProfileAvatarRef, ProfileAvatarProps>(
             aria-label="Edit profile picture"
           >
             {avatarUrl ? (
-              <NextImage src={avatarUrl} alt="Profile" width={128} height={128} unoptimized className="w-full h-full object-cover" />
+              <NextImage src={avatarUrl} alt="Profile" width={128} height={128} sizes="128px" unoptimized className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-200 font-bold text-xl">
                 {initials}

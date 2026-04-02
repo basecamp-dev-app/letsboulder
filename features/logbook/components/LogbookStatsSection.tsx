@@ -97,6 +97,7 @@ export function LogbookStatsSection({
                           alt={log.climbs?.name || 'Climb image'}
                           width={48}
                           height={48}
+                          sizes="(max-width: 640px) 40px, 48px"
                           loading="lazy"
                           className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded shrink-0"
                         />
@@ -135,6 +136,7 @@ export function LogbookStatsSection({
                       alt={log.climbs?.name || 'Climb image'}
                       width={48}
                       height={48}
+                      sizes="(max-width: 640px) 40px, 48px"
                       loading="lazy"
                       className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded"
                     />

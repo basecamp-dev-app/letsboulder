@@ -449,6 +449,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
                       src={isActive ? activeCanvasImageUrl : imageMeta.src}
                       alt="Crag viewer"
                       fill
+                      sizes="(max-width: 1280px) 100vw, 72rem"
                       priority={isActive ? heroImage.priority : false}
                       className="object-contain"
                       loading={isActive ? 'eager' : 'lazy'}

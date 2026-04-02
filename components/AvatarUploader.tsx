@@ -203,6 +203,7 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
               alt="Profile"
               width={112}
               height={112}
+              sizes="112px"
               unoptimized
               className="w-full h-full object-cover"
             />
@@ -241,6 +242,7 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
                   alt="Preview"
                   width={128}
                   height={128}
+                  sizes="128px"
                   unoptimized
                   className="w-32 h-32 rounded-full object-cover"
                 />
@@ -250,6 +252,7 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
                   alt="Current avatar"
                   width={128}
                   height={128}
+                  sizes="128px"
                   unoptimized
                   className="w-32 h-32 rounded-full object-cover"
                 />
