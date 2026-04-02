@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import imageCompression from 'browser-image-compression'
 import { Camera, X } from 'lucide-react'
 import Image from 'next/image'
 import { csrfFetch } from '@/hooks/useCsrf'
@@ -50,6 +49,7 @@ export default function CragMultiImageUploader({
   }, [])
 
   async function compressImage(file: File): Promise<File> {
+    const { default: imageCompression } = await import('browser-image-compression')
     return imageCompression(file, {
       maxSizeMB: 0.7,
       maxWidthOrHeight: 1600,
