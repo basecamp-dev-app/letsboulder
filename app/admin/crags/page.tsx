@@ -1,21 +1,18 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import CragsFilters from '@/app/admin/crags/components/CragsFilters'
 import CragsTable from '@/app/admin/crags/components/CragsTable'
 import DeleteCragDialog from '@/app/admin/crags/components/DeleteCragDialog'
-import MovePublishedImageDialog from '@/app/admin/crags/components/MovePublishedImageDialog'
 import RenameCragModal from '@/app/admin/crags/components/RenameCragModal'
 import { useAdminCrags } from '@/app/admin/crags/hooks/useAdminCrags'
-import { useMovePublishedImage } from '@/app/admin/crags/hooks/useMovePublishedImage'
 import type { AdminCrag } from '@/app/admin/crags/types'
 
 export default function AdminCragsPage() {
   const {
     crags,
     deleting,
-    loadCrags,
     loading,
     renameCrag,
     deleteCrag,
@@ -26,19 +23,6 @@ export default function AdminCragsPage() {
   const [missingRegionOnly, setMissingRegionOnly] = useState(false)
   const [renamingCrag, setRenamingCrag] = useState<AdminCrag | null>(null)
   const [removingCrag, setRemovingCrag] = useState<AdminCrag | null>(null)
-  const {
-    closeMoveDialog,
-    loadingMoveCandidates,
-    moveCandidates,
-    movePublishedImage,
-    movingImage,
-    movingPublishedImage,
-    openMoveDialog,
-    selectedMoveCandidate,
-    selectMoveImageId,
-    selectedTargetCragId,
-    setSelectedTargetCragId,
-  } = useMovePublishedImage(showToast, loadCrags)
 
   const missingRegionCount = crags.filter((crag) => !crag.has_primary_region_tag).length
 
@@ -59,10 +43,7 @@ export default function AdminCragsPage() {
       return a.name.localeCompare(b.name)
     })
 
-  const targetCragOptions = useMemo(() => {
-    if (!movingImage) return []
-    return crags.filter((crag) => crag.id !== movingImage.sourceCrag.id)
-  }, [crags, movingImage])
+  const movePublishedImageDisabledMessage = 'Move published route image is temporarily unavailable while we improve performance.'
 
   return (
     <div>
@@ -80,21 +61,9 @@ export default function AdminCragsPage() {
         />
       )}
 
-      {movingImage && (
-        <MovePublishedImageDialog
-          loadingMoveCandidates={loadingMoveCandidates}
-          moveCandidates={moveCandidates}
-          movingImage={movingImage}
-          movingPublishedImage={movingPublishedImage}
-          onClose={closeMoveDialog}
-          onMove={movePublishedImage}
-          onSelectImageId={selectMoveImageId}
-          onSelectTargetCragId={setSelectedTargetCragId}
-          selectedMoveCandidate={selectedMoveCandidate}
-          selectedTargetCragId={selectedTargetCragId}
-          targetCragOptions={targetCragOptions}
-        />
-      )}
+      <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        {movePublishedImageDisabledMessage}
+      </div>
 
       {removingCrag && (
         <DeleteCragDialog
@@ -132,8 +101,9 @@ export default function AdminCragsPage() {
         <CragsTable
           crags={filteredCrags}
           onDelete={setRemovingCrag}
-          onMoveImage={openMoveDialog}
+          onMoveImage={() => showToast(movePublishedImageDisabledMessage, 4000)}
           onRename={setRenamingCrag}
+          moveImageDisabled
         />
       )}
     </div>
