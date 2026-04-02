@@ -15,7 +15,7 @@
   - DO NOT use relative imports. ALWAYS use `@/`.
   - Prioritize Database['public']['Tables'][...] types from supabase gen types for DB rows and query surfaces; app-level mapped view models are acceptable when they improve readability.
   - DO NOT use `any`. Use `unknown` + Type Guard for non-DB payloads.
-  - DO NOT commit `console.log`.
+  - Use `console.log` freely during development. ESLint warns on them to remind you to clean up before merge. Allowed in test setup and script files.
   - Prefer Server Actions for app-owned UI mutations. Use Route Handlers for public API, offline/service worker, webhook, or integration flows; use `csrfFetch` only with those Route Handlers.
   - DO NOT access `window` or `document` outside of `useEffect` or 'use client'.
   - DO NOT assume cascade delete behavior. Check @docs/db/schema.md.

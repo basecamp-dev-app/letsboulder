@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-// eslint-disable-next-line no-restricted-imports -- test auth needs custom cookie handling
 import { createServerClient } from '@supabase/ssr'
 
 async function parseJsonSafe(response: Response): Promise<unknown> {

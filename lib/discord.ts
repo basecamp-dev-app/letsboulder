@@ -27,8 +27,6 @@ async function sendDiscordWebhook(webhookUrl: string, payload: DiscordWebhookPay
     return
   }
 
-  console.log('[Discord] Sending webhook to', webhookUrl.slice(-20), '...')
-
   const controller = new AbortController()
   const timeoutMs = 8000
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -42,8 +40,6 @@ async function sendDiscordWebhook(webhookUrl: string, payload: DiscordWebhookPay
     })
 
     clearTimeout(timeoutId)
-
-    console.log('[Discord] Webhook response status:', response.status)
 
     if (!response.ok) {
       const text = await response.text()
