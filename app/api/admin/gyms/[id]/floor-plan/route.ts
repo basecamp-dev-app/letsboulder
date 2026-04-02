@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
+import { parseWithSchema } from '@/lib/api-validation'
 
-interface SaveFloorPlanRequest {
-  name?: string
-  image_url?: string
-  image_width?: number
-  image_height?: number
-}
+const saveFloorPlanSchema = z.object({
+  name: z.string().trim().min(1, 'name is required'),
+  image_url: z.string().trim().min(1, 'image_url is required'),
+  image_width: z.number().positive('image_width must be a positive number'),
+  image_height: z.number().positive('image_height must be a positive number'),
+})
 
 async function requireAdmin(request: NextRequest) {
   const supabase = getServerClientFromRequest(request)
@@ -62,16 +64,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id: gymId } = await params
 
   try {
-    const body = await request.json() as SaveFloorPlanRequest
-    const name = body.name?.trim() || ''
-    const imageUrl = body.image_url?.trim() || ''
-    const imageWidth = Number(body.image_width)
-    const imageHeight = Number(body.image_height)
+    const parsedBody = parseWithSchema(saveFloorPlanSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
 
-    if (!name) return NextResponse.json({ error: 'name is required' }, { status: 400 })
-    if (!imageUrl) return NextResponse.json({ error: 'image_url is required' }, { status: 400 })
-    if (!Number.isFinite(imageWidth) || imageWidth <= 0) return NextResponse.json({ error: 'image_width must be a positive number' }, { status: 400 })
-    if (!Number.isFinite(imageHeight) || imageHeight <= 0) return NextResponse.json({ error: 'image_height must be a positive number' }, { status: 400 })
+    const { name, image_url: imageUrl, image_width: imageWidth, image_height: imageHeight } = parsedBody.data
 
     const { data: gymPlace } = await supabase
       .from('places')

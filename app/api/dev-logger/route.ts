@@ -1,15 +1,17 @@
 import { appendFile } from 'node:fs/promises'
 import path from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { parseWithSchema } from '@/lib/api-validation'
 
 const LOG_FILE_PATH = path.join(process.cwd(), 'browser-debug.log')
 
-type DevLoggerPayload = {
-  level?: unknown
-  args?: unknown
-  url?: unknown
-  timestamp?: unknown
-}
+const devLoggerSchema = z.object({
+  level: z.enum(['log', 'error']).optional(),
+  args: z.array(z.unknown()).optional(),
+  url: z.string().optional(),
+  timestamp: z.string().optional(),
+})
 
 function isLocalRequest(request: NextRequest) {
   const hostHeader = request.headers.get('host') || request.nextUrl.host
@@ -23,19 +25,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  let payload: DevLoggerPayload
+  let payload: unknown
 
   try {
-    payload = await request.json() as DevLoggerPayload
+    payload = await request.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const level = payload.level === 'error' ? 'error' : 'log'
-  const args = Array.isArray(payload.args) ? payload.args : []
-  const url = typeof payload.url === 'string' ? payload.url : 'unknown'
-  const timestamp = typeof payload.timestamp === 'string'
-    ? payload.timestamp
+  const parsedPayload = parseWithSchema(devLoggerSchema, payload)
+  if (!parsedPayload.success) return parsedPayload.response
+  const data = parsedPayload.data
+
+  const level = data.level === 'error' ? 'error' : 'log'
+  const args = data.args || []
+  const url = data.url || 'unknown'
+  const timestamp = typeof data.timestamp === 'string'
+    ? data.timestamp
     : new Date().toISOString()
 
   const line = `${JSON.stringify({ timestamp, level, url, args })}\n`

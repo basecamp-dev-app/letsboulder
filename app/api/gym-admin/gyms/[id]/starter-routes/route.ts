@@ -1,27 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { parseWithSchema } from '@/lib/api-validation'
 
-interface StarterRouteInput {
-  id?: string
-  floor_plan_id: string
-  name?: string | null
-  grade: string
-  discipline: 'boulder' | 'sport' | 'top_rope' | 'mixed'
-  color?: string | null
-  setter_name?: string | null
-  status?: 'active' | 'retired'
-  marker: {
-    x_norm: number
-    y_norm: number
-  }
-}
+const gymStarterRouteSchema = z.object({
+  id: z.string().optional(),
+  floor_plan_id: z.string(),
+  name: z.string().nullable().optional(),
+  grade: z.string(),
+  discipline: z.enum(['boulder', 'sport', 'top_rope', 'mixed']),
+  color: z.string().nullable().optional(),
+  setter_name: z.string().nullable().optional(),
+  status: z.enum(['active', 'retired']).optional(),
+  marker: z.object({
+    x_norm: z.number(),
+    y_norm: z.number(),
+  }),
+})
 
-interface SaveStarterRoutesRequest {
-  routes?: StarterRouteInput[]
-}
+const saveGymStarterRoutesSchema = z.object({
+  routes: z.array(gymStarterRouteSchema).optional().default([]),
+})
 
 const ALLOWED_DISCIPLINES = new Set(['boulder', 'sport', 'top_rope', 'mixed'])
 const ALLOWED_STATUS = new Set(['active', 'retired'])
@@ -114,8 +116,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { supabase } = access
 
   try {
-    const body = await request.json() as SaveStarterRoutesRequest
-    const routes = body.routes || []
+    const parsedBody = parseWithSchema(saveGymStarterRoutesSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+    const routes = parsedBody.data.routes
 
     const { data: floorPlan } = await supabase
       .from('gym_floor_plans')

@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 import { describe, expect, test, vi } from 'vitest'
-import { createServerClient } from '@supabase/ssr'
 
 vi.mock('@/lib/csrf-server', () => ({
   withCsrfProtection: vi.fn(async () => ({ valid: true, response: null })),
+  withApiMiddleware: vi.fn(),
 }))
 
 vi.mock('@/lib/auth-context', () => ({
@@ -11,7 +11,32 @@ vi.mock('@/lib/auth-context', () => ({
 }))
 
 import { POST } from '@/app/api/routes/submit/route'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+
+type RouteSubmitMiddlewareResult = Awaited<ReturnType<typeof withApiMiddleware>>
+
+const routeSubmitSupabaseStub = {
+  from: vi.fn((table: string) => {
+    if (table === 'climbs') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              gte: vi.fn(() => makeThenableResult({ data: null, error: null, count: 0 })),
+            })),
+          })),
+        })),
+        insert: vi.fn(async () => ({ error: null })),
+      }
+    }
+
+    return {
+      select: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ gte: vi.fn(() => makeThenableResult({ data: null, error: null, count: 0 })) })) })) })),
+      insert: vi.fn(async () => ({ error: null })),
+    }
+  }),
+}
 
 function makeSubmitRequest(body: unknown) {
   return new NextRequest('http://localhost:3000/api/routes/submit', {
@@ -34,7 +59,20 @@ function makeThenableResult<T>(result: T) {
 }
 
 describe('Routes submit route validation', () => {
+  test.beforeEach(() => {
+    vi.resetAllMocks()
+    vi.mocked(withApiMiddleware).mockResolvedValue({
+      ok: true,
+      supabase: routeSubmitSupabaseStub as never,
+      userId: 'user-1',
+    } as unknown as RouteSubmitMiddlewareResult)
+  })
+
   test('returns 401 when auth user id cannot be resolved', async () => {
+    vi.mocked(withApiMiddleware).mockResolvedValueOnce({
+      ok: false,
+      response: Response.json({ error: 'Authentication required' }, { status: 401 }),
+    } as unknown as RouteSubmitMiddlewareResult)
     vi.mocked(resolveUserIdWithFallback).mockResolvedValueOnce({ userId: null, authError: null })
 
     const response = await POST(makeSubmitRequest({}))
@@ -49,7 +87,8 @@ describe('Routes submit route validation', () => {
     const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(json.error).toBe('Missing required fields')
+    expect(json.error).toBe('Invalid request data')
+    expect(json.fieldErrors.grade?.[0]).toBeDefined()
   })
 
   test('returns 400 for invalid grade', async () => {
@@ -64,30 +103,33 @@ describe('Routes submit route validation', () => {
     const json = await response.json()
 
     expect(response.status).toBe(400)
-    expect(json.error).toBe('Invalid grade')
+    expect(json.error).toBe('Invalid request data')
+    expect(json.fieldErrors.grade?.[0]).toContain('Invalid grade')
   })
 
   test('returns 429 when daily route limit is reached', async () => {
-    vi.mocked(createServerClient).mockImplementationOnce(() => ({
-      from: vi.fn((table: string) => {
-        if (table === 'climbs') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
+    vi.mocked(withApiMiddleware).mockResolvedValueOnce({
+      ok: true,
+      supabase: {
+        from: vi.fn((table: string) => {
+          if (table === 'climbs') {
+            return {
+              select: vi.fn(() => ({
                 eq: vi.fn(() => ({
-                  gte: vi.fn(() => makeThenableResult({ data: null, error: null, count: 5 })),
+                  eq: vi.fn(() => ({
+                    gte: vi.fn(() => makeThenableResult({ data: null, error: null, count: 5 })),
+                  })),
                 })),
               })),
-            })),
+              insert: vi.fn(async () => ({ error: null })),
+            }
           }
-        }
 
-        return {
-          select: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn(() => ({ gte: vi.fn(() => makeThenableResult({ data: null, error: null, count: 0 })) })) })) })),
-          insert: vi.fn(async () => ({ error: null })),
-        }
-      }),
-    }) as ReturnType<typeof createServerClient>)
+          return routeSubmitSupabaseStub.from(table)
+        }),
+      } as never,
+      userId: 'user-1',
+    } as unknown as RouteSubmitMiddlewareResult)
 
     const response = await POST(makeSubmitRequest({
       name: 'Daily Limit Route',

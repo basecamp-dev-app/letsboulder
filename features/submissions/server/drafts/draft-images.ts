@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
+import { parseWithSchema } from '@/lib/api-validation'
 import {
   buildDraftConflictResponse,
   isPermissionDeniedError,
@@ -20,6 +22,24 @@ interface DraftAppendImageInput {
   height?: number | null
   route_data?: Record<string, unknown>
 }
+
+const draftAppendImageSchema = z.object({
+  storage_bucket: z.string().min(1),
+  storage_path: z.string().min(1),
+  gps_data: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+  }).nullable().optional(),
+  capture_date: z.string().nullable().optional(),
+  width: z.number().nullable().optional(),
+  height: z.number().nullable().optional(),
+  route_data: z.record(z.string(), z.unknown()).optional(),
+})
+
+const appendDraftImagesSchema = z.object({
+  images: z.array(draftAppendImageSchema).min(1, 'images must be a non-empty array'),
+  expected_updated_at: z.string().datetime('expected_updated_at is required and must be a valid ISO timestamp'),
+})
 
 export function normalizeAppendDraftImages(value: unknown): DraftAppendImageInput[] | null {
   if (!Array.isArray(value) || value.length === 0) return null
@@ -60,13 +80,16 @@ export async function appendDraftImages(input: {
 }) {
   const { supabase, userId, draftId, requestBody } = input
   const ownershipClient = supabase as unknown as Parameters<typeof userOwnsUploadedObject>[0]
-  const body = requestBody as { images?: unknown; expected_updated_at?: unknown } | null
-  const images = normalizeAppendDraftImages(body?.images)
+  const parsedBody = parseWithSchema(appendDraftImagesSchema, requestBody)
+  if (!parsedBody.success) return parsedBody.response
+
+  const body = parsedBody.data
+  const images = normalizeAppendDraftImages(body.images)
   if (!images) {
     return NextResponse.json({ error: 'images must be a non-empty array' }, { status: 400 })
   }
 
-  const expectedUpdatedAtRaw = typeof body?.expected_updated_at === 'string' ? body.expected_updated_at : ''
+  const expectedUpdatedAtRaw = body.expected_updated_at
   const expectedUpdatedAtDate = expectedUpdatedAtRaw ? new Date(expectedUpdatedAtRaw) : null
   if (!expectedUpdatedAtDate || Number.isNaN(expectedUpdatedAtDate.getTime())) {
     return NextResponse.json({ error: 'expected_updated_at is required and must be a valid ISO timestamp' }, { status: 400 })

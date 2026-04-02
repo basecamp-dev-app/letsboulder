@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { getMediaModerationConfig } from '@/lib/media/config'
 import { ensurePrivateObjectExists } from '@/lib/media/r2'
 import { serverEnv } from '@/lib/env'
+import { parseWithSchema } from '@/lib/api-validation'
 
 interface ImageRow {
   id: string
@@ -12,9 +14,9 @@ interface ImageRow {
   original_key: string | null
 }
 
-interface CompleteUploadBody {
-  purpose?: 'submission_image' | 'draft_image' | 'crag_image'
-}
+const completeUploadSchema = z.object({
+  purpose: z.enum(['submission_image', 'draft_image', 'crag_image']).optional(),
+})
 
 async function enqueueMediaIngest(payload: {
   imageId: string
@@ -63,10 +65,9 @@ export async function POST(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body = await request.json().catch(() => null) as CompleteUploadBody | null
-    const purpose = body?.purpose === 'draft_image' || body?.purpose === 'crag_image' || body?.purpose === 'submission_image'
-      ? body.purpose
-      : 'submission_image'
+    const parsedBody = parseWithSchema(completeUploadSchema, await request.json().catch(() => null))
+    if (!parsedBody.success) return parsedBody.response
+    const purpose = parsedBody.data.purpose || 'submission_image'
 
     const { data, error } = await supabase
       .from('images')

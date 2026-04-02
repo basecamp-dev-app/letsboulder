@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { rateLimit, RATE_LIMITS, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
@@ -7,19 +8,28 @@ import { makeUniqueSlug } from '@/lib/slug'
 import { revalidatePath } from 'next/cache'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { getBoundingBoxesForCountry, validateCoordinatesInBoundingBox } from '@/lib/geo/bounding-boxes'
+import { parseWithSchema } from '@/lib/api-validation'
 
-interface CreateCragRequest {
-  name: string
-  region_tag?: string | null
-  sub_area?: string
-  latitude?: number | null
-  longitude?: number | null
-  selected_country_code?: string | null
-  rock_type?: string
-  type?: 'sport' | 'boulder' | 'bouldering' | 'trad' | 'mixed' | 'top_rope' | 'deep_water_solo' | 'deep-water-solo'
-  description?: string
-  access_notes?: string
-}
+const createCragSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+  region_tag: z.string().nullable().optional(),
+  sub_area: z.string().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  selected_country_code: z.string().nullable().optional(),
+  rock_type: z.string().optional(),
+  type: z.enum(['sport', 'boulder', 'bouldering', 'trad', 'mixed', 'top_rope', 'deep_water_solo', 'deep-water-solo']).optional(),
+  description: z.string().optional(),
+  access_notes: z.string().optional(),
+}).superRefine((body, ctx) => {
+  if ((body.latitude == null && body.longitude != null) || (body.latitude != null && body.longitude == null)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['latitude'],
+      message: 'Both latitude and longitude must be provided together, or neither',
+    })
+  }
+})
 
 interface LocationTagRow {
   id: string
@@ -222,10 +232,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body: CreateCragRequest = await request.json()
+    const parsedBody = parseWithSchema(createCragSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+
+    const body = parsedBody.data
     const { name, region_tag, sub_area, latitude, longitude, selected_country_code, rock_type, type, description, access_notes } = body
     const normalizedCragType = normalizeRouteType(type)
-    const trimmedName = name?.trim() || ''
+    const trimmedName = name
     const trimmedRegionTag = region_tag?.trim() || ''
     const trimmedSubArea = sub_area?.trim() || ''
 
@@ -233,20 +246,6 @@ export async function POST(request: NextRequest) {
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse
-    }
-
-    if (!trimmedName) {
-      return NextResponse.json(
-        { error: 'Name is required' },
-        { status: 400 }
-      )
-    }
-
-    if ((latitude == null && longitude != null) || (latitude != null && longitude == null)) {
-      return NextResponse.json(
-        { error: 'Both latitude and longitude must be provided together, or neither' },
-        { status: 400 }
-      )
     }
 
     if (latitude != null && longitude != null) {

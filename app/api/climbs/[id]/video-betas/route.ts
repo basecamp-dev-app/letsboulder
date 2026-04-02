@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { validateAndNormalizeVideoUrl } from '@/lib/video-beta'
+import { parseWithSchema } from '@/lib/api-validation'
 
 const MAX_TITLE_LENGTH = 120
 const MAX_NOTES_LENGTH = 400
 const MAX_RESULTS = 300
+
+const videoBetaSchema = z.object({
+  url: z.string().min(1, 'URL is required'),
+  title: z.string().optional(),
+  notes: z.string().optional(),
+})
 
 interface VideoBetaRow {
   id: string
@@ -95,7 +103,9 @@ export async function POST(
     }
 
     const { id: climbId } = await params
-    const body = await request.json()
+    const parsedBody = parseWithSchema(videoBetaSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+    const body = parsedBody.data
 
     const videoUrl = typeof body?.url === 'string' ? body.url : ''
     const title = toNullableTrimmedString(body?.title, MAX_TITLE_LENGTH)

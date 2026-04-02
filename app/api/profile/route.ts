@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { parseWithSchema } from '@/lib/api-validation'
 
 const PROFILE_SELECT_COLUMNS = [
   'id',
@@ -46,12 +48,14 @@ const PROFILE_SELECT_COLUMNS = [
   'welcome_email_sent_at',
 ].join(', ')
 
-interface ProfileUpdateBody {
-  username?: string
-  first_name?: string
-  last_name?: string
-  gender?: string | null
-}
+const allowedGenders = ['male', 'female', 'other', 'prefer_not_to_say'] as const
+
+const profileUpdateSchema = z.object({
+  username: z.string().trim().min(1, 'Username cannot be empty').min(3, 'Username must be between 3 and 30 characters').max(30, 'Username must be between 3 and 30 characters').regex(/^[A-Za-z0-9._-]+$/, 'Username can only contain letters, numbers, underscores, periods, and hyphens').optional(),
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  gender: z.enum(allowedGenders).nullable().optional(),
+})
 
 export async function GET(request: NextRequest) {
   const supabase = getServerClientFromRequest(request)
@@ -88,34 +92,10 @@ export async function PUT(request: NextRequest) {
   const { supabase, userId } = middlewareResult
 
   try {
-    const { username, first_name, last_name, gender } = (await request.json()) as ProfileUpdateBody
+    const parsedBody = parseWithSchema(profileUpdateSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
 
-    if (username !== undefined) {
-      const trimmedUsername = username.trim()
-
-      if (trimmedUsername.length === 0) {
-        return NextResponse.json({ error: 'Username cannot be empty' }, { status: 400 })
-      }
-
-      if (trimmedUsername.length < 3 || trimmedUsername.length > 30) {
-        return NextResponse.json({ error: 'Username must be between 3 and 30 characters' }, { status: 400 })
-      }
-
-      if (!/^[A-Za-z0-9._-]+$/.test(trimmedUsername)) {
-        return NextResponse.json(
-          { error: 'Username can only contain letters, numbers, underscores, periods, and hyphens' },
-          { status: 400 }
-        )
-      }
-    }
-
-    if (gender !== undefined && gender !== null) {
-      const allowedGenders = ['male', 'female', 'other', 'prefer_not_to_say']
-
-      if (!allowedGenders.includes(gender)) {
-        return NextResponse.json({ error: 'Invalid gender value' }, { status: 400 })
-      }
-    }
+    const { username, first_name, last_name, gender } = parsedBody.data
 
     const updateData: Record<string, unknown> = {}
 

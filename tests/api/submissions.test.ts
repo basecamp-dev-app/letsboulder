@@ -2,8 +2,17 @@ import { NextRequest } from 'next/server'
 import { describe, expect, test, vi } from 'vitest'
 import { createServerClient } from '@supabase/ssr'
 
+const middlewareSupabaseStub = {} as Awaited<ReturnType<typeof withApiMiddleware>> extends { ok: true; supabase: infer TSupabase }
+  ? TSupabase
+  : never
+
 vi.mock('@/lib/csrf-server', () => ({
   withCsrfProtection: vi.fn(async () => ({ valid: true, response: null })),
+  withApiMiddleware: vi.fn(async () => ({
+    ok: true,
+    supabase: middlewareSupabaseStub,
+    userId: null,
+  })),
 }))
 
 vi.mock('@/lib/discord', () => ({
@@ -15,6 +24,7 @@ vi.mock('next/cache', () => ({
 }))
 
 import { POST } from '@/app/api/submissions/route'
+import { withApiMiddleware } from '@/lib/csrf-server'
 
 function makeThenableResult<T>(result: T) {
   return {
@@ -38,6 +48,11 @@ function makeSubmissionRequest(body: unknown) {
 
 describe('POST /api/submissions', () => {
   test('returns 401 when session is missing', async () => {
+    vi.mocked(withApiMiddleware).mockResolvedValueOnce({
+      ok: true,
+      supabase: middlewareSupabaseStub,
+      userId: null,
+    })
     globalThis.__setSupabaseGetUserResponse({ user: null, error: null })
 
     const request = makeSubmissionRequest({
@@ -54,6 +69,11 @@ describe('POST /api/submissions', () => {
   })
 
   test('returns 400 for malformed payload via grade and points validation', async () => {
+    vi.mocked(withApiMiddleware).mockResolvedValueOnce({
+      ok: true,
+      supabase: middlewareSupabaseStub,
+      userId: null,
+    })
     globalThis.__setSupabaseGetUserResponse({ user: { id: 'user-1' }, error: null })
 
     const invalidGradeRequest = makeSubmissionRequest({
@@ -81,7 +101,8 @@ describe('POST /api/submissions', () => {
     const invalidGradeJson = await invalidGradeResponse.json()
 
     expect(invalidGradeResponse.status).toBe(400)
-    expect(invalidGradeJson.error).toContain('Invalid grade')
+    expect(invalidGradeJson.error).toBe('Invalid request data')
+    expect(invalidGradeJson.fieldErrors.routes?.[0]).toContain('Invalid grade')
 
     const invalidPointsRequest = makeSubmissionRequest({
       mode: 'existing',
@@ -105,10 +126,16 @@ describe('POST /api/submissions', () => {
     const invalidPointsJson = await invalidPointsResponse.json()
 
     expect(invalidPointsResponse.status).toBe(400)
-    expect(invalidPointsJson.error).toContain('at least 2 points')
+    expect(invalidPointsJson.error).toBe('Invalid request data')
+    expect(invalidPointsJson.fieldErrors.routes?.[0]).toContain('at least 2 points')
   })
 
   test('returns 200 and success payload for valid existing-image submission', async () => {
+    vi.mocked(withApiMiddleware).mockResolvedValueOnce({
+      ok: true,
+      supabase: middlewareSupabaseStub,
+      userId: null,
+    })
     globalThis.__setSupabaseGetUserResponse({ user: { id: 'user-happy-path' }, error: null })
 
     const submissionsInsert = vi.fn(() =>

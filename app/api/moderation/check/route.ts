@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getAdminClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { moderateImageFromBytes, moderateImageFromUrl } from '@/lib/image-moderation'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { serverEnv } from '@/lib/env'
+import { parseWithSchema } from '@/lib/api-validation'
 
-interface CheckRequestBody {
-  imageId: string
-}
+const moderationCheckSchema = z.object({
+  imageId: z.string().min(1, 'imageId is required'),
+})
 
 export async function POST(request: NextRequest) {
   const middlewareResult = await withApiMiddleware(request, { requireUser: false })
@@ -25,10 +27,9 @@ export async function POST(request: NextRequest) {
   const supabase = getAdminClient()
 
   try {
-    const body = (await request.json()) as CheckRequestBody
-    if (!body?.imageId) {
-      return NextResponse.json({ error: 'imageId is required' }, { status: 400 })
-    }
+    const parsedBody = parseWithSchema(moderationCheckSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
+    const body = parsedBody.data
 
     const { data: image, error: imageError } = await supabase
       .from('images')

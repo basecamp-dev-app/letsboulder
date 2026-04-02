@@ -1,5 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
+import { parseWithSchema } from '@/lib/api-validation'
+
+const detectLocationSchema = z.object({
+  latitude: z.coerce.number(),
+  longitude: z.coerce.number(),
+}).superRefine((value, ctx) => {
+  if (!Number.isFinite(value.latitude) || value.latitude < -90 || value.latitude > 90) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['latitude'],
+      message: 'Valid latitude and longitude are required',
+    })
+  }
+
+  if (!Number.isFinite(value.longitude) || value.longitude < -180 || value.longitude > 180) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['longitude'],
+      message: 'Valid latitude and longitude are required',
+    })
+  }
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,45 +34,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let body: Record<string, unknown>
+    let body: unknown
     try {
-      body = JSON.parse(rawBody) as Record<string, unknown>
+      body = JSON.parse(rawBody)
     } catch {
       return NextResponse.json(
         { error: 'Invalid JSON body' },
         { status: 400 }
       )
     }
-    const rawLatitude = body?.latitude
-    const rawLongitude = body?.longitude
+    const parsedBody = parseWithSchema(detectLocationSchema, body)
+    if (!parsedBody.success) return parsedBody.response
 
-    const latitude =
-      typeof rawLatitude === 'number'
-        ? rawLatitude
-        : typeof rawLatitude === 'string' && rawLatitude.trim().length > 0
-          ? Number(rawLatitude)
-          : Number.NaN
-
-    const longitude =
-      typeof rawLongitude === 'number'
-        ? rawLongitude
-        : typeof rawLongitude === 'string' && rawLongitude.trim().length > 0
-          ? Number(rawLongitude)
-          : Number.NaN
-
-    if (
-      !Number.isFinite(latitude) ||
-      !Number.isFinite(longitude) ||
-      latitude < -90 ||
-      latitude > 90 ||
-      longitude < -180 ||
-      longitude > 180
-    ) {
-      return NextResponse.json(
-        { error: 'Valid latitude and longitude are required' },
-        { status: 400 }
-      )
-    }
+    const { latitude, longitude } = parsedBody.data
 
     // Use Nominatim for reverse geocoding (free, no API key required)
     const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&zoom=10`

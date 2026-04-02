@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createSignedObjectUrls, isR2ManagedBucket } from '@/lib/media/object-urls'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { getSignedUrlBatchKey, type BatchSignedUrlResult, type SignedUrlBatchRequestObject } from '@/lib/signed-url-batch'
 import { serverEnv } from '@/lib/env'
+import { parseWithSchema } from '@/lib/api-validation'
+
+const signedUrlBatchSchema = z.object({
+  objects: z.array(z.object({
+    bucket: z.string().min(1),
+    path: z.string().min(1),
+  })).min(1, 'objects must be a non-empty array of { bucket, path }').max(100, 'Maximum 100 objects per request'),
+})
 
 function normalizeObjects(input: unknown): SignedUrlBatchRequestObject[] | null {
   if (!Array.isArray(input) || input.length === 0) return null
@@ -89,18 +98,15 @@ export async function POST(request: NextRequest) {
   const originError = validateRequestOrigin(request)
   if (originError) return originError
 
-  const body = await request.json().catch(() => null)
-  const objects = normalizeObjects(body?.objects)
+  const parsedBody = parseWithSchema(signedUrlBatchSchema, await request.json().catch(() => null))
+  if (!parsedBody.success) return parsedBody.response
 
+  const objects = normalizeObjects(parsedBody.data.objects)
   if (!objects) {
     return NextResponse.json(
       { error: 'objects must be a non-empty array of { bucket, path }' },
       { status: 400 }
     )
-  }
-
-  if (objects.length > 100) {
-    return NextResponse.json({ error: 'Maximum 100 objects per request' }, { status: 400 })
   }
 
   const supabase = getServerClientFromRequest(request)

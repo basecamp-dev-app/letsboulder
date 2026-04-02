@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
+
+import { parseWithSchema } from '@/lib/api-validation'
 
 interface AttachCragImageInput {
   uploaded_image_id: string
@@ -16,6 +19,10 @@ interface UploadedImageRow {
   latitude: number | null
   longitude: number | null
 }
+
+const attachCragImagesSchema = z.object({
+  images: z.array(z.object({ uploaded_image_id: z.string().min(1) })).min(1, 'images must be a non-empty array of uploaded_image_id values'),
+})
 
 function normalizeImages(value: unknown): AttachCragImageInput[] | null {
   if (!Array.isArray(value) || value.length === 0) return null
@@ -48,8 +55,10 @@ export async function POST(
   const { supabase, userId } = middlewareResult
 
   try {
-    const body = await request.json().catch(() => null)
-    const images = normalizeImages(body?.images)
+    const parsedBody = parseWithSchema(attachCragImagesSchema, await request.json().catch(() => null))
+    if (!parsedBody.success) return parsedBody.response
+
+    const images = normalizeImages(parsedBody.data.images)
     if (!images) {
       return NextResponse.json({ error: 'images must be a non-empty array of uploaded_image_id values' }, { status: 400 })
     }

@@ -1,11 +1,28 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { getMediaModerationConfig, getMediaStorageConfig } from '@/lib/media/config'
 import { createPrivateUploadUrl } from '@/lib/media/r2'
 import { buildOriginalObjectKey, normalizeUploadSessionRequest } from '@/lib/media/upload-session'
 import type { MediaUploadSessionResponse } from '@/lib/media/types'
+import { parseWithSchema } from '@/lib/api-validation'
+
+const uploadSessionSchema = z.object({
+  purpose: z.enum(['submission_image', 'draft_image', 'crag_image']),
+  contentType: z.string().min(1),
+  byteSize: z.number(),
+  width: z.number(),
+  height: z.number(),
+  captureDate: z.string().nullable().optional(),
+  gpsData: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+  }).nullable().optional(),
+  draftId: z.string().optional(),
+  cragId: z.string().optional(),
+})
 
 export async function POST(request: NextRequest) {
   const middlewareResult = await withApiMiddleware(request, { requireUser: false })
@@ -19,7 +36,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const body = await request.json().catch(() => null)
+    const parsedBody = parseWithSchema(uploadSessionSchema, await request.json().catch(() => null))
+    if (!parsedBody.success) return parsedBody.response
+
+    const body = parsedBody.data
     const payload = normalizeUploadSessionRequest(body)
 
     if (payload.purpose === 'draft_image' && !payload.draftId) {

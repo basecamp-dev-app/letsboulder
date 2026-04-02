@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { isValidGrade } from '@/lib/grade-constants'
+import { parseWithSchema } from '@/lib/api-validation'
 
 const MAX_ROUTES_PER_DAY = 5
+
+const routeSubmitSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required'),
+  grade: z.string().min(1, 'Grade is required').refine(isValidGrade, 'Invalid grade'),
+  imageUrl: z.string().trim().min(1, 'Image URL is required'),
+  latitude: z.number(),
+  longitude: z.number(),
+  cragsId: z.string().trim().min(1, 'Crag ID is required'),
+})
 
 export async function POST(request: NextRequest) {
   const middlewareResult = await withApiMiddleware(request, {
@@ -14,16 +25,10 @@ export async function POST(request: NextRequest) {
   const { supabase, userId } = middlewareResult
 
   try {
-    const body = await request.json()
-    const { name, grade, imageUrl, latitude, longitude, cragsId } = body
+    const parsedBody = parseWithSchema(routeSubmitSchema, await request.json())
+    if (!parsedBody.success) return parsedBody.response
 
-    if (!name || !grade || !imageUrl || !latitude || !longitude || !cragsId) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
-    if (typeof grade !== 'string' || !isValidGrade(grade)) {
-      return NextResponse.json({ error: 'Invalid grade' }, { status: 400 })
-    }
+    const { name, grade, imageUrl, latitude, longitude, cragsId } = parsedBody.data
 
     const today = new Date().toISOString().split('T')[0]
     const { count: todayRoutes } = await supabase
