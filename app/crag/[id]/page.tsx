@@ -1,10 +1,9 @@
-import { createServerClient } from '@supabase/ssr'
 import { notFound, permanentRedirect } from 'next/navigation'
 import CragPageClient from '@/features/crags/components/CragPageClient'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import { getCragById } from '../lib/get-crag-by-id'
 import type { Crag } from '@/features/crags/lib/crag-page-types'
-import { serverEnv } from '@/lib/env'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 export const revalidate = 300
 
@@ -32,11 +31,7 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
     continent_name: unRegionRow?.continent_name,
   }
 
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
+  const supabase = getUnauthenticatedClient()
   const initialRouteData = await loadInitialCragRouteData(supabase as never, id, {
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,

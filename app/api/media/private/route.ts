@@ -1,9 +1,8 @@
 import { GetObjectCommand, NoSuchKey } from '@aws-sdk/client-s3'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { createR2Client } from '@/lib/media/r2'
-import { serverEnv } from '@/lib/env'
 
 export const runtime = 'nodejs'
 
@@ -14,7 +13,7 @@ interface DraftAccessRow {
 async function userCanAccessDraft(
   draftId: string,
   userId: string,
-  supabase: ReturnType<typeof createServerClient>
+  supabase: ReturnType<typeof getServerClientFromRequest>
 ): Promise<boolean> {
   const { data: draft, error: draftError } = await supabase
     .from('submission_drafts')
@@ -48,19 +47,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Missing draftId or path' }, { status: 400 })
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookies.getAll()
-        },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)

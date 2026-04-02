@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { serverEnv } from '@/lib/env'
 
 export async function GET(
   request: NextRequest,
@@ -11,18 +10,7 @@ export async function GET(
 ) {
   const { id: imageId } = await params
 
-  const supabase = await createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId } = await resolveUserIdWithFallback(request, supabase)

@@ -1,27 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { parsePagination } from '@/lib/pagination'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { serverEnv } from '@/lib/env'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status') || 'pending'
   const { limit, offset } = parsePagination(searchParams)
-  const cookies = request.cookies
 
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId } = await resolveUserIdWithFallback(request, supabase)

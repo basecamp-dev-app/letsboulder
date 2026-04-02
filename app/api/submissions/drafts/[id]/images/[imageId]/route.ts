@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import type { Database } from '@/types/database'
-import { serverEnv } from '@/lib/env'
-
-const SUPABASE_SERVICE_ROLE_KEY = serverEnv.SUPABASE_SERVICE_ROLE_KEY
 
 interface DraftConflictResponse {
   code: 'draft_conflict'
@@ -56,25 +53,9 @@ export async function DELETE(
     return NextResponse.json({ error: 'expected_updated_at is required and must be a valid ISO timestamp' }, { status: 400 })
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
-  const storageClient = SUPABASE_SERVICE_ROLE_KEY
-    ? createServerClient(
-        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-        SUPABASE_SERVICE_ROLE_KEY,
-        { cookies: { getAll() { return [] }, setAll() {} } }
-      )
-    : supabase
+  const storageClient = getAdminClient()
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)

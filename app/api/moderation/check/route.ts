@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getAdminClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { moderateImageFromBytes, moderateImageFromUrl } from '@/lib/image-moderation'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { serverEnv } from '@/lib/env'
-
-const SUPABASE_SERVICE_ROLE_KEY = serverEnv.SUPABASE_SERVICE_ROLE_KEY
 
 interface CheckRequestBody {
   imageId: string
@@ -24,15 +22,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  if (!SUPABASE_SERVICE_ROLE_KEY) {
-    return createErrorResponse(new Error('Missing SUPABASE_SERVICE_ROLE_KEY'), 'Moderation config error')
-  }
-
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
+  const supabase = getAdminClient()
 
   try {
     const body = (await request.json()) as CheckRequestBody

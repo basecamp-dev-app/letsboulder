@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
+import type { NextRequest } from 'next/server'
 import { serverEnv } from '@/lib/env'
 
 export async function getServerClient() {
@@ -14,6 +15,49 @@ export async function getServerClient() {
         getAll() {
           return cookieStore.getAll()
         },
+        setAll() {},
+      },
+    }
+  )
+}
+
+export function getServerClientFromRequest(request: NextRequest) {
+  const requestCookies = request.cookies
+
+  return createServerClient(
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() {
+          return requestCookies.getAll()
+        },
+        setAll() {},
+      },
+    }
+  )
+}
+
+export function getAdminClient() {
+  return createServerClient(
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      cookies: {
+        getAll() { return [] },
+        setAll() {},
+      },
+    }
+  )
+}
+
+export function getUnauthenticatedClient() {
+  return createServerClient(
+    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        getAll() { return [] },
         setAll() {},
       },
     }

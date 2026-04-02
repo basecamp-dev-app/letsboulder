@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyGymOwnerApplication } from '@/lib/discord'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
-import { serverEnv } from '@/lib/env'
 
 type ApplicationRole = 'owner' | 'manager' | 'head_setter'
 type ApplicationFacility = 'sport' | 'boulder'
@@ -39,17 +38,7 @@ export async function POST(request: NextRequest) {
     return createRateLimitResponse(rateLimitResult)
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const payload = await request.json() as GymOwnerApplicationBody

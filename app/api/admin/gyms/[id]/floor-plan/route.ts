@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
-import { serverEnv } from '@/lib/env'
 
 interface SaveFloorPlanRequest {
   name?: string
@@ -12,12 +11,7 @@ interface SaveFloorPlanRequest {
 }
 
 async function requireAdmin(request: NextRequest) {
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return cookies.getAll() }, setAll() {} } }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Authentication required' }, { status: 401 }), supabase: null }

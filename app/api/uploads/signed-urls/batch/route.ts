@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createSignedObjectUrls, isR2ManagedBucket } from '@/lib/media/object-urls'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
@@ -103,19 +103,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Maximum 100 objects per request' }, { status: 400 })
   }
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookies.getAll()
-        },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {

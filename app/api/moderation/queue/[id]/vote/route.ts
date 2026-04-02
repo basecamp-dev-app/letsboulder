@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { serverEnv } from '@/lib/env'
 
 interface QueueItem {
   id: string
@@ -23,19 +22,9 @@ export async function POST(
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
-  const cookies = request.cookies
   const { id: queueId } = await params
 
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId } = await resolveUserIdWithFallback(request, supabase)

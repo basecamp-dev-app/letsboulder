@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { serverEnv } from '@/lib/env'
 
 interface CragPinRow {
@@ -41,16 +41,7 @@ interface PlacePin {
 export async function GET() {
   const includePending = serverEnv.NEXT_PUBLIC_ALLOW_PENDING_IMAGES
 
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return [] },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getUnauthenticatedClient()
 
   try {
     let cragPinRows: unknown[] | null = null

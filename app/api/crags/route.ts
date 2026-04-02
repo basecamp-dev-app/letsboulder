@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { rateLimit, RATE_LIMITS, createRateLimitResponse } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
@@ -7,7 +7,6 @@ import { makeUniqueSlug } from '@/lib/slug'
 import { revalidatePath } from 'next/cache'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { getBoundingBoxesForCountry, validateCoordinatesInBoundingBox } from '@/lib/geo/bounding-boxes'
-import { serverEnv } from '@/lib/env'
 
 interface CreateCragRequest {
   name: string
@@ -74,13 +73,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: 'Crags endpoint', method: 'POST', rate_limit: `${RATE_LIMITS.authenticatedWrite.maxRequests} per ${RATE_LIMITS.authenticatedWrite.windowMs / 60000} hours` })
   }
 
-  const cookies = request.cookies
-
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return cookies.getAll() }, setAll() {} } }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { data: { user } } = await supabase.auth.getUser()
@@ -220,13 +213,7 @@ export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
-  const cookies = request.cookies
-
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return cookies.getAll() }, setAll() {} } }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser()

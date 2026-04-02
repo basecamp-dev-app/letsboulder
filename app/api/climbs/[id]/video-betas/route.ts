@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { validateAndNormalizeVideoUrl } from '@/lib/video-beta'
-import { serverEnv } from '@/lib/env'
 
 const MAX_TITLE_LENGTH = 120
 const MAX_NOTES_LENGTH = 400
@@ -25,18 +24,7 @@ interface VideoBetaRow {
 }
 
 function getSupabase(request: NextRequest) {
-  const cookies = request.cookies
-
-  return createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  return getServerClientFromRequest(request)
 }
 
 function toNullableTrimmedString(value: unknown, maxLength: number): string | null {

@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { normalizeGrade, GRADES } from '@/lib/grades'
 import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
-import { serverEnv } from '@/lib/env'
 import {
   clampGradeIndex,
   GRADE_CONSENSUS_MIN_CONFIDENCE,
@@ -95,17 +94,7 @@ export async function PUT(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { data: { user } } = await supabase.auth.getUser()

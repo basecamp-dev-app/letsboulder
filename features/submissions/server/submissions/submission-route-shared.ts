@@ -1,4 +1,4 @@
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 
 export function parsePrivateStorageUrl(url: string): { bucket: string; path: string } | null {
   if (!url.startsWith('private://')) return null
@@ -13,7 +13,7 @@ export function parsePrivateStorageUrl(url: string): { bucket: string; path: str
   return { bucket, path }
 }
 
-export async function getRegionData(supabase: ReturnType<typeof createServerClient>, imageId: string) {
+export async function getRegionData(supabase: ReturnType<typeof getServerClientFromRequest>, imageId: string) {
   try {
     const { data } = await supabase
       .from('images')

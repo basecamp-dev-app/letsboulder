@@ -1,13 +1,8 @@
 import { cache } from 'react'
-import { createServerClient } from '@supabase/ssr'
-import { serverEnv } from '@/lib/env'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 export const getCragById = cache(async function getCragById(id: string) {
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
+  const supabase = getUnauthenticatedClient()
 
   const { data: crag } = await supabase
     .from('crags')

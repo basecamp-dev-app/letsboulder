@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+// eslint-disable-next-line no-restricted-imports -- cookie write-back required for submissions
 import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { notifyNewSubmission } from '@/lib/discord'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { makeUniqueSlug } from '@/lib/slug'
+import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { serverEnv } from '@/lib/env'
 import { revalidatePath } from 'next/cache'
 import { getMediaModerationConfig } from '@/lib/media/config'
 import { getSubmissionInfo, MAX_ROUTES_PER_DAY } from '@/features/submissions/server/submissions/submit-route-info'
@@ -14,15 +17,14 @@ import { buildSubmissionSuccessResponse, cleanupUploadedBlobs, submissionErrorRe
 import { executeExistingImageSubmission } from '@/features/submissions/server/submissions/submit-existing-image'
 import { executeNewImageSubmission } from '@/features/submissions/server/submissions/submit-new-image'
 import { resolveCragImageToImageId } from '@/features/submissions/server/submissions/submit-crag-image'
-import { serverEnv } from '@/lib/env'
 import {
   validateAndPrepareRoutes,
   validateNewSubmissionInput,
   type NewSubmissionImage,
   type SubmissionRequest,
 } from '@/features/submissions/server/submissions/submit-route-validation'
+import { getAdminClient } from '@/lib/supabase-server'
 
-const SUPABASE_SERVICE_ROLE_KEY = serverEnv.SUPABASE_SERVICE_ROLE_KEY
 const INTERNAL_MODERATION_SECRET = serverEnv.INTERNAL_MODERATION_SECRET
 
 interface RoutePoint {
@@ -35,7 +37,6 @@ export async function POST(request: NextRequest) {
   if (!csrfResult.valid) return csrfResult.response!
 
   const cookies = request.cookies
-
   const debugAuth = serverEnv.DEBUG_SUBMISSIONS_AUTH === '1'
   const requestUrl = new URL(request.url)
 
@@ -56,13 +57,7 @@ export async function POST(request: NextRequest) {
     }
   )
 
-  const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY
-    ? createServerClient(
-        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-        SUPABASE_SERVICE_ROLE_KEY,
-        { cookies: { getAll() { return [] }, setAll() {} } }
-      )
-    : null
+  const supabaseAdmin = getAdminClient()
 
   let uploadedBlobsToCleanup: Array<{ bucket: string; path: string }> = []
   let shouldCleanupUploadedBlobs = false

@@ -1,9 +1,8 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
-import { createServerClient } from '@supabase/ssr'
 import { SITE_URL } from '@/lib/site'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
-import { serverEnv } from '@/lib/env'
+import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 export const revalidate = 60
 
@@ -65,12 +64,8 @@ interface RouteLineWithImage {
   } | null
 }
 
-async function getSupabase() {
-  return createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    { cookies: { getAll() { return [] }, setAll() {} } }
-  )
+function getSupabase() {
+  return getUnauthenticatedClient()
 }
 
 async function getRoutePageData(countryCode: string, cragSlug: string, routeSlug: string) {

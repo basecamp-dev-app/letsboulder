@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { serverEnv } from '@/lib/env'
 
 interface CollaboratorRow {
   image_id: string
@@ -28,7 +27,7 @@ function getDisplayName(profile: ProfileRow | null): string {
 }
 
 async function resolveImageOwnerId(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof getServerClientFromRequest>,
   imageId: string
 ): Promise<{ ownerId: string | null; exists: boolean; error: unknown }> {
   const { data, error } = await supabase
@@ -48,7 +47,7 @@ async function resolveImageOwnerId(
 }
 
 async function userCanAccessCollaborators(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof getServerClientFromRequest>,
   imageId: string,
   userId: string,
   ownerId: string | null
@@ -70,17 +69,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ imageId: string }> }
 ) {
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
@@ -225,17 +214,7 @@ export async function POST(
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
@@ -330,17 +309,7 @@ export async function DELETE(
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)

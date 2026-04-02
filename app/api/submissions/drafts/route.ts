@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { buildUploadSignature, normalizeCreateImages, validateDraftImageOwnership } from '@/features/submissions/server/drafts/draft-route-helpers'
-import { serverEnv } from '@/lib/env'
 
 export const runtime = 'nodejs'
 
@@ -12,17 +11,7 @@ export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const [authResult, body] = await Promise.all([

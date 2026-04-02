@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { deleteObject } from '@/lib/media/r2'
 import type { Database } from '@/types/database'
@@ -10,8 +10,8 @@ type ImageStorageRow = Pick<
 >
 
 interface DeleteSubmissionDeps {
-  supabase: ReturnType<typeof createServerClient>
-  supabaseAdmin: ReturnType<typeof createServerClient>
+  supabase: ReturnType<typeof getServerClientFromRequest>
+  supabaseAdmin: ReturnType<typeof getServerClientFromRequest>
   userId: string
   imageId: string
 }

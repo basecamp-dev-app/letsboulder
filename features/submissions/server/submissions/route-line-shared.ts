@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 
 export interface SubmissionRouteMutationDeps {
-  supabase: ReturnType<typeof createServerClient>
-  supabaseAdmin: ReturnType<typeof createServerClient> | null
+  supabase: ReturnType<typeof getServerClientFromRequest>
+  supabaseAdmin: ReturnType<typeof getServerClientFromRequest> | null
   userId: string
   imageId: string
 }
 
 export async function revalidateSubmissionImagePaths(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof getServerClientFromRequest>,
   cragId: string | null
 ) {
   const { revalidatePath } = await import('next/cache')
@@ -30,7 +30,7 @@ export async function revalidateSubmissionImagePaths(
 }
 
 export async function loadEditableImageContext(
-  supabase: ReturnType<typeof createServerClient>,
+  supabase: ReturnType<typeof getServerClientFromRequest>,
   imageId: string,
   userId: string,
   forbiddenMessage: string

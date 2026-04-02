@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { FLASH_BONUS, getGradeFromPoints, getGradePoints } from '@/lib/grades'
-import { serverEnv } from '@/lib/env'
 
 type RankingSort = 'grade' | 'tops'
 type RankingWindow = '60d' | 'all-time'
@@ -76,17 +75,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
   const offset = (page - 1) * limit
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { data: place } = await supabase

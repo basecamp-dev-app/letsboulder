@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { groupSubmittedImages } from '@/lib/submissions/group-submitted-images'
-import { serverEnv } from '@/lib/env'
-
-const SUPABASE_SERVICE_ROLE_KEY = serverEnv.SUPABASE_SERVICE_ROLE_KEY
 
 interface ContributionRow {
   id: string
@@ -25,17 +22,7 @@ interface CragImageLinkRow {
 }
 
 export async function GET(request: NextRequest) {
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -48,13 +35,7 @@ export async function GET(request: NextRequest) {
       ? Math.max(1, Math.min(Math.trunc(limitParam), 500))
       : 200
 
-    const readClient = SUPABASE_SERVICE_ROLE_KEY
-      ? createServerClient(
-          serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-          SUPABASE_SERVICE_ROLE_KEY,
-          { cookies: { getAll() { return [] }, setAll() {} } }
-        )
-      : supabase
+    const readClient = getAdminClient()
 
     const { data, error } = await readClient
       .from('images')

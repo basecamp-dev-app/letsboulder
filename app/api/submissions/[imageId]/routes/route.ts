@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
@@ -8,9 +8,6 @@ import { createSubmissionRoutes } from '@/features/submissions/server/submission
 import { deleteSubmissionRoute } from '@/features/submissions/server/submissions/delete-submission-route'
 import { updateSubmissionRoutes } from '@/features/submissions/server/submissions/update-submission-routes'
 import { type SubmissionRouteMutationDeps } from '@/features/submissions/server/submissions/route-line-shared'
-import { serverEnv } from '@/lib/env'
-
-const SUPABASE_SERVICE_ROLE_KEY = serverEnv.SUPABASE_SERVICE_ROLE_KEY
 
 export async function POST(
   request: NextRequest,
@@ -19,25 +16,9 @@ export async function POST(
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
-  const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY
-    ? createServerClient(
-        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-        SUPABASE_SERVICE_ROLE_KEY,
-        { cookies: { getAll() { return [] }, setAll() {} } }
-      )
-    : null
+  const supabaseAdmin = getAdminClient()
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
@@ -71,25 +52,9 @@ export async function DELETE(
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
-  const supabaseAdmin = SUPABASE_SERVICE_ROLE_KEY
-    ? createServerClient(
-        serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-        SUPABASE_SERVICE_ROLE_KEY,
-        { cookies: { getAll() { return [] }, setAll() {} } }
-      )
-    : null
+  const supabaseAdmin = getAdminClient()
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
@@ -123,17 +88,7 @@ export async function PUT(
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
-  const cookies = request.cookies
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   try {
     const { userId, authError } = await resolveUserIdWithFallback(request, supabase)

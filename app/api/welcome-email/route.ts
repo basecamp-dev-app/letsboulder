@@ -1,28 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { Resend } from 'resend'
 import { createErrorResponse } from '@/lib/errors'
 import { withCsrfProtection } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { buildWelcomeEmail } from '@/lib/email/welcome-email'
+import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
 import { serverEnv } from '@/lib/env'
 
 export async function POST(request: NextRequest) {
   const csrfResult = await withCsrfProtection(request)
   if (!csrfResult.valid) return csrfResult.response!
 
-  const cookies = request.cookies
-
-  const authClient = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll() {},
-      },
-    }
-  )
+  const authClient = getServerClientFromRequest(request)
 
   const { data: { user } } = await authClient.auth.getUser()
 
@@ -48,16 +37,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email does not match authenticated user' }, { status: 403 })
   }
 
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.SUPABASE_SERVICE_ROLE_KEY,
-    {
-      cookies: {
-        getAll() { return [] },
-        setAll() {},
-      },
-    }
-  )
+  const supabase = getAdminClient()
 
   try {
     const { data: profile, error: profileError } = await supabase
