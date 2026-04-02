@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 import { createErrorResponse } from '@/lib/errors'
-import { withCsrfProtection } from '@/lib/csrf-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
 
 interface MoveImageCragRequest {
   targetCragId?: string
@@ -43,10 +42,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ imageId: string }> }
 ) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  if (!middlewareResult.ok) return middlewareResult.response
 
-  const supabase = getServerClientFromRequest(request)
+  const { supabase } = middlewareResult
 
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser()

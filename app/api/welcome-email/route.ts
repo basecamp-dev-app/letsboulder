@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createErrorResponse } from '@/lib/errors'
-import { withCsrfProtection } from '@/lib/csrf-server'
+import { withApiMiddleware } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { buildWelcomeEmail } from '@/lib/email/welcome-email'
-import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
+import { getAdminClient } from '@/lib/supabase-server'
 import { serverEnv } from '@/lib/env'
 
 export async function POST(request: NextRequest) {
-  const csrfResult = await withCsrfProtection(request)
-  if (!csrfResult.valid) return csrfResult.response!
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  if (!middlewareResult.ok) return middlewareResult.response
 
-  const authClient = getServerClientFromRequest(request)
+  const { supabase: authClient } = middlewareResult
 
   const { data: { user } } = await authClient.auth.getUser()
 
