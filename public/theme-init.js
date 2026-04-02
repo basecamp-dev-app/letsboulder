@@ -2,7 +2,7 @@
   var theme = null
   try {
     theme = window.localStorage.getItem('theme')
-  } catch (e) {}
+  } catch {}
   if (!theme) {
     theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   }

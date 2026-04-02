@@ -5,7 +5,6 @@ import { withCsrfProtection } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
-import { serverEnv } from '@/lib/env'
 
 export const runtime = 'nodejs'
 

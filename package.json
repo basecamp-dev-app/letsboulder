@@ -16,6 +16,7 @@
     "media-backfill": "node scripts/media/backfill-images.mjs",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",
     "lint": "eslint --cache --concurrency auto",
+    "typecheck": "tsc --noEmit",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:integration": "vitest run --config vitest.config.ts --mode integration"
   },
