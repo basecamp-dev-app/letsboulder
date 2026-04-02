@@ -1,5 +1,3 @@
-'use client'
-
 import type { GradeSystem } from '@/lib/grade-display'
 import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 
