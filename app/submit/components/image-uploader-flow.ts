@@ -103,6 +103,9 @@ export async function getImageDimensions(source: string): Promise<UploadDimensio
 }
 
 export async function uploadSubmissionImageSession(file: File, gpsData: GpsData | null): Promise<MediaUploadSession> {
+  const objectUrl = URL.createObjectURL(file)
+  const dimensions = await getImageDimensions(objectUrl)
+  URL.revokeObjectURL(objectUrl)
   const uploadSession = await createMediaUploadSession({
     purpose: 'submission_image',
     contentType: file.type || 'image/jpeg',
@@ -110,6 +113,8 @@ export async function uploadSubmissionImageSession(file: File, gpsData: GpsData 
     byteSize: file.size,
     gpsData,
     captureDate: null,
+    width: dimensions.width,
+    height: dimensions.height,
   })
 
   try {

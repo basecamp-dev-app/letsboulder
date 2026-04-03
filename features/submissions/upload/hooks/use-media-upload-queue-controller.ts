@@ -123,6 +123,8 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
         byteSize: preparedFile.size,
         gpsData,
         captureDate: upload.captureDate,
+        width: dimensions.width,
+        height: dimensions.height,
         draftId: entry.target.kind === 'draft' ? entry.target.draftId : undefined,
         cragId: entry.target.kind === 'crag' ? entry.target.cragId : undefined,
       }, abortController.signal)
