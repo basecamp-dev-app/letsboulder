@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import type { ActiveRouteFilterChip } from '@/features/crags/lib/crag-page-domain'
 
 interface CragActiveFilterChipsProps {
@@ -7,7 +8,7 @@ interface CragActiveFilterChipsProps {
   onRemoveChip: (chip: ActiveRouteFilterChip) => void
 }
 
-export default function CragActiveFilterChips({ chips, onRemoveChip }: CragActiveFilterChipsProps) {
+const CragActiveFilterChips = React.memo(function CragActiveFilterChips({ chips, onRemoveChip }: CragActiveFilterChipsProps) {
   if (chips.length === 0) return null
 
   return (
@@ -24,4 +25,6 @@ export default function CragActiveFilterChips({ chips, onRemoveChip }: CragActiv
       ))}
     </div>
   )
-}
+})
+
+export default CragActiveFilterChips
