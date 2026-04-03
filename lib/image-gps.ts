@@ -627,18 +627,6 @@ export async function extractGpsFromBuffer(buffer: ArrayBuffer, debugLabel?: str
     gpsDebug('full parse error', { file: debugLabel || 'unknown' })
   }
 
-  try {
-    const exifReaderModule = await import('exifreader')
-    const exifReader = exifReaderModule.default
-    const exifReaderData = await Promise.resolve(exifReader.load(buffer, { expanded: true }))
-    gpsDebug('exifreader raw', summarizeMetadata(exifReaderData))
-    const parsedGps = toGpsData(exifReaderData)
-    gpsDebug('exifreader parsed', parsedGps)
-    if (parsedGps) return parsedGps
-  } catch {
-    gpsDebug('exifreader error', { file: debugLabel || 'unknown' })
-  }
-
   const canUseJpegFallback = mimeType === 'image/jpeg' || mimeType === 'image/jpg' || isJpegBuffer(buffer)
   if (!canUseJpegFallback) return null
 
