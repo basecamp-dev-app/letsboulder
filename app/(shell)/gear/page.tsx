@@ -1,28 +1,49 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { products, CATEGORIES } from '@/lib/gear-data'
+import { GearProduct, GearCategory } from '@/lib/gear-data'
 import GearCard from '@/components/gear/GearCard'
 import GearSkeleton from '@/components/gear/GearSkeleton'
 import CategoryTabs from '@/components/gear/CategoryTabs'
 import { Search } from 'lucide-react'
 
+const CATEGORIES: GearCategory[] = [
+  'All',
+  'Guidebooks',
+  'Belay Devices',
+  'Harnesses & Helmets',
+  'Hardware',
+  'Ropes & Rope Bags',
+  'Bouldering',
+  'Footwear',
+  'Nutrition & Hydration',
+  'Sun & Skin Care',
+  'Tools & Accessories',
+  'Camping & Safety',
+]
+
 export default function GearPage() {
-  const [activeCategory, setActiveCategory] = useState('All')
+  const [products, setProducts] = useState<GearProduct[]>([])
+  const [activeCategory, setActiveCategory] = useState<string>('All')
   const [searchQuery, setSearchQuery] = useState('')
   const [clickCounts, setClickCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/gear-clicks')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && typeof data === 'object') {
-          setClickCounts(data)
+    Promise.all([
+      fetch('/api/gear').then((res) => res.json()),
+      fetch('/api/gear-clicks').then((res) => res.json()),
+    ])
+      .then(([gearData, clickData]) => {
+        if (gearData?.products && Array.isArray(gearData.products)) {
+          setProducts(gearData.products)
+        }
+        if (clickData && typeof clickData === 'object') {
+          setClickCounts(clickData)
         }
       })
       .catch((err) => {
-        console.warn('Failed to fetch click counts:', err)
+        console.warn('Failed to fetch data:', err)
       })
       .finally(() => {
         setLoading(false)
@@ -45,7 +66,7 @@ export default function GearPage() {
         product.category.toLowerCase().includes(searchQuery.toLowerCase())
       return matchesCategory && matchesSearch
     })
-  }, [activeCategory, searchQuery, clickCounts])
+  }, [activeCategory, searchQuery, clickCounts, products])
 
   return (
     <div className="container mx-auto px-4">
