@@ -3,8 +3,11 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { SUPPORT_URL } from '@/lib/site'
 import MobileNavSheet from './MobileNavSheet'
+
+const FeedbackButton = dynamic(() => import('@/components/feedback/feedback-button').then(mod => mod.default), { ssr: false })
 
 export default function Footer() {
   const pathname = usePathname()
@@ -76,6 +79,7 @@ export default function Footer() {
       </footer>
 
       <MobileNavSheet isOpen={isNavSheetOpen} onClose={() => setIsNavSheetOpen(false)} />
+      <FeedbackButton />
     </>
   )
 }
