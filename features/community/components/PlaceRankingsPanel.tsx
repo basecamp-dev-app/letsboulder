@@ -2,34 +2,13 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
+import { communityKeys, fetchRankings, type PlaceRankingEntry, type PlaceRankingPagination } from '@/features/community/lib/queries'
 
 type RankingSort = 'grade' | 'tops'
-
-interface PlaceRankingEntry {
-  rank: number
-  user_id: string
-  username: string
-  avatar_url: string | null
-  avg_grade: string
-  climb_count: number
-}
-
-interface PlaceRankingPagination {
-  page: number
-  limit: number
-  total_users: number
-  total_pages: number
-}
-
-interface PlaceRankingsResponse {
-  leaderboard: PlaceRankingEntry[]
-  pagination: PlaceRankingPagination
-  window?: '60d' | 'all-time'
-  fallback_used?: boolean
-}
 
 interface PlaceRankingsPanelProps {
   slug: string
@@ -39,75 +18,17 @@ export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
   const gradeSystem = useGradeSystem()
   const [sortBy, setSortBy] = useState<RankingSort>('tops')
   const [page, setPage] = useState(1)
-  const [entries, setEntries] = useState<PlaceRankingEntry[]>([])
-  const [pagination, setPagination] = useState<PlaceRankingPagination | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-  const [windowMode, setWindowMode] = useState<'60d' | 'all-time'>('60d')
-  const [fallbackUsed, setFallbackUsed] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
+  const { data, isLoading, isError } = useQuery({
+    queryKey: communityKeys.rankings(slug, sortBy, page),
+    queryFn: () => fetchRankings(slug, sortBy, page, 20),
+    meta: { persist: true },
+  })
 
-    async function loadRankings() {
-      setLoading(true)
-      setError(false)
-
-      try {
-        const response = await fetch(`/api/community/places/${slug}/rankings?sort=${sortBy}&page=${page}&limit=20`, {
-          cache: 'no-store',
-        })
-
-        if (!response.ok) {
-          if (!cancelled) {
-            setError(true)
-            setEntries([])
-            setPagination(null)
-            setWindowMode('60d')
-            setFallbackUsed(false)
-          }
-          return
-        }
-
-        const payload = await response.json().catch(() => null as PlaceRankingsResponse | null)
-        if (!payload || !Array.isArray(payload.leaderboard) || !payload.pagination) {
-          if (!cancelled) {
-            setError(true)
-            setEntries([])
-            setPagination(null)
-            setWindowMode('60d')
-            setFallbackUsed(false)
-          }
-          return
-        }
-
-        if (!cancelled) {
-          setEntries(payload.leaderboard)
-          setPagination(payload.pagination)
-          setWindowMode(payload.window === 'all-time' ? 'all-time' : '60d')
-          setFallbackUsed(Boolean(payload.fallback_used))
-        }
-      } catch {
-        if (!cancelled) {
-          setError(true)
-          setEntries([])
-          setPagination(null)
-          setWindowMode('60d')
-          setFallbackUsed(false)
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    }
-
-    void loadRankings()
-
-    return () => {
-      cancelled = true
-    }
-  }, [page, slug, sortBy])
+  const entries = data?.leaderboard ?? []
+  const pagination = data?.pagination ?? null
+  const windowMode = data?.window ?? '60d'
+  const fallbackUsed = data?.fallback_used ?? false
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
@@ -145,23 +66,23 @@ export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
         </div>
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading rankings...</p>
       ) : null}
 
-      {!loading && error ? (
+      {!isLoading && isError ? (
         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Could not load rankings right now.</p>
       ) : null}
 
-      {!loading && !error && entries.length === 0 ? (
+      {!isLoading && !isError && entries.length === 0 ? (
         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No public rankings for this place yet.</p>
       ) : null}
 
-      {!loading && !error && fallbackUsed ? (
+      {!isLoading && !isError && fallbackUsed ? (
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">No public rankings in the last 60 days, showing all-time results.</p>
       ) : null}
 
-      {!loading && !error && entries.length > 0 ? (
+      {!isLoading && !isError && entries.length > 0 ? (
         <div className="mt-3 divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
           {entries.map(entry => (
             <Link

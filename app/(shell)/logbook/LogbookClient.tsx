@@ -37,7 +37,6 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
     queryKey: ownLogbookQueryKey,
     queryFn: () => fetchOwnLogbookData(user),
     initialData,
-    staleTime: 60 * 1000,
     gcTime: 30 * 60 * 1000,
     meta: {
       persist: true,

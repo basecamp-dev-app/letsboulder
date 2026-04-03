@@ -104,8 +104,6 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const { data, isLoading, error } = useQuery({
     queryKey: settingsQueryKey,
     queryFn: fetchSettings,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 30 * 60 * 1000,
     meta: {
       persist: true,
     },

@@ -2,106 +2,39 @@
 
 import Link from 'next/link'
 import { Star } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { communityKeys, fetchRecentSends, type RecentSendEntry } from '@/features/community/lib/queries'
 
 interface TopThisPlacePanelProps {
   slug: string
 }
 
-interface RecentSendEntry {
-  user_id: string
-  style: 'top' | 'flash'
-  created_at: string
-  profile: {
-    id: string
-    display_name: string
-    avatar_url: string | null
-  }
-  climb: {
-    id: string
-    name: string
-    grade: string
-  }
-  rating: number | null
-}
-
-interface RecentSendsResponse {
-  recent_sends: RecentSendEntry[]
-}
-
 export default function TopThisPlacePanel({ slug }: TopThisPlacePanelProps) {
-  const [entries, setEntries] = useState<RecentSendEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const { data, isLoading, isError } = useQuery({
+    queryKey: communityKeys.recentSends(slug),
+    queryFn: () => fetchRecentSends(slug, 10),
+    meta: { persist: true },
+  })
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadRankings() {
-      setLoading(true)
-      setError(false)
-
-      try {
-        const response = await fetch(`/api/community/places/${slug}/recent-sends?limit=10`, {
-          cache: 'no-store',
-        })
-
-        if (!response.ok) {
-          if (!cancelled) {
-            setError(true)
-            setEntries([])
-          }
-          return
-        }
-
-        const payload = await response.json().catch(() => null as RecentSendsResponse | null)
-        if (!payload || !Array.isArray(payload.recent_sends)) {
-          if (!cancelled) {
-            setError(true)
-            setEntries([])
-          }
-          return
-        }
-
-        if (!cancelled) {
-          setEntries(payload.recent_sends)
-        }
-      } catch {
-        if (!cancelled) {
-          setError(true)
-          setEntries([])
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    }
-
-    void loadRankings()
-
-    return () => {
-      cancelled = true
-    }
-  }, [slug])
+  const entries: RecentSendEntry[] = data?.recent_sends ?? []
 
   return (
     <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
       <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent sends (60 days)</h2>
 
-      {loading ? (
+      {isLoading ? (
         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading recent sends...</p>
       ) : null}
 
-      {!loading && error ? (
+      {!isLoading && isError ? (
         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Could not load recent sends right now.</p>
       ) : null}
 
-      {!loading && !error && entries.length === 0 ? (
+      {!isLoading && !isError && entries.length === 0 ? (
         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No sends logged here in the last 60 days.</p>
       ) : null}
 
-      {!loading && !error && entries.length > 0 ? (
+      {!isLoading && !isError && entries.length > 0 ? (
         <div className="mt-3 space-y-2">
           {entries.map(entry => (
             <div key={`${entry.user_id}-${entry.climb.id}-${entry.created_at}`} className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
