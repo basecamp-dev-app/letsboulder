@@ -3,8 +3,7 @@
 import Image from 'next/image'
 import { GearProduct } from '@/lib/gear-data'
 import { ShieldCheck, HardHat, Link2, Scroll, Mountain, Footprints, CupSoda, Sun, Wrench, Tent, BookOpenText } from 'lucide-react'
-import { useEffect, useRef } from 'react'
-import { recordGearClickAction } from '@/features/gear/actions'
+import { useRef } from 'react'
 
 const categoryIcons: Record<string, typeof ShieldCheck> = {
   Guidebooks: BookOpenText,
@@ -27,21 +26,6 @@ interface GearCardProps {
 export default function GearCard({ product }: GearCardProps) {
   const Icon = categoryIcons[product.category] || Wrench
   const cardRef = useRef<HTMLAnchorElement>(null)
-
-  useEffect(() => {
-    const card = cardRef.current
-    if (!card) return
-
-    const handleClick = () => {
-
-      recordGearClickAction(product.id).catch((err) => {
-        console.warn('Failed to track click:', err)
-      })
-    }
-
-    card.addEventListener('click', handleClick)
-    return () => card.removeEventListener('click', handleClick)
-  }, [product.id, product.name, product.category])
 
   return (
     <a

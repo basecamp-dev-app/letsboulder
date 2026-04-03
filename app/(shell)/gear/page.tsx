@@ -26,7 +26,6 @@ export default function GearPage() {
   const [products, setProducts] = useState<GearProduct[]>([])
   const [activeCategory, setActiveCategory] = useState<string>('All')
   const [searchQuery, setSearchQuery] = useState('')
-  const [clickCounts, setClickCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -40,30 +39,13 @@ export default function GearPage() {
       .catch((err) => {
         console.warn('Failed to fetch gear data:', err)
       })
-
-    fetch('/api/gear-clicks')
-      .then((res) => res.json())
-      .then((clickData) => {
-        if (clickData && typeof clickData === 'object') {
-          setClickCounts(clickData)
-        }
-      })
-      .catch((err) => {
-        console.warn('Failed to fetch click counts:', err)
-      })
       .finally(() => {
         setLoading(false)
       })
   }, [])
 
   const sortedProducts = useMemo(() => {
-    const sorted = [...products].sort((a, b) => {
-      const countA = clickCounts[a.id] || 0
-      const countB = clickCounts[b.id] || 0
-      return countB - countA
-    })
-
-    return sorted.filter((product) => {
+    return products.filter((product) => {
       const matchesCategory = activeCategory === 'All' || product.category === activeCategory
       const matchesSearch =
         searchQuery === '' ||
@@ -72,7 +54,7 @@ export default function GearPage() {
         product.category.toLowerCase().includes(searchQuery.toLowerCase())
       return matchesCategory && matchesSearch
     })
-  }, [activeCategory, searchQuery, clickCounts, products])
+  }, [activeCategory, searchQuery, products])
 
   return (
     <div className="container mx-auto px-4">
