@@ -1,7 +1,13 @@
+import QueryProviders from '@/components/query-providers'
+
 export default function CragLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return <>{children}</>
+  return (
+    <QueryProviders>
+      {children}
+    </QueryProviders>
+  )
 }
