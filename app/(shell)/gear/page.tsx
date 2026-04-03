@@ -30,20 +30,26 @@ export default function GearPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/gear').then((res) => res.json()),
-      fetch('/api/gear-clicks').then((res) => res.json()),
-    ])
-      .then(([gearData, clickData]) => {
+    fetch('/api/gear')
+      .then((res) => res.json())
+      .then((gearData) => {
         if (gearData?.products && Array.isArray(gearData.products)) {
           setProducts(gearData.products)
         }
+      })
+      .catch((err) => {
+        console.warn('Failed to fetch gear data:', err)
+      })
+
+    fetch('/api/gear-clicks')
+      .then((res) => res.json())
+      .then((clickData) => {
         if (clickData && typeof clickData === 'object') {
           setClickCounts(clickData)
         }
       })
       .catch((err) => {
-        console.warn('Failed to fetch data:', err)
+        console.warn('Failed to fetch click counts:', err)
       })
       .finally(() => {
         setLoading(false)
