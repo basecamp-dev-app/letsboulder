@@ -20,6 +20,10 @@ const DEFAULTS = {
 } as const
 
 export async function compressImage(file: File, options: ImageCompressionOptions): Promise<File> {
+  if (typeof document === 'undefined') {
+    throw new Error('compressImage requires a browser environment')
+  }
+
   const {
     maxWidthOrHeight,
     maxSizeKB,
