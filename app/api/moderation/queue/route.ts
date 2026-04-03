@@ -3,8 +3,9 @@ import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import type { Database } from '@/types/database'
 
-interface QueueItem {
+type QueueItem = {
   id: string
   status: string
   verify_count: number

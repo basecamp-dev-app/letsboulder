@@ -161,7 +161,7 @@ export function useEditDraftActions({
       savePayload: {
         images: nextImagesPayload,
         cragId: resolvedCragId,
-        metadata: fullV2Metadata as unknown as Record<string, unknown>,
+        metadata: fullV2Metadata,
       } satisfies DraftSavePayload,
       fullV2Metadata,
     }

@@ -263,7 +263,7 @@ export function useEditDraftUploads({
     files.forEach((file, index) => {
       fileListLike[index] = file
     })
-    void handleAddImages(fileListLike as unknown as FileList)
+    void handleAddImages(fileListLike as FileList)
   }, [handleAddImages])
 
   const handleRemoveImage = useCallback(async (imageId: string) => {

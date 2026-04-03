@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
   let shouldCleanupUploadedBlobs = false
 
   try {
-    const ownershipClient = supabase as unknown as Parameters<typeof userOwnsUploadedObject>[0]
+    const ownershipClient = supabase
     if (debugAuth) {
       const requestCookies = request.cookies.getAll()
       const cookieNames: string[] = []

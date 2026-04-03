@@ -1,30 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
+import type { Database } from '@/types/database'
 
 interface RouteParams {
   slug: string
 }
 
-interface RecentSendRow {
-  user_id: string
-  style: 'top' | 'flash' | 'onsight'
-  created_at: string
-  climb_id: string
-  star_rating: number | null
+type RecentSendRow = Pick<Database['public']['Tables']['user_climbs']['Row'], 'user_id' | 'style' | 'created_at' | 'climb_id' | 'star_rating'> & {
   climbs: {
     id: string
     name: string
     grade: string
     place_id: string | null
     crag_id: string | null
-  } | Array<{
-    id: string
-    name: string
-    grade: string
-    place_id: string | null
-    crag_id: string | null
-  }>
+  } | null
 }
 
 interface ProfileRow {
@@ -111,11 +101,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       ...((byPlaceResult.data as unknown as RecentSendRow[] | null) || []),
       ...((byLegacyCragResult.data as unknown as RecentSendRow[] | null) || []),
     ]) {
+      if (!row.created_at) continue
       deduped.set(`${row.user_id}:${row.climb_id}:${row.created_at}:${row.style}`, row)
     }
 
     const recentSends = Array.from(deduped.values())
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .filter(row => row.created_at)
+      .sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime())
     const userIds = Array.from(new Set(recentSends.map((row) => row.user_id)))
 
     if (userIds.length === 0) {

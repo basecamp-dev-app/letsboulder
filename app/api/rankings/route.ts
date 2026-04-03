@@ -2,21 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { getGradePoints, getGradeFromPoints, FLASH_BONUS } from '@/lib/grades'
 import { createErrorResponse } from '@/lib/errors'
+import type { Database } from '@/types/database'
 
 export const revalidate = 60
 
-interface UserClimbQueryResult {
-  id: string
-  user_id: string
-  created_at: string
-  style: 'top' | 'flash'
-  climbs: {
-    id: string
-    grade: string
-  }
+type UserClimbQueryResult = Pick<Database['public']['Tables']['user_climbs']['Row'], 'id' | 'user_id' | 'created_at' | 'style'> & {
+  climbs: Pick<Database['public']['Tables']['climbs']['Row'], 'id' | 'grade'> | null
 }
 
-interface RegionRouteLine {
+type RegionRouteLine = {
   climb_id: string
   images: {
     crags: {
@@ -119,8 +113,9 @@ export async function GET(request: NextRequest) {
         const regionClimbIds = new Set<string>()
         if (routeLinesData) {
           for (const rl of routeLinesData) {
+            if (!rl) continue
             if ('climb_id' in rl && 'images' in rl) {
-              const routeLine = rl as unknown as RegionRouteLine
+              const routeLine = rl as RegionRouteLine
               if (routeLine.climb_id && routeLine.images?.crags?.climbing_areas?.id === regionParam) {
                 regionClimbIds.add(routeLine.climb_id)
               }

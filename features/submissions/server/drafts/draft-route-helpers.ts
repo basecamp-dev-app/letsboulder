@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createErrorResponse } from '@/lib/errors'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database'
 
 interface DraftCreateImageInput {
   uploadedBucket: string
@@ -57,13 +59,12 @@ export function buildUploadSignature(images: DraftCreateImageInput[]): string {
 }
 
 export async function validateDraftImageOwnership(
-  supabase: Parameters<typeof userOwnsUploadedObject>[0],
+  supabase: SupabaseClient<Database>,
   userId: string,
   images: DraftCreateImageInput[]
 ) {
-  const ownershipClient = supabase as Parameters<typeof userOwnsUploadedObject>[0]
   for (const image of images) {
-    if (!(await userOwnsUploadedObject(ownershipClient, userId, image.uploadedBucket, image.uploadedPath))) {
+    if (!(await userOwnsUploadedObject(supabase, userId, image.uploadedBucket, image.uploadedPath))) {
       return NextResponse.json({ error: 'Invalid uploaded path owner' }, { status: 403 })
     }
   }

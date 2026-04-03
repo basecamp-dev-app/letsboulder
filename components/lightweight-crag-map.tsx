@@ -138,7 +138,7 @@ export default function LightweightCragMap({
   useEffect(() => {
     if (typeof window === 'undefined') return
     void import('leaflet').then((leaflet) => {
-      setLeafletLib(leaflet as unknown as typeof import('leaflet'))
+      setLeafletLib(leaflet as typeof import('leaflet'))
     })
   }, [])
 

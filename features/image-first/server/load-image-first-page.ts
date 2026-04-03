@@ -5,6 +5,7 @@ import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import type { RoutePoint } from '@/types/domain'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
+import type { Database } from '@/types/database'
 
 interface CragRow {
   id: string
@@ -96,7 +97,7 @@ async function resolveCragImageRow(displayImageId: string): Promise<ResolvedImag
 
   if (error) throw error
 
-  const rows = (data || []) as unknown as ResolvedImageRow[]
+  const rows = (data || []) as ResolvedImageRow[]
   if (rows.length > 0) {
     const exactDisplayMatch = rows.find((row) => getDisplayImageId(row) === displayImageId)
     return exactDisplayMatch || rows[0] || null
@@ -119,7 +120,7 @@ async function resolveCragImageRow(displayImageId: string): Promise<ResolvedImag
 
   if (fallbackError) throw fallbackError
 
-  return ((fallbackRows || []) as unknown as ResolvedImageRow[])[0] || null
+  return ((fallbackRows || []) as ResolvedImageRow[])[0] || null
 }
 
 export const getImageByDisplayId = cache(async (displayImageId: string) => {
@@ -204,7 +205,7 @@ export async function getRoutesByImage(displayImageId: string) {
     .order('created_at', { ascending: true })
 
   if (error) throw error
-  return (data || []) as unknown as RouteLineRow[]
+  return (data || []) as RouteLineRow[]
 }
 
 export async function buildImageFirstPayload(args: {

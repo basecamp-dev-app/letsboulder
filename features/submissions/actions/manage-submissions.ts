@@ -60,7 +60,7 @@ export async function createSubmissionDraftAction(input: DraftCreateInput): Prom
   }
 
   const ownershipError = await validateDraftImageOwnership(
-    supabase as unknown as Parameters<typeof import('@/lib/media/ownership').userOwnsUploadedObject>[0],
+    supabase,
     auth.data.userId,
     images
   )

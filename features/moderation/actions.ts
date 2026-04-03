@@ -83,7 +83,7 @@ export async function submitClimbFlagAction(climbId: string, flagType: string, c
   if (flagResult.error) return { success: false, error: 'Error checking existing flag', status: 500 }
   if (flagResult.duplicate) return { success: false, error: 'You have already flagged this climb. It is being reviewed.', status: 400 }
 
-  const cragName = Array.isArray(climb.crag) ? climb.crag[0]?.name : (climb.crag as unknown as { name: string })?.name || 'Unknown Crag'
+  const cragName = Array.isArray(climb.crag) ? climb.crag[0]?.name : (climb.crag as { name?: string })?.name || 'Unknown Crag'
   await notifyNewFlag(supabase, {
     type: 'climb',
     flagType,

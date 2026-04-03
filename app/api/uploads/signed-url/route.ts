@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
 
-  const ownershipClient = supabase as unknown as Parameters<typeof userOwnsUploadedObject>[0]
+  const ownershipClient = supabase
   if (!(await userOwnsUploadedObject(ownershipClient, user.id, bucket, path))) {
     return NextResponse.json({ error: 'Unauthorized path' }, { status: 403 })
   }

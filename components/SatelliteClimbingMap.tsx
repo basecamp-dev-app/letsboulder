@@ -22,8 +22,8 @@ interface LeafletIconDefault {
 
 function setupLeafletIcons(leaflet: typeof import('leaflet')) {
   if (typeof window !== 'undefined') {
-    delete (leaflet.Icon.Default as unknown as LeafletIconDefault).prototype._getIconUrl
-    ;(leaflet.Icon.Default as unknown as LeafletIconDefault).mergeOptions({
+    delete (leaflet.Icon.Default as LeafletIconDefault).prototype._getIconUrl
+    ;(leaflet.Icon.Default as LeafletIconDefault).mergeOptions({
       iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
       iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
       shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',

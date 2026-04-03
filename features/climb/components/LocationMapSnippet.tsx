@@ -43,7 +43,7 @@ export default function LocationMapSnippet({ latitude, longitude, className }: L
   useEffect(() => {
     if (typeof window === 'undefined') return
     void import('leaflet').then((leaflet) => {
-      L = leaflet as unknown as typeof import('leaflet')
+      L = leaflet as typeof import('leaflet')
     })
   }, [])
 
