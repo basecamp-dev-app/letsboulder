@@ -106,10 +106,11 @@ export async function uploadSubmissionImageSession(file: File, gpsData: GpsData 
   const objectUrl = URL.createObjectURL(file)
   const dimensions = await getImageDimensions(objectUrl)
   URL.revokeObjectURL(objectUrl)
+  const fileName = file.name.trim() || `upload.${(file.type || 'image/jpeg').split('/')[1] || 'jpg'}`
   const uploadSession = await createMediaUploadSession({
     purpose: 'submission_image',
     contentType: file.type || 'image/jpeg',
-    fileName: file.name,
+    fileName,
     byteSize: file.size,
     gpsData,
     captureDate: null,
