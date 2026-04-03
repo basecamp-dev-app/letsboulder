@@ -1,5 +1,5 @@
-import { sortFaceDirections } from '@/features/submissions/lib/editor-helpers'
-import type { FaceDirection } from '@/features/submissions/lib/submission-types'
+import { sortFaceDirections } from '@/lib/face-directions'
+import type { FaceDirection } from '@/types/domain'
 
 export function parseCoordinate(value: string): number | null {
   if (value.trim() === '') return null

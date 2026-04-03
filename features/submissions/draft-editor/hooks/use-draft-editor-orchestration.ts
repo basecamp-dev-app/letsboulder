@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { sortFaceDirections, coordinateKey } from '@/features/submissions/lib/editor-helpers'
+import { sortFaceDirections, coordinateKey } from '@/lib/face-directions'
 import { buildMapPins, reorderItemsByIds, resequenceRoutes, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
 import { buildHighResCanvasUrl } from '@/features/route-editor/route-editor-utils'
 import { useRouteStore } from '@/features/route-editor/store'

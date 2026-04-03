@@ -1,4 +1,4 @@
-import type { GpsData } from '@/features/submissions/lib/submission-types'
+import type { GpsData } from '@/types/domain'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { getBoundingBoxesForCountry, validateCoordinatesInBoundingBox } from '@/lib/geo/bounding-boxes'
