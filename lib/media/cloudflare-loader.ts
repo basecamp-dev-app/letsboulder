@@ -42,7 +42,7 @@ function buildWorkerVariantUrl(
   variant: MediaVariantKey,
 ): string {
   const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/')
-  return `${host}/${encodedKey}?variant=${variant}&format=webp`
+  return `${host}/${encodedKey}?variant=${variant}&format=auto`
 }
 
 function transformStaticVariantPath(pathname: string, requestedVariant: string, format: string = 'webp'): string | null {
@@ -95,7 +95,7 @@ export default function cloudflareLoader({ src, width, quality }: ImageLoaderPro
       if (objectPath) {
         const objectKey = `${bucket}/${objectPath}`
         const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/')
-        return `${mediaHost}/${encodedKey}?variant=${variant}&format=webp`
+        return `${mediaHost}/${encodedKey}?variant=${variant}&format=auto`
       }
     }
 

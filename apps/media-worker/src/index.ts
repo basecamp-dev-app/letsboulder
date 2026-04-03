@@ -213,7 +213,8 @@ async function handleMedia(request: Request, env: Env, url: URL) {
     return json({ error: 'Invalid variant' }, { status: 400 })
   }
 
-  const format = url.searchParams.get('format') === 'avif' ? 'avif' : 'webp'
+  const formatParam = url.searchParams.get('format')
+  const format = formatParam === 'avif' ? 'avif' : formatParam === 'auto' ? 'auto' : 'webp'
   const originUrl = `${env.R2_ORIGIN_URL}/${objectKey.split('/').map(encodeURIComponent).join('/')}`
 
   const response = await fetch(originUrl, {
