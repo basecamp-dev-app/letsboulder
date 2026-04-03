@@ -2,12 +2,12 @@
 
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import CragsFilters from '@/app/admin/crags/components/CragsFilters'
-import CragsTable from '@/app/admin/crags/components/CragsTable'
-import DeleteCragDialog from '@/app/admin/crags/components/DeleteCragDialog'
-import RenameCragModal from '@/app/admin/crags/components/RenameCragModal'
-import { useAdminCrags } from '@/app/admin/crags/hooks/useAdminCrags'
-import type { AdminCrag } from '@/app/admin/crags/types'
+import CragsFilters from '@/features/admin/crags/components/crags-filters'
+import CragsTable from '@/features/admin/crags/components/crags-table'
+import DeleteCragDialog from '@/features/admin/crags/components/delete-crag-dialog'
+import RenameCragModal from '@/features/admin/crags/components/rename-crag-modal'
+import { useAdminCrags } from '@/features/admin/crags/hooks'
+import type { AdminCrag } from '@/features/admin/crags/types'
 
 export default function AdminCragsPage() {
   const {

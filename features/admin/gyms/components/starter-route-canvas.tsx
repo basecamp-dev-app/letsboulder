@@ -2,7 +2,7 @@
 
 import { MouseEvent } from 'react'
 import NextImage from 'next/image'
-import type { EditableRoute, FloorPlan } from '@/app/admin/gyms/types'
+import type { EditableRoute, FloorPlan } from '@/features/admin/gyms/types'
 
 interface StarterRouteCanvasProps {
   activeFloorPlan: FloorPlan

@@ -1,8 +1,8 @@
 'use client'
 
 import { ArrowRightLeft, Edit2, Mountain, Trash2 } from 'lucide-react'
-import type { AdminCrag } from '@/app/admin/crags/types'
-import { formatRouteTypeLabel } from '@/app/admin/crags/types'
+import type { AdminCrag } from '@/features/admin/crags/types'
+import { formatRouteTypeLabel } from '@/features/admin/crags/types'
 
 interface CragsTableProps {
   crags: AdminCrag[]

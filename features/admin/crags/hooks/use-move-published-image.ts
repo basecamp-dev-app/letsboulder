@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { csrfFetch } from '@/hooks/useCsrf'
-import type { AdminCrag, CragImageRouteCandidate, MoveImageState } from '@/app/admin/crags/types'
+import type { AdminCrag, CragImageRouteCandidate, MoveImageState } from '@/features/admin/crags/types'
 
 function getResponseError(payload: unknown, fallback: string): string {
   if (typeof payload === 'object' && payload !== null && 'error' in payload) {
