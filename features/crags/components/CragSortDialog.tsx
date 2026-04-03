@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { ChevronRight, X } from 'lucide-react'
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
@@ -10,7 +11,7 @@ interface CragSortDialogProps {
   onRouteSortChange: (sort: 'sends' | 'grade') => void
 }
 
-export default function CragSortDialog({
+const CragSortDialog = React.memo(function CragSortDialog({
   open,
   routeSort,
   onOpenChange,
@@ -37,4 +38,6 @@ export default function CragSortDialog({
       </DialogContent>
     </Dialog>
   )
-}
+})
+
+export default CragSortDialog

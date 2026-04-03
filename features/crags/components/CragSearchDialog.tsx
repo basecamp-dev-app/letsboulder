@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { ChevronRight, X } from 'lucide-react'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeSystem } from '@/lib/grades'
@@ -19,7 +20,7 @@ interface CragSearchDialogProps {
   onPendingRouteNavigation: (event: React.MouseEvent<HTMLButtonElement>, route: CragRoute) => void
 }
 
-export default function CragSearchDialog({
+const CragSearchDialog = React.memo(function CragSearchDialog({
   open,
   onOpenChange,
   searchQuery,
@@ -78,4 +79,6 @@ export default function CragSearchDialog({
       </DialogContent>
     </Dialog>
   )
-}
+})
+
+export default CragSearchDialog
