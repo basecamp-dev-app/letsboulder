@@ -1,38 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createCommunityCommentAction, deleteCommunityCommentAction, saveCommunityRsvpAction } from '@/features/community/actions'
 import { CommunitySessionPost } from '@/types/community'
+import { communityKeys, fetchEngagement, type PostEngagement, type SessionComment } from '@/features/community/lib/queries'
 
 interface UpcomingFeedProps {
   posts: CommunitySessionPost[]
 }
 
 type RsvpStatus = 'going' | 'interested'
-
-interface SessionComment {
-  id: string
-  body: string
-  created_at: string
-  author: {
-    id: string
-    username: string | null
-    display_name: string | null
-    avatar_url: string | null
-  } | null
-  is_owner: boolean
-  is_pending?: boolean
-}
-
-interface PostEngagement {
-  rsvp_counts: {
-    going: number
-    interested: number
-  }
-  viewer_rsvp: RsvpStatus | null
-  comments: SessionComment[]
-}
 
 function formatDateTime(value: string): string {
   const date = new Date(value)
@@ -70,218 +49,164 @@ export default function UpcomingFeed({ posts }: UpcomingFeedProps) {
 }
 
 function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
-  const [engagement, setEngagement] = useState<PostEngagement | null>(null)
+  const queryClient = useQueryClient()
   const [expandedComments, setExpandedComments] = useState(false)
   const [commentBody, setCommentBody] = useState('')
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSavingRsvp, setIsSavingRsvp] = useState(false)
-  const [isPostingComment, setIsPostingComment] = useState(false)
-  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const loadEngagement = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/community/posts/${post.id}/engagement`, { cache: 'no-store' })
-      if (!response.ok) {
-        setError('Could not load session engagement.')
-        return
-      }
-      const data = await response.json().catch(() => null as PostEngagement | null)
-      if (!data) {
-        setError('Could not load session engagement.')
-        return
-      }
-      setEngagement(data)
-      setError(null)
-    } catch {
-      setError('Could not load session engagement.')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [post.id])
+  const { data: engagement, isLoading: isLoadingEngagement } = useQuery({
+    queryKey: communityKeys.engagement(post.id),
+    queryFn: () => fetchEngagement(post.id),
+    meta: { persist: true },
+  })
 
-  useEffect(() => {
-    void loadEngagement()
-  }, [loadEngagement])
+  const rsvpMutation = useMutation({
+    mutationFn: ({ status }: { status: RsvpStatus | null }) =>
+      saveCommunityRsvpAction(post.id, status),
+    onMutate: async ({ status: nextStatus }) => {
+      await queryClient.cancelQueries({ queryKey: communityKeys.engagement(post.id) })
+      const previous = queryClient.getQueryData<PostEngagement>(communityKeys.engagement(post.id))
+      if (!previous) return { previous }
 
-  async function handleRsvp(nextStatus: RsvpStatus) {
-    if (isSavingRsvp) return
-
-    const previousEngagement = engagement
-    const previousViewerStatus = previousEngagement?.viewer_rsvp || null
-    const statusToSend = previousViewerStatus === nextStatus ? null : nextStatus
-
-    if (previousEngagement) {
-      const optimisticCounts = {
-        going: previousEngagement.rsvp_counts.going,
-        interested: previousEngagement.rsvp_counts.interested,
-      }
+      const previousViewerStatus = previous.viewer_rsvp
+      const statusToSend = previousViewerStatus === nextStatus ? null : nextStatus
+      const optimisticCounts = { ...previous.rsvp_counts }
 
       if (previousViewerStatus === 'going') optimisticCounts.going = Math.max(0, optimisticCounts.going - 1)
       if (previousViewerStatus === 'interested') optimisticCounts.interested = Math.max(0, optimisticCounts.interested - 1)
       if (statusToSend === 'going') optimisticCounts.going += 1
       if (statusToSend === 'interested') optimisticCounts.interested += 1
 
-      setEngagement({
-        ...previousEngagement,
+      queryClient.setQueryData<PostEngagement>(communityKeys.engagement(post.id), {
+        ...previous,
         rsvp_counts: optimisticCounts,
         viewer_rsvp: statusToSend,
       })
-    }
 
-    setIsSavingRsvp(true)
-    setError(null)
-
-    try {
-      const result = await saveCommunityRsvpAction(post.id, statusToSend)
-
-      if (result.status === 401) {
-        if (previousEngagement) setEngagement(previousEngagement)
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(communityKeys.engagement(post.id), context.previous)
+      }
+    },
+    onSettled: (result) => {
+      if (result?.status === 401) {
         setError('Sign in to RSVP.')
         return
       }
-
-      if (!result.success || !result.data) {
-        if (previousEngagement) setEngagement(previousEngagement)
+      if (!result?.success) {
         setError('Could not update RSVP.')
         return
       }
+      if (result?.data) {
+        queryClient.setQueryData<PostEngagement>(communityKeys.engagement(post.id), (prev) => ({
+          rsvp_counts: result.data!.rsvp_counts,
+          viewer_rsvp: result.data!.viewer_rsvp,
+          comments: prev?.comments || [],
+        }))
+      }
+    },
+  })
 
-      const nextRsvp = result.data!
+  const commentMutation = useMutation({
+    mutationFn: (body: string) => createCommunityCommentAction(post.id, body),
+    onMutate: async (trimmed) => {
+      await queryClient.cancelQueries({ queryKey: communityKeys.engagement(post.id) })
+      const previous = queryClient.getQueryData<PostEngagement>(communityKeys.engagement(post.id))
+      const optimisticComment: SessionComment = {
+        id: `temp-${Date.now()}`,
+        body: trimmed,
+        created_at: new Date().toISOString(),
+        author: null,
+        is_owner: true,
+        is_pending: true,
+      }
 
-      setEngagement(prev => ({
-        rsvp_counts: nextRsvp.rsvp_counts,
-        viewer_rsvp: nextRsvp.viewer_rsvp,
-        comments: prev?.comments || [],
-      }))
-    } catch {
-      if (previousEngagement) setEngagement(previousEngagement)
-      setError('Could not update RSVP.')
-    } finally {
-      setIsSavingRsvp(false)
-    }
-  }
+      queryClient.setQueryData<PostEngagement>(communityKeys.engagement(post.id), {
+        rsvp_counts: previous?.rsvp_counts || { going: 0, interested: 0 },
+        viewer_rsvp: previous?.viewer_rsvp || null,
+        comments: [...(previous?.comments || []), optimisticComment],
+      })
 
-  async function handleCommentSubmit() {
-    const trimmed = commentBody.trim()
-    if (!trimmed || isPostingComment) return
-
-    const optimisticCommentId = `temp-${Date.now()}`
-    const optimisticComment: SessionComment = {
-      id: optimisticCommentId,
-      body: trimmed,
-      created_at: new Date().toISOString(),
-      author: null,
-      is_owner: true,
-      is_pending: true,
-    }
-
-    const previousEngagement = engagement
-    setEngagement(prev => ({
-      rsvp_counts: prev?.rsvp_counts || { going: 0, interested: 0 },
-      viewer_rsvp: prev?.viewer_rsvp || null,
-      comments: [...(prev?.comments || []), optimisticComment],
-    }))
-    setCommentBody('')
-    setExpandedComments(true)
-
-    setIsPostingComment(true)
-    setError(null)
-    try {
-      const result = await createCommunityCommentAction(post.id, trimmed)
-
-      if (result.status === 401) {
-        if (previousEngagement) {
-          setEngagement(previousEngagement)
-        } else {
-          setEngagement(prev => {
-            if (!prev) return prev
-            return {
-              ...prev,
-              comments: prev.comments.filter(comment => comment.id !== optimisticCommentId),
-            }
-          })
-        }
-        setCommentBody(trimmed)
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(communityKeys.engagement(post.id), context.previous)
+      }
+    },
+    onSettled: (result, _err, _vars, context) => {
+      if (result?.status === 401) {
+        setCommentBody(_vars)
         setError('Sign in to comment.')
         return
       }
-
-      if (!result.success || !result.data) {
-        if (previousEngagement) {
-          setEngagement(previousEngagement)
-        } else {
-          setEngagement(prev => {
-            if (!prev) return prev
-            return {
-              ...prev,
-              comments: prev.comments.filter(comment => comment.id !== optimisticCommentId),
-            }
-          })
-        }
-        setCommentBody(trimmed)
+      if (!result?.success) {
+        setCommentBody(_vars)
         setError('Could not post comment.')
         return
       }
-
-      const nextComments = result.data!.comments
-
-      setEngagement(prev => ({
-        rsvp_counts: prev?.rsvp_counts || { going: 0, interested: 0 },
-        viewer_rsvp: prev?.viewer_rsvp || null,
-        comments: nextComments,
-      }))
-    } catch {
-      if (previousEngagement) {
-        setEngagement(previousEngagement)
-      } else {
-        setEngagement(prev => {
-          if (!prev) return prev
-          return {
-            ...prev,
-            comments: prev.comments.filter(comment => comment.id !== optimisticCommentId),
-          }
-        })
+      if (result?.data) {
+        queryClient.setQueryData<PostEngagement>(communityKeys.engagement(post.id), (prev) => ({
+          rsvp_counts: prev?.rsvp_counts || { going: 0, interested: 0 },
+          viewer_rsvp: prev?.viewer_rsvp || null,
+          comments: result.data!.comments,
+        }))
       }
-      setCommentBody(trimmed)
-      setError('Could not post comment.')
-    } finally {
-      setIsPostingComment(false)
-    }
+    },
+  })
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId: string) => deleteCommunityCommentAction(post.id, commentId),
+    onMutate: async (commentId) => {
+      await queryClient.cancelQueries({ queryKey: communityKeys.engagement(post.id) })
+      const previous = queryClient.getQueryData<PostEngagement>(communityKeys.engagement(post.id))
+
+      queryClient.setQueryData<PostEngagement>(communityKeys.engagement(post.id), (prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          comments: prev.comments.filter(c => c.id !== commentId),
+        }
+      })
+
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(communityKeys.engagement(post.id), context.previous)
+      }
+      setError('Could not delete comment.')
+    },
+    onSettled: (result) => {
+      if (result?.success) {
+        queryClient.invalidateQueries({ queryKey: communityKeys.engagement(post.id) })
+      }
+    },
+  })
+
+  function handleRsvp(nextStatus: RsvpStatus) {
+    if (rsvpMutation.isPending) return
+    setError(null)
+    void rsvpMutation.mutate({ status: nextStatus })
   }
 
-  async function handleCommentDelete(commentId: string) {
-    if (!commentId || deletingCommentId) return
+  function handleCommentSubmit() {
+    const trimmed = commentBody.trim()
+    if (!trimmed || commentMutation.isPending) return
+    setError(null)
+    setCommentBody('')
+    setExpandedComments(true)
+    void commentMutation.mutate(trimmed)
+  }
+
+  function handleCommentDelete(commentId: string) {
+    if (!commentId || deleteCommentMutation.isPending) return
     const confirmed = window.confirm('Delete this comment?')
     if (!confirmed) return
-
-    setDeletingCommentId(commentId)
     setError(null)
-
-    const previousEngagement = engagement
-    setEngagement(prev => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        comments: prev.comments.filter(comment => comment.id !== commentId),
-      }
-    })
-
-    try {
-      const result = await deleteCommunityCommentAction(post.id, commentId)
-
-      if (!result.success) {
-        if (previousEngagement) setEngagement(previousEngagement)
-        setError('Could not delete comment.')
-        return
-      }
-    } catch {
-      if (previousEngagement) setEngagement(previousEngagement)
-      setError('Could not delete comment.')
-    } finally {
-      setDeletingCommentId(null)
-    }
+    void deleteCommentMutation.mutate(commentId)
   }
 
   const goingCount = engagement?.rsvp_counts.going || 0
@@ -304,8 +229,8 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => void handleRsvp('going')}
-          disabled={isSavingRsvp || isLoading}
+          onClick={() => handleRsvp('going')}
+          disabled={rsvpMutation.isPending || isLoadingEngagement}
           className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${engagement?.viewer_rsvp === 'going'
             ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
             : 'border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800'}`}
@@ -314,8 +239,8 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
         </button>
         <button
           type="button"
-          onClick={() => void handleRsvp('interested')}
-          disabled={isSavingRsvp || isLoading}
+          onClick={() => handleRsvp('interested')}
+          disabled={rsvpMutation.isPending || isLoadingEngagement}
           className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${engagement?.viewer_rsvp === 'interested'
             ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
             : 'border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800'}`}
@@ -351,11 +276,11 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
             <p className="text-xs text-gray-500 dark:text-gray-400">{commentBody.length}/2000</p>
             <button
               type="button"
-              onClick={() => void handleCommentSubmit()}
-              disabled={isPostingComment || !commentBody.trim()}
+              onClick={handleCommentSubmit}
+              disabled={commentMutation.isPending || !commentBody.trim()}
               className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900"
             >
-              {isPostingComment ? 'Posting...' : 'Post comment'}
+              {commentMutation.isPending ? 'Posting...' : 'Post comment'}
             </button>
           </div>
 
@@ -374,11 +299,11 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
                     {comment.is_owner ? (
                       <button
                         type="button"
-                        onClick={() => void handleCommentDelete(comment.id)}
-                        disabled={deletingCommentId === comment.id}
+                        onClick={() => handleCommentDelete(comment.id)}
+                        disabled={deleteCommentMutation.isPending}
                         className="text-xs font-medium text-gray-600 underline dark:text-gray-300"
                       >
-                        {deletingCommentId === comment.id ? 'Deleting...' : 'Delete'}
+                        {deleteCommentMutation.variables === comment.id ? 'Deleting...' : 'Delete'}
                       </button>
                     ) : null}
                   </div>

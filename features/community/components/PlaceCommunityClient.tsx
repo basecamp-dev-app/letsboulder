@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import SessionComposer from '@/features/community/components/SessionComposer'
 import UpcomingFeed from '@/features/community/components/UpcomingFeed'
 import UpdateComposer from '@/features/community/components/UpdateComposer'
 import UpdatesFeed from '@/features/community/components/UpdatesFeed'
+import { communityKeys } from '@/features/community/lib/queries'
 import type { CommunitySessionPost, CommunityUpdatePost } from '@/types/community'
 
 interface PlaceCommunityClientProps {
@@ -23,8 +25,13 @@ function sortUpdatePosts(posts: CommunityUpdatePost[]) {
 }
 
 export default function PlaceCommunityClient({ activeTab, placeId, sessionPosts, updatePosts }: PlaceCommunityClientProps) {
+  const queryClient = useQueryClient()
   const [localSessionPosts, setLocalSessionPosts] = useState(() => sortSessionPosts(sessionPosts))
   const [localUpdatePosts, setLocalUpdatePosts] = useState(() => sortUpdatePosts(updatePosts))
+
+  function invalidateCommunityCache() {
+    queryClient.invalidateQueries({ queryKey: communityKeys.all })
+  }
 
   function addOptimisticSession(post: CommunitySessionPost) {
     setLocalSessionPosts(current => sortSessionPosts([...current, post]))
@@ -32,6 +39,7 @@ export default function PlaceCommunityClient({ activeTab, placeId, sessionPosts,
 
   function replaceSession(tempId: string, post: CommunitySessionPost) {
     setLocalSessionPosts(current => sortSessionPosts(current.map(item => (item.id === tempId ? post : item))))
+    invalidateCommunityCache()
   }
 
   function removeSession(tempId: string) {
@@ -44,6 +52,7 @@ export default function PlaceCommunityClient({ activeTab, placeId, sessionPosts,
 
   function replaceUpdate(tempId: string, post: CommunityUpdatePost) {
     setLocalUpdatePosts(current => sortUpdatePosts(current.map(item => (item.id === tempId ? post : item))))
+    invalidateCommunityCache()
   }
 
   function removeUpdate(tempId: string) {
