@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { type ActionResult } from '@/lib/actions/action-result'
 import { getAdminClient, getServerClient } from '@/lib/supabase-server'
+import { createCollaboratorInvite, listCollaborators, removeCollaborator, revokeCollaboratorInvite } from '@/features/submissions/server/collaboration/shared-collaborators'
 import { createDraftInvite, listDraftCollaborators, removeDraftCollaborator, revokeDraftInvite } from '@/features/submissions/server/drafts/draft-collaborators'
 import type { CollaboratorItem, InviteItem } from '@/features/submissions/lib/editor-types'
 
@@ -17,14 +18,31 @@ interface ProfileRow {
   id: string
   username: string | null
   display_name: string | null
-  avatar_url: string | null
+  avatar_url?: string | null
 }
 
-interface CollaboratorRow {
-  image_id: string
-  user_id: string
-  role: string
-  created_at: string
+const submissionCollaboratorConfig = {
+  resourceTable: 'images' as const,
+  resourceIdColumn: 'id' as const,
+  ownerColumn: 'created_by' as const,
+  collaboratorTable: 'submission_collaborators' as const,
+  collaboratorResourceColumn: 'image_id' as const,
+  inviteTable: 'submission_collaborator_invites' as const,
+  inviteResourceColumn: 'image_id' as const,
+  claimInviteRpc: 'claim_submission_collaborator_invite' as const,
+  invalidInviteErrorPath: '/logbook?error=invalid-collab-invite',
+  authRedirectPath: (token: string) => `/api/submissions/collaborate/${encodeURIComponent(token)}`,
+  successRedirectPath: (resourceId: string) => `/logbook/submissions/${resourceId}/edit?collab=added`,
+  notFoundLabel: 'Image',
+  removeErrorMessage: 'Remove collaborator error',
+  nonOwnerRemovalErrorMessage: 'Only the submission owner can remove collaborators',
+  accessDeniedMessage: 'You do not have access to this submission',
+  createInviteErrorMessage: 'Create collaborator invite error',
+  revokeInviteErrorMessage: 'Revoke collaborator invite error',
+  createInviteForbiddenMessage: 'Only the submission owner can create invites',
+  revokeInviteForbiddenMessage: 'Only the submission owner can revoke invites',
+  profileSelect: 'id, username, display_name, avatar_url',
+  createInvitePath: (token: string, origin: string) => `${origin}/api/submissions/collaborate/${token}`,
 }
 
 function getDisplayName(profile: ProfileRow | null): string {
@@ -44,20 +62,6 @@ async function getOriginFromHeaders(): Promise<string> {
   return `${proto}://${host}`
 }
 
-async function resolveSubmissionOwner(supabase: Awaited<ReturnType<typeof getServerClient>>, imageId: string) {
-  const { data, error } = await supabase.from('images').select('id, created_by').eq('id', imageId).maybeSingle()
-  if (error) return { ownerId: null, exists: false, error }
-  if (!data) return { ownerId: null, exists: false, error: null }
-  return { ownerId: typeof data.created_by === 'string' ? data.created_by : null, exists: true, error: null }
-}
-
-async function userCanAccessSubmissionCollaborators(supabase: Awaited<ReturnType<typeof getServerClient>>, imageId: string, userId: string, ownerId: string | null) {
-  if (ownerId && ownerId === userId) return true
-  const { data, error } = await supabase.from('submission_collaborators').select('image_id').eq('image_id', imageId).eq('user_id', userId).maybeSingle()
-  if (error) return false
-  return !!data
-}
-
 export async function fetchSubmissionCollaboratorsAction(activeImageId: string): Promise<ActionResult<{ ownerUserId: string | null; ownerProfile: OwnerProfile | null; collaborators: CollaboratorItem[]; isOwner: boolean; activeInvites: InviteItem[] }>> {
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
@@ -65,85 +69,30 @@ export async function fetchSubmissionCollaboratorsAction(activeImageId: string):
   if (!activeImageId) return { success: false, error: 'Image ID is required', status: 400 }
 
   const supabase = await getServerClient()
-  const { ownerId, exists, error: ownerError } = await resolveSubmissionOwner(supabase, activeImageId)
-  if (ownerError) return { success: false, error: 'Load collaborators error', status: 500 }
-  if (!exists) return { success: false, error: 'Image not found', status: 404 }
-
-  const canAccess = await userCanAccessSubmissionCollaborators(supabase, activeImageId, auth.data.userId, ownerId)
-  if (!canAccess) return { success: false, error: 'You do not have access to this submission', status: 403 }
-
-  const { data: collaboratorRows, error: collaboratorError } = await supabase
-    .from('submission_collaborators')
-    .select('image_id, user_id, role, created_at')
-    .eq('image_id', activeImageId)
-    .order('created_at', { ascending: true })
-
-  if (collaboratorError) return { success: false, error: 'Load collaborators error', status: 500 }
-
-  const collaboratorUserIds = ((collaboratorRows || []) as CollaboratorRow[])
-    .map((row) => row.user_id)
-    .filter((id): id is string => typeof id === 'string' && !!id)
-
-  const profileIds = ownerId ? Array.from(new Set([ownerId, ...collaboratorUserIds])) : Array.from(new Set(collaboratorUserIds))
-  let profilesById = new Map<string, ProfileRow>()
-
-  if (profileIds.length > 0) {
-    const { data: profileRows } = await supabase.from('profiles').select('id, username, display_name, avatar_url').in('id', profileIds)
-    profilesById = new Map(((profileRows || []) as ProfileRow[]).map((profile) => [profile.id, profile]))
-  }
-
-  const ownerProfile = ownerId ? profilesById.get(ownerId) || null : null
-  const collaborators = ((collaboratorRows || []) as CollaboratorRow[]).map((row) => {
-    const profile = profilesById.get(row.user_id) || null
-    return {
-      userId: row.user_id,
-      role: row.role,
-      createdAt: row.created_at,
-      profile: {
-        displayName: getDisplayName(profile),
-        username: profile?.username || null,
-        avatarUrl: profile?.avatar_url || null,
-      },
-    }
+  const response = await listCollaborators({
+    supabase,
+    readClient: supabase,
+    resourceId: activeImageId,
+    userId: auth.data.userId,
+    config: submissionCollaboratorConfig,
+    resolveDisplayName: (profile) => getDisplayName(profile),
   })
-
-  const isOwner = ownerId === auth.data.userId
-  let activeInvites: InviteItem[] = []
-
-  if (isOwner) {
-    const { data: inviteRows, error: inviteError } = await supabase
-      .from('submission_collaborator_invites')
-      .select('id, token, max_uses, used_count, expires_at, created_at')
-      .eq('image_id', activeImageId)
-      .order('created_at', { ascending: false })
-
-    if (inviteError) return { success: false, error: 'Load collaborators error', status: 500 }
-
-    const nowIso = new Date().toISOString()
-    activeInvites = ((inviteRows || []) as Array<{ id: string; token: string; max_uses: number | null; used_count: number; expires_at: string | null; created_at: string }>)
-      .filter((invite) => {
-        if (invite.expires_at && invite.expires_at <= nowIso) return false
-        if (invite.max_uses !== null && invite.used_count >= invite.max_uses) return false
-        return true
-      })
-      .map((invite) => ({
-        id: invite.id,
-        token: invite.token,
-        maxUses: invite.max_uses,
-        usedCount: invite.used_count,
-        expiresAt: invite.expires_at,
-        createdAt: invite.created_at,
-      }))
-  }
-
+  const payload = await response.json().catch(() => ({} as {
+    error?: string
+    owner?: { userId?: string | null; profile?: OwnerProfile | null } | null
+    collaborators?: CollaboratorItem[]
+    isOwner?: boolean
+    activeInvites?: InviteItem[]
+  }))
+  if (!response.ok) return { success: false, error: payload.error || 'Load collaborators error', status: response.status }
   return {
     success: true,
     data: {
-      ownerUserId: ownerId,
-      ownerProfile: ownerId ? { displayName: getDisplayName(ownerProfile), username: ownerProfile?.username || null, avatarUrl: ownerProfile?.avatar_url || null } : null,
-      collaborators,
-      isOwner,
-      activeInvites,
+      ownerUserId: payload.owner?.userId || null,
+      ownerProfile: payload.owner?.profile || null,
+      collaborators: payload.collaborators || [],
+      isOwner: payload.isOwner === true,
+      activeInvites: payload.activeInvites || [],
     },
   }
 }
@@ -155,20 +104,18 @@ export async function createSubmissionInviteAction(activeImageId: string): Promi
   if (!activeImageId) return { success: false, error: 'Image ID is required', status: 400 }
 
   const supabase = await getServerClient()
-  const { ownerId, exists, error: ownerError } = await resolveSubmissionOwner(supabase, activeImageId)
-  if (ownerError) return { success: false, error: 'Create collaborator invite error', status: 500 }
-  if (!exists) return { success: false, error: 'Image not found', status: 404 }
-  if (!ownerId || ownerId !== auth.data.userId) return { success: false, error: 'Only the submission owner can create invites', status: 403 }
-
-  const { data: invite, error: inviteError } = await supabase
-    .from('submission_collaborator_invites')
-    .insert({ image_id: activeImageId, created_by: auth.data.userId, max_uses: null, expires_at: null })
-    .select('id, token')
-    .single()
-
-  if (inviteError || !invite) return { success: false, error: 'Create collaborator invite error', status: 500 }
   const origin = await getOriginFromHeaders()
-  return { success: true, data: { inviteUrl: `${origin}/api/submissions/collaborate/${invite.token}` } }
+  const response = await createCollaboratorInvite({
+    supabase,
+    resourceId: activeImageId,
+    userId: auth.data.userId,
+    requestBody: {},
+    origin,
+    config: submissionCollaboratorConfig,
+  })
+  const payload = await response.json().catch(() => ({} as { error?: string; invite?: { inviteUrl?: string } }))
+  if (!response.ok) return { success: false, error: payload.error || 'Create collaborator invite error', status: response.status }
+  return { success: true, data: { inviteUrl: payload.invite?.inviteUrl || null } }
 }
 
 export async function revokeSubmissionInviteAction(activeImageId: string, inviteId: string): Promise<ActionResult> {
@@ -179,13 +126,15 @@ export async function revokeSubmissionInviteAction(activeImageId: string, invite
   if (!inviteId) return { success: false, error: 'Invite ID is required', status: 400 }
 
   const supabase = await getServerClient()
-  const { ownerId, exists, error: ownerError } = await resolveSubmissionOwner(supabase, activeImageId)
-  if (ownerError) return { success: false, error: 'Revoke collaborator invite error', status: 500 }
-  if (!exists) return { success: false, error: 'Image not found', status: 404 }
-  if (!ownerId || ownerId !== auth.data.userId) return { success: false, error: 'Only the submission owner can revoke invites', status: 403 }
-
-  const { error } = await supabase.from('submission_collaborator_invites').delete().eq('id', inviteId).eq('image_id', activeImageId)
-  if (error) return { success: false, error: 'Revoke collaborator invite error', status: 500 }
+  const response = await revokeCollaboratorInvite({
+    supabase,
+    resourceId: activeImageId,
+    userId: auth.data.userId,
+    requestBody: { inviteId },
+    config: submissionCollaboratorConfig,
+  })
+  const payload = await response.json().catch(() => ({} as { error?: string }))
+  if (!response.ok) return { success: false, error: payload.error || 'Revoke collaborator invite error', status: response.status }
   return { success: true }
 }
 
@@ -196,14 +145,15 @@ export async function removeSubmissionCollaboratorAction(activeImageId: string, 
   if (!activeImageId || !collaboratorUserId) return { success: false, error: 'Image ID and user ID are required', status: 400 }
 
   const supabase = await getServerClient()
-  const { data: image, error: imageError } = await supabase.from('images').select('id, created_by').eq('id', activeImageId).maybeSingle()
-  if (imageError) return { success: false, error: 'Remove collaborator error', status: 500 }
-  if (!image) return { success: false, error: 'Image not found', status: 404 }
-  if (!image.created_by || image.created_by !== auth.data.userId) return { success: false, error: 'Only the submission owner can remove collaborators', status: 403 }
-  if (collaboratorUserId === image.created_by) return { success: false, error: 'Cannot remove the owner', status: 400 }
-
-  const { error } = await supabase.from('submission_collaborators').delete().eq('image_id', activeImageId).eq('user_id', collaboratorUserId)
-  if (error) return { success: false, error: 'Remove collaborator error', status: 500 }
+  const response = await removeCollaborator({
+    supabase,
+    resourceId: activeImageId,
+    collaboratorUserId,
+    requesterId: auth.data.userId,
+    config: submissionCollaboratorConfig,
+  })
+  const payload = await response.json().catch(() => ({} as { error?: string }))
+  if (!response.ok) return { success: false, error: payload.error || 'Remove collaborator error', status: response.status }
   return { success: true }
 }
 
@@ -216,9 +166,9 @@ export async function fetchDraftCollaboratorsAction(draftId: string): Promise<Ac
   const supabase = await getServerClient()
   const readClient = getAdminClient()
   const response = await listDraftCollaborators({ supabase, readClient, draftId, userId: auth.data.userId })
-  const payload = await response.json().catch(() => ({} as { error?: string; collaborators?: CollaboratorItem[]; invites?: InviteItem[] }))
+  const payload = await response.json().catch(() => ({} as { error?: string; collaborators?: CollaboratorItem[]; activeInvites?: InviteItem[] }))
   if (!response.ok) return { success: false, error: payload.error || 'Load draft collaborators error', status: response.status }
-  return { success: true, data: { collaborators: payload.collaborators || [], activeInvites: payload.invites || [] } }
+  return { success: true, data: { collaborators: payload.collaborators || [], activeInvites: payload.activeInvites || [] } }
 }
 
 export async function createDraftInviteAction(draftId: string): Promise<ActionResult<{ inviteUrl: string | null }>> {

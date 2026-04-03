@@ -3,6 +3,7 @@
 import { type ActionResult } from '@/lib/actions/action-result'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { notifyNewFlag } from '@/lib/discord'
+import { createFlag } from '@/lib/flags/create-flag'
 import { getServerClient } from '@/lib/supabase-server'
 
 const VALID_FLAG_TYPES = ['location', 'route_line', 'route_name', 'image_quality', 'wrong_crag', 'other']
@@ -25,28 +26,17 @@ export async function submitImageFlagAction(imageId: string, flagType: string, c
   const { data: image, error: imageError } = await supabase.from('images').select('id, crag_id').eq('id', imageId).single()
   if (imageError || !image) return { success: false, error: 'Image not found', status: 404 }
 
-  const { data: existingFlag, error: checkError } = await supabase
-    .from('climb_flags')
-    .select('id, status')
-    .eq('image_id', imageId)
-    .eq('flagger_id', auth.data.userId)
-    .eq('status', 'pending')
-    .single()
-
-  if (checkError && checkError.code !== 'PGRST116') return { success: false, error: 'Error checking existing flag', status: 500 }
-  if (existingFlag) return { success: false, error: 'You have already flagged this image. It is being reviewed.', status: 400 }
-
-  const { error: flagError } = await supabase.from('climb_flags').insert({
-    image_id: imageId,
-    crag_id: image.crag_id,
-    climb_id: null,
-    flagger_id: auth.data.userId,
-    flag_type: flagType,
+  const flagResult = await createFlag({
+    supabase,
+    userId: auth.data.userId,
+    imageId,
+    cragId: image.crag_id,
+    flagType,
     comment: trimmedComment,
-    status: 'pending',
   })
 
-  if (flagError) return { success: false, error: 'Error creating flag', status: 500 }
+  if (flagResult.error) return { success: false, error: 'Error checking existing flag', status: 500 }
+  if (flagResult.duplicate) return { success: false, error: 'You have already flagged this image. It is being reviewed.', status: 400 }
 
   const { data: cragData } = await supabase.from('crags').select('name').eq('id', image.crag_id).single()
   await notifyNewFlag(supabase, {
@@ -81,26 +71,17 @@ export async function submitClimbFlagAction(climbId: string, flagType: string, c
   if (climbError || !climb) return { success: false, error: 'Climb not found', status: 404 }
   if (climb.deleted_at) return { success: false, error: 'This climb has already been removed', status: 400 }
 
-  const { data: existingFlag } = await supabase
-    .from('climb_flags')
-    .select('id, status')
-    .eq('climb_id', climbId)
-    .eq('flagger_id', auth.data.userId)
-    .eq('status', 'pending')
-    .single()
-
-  if (existingFlag) return { success: false, error: 'You have already flagged this climb. It is being reviewed.', status: 400 }
-
-  const { error: flagError } = await supabase.from('climb_flags').insert({
-    climb_id: climbId,
-    crag_id: climb.crag_id,
-    flagger_id: auth.data.userId,
-    flag_type: flagType,
+  const flagResult = await createFlag({
+    supabase,
+    userId: auth.data.userId,
+    climbId,
+    cragId: climb.crag_id,
+    flagType,
     comment: trimmedComment,
-    status: 'pending',
   })
 
-  if (flagError) return { success: false, error: 'Error creating flag', status: 500 }
+  if (flagResult.error) return { success: false, error: 'Error checking existing flag', status: 500 }
+  if (flagResult.duplicate) return { success: false, error: 'You have already flagged this climb. It is being reviewed.', status: 400 }
 
   const cragName = Array.isArray(climb.crag) ? climb.crag[0]?.name : (climb.crag as unknown as { name: string })?.name || 'Unknown Crag'
   await notifyNewFlag(supabase, {
@@ -129,28 +110,16 @@ export async function submitCragFlagAction(cragId: string): Promise<ActionResult
   const { data: crag, error: cragError } = await supabase.from('crags').select('id, name').eq('id', cragId).single()
   if (cragError || !crag) return { success: false, error: 'Crag not found', status: 404 }
 
-  const { data: existingFlag, error: checkError } = await supabase
-    .from('climb_flags')
-    .select('id, status')
-    .eq('crag_id', cragId)
-    .eq('flagger_id', auth.data.userId)
-    .eq('status', 'pending')
-    .single()
-
-  if (checkError && checkError.code !== 'PGRST116') return { success: false, error: 'Error checking existing flag', status: 500 }
-  if (existingFlag) return { success: false, error: 'You have already flagged this crag. It is being reviewed.', status: 400 }
-
-  const { error: flagError } = await supabase.from('climb_flags').insert({
-    crag_id: cragId,
-    climb_id: null,
-    image_id: null,
-    flagger_id: auth.data.userId,
-    flag_type: DEFAULT_FLAG_TYPE,
+  const flagResult = await createFlag({
+    supabase,
+    userId: auth.data.userId,
+    cragId,
+    flagType: DEFAULT_FLAG_TYPE,
     comment: DEFAULT_COMMENT,
-    status: 'pending',
   })
 
-  if (flagError) return { success: false, error: 'Error creating flag', status: 500 }
+  if (flagResult.error) return { success: false, error: 'Error checking existing flag', status: 500 }
+  if (flagResult.duplicate) return { success: false, error: 'You have already flagged this crag. It is being reviewed.', status: 400 }
 
   await notifyNewFlag(supabase, {
     type: 'crag',
