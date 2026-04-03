@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import Providers from '@/components/providers'
-import QueryProviders from '@/components/query-providers'
 
 export const metadata: Metadata = {
   title: 'Settings',
@@ -30,7 +29,7 @@ export default function SettingsLayout({
 }) {
   return (
     <Providers>
-      <QueryProviders>{children}</QueryProviders>
+      {children}
     </Providers>
   )
 }

@@ -47,16 +47,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   }
 }
 
-import QueryProviders from '@/components/query-providers'
-
 export default function CragLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return (
-    <QueryProviders>
-      {children}
-    </QueryProviders>
-  )
+  return <>{children}</>
 }

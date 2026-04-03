@@ -1,6 +1,5 @@
 import { Metadata } from 'next'
 import Providers from '@/components/providers'
-import QueryProviders from '@/components/query-providers'
 
 export const metadata: Metadata = {
   title: 'My Climbing Logbook',
@@ -34,7 +33,7 @@ export default function LogbookLayout({
 }) {
   return (
     <Providers>
-      <QueryProviders>{children}</QueryProviders>
+      {children}
     </Providers>
   )
 }

@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 import RootClientUtilities from '@/components/RootClientUtilities'
+import QueryProviders from '@/components/query-providers'
 import {
   BRAND_NAME,
   INSTAGRAM_URL,
@@ -175,10 +176,12 @@ export default function RootLayout({
         >
           Skip to main content
         </a>
-        {children}
-        <RootClientUtilities />
-        <Analytics />
-        <SpeedInsights />
+        <QueryProviders>
+          {children}
+          <RootClientUtilities />
+          <Analytics />
+          <SpeedInsights />
+        </QueryProviders>
       </body>
     </html>
   )
