@@ -1,251 +1,72 @@
 'use client'
 
-import { MouseEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback } from 'react'
 import Image from 'next/image'
 import { Loader2, Save } from 'lucide-react'
-import { csrfFetch } from '@/hooks/useCsrf'
-
-interface GymListItem {
-  id: string
-  name: string
-  slug: string | null
-  country_code: string | null
-  active_route_count: number
-  membership_role: string | null
-  active_floor_plan: {
-    id: string
-    name: string
-    image_url: string
-  } | null
-}
-
-interface FloorPlan {
-  id: string
-  gym_place_id: string
-  name: string
-  image_url: string
-  image_width: number
-  image_height: number
-  is_active: boolean
-}
-
-interface EditableRoute {
-  id: string
-  persistedId: string | null
-  floor_plan_id: string
-  name: string
-  grade: string
-  discipline: 'boulder' | 'sport' | 'top_rope' | 'mixed'
-  color: string
-  setter_name: string
-  status: 'active' | 'retired'
-  marker: { x_norm: number; y_norm: number } | null
-}
-
-const DISCIPLINE_OPTIONS = [
-  { value: 'boulder', label: 'Bouldering' },
-  { value: 'sport', label: 'Sport' },
-  { value: 'top_rope', label: 'Top rope' },
-  { value: 'mixed', label: 'Mixed' },
-] as const
+import { useGymAdminData } from '@/features/gym-admin/hooks/use-gym-admin-data'
+import { useGymAdminActions } from '@/features/gym-admin/hooks/use-gym-admin-actions'
+import { useGymAdminCanvas } from '@/features/gym-admin/hooks/use-gym-admin-canvas'
+import { DISCIPLINE_OPTIONS } from '@/features/gym-admin/types'
+import type { EditableRoute } from '@/features/gym-admin/types'
 
 export default function GymAdminPage() {
-  const [gyms, setGyms] = useState<GymListItem[]>([])
-  const [selectedGymId, setSelectedGymId] = useState('')
-  const [loadingGyms, setLoadingGyms] = useState(true)
-  const [loadingConfig, setLoadingConfig] = useState(false)
-  const [savingRoutes, setSavingRoutes] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
-  const [activeFloorPlan, setActiveFloorPlan] = useState<FloorPlan | null>(null)
-  const [routes, setRoutes] = useState<EditableRoute[]>([])
-  const [markerTargetId, setMarkerTargetId] = useState<string | null>(null)
+  const {
+    gyms,
+    selectedGymId,
+    setSelectedGymId,
+    selectedGym,
+    loadingGyms,
+    loadingConfig,
+    activeFloorPlan,
+    routes,
+    setRoutes,
+  } = useGymAdminData()
 
-  const selectedGym = useMemo(
-    () => gyms.find(gym => gym.id === selectedGymId) || null,
-    [gyms, selectedGymId]
-  )
-
-  const loadGyms = useCallback(async () => {
-    setLoadingGyms(true)
-    setError(null)
-
-    try {
-      const response = await fetch('/api/gym-admin/gyms')
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({} as { error?: string }))
-        setError(payload.error || 'Failed to load gyms')
-        return
-      }
-
-      const payload = await response.json() as { gyms: GymListItem[] }
-      const items = payload.gyms || []
-      setGyms(items)
-
-      if (!selectedGymId && items.length > 0) {
-        setSelectedGymId(items[0].id)
-      }
-    } catch {
-      setError('Failed to load gyms')
-    } finally {
-      setLoadingGyms(false)
+  const onReload = useCallback(async () => {
+    if (!selectedGym) return
+    const response = await fetch(`/api/gym-admin/gyms/${selectedGym.id}/starter-routes`)
+    if (!response.ok) return
+    const payload = await response.json() as {
+      floor_plan: { id: string; name: string; image_url: string; image_width: number; image_height: number; is_active: boolean } | null
+      routes: Array<{ id: string; floor_plan_id: string; name: string | null; grade: string; discipline: EditableRoute['discipline']; color: string | null; setter_name: string | null; status: 'active' | 'retired'; marker: { x_norm: number; y_norm: number } | null }>
     }
-  }, [selectedGymId])
+    setRoutes((payload.routes || []).map(route => ({
+      id: route.id,
+      persistedId: route.id,
+      floor_plan_id: route.floor_plan_id,
+      name: route.name || '',
+      grade: route.grade || '',
+      discipline: route.discipline,
+      color: route.color || '',
+      setter_name: route.setter_name || '',
+      status: route.status || 'active',
+      marker: route.marker,
+    })))
+  }, [selectedGym, setRoutes])
 
-  useEffect(() => {
-    loadGyms().catch(() => {})
-  }, [loadGyms])
+  const {
+    error,
+    toast,
+    savingRoutes,
+    saveRoutes,
+  } = useGymAdminActions({
+    selectedGym,
+    activeFloorPlan,
+    routes,
+    onReload,
+  })
 
-  useEffect(() => {
-    if (!selectedGymId) {
-      setActiveFloorPlan(null)
-      setRoutes([])
-      return
-    }
-
-    loadGymConfig(selectedGymId).catch(() => {})
-  }, [selectedGymId])
-
-  async function loadGymConfig(gymId: string) {
-    setLoadingConfig(true)
-    setError(null)
-    try {
-      const response = await fetch(`/api/gym-admin/gyms/${gymId}/starter-routes`)
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({} as { error?: string }))
-        setError(payload.error || 'Failed to load gym routes')
-        return
-      }
-
-      const payload = await response.json() as {
-        floor_plan: FloorPlan | null
-        routes: Array<{
-          id: string
-          floor_plan_id: string
-          name: string | null
-          grade: string
-          discipline: 'boulder' | 'sport' | 'top_rope' | 'mixed'
-          color: string | null
-          setter_name: string | null
-          status: 'active' | 'retired'
-          marker: { x_norm: number; y_norm: number } | null
-        }>
-      }
-
-      setActiveFloorPlan(payload.floor_plan)
-      setRoutes((payload.routes || []).map(route => ({
-        id: route.id,
-        persistedId: route.id,
-        floor_plan_id: route.floor_plan_id,
-        name: route.name || '',
-        grade: route.grade || '',
-        discipline: route.discipline,
-        color: route.color || '',
-        setter_name: route.setter_name || '',
-        status: route.status || 'active',
-        marker: route.marker,
-      })))
-    } catch {
-      setError('Failed to load gym routes')
-    } finally {
-      setLoadingConfig(false)
-    }
-  }
-
-  function addRouteAtMarker(xNorm: number, yNorm: number) {
-    if (!activeFloorPlan) return
-
-    const id = `tmp-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
-    setRoutes(current => [
-      ...current,
-      {
-        id,
-        persistedId: null,
-        floor_plan_id: activeFloorPlan.id,
-        name: '',
-        grade: '',
-        discipline: 'boulder',
-        color: '',
-        setter_name: '',
-        status: 'active',
-        marker: { x_norm: xNorm, y_norm: yNorm },
-      },
-    ])
-  }
-
-  function handleCanvasClick(event: MouseEvent<HTMLDivElement>) {
-    if (!activeFloorPlan) return
-
-    const rect = event.currentTarget.getBoundingClientRect()
-    const xNorm = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
-    const yNorm = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))
-
-    if (markerTargetId) {
-      setRoutes(current => current.map(route => route.id === markerTargetId
-        ? { ...route, marker: { x_norm: xNorm, y_norm: yNorm } }
-        : route))
-      setMarkerTargetId(null)
-      return
-    }
-
-    addRouteAtMarker(xNorm, yNorm)
-  }
-
-  function updateRoute(routeId: string, patch: Partial<EditableRoute>) {
-    setRoutes(current => current.map(route => route.id === routeId ? { ...route, ...patch } : route))
-  }
-
-  function removeRoute(routeId: string) {
-    setRoutes(current => current.filter(route => route.id !== routeId))
-  }
-
-  async function saveRoutes() {
-    if (!selectedGym || !activeFloorPlan) return
-
-    setSavingRoutes(true)
-    setError(null)
-
-    try {
-      const payloadRoutes = routes.map(route => ({
-        id: route.persistedId || undefined,
-        floor_plan_id: activeFloorPlan.id,
-        name: route.name.trim() || null,
-        grade: route.grade.trim(),
-        discipline: route.discipline,
-        color: route.color.trim() || null,
-        setter_name: route.setter_name.trim() || null,
-        status: route.status,
-        marker: route.marker,
-      }))
-
-      const invalid = payloadRoutes.find(route => !route.grade || !route.marker)
-      if (invalid) {
-        setError('Every route needs a grade and marker')
-        return
-      }
-
-      const response = await csrfFetch(`/api/gym-admin/gyms/${selectedGym.id}/starter-routes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ routes: payloadRoutes }),
-      })
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({} as { error?: string }))
-        setError(payload.error || 'Failed to save routes')
-        return
-      }
-
-      setToast('Routes saved')
-      setTimeout(() => setToast(null), 3000)
-      await loadGymConfig(selectedGym.id)
-      await loadGyms()
-    } catch {
-      setError('Failed to save routes')
-    } finally {
-      setSavingRoutes(false)
-    }
-  }
+  const {
+    markerTargetId,
+    setMarkerTargetId,
+    handleCanvasClick,
+    updateRoute,
+    removeRoute,
+  } = useGymAdminCanvas({
+    activeFloorPlan,
+    routes,
+    setRoutes,
+  })
 
   return (
     <div className="space-y-6">
