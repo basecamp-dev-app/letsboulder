@@ -27,7 +27,7 @@ const draftPatchImageSchema = z.object({
 
 const draftPatchSchema = z.object({
   images: z.array(draftPatchImageSchema).min(1, 'images must be a non-empty array of {id, display_order, route_data}'),
-  expected_updated_at: z.string().datetime('expected_updated_at is required and must be a valid ISO timestamp'),
+  expected_updated_at: z.string().min(1, 'expected_updated_at is required and must be a valid ISO timestamp'),
   metadata: z.record(z.string(), z.unknown()).optional(),
   cragId: z.string().nullable().optional(),
 })
