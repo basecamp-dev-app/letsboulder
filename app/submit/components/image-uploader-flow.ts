@@ -1,7 +1,7 @@
+import { compressImage } from '@/lib/image-compression'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import type { GpsData, NewImageSelection } from '@/features/submissions/lib/submission-types'
-import { stripExifMetadataFromFile } from '@/lib/image-metadata'
-import { blobToDataURL, isHeicFile } from '@/lib/image-utils'
+import { isHeicFile } from '@/lib/image-utils'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { extractGpsFromBuffer, extractGpsFromFile } from '@/lib/image-gps'
 
@@ -61,103 +61,28 @@ export async function detectSubmissionImageGps(file: File): Promise<SubmissionIm
 }
 
 export async function compressSubmissionImage(file: File, previewBlob: Blob | null = null): Promise<File> {
-  let sourceData: string | ArrayBuffer | null = null
+  let sourceFile = file
 
   if (isHeicFile(file)) {
     if (previewBlob) {
-      sourceData = await blobToDataURL(previewBlob)
+      sourceFile = new File([previewBlob], file.name, { type: previewBlob.type })
     } else {
       try {
         const jpegBlob = await convertHeicToJpegBlob(file)
-        sourceData = await blobToDataURL(jpegBlob)
+        sourceFile = new File([jpegBlob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' })
       } catch {
         throw new Error('Failed to convert HEIC image. Please try a different file.')
       }
     }
   }
 
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-
-    reader.onload = (e) => {
-      const img = new Image()
-      const imgSrc = sourceData || (e.target?.result as string)
-
-      img.onload = async () => {
-        const canvas = document.createElement('canvas')
-        const ctx = canvas.getContext('2d')
-
-        let { width, height } = img
-        const maxDim = 1200
-
-        if (width > height) {
-          if (width > maxDim) {
-            height = Math.round((height * maxDim) / width)
-            width = maxDim
-          }
-        } else if (height > maxDim) {
-          width = Math.round((width * maxDim) / height)
-          height = maxDim
-        }
-
-        canvas.width = width
-        canvas.height = height
-        ctx?.drawImage(img, 0, 0, width, height)
-
-        try {
-          let quality = 0.9
-          const minQuality = 0.4
-          const targetSize = 0.3 * 1024 * 1024
-
-          while (quality >= minQuality) {
-            const blob = await new Promise<Blob>((blobResolve, blobReject) => {
-              canvas.toBlob(
-                (nextBlob) => {
-                  if (!nextBlob) {
-                    blobReject(new Error('Failed to generate compressed image blob'))
-                    return
-                  }
-                  blobResolve(nextBlob)
-                },
-                'image/jpeg',
-                quality
-              )
-            })
-
-            if (blob.size <= targetSize || quality === minQuality) {
-              const compressedFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              })
-              resolve(stripExifMetadataFromFile(compressedFile))
-              return
-            }
-
-            quality = Math.max(minQuality, Number((quality - 0.1).toFixed(2)))
-          }
-
-          reject(new Error('Failed to compress image'))
-        } catch (error) {
-          reject(error instanceof Error ? error : new Error('Failed to compress image'))
-        }
-      }
-
-      img.onerror = () => {
-        reject(new Error(`Failed to load image for compression. File type: ${file.type}`))
-      }
-
-      img.src = imgSrc
-    }
-
-    reader.onerror = () => {
-      reject(new Error('Failed to read file'))
-    }
-
-    if (sourceData) {
-      reader.onload({ target: { result: sourceData } } as ProgressEvent<FileReader>)
-    } else {
-      reader.readAsDataURL(file)
-    }
+  return compressImage(sourceFile, {
+    maxWidthOrHeight: 1200,
+    maxSizeKB: 307,
+    initialQuality: 0.9,
+    minQuality: 0.4,
+    stripExif: true,
+    convertHeic: false,
   })
 }
 

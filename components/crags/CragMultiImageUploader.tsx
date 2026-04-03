@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Camera, X } from 'lucide-react'
 import Image from 'next/image'
+import { compressImage } from '@/lib/image-compression'
 import { csrfFetch } from '@/hooks/useCsrf'
 
 interface CragMultiImageUploaderProps {
@@ -48,12 +49,10 @@ export default function CragMultiImageUploader({
     }
   }, [])
 
-  async function compressImage(file: File): Promise<File> {
-    const { default: imageCompression } = await import('browser-image-compression')
-    return imageCompression(file, {
-      maxSizeMB: 0.7,
+  async function compressImageFile(file: File): Promise<File> {
+    return compressImage(file, {
       maxWidthOrHeight: 1600,
-      useWebWorker: true,
+      maxSizeKB: 700,
       initialQuality: 0.82,
     })
   }
@@ -81,7 +80,7 @@ export default function CragMultiImageUploader({
     for (const file of incoming) {
       if (!file.type.startsWith('image/')) continue
 
-      const compressed = await compressImage(file)
+      const compressed = await compressImageFile(file)
       const objectUrl = URL.createObjectURL(compressed)
       const dimensions = await getImageDimensions(objectUrl)
       processed.push({
