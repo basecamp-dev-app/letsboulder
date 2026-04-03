@@ -9,7 +9,7 @@ import { GRADE_ORDER_INDEX, SELECTABLE_GRADES } from '@/lib/grade-constants'
 import type { ClimbStatusResponse, GradeVoteDistribution } from '@/lib/verification-types'
 import RoutePreviewThumb from '@/app/image/components/RoutePreviewThumb'
 import type { RoutePoint } from '@/types/domain'
-import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
+import { getGradeSystemForClimbType, useGradePreferences } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeSystem } from '@/lib/grades'
 
@@ -170,11 +170,12 @@ export default function RouteDetailModal({
   onLog,
   redirectTo,
 }: RouteDetailModalProps) {
-  const gradeSystem = useGradeSystem()
+  const gradePreferences = useGradePreferences()
   const climbId = route.climb?.id || ''
   const climbHref = climbId ? `${redirectTo}${redirectTo.includes('?') ? '&' : '?'}climb=${climbId}&route=${route.id}` : redirectTo
   const routeName = (route.climb?.name || '').trim() || 'Unnamed'
   const routeGrade = (route.climb?.grade || '').trim() || '—'
+  const gradeSystem = getGradeSystemForClimbType(route.climb?.route_type || undefined, gradePreferences)
   const baseFallbackGrade = routeGrade !== '—' ? routeGrade : '6A'
   const [infoOpen, setInfoOpen] = useState(false)
 

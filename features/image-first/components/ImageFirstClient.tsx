@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase'
 import type { RouteLine, RoutePoint } from '@/types/domain'
 import ClimbInfoPanel from '@/features/climb/components/ClimbInfoPanel'
 import { saveClimbFeedbackAction } from '@/features/climb/actions/save-climb-feedback'
-import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
+import { getGradeSystemForClimbType, useGradePreferences } from '@/features/grades/hooks/useGradeSystem'
 import { logRoutesAction } from '@/features/logbook/actions/log-routes'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
@@ -46,7 +46,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const { linkedImageIdByDisplayId } = navigationContext
   const router = useRouter()
   const pathname = usePathname()
-  const gradeSystem = useGradeSystem()
+  const gradePreferences = useGradePreferences()
   const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
   const [userPresent, setUserPresent] = useState(false)
   const [selectedClimbLogged, setSelectedClimbLogged] = useState(false)
@@ -264,6 +264,11 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       description: activeRoute.climbDescription,
     }
   }, [activeRouteId, allRoutesFlat])
+
+  const gradeSystem = useMemo(
+    () => getGradeSystemForClimbType(selectedClimb?.route_type || undefined, gradePreferences),
+    [gradePreferences, selectedClimb?.route_type]
+  )
 
   const updateLocalClimbGrade = useCallback((climbId: string, grade: string) => {
     setRoutesByImageId((previous) => {
