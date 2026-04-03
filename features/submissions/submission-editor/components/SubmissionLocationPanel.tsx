@@ -3,7 +3,7 @@
 import { MapPin } from 'lucide-react'
 import AtlasContextCard from '@/features/submissions/components/atlas-context-card'
 import { LocationSearchBar } from '@/features/submissions/components/editor/location-search-bar'
-import type { AtlasAutoSyncResult } from '@/features/editor/location/use-atlas-auto-sync'
+import type { AtlasAutoSyncResult } from '@/features/submissions/editor/location/use-atlas-auto-sync'
 
 interface SubmissionLocationPanelProps {
   atlasSync: AtlasAutoSyncResult

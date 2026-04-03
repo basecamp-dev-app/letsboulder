@@ -1,7 +1,7 @@
 'use client'
 
 import { ChevronRight, Loader2 } from 'lucide-react'
-import type { AtlasAutoSyncResult } from '@/features/editor/location/use-atlas-auto-sync'
+import type { AtlasAutoSyncResult } from '@/features/submissions/editor/location/use-atlas-auto-sync'
 
 interface AtlasContextCardProps {
   result: AtlasAutoSyncResult

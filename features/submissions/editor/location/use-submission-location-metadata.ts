@@ -6,7 +6,7 @@ import {
   isCragMetadataDirty,
   isImageMetadataDirty,
 } from '@/features/editor/location/location-metadata'
-import { useLocationSearch } from '@/features/editor/location/use-location-search'
+import { useLocationSearch } from './use-location-search'
 import type { FaceDirection } from '@/features/submissions/lib/submission-types'
 
 export function useSubmissionLocationMetadata(input: {

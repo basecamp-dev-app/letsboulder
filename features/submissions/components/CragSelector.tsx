@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { SubmissionCrag } from '@/features/submissions/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { useAtlasAutoSync } from '@/features/editor/location/use-atlas-auto-sync'
+import { useAtlasAutoSync } from '@/features/submissions/editor/location/use-atlas-auto-sync'
 import AtlasContextCard from '@/features/submissions/components/atlas-context-card'
 
 interface CragSelectorProps {
