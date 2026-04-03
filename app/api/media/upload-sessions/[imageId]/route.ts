@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { deleteObject } from '@/lib/media/r2'
+import { parseWithSchema } from '@/lib/api-validation'
+
+const deleteUploadSessionParamsSchema = z.object({
+  imageId: z.string().min(1, 'imageId is required'),
+})
 
 interface ImageRow {
   id: string
@@ -18,7 +24,11 @@ export async function DELETE(
   const middlewareResult = await withApiMiddleware(request, { requireUser: false })
   if (!middlewareResult.ok) return middlewareResult.response
 
-  const { imageId } = await params
+  const rawParams = await params
+  const validation = parseWithSchema(deleteUploadSessionParamsSchema, rawParams)
+  if (!validation.success) return validation.response
+
+  const { imageId } = validation.data
   const { supabase } = middlewareResult
 
   try {

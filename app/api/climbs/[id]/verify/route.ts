@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
+import { parseWithSchema } from '@/lib/api-validation'
+
+const verifyClimbParamsSchema = z.object({
+  id: z.string().min(1, 'id is required'),
+})
 
 export async function POST(
   request: NextRequest,
@@ -15,7 +21,11 @@ export async function POST(
   const { supabase, userId } = middlewareResult
 
   try {
-    const { id: climbId } = await params
+    const rawParams = await params
+    const validation = parseWithSchema(verifyClimbParamsSchema, rawParams)
+    if (!validation.success) return validation.response
+
+    const { id: climbId } = validation.data
 
     // Check if climb exists
     const { data: climb, error: climbError } = await supabase
@@ -100,7 +110,11 @@ export async function DELETE(
   const { supabase, userId } = middlewareResult
 
   try {
-    const { id: climbId } = await params
+    const rawParams = await params
+    const validation = parseWithSchema(verifyClimbParamsSchema, rawParams)
+    if (!validation.success) return validation.response
+
+    const { id: climbId } = validation.data
 
     // Remove verification
     const { error: deleteError } = await supabase
