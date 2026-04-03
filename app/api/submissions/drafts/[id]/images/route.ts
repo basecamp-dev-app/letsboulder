@@ -20,7 +20,7 @@ const draftAppendImageSchema = z.object({
 
 const appendDraftImagesSchema = z.object({
   images: z.array(draftAppendImageSchema).min(1, 'images must be a non-empty array'),
-  expected_updated_at: z.string().datetime(),
+  expected_updated_at: z.string().min(1, 'expected_updated_at is required'),
 })
 
 export async function POST(
