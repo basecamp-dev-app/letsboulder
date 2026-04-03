@@ -5,6 +5,7 @@ import { BRAND_NAME, SITE_URL } from '@/lib/site'
 const DISCORD_SUBMISSIONS_WEBHOOK = serverEnv.DISCORD_SUBMISSIONS_WEBHOOK_URL
 const DISCORD_FLAGS_WEBHOOK = serverEnv.DISCORD_FLAGS_WEBHOOK_URL
 const DISCORD_GYM_OWNERS_WEBHOOK = serverEnv.DISCORD_GYM_OWNERS_WEBHOOK_URL
+const DISCORD_FEEDBACK_WEBHOOK = serverEnv.DISCORD_FEEDBACK_WEBHOOK_URL
 
 interface DiscordEmbed {
   title: string
@@ -212,6 +213,34 @@ export async function notifyGymOwnerApplication(
   }
 
   await sendDiscordWebhook(DISCORD_GYM_OWNERS_WEBHOOK, {
+    embeds: [embed],
+  })
+}
+
+export async function notifyFeedback(
+  message: string,
+  userId?: string,
+  pageUrl?: string
+): Promise<void> {
+  if (!DISCORD_FEEDBACK_WEBHOOK) return
+
+  const userDisplay = userId
+    ? `User #${userId.replace(/-/g, '').slice(0, 4)}...`
+    : 'Anonymous'
+
+  const embed: DiscordEmbed = {
+    title: '💬 New Feedback',
+    color: 0x8b5cf6,
+    fields: [
+      { name: 'From', value: userDisplay, inline: true },
+      { name: 'Page', value: pageUrl || 'Unknown', inline: false },
+      { name: 'Message', value: message.slice(0, 1500) + (message.length > 1500 ? '...' : '') },
+    ],
+    footer: { text: BRAND_NAME },
+    timestamp: new Date().toISOString(),
+  }
+
+  await sendDiscordWebhook(DISCORD_FEEDBACK_WEBHOOK, {
     embeds: [embed],
   })
 }

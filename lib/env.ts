@@ -43,6 +43,7 @@ const serverEnvSchema = z.object({
   DISCORD_SUBMISSIONS_WEBHOOK_URL: z.string().optional(),
   DISCORD_FLAGS_WEBHOOK_URL: z.string().optional(),
   DISCORD_GYM_OWNERS_WEBHOOK_URL: z.string().optional(),
+  DISCORD_FEEDBACK_WEBHOOK_URL: z.string().optional(),
 
   RESEND_API_KEY: z.string().optional(),
 
