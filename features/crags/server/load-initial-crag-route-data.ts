@@ -41,7 +41,19 @@ export async function loadInitialCragRouteData(
   cragId: string,
   cragCoords?: { latitude: number | null; longitude: number | null }
 ): Promise<InitialCragRouteData> {
-  const { data: routeData } = await supabase.rpc('get_crag_route_intelligence', { p_crag_id: cragId })
+  const [{ data: routeData }, { data: imageData }, { data: cragImageLinkData }] = await Promise.all([
+    supabase.rpc('get_crag_route_intelligence', { p_crag_id: cragId }),
+    supabase
+      .from('images')
+      .select('id, url, latitude, longitude')
+      .eq('crag_id', cragId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('crag_images')
+      .select('linked_image_id, source_image_id')
+      .eq('crag_id', cragId)
+      .order('created_at', { ascending: false }),
+  ])
   const baseRoutes = formatCragRoutes(routeData || [])
 
   const climbIds = baseRoutes.map((route) => route.id)
@@ -58,18 +70,6 @@ export async function loadInitialCragRouteData(
       ((data || []) as ClimbIdentityRow[]).map((row) => [row.id, row.shared_climb_id || row.id])
     )
   }
-
-  const { data: imageData } = await supabase
-    .from('images')
-    .select('id, url, latitude, longitude')
-    .eq('crag_id', cragId)
-    .order('created_at', { ascending: false })
-
-  const { data: cragImageLinkData } = await supabase
-    .from('crag_images')
-    .select('linked_image_id, source_image_id')
-    .eq('crag_id', cragId)
-    .order('created_at', { ascending: false })
 
   const linkedImageIds = Array.from(new Set(((cragImageLinkData || []) as CragImageLinkRow[])
     .flatMap((row) => [row.linked_image_id, row.source_image_id])
