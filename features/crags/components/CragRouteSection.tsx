@@ -1,6 +1,6 @@
 'use client'
 
-import type { MouseEvent } from 'react'
+import React, { type MouseEvent } from 'react'
 import CragPageToolbar, { type CragSwitcherOption } from '@/features/crags/components/CragPageToolbar'
 import CragCommunitySidebar from '@/features/crags/components/CragCommunitySidebar'
 import CragRouteList from '@/features/crags/components/CragRouteList'
@@ -83,7 +83,7 @@ interface CragRouteSectionProps {
   communityPlaceSlug: string | null | undefined
 }
 
-export default function CragRouteSection({
+const CragRouteSection = React.memo(function CragRouteSection({
   crag,
   filteredRoutes,
   routesLoadState,
@@ -251,4 +251,6 @@ export default function CragRouteSection({
       />
     </div>
   )
-}
+})
+
+export default CragRouteSection

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Loader2, Trash2 } from 'lucide-react'
@@ -38,7 +38,7 @@ function isDeleteType(type: PendingAction['type']): boolean {
   return type === 'delete-draft' || type === 'delete-submission'
 }
 
-export default function SubmissionList({ submissions, isOwnProfile, deletingDraftId, publishingDraftId, deletingSubmissionId, onDeleteDraft, onPublishDraft, onDeleteSubmission }: SubmissionListProps) {
+const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnProfile, deletingDraftId, publishingDraftId, deletingSubmissionId, onDeleteDraft, onPublishDraft, onDeleteSubmission }: SubmissionListProps) {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [deleteRouteConfirmation, setDeleteRouteConfirmation] = useState('')
 
@@ -330,4 +330,6 @@ export default function SubmissionList({ submissions, isOwnProfile, deletingDraf
       </Dialog>
     </>
   )
-}
+})
+
+export default SubmissionList

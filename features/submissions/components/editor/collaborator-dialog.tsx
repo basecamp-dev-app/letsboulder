@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { Loader2, Link2, Trash2, Users } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { CollaboratorItem, InviteItem } from '@/features/submissions/lib/editor-types'
@@ -29,7 +30,7 @@ interface CollaboratorDialogProps {
   currentUserId?: string | null
 }
 
-export function CollaboratorDialog({
+export const CollaboratorDialog = React.memo(function CollaboratorDialog({
   open,
   onOpenChange,
   title,
@@ -199,4 +200,4 @@ export function CollaboratorDialog({
       </DialogContent>
     </Dialog>
   )
-}
+})

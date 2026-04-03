@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { X } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { formatGradeForDisplay } from '@/lib/grade-display'
@@ -30,7 +31,7 @@ interface CragFilterDialogProps {
   onToggleDirection: (direction: string) => void
 }
 
-export default function CragFilterDialog({
+const CragFilterDialog = React.memo(function CragFilterDialog({
   open,
   onOpenChange,
   routeStats,
@@ -110,4 +111,6 @@ export default function CragFilterDialog({
       </DialogContent>
     </Dialog>
   )
-}
+})
+
+export default CragFilterDialog

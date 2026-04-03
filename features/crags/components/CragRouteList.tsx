@@ -1,8 +1,8 @@
 'use client'
 
+import React, { type MouseEvent } from 'react'
 import { ChevronRight } from 'lucide-react'
 import Image from 'next/image'
-import type { MouseEvent } from 'react'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeSystem } from '@/lib/grades'
 import { formatRatingValue, formatRouteTypeLabel } from '@/features/crags/lib/crag-page-domain'
@@ -19,7 +19,7 @@ interface CragRouteListProps {
   getRouteDestination: (route: CragRoute) => { href: string; ready: boolean }
 }
 
-export default function CragRouteList({
+const CragRouteList = React.memo(function CragRouteList({
   filteredRoutes,
   routesLoadState,
   highlightedRouteIds,
@@ -92,4 +92,6 @@ export default function CragRouteList({
       )}
     </div>
   )
-}
+})
+
+export default CragRouteList
