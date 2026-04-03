@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { type ActionResult } from '@/lib/actions/action-result'
 import { isValidGrade } from '@/lib/grade-constants'
+import { buildConsensusUpdates } from '@/lib/grades/grade-votes'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { getAdminClient, getServerClient } from '@/lib/supabase-server'
 
@@ -165,39 +166,7 @@ export async function saveSubmissionGradeVotesAction(imageId: string, grades: Ar
     const { data: gradeVoteRows, error: gradeVoteRowsError } = await supabaseAdmin.from('grade_votes').select('climb_id, grade').in('climb_id', uniqueClimbIds)
     if (gradeVoteRowsError) return { success: false, error: 'Save submission grade votes error', status: 500 }
 
-    const rowsByClimbId = new Map<string, Array<{ climb_id: string | null; grade: string | null }>>()
-    for (const row of (gradeVoteRows || []) as Array<{ climb_id: string | null; grade: string | null }>) {
-      const climbId = typeof row.climb_id === 'string' ? row.climb_id : null
-      if (!climbId) continue
-      const currentRows = rowsByClimbId.get(climbId) || []
-      currentRows.push(row)
-      rowsByClimbId.set(climbId, currentRows)
-    }
-
-    const consensusUpdates = uniqueClimbIds
-      .map((climbId) => {
-        const countByGrade = new Map<string, number>()
-        for (const row of rowsByClimbId.get(climbId) || []) {
-          const grade = typeof row.grade === 'string' ? row.grade : null
-          if (!grade) continue
-          countByGrade.set(grade, (countByGrade.get(grade) || 0) + 1)
-        }
-        let topGrade: string | null = null
-        let topCount = 0
-        let tied = false
-        for (const [grade, count] of countByGrade.entries()) {
-          if (count > topCount) {
-            topGrade = grade
-            topCount = count
-            tied = false
-          } else if (count === topCount) {
-            tied = true
-          }
-        }
-        if (tied || !topGrade) return null
-        return { id: climbId, grade: topGrade }
-      })
-      .filter((value): value is { id: string; grade: string } => value !== null)
+    const consensusUpdates = buildConsensusUpdates((gradeVoteRows || []) as Array<{ climb_id: string | null; grade: string | null }>)
 
     if (consensusUpdates.length > 0) {
       const { error: consensusUpdateError } = await supabaseAdmin.from('climbs').upsert(consensusUpdates, { onConflict: 'id' })

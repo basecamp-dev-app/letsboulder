@@ -4,6 +4,7 @@ import { getActionAuth } from '@/lib/actions/action-auth'
 import { ok, type ActionResult } from '@/lib/actions/action-result'
 import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
 import { isValidGrade } from '@/lib/grade-constants'
+import { loadGradeDistribution, upsertGradeVote } from '@/lib/grades/grade-votes'
 import { getServerClient } from '@/lib/supabase-server'
 
 interface GradeVoteSummary {
@@ -40,46 +41,35 @@ export async function submitGradeVoteAction(climbId: string, grade: string): Pro
     return { success: false, error: 'Climb not found', status: 404 }
   }
 
-  const { error: upsertError } = await supabase
-    .from('grade_votes')
-    .upsert(
-      {
-        climb_id: effectiveClimbId,
-        user_id: userId,
-        grade,
-      },
-      {
-        onConflict: 'climb_id, user_id',
-      }
-    )
+  const { error: upsertError } = await upsertGradeVote({
+    supabase,
+    table: 'grade_votes',
+    entityColumn: 'climb_id',
+    entityId: effectiveClimbId,
+    userId,
+    grade,
+  })
 
   if (upsertError) {
     console.error('Error saving grade vote:', upsertError)
     return { success: false, error: 'Error saving grade vote', status: 500 }
   }
 
-  const { data: gradeVotes, error: votesError } = await supabase
-    .from('grade_votes')
-    .select('grade')
-    .eq('climb_id', effectiveClimbId)
+  const { voteCount, distribution: voteDistribution, consensusGrade, error: votesError } = await loadGradeDistribution({
+    supabase,
+    table: 'grade_votes',
+    entityColumn: 'climb_id',
+    entityId: effectiveClimbId,
+  })
 
   if (votesError) {
     console.error('Error loading grade votes:', votesError)
     return { success: false, error: 'Error loading grade votes', status: 500 }
   }
 
-  const gradeDistribution = (gradeVotes || []).reduce<Record<string, number>>((acc, vote) => {
-    acc[vote.grade] = (acc[vote.grade] || 0) + 1
-    return acc
-  }, {})
-
-  const voteDistribution = Object.entries(gradeDistribution)
-    .map(([voteGrade, voteCount]) => ({ grade: voteGrade, vote_count: voteCount }))
-    .sort((a, b) => b.vote_count - a.vote_count)
-
   return ok({
-    vote_count: gradeVotes?.length || 0,
-    consensus_grade: voteDistribution[0]?.grade || null,
+    vote_count: voteCount,
+    consensus_grade: consensusGrade,
     vote_distribution: voteDistribution,
     message: 'Grade vote recorded',
   })

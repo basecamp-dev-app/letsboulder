@@ -3,6 +3,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { GRADE_ORDER_INDEX, isValidGrade } from '@/lib/grade-constants'
+import { loadGradeDistribution, upsertGradeVote } from '@/lib/grades/grade-votes'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { z } from 'zod'
 import { parseWithSchema } from '@/lib/api-validation'
@@ -46,18 +47,15 @@ export async function GET(
       }
     }
     
-    const { data: distribution } = await supabase
-      .from('route_grades')
-      .select('grade')
-      .eq('route_id', routeId)
-    
-    const gradeCounts: Record<string, number> = {}
-    distribution?.forEach(({ grade }) => {
-      gradeCounts[grade] = (gradeCounts[grade] || 0) + 1
+    const { distribution } = await loadGradeDistribution({
+      supabase,
+      table: 'route_grades',
+      entityColumn: 'route_id',
+      entityId: routeId,
     })
-    
-    const gradeDistribution = Object.entries(gradeCounts)
-      .map(([grade, count]) => ({ grade, count }))
+
+    const gradeDistribution = distribution
+      .map(({ grade, vote_count }) => ({ grade, count: vote_count }))
       .sort((a, b) => {
         return (GRADE_ORDER_INDEX.get(a.grade) ?? 1e9) - (GRADE_ORDER_INDEX.get(b.grade) ?? 1e9)
       })
@@ -92,15 +90,14 @@ export async function POST(
     if (!parsedBody.success) return parsedBody.response
     const { grade } = parsedBody.data
     
-    const { error: upsertError } = await supabase
-      .from('route_grades')
-      .upsert({
-        route_id: routeId,
-        user_id: userId,
-        grade
-      }, {
-        onConflict: 'route_id,user_id'
-      })
+    const { error: upsertError } = await upsertGradeVote({
+      supabase,
+      table: 'route_grades',
+      entityColumn: 'route_id',
+      entityId: routeId,
+      userId,
+      grade,
+    })
     
     if (upsertError) {
       return createErrorResponse(upsertError, 'Grade upsert error')
