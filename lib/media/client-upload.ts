@@ -37,6 +37,15 @@ interface UploadFileOptions {
   onProgress?: (details: UploadProgressDetails) => void
 }
 
+const MIME_EXTENSION_MAP: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
+}
+
 const RETRYABLE_UPLOAD_STATUSES = new Set([408, 409, 425, 429, 500, 502, 503, 504])
 const UPLOAD_RETRY_DELAYS_MS = [500, 1000, 2000, 4000, 8000]
 
@@ -52,6 +61,13 @@ function createAbortError(): DOMException | Error {
   const error = new Error('Upload aborted')
   error.name = 'AbortError'
   return error
+}
+
+function normalizeUploadFileName(fileName: string | null | undefined, contentType: string): string {
+  const trimmed = fileName?.trim()
+  if (trimmed) return trimmed
+
+  return `upload.${MIME_EXTENSION_MAP[contentType.toLowerCase()] || 'jpg'}`
 }
 
 function isRetryableUploadStatus(status: number): boolean {
@@ -160,7 +176,10 @@ export async function createMediaUploadSession(payload: UploadSessionRequest, si
   const response = await csrfFetch('/api/media/upload-sessions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+      fileName: normalizeUploadFileName(payload.fileName, payload.contentType),
+    }),
     signal,
   })
 

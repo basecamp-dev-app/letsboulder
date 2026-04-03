@@ -119,7 +119,7 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       const uploadSession = await createMediaUploadSession({
         purpose: entry.target.kind === 'draft' ? 'draft_image' : 'crag_image',
         contentType: preparedFile.type || 'image/jpeg',
-        fileName: ensureFileName(preparedFile, entry.file.name),
+        fileName: ensureFileName(preparedFile, entry.file.name).trim() || 'upload.jpg',
         byteSize: preparedFile.size,
         gpsData,
         captureDate: upload.captureDate,

@@ -26,6 +26,15 @@ function inferExtension(fileName: string, contentType: string): string {
   return 'jpg'
 }
 
+function normalizeFileName(fileName: unknown, contentType: string): string {
+  if (typeof fileName === 'string') {
+    const trimmed = fileName.trim()
+    if (trimmed) return trimmed
+  }
+
+  return `upload.${inferExtension('', contentType)}`
+}
+
 function isAllowedPurpose(value: string): value is MediaUploadPurpose {
   return value === 'submission_image' || value === 'draft_image' || value === 'crag_image'
 }
@@ -45,10 +54,6 @@ export function normalizeUploadSessionRequest(input: unknown): MediaUploadSessio
     throw new Error('Invalid content type')
   }
 
-  if (typeof candidate.fileName !== 'string' || !candidate.fileName.trim()) {
-    throw new Error('Invalid file name')
-  }
-
   if (typeof candidate.byteSize !== 'number' || !Number.isFinite(candidate.byteSize) || candidate.byteSize <= 0) {
     throw new Error('Invalid byte size')
   }
@@ -56,7 +61,7 @@ export function normalizeUploadSessionRequest(input: unknown): MediaUploadSessio
   return {
     purpose: candidate.purpose,
     contentType: candidate.contentType,
-    fileName: candidate.fileName,
+    fileName: normalizeFileName(candidate.fileName, candidate.contentType),
     byteSize: candidate.byteSize,
     gpsData: (() => {
       const gpsValue = candidate['gpsData']
