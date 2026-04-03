@@ -1,8 +1,4 @@
 import type { RoutePoint } from '@/types/domain'
-import { MIN_SELECTABLE_GRADE, SELECTABLE_GRADES, VALID_GRADES } from '@/lib/grade-constants'
-
-export { MIN_SELECTABLE_GRADE, SELECTABLE_GRADES, VALID_GRADES }
-export type { Grade } from '@/lib/grade-constants'
 
 // =====================================================
 // VERIFICATION TYPES
