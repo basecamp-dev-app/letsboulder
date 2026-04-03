@@ -5,6 +5,8 @@ import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
+import { z } from 'zod'
+import { parseWithSchema } from '@/lib/api-validation'
 
 export const runtime = 'nodejs'
 
@@ -13,6 +15,10 @@ const MAX_FILES = 8
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 const SIGNATURE_BYTES_TO_READ = 4_100
 const ALLOWED_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+
+const cragImagesParamsSchema = z.object({
+  id: z.string().min(1, 'id is required'),
+})
 
 type AllowedImageMime = 'image/jpeg' | 'image/png' | 'image/webp'
 
@@ -59,7 +65,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: cragId } = await params
+  const rawParams = await params
+  const validation = parseWithSchema(cragImagesParamsSchema, rawParams)
+  if (!validation.success) return validation.response
+
+  const { id: cragId } = validation.data
 
   const supabase = getServerClientFromRequest(request)
 
@@ -296,7 +306,11 @@ export async function POST(
   const middlewareResult = await withApiMiddleware(request, { requireUser: false })
   if (!middlewareResult.ok) return middlewareResult.response
 
-  const { id: cragId } = await params
+  const rawParams = await params
+  const validation = parseWithSchema(cragImagesParamsSchema, rawParams)
+  if (!validation.success) return validation.response
+
+  const { id: cragId } = validation.data
 
   const { supabase } = middlewareResult
 
@@ -305,10 +319,6 @@ export async function POST(
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    if (!cragId) {
-      return NextResponse.json({ error: 'Crag ID is required' }, { status: 400 })
     }
 
     const { data: existingCrag, error: cragError } = await supabase

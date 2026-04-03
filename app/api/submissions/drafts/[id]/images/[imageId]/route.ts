@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getAdminClient } from '@/lib/supabase-server'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
+import { parseWithSchema } from '@/lib/api-validation'
 import type { Database } from '@/types/database'
+
+const deleteDraftImageParamsSchema = z.object({
+  id: z.string().min(1, 'id is required'),
+  imageId: z.string().min(1, 'imageId is required'),
+})
+
+const deleteDraftImageQuerySchema = z.object({
+  expected_updated_at: z.string().datetime(),
+})
 
 interface DraftConflictResponse {
   code: 'draft_conflict'
@@ -43,16 +54,17 @@ export async function DELETE(
   })
   if (!middlewareResult.ok) return middlewareResult.response
 
-  const { id, imageId } = await params
-  if (!id || !imageId) {
-    return NextResponse.json({ error: 'Draft ID and image ID are required' }, { status: 400 })
-  }
+  const rawParams = await params
+  const paramsValidation = parseWithSchema(deleteDraftImageParamsSchema, rawParams)
+  if (!paramsValidation.success) return paramsValidation.response
 
-  const expectedUpdatedAtRaw = new URL(request.url).searchParams.get('expected_updated_at')?.trim() || ''
-  const expectedUpdatedAtDate = expectedUpdatedAtRaw ? new Date(expectedUpdatedAtRaw) : null
-  if (!expectedUpdatedAtDate || Number.isNaN(expectedUpdatedAtDate.getTime())) {
-    return NextResponse.json({ error: 'expected_updated_at is required and must be a valid ISO timestamp' }, { status: 400 })
-  }
+  const { id, imageId } = paramsValidation.data
+
+  const searchParams = Object.fromEntries(new URL(request.url).searchParams)
+  const queryValidation = parseWithSchema(deleteDraftImageQuerySchema, searchParams)
+  if (!queryValidation.success) return queryValidation.response
+
+  const { expected_updated_at } = queryValidation.data
 
   const { supabase, userId } = middlewareResult
 
@@ -88,7 +100,7 @@ export async function DELETE(
     }
 
     const currentUpdatedAtMs = new Date(draft.updated_at).getTime()
-    const expectedUpdatedAtMs = expectedUpdatedAtDate.getTime()
+    const expectedUpdatedAtMs = new Date(expected_updated_at).getTime()
     if (!Number.isFinite(currentUpdatedAtMs) || currentUpdatedAtMs !== expectedUpdatedAtMs) {
       let lastUpdatedByDisplayName: string | null = null
       if (typeof draft.last_edited_by === 'string' && draft.last_edited_by) {

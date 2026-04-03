@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
+import { parseWithSchema } from '@/lib/api-validation'
+
+const deleteImageParamsSchema = z.object({
+  id: z.string().min(1, 'id is required'),
+})
 
 export async function DELETE(
   request: NextRequest,
@@ -9,7 +15,11 @@ export async function DELETE(
   const middlewareResult = await withApiMiddleware(request, { requireUser: false })
   if (!middlewareResult.ok) return middlewareResult.response
 
-  const { id: imageId } = await params
+  const rawParams = await params
+  const validation = parseWithSchema(deleteImageParamsSchema, rawParams)
+  if (!validation.success) return validation.response
+
+  const { id: imageId } = validation.data
 
   const { supabase } = middlewareResult
 
@@ -18,10 +28,6 @@ export async function DELETE(
 
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    if (!imageId) {
-      return NextResponse.json({ error: 'Image ID required' }, { status: 400 })
     }
 
     const { data: profile, error: profileError } = await supabase
