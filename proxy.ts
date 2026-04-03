@@ -198,10 +198,6 @@ function getApiBucket(pathname: string, method: string): RateLimitBucket | null 
     return 'geo'
   }
 
-  if (pathname.startsWith('/api/gear-clicks') && normalizedMethod === 'POST') {
-    return 'clicks'
-  }
-
   if (pathname === '/api/media/upload-sessions' && normalizedMethod === 'POST') {
     return 'upload_session_create'
   }
@@ -427,7 +423,6 @@ export default async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     '/api/locations/detect',
-    '/api/gear-clicks/:path*',
     '/auth/:path*',
     '/settings/:path*',
     '/submit/:path*',
