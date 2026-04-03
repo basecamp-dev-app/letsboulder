@@ -1,3 +1,12 @@
+export interface GpsData {
+  latitude: number
+  longitude: number
+}
+
+export const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
+
+export type FaceDirection = typeof FACE_DIRECTIONS[number]
+
 export interface RoutePoint {
   x: number
   y: number
@@ -43,6 +52,8 @@ export interface ZoomTransform {
 export type CanvasMode = 'browse' | 'edit-existing' | 'submit'
 
 export type InteractionTool = 'select' | 'draw' | 'pan'
+
+export type FaceDirectionsByImage = Record<number, FaceDirection[]>
 
 export interface DrawingRoute {
   id: string

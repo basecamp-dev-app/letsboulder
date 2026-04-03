@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import NextImage from 'next/image'
-import type { NewImageSelection, GpsData } from '@/features/submissions/lib/submission-types'
+import type { NewImageSelection } from '@/features/submissions/lib/submission-types'
+import type { GpsData } from '@/types/domain'
 import { isHeicFile, isSupportedImageFile } from '@/lib/image-utils'
 import { extractGpsFromFile } from '@/lib/image-gps'
 import {

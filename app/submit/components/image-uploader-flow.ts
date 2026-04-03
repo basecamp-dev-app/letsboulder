@@ -1,6 +1,7 @@
 import { compressImage } from '@/lib/image-compression'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
-import type { GpsData, NewImageSelection } from '@/features/submissions/lib/submission-types'
+import type { GpsData } from '@/types/domain'
+import type { NewImageSelection } from '@/features/submissions/lib/submission-types'
 import { isHeicFile } from '@/lib/image-utils'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { extractGpsFromBuffer, extractGpsFromFile } from '@/lib/image-gps'

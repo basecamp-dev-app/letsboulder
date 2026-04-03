@@ -1,8 +1,11 @@
 import type { Database } from '@/types/database'
 import { VALID_GRADES, isValidGrade } from '@/lib/grade-constants'
+import type { GpsData, FaceDirection, FaceDirectionsByImage } from '@/types/domain'
+import { FACE_DIRECTIONS } from '@/types/domain'
 
-export { VALID_GRADES }
+export { VALID_GRADES, FACE_DIRECTIONS, isValidGrade }
 export type { Grade } from '@/lib/grade-constants'
+export type { GpsData, FaceDirection, FaceDirectionsByImage }
 
 export type Region = Pick<Database['public']['Tables']['regions']['Row'], 'id' | 'name' | 'country_code' | 'center_lat' | 'center_lon' | 'created_at'>
 
@@ -110,16 +113,6 @@ export interface CragImageSelection {
   height: number | null
 }
 
-export interface GpsData {
-  latitude: number
-  longitude: number
-}
-
-export const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
-
-export type FaceDirection = typeof FACE_DIRECTIONS[number]
-export type FaceDirectionsByImage = Record<number, FaceDirection[]>
-
 export type ImageSelection = ExistingImageSelection | NewImageSelection | CragImageSelection
 
 export type ClimbType = 'sport' | 'boulder' | 'trad' | 'deep-water-solo'
@@ -146,8 +139,6 @@ export type SubmissionStep =
   | { step: 'submitting' }
   | { step: 'success'; climbsCreated: number; imageId?: string; climbId?: string; routeId?: string }
   | { step: 'error'; message: string }
-
-export { isValidGrade }
 
 export function generateRouteId(): string {
   return `route-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
