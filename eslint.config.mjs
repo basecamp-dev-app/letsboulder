@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
+import localRules from './eslint-rules/index.js'
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -40,6 +41,16 @@ const eslintConfig = defineConfig([
           ],
         },
       ],
+    },
+  },
+  // Enforce consistent feature directory structure
+  {
+    files: ['features/**/*.{ts,tsx}'],
+    plugins: {
+      'local-rules': localRules,
+    },
+    rules: {
+      'local-rules/consistent-feature-structure': 'warn',
     },
   },
   // Override default ignores of eslint-config-next.
