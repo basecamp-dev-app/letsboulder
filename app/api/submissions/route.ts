@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { notifyNewSubmission } from '@/lib/discord'
@@ -21,7 +20,7 @@ import {
   type NewSubmissionImage,
   type SubmissionRequest,
 } from '@/features/submissions/server/submissions/submit-route-validation'
-import { getAdminClient } from '@/lib/supabase-server'
+import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
 import { parseWithSchema } from '@/lib/api-validation'
 import { submissionRequestSchema } from '@/features/submissions/server/submissions/submit-route-schema'
 
@@ -36,26 +35,12 @@ export async function POST(request: NextRequest) {
   const middlewareResult = await withApiMiddleware(request, { requireUser: false })
   if (!middlewareResult.ok) return middlewareResult.response
 
-  const cookies = request.cookies
   const debugAuth = serverEnv.DEBUG_SUBMISSIONS_AUTH === '1'
   const requestUrl = new URL(request.url)
 
   let response = NextResponse.next({ request: { headers: request.headers } })
 
-  const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() { return cookies.getAll() },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options)
-          })
-        },
-      },
-    }
-  )
+  const supabase = getServerClientFromRequest(request)
 
   const supabaseAdmin = getAdminClient()
 
@@ -65,7 +50,7 @@ export async function POST(request: NextRequest) {
   try {
     const ownershipClient = supabase as unknown as Parameters<typeof userOwnsUploadedObject>[0]
     if (debugAuth) {
-      const requestCookies = cookies.getAll()
+      const requestCookies = request.cookies.getAll()
       const cookieNames: string[] = []
 
       if (Array.isArray(requestCookies)) {

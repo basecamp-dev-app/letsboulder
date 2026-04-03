@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { serverEnv } from '@/lib/env'
 
 const INTERNAL_USER_ID_HEADER = 'x-internal-user-id'
 const CSRF_COOKIE_NAME = 'csrf_token'
@@ -378,8 +379,8 @@ export default async function proxy(request: NextRequest) {
 
   if (shouldRefreshSupabaseSession(pathname, request.method) && !shouldSkipSessionRefreshForPrefetch(pathname, request)) {
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+      serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
         cookies: {
           getAll() {
