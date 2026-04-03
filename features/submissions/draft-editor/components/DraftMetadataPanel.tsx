@@ -10,7 +10,7 @@ import { parseOptionalCoordinate } from '@/features/editor/location/location-met
 import CragSelector from '@/features/submissions/components/CragSelector'
 import SectorSelector from '@/features/submissions/components/SectorSelector'
 import { LocationSearchBar } from '@/features/submissions/components/editor/location-search-bar'
-import type { AtlasAutoSyncResult } from '@/features/editor/location/use-atlas-auto-sync'
+import type { AtlasAutoSyncResult } from '@/features/submissions/editor/location/use-atlas-auto-sync'
 
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false })

@@ -7,7 +7,7 @@ import {
   removeDraftCollaborator,
   revokeDraftInvite,
 } from '@/features/editor/collaboration/collaboration-api'
-import { useInviteLinkCopy } from '@/features/editor/collaboration/use-invite-link-copy'
+import { useInviteLinkCopy } from './use-invite-link-copy'
 import type { CollaboratorItem, InviteItem } from '@/features/submissions/lib/editor-types'
 
 export function useDraftCollaborators(draftId: string | null, isOwner: boolean, addToast: (message: string, tone: 'success' | 'error') => void, setError: (message: string) => void) {

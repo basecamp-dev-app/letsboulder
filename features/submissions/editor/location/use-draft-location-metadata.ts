@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { formatCoordinate } from '@/features/editor/location/location-metadata'
-import { useLocationSearch } from '@/features/editor/location/use-location-search'
+import { useLocationSearch } from './use-location-search'
 
 export function useDraftLocationMetadata() {
   const [showCragSelector, setShowCragSelector] = useState(false)

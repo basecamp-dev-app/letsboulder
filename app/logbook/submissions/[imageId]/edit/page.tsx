@@ -14,7 +14,7 @@ import {
   updateSubmissionCragAction,
   updateSubmissionCreditAction,
 } from '@/features/submissions/actions/submission-metadata-actions'
-import { useAtlasAutoSync } from '@/features/editor/location/use-atlas-auto-sync'
+import { useAtlasAutoSync } from '@/features/submissions/editor/location/use-atlas-auto-sync'
 import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-utils'
 import { ToastContainer, useToast } from '@/features/logbook/components/toast'
 import type { UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
