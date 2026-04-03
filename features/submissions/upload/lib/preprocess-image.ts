@@ -1,3 +1,4 @@
+import { compressImage } from '@/lib/image-compression'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { isHeicFile } from '@/lib/image-utils'
 import { THUMBNAIL_MAX_WIDTH } from '@/features/submissions/upload/lib/upload-types'
@@ -19,15 +20,13 @@ export async function getImageDimensions(source: Blob) {
 }
 
 export async function buildPreviewUrl(file: File) {
-  const { default: imageCompression } = await import('browser-image-compression')
-  const previewBlob = await imageCompression(file, {
+  const compressedBlob = await compressImage(file, {
     maxWidthOrHeight: THUMBNAIL_MAX_WIDTH,
     initialQuality: 0.7,
-    fileType: 'image/jpeg',
-    useWebWorker: true,
+    convertHeic: true,
   }).catch(() => file)
 
-  return URL.createObjectURL(previewBlob)
+  return URL.createObjectURL(compressedBlob)
 }
 
 export async function preprocessFile(file: File) {
