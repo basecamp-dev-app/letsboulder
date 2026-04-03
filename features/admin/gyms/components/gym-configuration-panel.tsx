@@ -2,9 +2,9 @@
 
 import { ChangeEvent, MouseEvent } from 'react'
 import { Loader2, Upload } from 'lucide-react'
-import type { EditableRoute, FloorPlan, GymListItem } from '@/app/admin/gyms/types'
-import StarterRouteCanvas from '@/app/admin/gyms/components/StarterRouteCanvas'
-import StarterRoutesEditor from '@/app/admin/gyms/components/StarterRoutesEditor'
+import type { EditableRoute, FloorPlan, GymListItem } from '@/features/admin/gyms/types'
+import StarterRouteCanvas from '@/features/admin/gyms/components/starter-route-canvas'
+import StarterRoutesEditor from '@/features/admin/gyms/components/starter-routes-editor'
 
 interface GymConfigurationPanelProps {
   selectedGym: GymListItem | null

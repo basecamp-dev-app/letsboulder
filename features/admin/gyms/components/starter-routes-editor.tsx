@@ -1,8 +1,8 @@
 'use client'
 
 import { Loader2, Save } from 'lucide-react'
-import { DISCIPLINE_OPTIONS } from '@/app/admin/gyms/types'
-import type { EditableRoute } from '@/app/admin/gyms/types'
+import { DISCIPLINE_OPTIONS } from '@/features/admin/gyms/types'
+import type { EditableRoute } from '@/features/admin/gyms/types'
 
 interface StarterRoutesEditorProps {
   routes: EditableRoute[]

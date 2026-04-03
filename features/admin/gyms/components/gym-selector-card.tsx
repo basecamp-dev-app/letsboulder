@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
-import type { GymListItem } from '@/app/admin/gyms/types'
+import type { GymListItem } from '@/features/admin/gyms/types'
 
 interface GymSelectorCardProps {
   gyms: GymListItem[]

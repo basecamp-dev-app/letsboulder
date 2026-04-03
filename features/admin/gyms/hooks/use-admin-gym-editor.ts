@@ -3,7 +3,7 @@
 import { ChangeEvent, MouseEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
-import type { EditableRoute, FloorPlan, GymDiscipline, GymListItem } from '@/app/admin/gyms/types'
+import type { EditableRoute, FloorPlan, GymDiscipline, GymListItem } from '@/features/admin/gyms/types'
 
 function getResponseError(payload: unknown, fallback: string): string {
   if (typeof payload === 'object' && payload !== null && 'error' in payload) {

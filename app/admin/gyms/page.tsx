@@ -1,9 +1,9 @@
 'use client'
 
-import CreateGymForm from '@/app/admin/gyms/components/CreateGymForm'
-import GymConfigurationPanel from '@/app/admin/gyms/components/GymConfigurationPanel'
-import GymSelectorCard from '@/app/admin/gyms/components/GymSelectorCard'
-import { useAdminGymEditor } from '@/app/admin/gyms/hooks/useAdminGymEditor'
+import CreateGymForm from '@/features/admin/gyms/components/create-gym-form'
+import GymConfigurationPanel from '@/features/admin/gyms/components/gym-configuration-panel'
+import GymSelectorCard from '@/features/admin/gyms/components/gym-selector-card'
+import { useAdminGymEditor } from '@/features/admin/gyms/hooks'
 
 export default function AdminGymsPage() {
   const {

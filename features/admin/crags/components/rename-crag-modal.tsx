@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
-import type { AdminCrag } from '@/app/admin/crags/types'
+import type { AdminCrag } from '@/features/admin/crags/types'
 
 interface RenameCragModalProps {
   crag: AdminCrag
