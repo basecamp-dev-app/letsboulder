@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { CorrectionSectionProps, CorrectionType, SELECTABLE_GRADES } from '@/lib/verification-types'
+import { SELECTABLE_GRADES } from '@/lib/grade-constants'
+import type { CorrectionSectionProps, CorrectionType } from '@/lib/verification-types'
 import { csrfFetch } from '@/hooks/useCsrf'
 
 const CORRECTION_TYPE_LABELS: Record<CorrectionType, string> = {
