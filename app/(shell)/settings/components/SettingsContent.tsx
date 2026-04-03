@@ -11,6 +11,7 @@ import { saveSettingsAction } from '@/features/settings/actions/save-settings'
 import { updateGradePreferences } from '@/features/grades/hooks/useGradeSystem'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
 import type { GradeSystem } from '@/lib/grade-display'
+import { formatLengthInputFromCm, parseLengthInputToCm, type MeasurementUnits } from '@/lib/measurement-units'
 import { fetchSettings, settingsQueryKey, type SettingsPayload } from '@/lib/settings/queries'
 import { normalizeSubmissionCreditHandle, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { AppearanceSettingsSection } from '@/app/(shell)/settings/components/appearance-settings-section'
@@ -87,7 +88,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const [isPublic, setIsPublic] = useState(true)
 
   const [themePreference, setThemePreference] = useState('system')
-  const [units, setUnits] = useState<'metric' | 'imperial'>('metric')
+  const [units, setUnits] = useState<MeasurementUnits>('metric')
   const [boulderSystem, setBoulderSystem] = useState<GradeSystem>('v_scale')
   const [routeSystem, setRouteSystem] = useState<GradeSystem>('yds_equivalent')
   const [tradSystem, setTradSystem] = useState<GradeSystem>('yds_equivalent')
@@ -139,15 +140,15 @@ export default function SettingsContent({ user }: SettingsContentProps) {
       firstName: data.settings.firstName || '',
       lastName: data.settings.lastName || '',
       gender: data.settings.gender || 'prefer_not_to_say',
-      heightCm: data.settings.heightCm === null || data.settings.heightCm === undefined ? '' : String(data.settings.heightCm),
-      reachCm: data.settings.reachCm === null || data.settings.reachCm === undefined ? '' : String(data.settings.reachCm),
+      heightCm: formatLengthInputFromCm(data.settings.heightCm, (data.settings.units || 'metric') as MeasurementUnits),
+      reachCm: formatLengthInputFromCm(data.settings.reachCm, (data.settings.units || 'metric') as MeasurementUnits),
       bio: data.settings.bio || '',
       contributionCreditPlatform: (data.settings.contributionCreditPlatform || 'instagram') as SubmissionCreditPlatform,
       contributionCreditHandle: data.settings.contributionCreditHandle || '',
     })
     setIsPublic(data.settings.isPublic !== false)
     setThemePreference(data.settings.themePreference || 'system')
-    setUnits((data.settings.units || 'metric') as 'metric' | 'imperial')
+    setUnits((data.settings.units || 'metric') as MeasurementUnits)
     setBoulderSystem((data.settings.boulderSystem || 'v_scale') as GradeSystem)
     setRouteSystem((data.settings.routeSystem || 'yds_equivalent') as GradeSystem)
     setTradSystem((data.settings.tradSystem || 'yds_equivalent') as GradeSystem)
@@ -185,7 +186,12 @@ export default function SettingsContent({ user }: SettingsContentProps) {
     setIsDirty(true)
   }
 
-  const handleUnitsChange = (nextUnits: 'metric' | 'imperial') => {
+  const handleUnitsChange = (nextUnits: MeasurementUnits) => {
+    setFormData((prev) => ({
+      ...prev,
+      heightCm: formatLengthInputFromCm(parseLengthInputToCm(prev.heightCm, units), nextUnits),
+      reachCm: formatLengthInputFromCm(parseLengthInputToCm(prev.reachCm, units), nextUnits),
+    }))
     setUnits(nextUnits)
     setIsDirty(true)
   }
@@ -209,8 +215,8 @@ export default function SettingsContent({ user }: SettingsContentProps) {
         firstName: formData.firstName,
         lastName: formData.lastName,
         gender: formData.gender,
-        heightCm: formData.heightCm === '' ? null : Number(formData.heightCm),
-        reachCm: formData.reachCm === '' ? null : Number(formData.reachCm),
+        heightCm: parseLengthInputToCm(formData.heightCm, units),
+        reachCm: parseLengthInputToCm(formData.reachCm, units),
         bio: formData.bio,
         contributionCreditPlatform: formData.contributionCreditHandle.trim()
           ? formData.contributionCreditPlatform
@@ -245,8 +251,8 @@ export default function SettingsContent({ user }: SettingsContentProps) {
         firstName: formData.firstName,
         lastName: formData.lastName,
         gender: formData.gender,
-        heightCm: formData.heightCm === '' ? null : Number(formData.heightCm),
-        reachCm: formData.reachCm === '' ? null : Number(formData.reachCm),
+        heightCm: parseLengthInputToCm(formData.heightCm, units),
+        reachCm: parseLengthInputToCm(formData.reachCm, units),
         bio: formData.bio,
         boulderSystem,
         routeSystem,
@@ -384,7 +390,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
 
           <div className="p-6">
             {activeTab === 'profile' && (
-              <ProfileSettingsSection formData={formData} onFieldChange={handleFormChange} />
+              <ProfileSettingsSection formData={formData} units={units} onFieldChange={handleFormChange} />
             )}
 
             {activeTab === 'units' && (

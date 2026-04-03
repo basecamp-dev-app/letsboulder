@@ -1,15 +1,21 @@
 'use client'
 
+import { getLengthInputBounds, getLengthInputLabel, type MeasurementUnits } from '@/lib/measurement-units'
 import { CREDIT_PLATFORM_OPTIONS } from '@/features/submissions/lib/editor-constants'
 import { normalizeSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
 import type { SettingsProfileFormData } from '@/app/(shell)/settings/components/settings-content.types'
 
 interface ProfileSettingsSectionProps {
   formData: SettingsProfileFormData
+  units: MeasurementUnits
   onFieldChange: (field: keyof SettingsProfileFormData, value: string) => void
 }
 
-export function ProfileSettingsSection({ formData, onFieldChange }: ProfileSettingsSectionProps) {
+export function ProfileSettingsSection({ formData, units, onFieldChange }: ProfileSettingsSectionProps) {
+  const heightBounds = getLengthInputBounds(units, 100, 250)
+  const reachBounds = getLengthInputBounds(units, 100, 260)
+  const lengthLabel = getLengthInputLabel(units)
+
   return (
     <div className="space-y-6 max-w-xl">
       <div className="grid grid-cols-2 gap-4">
@@ -67,12 +73,13 @@ export function ProfileSettingsSection({ formData, onFieldChange }: ProfileSetti
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label htmlFor="height-cm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Height (cm)</label>
+          <label htmlFor="height-cm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Height ({lengthLabel})</label>
           <input
             id="height-cm"
             type="number"
-            min={100}
-            max={250}
+            min={heightBounds.min}
+            max={heightBounds.max}
+            step={heightBounds.step}
             value={formData.heightCm}
             onChange={(e) => onFieldChange('heightCm', e.target.value)}
             placeholder="Optional"
@@ -80,12 +87,13 @@ export function ProfileSettingsSection({ formData, onFieldChange }: ProfileSetti
           />
         </div>
         <div>
-          <label htmlFor="reach-cm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reach (cm)</label>
+          <label htmlFor="reach-cm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reach ({lengthLabel})</label>
           <input
             id="reach-cm"
             type="number"
-            min={100}
-            max={260}
+            min={reachBounds.min}
+            max={reachBounds.max}
+            step={reachBounds.step}
             value={formData.reachCm}
             onChange={(e) => onFieldChange('reachCm', e.target.value)}
             placeholder="Optional"

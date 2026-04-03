@@ -2,7 +2,10 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { formatLengthFromCm, getLengthInputBounds, getLengthInputLabel, parseLengthInputToCm, type MeasurementUnits } from '@/lib/measurement-units'
+import { fetchSettings, settingsQueryKey } from '@/lib/settings/queries'
 import { VIDEO_PLATFORMS, type VideoPlatform, getVideoEmbedUrl, validateAndNormalizeVideoUrl } from '@/lib/video-beta'
 
 interface VideoBetaItem {
@@ -70,6 +73,18 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
   const reachDropdownRef = useRef<HTMLDivElement>(null)
 
   const cachedBetasRef = useRef<Record<string, VideoBetaItem[]>>({})
+  const { data: settingsData } = useQuery({
+    queryKey: settingsQueryKey,
+    queryFn: fetchSettings,
+    meta: {
+      persist: true,
+    },
+  })
+
+  const units = (settingsData?.settings.units || 'metric') as MeasurementUnits
+  const heightBounds = getLengthInputBounds(units, 100, 250)
+  const reachBounds = getLengthInputBounds(units, 100, 260)
+  const lengthInputLabel = getLengthInputLabel(units)
 
   const preview = useMemo(() => validateAndNormalizeVideoUrl(url), [url])
 
@@ -142,10 +157,10 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
   }, [])
 
   const filteredItems = useMemo(() => {
-    const minH = minHeight ? Number(minHeight) : null
-    const maxH = maxHeight ? Number(maxHeight) : null
-    const minR = minReach ? Number(minReach) : null
-    const maxR = maxReach ? Number(maxReach) : null
+    const minH = parseLengthInputToCm(minHeight, units)
+    const maxH = parseLengthInputToCm(maxHeight, units)
+    const minR = parseLengthInputToCm(minReach, units)
+    const maxR = parseLengthInputToCm(maxReach, units)
 
     return items.filter((item) => {
       if (platformFilter !== 'all' && item.platform !== platformFilter) return false
@@ -167,7 +182,7 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
 
       return true
     })
-  }, [genderFilter, items, maxHeight, maxReach, minHeight, minReach, platformFilter])
+  }, [genderFilter, items, maxHeight, maxReach, minHeight, minReach, platformFilter, units])
 
   const handleSave = async () => {
     setError(null)
@@ -261,22 +276,23 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
             }}
             className="cursor-pointer px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 whitespace-nowrap"
           >
-            Filter by height{minHeight || maxHeight ? `: ${minHeight || '...'}-${maxHeight || '...'}` : ''}
+            Filter by height{minHeight || maxHeight ? `: ${minHeight || '...'}-${maxHeight || '...'} ${lengthInputLabel}` : ''}
           </button>
           {heightOpen && (
             <div className="absolute left-0 mt-2 w-72 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 shadow-lg z-20">
-            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by height (cm)</p>
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by height ({lengthInputLabel})</p>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[11px] text-gray-500 dark:text-gray-400 mb-1" htmlFor="height-from">From</label>
                 <input
                   id="height-from"
                   type="number"
-                  min={100}
-                  max={250}
+                  min={heightBounds.min}
+                  max={heightBounds.max}
+                  step={heightBounds.step}
                   value={minHeight}
                   onChange={(e) => setMinHeight(e.target.value)}
-                  aria-label="Height from in centimeters"
+                  aria-label={`Height from in ${units === 'metric' ? 'centimeters' : 'inches'}`}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 />
               </div>
@@ -285,11 +301,12 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
                 <input
                   id="height-to"
                   type="number"
-                  min={100}
-                  max={250}
+                  min={heightBounds.min}
+                  max={heightBounds.max}
+                  step={heightBounds.step}
                   value={maxHeight}
                   onChange={(e) => setMaxHeight(e.target.value)}
-                  aria-label="Height to in centimeters"
+                  aria-label={`Height to in ${units === 'metric' ? 'centimeters' : 'inches'}`}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 />
               </div>
@@ -306,22 +323,23 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
             }}
             className="cursor-pointer px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 whitespace-nowrap"
           >
-            Filter by reach{minReach || maxReach ? `: ${minReach || '...'}-${maxReach || '...'}` : ''}
+            Filter by reach{minReach || maxReach ? `: ${minReach || '...'}-${maxReach || '...'} ${lengthInputLabel}` : ''}
           </button>
           {reachOpen && (
             <div className="absolute left-0 mt-2 w-72 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 shadow-lg z-20">
-            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by reach (cm)</p>
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Filter by reach ({lengthInputLabel})</p>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[11px] text-gray-500 dark:text-gray-400 mb-1" htmlFor="reach-from">From</label>
                 <input
                   id="reach-from"
                   type="number"
-                  min={100}
-                  max={260}
+                  min={reachBounds.min}
+                  max={reachBounds.max}
+                  step={reachBounds.step}
                   value={minReach}
                   onChange={(e) => setMinReach(e.target.value)}
-                  aria-label="Reach from in centimeters"
+                  aria-label={`Reach from in ${units === 'metric' ? 'centimeters' : 'inches'}`}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 />
               </div>
@@ -330,11 +348,12 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
                 <input
                   id="reach-to"
                   type="number"
-                  min={100}
-                  max={260}
+                  min={reachBounds.min}
+                  max={reachBounds.max}
+                  step={reachBounds.step}
                   value={maxReach}
                   onChange={(e) => setMaxReach(e.target.value)}
-                  aria-label="Reach to in centimeters"
+                  aria-label={`Reach to in ${units === 'metric' ? 'centimeters' : 'inches'}`}
                   className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
                 />
               </div>
@@ -361,7 +380,7 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
       </div>
 
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-        Height and reach filters use centimeters from uploader profile stats. Min means at least this value and max means up to this value.
+        Height and reach filters use uploader profile stats and match your current unit preference. Min means at least this value and max means up to this value.
       </p>
 
       {loadingItems ? (
@@ -415,13 +434,13 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
                     {typeof item.uploader_height_cm === 'number' && (
                       <>
                         <span>•</span>
-                        <span>{item.uploader_height_cm} cm</span>
+                        <span>{formatLengthFromCm(item.uploader_height_cm, units)}</span>
                       </>
                     )}
                     {typeof item.uploader_reach_cm === 'number' && (
                       <>
                         <span>•</span>
-                        <span>{item.uploader_reach_cm} cm reach</span>
+                        <span>{formatLengthFromCm(item.uploader_reach_cm, units)} reach</span>
                       </>
                     )}
                   </div>
