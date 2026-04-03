@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { FLASH_BONUS, getGradeFromPoints, getGradePoints } from '@/lib/grades'
+import type { Database } from '@/types/database'
 
 type RankingSort = 'grade' | 'tops'
 type RankingWindow = '60d' | 'all-time'
@@ -10,22 +11,13 @@ interface RouteParams {
   slug: string
 }
 
-interface UserClimbRow {
-  user_id: string
-  climb_id: string
-  style: 'top' | 'flash' | 'onsight'
-  created_at: string
+type UserClimbRow = Pick<Database['public']['Tables']['user_climbs']['Row'], 'user_id' | 'climb_id' | 'style' | 'created_at'> & {
   climbs: {
     id: string
     grade: string
     place_id: string | null
     crag_id: string | null
-  } | Array<{
-    id: string
-    grade: string
-    place_id: string | null
-    crag_id: string | null
-  }>
+  } | null
 }
 
 interface ProfileRow {

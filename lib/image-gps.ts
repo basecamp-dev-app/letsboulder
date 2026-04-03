@@ -179,6 +179,8 @@ function toNumber(value: DmsValue): number | null {
 
   if (!value || typeof value !== 'object') return null
 
+  if (!('numerator' in value) && !('denominator' in value)) return null
+
   const objectValue = value as unknown as Record<string, unknown>
   const numerator = toFiniteNumber(getField(objectValue, ['numerator', 'num', 'n']))
   const denominator = toFiniteNumber(getField(objectValue, ['denominator', 'den', 'd']))

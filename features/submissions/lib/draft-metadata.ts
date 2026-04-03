@@ -14,6 +14,7 @@ export interface DraftImageMetadataV2 {
 }
 
 export interface DraftMetadataV2 {
+  [key: string]: unknown
   version: 2
   navigation: {
     defaultImageId: string | null
@@ -93,7 +94,7 @@ export function normalizeDraftMetadata(
   rawMetadata: Record<string, unknown> | null | undefined,
   draftImages: DraftImageRowLike[]
 ): DraftMetadataV2 {
-  if (rawMetadata?.version === 2) {
+  if (rawMetadata?.version === 2 && rawMetadata.images && typeof rawMetadata.images === 'object') {
     const metadata = rawMetadata as unknown as DraftMetadataV2
     return {
       version: 2,

@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
 
-  const ownershipClient = supabase as unknown as Parameters<typeof userOwnsUploadedObject>[0]
+  const ownershipClient = supabase
   for (const item of objects) {
     if (isR2ManagedBucket(item.bucket)) {
       if (!(await userOwnsUploadedObject(ownershipClient, user.id, item.bucket, item.path))) {

@@ -1,16 +1,8 @@
-interface MediaOwnershipQuery {
-  eq: (column: string, value: string) => MediaOwnershipQuery
-  maybeSingle: () => PromiseLike<{ data: { id: string } | null; error: unknown }>
-}
-
-interface MediaOwnershipClient {
-  from: (table: 'images') => {
-    select: (columns: string) => MediaOwnershipQuery
-  }
-}
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database'
 
 export async function userOwnsUploadedObject(
-  supabase: MediaOwnershipClient,
+  supabase: SupabaseClient<Database>,
   userId: string,
   bucket: string,
   path: string

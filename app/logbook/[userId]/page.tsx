@@ -47,7 +47,7 @@ const getProfile = cache(async function getProfile(userId: string): Promise<Publ
     return null
   }
 
-  return data as unknown as PublicProfileRow
+  return data as PublicProfileRow
 })
 
 async function getPublicLogs(userId: string): Promise<LogbookClimb[]> {

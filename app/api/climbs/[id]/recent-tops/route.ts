@@ -2,12 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
+import type { Database } from '@/types/database'
 
-interface RecentTopLogRow {
-  user_id: string
-  style: 'top' | 'flash'
-  created_at: string
-}
+type RecentTopLogRow = Pick<Database['public']['Tables']['user_climbs']['Row'], 'user_id' | 'style' | 'created_at'>
 
 interface ProfileRow {
   id: string
@@ -56,7 +53,7 @@ export async function GET(
       return createErrorResponse(error, 'Recent tops error')
     }
 
-    const rows = (data as unknown as RecentTopLogRow[] | null) || []
+    const rows = (data as RecentTopLogRow[] | null) || []
 
     const userIds = Array.from(new Set(rows.map((r) => r.user_id)))
     if (userIds.length === 0) {

@@ -8,6 +8,7 @@ import { getDisplayImageId } from '@/lib/image-identity'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { serverEnv } from '@/lib/env'
+import type { Database } from '@/types/database'
 
 interface ImageInfoRow {
   id: string
@@ -538,7 +539,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
       }
 
       routeFaceRows = Array.isArray(routeFaceRowsData)
-        ? (routeFaceRowsData as unknown as RouteFaceQueryRow[]).map((row) => ({
+        ? (routeFaceRowsData as RouteFaceQueryRow[]).map((row) => ({
             route_id: row.id,
             image_id: row.image_id,
             color: row.color,

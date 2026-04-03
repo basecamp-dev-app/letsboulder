@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     }
   }
 
-  const cragJoin = (climb as unknown as { crags?: Array<{ slug: string | null; country_code: string | null }> | null }).crags
+  const cragJoin = (climb as { crags?: Array<{ slug: string | null; country_code: string | null }> | null }).crags
   const crag = Array.isArray(cragJoin) && cragJoin.length > 0 ? cragJoin[0] : null
   const canonicalPath = climb.slug && crag?.slug && crag?.country_code
     ? `/${crag.country_code.toLowerCase()}/${crag.slug}/${climb.slug}`

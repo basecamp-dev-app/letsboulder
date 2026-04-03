@@ -79,7 +79,7 @@ export async function appendDraftImages(input: {
   requestBody: unknown
 }) {
   const { supabase, userId, draftId, requestBody } = input
-  const ownershipClient = supabase as unknown as Parameters<typeof userOwnsUploadedObject>[0]
+  const ownershipClient = supabase
   const parsedBody = parseWithSchema(appendDraftImagesSchema, requestBody)
   if (!parsedBody.success) return parsedBody.response
 
