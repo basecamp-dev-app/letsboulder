@@ -41,26 +41,9 @@ features/<feature-name>/
 4. **Barrel exports** — each directory should have an `index.ts` that re-exports its contents
 5. **`types.ts` file** — if a feature has only 1-2 types, a single `types.ts` at the feature root is acceptable
 
-## Non-Compliant Features
+## Compliance
 
-Run `npm run lint:features` to check compliance. Current status:
+Run `npx tsx scripts/check-feature-compliance.ts` to check all features and print a compliance table.
+The script exits with code 1 if any feature is non-compliant.
 
-| Feature | components | hooks | lib | server | types | Status |
-|---------|:----------:|:-----:|:---:|:------:|:-----:|--------|
-| admin | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| climb | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| community | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| crags | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| editor | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| gear | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| grades | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| gym-admin | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| gym-owners | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| image-first | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| logbook | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| moderation | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| notifications | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| profile | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| route-editor | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| settings | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
-| submissions | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+CI enforces compliance via `npm run lint:features`.
