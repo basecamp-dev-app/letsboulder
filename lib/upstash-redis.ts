@@ -1,4 +1,4 @@
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
 import { RATE_LIMIT_TIERS } from '@/lib/rate-limit-config'
 

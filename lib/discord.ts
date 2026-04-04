@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { BRAND_NAME, SITE_URL } from '@/lib/site'
 import { reportError } from '@/lib/errors'
 

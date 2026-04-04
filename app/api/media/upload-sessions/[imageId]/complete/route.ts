@@ -4,7 +4,7 @@ import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { getMediaModerationConfig } from '@/lib/media/config'
 import { ensurePrivateObjectExists } from '@/lib/media/r2'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { parseWithSchema } from '@/lib/api-validation'
 
 interface ImageRow {

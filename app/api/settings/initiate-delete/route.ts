@@ -4,7 +4,7 @@ import { Resend } from 'resend'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { buildDeleteAccountEmail } from '@/lib/email/delete-account-email'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { z } from 'zod'
 import { parseWithSchema } from '@/lib/api-validation'
 

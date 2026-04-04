@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
 import { getMediaModerationConfig } from '@/lib/media/config'

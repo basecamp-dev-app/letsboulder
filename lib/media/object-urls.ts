@@ -1,4 +1,4 @@
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { createPrivateReadUrl, createPrivateReadUrls } from '@/lib/media/r2'
 
 export interface StorageObjectRef {

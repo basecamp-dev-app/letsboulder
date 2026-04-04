@@ -6,7 +6,7 @@ import { buildClimbOfflinePack } from '@/lib/offline/build-climb-pack'
 import type { CragOfflinePackManifest, OfflineMapPin } from '@/features/climb/lib/queries'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { estimateCompressedImageBytes } from '@/lib/media-proxy'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
 
 export const revalidate = 3600

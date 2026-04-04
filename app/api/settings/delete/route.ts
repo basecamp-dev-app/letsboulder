@@ -3,7 +3,7 @@ import { jwtVerify } from 'jose'
 import { createErrorResponse, sanitizeError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { getAdminClient } from '@/lib/supabase-server'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { z } from 'zod'
 import { parseWithSchema } from '@/lib/api-validation'
 

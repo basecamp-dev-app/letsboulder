@@ -5,7 +5,7 @@ import { withApiMiddleware } from '@/lib/csrf-server'
 import { createSignedObjectUrls, isR2ManagedBucket } from '@/lib/media/object-urls'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
 import { getSignedUrlBatchKey, type BatchSignedUrlResult, type SignedUrlBatchRequestObject } from '@/lib/signed-url-batch'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { parseWithSchema } from '@/lib/api-validation'
 
 const signedUrlBatchSchema = z.object({

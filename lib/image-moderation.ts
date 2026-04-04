@@ -1,4 +1,4 @@
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { getMediaModerationConfig } from '@/lib/media/config'
 import type { MediaModerationProvider, MediaModerationStatus } from '@/lib/media/types'
 

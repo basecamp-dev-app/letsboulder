@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 
 interface CragPinRow {
   id: string
