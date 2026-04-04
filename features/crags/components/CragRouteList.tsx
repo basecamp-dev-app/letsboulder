@@ -1,5 +1,3 @@
-'use client'
-
 import React, { type MouseEvent } from 'react'
 import { ChevronRight } from 'lucide-react'
 import Image from 'next/image'
