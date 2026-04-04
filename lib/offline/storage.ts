@@ -1,5 +1,5 @@
 import { del, get, set } from 'idb-keyval'
-import type { ClimbOfflinePackManifest, ClimbPackResponse, CragOfflinePackManifest } from '@/lib/climb/queries'
+import type { ClimbOfflinePackManifest, ClimbPackResponse, CragOfflinePackManifest } from '@/features/climb/lib/queries'
 
 const LEGACY_CLIMB_PACKS_KEY = 'offline-climb-packs'
 const PACK_RECORDS_KEY = 'offline-pack-records'

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { groupSubmittedImages } from '@/lib/submissions/group-submitted-images'
+import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 
 interface ContributionRow {
   id: string

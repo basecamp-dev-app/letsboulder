@@ -9,7 +9,7 @@ import ProfileViewTracker from './components/ProfileViewTracker'
 import type { LogbookClimb, LogbookProfile } from '@/features/logbook/lib/logbook-view'
 import type { Database } from '@/types/database'
 import type { Submission } from '@/types/submissions'
-import { groupSubmittedImages } from '@/lib/submissions/group-submitted-images'
+import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 
 type PublicProfileRow = Pick<Database['public']['Tables']['profiles']['Row'], 'is_public'> & LogbookProfile
 

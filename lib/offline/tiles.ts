@@ -1,4 +1,4 @@
-import type { OfflineMapPin, OfflineTileManifest } from '@/lib/climb/queries'
+import type { OfflineMapPin, OfflineTileManifest } from '@/features/climb/lib/queries'
 
 const TILE_MIN_ZOOM = 15
 const TILE_MAX_ZOOM = 17

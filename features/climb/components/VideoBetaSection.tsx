@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { formatLengthFromCm, getLengthInputBounds, getLengthInputLabel, parseLengthInputToCm, type MeasurementUnits } from '@/lib/measurement-units'
-import { fetchSettings, settingsQueryKey } from '@/lib/settings/queries'
+import { fetchSettings, settingsQueryKey } from '@/features/settings/lib/queries'
 import { VIDEO_PLATFORMS, type VideoPlatform, getVideoEmbedUrl, validateAndNormalizeVideoUrl } from '@/lib/video-beta'
 
 interface VideoBetaItem {

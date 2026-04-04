@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
+import { fetchOwnSubmissions } from '@/features/submissions/lib/fetch-own-submissions'
 import { createClient } from '@/lib/supabase'
 import type { Submission } from '@/types/submissions'
 

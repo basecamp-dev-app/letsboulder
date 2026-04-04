@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
+import { resolveEffectiveClimbId } from '@/features/climb/lib/effective-climb'
 import type { Database } from '@/types/database'
 
 type RecentTopLogRow = Pick<Database['public']['Tables']['user_climbs']['Row'], 'user_id' | 'style' | 'created_at'>

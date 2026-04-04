@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
+import { resolveEffectiveClimbId } from '@/features/climb/lib/effective-climb'
 
 export async function GET(
   request: NextRequest,

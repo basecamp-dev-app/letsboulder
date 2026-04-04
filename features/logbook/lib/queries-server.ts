@@ -2,7 +2,7 @@ import type { User } from '@supabase/supabase-js'
 import { getServerClient } from '@/lib/supabase-server'
 import { getGradePoints } from '@/lib/grades'
 import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
-import { groupSubmittedImages } from '@/lib/submissions/group-submitted-images'
+import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 import type { Submission } from '@/types/submissions'
 
 interface RawLogbookRow {
