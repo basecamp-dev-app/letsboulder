@@ -50,7 +50,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
-  vi.restoreAllMocks()
+  vi.clearAllMocks()
 
   vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })))
 

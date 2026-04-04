@@ -3,6 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
 import type { RouteLine } from '@/types/domain'
+import type { RouteEditorDraft, EditorIntent } from '@/features/route-editor/store/types'
+import type { ClimbType } from '@/types/climbing'
 
 const mockDrawRoutes = vi.fn()
 const mockAddPoint = vi.fn()
@@ -13,7 +15,22 @@ const mockSetSelectedRoute = vi.fn()
 const mockSetActiveRoute = vi.fn()
 const mockCommitCurrentRoute = vi.fn()
 
-const routeStoreState = {
+type RouteCanvasStoreMock = {
+  setActiveRoute: (routeId: string | null) => void
+  activeRouteId: string | null
+  currentPoints: Array<{ x: number; y: number }>
+  interactionTool: 'select' | 'draw'
+  selectedRouteId: string | null
+  currentDrawing: { name: string; grade: string; climbType: ClimbType } | null
+  routeEditorDraft: RouteEditorDraft | null
+  editorPanelOpen: boolean
+  setEditorIntent: (intent: EditorIntent) => void
+  setEditorPanelOpen: (open: boolean) => void
+  setSelectedRoute: (routeId: string | null) => void
+  commitCurrentRoute: () => void
+}
+
+const routeStoreState: RouteCanvasStoreMock = {
   setActiveRoute: mockSetActiveRoute,
   activeRouteId: null as string | null,
   currentPoints: [] as Array<{ x: number; y: number }>,
