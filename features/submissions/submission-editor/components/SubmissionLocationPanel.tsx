@@ -1,8 +1,8 @@
 'use client'
 
 import { MapPin } from 'lucide-react'
-import AtlasContextCard from '@/features/submissions/components/atlas-context-card'
-import { LocationSearchBar } from '@/features/submissions/components/editor/location-search-bar'
+import AtlasContextCard from '@/features/submissions/components/AtlasContextCard'
+import { LocationSearchBar } from '@/features/submissions/components/editor/LocationSearchBar'
 import type { AtlasAutoSyncResult } from '@/features/submissions/editor/location/use-atlas-auto-sync'
 
 interface SubmissionLocationPanelProps {

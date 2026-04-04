@@ -46,6 +46,11 @@ npm run supabase:doctor  # Verify Supabase CLI
 - Components: PascalCase, 'use client' directive
 - Files: kebab-case for non-components
 
+### File Naming Rules
+- **`.tsx` component files:** PascalCase (e.g., `LogbookView.tsx`, `CragSelector.tsx`)
+- **`.ts` utility/lib files:** kebab-case (e.g., `rate-limit.ts`, `submission-types.ts`)
+- **Exceptions (kebab-case for `.tsx`):** Next.js route files (`page.tsx`, `layout.tsx`, `error.tsx`, `loading.tsx`, `not-found.tsx`, `template.tsx`, `opengraph-image.tsx`) and shadcn/ui components in `@/components/ui`
+
 ## File References
 
 - **Schema:** @docs/db/schema.md (grades, tables, RPCs, migrations, cascade logic)

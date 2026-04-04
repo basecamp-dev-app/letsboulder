@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic'
 import { SUPPORT_URL } from '@/lib/site'
 import MobileNavSheet from './MobileNavSheet'
 
-const FeedbackButton = dynamic(() => import('@/components/feedback/feedback-button').then(mod => mod.default), { ssr: false })
+const FeedbackButton = dynamic(() => import('@/components/feedback/FeedbackButton').then(mod => mod.default), { ssr: false })
 
 export default function Footer() {
   const pathname = usePathname()

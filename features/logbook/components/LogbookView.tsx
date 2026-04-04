@@ -6,10 +6,10 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
-import { EmptyLogbook } from '@/features/logbook/components/logbook-states'
+import { EmptyLogbook } from '@/features/logbook/components/LogbookStates'
 import { LogbookStatsSection } from '@/features/logbook/components/LogbookStatsSection'
 import { LogbookSubmissionsSection } from '@/features/logbook/components/LogbookSubmissionsSection'
-import { ToastContainer, useToast } from '@/features/logbook/components/toast'
+import { ToastContainer, useToast } from '@/features/logbook/components/Toast'
 import { ownLogbookQueryKey, type OwnLogbookData } from '@/features/logbook/lib/queries'
 import {
   getLogbookLowestGrade,

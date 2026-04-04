@@ -1,5 +1,5 @@
 import { Metadata } from 'next'
-import Providers from '@/components/providers'
+import Providers from '@/components/Providers'
 
 export const metadata: Metadata = {
   title: 'My Climbing Logbook',

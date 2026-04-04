@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2, Plus } from 'lucide-react'
-import AdminGymLocationPicker from '@/features/admin/gyms/components/admin-gym-location-picker'
+import AdminGymLocationPicker from '@/features/admin/gyms/components/AdminGymLocationPicker'
 import { DISCIPLINE_OPTIONS, formatDiscipline } from '@/features/admin/gyms/types'
 import type { GymDiscipline } from '@/features/admin/gyms/types'
 

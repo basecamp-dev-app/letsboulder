@@ -2,11 +2,11 @@
 
 import { useParams, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
-import { ToastContainer, useToast } from '@/features/logbook/components/toast'
+import { ToastContainer, useToast } from '@/features/logbook/components/Toast'
 import { SubmissionWorkstation } from '@/features/submissions/components/SubmissionWorkstation'
 import { resequenceRoutes } from '@/features/submissions/lib/editor-image-state'
 import type { RouteLine } from '@/features/submissions/lib/submission-types'
-import { CollaboratorDialog } from '@/features/submissions/components/editor/collaborator-dialog'
+import { CollaboratorDialog } from '@/features/submissions/components/editor/CollaboratorDialog'
 import { useDraftConflictResolution } from '@/features/submissions/draft-editor/hooks/use-draft-conflict-resolution'
 import { useDraftRouteEditing } from '@/features/submissions/draft-editor/hooks/use-draft-route-editing'
 import { useDraftEditorOrchestration } from '@/features/submissions/draft-editor/hooks/use-draft-editor-orchestration'

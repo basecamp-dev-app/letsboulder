@@ -2,8 +2,8 @@
 
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import NextImage from 'next/image'
-import { ProfileAvatarUploadModal } from '@/components/profile-avatar-upload-modal'
-import { ProfileEditModal } from '@/components/profile-edit-modal'
+import { ProfileAvatarUploadModal } from '@/components/ProfileAvatarUploadModal'
+import { ProfileEditModal } from '@/components/ProfileEditModal'
 
 interface ProfileAvatarProps {
   avatarUrl?: string

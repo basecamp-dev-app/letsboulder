@@ -4,7 +4,6 @@
   "private": true,
   "overrides": {
     "fast-xml-parser": "^5.5.8",
-    "mailparser": "^3.9.3",
     "tar": "^7.5.12",
     "flatted": "^3.4.2",
     "undici": "^7.24.5",
