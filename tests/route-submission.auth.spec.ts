@@ -18,7 +18,7 @@ async function ensureAuthStateExists() {
     throw new Error('Missing auth state after global setup')
   }
 
-  if (process.env.TEST_API_KEY && process.env.TEST_USER_ID && process.env.TEST_USER_PASSWORD) {
+  if (process.env.TEST_API_KEY && (process.env.TEST_USER_EMAIL || process.env.TEST_USER_ID) && process.env.TEST_USER_PASSWORD) {
     await globalSetup()
     if (fs.existsSync(AUTH_STATE_PATH)) return
   }

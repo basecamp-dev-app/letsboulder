@@ -74,18 +74,19 @@ async function globalSetup() {
   
   const testApiKey = process.env.TEST_API_KEY?.trim()
   const testUserId = process.env.TEST_USER_ID?.trim()
+  const testUserEmail = process.env.TEST_USER_EMAIL?.trim()
   const testUserPassword = process.env.TEST_USER_PASSWORD?.trim()
   const internalTestKey = process.env.INTERNAL_TEST_KEY?.trim()
 
-  if (!testApiKey || !testUserId || !testUserPassword) {
-    console.log('TEST_API_KEY, TEST_USER_ID, and TEST_USER_PASSWORD are required, skipping authentication')
+  if (!testApiKey || (!testUserId && !testUserEmail) || !testUserPassword) {
+    console.log('TEST_API_KEY, TEST_USER_PASSWORD, and either TEST_USER_EMAIL or TEST_USER_ID are required, skipping authentication')
     await ensureSeedData()
     return
   }
 
-  const maskedUserId = `${testUserId.slice(0, 8)}...${testUserId.slice(-4)}`
+  const authIdentity = testUserEmail || `${testUserId!.slice(0, 8)}...${testUserId!.slice(-4)}`
 
-  console.log(`Setting up authenticated session for ${maskedUserId} against ${baseURL}`)
+  console.log(`Setting up authenticated session for ${authIdentity} against ${baseURL}`)
 
   const browser = await chromium.launch()
   const context = await browser.newContext()
@@ -93,7 +94,8 @@ async function globalSetup() {
   try {
     const authUrl = new URL('/api/test/auth', baseURL)
     authUrl.searchParams.set('api_key', testApiKey)
-    authUrl.searchParams.set('user_id', testUserId)
+    if (testUserId) authUrl.searchParams.set('user_id', testUserId)
+    if (testUserEmail) authUrl.searchParams.set('email', testUserEmail)
 
     console.log(`Authenticating via ${new URL('/api/test/auth', baseURL).toString()}`)
 
