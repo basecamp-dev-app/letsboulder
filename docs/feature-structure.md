@@ -47,18 +47,20 @@ Run `npm run lint:features` to check compliance. Current status:
 
 | Feature | components | hooks | lib | server | types | Status |
 |---------|:----------:|:-----:|:---:|:------:|:-----:|--------|
-| climb | ✓ | ✓ | ✗ | ✗ | ✗ | Non-compliant |
-| community | ✓ | ✗ | ✓ | ✓ | ✗ | Non-compliant |
-| crags | ✓ | ✓ | ✓ | ✓ | ✗ | Non-compliant |
-| editor | ✗ | ✗ | ✗ | ✗ | ✗ | Non-compliant |
-| gear | ✗ | ✗ | ✗ | ✗ | ✗ | Non-compliant |
-| grades | ✓ | ✓ | ✗ | ✗ | ✗ | Non-compliant |
-| gym-owners | ✗ | ✗ | ✗ | ✗ | ✗ | Non-compliant |
-| image-first | ✓ | ✓ | ✗ | ✓ | ✓ | Non-compliant |
-| logbook | ✓ | ✗ | ✓ | ✗ | ✗ | Non-compliant |
-| moderation | ✗ | ✗ | ✗ | ✗ | ✗ | Non-compliant |
-| notifications | ✗ | ✗ | ✗ | ✗ | ✗ | Non-compliant |
-| profile | ✗ | ✗ | ✗ | ✗ | ✗ | Non-compliant |
-| route-editor | ✓ | ✓ | ✗ | ✗ | ✗ | Non-compliant |
-| settings | ✗ | ✗ | ✗ | ✗ | ✗ | Non-compliant |
-| submissions | ✓ | ✓ | ✓ | ✓ | ✗ | Non-compliant |
+| admin | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| climb | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| community | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| crags | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| editor | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| gear | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| grades | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| gym-admin | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| gym-owners | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| image-first | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| logbook | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| moderation | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| notifications | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| profile | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| route-editor | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| settings | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
+| submissions | ✓ | ✓ | ✓ | ✓ | ✓ | Compliant |
