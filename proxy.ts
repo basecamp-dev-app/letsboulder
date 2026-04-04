@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { serverEnv } from '@/lib/env'
 import { reportError } from '@/lib/errors'
+import { RATE_LIMIT_TIERS, PROXY_BUCKET_TO_TIER } from '@/lib/rate-limit-config'
 
 const INTERNAL_USER_ID_HEADER = 'x-internal-user-id'
 const CSRF_COOKIE_NAME = 'csrf_token'
@@ -111,39 +112,9 @@ async function getUpstashDeps(): Promise<UpstashDeps | null> {
 }
 
 function getLimiterConfig(rateLimitBucket: RateLimitBucket): { tokens: number; window: string; prefix: string } {
-  if (rateLimitBucket === 'geo') {
-    return { tokens: 5, window: '1 m', prefix: 'rl:api:geo' }
-  }
-
-  if (rateLimitBucket === 'clicks') {
-    return { tokens: 10, window: '1 m', prefix: 'rl:api:clicks' }
-  }
-
-  if (rateLimitBucket === 'search') {
-    return { tokens: 60, window: '1 m', prefix: 'rl:api:search' }
-  }
-
-  if (rateLimitBucket === 'rankings') {
-    return { tokens: 120, window: '1 m', prefix: 'rl:api:rankings' }
-  }
-
-  if (rateLimitBucket === 'upload_session_create') {
-    return { tokens: 12, window: '1 m', prefix: 'rl:api:upload-session-create' }
-  }
-
-  if (rateLimitBucket === 'upload_session_complete') {
-    return { tokens: 20, window: '1 m', prefix: 'rl:api:upload-session-complete' }
-  }
-
-  if (rateLimitBucket === 'signed_urls') {
-    return { tokens: 30, window: '1 m', prefix: 'rl:api:signed-urls' }
-  }
-
-  if (rateLimitBucket === 'submissions') {
-    return { tokens: 20, window: '1 m', prefix: 'rl:api:submissions' }
-  }
-
-  return { tokens: 90, window: '1 m', prefix: 'rl:api:write' }
+  const tierKey = PROXY_BUCKET_TO_TIER[rateLimitBucket]
+  const tier = RATE_LIMIT_TIERS[tierKey]
+  return { tokens: tier.tokens, window: tier.window, prefix: tier.prefix }
 }
 
 function getOrCreateLimiter(

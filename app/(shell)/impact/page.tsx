@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { ImpactCard } from '@/components/metrics/impact-card'
+import { ImpactCard } from '@/components/metrics/ImpactCard'
 import {
   getActiveClimbersCount,
   getCommunityContributorsCount,

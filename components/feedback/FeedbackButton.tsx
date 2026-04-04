@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { MessageSquare } from 'lucide-react'
-import { FeedbackDialog } from './feedback-dialog'
+import { FeedbackDialog } from './FeedbackDialog'
 
 export default function FeedbackButton() {
   const [open, setOpen] = useState(false)

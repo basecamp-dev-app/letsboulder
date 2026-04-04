@@ -5,7 +5,7 @@ import type { SubmissionCrag } from '@/features/submissions/lib/submission-types
 import { csrfFetch } from '@/hooks/useCsrf'
 import { reportError } from '@/lib/errors'
 import { useAtlasAutoSync } from '@/features/submissions/editor/location/use-atlas-auto-sync'
-import AtlasContextCard from '@/features/submissions/components/atlas-context-card'
+import AtlasContextCard from '@/features/submissions/components/AtlasContextCard'
 
 interface CragSelectorProps {
   latitude?: number | null

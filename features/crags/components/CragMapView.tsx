@@ -1,6 +1,6 @@
 'use client'
 
-import LightweightCragMap from '@/components/lightweight-crag-map'
+import LightweightCragMap from '@/components/LightweightCragMap'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 
 interface CragMapViewProps {

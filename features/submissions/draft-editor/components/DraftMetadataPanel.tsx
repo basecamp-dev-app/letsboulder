@@ -5,11 +5,11 @@ import dynamic from 'next/dynamic'
 import { useMapEvents } from 'react-leaflet'
 import type { LeafletMouseEvent, LeafletEvent } from 'leaflet'
 import { useEffect } from 'react'
-import AtlasContextCard from '@/features/submissions/components/atlas-context-card'
+import AtlasContextCard from '@/features/submissions/components/AtlasContextCard'
 import { parseOptionalCoordinate } from '@/features/submissions/lib/location-metadata'
 import CragSelector from '@/features/submissions/components/CragSelector'
 import SectorSelector from '@/features/submissions/components/SectorSelector'
-import { LocationSearchBar } from '@/features/submissions/components/editor/location-search-bar'
+import { LocationSearchBar } from '@/features/submissions/components/editor/LocationSearchBar'
 import type { AtlasAutoSyncResult } from '@/features/submissions/editor/location/use-atlas-auto-sync'
 
 const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false })

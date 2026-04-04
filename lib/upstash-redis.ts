@@ -1,5 +1,6 @@
 import { serverEnv } from '@/lib/env'
 import { reportError } from '@/lib/errors'
+import { RATE_LIMIT_TIERS } from '@/lib/rate-limit-config'
 
 interface UpstashRedisClient {
   get: (key: string) => Promise<string | null>
@@ -45,21 +46,12 @@ let fallbackAlertLogged = false
 const UPSTASH_URL = serverEnv.UPSTASH_REDIS_REST_URL
 const UPSTASH_TOKEN = serverEnv.UPSTASH_REDIS_REST_TOKEN
 
-export const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
-  externalApi: { tokens: 30, window: '60 s', prefix: 'rl:api:external' },
-  geoDetect: { tokens: 5, window: '60 s', prefix: 'rl:api:geo' },
-  clickSink: { tokens: 10, window: '60 s', prefix: 'rl:api:clicks' },
-  authenticatedWrite: { tokens: 50, window: '60 m', prefix: 'rl:api:write' },
-  publicSearch: { tokens: 100, window: '60 s', prefix: 'rl:api:search' },
-  sensitive: { tokens: 10, window: '60 m', prefix: 'rl:api:sensitive' },
-  strict: { tokens: 5, window: '60 s', prefix: 'rl:api:strict' },
-  search: { tokens: 60, window: '60 s', prefix: 'rl:api:search' },
-  rankings: { tokens: 120, window: '60 s', prefix: 'rl:api:rankings' },
-  submissions: { tokens: 20, window: '60 s', prefix: 'rl:api:submissions' },
-  signedUrls: { tokens: 30, window: '60 s', prefix: 'rl:api:signed-urls' },
-  uploadSessionCreate: { tokens: 12, window: '60 s', prefix: 'rl:api:upload-session-create' },
-  uploadSessionComplete: { tokens: 20, window: '60 s', prefix: 'rl:api:upload-session-complete' },
-}
+export const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = Object.fromEntries(
+  Object.entries(RATE_LIMIT_TIERS).map(([key, tier]) => [
+    key,
+    { tokens: tier.tokens, window: tier.window, prefix: tier.prefix },
+  ])
+)
 
 async function loadUpstashDeps(): Promise<UpstashDeps | null> {
   if (!upstashDepsPromise) {

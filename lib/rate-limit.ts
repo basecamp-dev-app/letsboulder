@@ -1,18 +1,12 @@
 import { checkRateLimit } from '@/lib/upstash-redis'
+import { RATE_LIMIT_TIERS } from '@/lib/rate-limit-config'
 
-const RATE_LIMITS = {
-  externalApi: { windowMs: 60 * 1000, maxRequests: 30 },
-  geoDetect: { windowMs: 60 * 1000, maxRequests: 5 },
-  clickSink: { windowMs: 60 * 1000, maxRequests: 10 },
-  authenticatedWrite: { windowMs: 60 * 60 * 1000, maxRequests: 50 },
-  publicSearch: { windowMs: 60 * 1000, maxRequests: 100 },
-  sensitive: { windowMs: 60 * 60 * 1000, maxRequests: 10 },
-  strict: { windowMs: 60 * 1000, maxRequests: 5 },
-  submissions: { windowMs: 60 * 1000, maxRequests: 20 },
-  signedUrls: { windowMs: 60 * 1000, maxRequests: 30 },
-  uploadSessionCreate: { windowMs: 60 * 1000, maxRequests: 12 },
-  uploadSessionComplete: { windowMs: 60 * 1000, maxRequests: 20 },
-} as const
+const RATE_LIMITS = Object.fromEntries(
+  Object.entries(RATE_LIMIT_TIERS).map(([key, tier]) => [
+    key,
+    { windowMs: tier.windowMs, maxRequests: tier.tokens },
+  ])
+) as { [K in keyof typeof RATE_LIMIT_TIERS]: { windowMs: number; maxRequests: number } }
 
 type RateLimitKey = keyof typeof RATE_LIMITS
 

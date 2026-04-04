@@ -1,8 +1,8 @@
 'use client'
 
 import { Users } from 'lucide-react'
-import { CreditSection } from '@/features/submissions/components/editor/credit-section'
-import { OrientationPicker } from '@/features/submissions/components/editor/orientation-picker'
+import { CreditSection } from '@/features/submissions/components/editor/CreditSection'
+import { OrientationPicker } from '@/features/submissions/components/editor/OrientationPicker'
 import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import type { FaceDirection } from '@/features/submissions/lib/submission-types'
 

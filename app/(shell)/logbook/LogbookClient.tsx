@@ -5,8 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import { User } from '@supabase/supabase-js'
 import { useSearchParams } from 'next/navigation'
 import LogbookView from '@/features/logbook/components/LogbookView'
-import { LogbookSkeleton } from '@/features/logbook/components/logbook-states'
-import { useToast } from '@/features/logbook/components/toast'
+import { LogbookSkeleton } from '@/features/logbook/components/LogbookStates'
+import { useToast } from '@/features/logbook/components/Toast'
 import { fetchOwnLogbookData, ownLogbookQueryKey, type OwnLogbookData } from '@/features/logbook/lib/queries'
 
 function LoadingFallback() {

@@ -8,7 +8,7 @@ import { useImageNavigation } from '@/features/image-first/hooks/use-image-navig
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
 import { RouteEditorRail } from '@/features/route-editor/components/RouteEditorRail'
 import { UnifiedRouteCanvas } from '@/features/route-editor/components/UnifiedRouteCanvas'
-import LightweightCragMap from '@/components/lightweight-crag-map'
+import LightweightCragMap from '@/components/LightweightCragMap'
 import { normalizePoints } from '@/lib/canvasMath'
 import type { Database } from '@/types/database'
 import { createClient } from '@/lib/supabase'
