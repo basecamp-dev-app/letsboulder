@@ -3,7 +3,7 @@
 import { type ActionResult } from '@/lib/actions/action-result'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { notifyNewFlag } from '@/lib/discord'
-import { createFlag } from '@/lib/flags/create-flag'
+import { createFlag } from '@/features/moderation/lib/create-flag'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
 

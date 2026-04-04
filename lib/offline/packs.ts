@@ -1,6 +1,6 @@
 import pLimit from 'p-limit'
-import type { ClimbOfflinePackManifest, ClimbPackResponse, CragOfflinePackManifest } from '@/lib/climb/queries'
-import { fetchClimbOfflinePack, fetchCragOfflinePack } from '@/lib/climb/queries'
+import type { ClimbOfflinePackManifest, ClimbPackResponse, CragOfflinePackManifest } from '@/features/climb/lib/queries'
+import { fetchClimbOfflinePack, fetchCragOfflinePack } from '@/features/climb/lib/queries'
 import {
   getOfflineClimbPack,
   getOfflineCragPack,

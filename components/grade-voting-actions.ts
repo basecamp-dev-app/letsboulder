@@ -2,9 +2,9 @@
 
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { ok, type ActionResult } from '@/lib/actions/action-result'
-import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
+import { resolveEffectiveClimbId } from '@/features/climb/lib/effective-climb'
 import { isValidGrade } from '@/lib/grade-constants'
-import { loadGradeDistribution, upsertGradeVote } from '@/lib/grades/grade-votes'
+import { loadGradeDistribution, upsertGradeVote } from '@/features/grades/lib/grade-votes'
 import { reportError } from '@/lib/errors'
 import { getServerClient } from '@/lib/supabase-server'
 

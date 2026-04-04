@@ -2,7 +2,7 @@
 
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { ok, type ActionResult } from '@/lib/actions/action-result'
-import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
+import { resolveEffectiveClimbId } from '@/features/climb/lib/effective-climb'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
 

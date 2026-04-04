@@ -11,7 +11,7 @@ vi.mock('@/lib/rate-limit', () => ({
   createRateLimitResponse: vi.fn(() => null),
 }))
 
-vi.mock('@/lib/climbs/effective-climb', () => ({
+vi.mock('@/features/climb/lib/effective-climb', () => ({
   resolveEffectiveClimbId: vi.fn(async () => 'climb-1'),
 }))
 

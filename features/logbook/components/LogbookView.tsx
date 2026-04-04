@@ -25,7 +25,7 @@ import {
 } from '@/features/logbook/lib/logbook-view'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { fetchOwnSubmissions } from '@/lib/submissions/fetch-own-submissions'
+import { fetchOwnSubmissions } from '@/features/submissions/lib/fetch-own-submissions'
 import { deleteLogAction } from '@/features/logbook/actions/delete-log'
 import {
   deletePublishedSubmissionAction,

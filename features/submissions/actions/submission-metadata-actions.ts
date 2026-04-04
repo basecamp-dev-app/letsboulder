@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { type ActionResult } from '@/lib/actions/action-result'
 import { isValidGrade } from '@/lib/grade-constants'
-import { buildConsensusUpdates } from '@/lib/grades/grade-votes'
+import { buildConsensusUpdates } from '@/features/grades/lib/grade-votes'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { getAdminClient, getServerClient } from '@/lib/supabase-server'
 

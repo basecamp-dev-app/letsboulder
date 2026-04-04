@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
-import { groupSubmittedImages } from '@/lib/submissions/group-submitted-images'
+import { groupSubmittedImages } from './group-submitted-images'
 import type { DraftImageRef, Submission } from '@/types/submissions'
 
 interface DraftSubmissionRow {
