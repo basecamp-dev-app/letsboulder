@@ -1,5 +1,5 @@
 import { notFound, permanentRedirect } from 'next/navigation'
-import CragPageClient from '@/features/crags/components/CragPageClient'
+import CragPageShell from '@/features/crags/components/CragPageShell'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import { getCragById } from '../lib/get-crag-by-id'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
@@ -38,13 +38,15 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
   })
 
   return (
-    <CragPageClient
+    <CragPageShell
       id={id}
       initialCrag={initialCrag}
       initialImages={initialRouteData.initialImages}
       initialRoutes={initialRouteData.initialRoutes}
       initialRouteImageIdsByClimbId={initialRouteData.initialRouteImageIdsByClimbId}
       initialRoutePreviewByClimbId={initialRouteData.initialRoutePreviewByClimbId}
+      initialDefaultRouteTargetByImageId={initialRouteData.initialDefaultRouteTargetByImageId}
+      initialRouteNavigationTargetByClimbId={initialRouteData.initialRouteNavigationTargetByClimbId}
       initialCragCenter={initialRouteData.initialCragCenter}
     />
   )

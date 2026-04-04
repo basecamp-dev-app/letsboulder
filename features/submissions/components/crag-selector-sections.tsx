@@ -1,5 +1,3 @@
-'use client'
-
 import type { SubmissionCrag } from '@/features/submissions/lib/submission-types'
 
 interface CragSearchResult extends SubmissionCrag {

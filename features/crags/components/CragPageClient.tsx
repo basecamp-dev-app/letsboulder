@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import CragPageSkeleton from '@/features/crags/components/CragPageSkeleton'
 import CragMapView from '@/features/crags/components/CragMapView'
 import CragRouteSection from '@/features/crags/components/CragRouteSection'
 import { useCragData } from '@/features/crags/hooks/use-crag-data'
@@ -46,7 +45,6 @@ export default function CragPageClient({
     routeNavigationTargetByClimbId,
     defaultRouteTargetByImageId,
     routesLoadState,
-    loading,
     cragCenter,
   } = useCragData({
     id,
@@ -85,10 +83,6 @@ export default function CragPageClient({
     id,
     initialCrag,
   })
-
-  if (loading) {
-    return <CragPageSkeleton />
-  }
 
   if (!crag) {
     return (
