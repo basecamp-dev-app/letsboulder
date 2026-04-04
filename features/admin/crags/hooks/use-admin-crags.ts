@@ -2,18 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { getResponseError } from '@/lib/response-error'
 import type { AdminCrag } from '@/features/admin/crags/types'
-
-function getResponseError(payload: unknown, fallback: string): string {
-  if (typeof payload === 'object' && payload !== null && 'error' in payload) {
-    const error = (payload as { error?: unknown }).error
-    if (typeof error === 'string' && error.trim().length > 0) {
-      return error
-    }
-  }
-
-  return fallback
-}
 
 export function useAdminCrags() {
   const [crags, setCrags] = useState<AdminCrag[]>([])
