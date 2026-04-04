@@ -2,26 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { GripHorizontal, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { ToastContainer, useToast } from '@/features/logbook/components/Toast'
 import { createSubmissionDraftAction } from '@/features/submissions/actions/manage-submissions'
 import ImagePicker from '@/features/submissions/components/ImagePicker'
+import { DraftImageGallery, DraftUploadStatus, type DraftIntakeImage } from '@/features/submissions/components/draft-intake-sections'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { useDraftUploadManager } from '@/features/submissions/upload/hooks/use-draft-upload-manager'
-import { DndContext, MouseSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
-import { SortableContext, arrayMove, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-
-interface DraftIntakeImage {
-  id: string
-  imageId: string | null
-  previewUrl: string
-  label: string
-  status: 'attached' | 'uploading' | 'failed'
-  progress?: number
-}
+import { type DragEndEvent } from '@dnd-kit/core'
+import { arrayMove } from '@dnd-kit/sortable'
 
 interface DraftImageRecord {
   id: string
@@ -43,36 +33,6 @@ interface DraftPatchResponse {
     updated_at?: string
   }
   error?: string
-}
-
-function SortableDraftThumb({ image }: { image: DraftIntakeImage }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
-    id: image.id,
-    disabled: image.status !== 'attached',
-  })
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-800"
-      {...attributes}
-      {...listeners}
-    >
-      <Image src={image.previewUrl} alt={image.label} fill unoptimized sizes="80px" className="object-cover" />
-      {image.status === 'attached' ? (
-        <GripHorizontal className="absolute bottom-1 right-1 z-10 h-3.5 w-3.5 rounded-full bg-black/55 p-[2px] text-white" />
-      ) : null}
-      <span className="absolute left-1 top-1 z-10 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-black/70 px-1 text-[10px] font-semibold text-white">
-        {image.label}
-      </span>
-      {image.status !== 'attached' ? (
-        <div className="absolute inset-x-0 bottom-0 z-10 bg-black/60 px-1.5 py-1 text-[10px] font-medium text-white">
-          {image.status === 'failed' ? 'Failed' : `${image.progress || 0}%`}
-        </div>
-      ) : null}
-    </div>
-  )
 }
 
 interface DraftCreateResponse {
@@ -123,11 +83,6 @@ export default function DraftIntakeView() {
     })),
     ...uploadThumbs,
   ]).filter((image) => image.previewUrl), [draftImages, uploadThumbs])
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 8 } })
-  )
-
   const loadDraftImages = useCallback(async (targetDraftId: string) => {
     const response = await csrfFetch(`/api/submissions/drafts/${targetDraftId}`)
     const payload = await response.json().catch(() => ({} as DraftThumbnailResponse))
@@ -327,27 +282,10 @@ export default function DraftIntakeView() {
                       Upload more anytime. Drag attached photos to reorder them before opening the editor.
                     </p>
                   </div>
-                  {(phase === 'uploading' || reordering) ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      {reordering ? 'Saving order' : 'Uploading'}
-                    </span>
-                  ) : null}
+                  <DraftUploadStatus uploading={phase === 'uploading'} reordering={reordering} />
                 </div>
 
-                {hasAnyImages ? (
-                  <div className="overflow-x-auto pb-1">
-                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleReorder}>
-                      <SortableContext items={draftImages.map((image) => image.id)} strategy={horizontalListSortingStrategy}>
-                        <div className="flex gap-2">
-                          {galleryImages.map((image) => (
-                            <SortableDraftThumb key={image.id} image={image} />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-                  </div>
-                ) : null}
+                {hasAnyImages ? <DraftImageGallery galleryImages={galleryImages} sortableImageIds={draftImages.map((image) => image.id)} onDragEnd={handleReorder} /> : null}
 
                 {totalCount > 0 ? (
                   <p className="text-xs text-gray-500 dark:text-gray-400">
