@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
-import { requireAdminFromSupabase } from '@/features/admin/server'
+import { deleteImage, requireAdminFromSupabase } from '@/features/admin/server'
 
 const deleteImageParamsSchema = z.object({
   id: z.string().min(1, 'id is required'),
@@ -27,44 +26,13 @@ export async function DELETE(
 
   const { supabase } = middlewareResult
 
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    const adminError = await requireAdminFromSupabase(supabase, user.id)
-    if (adminError) return adminError
-
-    const { data: existingImage, error: fetchError } = await supabase
-      .from('images')
-      .select('id, status, crag_id')
-      .eq('id', imageId)
-      .single()
-
-    if (fetchError || !existingImage) {
-      return NextResponse.json({ error: 'Image not found' }, { status: 404 })
-    }
-
-    if (existingImage.status === 'deleted') {
-      return NextResponse.json({ error: 'Image already deleted' }, { status: 400 })
-    }
-
-    const { error: updateError } = await supabase
-      .from('images')
-      .update({ status: 'deleted' })
-      .eq('id', imageId)
-
-    if (updateError) {
-      return createErrorResponse(updateError, 'Error soft deleting image')
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Image deleted successfully'
-    })
-  } catch (error) {
-    return createErrorResponse(error, 'Image deletion error')
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
+
+  const adminError = await requireAdminFromSupabase(supabase, user.id)
+  if (adminError) return adminError
+
+  return deleteImage(supabase, imageId)
 }

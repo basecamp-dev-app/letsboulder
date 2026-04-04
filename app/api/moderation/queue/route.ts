@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { QueueItemSchema } from '@/lib/supabase-result-schemas'
-import { requireAdminFromSupabase } from '@/features/admin/server'
+import { listModerationQueue, requireAdminFromSupabase } from '@/features/admin/server'
 
 
 
@@ -31,39 +29,7 @@ export async function GET(request: NextRequest) {
       return rateLimitResponse
     }
 
-    let query = supabase
-      .from('moderation_queue')
-      .select(`
-        id,
-        status,
-        verify_count,
-        flag_count,
-        quality_score,
-        created_at,
-        resolved_at,
-        climb:climb_id(id, name, grade, description, image_url),
-        crag:crag_id(id, name),
-        submitter:submitter_id(id, email, username, first_name, last_name)
-      `)
-      .eq('status', status)
-      .order('created_at', { ascending: false })
-
-    if (cragId) {
-      query = query.eq('crag_id', cragId)
-    }
-
-    const { data: rawData, error } = await query
-
-    if (error) {
-      return createErrorResponse(error, 'Error fetching moderation queue')
-    }
-
-    const queue = z.array(QueueItemSchema).parse(rawData || [])
-
-    return NextResponse.json({ 
-      queue,
-      count: queue.length 
-    })
+    return listModerationQueue(supabase, status, cragId)
   } catch (error) {
     return createErrorResponse(error, 'Queue fetch error')
   }
