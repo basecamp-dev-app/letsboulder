@@ -32,7 +32,7 @@ interface RoutePoint {
 }
 
 export async function POST(request: NextRequest) {
-  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false, rateLimitKey: 'submissions' })
   if (!middlewareResult.ok) return middlewareResult.response
 
   const debugAuth = serverEnv.DEBUG_SUBMISSIONS_AUTH === '1'

@@ -94,7 +94,7 @@ export async function withApiMiddleware(
   }
 
   if (rateLimitKey) {
-    const rateLimitResult = rateLimit(request, rateLimitKey, userId)
+    const rateLimitResult = await rateLimit(request, rateLimitKey, userId)
     if (!rateLimitResult.success) {
       return {
         ok: false,

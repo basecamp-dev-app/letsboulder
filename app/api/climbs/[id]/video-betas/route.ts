@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { validateAndNormalizeVideoUrl } from '@/lib/video-beta'
 import { parseWithSchema } from '@/lib/api-validation'
@@ -83,7 +82,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  const middlewareResult = await withApiMiddleware(request, {
+    requireUser: false,
+    rateLimitKey: 'authenticatedWrite',
+  })
   if (!middlewareResult.ok) return middlewareResult.response
 
   const { supabase } = middlewareResult
@@ -94,12 +96,6 @@ export async function POST(
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user.id)
-    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
-    if (!rateLimitResult.success) {
-      return rateLimitResponse
     }
 
     const { id: climbId } = await params

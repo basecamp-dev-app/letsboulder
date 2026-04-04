@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   }
 
-  const rateLimitResult = rateLimit(request, 'strict', user.id)
+  const rateLimitResult = await rateLimit(request, 'strict', user.id)
   const rateLimitResponse = createRateLimitResponse(rateLimitResult)
   if (!rateLimitResult.success) {
     return rateLimitResponse

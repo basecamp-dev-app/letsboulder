@@ -104,7 +104,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  const middlewareResult = await withApiMiddleware(request, {
+    requireUser: false,
+    rateLimitKey: 'sensitive',
+  })
   if (!middlewareResult.ok) return middlewareResult.response
 
   const admin = await requireAdmin(request)

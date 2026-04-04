@@ -25,7 +25,7 @@ const uploadSessionSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false, rateLimitKey: 'uploadSessionCreate' })
   if (!middlewareResult.ok) return middlewareResult.response
 
   const { supabase } = middlewareResult

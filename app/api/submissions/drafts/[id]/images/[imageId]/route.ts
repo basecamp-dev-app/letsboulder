@@ -51,6 +51,7 @@ export async function DELETE(
 ) {
   const middlewareResult = await withApiMiddleware(request, {
     unauthorizedMessage: 'Authentication required',
+    rateLimitKey: 'authenticatedWrite',
   })
   if (!middlewareResult.ok) return middlewareResult.response
 
