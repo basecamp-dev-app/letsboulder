@@ -47,7 +47,8 @@ export function useDraftEditorOrchestration({
   const [ownerProfile] = useState<{ displayName: string; username: string | null } | null>(null)
   const [addingImages, setAddingImages] = useState(false)
   const [removingImageId, setRemovingImageId] = useState<string | null>(null)
-  const [switchingImageId] = useState<string | null>(null)
+  const [switchingImageId, setSwitchingImageId] = useState<string | null>(null)
+  const switchingImageLockRef = useRef(false)
   const addImageInputRef = useRef<HTMLInputElement | null>(null)
   const publishRequirementsRef = useRef<HTMLDivElement | null>(null)
   const cragSectionRef = useRef<HTMLDivElement | null>(null)
@@ -400,6 +401,8 @@ export function useDraftEditorOrchestration({
     setHasExplicitRouteType,
     setRouteType,
     setMapOpen,
+    setSwitchingImageId,
+    switchingImageLockRef,
   })
 
   return {

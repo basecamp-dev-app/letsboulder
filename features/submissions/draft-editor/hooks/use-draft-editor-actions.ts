@@ -43,6 +43,8 @@ interface UseDraftEditorActionsParams {
   setHasExplicitRouteType: (value: boolean) => void
   setRouteType: (value: string) => void
   setMapOpen: (value: boolean) => void
+  setSwitchingImageId: (value: string | null) => void
+  switchingImageLockRef: React.MutableRefObject<boolean>
 }
 
 export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
@@ -82,6 +84,8 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
     setHasExplicitRouteType,
     setRouteType,
     setMapOpen,
+    setSwitchingImageId,
+    switchingImageLockRef,
   } = params
 
   const toggleImageOrientation = useCallback((direction: FaceDirection) => {
@@ -98,10 +102,10 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
     })
   }, [activeDraftImageId, setOrientationByImageId])
 
-  const handleQuickSwitchImage = useCallback(async (imageId: string, setSwitchingImageId: (value: string | null) => void, switchingLockRef: React.MutableRefObject<boolean>) => {
-    if (imageId === activeImageId || switchingLockRef.current) return
+  const handleQuickSwitchImage = useCallback(async (imageId: string) => {
+    if (imageId === activeImageId || switchingImageLockRef.current) return
     const targetImage = quickSwitcherImages.find((image) => image.imageId === imageId) || null
-    switchingLockRef.current = true
+    switchingImageLockRef.current = true
     setSwitchingImageId(imageId)
 
     try {
@@ -117,10 +121,10 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
         focusDrawingArea('smooth')
       }, 0)
     } finally {
-      switchingLockRef.current = false
+      switchingImageLockRef.current = false
       setSwitchingImageId(null)
     }
-  }, [activeImageId, cragId, focusDrawingArea, quickSwitcherImages, saveDraft, setActiveImageId, setCanvasSource])
+  }, [activeImageId, cragId, focusDrawingArea, quickSwitcherImages, saveDraft, setActiveImageId, setCanvasSource, setSwitchingImageId, switchingImageLockRef])
 
   const handleReorderDraftImages = useCallback(async (imageIds: string[]) => {
     if (!draft || !draftUpdatedAt) return
