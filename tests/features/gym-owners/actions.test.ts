@@ -59,7 +59,7 @@ describe('Gym Owner Application Validation', () => {
     test('rejects missing required fields', async () => {
       const result = await submitGymOwnerApplicationAction({})
       expect(result.success).toBe(false)
-      expect(result.error).toBe('gym_name is required')
+      expect(result.error).toBe('Invalid input: expected string, received undefined')
     })
 
     test('rejects invalid email', async () => {
@@ -123,7 +123,7 @@ describe('Gym Owner Application Validation', () => {
         facilities: ['invalid_facility'],
       })
       expect(result.success).toBe(false)
-      expect(result.error).toBe('Invalid facility: invalid_facility')
+      expect(result.error).toBe('Invalid facility')
     })
 
     test('rejects comments over 2000 chars', async () => {

@@ -54,6 +54,21 @@ function makeThenableResult<T>(result: T) {
   }
 }
 
+function makeSelectChain<T>(result: T) {
+  const chain = {
+    eq: vi.fn(() => chain),
+    not: vi.fn(() => chain),
+    ilike: vi.fn(() => chain),
+    gte: vi.fn(() => chain),
+    lte: vi.fn(() => chain),
+    limit: vi.fn(() => makeThenableResult(result)),
+    maybeSingle: vi.fn(async () => result),
+    single: vi.fn(async () => result),
+  }
+
+  return chain
+}
+
 describe('Slug retry routes', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -68,8 +83,8 @@ describe('Slug retry routes', () => {
     })
   })
 
-  test('places route retries with suffixed slug after unique violation', async () => {
-    const insertAttempts: string[] = []
+  test('places route computes a suffixed slug when the base slug is already used', async () => {
+    const insertPayloads: Array<{ slug: string | null }> = []
 
     vi.mocked(withApiMiddleware).mockResolvedValue({
       ok: true,
@@ -81,42 +96,36 @@ describe('Slug retry routes', () => {
         from: vi.fn((table: string) => {
           if (table === 'profiles') {
             return {
-              select: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  maybeSingle: vi.fn(async () => ({ data: { is_admin: false }, error: null })),
-                })),
-              })),
+              select: vi.fn(() => makeSelectChain({ data: { is_admin: false }, error: null })),
             }
           }
 
           if (table === 'places') {
             return {
-              select: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  eq: vi.fn(() => ({
-                    eq: vi.fn(() => ({
-                      limit: vi.fn(() => makeThenableResult({ data: [], error: null })),
-                    })),
-                  })),
-                  ilike: vi.fn(() => ({
-                    limit: vi.fn(() => makeThenableResult({ data: [], error: null })),
-                  })),
-                })),
-              })),
+              select: vi.fn((query: string) => {
+                if (query === 'id, name') {
+                  return makeSelectChain({ data: [], error: null })
+                }
+
+                if (query === 'slug') {
+                  return makeSelectChain({
+                    data: [
+                      { slug: 'shelf-road' },
+                    ],
+                    error: null,
+                  })
+                }
+
+                return makeSelectChain({ data: [], error: null })
+              }),
               insert: vi.fn((payload: { slug: string | null }) => {
-                insertAttempts.push(payload.slug || 'null')
+                insertPayloads.push(payload)
                 return {
                   select: vi.fn(() => ({
-                    single: vi.fn(async () => {
-                      if (insertAttempts.length === 1) {
-                        return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }
-                      }
-
-                      return {
-                        data: { id: 'place-1', name: 'Shelf Road', slug: payload.slug, country_code: 'US' },
-                        error: null,
-                      }
-                    }),
+                    single: vi.fn(async () => ({
+                      data: { id: 'place-1', name: 'Shelf Road', slug: payload.slug, country_code: 'US' },
+                      error: null,
+                    })),
                   })),
                 }
               }),
@@ -140,12 +149,14 @@ describe('Slug retry routes', () => {
     const json = await response.json()
 
     expect(response.status).toBe(201)
-    expect(insertAttempts).toEqual(['shelf-road', 'shelf-road-2'])
+    expect(insertPayloads).toEqual([
+      expect.objectContaining({ slug: 'shelf-road-2' }),
+    ])
     expect(json.slug).toBe('shelf-road-2')
   })
 
-  test('admin gyms route retries with suffixed slug after unique violation', async () => {
-    const insertAttempts: string[] = []
+  test('admin gyms route computes a suffixed slug when the base slug is already used', async () => {
+    const insertPayloads: Array<{ slug: string }> = []
 
     vi.mocked(withApiMiddleware).mockResolvedValue({
       ok: true,
@@ -160,37 +171,36 @@ describe('Slug retry routes', () => {
       from: vi.fn((table: string) => {
         if (table === 'profiles') {
           return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: vi.fn(async () => ({ data: { is_admin: true }, error: null })),
-              })),
-            })),
+            select: vi.fn(() => makeSelectChain({ data: { is_admin: true }, error: null })),
           }
         }
 
         if (table === 'places') {
           return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                ilike: vi.fn(() => ({
-                  limit: vi.fn(() => makeThenableResult({ data: [], error: null })),
-                })),
-              })),
-            })),
+            select: vi.fn((query: string) => {
+              if (query === 'id, name') {
+                return makeSelectChain({ data: [], error: null })
+              }
+
+              if (query === 'slug') {
+                return makeSelectChain({
+                  data: [
+                    { slug: 'movement' },
+                  ],
+                  error: null,
+                })
+              }
+
+              return makeSelectChain({ data: [], error: null })
+            }),
             insert: vi.fn((payload: { slug: string }) => {
-              insertAttempts.push(payload.slug)
+              insertPayloads.push(payload)
               return {
                 select: vi.fn(() => ({
-                  single: vi.fn(async () => {
-                    if (insertAttempts.length === 1) {
-                      return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }
-                    }
-
-                    return {
-                      data: { id: 'gym-1', name: 'Movement', slug: payload.slug, country_code: 'US' },
-                      error: null,
-                    }
-                  }),
+                  single: vi.fn(async () => ({
+                    data: { id: 'gym-1', name: 'Movement', slug: payload.slug, country_code: 'US' },
+                    error: null,
+                  })),
                 })),
               }
             }),
@@ -213,12 +223,14 @@ describe('Slug retry routes', () => {
     const json = await response.json()
 
     expect(response.status).toBe(201)
-    expect(insertAttempts).toEqual(['movement', 'movement-2'])
+    expect(insertPayloads).toEqual([
+      expect.objectContaining({ slug: 'movement-2' }),
+    ])
     expect(json.slug).toBe('movement-2')
   })
 
-  test('crags route retries with suffixed slug after unique violation', async () => {
-    const insertAttempts: string[] = []
+  test('crags route computes a suffixed slug when the base slug is already used', async () => {
+    const insertPayloads: Array<{ slug: string }> = []
 
     vi.mocked(withApiMiddleware).mockResolvedValue({
       ok: true,
@@ -229,53 +241,42 @@ describe('Slug retry routes', () => {
         from: vi.fn((table: string) => {
           if (table === 'crags') {
             return {
-              select: vi.fn(() => ({
-                ilike: vi.fn(() => ({
-                  eq: vi.fn(() => ({
-                    limit: vi.fn(() => makeThenableResult({ data: [], error: null })),
-                  })),
-                })),
-                eq: vi.fn(() => ({
-                  eq: vi.fn(() => ({
-                    limit: vi.fn(() => makeThenableResult({ data: [], error: null })),
-                  })),
-                })),
-                gte: vi.fn(() => ({
-                  lte: vi.fn(() => ({
-                    gte: vi.fn(() => ({
-                      lte: vi.fn(() => ({
-                        limit: vi.fn(() => makeThenableResult({ data: [], error: null })),
-                      })),
-                    })),
-                  })),
-                })),
-              })),
+              select: vi.fn((query: string) => {
+                if (query === 'id, name' || query === 'id, name, latitude, longitude') {
+                  return makeSelectChain({ data: [], error: null })
+                }
+
+                if (query === 'slug') {
+                  return makeSelectChain({
+                    data: [
+                      { slug: 'smith-rock' },
+                    ],
+                    error: null,
+                  })
+                }
+
+                return makeSelectChain({ data: [], error: null })
+              }),
               insert: vi.fn((payload: { slug: string }) => {
-                insertAttempts.push(payload.slug)
+                insertPayloads.push(payload)
                 return {
                   select: vi.fn(() => ({
-                    single: vi.fn(async () => {
-                      if (insertAttempts.length === 1) {
-                        return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } }
-                      }
-
-                      return {
-                        data: {
-                          id: 'crag-1',
-                          name: 'Smith Rock',
-                          slug: payload.slug,
-                          country_code: 'US',
-                          latitude: 44.36,
-                          longitude: -121.14,
-                          rock_type: 'tuff',
-                          type: 'sport',
-                          region_name: 'Oregon',
-                          sub_area: null,
-                          created_at: new Date().toISOString(),
-                        },
-                        error: null,
-                      }
-                    }),
+                    single: vi.fn(async () => ({
+                      data: {
+                        id: 'crag-1',
+                        name: 'Smith Rock',
+                        slug: payload.slug,
+                        country_code: 'US',
+                        latitude: 44.36,
+                        longitude: -121.14,
+                        rock_type: 'tuff',
+                        type: 'sport',
+                        region_name: 'Oregon',
+                        sub_area: null,
+                        created_at: new Date().toISOString(),
+                      },
+                      error: null,
+                    })),
                   })),
                 }
               }),
@@ -284,25 +285,13 @@ describe('Slug retry routes', () => {
 
           if (table === 'profiles') {
             return {
-              select: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  single: vi.fn(async () => ({ data: { is_admin: false }, error: null })),
-                })),
-              })),
+              select: vi.fn(() => makeSelectChain({ data: { is_admin: false }, error: null })),
             }
           }
 
           if (table === 'location_tags' || table === 'crag_location_tags') {
             return {
-              select: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  ilike: vi.fn(() => ({
-                    limit: vi.fn(() => ({
-                      maybeSingle: vi.fn(async () => ({ data: null, error: null })),
-                    })),
-                  })),
-                })),
-              })),
+              select: vi.fn(() => makeSelectChain({ data: null, error: null })),
               insert: vi.fn(() => ({
                 select: vi.fn(() => ({
                   single: vi.fn(async () => ({ data: { id: 'tag-1' }, error: null })),
@@ -330,7 +319,9 @@ describe('Slug retry routes', () => {
     const json = await response.json()
 
     expect(response.status).toBe(201)
-    expect(insertAttempts).toEqual(['smith-rock', 'smith-rock-2'])
+    expect(insertPayloads).toEqual([
+      expect.objectContaining({ slug: 'smith-rock-2' }),
+    ])
     expect(json.slug).toBe('smith-rock-2')
   })
 })

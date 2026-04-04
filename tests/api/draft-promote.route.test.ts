@@ -21,8 +21,8 @@ function makeThenableResult<T>(result: T) {
   }
 }
 
-function makeSupabase(options?: { includeDefaultRoute?: boolean }) {
-  const includeDefaultRoute = options?.includeDefaultRoute ?? true
+function makeSupabase(options?: { includeAllImageRoutes?: boolean }) {
+  const includeAllImageRoutes = options?.includeAllImageRoutes ?? true
 
   return {
     from: vi.fn((table: string) => {
@@ -64,8 +64,11 @@ function makeSupabase(options?: { includeDefaultRoute?: boolean }) {
         return {
           select: vi.fn(() => ({
             eq: vi.fn(() => makeThenableResult({
-              data: includeDefaultRoute
-                ? [{ id: 'draft-route-1', draft_image_id: 'draft-image-1' }]
+              data: includeAllImageRoutes
+                ? [
+                  { id: 'draft-route-1', draft_image_id: 'draft-image-1' },
+                  { id: 'draft-route-2', draft_image_id: 'draft-image-2' },
+                ]
                 : [{ id: 'draft-route-2', draft_image_id: 'draft-image-2' }],
               error: null,
             })),
@@ -153,7 +156,7 @@ describe('promoteDraftToSubmission', () => {
   })
 
   test('rejects publish when the default image has no durable draft routes', async () => {
-    const supabase = makeSupabase({ includeDefaultRoute: false })
+    const supabase = makeSupabase({ includeAllImageRoutes: false })
 
     const response = await promoteDraftToSubmission({
       supabase: supabase as unknown as ReturnType<typeof createServerClient>,
@@ -164,7 +167,7 @@ describe('promoteDraftToSubmission', () => {
 
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toEqual({
-      error: 'Routes are still syncing for the default image. Save the draft again and retry publish.',
+      error: 'Every image in the submission must have at least one route before publishing. Remove images without routes or add routes to them.',
     })
     expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
   })
