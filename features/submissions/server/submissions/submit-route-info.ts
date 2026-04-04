@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 
-export const MAX_ROUTES_PER_DAY = 5
+import { MAX_ROUTES_PER_DAY } from '@/features/submissions/server/submissions/submit-route'
+
+export { MAX_ROUTES_PER_DAY }
 
 export function getSubmissionInfo() {
   return NextResponse.json({

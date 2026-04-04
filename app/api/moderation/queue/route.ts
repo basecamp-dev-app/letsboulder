@@ -5,6 +5,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { QueueItemSchema } from '@/lib/supabase-result-schemas'
+import { requireAdminFromSupabase } from '@/features/admin/server'
 
 
 
@@ -21,15 +22,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', userId)
-      .single()
-
-    if (!profile?.is_admin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
+    const adminError = await requireAdminFromSupabase(supabase, userId)
+    if (adminError) return adminError
 
     const rateLimitResult = await rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)

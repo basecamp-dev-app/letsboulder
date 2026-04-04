@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
+import { requireAdminFromSupabase } from '@/features/admin/server'
 
 const deleteImageParamsSchema = z.object({
   id: z.string().min(1, 'id is required'),
@@ -33,15 +34,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-
-    if (profileError || !profile?.is_admin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
+    const adminError = await requireAdminFromSupabase(supabase, user.id)
+    if (adminError) return adminError
 
     const { data: existingImage, error: fetchError } = await supabase
       .from('images')

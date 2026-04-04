@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { fileTypeFromBuffer } from 'file-type'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
-import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
-import { createSignedObjectUrls } from '@/lib/media/object-urls'
 import { z } from 'zod'
 import { parseWithSchema } from '@/lib/api-validation'
+import { loadCragImages } from '@/features/crags/server'
 
 export const runtime = 'nodejs'
 
@@ -30,37 +29,6 @@ interface ValidatedUploadFile {
   height: number
 }
 
-interface CragImageRow {
-  id: string
-  url: string
-  width: number | null
-  height: number | null
-  linked_image_id: string | null
-  created_at: string
-}
-
-interface RouteTargetRow {
-  id: string
-  image_id: string
-  climb_id: string
-  climbs:
-    | { slug: string | null }
-    | Array<{ slug: string | null }>
-    | null
-}
-
-function parsePrivateStorageUrl(url: string): { bucket: string; path: string } | null {
-  if (!url.startsWith('private://')) return null
-  const withoutScheme = url.slice('private://'.length)
-  const slashIndex = withoutScheme.indexOf('/')
-  if (slashIndex <= 0) return null
-
-  const bucket = withoutScheme.slice(0, slashIndex)
-  const path = withoutScheme.slice(slashIndex + 1)
-  if (!bucket || !path) return null
-  return { bucket, path }
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -73,130 +41,7 @@ export async function GET(
 
   const supabase = getServerClientFromRequest(request)
 
-  const supabaseAdmin = getAdminClient()
-
-  try {
-    if (!cragId) {
-      return NextResponse.json({ error: 'Crag ID is required' }, { status: 400 })
-    }
-
-    const { data: existingCrag, error: cragError } = await supabase
-      .from('crags')
-      .select('id')
-      .eq('id', cragId)
-      .maybeSingle()
-
-    if (cragError) {
-      return createErrorResponse(cragError, 'Failed to validate crag')
-    }
-
-    if (!existingCrag) {
-      return NextResponse.json({ error: 'Crag not found' }, { status: 404 })
-    }
-
-    const [{ data, error }, { data: cragData }, { data: routeTargetData, error: routeTargetError }] = await Promise.all([
-      supabase
-      .from('crag_images')
-      .select('id, url, width, height, linked_image_id, created_at')
-      .eq('crag_id', cragId)
-      .order('created_at', { ascending: false })
-      .limit(50),
-      supabase
-        .from('crags')
-        .select('country_code, slug')
-        .eq('id', cragId)
-        .maybeSingle(),
-      supabase
-        .from('route_lines')
-        .select('id, image_id, climb_id, climbs!inner(slug, crag_id)')
-        .eq('climbs.crag_id', cragId)
-        .order('image_id', { ascending: true })
-        .order('sequence_order', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: true }),
-    ])
-
-    if (error) {
-      return createErrorResponse(error, 'Failed to load crag images')
-    }
-
-    if (routeTargetError) {
-      return createErrorResponse(routeTargetError, 'Failed to load route image targets')
-    }
-
-    const rows = (data || []) as CragImageRow[]
-    const signingClient = supabaseAdmin
-    const pathsByBucket = new Map<string, Set<string>>()
-
-    for (const row of rows) {
-      const parsed = parsePrivateStorageUrl(row.url)
-      if (!parsed) continue
-
-      const current = pathsByBucket.get(parsed.bucket) || new Set<string>()
-      current.add(parsed.path)
-      pathsByBucket.set(parsed.bucket, current)
-    }
-
-    const signedByKey = new Map<string, string>()
-
-    for (const [bucket, pathSet] of pathsByBucket.entries()) {
-      const paths = Array.from(pathSet)
-      if (paths.length === 0) continue
-
-      try {
-        const signed = await createSignedObjectUrls(paths.map((path) => ({ bucket, path })), signingClient)
-        for (const path of paths) {
-          const signedUrl = signed.get(`${bucket}:${path}`)
-          if (!signedUrl) continue
-          signedByKey.set(getSignedUrlBatchKey(bucket, path), signedUrl)
-        }
-      } catch (signedError) {
-        console.warn('Crag images batch signed URL generation failed:', {
-          cragId,
-          bucket,
-          pathCount: paths.length,
-          error: signedError,
-        })
-      }
-    }
-
-    const result: Array<CragImageRow & { signed_url: string | null }> = rows.map((row) => {
-      const parsed = parsePrivateStorageUrl(row.url)
-      if (!parsed) {
-        return { ...row, signed_url: row.url }
-      }
-
-      return {
-        ...row,
-        signed_url: signedByKey.get(getSignedUrlBatchKey(parsed.bucket, parsed.path)) || null,
-      }
-    })
-
-    const routeTargetByImageId = new Map<string, { climbId: string; routeId: string; climbSlug: string | null; imageId: string }>()
-    for (const row of (routeTargetData || []) as RouteTargetRow[]) {
-      if (routeTargetByImageId.has(row.image_id)) continue
-      const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
-      routeTargetByImageId.set(row.image_id, {
-        climbId: row.climb_id,
-        routeId: row.id,
-        climbSlug: climb?.slug || null,
-        imageId: row.image_id,
-      })
-    }
-
-    return NextResponse.json({
-      crag: {
-        country_code: cragData?.country_code || null,
-        slug: cragData?.slug || null,
-      },
-      images: result.map((row) => ({
-        ...row,
-        display_image_id: row.linked_image_id || row.id,
-        routeTarget: routeTargetByImageId.get(row.linked_image_id || row.id) || null,
-      })),
-    })
-  } catch (error) {
-    return createErrorResponse(error, 'Failed to fetch crag images')
-  }
+  return loadCragImages(supabase, cragId)
 }
 
 function readImageDimensions(buffer: Buffer, mime: AllowedImageMime): { width: number; height: number } | null {

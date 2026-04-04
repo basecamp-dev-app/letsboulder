@@ -4,6 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { revalidatePath } from 'next/cache'
 import { parseWithSchema } from '@/lib/api-validation'
+import { requireAdminFromSupabase } from '@/features/admin/server'
 
 const updateCragSchema = z.object({
   name: z.string().optional(),
@@ -39,15 +40,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Crag ID required' }, { status: 400 })
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-
-    if (profileError || !profile?.is_admin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
+    const adminError = await requireAdminFromSupabase(supabase, user.id)
+    if (adminError) return adminError
 
     const parsedBody = parseWithSchema(updateCragSchema, await request.json())
     if (!parsedBody.success) return parsedBody.response
@@ -228,15 +222,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Crag ID required' }, { status: 400 })
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single()
-
-    if (profileError || !profile?.is_admin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
+    const adminError = await requireAdminFromSupabase(supabase, user.id)
+    if (adminError) return adminError
 
     const { data: crag, error: fetchError } = await supabase
       .from('crags')

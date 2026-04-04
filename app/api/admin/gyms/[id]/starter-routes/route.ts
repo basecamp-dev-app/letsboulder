@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { parseWithSchema } from '@/lib/api-validation'
+import { requireAdmin } from '@/features/admin/server'
 
 const starterRouteSchema = z.object({
   id: z.string().optional(),
@@ -27,29 +27,10 @@ const saveStarterRoutesSchema = z.object({
 const ALLOWED_DISCIPLINES = new Set(['boulder', 'sport', 'top_rope', 'mixed'])
 const ALLOWED_STATUS = new Set(['active', 'retired'])
 
-async function requireAdmin(request: NextRequest) {
-  const supabase = getServerClientFromRequest(request)
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: NextResponse.json({ error: 'Authentication required' }, { status: 401 }), supabase: null }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', user.id)
-    .single()
-
-  if (profileError || !profile?.is_admin) {
-    return { error: NextResponse.json({ error: 'Admin access required' }, { status: 403 }), supabase: null }
-  }
-
-  return { error: null, supabase }
-}
-
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin(request)
-  if (admin.error || !admin.supabase) return admin.error!
-  const { supabase } = admin
+  if (admin.error || !admin.context) return admin.error!
+  const { supabase } = admin.context
 
   const { id: gymId } = await params
 
@@ -111,8 +92,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!middlewareResult.ok) return middlewareResult.response
 
   const admin = await requireAdmin(request)
-  if (admin.error || !admin.supabase) return admin.error!
-  const { supabase } = admin
+  if (admin.error || !admin.context) return admin.error!
+  const { supabase } = admin.context
 
   const { id: gymId } = await params
 
