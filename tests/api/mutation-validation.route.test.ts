@@ -42,7 +42,7 @@ describe('Mutation route validation', () => {
       ok: true,
       supabase: {
         auth: {
-          getUser: vi.fn(async () => ({ data: { user: { email: 'user@example.com' } } })),
+          getUser: vi.fn(async () => ({ data: { user: { email: 'user@example.com' } }, error: null })),
         },
         from: vi.fn(() => ({
           select: vi.fn(() => ({
@@ -63,8 +63,8 @@ describe('Mutation route validation', () => {
             remove: vi.fn(async () => ({ data: null, error: null })),
           })),
         },
-      },
-      userId: 'user-1',
+      } as never,
+      userId: null,
     })
   })
 

@@ -1,21 +1,19 @@
-import { NextRequest } from 'next/server'
 import { describe, expect, test, vi } from 'vitest'
-import { createServerClient } from '@supabase/ssr'
 
-vi.mock('@/lib/csrf-server', () => ({
-  withCsrfProtection: vi.fn(async () => ({ valid: true, response: null })),
+vi.mock('@/lib/actions/action-auth', () => ({
+  getActionAuth: vi.fn(async () => ({ success: true, data: { userId: 'user-1' } })),
 }))
 
-vi.mock('@/lib/rate-limit', () => ({
-  rateLimit: vi.fn(() => ({ success: true })),
-  createRateLimitResponse: vi.fn(() => null),
+vi.mock('@/lib/supabase-server', () => ({
+  getServerClient: vi.fn(async () => null),
 }))
 
 vi.mock('@/features/climb/lib/effective-climb', () => ({
   resolveEffectiveClimbId: vi.fn(async () => 'climb-1'),
 }))
 
-import { PUT } from '@/app/api/user-climbs/feedback/route'
+import { getServerClient } from '@/lib/supabase-server'
+import { saveClimbFeedbackAction } from '@/features/climb/actions/save-climb-feedback'
 
 function makeThenableResult<T>(result: T) {
   return {
@@ -26,23 +24,9 @@ function makeThenableResult<T>(result: T) {
   }
 }
 
-function makeFeedbackRequest(body: unknown) {
-  return new NextRequest('http://localhost:3000/api/user-climbs/feedback', {
-    method: 'PUT',
-    headers: {
-      'content-type': 'application/json',
-      'x-csrf-token': 'test-csrf-token',
-    },
-    body: JSON.stringify(body),
-  })
-}
-
-describe('PUT /api/user-climbs/feedback', () => {
+describe('saveClimbFeedbackAction', () => {
   test('applies consensus grade when enough logged voters agree', async () => {
     const supabaseMock = {
-      auth: {
-        getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
-      },
       from: vi.fn((table: string) => {
         if (table === 'user_climbs') {
           return {
@@ -118,20 +102,18 @@ describe('PUT /api/user-climbs/feedback', () => {
       }),
     }
 
-    vi.mocked(createServerClient).mockReturnValue(supabaseMock as never)
+    vi.mocked(getServerClient).mockResolvedValue(supabaseMock as never)
 
-    const response = await PUT(makeFeedbackRequest({
+    const result = await saveClimbFeedbackAction({
       climbId: 'climb-1',
       gradeOpinion: 'hard',
       starRating: 4,
-    }))
+    })
 
-    const json = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(json.gradeUpdated).toBe(true)
-    expect(json.updatedGrade).toBe('6B+')
-    expect(json.consensus.targetGrade).toBe('6B+')
-    expect(json.consensus.applied).toBe(true)
+    expect(result.success).toBe(true)
+    expect(result.data?.gradeUpdated).toBe(true)
+    expect(result.data?.updatedGrade).toBe('6B+')
+    expect(result.data?.consensus.targetGrade).toBe('6B+')
+    expect(result.data?.consensus.applied).toBe(true)
   })
 })
