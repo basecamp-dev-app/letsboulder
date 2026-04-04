@@ -8,7 +8,7 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     files: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
-    ignores: ['app/**', 'tests/**'],
+    ignores: ['tests/**'],
     rules: {
       'no-console': 'warn',
       'no-restricted-imports': [
@@ -22,6 +22,17 @@ const eslintConfig = defineConfig([
           ],
         },
       ],
+    },
+  },
+  {
+    files: ['app/**/*.{ts,tsx,js,jsx}'],
+    ignores: ['app/api/**'],
+    plugins: {
+      'local-rules': localRules,
+    },
+    rules: {
+      'no-restricted-imports': 'off',
+      'local-rules/no-cross-route-app-imports': 'error',
     },
   },
   // Enforce no-restricted-imports for @supabase/ssr in app page/component files (not API routes)
