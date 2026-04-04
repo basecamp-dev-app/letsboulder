@@ -3,17 +3,9 @@ import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
+import { QueueItemVoteSchema } from '@/lib/supabase-result-schemas'
 
-interface QueueItem {
-  id: string
-  status: string
-  crag_id: string
-  submitter_id: string
-  verify_count: number
-  flag_count: number
-  climb: { id: string; name: string; grade: string } | null
-  crag: { id: string; name: string } | null
-}
+
 
 const moderationQueueVoteSchema = z.object({
   vote_type: z.enum(['verify', 'flag']),
@@ -72,7 +64,7 @@ export async function POST(
       return NextResponse.json({ error: 'Queue item not found' }, { status: 404 })
     }
 
-    const queueItem = rawData as unknown as QueueItem
+    const queueItem = QueueItemVoteSchema.parse(rawData)
 
     if (queueItem.status !== 'pending') {
       return NextResponse.json({ error: 'This submission has already been resolved' }, { status: 400 })

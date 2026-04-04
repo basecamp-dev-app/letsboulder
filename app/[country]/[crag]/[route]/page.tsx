@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { SITE_URL } from '@/lib/site'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
+import { RouteLineWithImageSchema, type RouteLineWithImage } from '@/lib/supabase-result-schemas'
 
 export const revalidate = 60
 
@@ -51,18 +52,7 @@ interface ClimbRow {
   longitude: number | null
 }
 
-interface RouteLineWithImage {
-  id: string
-  image_id: string
-  sequence_order: number | null
-  images: {
-    id: string
-    url: string
-    is_verified: boolean
-    verification_count: number
-    created_at: string
-  } | null
-}
+
 
 function getSupabase() {
   return getUnauthenticatedClient()
@@ -107,7 +97,7 @@ async function getRoutePageData(countryCode: string, cragSlug: string, routeSlug
       .eq('climb_id', effectiveClimbId),
   ])
 
-  const lines = (routeLines || []) as unknown as RouteLineWithImage[]
+  const lines = RouteLineWithImageSchema.parse(routeLines || [])
   const bestImage = [...lines]
     .filter((line) => !!line.images?.url)
     .sort((a, b) => {

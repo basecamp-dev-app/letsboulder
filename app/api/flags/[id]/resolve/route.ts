@@ -3,26 +3,14 @@ import { z } from 'zod'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
+import { FlagWithRelationsSchema } from '@/lib/supabase-result-schemas'
 
 const flagResolveSchema = z.object({
   action: z.enum(['keep', 'edit', 'remove']),
   resolution_note: z.string().optional(),
 })
 
-interface FlagWithRelations {
-  id: string
-  status: string
-  crag_id: string | null
-  climb_id: string | null
-  image_id: string | null
-  flagger_id: string | null
-  flag_type: string
-  comment: string
-  climb: { id: string; name: string } | null
-  image: { id: string; url: string } | null
-  crag: { id: string; name: string } | null
-  created_at: string
-}
+
 
 export async function POST(
   request: NextRequest,
@@ -78,7 +66,7 @@ export async function POST(
       return NextResponse.json({ error: 'Flag not found' }, { status: 404 })
     }
 
-    const typedFlag = flag as unknown as FlagWithRelations
+    const typedFlag = FlagWithRelationsSchema.parse(flag)
 
     if (typedFlag.status === 'resolved') {
       return NextResponse.json({ error: 'This flag has already been resolved' }, { status: 400 })

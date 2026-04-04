@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import type { Database } from '@/types/database'
+import { UserClimbRowWithDetailsSchema } from '@/lib/supabase-result-schemas'
 
 interface RouteParams {
   slug: string
 }
 
-type RecentSendRow = Pick<Database['public']['Tables']['user_climbs']['Row'], 'user_id' | 'style' | 'created_at' | 'climb_id' | 'star_rating'> & {
+type RecentSendRow = {
+  user_id: string
+  style: string
+  created_at: string
+  climb_id: string
+  star_rating: number | null
   climbs: {
     id: string
     name: string
@@ -97,10 +102,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
     }
 
     const deduped = new Map<string, RecentSendRow>()
-    for (const row of [
-      ...((byPlaceResult.data as unknown as RecentSendRow[] | null) || []),
-      ...((byLegacyCragResult.data as unknown as RecentSendRow[] | null) || []),
-    ]) {
+    const allRows = UserClimbRowWithDetailsSchema.parse([
+      ...(byPlaceResult.data || []),
+      ...(byLegacyCragResult.data || []),
+    ])
+    for (const row of allRows) {
       if (!row.created_at) continue
       deduped.set(`${row.user_id}:${row.climb_id}:${row.created_at}:${row.style}`, row)
     }

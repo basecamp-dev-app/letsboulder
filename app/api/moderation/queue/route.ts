@@ -1,21 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { QueueItemSchema } from '@/lib/supabase-result-schemas'
 
-type QueueItem = {
-  id: string
-  status: string
-  verify_count: number
-  flag_count: number
-  quality_score: number | null
-  created_at: string
-  resolved_at: string | null
-  climb: { id: string; name: string | null; grade: string; description: string | null; image_url: string | null } | null
-  crag: { id: string; name: string } | null
-  submitter: { id: string; email: string | null; username: string | null; first_name: string | null; last_name: string | null } | null
-}
+
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -73,7 +64,7 @@ export async function GET(request: NextRequest) {
       return createErrorResponse(error, 'Error fetching moderation queue')
     }
 
-    const queue = (rawData || []) as unknown as QueueItem[]
+    const queue = z.array(QueueItemSchema).parse(rawData || [])
 
     return NextResponse.json({ 
       queue,

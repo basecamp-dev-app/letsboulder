@@ -71,7 +71,6 @@ type UpstashDeps = {
 
 let upstashDepsPromise: Promise<UpstashDeps | null> | null = null
 let upstashMissingWarningLogged = false
-let upstashUnavailableWarningLogged = false
 let redisClient: unknown | null = null
 const upstashLimiters = new Map<string, UpstashRatelimitInstance>()
 
@@ -355,10 +354,7 @@ export default async function proxy(request: NextRequest) {
           )
         }
       } catch (error) {
-        if (!upstashUnavailableWarningLogged) {
-          upstashUnavailableWarningLogged = true
-          console.warn('Upstash rate limiting unavailable:', error)
-        }
+        reportError(error, { message: 'Upstash rate limiting unavailable in proxy', level: 'warning' })
       }
     }
   }

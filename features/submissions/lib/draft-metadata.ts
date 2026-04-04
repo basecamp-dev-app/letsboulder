@@ -90,12 +90,16 @@ function normalizeLocationMode(value: unknown, hasGps: boolean): 'shared' | 'cus
   return hasGps ? 'custom' : 'shared'
 }
 
+function isDraftMetadataV2(raw: Record<string, unknown>): raw is DraftMetadataV2 {
+  return raw.version === 2 && typeof raw.images === 'object' && raw.images !== null
+}
+
 export function normalizeDraftMetadata(
   rawMetadata: Record<string, unknown> | null | undefined,
   draftImages: DraftImageRowLike[]
 ): DraftMetadataV2 {
-  if (rawMetadata?.version === 2 && rawMetadata.images && typeof rawMetadata.images === 'object') {
-    const metadata = rawMetadata as unknown as DraftMetadataV2
+  if (rawMetadata && isDraftMetadataV2(rawMetadata)) {
+    const metadata = rawMetadata
     return {
       version: 2,
       navigation: {

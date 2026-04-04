@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyFeedback } from '@/lib/discord'
 import { reportError } from '@/lib/errors'
-import { createServerClient } from '@supabase/ssr'
-import { serverEnv } from '@/lib/env'
+import { withApiMiddleware } from '@/lib/csrf-server'
 
 export async function POST(request: NextRequest) {
+  const middlewareResult = await withApiMiddleware(request, {
+    requireUser: false,
+    rateLimitKey: 'strict',
+  })
+  if (!middlewareResult.ok) return middlewareResult.response
+
+  const { supabase, userId } = middlewareResult
+
   try {
     const body = await request.json()
     const { message, url } = body
@@ -16,26 +23,12 @@ export async function POST(request: NextRequest) {
     const sanitizedMessage = message.slice(0, 2000)
     const sanitizedUrl = url?.slice(0, 500) || 'Unknown'
 
-    const supabase = createServerClient(
-      serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-      serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll: () => request.cookies.getAll(),
-          setAll: () => {},
-        },
-      }
-    )
-
-    const { data: { user } } = await supabase.auth.getUser()
-    const userId = user?.id
-    const userEmail = user?.email
-
     let userName: string | undefined
+    let userEmail: string | undefined
     if (userId) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('first_name, last_name')
+        .select('first_name, last_name, email')
         .eq('id', userId)
         .single()
 
@@ -44,10 +37,11 @@ export async function POST(request: NextRequest) {
         if (nameParts.length > 0) {
           userName = nameParts.join(' ')
         }
+        userEmail = profile.email ?? undefined
       }
     }
 
-    await notifyFeedback(sanitizedMessage, userId, sanitizedUrl, userName, userEmail)
+    await notifyFeedback(sanitizedMessage, userId ?? undefined, sanitizedUrl, userName, userEmail)
 
     return NextResponse.json({ success: true })
   } catch (error) {

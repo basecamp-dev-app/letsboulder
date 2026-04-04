@@ -1,4 +1,5 @@
 import { serverEnv } from '@/lib/env'
+import { reportError } from '@/lib/errors'
 
 interface UpstashRedisClient {
   get: (key: string) => Promise<string | null>
@@ -6,8 +7,6 @@ interface UpstashRedisClient {
 }
 
 type UpstashRedisCtor = new (args: { url: string; token: string }) => UpstashRedisClient
-
-type AnyConstructor = new (...args: unknown[]) => unknown
 
 interface RateLimiterInstance {
   limit: (key: string) => Promise<{ success: boolean; limit: number; remaining: number; reset: number }>
@@ -33,6 +32,15 @@ let upstashDepsPromise: Promise<UpstashDeps | null> | null = null
 let redisClient: UpstashRedisClient | null = null
 let upstashUnavailableWarningLogged = false
 const limiterCache = new Map<string, RateLimiterInstance>()
+
+const CRITICAL_TIERS = new Set(['sensitive', 'strict', 'submissions'])
+
+interface InMemoryBucket {
+  count: number
+  resetAt: number
+}
+const inMemoryFallback = new Map<string, InMemoryBucket>()
+let fallbackAlertLogged = false
 
 const UPSTASH_URL = serverEnv.UPSTASH_REDIS_REST_URL
 const UPSTASH_TOKEN = serverEnv.UPSTASH_REDIS_REST_TOKEN
@@ -128,10 +136,53 @@ export async function checkRateLimit(
   const limiter = await getRateLimiter(configKey)
 
   if (!limiter) {
+    if (!fallbackAlertLogged) {
+      fallbackAlertLogged = true
+      reportError(new Error('Upstash Redis unavailable; rate limiting using in-memory fallback'), {
+        message: 'Rate limiting fallback activated',
+        level: 'warning',
+      })
+    }
+
+    const config = RATE_LIMIT_CONFIGS[configKey]
+    const isCritical = CRITICAL_TIERS.has(configKey)
+
+    if (isCritical && config) {
+      const now = Date.now()
+      const windowMs = parseWindowMs(config.window)
+      const key = `${config.prefix}:${identifier}`
+      let bucket = inMemoryFallback.get(key)
+
+      if (!bucket || now > bucket.resetAt) {
+        bucket = { count: 0, resetAt: now + windowMs }
+        inMemoryFallback.set(key, bucket)
+      }
+
+      bucket.count++
+      const allowed = bucket.count <= config.tokens
+      return {
+        success: allowed,
+        limit: config.tokens,
+        remaining: Math.max(0, config.tokens - bucket.count),
+        reset: bucket.resetAt,
+      }
+    }
+
     return { success: true, limit: 9999, remaining: 9999, reset: Date.now() + 60000 }
   }
 
   return limiter.limit(identifier)
+}
+
+function parseWindowMs(window: string): number {
+  const match = window.match(/^(\d+)\s*(s|m|h)$/i)
+  if (!match) return 60_000
+  const value = parseInt(match[1], 10)
+  const unit = match[2].toLowerCase()
+  if (unit === 's') return value * 1000
+  if (unit === 'm') return value * 60 * 1000
+  if (unit === 'h') return value * 60 * 60 * 1000
+  return 60_000
 }
 
 export function isUpstashConfigured(): boolean {
