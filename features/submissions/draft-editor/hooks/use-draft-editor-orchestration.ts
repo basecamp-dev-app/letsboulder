@@ -2,9 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { coordinateKey } from '@/lib/face-directions'
-import { buildMapPins, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
-import { buildHighResCanvasUrl } from '@/features/route-editor/route-editor-utils'
 import { useRouteStore } from '@/features/route-editor/store'
 import { useDraftUploadManager } from '@/features/submissions/upload/hooks/use-draft-upload-manager'
 import { useMediaUploadManager } from '@/features/submissions/upload/hooks/use-media-upload-manager'
@@ -17,19 +14,15 @@ import { useEditDraftLocationSync } from '@/features/submissions/draft-editor/ho
 import { useEditDraftRouteSync } from '@/features/submissions/draft-editor/hooks/use-edit-draft-route-sync'
 import { useEditDraftUploads } from '@/features/submissions/draft-editor/hooks/use-edit-draft-uploads'
 import { useDraftEditorActions } from '@/features/submissions/draft-editor/hooks/use-draft-editor-actions'
+import { useDraftEditorDerivedState } from '@/features/submissions/draft-editor/hooks/use-draft-editor-derived-state'
 import { useDraftCollaborators } from '@/features/submissions/editor/collaboration/use-draft-collaborators'
 import { useDraftLocationMetadata } from '@/features/submissions/editor/location/use-draft-location-metadata'
 import { useDraftConflictResolution } from '@/features/submissions/draft-editor/hooks/use-draft-conflict-resolution'
 import { useDraftRouteEditing } from '@/features/submissions/draft-editor/hooks/use-draft-route-editing'
-import type { ImageSelection } from '@/features/submissions/lib/submission-types'
-import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import type { UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import {
-  buildDraftRouteLines,
-  isValidLocationCoordinate,
   parseDraftMarkerPosition,
-  type ManageImageTab,
 } from '@/features/submissions/draft-editor/lib/edit-draft-types'
 
 interface UseDraftEditorOrchestrationParams {
@@ -190,49 +183,37 @@ export function useDraftEditorOrchestration({
     removeUpload,
   })
 
-  const activeImageTab = useMemo(() => {
-    if (!activeImageId) return null
-    const sourceImages = canvasSource?.kind === 'crag-image' ? mergedCragCanvasImages : mergedManageImages
-    return sourceImages.find((image) => image.imageId === activeImageId) || null
-  }, [activeImageId, canvasSource, mergedCragCanvasImages, mergedManageImages])
-
-  const activeDraftImageId = activeImageTab?.imageId || null
-  const activeImageLocationMode = activeDraftImageId ? (resolveLocationMode(locationModeByImageId[activeDraftImageId])) : 'shared'
-  const pendingActiveImageCustomGps = activeDraftImageId ? customGpsByImageId[activeDraftImageId] : undefined
-  const pendingActiveImageCustomPosition = useMemo<[number, number] | null>(() => {
-    if (!activeDraftImageId || activeImageLocationMode !== 'custom') return null
-    if (!pendingActiveImageCustomGps || !isValidLocationCoordinate(pendingActiveImageCustomGps.latitude, pendingActiveImageCustomGps.longitude)) return null
-    return [pendingActiveImageCustomGps.latitude as number, pendingActiveImageCustomGps.longitude as number]
-  }, [activeDraftImageId, activeImageLocationMode, pendingActiveImageCustomGps])
-
-  const activeRoutes = useMemo(() => {
-    if (!activeDraftImageId) return []
-    return routesByImageId[activeDraftImageId] || []
-  }, [activeDraftImageId, routesByImageId])
-
-  const existingRouteLines = useMemo(() => buildDraftRouteLines(activeRoutes, activeDraftImageId, routeType), [activeRoutes, activeDraftImageId, routeType])
-
-  const imageSelection = useMemo<ImageSelection | null>(() => {
-    if (!activeImageTab) return null
-    if (activeImageTab.sourceKind === 'crag-image') {
-      const selectedCragImage = cragCanvasImages.find((image) => image.id === activeImageTab.imageId) || null
-      return {
-        mode: 'crag-image',
-        cragImageId: activeImageTab.imageId,
-        imageUrl: buildHighResCanvasUrl(activeImageTab.signedUrl),
-        linkedImageId: selectedCragImage?.linked_image_id || null,
-        width: selectedCragImage?.width || null,
-        height: selectedCragImage?.height || null,
-      }
-    }
-    return {
-      mode: 'existing',
-      imageId: activeImageTab.imageId,
-      imageUrl: buildHighResCanvasUrl(activeImageTab.signedUrl),
-    }
-  }, [activeImageTab, cragCanvasImages])
-
-  const stableActiveImageUrl = imageSelection && 'imageUrl' in imageSelection ? imageSelection.imageUrl : ''
+  const {
+    activeImageTab,
+    activeDraftImageId,
+    activeImageLocationMode,
+    pendingActiveImageCustomPosition,
+    activeRoutes,
+    existingRouteLines,
+    imageSelection,
+    stableActiveImageUrl,
+    activeImageReady,
+    quickSwitcherImages,
+    draftMapPins,
+    publishedMapPins,
+    effectiveMarkerPosition,
+    effectivePublishLocation,
+  } = useDraftEditorDerivedState({
+    activeImageId,
+    canvasSource,
+    mergedCragCanvasImages,
+    mergedManageImages,
+    pendingCragUploads,
+    pendingDraftUploads,
+    defaultImageId,
+    publishedCragPins,
+    locationModeByImageId,
+    customGpsByImageId,
+    routesByImageId,
+    routeType,
+    cragCanvasImages,
+    markerPosition,
+  })
 
   useEffect(() => {
     if (!imageSelection || !('imageUrl' in imageSelection)) return
@@ -244,62 +225,6 @@ export function useDraftEditorOrchestration({
     })
   }, [activeImageId, activeImageTab?.sourceKind, activeImageTab?.status, imageSelection])
 
-  const activeImageReady = Boolean(activeImageTab?.signedUrl) && activeImageTab?.status !== 'FAILED'
-
-  const quickSwitcherImages = useMemo(() => {
-    const sourceImages = canvasSource?.kind === 'crag-image' ? mergedCragCanvasImages : mergedManageImages
-    const pendingUploads = canvasSource?.kind === 'crag-image' ? pendingCragUploads : pendingDraftUploads
-
-    return sourceImages
-      .slice()
-      .sort((a, b) => a.index - b.index)
-      .map((image: ManageImageTab) => ({
-        ...image,
-        badgeNumber: image.index + 1,
-        isDefault: image.sourceKind === 'draft-image' && image.imageId === defaultImageId,
-        progress: image.pendingClientId ? (pendingUploads.find((upload) => upload.clientId === image.pendingClientId)?.progress || 0) : undefined,
-      }))
-  }, [canvasSource, defaultImageId, mergedCragCanvasImages, mergedManageImages, pendingCragUploads, pendingDraftUploads])
-
-  const draftMapPins = useMemo<LightweightCragMapPin[]>(() => {
-    return buildMapPins(quickSwitcherImages.map((image) => ({
-      imageId: image.imageId,
-      order: image.badgeNumber - 1,
-      label: image.label,
-      latitude: image.latitude,
-      longitude: image.longitude,
-      locationMode: resolveLocationMode(image.locationMode),
-    }))).map((pin) => {
-      const sourceImage = quickSwitcherImages.find((image) => image.imageId === pin.id)
-      return {
-        ...pin,
-        tone: sourceImage?.sourceKind === 'crag-image' ? 'published' : 'draft',
-      }
-    })
-  }, [quickSwitcherImages])
-
-  const publishedMapPins = useMemo<LightweightCragMapPin[]>(() => {
-    const draftCoordinateKeys = new Set(
-      quickSwitcherImages
-        .filter((image) => typeof image.latitude === 'number' && typeof image.longitude === 'number')
-        .map((image) => coordinateKey(image.latitude as number, image.longitude as number))
-    )
-    const seenPublishedCoordinates = new Set<string>()
-
-    return publishedCragPins.reduce<LightweightCragMapPin[]>((acc, image) => {
-      const key = coordinateKey(image.latitude, image.longitude)
-      if (draftCoordinateKeys.has(key) || seenPublishedCoordinates.has(key)) return acc
-      seenPublishedCoordinates.add(key)
-      acc.push({
-        id: `published-${image.id}`,
-        latitude: image.latitude,
-        longitude: image.longitude,
-        interactive: false,
-        tone: 'published',
-      })
-      return acc
-    }, [])
-  }, [publishedCragPins, quickSwitcherImages])
 
   const {
     activeImageCustomPosition,
@@ -348,13 +273,6 @@ export function useDraftEditorOrchestration({
     setLocationSearchError,
   })
 
-  const effectiveMarkerPosition = activeImageCustomPosition || markerPosition
-  const effectivePublishLocation = useMemo<[number, number] | null>(() => {
-    if (effectiveMarkerPosition) return effectiveMarkerPosition
-    const fallbackImage = mergedManageImages.find((image) => isValidLocationCoordinate(image.latitude, image.longitude)) || null
-    if (!fallbackImage) return null
-    return [fallbackImage.latitude as number, fallbackImage.longitude as number]
-  }, [effectiveMarkerPosition, mergedManageImages])
   const hasValidLocation = effectivePublishLocation !== null
 
   const {
