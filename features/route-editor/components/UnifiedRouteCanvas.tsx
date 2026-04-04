@@ -2,7 +2,7 @@
 
 import { forwardRef, useRef, useState, useEffect, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useContainerSize } from '@/hooks/use-container-size'
-import { getGradeSystemForClimbType, useGradePreferences } from '@/features/grades/hooks/useGradeSystem'
+import { getGradeSystemForClimbType, useGradePreferences } from '@/lib/grades/preferences'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { drawRoutes } from '@/lib/route-renderer'

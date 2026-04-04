@@ -9,7 +9,7 @@ import { GRADE_ORDER_INDEX, SELECTABLE_GRADES } from '@/lib/grade-constants'
 import type { ClimbStatusResponse, GradeVoteDistribution } from '@/lib/verification-types'
 import RoutePreviewThumb from '@/app/image/components/RoutePreviewThumb'
 import type { RoutePoint } from '@/types/domain'
-import { getGradeSystemForClimbType, useGradePreferences } from '@/features/grades/hooks/useGradeSystem'
+import { getGradeSystemForClimbType, useGradePreferences } from '@/lib/grades/preferences'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeSystem } from '@/lib/grades'
 

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import SubmissionList from '@/features/submissions/components/SubmissionList'
+import { SubmissionList } from '@/features/submissions/public'
 import {
   getOwnerSubmissionEmptyMessage,
   ownerSubmissionTabs,

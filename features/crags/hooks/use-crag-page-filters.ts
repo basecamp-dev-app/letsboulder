@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
+import { useGradeSystem } from '@/lib/grades/preferences'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { buildActiveRouteFilterChips, buildCragRouteStats, buildRouteNavigationDisplayByClimbId, buildRoutePreviewDisplayByClimbId, filterAndSortCragRoutes, getAvailableDirections, getHighlightedRouteIds, getSearchModalResults, getSelectedImageIds, getRouteTypeChips, resolveCragRouteDestination, sortImagesByViewCenter, sortPinClusters } from '@/features/crags/lib/crag-page-domain'
 import type { ActiveRouteFilterChip, ResolvedRouteDestination } from '@/features/crags/lib/crag-page-domain'
