@@ -9,7 +9,7 @@ export default defineConfig({
   testMatch: '**/*.spec.ts',
   grep: process.env.PW_GREP ? new RegExp(process.env.PW_GREP) : undefined,
   grepInvert: process.env.PW_GREP_INVERT ? new RegExp(process.env.PW_GREP_INVERT) : undefined,
-  globalSetup: process.env.TEST_API_KEY && process.env.TEST_USER_ID && process.env.TEST_USER_PASSWORD
+  globalSetup: process.env.TEST_API_KEY && (process.env.TEST_USER_EMAIL || process.env.TEST_USER_ID) && process.env.TEST_USER_PASSWORD
     ? path.resolve(__dirname, 'global-setup.ts')
     : undefined,
   fullyParallel: true,

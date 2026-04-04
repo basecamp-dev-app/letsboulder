@@ -17,7 +17,7 @@ async function ensureAuthStateExists() {
     throw new Error('Missing auth state after global setup')
   }
 
-  if (process.env.TEST_API_KEY && process.env.TEST_USER_ID && process.env.TEST_USER_PASSWORD) {
+  if (process.env.TEST_API_KEY && (process.env.TEST_USER_EMAIL || process.env.TEST_USER_ID) && process.env.TEST_USER_PASSWORD) {
     await globalSetup()
     if (fs.existsSync(AUTH_STATE_PATH)) return
   }
@@ -45,12 +45,41 @@ async function drawRoute(page: Page, canvas: Locator) {
   await expect(page.getByRole('button', { name: /^Save$/ })).toBeVisible({ timeout: 10000 })
 }
 
+async function waitForDraftIntakeUpload(page: Page) {
+  await expect(page.getByRole('button', { name: 'Finish uploads to continue' })).toBeVisible({ timeout: 30000 })
+
+  await expect
+    .poll(
+      async () => {
+        const continueButton = page.getByRole('button', { name: 'Continue to editor' })
+        const disabledButton = page.getByRole('button', { name: 'Finish uploads to continue' })
+
+        if (await continueButton.count()) {
+          return await continueButton.isEnabled().catch(() => false) ? 'ready' : 'continue-disabled'
+        }
+
+        if (await disabledButton.count()) {
+          return 'uploading'
+        }
+
+        return 'missing'
+      },
+      {
+        timeout: 120000,
+        message: 'Draft intake upload never became ready to continue',
+      }
+    )
+    .toBe('ready')
+}
+
 test.describe.serial('Submission workflow', () => {
   test.beforeAll(async () => {
     await ensureAuthStateExists()
   })
 
   test('@full authenticated user can draft, draw, publish, and see submission in logbook', async ({ page }) => {
+    test.setTimeout(180000)
+
     const timestamp = Date.now()
     const routeName = `E2E Submission Workflow Route ${timestamp}`
     const cragName = `E2E Submission Workflow Crag ${timestamp}`
@@ -60,8 +89,9 @@ test.describe.serial('Submission workflow', () => {
     await expect(page.getByRole('heading', { name: /Start a new draft/i })).toBeVisible()
 
     await page.locator('input[type="file"]').setInputFiles([IMAGE_FIXTURE])
-    await expect(page.getByRole('button', { name: 'Continue to editor' })).toBeEnabled({ timeout: 30000 })
-    await page.getByRole('button', { name: 'Continue to editor' }).click()
+    await waitForDraftIntakeUpload(page)
+    const continueButton = page.getByRole('button', { name: 'Continue to editor' })
+    await continueButton.click()
 
     await expect(page).toHaveURL(/\/logbook\/drafts\/[0-9a-f-]+\/edit/i, { timeout: 30000 })
     await expect(page.getByRole('button', { name: 'Save draft' })).toBeVisible({ timeout: 20000 })

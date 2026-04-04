@@ -28,12 +28,13 @@ export async function GET(request: NextRequest) {
 
   const apiKey = request.nextUrl.searchParams.get('api_key')
   const userId = request.nextUrl.searchParams.get('user_id')
+  const emailParam = request.nextUrl.searchParams.get('email')
   const testAuthHeader = request.headers.get('x-test-auth')
   const expectedApiKey = process.env.TEST_API_KEY?.trim()
   const testUserPassword = process.env.TEST_USER_PASSWORD?.trim()
 
-  if (!apiKey || !userId) {
-    return NextResponse.json({ error: 'Missing api_key or user_id' }, { status: 400 })
+  if (!apiKey || (!userId && !emailParam)) {
+    return NextResponse.json({ error: 'Missing api_key and test identity' }, { status: 400 })
   }
 
   if (testAuthHeader !== '1') {
@@ -61,33 +62,108 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const userResponse = await fetch(
-      `${supabaseUrl}/auth/v1/admin/users/${userId}`,
-      {
+    let resolvedUserId = userId?.trim() || null
+    let resolvedEmail = emailParam?.trim().toLowerCase() || null
+
+    if (!resolvedEmail && resolvedUserId) {
+      const userResponse = await fetch(`${supabaseUrl}/auth/v1/admin/users/${resolvedUserId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${serviceRoleKey}`,
           'apikey': serviceRoleKey,
         },
-      }
-    )
-
-    const userData = await parseJsonSafe(userResponse) as { email?: string }
-
-    if (!userResponse.ok || !userData.email) {
-      console.error('Test auth user lookup failed', {
-        status: userResponse.status,
-        userId,
-        payload: userData,
       })
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 500 }
-      )
+
+      const userData = await parseJsonSafe(userResponse) as { email?: string }
+      if (userResponse.ok && userData.email) {
+        resolvedEmail = userData.email.trim().toLowerCase()
+      }
     }
 
+    if (!resolvedEmail) {
+      return NextResponse.json({ error: 'Failed to resolve test user email' }, { status: 500 })
+    }
+
+    let page = 1
+    let foundUser: { id: string; email?: string } | null = null
+
+    while (!foundUser) {
+      const listUsersResponse = await fetch(`${supabaseUrl}/auth/v1/admin/users?page=${page}&per_page=200`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'apikey': serviceRoleKey,
+        },
+      })
+
+      const listUsersData = await parseJsonSafe(listUsersResponse) as { users?: Array<{ id: string; email?: string }> }
+      const users = Array.isArray(listUsersData.users) ? listUsersData.users : []
+
+      if (!listUsersResponse.ok) {
+        console.error('Test auth user list failed', {
+          status: listUsersResponse.status,
+          email: resolvedEmail,
+          payload: listUsersData,
+        })
+        return NextResponse.json({ error: 'Failed to list test users' }, { status: 500 })
+      }
+
+      foundUser = users.find((candidate) => candidate.email?.trim().toLowerCase() === resolvedEmail) || null
+      if (foundUser || users.length < 200) break
+      page += 1
+    }
+
+    if (!foundUser && resolvedUserId) {
+      const userResponse = await fetch(`${supabaseUrl}/auth/v1/admin/users/${resolvedUserId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'apikey': serviceRoleKey,
+        },
+      })
+      const userData = await parseJsonSafe(userResponse) as { id?: string; email?: string }
+
+      if (userResponse.ok && userData.id && userData.email?.trim().toLowerCase() === resolvedEmail) {
+        foundUser = { id: userData.id, email: userData.email }
+      }
+    }
+
+    if (!foundUser) {
+      const createUserResponse = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'apikey': serviceRoleKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: resolvedEmail,
+          password: testUserPassword,
+          email_confirm: true,
+        }),
+      })
+
+      const createUserData = await parseJsonSafe(createUserResponse) as { id?: string; user?: { id?: string; email?: string }; email?: string }
+      const createdUserId = createUserData.user?.id || createUserData.id
+      const createdUserEmail = createUserData.user?.email || createUserData.email || resolvedEmail
+
+      if (!createUserResponse.ok || !createdUserId) {
+        console.error('Test auth user create failed', {
+          status: createUserResponse.status,
+          email: resolvedEmail,
+          payload: createUserData,
+        })
+        return NextResponse.json({ error: 'Failed to create test user' }, { status: 500 })
+      }
+
+      foundUser = { id: createdUserId, email: createdUserEmail }
+    }
+
+    resolvedUserId = foundUser.id
+    resolvedEmail = foundUser.email?.trim().toLowerCase() || resolvedEmail
+
     const updateUserResponse = await fetch(
-      `${supabaseUrl}/auth/v1/admin/users/${userId}`,
+      `${supabaseUrl}/auth/v1/admin/users/${resolvedUserId}`,
       {
         method: 'PUT',
         headers: {
@@ -107,7 +183,7 @@ export async function GET(request: NextRequest) {
     if (!updateUserResponse.ok) {
       console.error('Test auth user update failed', {
         status: updateUserResponse.status,
-        userId,
+        userId: resolvedUserId,
         payload: updateUserData,
       })
       return NextResponse.json(
@@ -125,7 +201,7 @@ export async function GET(request: NextRequest) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: userData.email,
+          email: resolvedEmail,
           password: testUserPassword,
         }),
       }
@@ -136,7 +212,7 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok || !tokenData.access_token || !tokenData.refresh_token) {
       console.error('Test auth token exchange failed', {
         status: tokenResponse.status,
-        userId,
+        userId: resolvedUserId,
         payload: tokenData,
       })
       return NextResponse.json(
@@ -169,7 +245,7 @@ export async function GET(request: NextRequest) {
 
     if (sessionError) {
       console.error('Test auth session persist failed', {
-        userId,
+        userId: resolvedUserId,
         error: sessionError.message,
       })
       return NextResponse.json(
@@ -181,8 +257,8 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.json({
       success: true,
       user: {
-        id: userId,
-        email: userData.email,
+        id: resolvedUserId,
+        email: resolvedEmail,
       },
     })
 
