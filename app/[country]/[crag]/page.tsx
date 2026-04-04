@@ -187,7 +187,7 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
     ...(initialCrag.climbing_areas?.name ? [{ label: initialCrag.climbing_areas.name }] : []),
     { label: crag.name },
   ]
-  const initialRouteData = await loadInitialCragRouteData(supabase as never, crag.id, {
+  const initialRouteData = await loadInitialCragRouteData(supabase, crag.id, {
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
   })
