@@ -3,36 +3,9 @@
 import { ChangeEvent, MouseEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { getResponseError } from '@/lib/response-error'
+import { getImageDimensions } from '@/lib/image-dimensions'
 import type { EditableRoute, FloorPlan, GymDiscipline, GymListItem } from '@/features/admin/gyms/types'
-
-function getResponseError(payload: unknown, fallback: string): string {
-  if (typeof payload === 'object' && payload !== null && 'error' in payload) {
-    const error = (payload as { error?: unknown }).error
-    if (typeof error === 'string' && error.trim().length > 0) {
-      return error
-    }
-  }
-
-  return fallback
-}
-
-async function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error('Failed to read image file'))
-    reader.readAsDataURL(file)
-  })
-
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => {
-      resolve({ width: image.naturalWidth, height: image.naturalHeight })
-    }
-    image.onerror = () => reject(new Error('Invalid image file'))
-    image.src = dataUrl
-  })
-}
 
 export function useAdminGymEditor() {
   const [gyms, setGyms] = useState<GymListItem[]>([])
