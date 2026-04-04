@@ -4,6 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
 import { QueueItemVoteSchema } from '@/lib/supabase-result-schemas'
+import { requireAdminFromSupabase } from '@/features/admin/server'
 
 
 
@@ -35,15 +36,8 @@ export async function POST(
     if (!parsedBody.success) return parsedBody.response
     const { vote_type, reason } = parsedBody.data
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile?.is_admin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
+    const adminError = await requireAdminFromSupabase(supabase, userId)
+    if (adminError) return adminError
 
     const { data: rawData, error: queueError } = await supabase
       .from('moderation_queue')

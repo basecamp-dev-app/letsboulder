@@ -4,6 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { parsePagination } from '@/lib/pagination'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { requireAdminFromSupabase } from '@/features/admin/server'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -25,15 +26,8 @@ export async function GET(request: NextRequest) {
       return rateLimitResponse
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile?.is_admin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
+    const adminError = await requireAdminFromSupabase(supabase, userId)
+    if (adminError) return adminError
 
     let query = supabase
       .from('climb_flags')

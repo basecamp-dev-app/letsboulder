@@ -4,14 +4,11 @@ import { revalidatePath } from 'next/cache'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
+import { requireAdminFromSupabase } from '@/features/admin/server'
 
 const moveImageCragSchema = z.object({
   targetCragId: z.string().trim().min(1, 'Target crag is required'),
 })
-
-interface AdminProfileRow {
-  is_admin: boolean | null
-}
 
 interface CragRow {
   id: string
@@ -58,15 +55,8 @@ export async function POST(
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', user.id)
-      .single<AdminProfileRow>()
-
-    if (profileError || !profile?.is_admin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
+    const adminError = await requireAdminFromSupabase(supabase, user.id)
+    if (adminError) return adminError
 
     const { imageId } = await params
     if (!imageId) {

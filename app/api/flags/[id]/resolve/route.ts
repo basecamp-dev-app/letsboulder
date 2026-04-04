@@ -4,6 +4,7 @@ import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { parseWithSchema } from '@/lib/api-validation'
 import { FlagWithRelationsSchema } from '@/lib/supabase-result-schemas'
+import { requireAdminFromSupabase } from '@/features/admin/server'
 
 const flagResolveSchema = z.object({
   action: z.enum(['keep', 'edit', 'remove']),
@@ -30,15 +31,8 @@ export async function POST(
       return NextResponse.json({ error: 'Flag ID required' }, { status: 400 })
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('is_admin')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile?.is_admin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
+    const adminError = await requireAdminFromSupabase(supabase, userId)
+    if (adminError) return adminError
 
     const parsedBody = parseWithSchema(flagResolveSchema, await request.json())
     if (!parsedBody.success) return parsedBody.response

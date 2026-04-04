@@ -1,1 +1,1 @@
-// Barrel for admin feature server utilities
+export * from '@/features/admin/server/require-admin'

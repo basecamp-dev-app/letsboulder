@@ -1,1 +1,1 @@
-// Barrel export for community/server
+export * from '@/features/community/server/place-api'
