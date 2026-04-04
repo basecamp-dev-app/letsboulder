@@ -136,7 +136,7 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
         queryClient.setQueryData(communityKeys.engagement(post.id), context.previous)
       }
     },
-    onSettled: (result, _err, _vars, context) => {
+    onSettled: (result, _err, _vars) => {
       if (result?.status === 401) {
         setCommentBody(_vars)
         setError('Sign in to comment.')

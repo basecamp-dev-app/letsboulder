@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useMemo, type Dispatch, type SetStateAction } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { cragKeys, fetchCragImages } from '@/features/crags/lib/crag-queries'
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
@@ -9,12 +9,6 @@ import type { RoutesLoadState } from '@/features/crags/hooks/use-crag-routes'
 
 const CRAG_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000
 const cragImageCache = new Map<string, CachedCragImageData>()
-
-function getFreshCachedCragData(id: string) {
-  const cached = cragImageCache.get(id)
-  if (!cached) return null
-  return Date.now() - cached.cachedAt <= CRAG_IMAGE_CACHE_TTL_MS ? cached : null
-}
 
 interface CachedCragImageData {
   crag: CragPageCrag
@@ -106,7 +100,7 @@ export function useCragImages({
     initialRoutePreviewByClimbId,
   ])
 
-  const { data, isLoading, isError, isFetching } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: cragKeys.images(id),
     queryFn: () => fetchCragImages(id, initialCrag),
     enabled: !hasFreshInitialPayload,

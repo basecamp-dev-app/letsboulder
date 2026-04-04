@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
-import { communityKeys, fetchRankings, type PlaceRankingEntry, type PlaceRankingPagination } from '@/features/community/lib/queries'
+import { communityKeys, fetchRankings } from '@/features/community/lib/queries'
 
 type RankingSort = 'grade' | 'tops'
 

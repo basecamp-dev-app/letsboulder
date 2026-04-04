@@ -1,5 +1,5 @@
 import { csrfFetch } from '@/hooks/useCsrf'
-import type { FloorPlan, GymConfigPayload, GymListItem } from '@/features/gym-admin/types'
+import type { GymConfigPayload, GymListItem } from '@/features/gym-admin/types'
 
 export async function fetchGyms(): Promise<GymListItem[]> {
   const response = await fetch('/api/gym-admin/gyms')
