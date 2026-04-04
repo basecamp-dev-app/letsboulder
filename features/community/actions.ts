@@ -1,14 +1,15 @@
 'use server'
 
 import { getActionAuth } from '@/lib/actions/action-auth'
-import { type ActionResult } from '@/lib/actions/action-result'
+import { fail, type ActionResult } from '@/lib/actions/action-result'
+import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { getServerClient } from '@/lib/supabase-server'
+import { z } from 'zod'
 
 type RsvpStatus = 'going' | 'interested'
 type CommunityPostType = 'session' | 'update' | 'conditions' | 'question'
 
 const ALLOWED_DISCIPLINES = new Set(['boulder', 'sport', 'trad', 'deep_water_solo', 'mixed', 'top_rope'])
-const ALLOWED_POST_TYPES = new Set(['session', 'update', 'conditions', 'question'])
 
 interface ProfileRow {
   id: string
@@ -31,9 +32,32 @@ function parseDate(value: string | null | undefined): string | null {
   return date.toISOString()
 }
 
-function isValidStatus(status: unknown): status is RsvpStatus {
-  return status === 'going' || status === 'interested'
-}
+const saveCommunityRsvpSchema = z.object({
+  postId: z.string().trim().min(1, 'Missing post id'),
+  status: z.enum(['going', 'interested']).nullable(),
+})
+
+const createCommunityPostSchema = z.object({
+  type: z.enum(['session', 'update', 'conditions', 'question']).optional().default('session'),
+  place_id: z.string().trim().min(1, 'place_id is required'),
+  title: z.string().trim().max(120, 'title must be 120 characters or less').nullable().optional(),
+  body: z.string().trim().min(1, 'body must be between 1 and 2000 characters').max(2000, 'body must be between 1 and 2000 characters'),
+  discipline: z.string().trim().nullable().optional(),
+  grade_min: z.string().trim().max(10, 'grade_min must be 10 characters or less').nullable().optional(),
+  grade_max: z.string().trim().max(10, 'grade_max must be 10 characters or less').nullable().optional(),
+  start_at: z.string().optional(),
+  end_at: z.string().nullable().optional(),
+})
+
+const createCommunityCommentSchema = z.object({
+  postId: z.string().trim().min(1, 'Missing post id'),
+  body: z.string().trim().min(1, 'Comment must be between 1 and 2000 characters').max(2000, 'Comment must be between 1 and 2000 characters'),
+})
+
+const deleteCommunityCommentSchema = z.object({
+  postId: z.string().trim().min(1, 'Missing identifiers'),
+  commentId: z.string().trim().min(1, 'Missing identifiers'),
+})
 
 async function buildCommentPayload(supabase: Awaited<ReturnType<typeof getServerClient>>, postId: string, viewerId: string | null) {
   const { data: commentRows } = await supabase
@@ -68,25 +92,27 @@ async function buildCommentPayload(supabase: Awaited<ReturnType<typeof getServer
 }
 
 export async function saveCommunityRsvpAction(postId: string, status: RsvpStatus | null): Promise<ActionResult<{ rsvp_counts: { going: number; interested: number }; viewer_rsvp: RsvpStatus | null }>> {
+  const validation = validateActionInput(saveCommunityRsvpSchema, { postId, status })
+  if (!validation.success) return fail(validation.result.error || 'Invalid request data', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!postId) return { success: false, error: 'Missing post id', status: 400 }
-  if (status !== null && !isValidStatus(status)) return { success: false, error: 'Invalid RSVP status', status: 400 }
+  const { postId: validatedPostId, status: validatedStatus } = validation.data
 
   const supabase = await getServerClient()
-  const { data: post } = await supabase.from('community_posts').select('id, type').eq('id', postId).maybeSingle()
+  const { data: post } = await supabase.from('community_posts').select('id, type').eq('id', validatedPostId).maybeSingle()
   if (!post || post.type !== 'session') return { success: false, error: 'Session post not found', status: 404 }
 
-  if (status === null) {
-    const { error } = await supabase.from('community_post_rsvps').delete().eq('post_id', postId).eq('user_id', auth.data.userId)
+  if (validatedStatus === null) {
+    const { error } = await supabase.from('community_post_rsvps').delete().eq('post_id', validatedPostId).eq('user_id', auth.data.userId)
     if (error) return { success: false, error: 'Error removing RSVP', status: 500 }
   } else {
-    const { error } = await supabase.from('community_post_rsvps').upsert({ post_id: postId, user_id: auth.data.userId, status }, { onConflict: 'post_id,user_id' })
+    const { error } = await supabase.from('community_post_rsvps').upsert({ post_id: validatedPostId, user_id: auth.data.userId, status: validatedStatus }, { onConflict: 'post_id,user_id' })
     if (error) return { success: false, error: 'Error updating RSVP', status: 500 }
   }
 
-  const { data: rsvps } = await supabase.from('community_post_rsvps').select('user_id, status').eq('post_id', postId)
+  const { data: rsvps } = await supabase.from('community_post_rsvps').select('user_id, status').eq('post_id', validatedPostId)
   let viewerRsvp: RsvpStatus | null = null
   let goingCount = 0
   let interestedCount = 0
@@ -117,28 +143,25 @@ export async function createCommunityPostAction(input: {
   start_at?: string
   end_at?: string | null
 }): Promise<ActionResult<Record<string, unknown>>> {
+  const validation = validateActionInput(createCommunityPostSchema, input)
+  if (!validation.success) return fail<Record<string, unknown>>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
 
-  const type = input.type || 'session'
-  const placeId = input.place_id?.trim()
-  const rawBody = input.body?.trim() || ''
-  const title = input.title?.trim() || null
-  const discipline = input.discipline?.trim() || null
-  const gradeMin = input.grade_min?.trim() || null
-  const gradeMax = input.grade_max?.trim() || null
-  const startAt = parseDate(input.start_at)
-  const endAt = parseDate(input.end_at)
+  const type = validation.data.type
+  const placeId = validation.data.place_id
+  const rawBody = validation.data.body
+  const title = validation.data.title || null
+  const discipline = validation.data.discipline || null
+  const gradeMin = validation.data.grade_min || null
+  const gradeMax = validation.data.grade_max || null
+  const startAt = parseDate(validation.data.start_at)
+  const endAt = parseDate(validation.data.end_at)
 
-  if (!ALLOWED_POST_TYPES.has(type)) return { success: false, error: 'Invalid post type', status: 400 }
-  if (!placeId) return { success: false, error: 'place_id is required', status: 400 }
   if (type === 'session' && !startAt) return { success: false, error: 'Valid start_at is required for session posts', status: 400 }
-  if (rawBody.length < 1 || rawBody.length > 2000) return { success: false, error: 'body must be between 1 and 2000 characters', status: 400 }
-  if (title && title.length > 120) return { success: false, error: 'title must be 120 characters or less', status: 400 }
   if (discipline && !ALLOWED_DISCIPLINES.has(discipline)) return { success: false, error: 'Invalid discipline', status: 400 }
-  if (gradeMin && gradeMin.length > 10) return { success: false, error: 'grade_min must be 10 characters or less', status: 400 }
-  if (gradeMax && gradeMax.length > 10) return { success: false, error: 'grade_max must be 10 characters or less', status: 400 }
   if (type === 'session' && endAt && startAt && new Date(endAt).getTime() < new Date(startAt).getTime()) {
     return { success: false, error: 'end_at must be after start_at', status: 400 }
   }
@@ -176,45 +199,46 @@ export async function createCommunityPostAction(input: {
 }
 
 export async function createCommunityCommentAction(postId: string, body: string): Promise<ActionResult<{ comments: Awaited<ReturnType<typeof buildCommentPayload>> }>> {
+  const validation = validateActionInput(createCommunityCommentSchema, { postId, body })
+  if (!validation.success) return fail(validation.result.error || 'Invalid request data', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!postId) return { success: false, error: 'Missing post id', status: 400 }
-
-  const trimmedBody = body.trim()
-  if (trimmedBody.length < 1 || trimmedBody.length > 2000) {
-    return { success: false, error: 'Comment must be between 1 and 2000 characters', status: 400 }
-  }
+  const { postId: validatedPostId, body: trimmedBody } = validation.data
 
   const supabase = await getServerClient()
-  const { data: post } = await supabase.from('community_posts').select('id, type').eq('id', postId).maybeSingle()
+  const { data: post } = await supabase.from('community_posts').select('id, type').eq('id', validatedPostId).maybeSingle()
   if (!post || post.type !== 'session') return { success: false, error: 'Session post not found', status: 404 }
 
-  const { error } = await supabase.from('community_post_comments').insert({ post_id: postId, author_id: auth.data.userId, body: trimmedBody })
+  const { error } = await supabase.from('community_post_comments').insert({ post_id: validatedPostId, author_id: auth.data.userId, body: trimmedBody })
   if (error) return { success: false, error: 'Error posting comment', status: 500 }
 
-  const comments = await buildCommentPayload(supabase, postId, auth.data.userId)
+  const comments = await buildCommentPayload(supabase, validatedPostId, auth.data.userId)
   return { success: true, data: { comments } }
 }
 
 export async function deleteCommunityCommentAction(postId: string, commentId: string): Promise<ActionResult> {
+  const validation = validateActionInput(deleteCommunityCommentSchema, { postId, commentId })
+  if (!validation.success) return validation.result
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!postId || !commentId) return { success: false, error: 'Missing identifiers', status: 400 }
+  const { postId: validatedPostId, commentId: validatedCommentId } = validation.data
 
   const supabase = await getServerClient()
   const { data: comment } = await supabase
     .from('community_post_comments')
     .select('id, post_id, author_id')
-    .eq('id', commentId)
-    .eq('post_id', postId)
+    .eq('id', validatedCommentId)
+    .eq('post_id', validatedPostId)
     .maybeSingle()
 
   if (!comment) return { success: false, error: 'Comment not found', status: 404 }
   if (comment.author_id !== auth.data.userId) return { success: false, error: 'Unauthorized', status: 403 }
 
-  const { error } = await supabase.from('community_post_comments').delete().eq('id', commentId).eq('post_id', postId)
+  const { error } = await supabase.from('community_post_comments').delete().eq('id', validatedCommentId).eq('post_id', validatedPostId)
   if (error) return { success: false, error: 'Error deleting comment', status: 500 }
 
   return { success: true }

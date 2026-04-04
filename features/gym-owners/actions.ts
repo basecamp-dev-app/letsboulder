@@ -1,9 +1,11 @@
 'use server'
 
 import { type ActionResult } from '@/lib/actions/action-result'
+import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { notifyGymOwnerApplication } from '@/lib/discord'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
+import { z } from 'zod'
 
 type ApplicationRole = 'owner' | 'manager' | 'head_setter'
 type ApplicationFacility = 'sport' | 'boulder'
@@ -22,49 +24,51 @@ interface GymOwnerApplicationInput {
   website_url?: string
 }
 
-const ALLOWED_ROLES = new Set<ApplicationRole>(['owner', 'manager', 'head_setter'])
-const ALLOWED_FACILITIES = new Set<ApplicationFacility>(['sport', 'boulder'])
+const APPLICATION_ROLES = ['owner', 'manager', 'head_setter'] as const
+const APPLICATION_FACILITIES = ['sport', 'boulder'] as const
 
 function isValidEmail(value: string): boolean {
   return /^\S+@\S+\.\S+$/.test(value)
 }
 
+const gymOwnerApplicationSchema = z.object({
+  gym_name: z.string().trim().min(1, 'gym_name is required'),
+  address: z.string().trim().min(1, 'address is required'),
+  city: z.string().trim().min(1, 'city is required'),
+  country: z.string().trim().min(1, 'country is required'),
+  postcode_or_zip: z.string().trim().min(1, 'postcode_or_zip is required'),
+  facilities: z.array(z.string().trim().toLowerCase()).transform((values) => Array.from(new Set(values.filter(Boolean)))).refine((values) => values.length > 0, 'At least one facility is required').refine((values) => values.every((value) => APPLICATION_FACILITIES.includes(value as ApplicationFacility)), {
+    message: 'Invalid facility',
+  }),
+  contact_phone: z.string().trim().min(1, 'contact_phone is required'),
+  contact_email: z.string().trim().toLowerCase().min(1, 'A valid contact_email is required').refine(isValidEmail, 'A valid contact_email is required'),
+  role: z.string().trim().refine((value) => APPLICATION_ROLES.includes(value as ApplicationRole), 'Invalid role'),
+  additional_comments: z.string().trim().max(2000, 'additional_comments must be 2000 characters or less').nullable().optional(),
+  website_url: z.string().trim().optional().default(''),
+})
+
 export async function submitGymOwnerApplicationAction(input: GymOwnerApplicationInput): Promise<ActionResult> {
-  const honeypot = (input.website_url as string)?.trim() || ''
+  const validation = validateActionInput(gymOwnerApplicationSchema, input)
+  if (!validation.success) return validation.result
+
+  const honeypot = validation.data.website_url
   if (honeypot) {
     return { success: false, error: 'Invalid submission', status: 400 }
   }
 
-  const gymName = input.gym_name?.trim() || ''
-  const address = input.address?.trim() || ''
-  const city = input.city?.trim() || ''
-  const country = input.country?.trim() || ''
-  const postcodeOrZip = input.postcode_or_zip?.trim() || ''
-  const contactPhone = input.contact_phone?.trim() || ''
-  const contactEmail = input.contact_email?.trim().toLowerCase() || ''
-  const role = input.role?.trim() || ''
-  const additionalComments = input.additional_comments?.trim() || null
-  const facilities = Array.from(new Set((input.facilities || []).map(value => value.trim().toLowerCase()).filter(Boolean)))
-
-  if (!gymName) return { success: false, error: 'gym_name is required', status: 400 }
-  if (!address) return { success: false, error: 'address is required', status: 400 }
-  if (!city) return { success: false, error: 'city is required', status: 400 }
-  if (!country) return { success: false, error: 'country is required', status: 400 }
-  if (!postcodeOrZip) return { success: false, error: 'postcode_or_zip is required', status: 400 }
-  if (!contactPhone) return { success: false, error: 'contact_phone is required', status: 400 }
-  if (!contactEmail || !isValidEmail(contactEmail)) return { success: false, error: 'A valid contact_email is required', status: 400 }
-  if (!ALLOWED_ROLES.has(role as ApplicationRole)) return { success: false, error: 'Invalid role', status: 400 }
-  if (facilities.length === 0) return { success: false, error: 'At least one facility is required', status: 400 }
-
-  for (const facility of facilities) {
-    if (!ALLOWED_FACILITIES.has(facility as ApplicationFacility)) {
-      return { success: false, error: `Invalid facility: ${facility}`, status: 400 }
-    }
-  }
-
-  if (additionalComments && additionalComments.length > 2000) {
-    return { success: false, error: 'additional_comments must be 2000 characters or less', status: 400 }
-  }
+  const {
+    gym_name: gymName,
+    address,
+    city,
+    country,
+    postcode_or_zip: postcodeOrZip,
+    facilities,
+    contact_phone: contactPhone,
+    contact_email: contactEmail,
+    role,
+    additional_comments: additionalCommentsRaw,
+  } = validation.data
+  const additionalComments = additionalCommentsRaw ?? null
 
   const supabase = await getServerClient()
   const { data, error } = await supabase

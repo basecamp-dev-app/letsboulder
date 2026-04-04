@@ -1,7 +1,8 @@
 'use server'
 
 import { getActionAuth } from '@/lib/actions/action-auth'
-import { ok, type ActionResult } from '@/lib/actions/action-result'
+import { fail, ok, type ActionResult } from '@/lib/actions/action-result'
+import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { resolveEffectiveClimbId } from '@/features/climb/lib/effective-climb'
 import {
   clampGradeIndex,
@@ -14,6 +15,7 @@ import {
 import { normalizeGrade, GRADES } from '@/lib/grades'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
+import { z } from 'zod'
 
 interface ConsensusBucket {
   index: number
@@ -45,13 +47,6 @@ function parseGradeOpinion(value: unknown): GradeOpinion | null {
   if (typeof value !== 'string') return null
   const normalized = value.trim().toLowerCase()
   return (GRADE_OPINIONS as readonly string[]).includes(normalized) ? (normalized as GradeOpinion) : null
-}
-
-function parseStarRating(value: unknown): number | null {
-  if (value === null || value === undefined) return null
-  if (typeof value !== 'number' || !Number.isInteger(value)) return null
-  if (value < 1 || value > 5) return null
-  return value
 }
 
 function mapOpinionToSuggestedGradeIndex(opinion: GradeOpinion, baseline: string): number | null {
@@ -112,7 +107,16 @@ function deriveConsensusGrade(votes: Array<{ grade_opinion: string | null; grade
   }
 }
 
+const saveClimbFeedbackSchema = z.object({
+  climbId: z.string().trim().min(1, 'climbId is required'),
+  gradeOpinion: z.enum(GRADE_OPINIONS).nullable().optional(),
+  starRating: z.number().int().min(1, 'Invalid star rating').max(5, 'Invalid star rating').nullable().optional(),
+})
+
 export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Promise<ActionResult<SaveClimbFeedbackResult>> {
+  const validation = validateActionInput(saveClimbFeedbackSchema, input)
+  if (!validation.success) return fail<SaveClimbFeedbackResult>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) {
     return { success: false, error: auth.error, status: auth.status }
@@ -122,21 +126,9 @@ export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Pr
     return { success: false, error: 'Unauthorized', status: 401 }
   }
 
-  const climbId = typeof input.climbId === 'string' ? input.climbId : null
-  const gradeOpinion = parseGradeOpinion(input.gradeOpinion)
-  const starRating = parseStarRating(input.starRating)
-
-  if (!climbId) {
-    return { success: false, error: 'climbId is required', status: 400 }
-  }
-
-  if (input.gradeOpinion !== null && input.gradeOpinion !== undefined && !gradeOpinion) {
-    return { success: false, error: 'Invalid grade opinion', status: 400 }
-  }
-
-  if (input.starRating !== null && input.starRating !== undefined && starRating === null) {
-    return { success: false, error: 'Invalid star rating', status: 400 }
-  }
+  const climbId = validation.data.climbId
+  const gradeOpinion = validation.data.gradeOpinion ?? null
+  const starRating = validation.data.starRating ?? null
 
   const supabase = await getServerClient()
   const effectiveClimbId = await resolveEffectiveClimbId(supabase as never, climbId)

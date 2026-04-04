@@ -2,13 +2,18 @@
 
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { ok, type ActionResult } from '@/lib/actions/action-result'
+import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
+import { z } from 'zod'
+
+const deleteLogSchema = z.object({
+  logId: z.string().trim().min(1, 'Log ID required'),
+})
 
 export async function deleteLogAction(logId: string): Promise<ActionResult> {
-  if (!logId) {
-    return { success: false, error: 'Log ID required', status: 400 }
-  }
+  const validation = validateActionInput(deleteLogSchema, { logId })
+  if (!validation.success) return validation.result
 
   const auth = await getActionAuth()
   if (!auth.success) {
@@ -25,7 +30,7 @@ export async function deleteLogAction(logId: string): Promise<ActionResult> {
   const { error } = await supabase
     .from('user_climbs')
     .delete()
-    .eq('id', logId)
+    .eq('id', validation.data.logId)
     .eq('user_id', userId)
 
   if (error) {
