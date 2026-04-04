@@ -1,17 +1,13 @@
 'use server'
-
-import { revalidatePath } from 'next/cache'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { getAdminClient, getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
 import { assertDraftReadAccess, normalizeDraftRoutePayload } from '@/features/submissions/server/drafts/draft-route-helpers'
+import { buildDraftConflictResult, mergeDraftMetadata, revalidateSubmissionImagePaths } from '@/features/submissions/actions/editor-write-action-helpers'
 import {
-  buildDraftConflictResponse,
-  resolveDisplayName,
   type DraftPatchImage,
-  type ProfileRow,
 } from '@/features/submissions/server/drafts/draft-route-shared'
 import { createSubmissionRoutes } from '@/features/submissions/server/submissions/create-submission-routes'
 import { deleteSubmissionRoute } from '@/features/submissions/server/submissions/delete-submission-route'
@@ -173,22 +169,7 @@ export async function patchSubmissionDraftAction(draftId: string, body: DraftPat
   const expectedUpdatedAtMs = expectedUpdatedAtDate.getTime()
   const currentUpdatedAtMs = new Date(draft.updated_at).getTime()
   if (!Number.isFinite(currentUpdatedAtMs) || currentUpdatedAtMs !== expectedUpdatedAtMs) {
-    let lastUpdatedByDisplayName: string | null = null
-    if (typeof draft.last_edited_by === 'string' && draft.last_edited_by) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, username, display_name')
-        .eq('id', draft.last_edited_by)
-        .maybeSingle()
-      lastUpdatedByDisplayName = resolveDisplayName((profile || null) as ProfileRow | null)
-    }
-
-    const response = buildDraftConflictResponse({
-      updatedAt: draft.updated_at,
-      lastEditedBy: draft.last_edited_by,
-      lastUpdatedByDisplayName,
-    })
-    const payload = await response.json()
+    const payload = await buildDraftConflictResult(supabase, draft.updated_at, draft.last_edited_by)
     return { success: false, error: payload.error || 'Draft conflict', status: 409, data: payload }
   }
 
@@ -206,22 +187,11 @@ export async function patchSubmissionDraftAction(draftId: string, body: DraftPat
         .eq('id', validation.data.draftId)
         .maybeSingle()
 
-      let lastUpdatedByDisplayName: string | null = null
-      if (typeof currentDraft?.last_edited_by === 'string' && currentDraft.last_edited_by) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id, username, display_name')
-          .eq('id', currentDraft.last_edited_by)
-          .maybeSingle()
-        lastUpdatedByDisplayName = resolveDisplayName((profile || null) as ProfileRow | null)
-      }
-
-      const response = buildDraftConflictResponse({
-        updatedAt: currentDraft?.updated_at || expectedUpdatedAtRaw,
-        lastEditedBy: currentDraft?.last_edited_by || null,
-        lastUpdatedByDisplayName,
-      })
-      const payload = await response.json()
+      const payload = await buildDraftConflictResult(
+        supabase,
+        currentDraft?.updated_at || expectedUpdatedAtRaw,
+        currentDraft?.last_edited_by || null
+      )
       return { success: false, error: payload.error || 'Draft conflict', status: 409, data: payload }
     }
 
@@ -245,32 +215,7 @@ export async function patchSubmissionDraftAction(draftId: string, body: DraftPat
       ? existingDraft.metadata as Record<string, unknown>
       : {}
 
-    const nextMetadata = metadataPatch
-      ? {
-          ...existingMetadata,
-          ...metadataPatch,
-          submission: {
-            ...((existingMetadata.submission && typeof existingMetadata.submission === 'object' && !Array.isArray(existingMetadata.submission))
-              ? existingMetadata.submission as Record<string, unknown>
-              : {}),
-            ...((metadataPatch.submission && typeof metadataPatch.submission === 'object' && !Array.isArray(metadataPatch.submission))
-              ? metadataPatch.submission as Record<string, unknown>
-              : {}),
-            location: {
-              ...((((existingMetadata.submission && typeof existingMetadata.submission === 'object' && !Array.isArray(existingMetadata.submission)
-                ? (existingMetadata.submission as Record<string, unknown>).location
-                : null) && typeof (existingMetadata.submission as Record<string, unknown>).location === 'object' && !Array.isArray((existingMetadata.submission as Record<string, unknown>).location))
-                ? (existingMetadata.submission as Record<string, unknown>).location as Record<string, unknown>
-                : {})),
-              ...((((metadataPatch.submission && typeof metadataPatch.submission === 'object' && !Array.isArray(metadataPatch.submission)
-                ? (metadataPatch.submission as Record<string, unknown>).location
-                : null) && typeof (metadataPatch.submission as Record<string, unknown>).location === 'object' && !Array.isArray((metadataPatch.submission as Record<string, unknown>).location))
-                ? (metadataPatch.submission as Record<string, unknown>).location as Record<string, unknown>
-                : {})),
-            },
-          },
-        }
-      : existingMetadata
+    const nextMetadata = metadataPatch ? mergeDraftMetadata(existingMetadata, metadataPatch) : existingMetadata
 
     const updatePayload: { metadata?: Record<string, unknown>; crag_id?: string | null; updated_at: string; last_edited_by: string } = {
       updated_at: new Date().toISOString(),
@@ -439,14 +384,7 @@ export async function updateSubmissionImageMetadataAction(imageId: string, body:
     }
   }
 
-  revalidatePath('/')
-  const { data: image } = await supabase.from('images').select('crag_id').eq('id', validation.data.imageId).single()
-  if (image?.crag_id) {
-    const { data: cragData } = await supabase.from('crags').select('slug, country_code').eq('id', image.crag_id).single()
-    if (cragData?.slug && cragData?.country_code) {
-      revalidatePath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
-    }
-  }
+  await revalidateSubmissionImagePaths(supabase, validation.data.imageId)
 
   return {
     success: true,
@@ -495,13 +433,7 @@ export async function reorderSubmissionFacesAction(imageId: string, body: unknow
     return { success: false, error: 'Reorder submission faces error', status: 500 }
   }
 
-  revalidatePath('/')
-  if (image.crag_id) {
-    const { data: cragData } = await supabase.from('crags').select('slug, country_code').eq('id', image.crag_id).single()
-    if (cragData?.slug && cragData?.country_code) {
-      revalidatePath(`/${cragData.country_code.toLowerCase()}/${cragData.slug}`)
-    }
-  }
+  await revalidateSubmissionImagePaths(supabase, validation.data.imageId)
 
   return { success: true, data: { updatedCount: typeof result === 'number' ? result : payload.imageIds.length } }
 }
