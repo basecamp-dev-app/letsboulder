@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { FLASH_BONUS, getGradeFromPoints, getGradePoints } from '@/lib/grades'
-import type { Database } from '@/types/database'
+import { UserClimbRowSchema } from '@/lib/supabase-result-schemas'
 
 type RankingSort = 'grade' | 'tops'
 type RankingWindow = '60d' | 'all-time'
@@ -11,7 +11,11 @@ interface RouteParams {
   slug: string
 }
 
-type UserClimbRow = Pick<Database['public']['Tables']['user_climbs']['Row'], 'user_id' | 'climb_id' | 'style' | 'created_at'> & {
+type UserClimbRow = {
+  user_id: string
+  climb_id: string
+  style: string
+  created_at: string
   climbs: {
     id: string
     grade: string
@@ -113,10 +117,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
         throw byLegacyCragResult.error
       }
 
-      const combinedRows = [
-        ...((byPlaceResult.data || []) as unknown as UserClimbRow[]),
-        ...((byLegacyCragResult.data || []) as unknown as UserClimbRow[]),
-      ]
+      const combinedRows = UserClimbRowSchema.parse([
+        ...(byPlaceResult.data || []),
+        ...(byLegacyCragResult.data || []),
+      ])
 
       const deduped = new Map<string, UserClimbRow>()
       for (const row of combinedRows) {

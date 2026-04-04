@@ -2,12 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { getGradePoints, getGradeFromPoints, FLASH_BONUS } from '@/lib/grades'
 import { createErrorResponse } from '@/lib/errors'
-import type { Database } from '@/types/database'
+import { UserClimbQueryResultSchema } from '@/lib/supabase-result-schemas'
 
 export const revalidate = 60
 
-type UserClimbQueryResult = Pick<Database['public']['Tables']['user_climbs']['Row'], 'id' | 'user_id' | 'created_at' | 'style'> & {
-  climbs: Pick<Database['public']['Tables']['climbs']['Row'], 'id' | 'grade'> | null
+type UserClimbQueryResult = {
+  id: string
+  user_id: string
+  created_at: string
+  style: string
+  climbs: {
+    id: string
+    grade: string
+  } | null
 }
 
 type RegionRouteLine = {
@@ -96,11 +103,7 @@ export async function GET(request: NextRequest) {
       return createErrorResponse(error, 'Query error')
     }
 
-    let filteredClimbs = userClimbs as unknown as UserClimbQueryResult[] | null
-    
-    if (!filteredClimbs) {
-      filteredClimbs = []
-    }
+    let filteredClimbs = userClimbs ? UserClimbQueryResultSchema.parse(userClimbs) : []
     
     if (regionParam) {
       const climbIds = [...new Set(filteredClimbs.map((uc) => uc.climbs?.id).filter(Boolean) || [])]

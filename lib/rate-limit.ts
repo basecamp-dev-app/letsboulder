@@ -1,4 +1,4 @@
-import { checkRateLimit, isUpstashConfigured } from '@/lib/upstash-redis'
+import { checkRateLimit } from '@/lib/upstash-redis'
 
 const RATE_LIMITS = {
   externalApi: { windowMs: 60 * 1000, maxRequests: 30 },
@@ -70,7 +70,6 @@ export async function rateLimit(
   userId?: string
 ): Promise<{ success: boolean; remaining: number; resetTime: number; limit: number }> {
   const identifier = getIdentifier(request, configKey, userId)
-  const config = RATE_LIMITS[configKey]
 
   const result = await checkRateLimit(identifier, configKey)
 
