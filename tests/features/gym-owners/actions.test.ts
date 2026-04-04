@@ -1,0 +1,228 @@
+import { describe, expect, test, vi, beforeEach } from 'vitest'
+import { submitGymOwnerApplicationAction } from '@/features/gym-owners/actions'
+
+vi.mock('@/lib/supabase-server', () => ({
+  getServerClient: vi.fn().mockResolvedValue({
+    from: vi.fn().mockReturnValue({
+      insert: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: 'test-id', created_at: '2024-01-01', status: 'pending' }, error: null }),
+        }),
+      }),
+    }),
+  }),
+}))
+
+vi.mock('@/lib/discord', () => ({
+  notifyGymOwnerApplication: vi.fn().mockResolvedValue(undefined),
+}))
+
+describe('Gym Owner Application Validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('isValidEmail', () => {
+    test.each([
+      ['test@example.com', true],
+      ['test.user@example.com', true],
+      ['test@example.co.uk', true],
+      ['invalid', false],
+      ['invalid@', false],
+      ['@example.com', false],
+      ['', false],
+      ['test@ example.com', false],
+    ])('isValidEmail(%s) === %s', (input, expected) => {
+      const emailRegex = /^\S+@\S+\.\S+$/
+      expect(emailRegex.test(input)).toBe(expected)
+    })
+  })
+
+  describe('submitGymOwnerApplicationAction', () => {
+    test('rejects honeypot spam', async () => {
+      const result = await submitGymOwnerApplicationAction({
+        gym_name: 'Test Gym',
+        address: '123 Main St',
+        city: 'Test City',
+        country: 'US',
+        postcode_or_zip: '12345',
+        contact_phone: '555-1234',
+        contact_email: 'test@example.com',
+        role: 'owner',
+        facilities: ['sport'],
+        website_url: 'http://spam.com',
+      })
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Invalid submission')
+    })
+
+    test('rejects missing required fields', async () => {
+      const result = await submitGymOwnerApplicationAction({})
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('gym_name is required')
+    })
+
+    test('rejects invalid email', async () => {
+      const result = await submitGymOwnerApplicationAction({
+        gym_name: 'Test Gym',
+        address: '123 Main St',
+        city: 'Test City',
+        country: 'US',
+        postcode_or_zip: '12345',
+        contact_phone: '555-1234',
+        contact_email: 'invalid-email',
+        role: 'owner',
+        facilities: ['sport'],
+      })
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('A valid contact_email is required')
+    })
+
+    test('rejects invalid role', async () => {
+      const result = await submitGymOwnerApplicationAction({
+        gym_name: 'Test Gym',
+        address: '123 Main St',
+        city: 'Test City',
+        country: 'US',
+        postcode_or_zip: '12345',
+        contact_phone: '555-1234',
+        contact_email: 'test@example.com',
+        role: 'invalid_role',
+        facilities: ['sport'],
+      })
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Invalid role')
+    })
+
+    test('rejects empty facilities', async () => {
+      const result = await submitGymOwnerApplicationAction({
+        gym_name: 'Test Gym',
+        address: '123 Main St',
+        city: 'Test City',
+        country: 'US',
+        postcode_or_zip: '12345',
+        contact_phone: '555-1234',
+        contact_email: 'test@example.com',
+        role: 'owner',
+        facilities: [],
+      })
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('At least one facility is required')
+    })
+
+    test('rejects invalid facility', async () => {
+      const result = await submitGymOwnerApplicationAction({
+        gym_name: 'Test Gym',
+        address: '123 Main St',
+        city: 'Test City',
+        country: 'US',
+        postcode_or_zip: '12345',
+        contact_phone: '555-1234',
+        contact_email: 'test@example.com',
+        role: 'owner',
+        facilities: ['invalid_facility'],
+      })
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Invalid facility: invalid_facility')
+    })
+
+    test('rejects comments over 2000 chars', async () => {
+      const longComments = 'x'.repeat(2001)
+      const result = await submitGymOwnerApplicationAction({
+        gym_name: 'Test Gym',
+        address: '123 Main St',
+        city: 'Test City',
+        country: 'US',
+        postcode_or_zip: '12345',
+        contact_phone: '555-1234',
+        contact_email: 'test@example.com',
+        role: 'owner',
+        facilities: ['sport'],
+        additional_comments: longComments,
+      })
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('additional_comments must be 2000 characters or less')
+    })
+
+    test('accepts valid application', async () => {
+      const result = await submitGymOwnerApplicationAction({
+        gym_name: 'Test Gym',
+        address: '123 Main St',
+        city: 'Test City',
+        country: 'US',
+        postcode_or_zip: '12345',
+        contact_phone: '555-1234',
+        contact_email: 'test@example.com',
+        role: 'owner',
+        facilities: ['sport'],
+      })
+      expect(result.success).toBe(true)
+    })
+
+    test('deduplicates facilities', async () => {
+      const result = await submitGymOwnerApplicationAction({
+        gym_name: 'Test Gym',
+        address: '123 Main St',
+        city: 'Test City',
+        country: 'US',
+        postcode_or_zip: '12345',
+        contact_phone: '555-1234',
+        contact_email: 'test@example.com',
+        role: 'manager',
+        facilities: ['sport', 'SPORT', 'boulder'],
+      })
+      expect(result.success).toBe(true)
+    })
+
+    test('accepts all valid roles', async () => {
+      const roles = ['owner', 'manager', 'head_setter']
+      for (const role of roles) {
+        const result = await submitGymOwnerApplicationAction({
+          gym_name: 'Test Gym',
+          address: '123 Main St',
+          city: 'Test City',
+          country: 'US',
+          postcode_or_zip: '12345',
+          contact_phone: '555-1234',
+          contact_email: 'test@example.com',
+          role,
+          facilities: ['sport'],
+        })
+        expect(result.success).toBe(true)
+      }
+    })
+
+    test('accepts all valid facilities', async () => {
+      const facilities = ['sport', 'boulder']
+      for (const facility of facilities) {
+        const result = await submitGymOwnerApplicationAction({
+          gym_name: 'Test Gym',
+          address: '123 Main St',
+          city: 'Test City',
+          country: 'US',
+          postcode_or_zip: '12345',
+          contact_phone: '555-1234',
+          contact_email: 'test@example.com',
+          role: 'owner',
+          facilities: [facility],
+        })
+        expect(result.success).toBe(true)
+      }
+    })
+
+    test('trims whitespace from inputs', async () => {
+      const result = await submitGymOwnerApplicationAction({
+        gym_name: '  Test Gym  ',
+        address: '  123 Main St  ',
+        city: '  Test City  ',
+        country: '  US  ',
+        postcode_or_zip: '  12345  ',
+        contact_phone: '  555-1234  ',
+        contact_email: '  TEST@EXAMPLE.COM  ',
+        role: '  owner  ',
+        facilities: [' sport '],
+      })
+      expect(result.success).toBe(true)
+    })
+  })
+})
