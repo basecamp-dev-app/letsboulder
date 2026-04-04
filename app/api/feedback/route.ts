@@ -28,8 +28,25 @@ export async function POST(request: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser()
     const userId = user?.id
+    const userEmail = user?.email
 
-    await notifyFeedback(sanitizedMessage, userId, sanitizedUrl)
+    let userName: string | undefined
+    if (userId) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', userId)
+        .single()
+
+      if (profile) {
+        const nameParts = [profile.first_name, profile.last_name].filter(Boolean)
+        if (nameParts.length > 0) {
+          userName = nameParts.join(' ')
+        }
+      }
+    }
+
+    await notifyFeedback(sanitizedMessage, userId, sanitizedUrl, userName, userEmail)
 
     return NextResponse.json({ success: true })
   } catch (error) {
