@@ -53,7 +53,14 @@ export async function submitGymOwnerApplicationAction(input: GymOwnerApplication
 
   const honeypot = validation.data.website_url
   if (honeypot) {
-    return { success: false, error: 'Invalid submission', status: 400 }
+    return {
+      success: false,
+      error: 'Invalid submission',
+      status: 400,
+      fieldErrors: {
+        website_url: ['Invalid submission'],
+      },
+    }
   }
 
   const {

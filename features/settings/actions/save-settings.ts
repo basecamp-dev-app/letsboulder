@@ -78,7 +78,13 @@ const saveSettingsSchema = z.object({
 
 export async function saveSettingsAction(input: SaveSettingsInput): Promise<ActionResult<{ warning?: string }>> {
   const validation = validateActionInput(saveSettingsSchema, input)
-  if (!validation.success) return fail<{ warning?: string }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+  if (!validation.success) {
+    return fail<{ warning?: string }>(
+      validation.result.error || 'Invalid request data',
+      validation.result.status || 400,
+      validation.result.fieldErrors
+    )
+  }
 
   const auth = await getActionAuth()
   if (!auth.success) {
@@ -138,6 +144,9 @@ export async function saveSettingsAction(input: SaveSettingsInput): Promise<Acti
         success: false,
         error: 'Handle can only include letters, numbers, periods, underscores, and hyphens (max 50)',
         status: 400,
+        fieldErrors: {
+          contributionCreditHandle: ['Handle can only include letters, numbers, periods, underscores, and hyphens (max 50)'],
+        },
       }
     }
 
@@ -147,7 +156,14 @@ export async function saveSettingsAction(input: SaveSettingsInput): Promise<Acti
     } else {
       const normalizedPlatform = normalizeSubmissionCreditPlatform(parsedInput.contributionCreditPlatform)
       if (!normalizedPlatform) {
-        return { success: false, error: 'Valid platform is required when a handle is provided', status: 400 }
+        return {
+          success: false,
+          error: 'Valid platform is required when a handle is provided',
+          status: 400,
+          fieldErrors: {
+            contributionCreditPlatform: ['Valid platform is required when a handle is provided'],
+          },
+        }
       }
       updateData.contribution_credit_platform = normalizedPlatform
       updateData.contribution_credit_handle = normalizedHandle
