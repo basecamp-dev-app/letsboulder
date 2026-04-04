@@ -2,22 +2,9 @@ import { compressImage } from '@/lib/image-compression'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { isHeicFile } from '@/lib/image-utils'
 import { THUMBNAIL_MAX_WIDTH } from '@/features/submissions/upload/lib/upload-types'
+import { getImageDimensions } from '@/lib/image-dimensions'
 
-export async function getImageDimensions(source: Blob) {
-  return new Promise<{ width: number; height: number }>((resolve) => {
-    const objectUrl = URL.createObjectURL(source)
-    const image = new window.Image()
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl)
-      resolve({ width: image.naturalWidth || 1200, height: image.naturalHeight || 1200 })
-    }
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      resolve({ width: 1200, height: 1200 })
-    }
-    image.src = objectUrl
-  })
-}
+export { getImageDimensions }
 
 export async function buildPreviewUrl(file: File) {
   const compressedBlob = await compressImage(file, {
