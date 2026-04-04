@@ -1,250 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { serverEnv } from '@/lib/env'
-import { reportError } from '@/lib/errors'
-import { RATE_LIMIT_TIERS, PROXY_BUCKET_TO_TIER } from '@/lib/rate-limit-config'
+import { applyProxyAuth } from '@/lib/proxy-auth'
+import { applyProxyRateLimit } from '@/lib/proxy-rate-limit'
 
-const INTERNAL_USER_ID_HEADER = 'x-internal-user-id'
 const CSRF_COOKIE_NAME = 'csrf_token'
 
-const ALLOWED_REDIRECT_PATHS = [
-  '/',
-  '/map',
-  '/logbook',
-  '/gym-admin',
-  '/settings',
-  '/submit',
-  '/upload-climb',
-  '/crag/',
-  '/climb/',
-  '/image/',
-]
-
-const SESSION_REFRESH_PREFIXES = [
-  '/settings',
-  '/submit',
-  '/admin',
-  '/gym-admin',
-  '/logbook',
-]
-
-const PROTECTED_STATE_CHANGING_PREFIXES = [
-  '/api/notifications',
-  '/api/submissions',
-  '/api/places',
-  '/api/gym-admin',
-  '/api/routes/submit',
-  '/api/settings',
-  '/api/profile',
-  '/api/log-routes',
-  '/api/flags',
-  '/api/moderation',
-  '/api/logs',
-  '/api/crags/report',
-  '/api/corrections',
-]
-
 const LOCATION_DETECT_MAX_BODY_BYTES = 2 * 1024
-
-type UpstashRedisCtor = new (args: { url: string; token: string }) => unknown
-type RateLimitBucket =
-  | 'search'
-  | 'rankings'
-  | 'write'
-  | 'geo'
-  | 'clicks'
-  | 'upload_session_create'
-  | 'upload_session_complete'
-  | 'signed_urls'
-  | 'submissions'
-
-type UpstashRatelimitInstance = {
-  limit: (key: string) => Promise<{ success: boolean; limit: number; remaining: number; reset: number }>
-}
-type UpstashRatelimitCtor = {
-  new (args: { redis: unknown; limiter: unknown; prefix: string }): UpstashRatelimitInstance
-  slidingWindow: (tokens: number, window: unknown) => unknown
-}
-type UpstashDeps = {
-  Redis: UpstashRedisCtor
-  Ratelimit: unknown
-}
-
-let upstashDepsPromise: Promise<UpstashDeps | null> | null = null
-let upstashMissingWarningLogged = false
-let redisClient: unknown | null = null
-const upstashLimiters = new Map<string, UpstashRatelimitInstance>()
-
-function mergeResponseMetadata(fromResponse: NextResponse, intoResponse: NextResponse): void {
-  fromResponse.headers.forEach((value, key) => {
-    if (key.toLowerCase() !== 'set-cookie') {
-      intoResponse.headers.set(key, value)
-    }
-  })
-
-  fromResponse.cookies.getAll().forEach((cookie) => {
-    intoResponse.cookies.set(cookie)
-  })
-}
-
-async function getUpstashDeps(): Promise<UpstashDeps | null> {
-  if (!upstashDepsPromise) {
-    upstashDepsPromise = Promise.all([
-      import('@upstash/redis').catch(() => null),
-      import('@upstash/ratelimit').catch(() => null),
-    ]).then(([redisModule, ratelimitModule]) => {
-      if (!redisModule || !ratelimitModule) {
-        if (!upstashMissingWarningLogged) {
-          upstashMissingWarningLogged = true
-          console.warn('Upstash rate limiting deps missing; skipping')
-        }
-        return null
-      }
-
-      return {
-        Redis: redisModule.Redis,
-        Ratelimit: ratelimitModule.Ratelimit,
-      }
-    })
-  }
-
-  return upstashDepsPromise
-}
-
-function getLimiterConfig(rateLimitBucket: RateLimitBucket): { tokens: number; window: string; prefix: string } {
-  const tierKey = PROXY_BUCKET_TO_TIER[rateLimitBucket]
-  const tier = RATE_LIMIT_TIERS[tierKey]
-  return { tokens: tier.tokens, window: tier.window, prefix: tier.prefix }
-}
-
-function getOrCreateLimiter(
-  rateLimitBucket: RateLimitBucket,
-  url: string,
-  token: string,
-  deps: UpstashDeps
-): UpstashRatelimitInstance {
-  const { Redis } = deps
-  const Ratelimit = deps.Ratelimit as UpstashRatelimitCtor
-
-  if (!redisClient) {
-    redisClient = new Redis({ url, token })
-  }
-
-  const config = getLimiterConfig(rateLimitBucket)
-  const existingLimiter = upstashLimiters.get(config.prefix)
-  if (existingLimiter) return existingLimiter
-
-  const limiter = new Ratelimit({
-    redis: redisClient,
-    limiter: Ratelimit.slidingWindow(config.tokens, config.window),
-    prefix: config.prefix,
-  })
-
-  upstashLimiters.set(config.prefix, limiter)
-  return limiter
-}
-
-function getClientIp(request: NextRequest): string {
-  const forwarded = request.headers.get('x-forwarded-for')
-  if (forwarded) {
-    const first = forwarded.split(',')[0]?.trim()
-    if (first) return first
-  }
-
-  const realIp = request.headers.get('x-real-ip')
-  if (realIp) return realIp
-
-  return 'unknown'
-}
 
 function isStateChangingMethod(method: string): boolean {
   const normalized = method.toUpperCase()
   return normalized === 'POST' || normalized === 'PUT' || normalized === 'PATCH' || normalized === 'DELETE'
-}
-
-function getApiBucket(pathname: string, method: string): RateLimitBucket | null {
-  const normalizedMethod = method.toUpperCase()
-
-  if (pathname.startsWith('/api/locations/detect') && normalizedMethod === 'POST') {
-    return 'geo'
-  }
-
-  if (pathname === '/api/media/upload-sessions' && normalizedMethod === 'POST') {
-    return 'upload_session_create'
-  }
-
-  if (pathname.match(/^\/api\/media\/upload-sessions\/[^/]+\/complete$/) && normalizedMethod === 'POST') {
-    return 'upload_session_complete'
-  }
-
-  if ((pathname === '/api/uploads/signed-url' || pathname === '/api/uploads/signed-urls/batch') && normalizedMethod === 'POST') {
-    return 'signed_urls'
-  }
-
-  if (pathname.startsWith('/api/submissions/') && normalizedMethod === 'POST') {
-    return 'submissions'
-  }
-
-  if (
-    pathname.startsWith('/api/places/search') ||
-    pathname.startsWith('/api/places/nearby') ||
-    pathname.startsWith('/api/crags/search') ||
-    pathname.startsWith('/api/crags/nearby') ||
-    pathname.startsWith('/api/regions/search') ||
-    pathname.startsWith('/api/locations/search') ||
-    pathname.startsWith('/api/images/search')
-  ) {
-    return 'search'
-  }
-
-  if (pathname.startsWith('/api/rankings')) return 'rankings'
-
-  if (isStateChangingMethod(method)) return 'write'
-
-  return null
-}
-
-function isAllowedRedirectPath(path: string): boolean {
-  return ALLOWED_REDIRECT_PATHS.some(allowed => {
-    if (allowed.endsWith('/')) {
-      return path.startsWith(allowed)
-    }
-    return path === allowed
-  })
-}
-
-function shouldRefreshSupabaseSession(pathname: string, method: string): boolean {
-  if (pathname.startsWith('/auth')) return true
-
-  if (isStateChangingMethod(method)) {
-    if (PROTECTED_STATE_CHANGING_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
-      return true
-    }
-
-    if (pathname.match(/^\/api\/climbs\/[^/]+\/(flag|grade-vote|correction|verify)$/)) return true
-    if (pathname.match(/^\/api\/images\/[^/]+\/(flag|flags)$/)) return true
-    if (pathname.match(/^\/api\/routes\/[^/]+\/grades$/)) return true
-    if (pathname.match(/^\/api\/comments\/[^/]+$/)) return true
-
-    return false
-  }
-
-  return SESSION_REFRESH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
-}
-
-function isPrefetchRequest(request: NextRequest): boolean {
-  const purpose = request.headers.get('purpose')
-  const routerPrefetch = request.headers.get('next-router-prefetch')
-  const middlewarePrefetch = request.headers.get('x-middleware-prefetch')
-
-  return purpose === 'prefetch' || routerPrefetch === '1' || middlewarePrefetch === '1'
-}
-
-function shouldSkipSessionRefreshForPrefetch(pathname: string, request: NextRequest): boolean {
-  if (!isPrefetchRequest(request)) return false
-  if (request.method.toUpperCase() !== 'GET') return false
-
-  return pathname === '/submit' || pathname.startsWith('/submit/') || pathname === '/logbook' || pathname.startsWith('/logbook/')
 }
 
 function shouldRequireCsrfEarly(pathname: string, method: string): boolean {
@@ -258,15 +22,15 @@ function shouldRequireCsrfEarly(pathname: string, method: string): boolean {
 
 export default async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
-  requestHeaders.delete(INTERNAL_USER_ID_HEADER)
+  requestHeaders.delete('x-internal-user-id')
 
-  let supabaseResponse = NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: requestHeaders,
     },
   })
 
-  const { pathname, searchParams } = request.nextUrl
+  const { pathname } = request.nextUrl
 
   if (shouldRequireCsrfEarly(pathname, request.method)) {
     const csrfHeader = request.headers.get('x-csrf-token')
@@ -290,102 +54,10 @@ export default async function proxy(request: NextRequest) {
     }
   }
 
-  const rateLimitBucket = process.env.VERCEL_ENV === 'production'
-    ? getApiBucket(pathname, request.method)
-    : null
+  const rateLimitResponse = await applyProxyRateLimit(request)
+  if (rateLimitResponse) return rateLimitResponse
 
-  if (rateLimitBucket) {
-    const url = process.env.UPSTASH_REDIS_REST_URL
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN
-
-    if (url && token) {
-      try {
-        const deps = await getUpstashDeps()
-        if (!deps) {
-          return supabaseResponse
-        }
-
-        const ip = getClientIp(request)
-        const ratelimit = getOrCreateLimiter(rateLimitBucket, url, token, deps)
-
-        const { success, limit, remaining, reset } = await ratelimit.limit(ip)
-
-        if (!success) {
-          return NextResponse.json(
-            { error: 'Rate limit exceeded. Please try again later.' },
-            {
-              status: 429,
-              headers: {
-                'Retry-After': String(Math.max(1, Math.ceil((reset - Date.now()) / 1000))),
-                'X-RateLimit-Limit': String(limit),
-                'X-RateLimit-Remaining': String(remaining),
-                'X-RateLimit-Reset': String(Math.ceil(reset / 1000)),
-              },
-            }
-          )
-        }
-      } catch (error) {
-        reportError(error, { message: 'Upstash rate limiting unavailable in proxy', level: 'warning' })
-      }
-    }
-  }
-
-  if (pathname === '/auth') {
-    const redirectTo = searchParams.get('redirect_to')
-    if (redirectTo && isAllowedRedirectPath(redirectTo)) {
-      supabaseResponse.cookies.set('redirect_to', redirectTo, {
-        path: '/',
-        maxAge: 60 * 5,
-        httpOnly: true,
-      })
-    }
-  }
-
-  if (shouldRefreshSupabaseSession(pathname, request.method) && !shouldSkipSessionRefreshForPrefetch(pathname, request)) {
-    const supabase = createServerClient(
-      serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-      serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-            const updatedResponse = NextResponse.next({
-              request: {
-                headers: requestHeaders,
-              },
-            })
-            mergeResponseMetadata(supabaseResponse, updatedResponse)
-            cookiesToSet.forEach(({ name, value, options }) =>
-              updatedResponse.cookies.set(name, value, options)
-            )
-            supabaseResponse = updatedResponse
-          },
-        },
-      }
-    )
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user?.id) {
-        requestHeaders.set(INTERNAL_USER_ID_HEADER, user.id)
-        const updatedResponse = NextResponse.next({
-          request: {
-            headers: requestHeaders,
-          },
-        })
-        mergeResponseMetadata(supabaseResponse, updatedResponse)
-        supabaseResponse = updatedResponse
-      }
-    } catch (error) {
-      reportError(error, { message: 'Proxy Auth Error' })
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    }
-  }
-
-  return supabaseResponse
+  return applyProxyAuth({ request, requestHeaders, response })
 }
 
 export const config = {
