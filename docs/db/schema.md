@@ -16,34 +16,34 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 
 | grade_index | V-Scale | Font | YDS | French | British | Difficulty |
 |------------|---------|------|-----|--------|---------|------------|
-| 0 | VB | 3A | 5.4 | 3 | M | Beginner |
-| 1 | VB | 3A+ | 5.5 | 3+ | M | Beginner |
-| 2 | VB | 3B | 5.5 | 3+ | D | Beginner |
-| 3 | VB | 3B+ | 5.6 | 4- | VD | Beginner |
-| 4 | VB | 3C | 5.6 | 4- | VD | Beginner |
+| 0 | VB- | 3A | 5.4 | 3 | M | Beginner |
+| 1 | VB- | 3A+ | 5.5 | 3+ | M | Beginner |
+| 2 | VB- | 3B | 5.5 | 3+ | D | Beginner |
+| 3 | VB- | 3B+ | 5.6 | 4- | VD | Beginner |
+| 4 | VB- | 3C | 5.6 | 4- | VD | Beginner |
 | 5 | VB | 3C+ | 5.6 | 4 | VD | Beginner |
-| 6 | VB | 4A | 5.7 | 4 | VD | Beginner |
+| 6 | V0- | 4A | 5.7 | 4 | VD | Beginner |
 | 7 | V0 | 4A+ | 5.9 | 5 | D | Beginner |
-| 8 | V0 | 4B | 5.9 | 5+ | D | Beginner |
-| 9 | V0 | 4B+ | 5.10a | 6a | HVD | Intermediate |
+| 8 | V0+ | 4B | 5.9 | 5+ | D | Beginner |
+| 9 | V1- | 4B+ | 5.10a | 6a | HVD | Intermediate |
 | 10 | V1 | 4C | 5.10a | 6a | S | Intermediate |
-| 11 | V1 | 4C+ | 5.10b | 6a+ | VS | Intermediate |
-| 12 | V1 | 5A | 5.10b | 6a+ | HVS | Intermediate |
-| 13 | V2 | 5A+ | 5.10c | 6b | E1 | Intermediate |
+| 11 | V1+ | 4C+ | 5.10b | 6a+ | VS | Intermediate |
+| 12 | V1-2 | 5A | 5.10b | 6a+ | HVS | Intermediate |
+| 13 | V2- | 5A+ | 5.10c | 6b | E1 | Intermediate |
 | 14 | V2 | 5B | 5.10c | 6b | E1 | Intermediate |
-| 15 | V2 | 5B+ | 5.10d | 6b | E2 | Intermediate |
-| 16 | V2 | 5C | 5.10d | 6b+ | E2 | Intermediate |
-| 17 | V3 | 5C+ | 5.11a | 6b+ | E3 | Intermediate |
+| 15 | V2+ | 5B+ | 5.10d | 6b | E2 | Intermediate |
+| 16 | V2-3 | 5C | 5.10d | 6b+ | E2 | Intermediate |
+| 17 | V3- | 5C+ | 5.11a | 6b+ | E3 | Intermediate |
 | 18 | V3 | 6A | 5.11a | 6b | E3 | Intermediate |
-| 19 | V3 | 6A+ | 5.11b | 6b+ | E3 | Advanced |
+| 19 | V3-4 | 6A+ | 5.11b | 6b+ | E3 | Advanced |
 | 20 | V4 | 6B | 5.11c | 6c | E4 | Advanced |
-| 21 | V4 | 6B+ | 5.11d | 6c+ | E4 | Advanced |
+| 21 | V4-5 | 6B+ | 5.11d | 6c+ | E4 | Advanced |
 | 22 | V5 | 6C | 5.12a | 7a | E5 | Advanced |
-| 23 | V5 | 6C+ | 5.12b | 7a+ | E6 | Advanced |
+| 23 | V5-6 | 6C+ | 5.12b | 7a+ | E6 | Advanced |
 | 24 | V6 | 7A | 5.12b | 7a+ | E6 | Advanced |
-| 25 | V6 | 7A+ | 5.12c | 7b | E7 | Expert |
-| 26 | V7 | 7B | 5.13a | 7c | E8 | Expert |
-| 27 | V8 | 7B+ | 5.13b | 7c+ | E9 | Expert |
+| 25 | V7- | 7A+ | 5.12c | 7b | E7 | Expert |
+| 26 | V8- | 7B | 5.13a | 7c | E8 | Expert |
+| 27 | V8+ | 7B+ | 5.13b | 7c+ | E9 | Expert |
 | 28 | V9 | 7C | 5.13c | 7c+ | E9 | Expert |
 | 29 | V10 | 7C+ | 5.14a | 8a | E10 | Elite |
 | 30 | V11 | 8A | 5.14a | 8a | E10 | Elite |
@@ -53,11 +53,11 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | 34 | V15 | 8C | 5.15c | 9a | E11 | Elite |
 | 35 | V16 | 8C+ | 5.15d | 9a+ | E11 | Elite |
 | 36 | V17 | 9A | 5.15d | 9a+ | E11 | Elite |
-| 37 | V17 | 9A+ | 5.16a | 9b | E11 | Elite |
+| 37 | V17+ | 9A+ | 5.16a | 9b | E11 | Elite |
 | 38 | V18 | 9B | 5.16a | 9b+ | E11 | Elite |
-| 39 | V18 | 9B+ | 5.16b | 9c | E12 | Elite |
+| 39 | V18+ | 9B+ | 5.16b | 9c | E12 | Elite |
 | 40 | V19 | 9C | 5.16c | 9c+ | E12 | Elite |
-| 41 | V19 | 9C+ | 5.16d | 9c+ | E13 | Elite |
+| 41 | V19+ | 9C+ | 5.16d | 9c+ | E13 | Elite |
 
 **Agent rule:** Always use `gradeMappings` for V-Scale <-> Font <-> YDS <-> French <-> British conversions.
 **Boundary rule:** User-facing validation and selection must stay within `3A-9C+`.
@@ -222,6 +222,7 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 ### Media Pipeline Tables
 - `images` carries media-pipeline state in addition to legacy `url` storage fields.
 - Key columns: `storage_provider`, `original_bucket`, `original_key`, `asset_version`, `variants`, `visibility`, `processing_status`, `checksum_sha256`, `processed_at`, `latitude`, `longitude`.
+- **Legacy column:** `images.submission_id` is an orphan column with no FK constraint. No `submissions` table exists. It is not referenced by any application code and should be ignored.
 - `submission_draft_images` mirrors the provider-aware original reference.
 - `submission_draft_routes` stores durable draft route geometry and metadata. Route drawing now persists per image via image-scoped bulk sync instead of relying on `submission_draft_images.route_data` as the primary store.
 - `media_jobs` and `claim_media_job(worker_name text)` are legacy artifacts from the retired polling Node worker.
