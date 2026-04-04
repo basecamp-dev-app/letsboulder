@@ -220,22 +220,40 @@ export async function notifyGymOwnerApplication(
 export async function notifyFeedback(
   message: string,
   userId?: string,
-  pageUrl?: string
+  pageUrl?: string,
+  userName?: string,
+  userEmail?: string
 ): Promise<void> {
   if (!DISCORD_FEEDBACK_WEBHOOK) return
 
-  const userDisplay = userId
-    ? `User #${userId.replace(/-/g, '').slice(0, 4)}...`
-    : 'Anonymous'
+  let userDisplay = 'Anonymous'
+  if (userId) {
+    const shortId = userId.replace(/-/g, '').slice(0, 4)
+    if (userName && userEmail) {
+      userDisplay = `${userName} (#${shortId})`
+    } else if (userName) {
+      userDisplay = `${userName} (#${shortId})`
+    } else if (userEmail) {
+      userDisplay = `${userEmail} (#${shortId})`
+    } else {
+      userDisplay = `User #${shortId}...`
+    }
+  }
+
+  const fields = [
+    { name: 'From', value: userDisplay, inline: true },
+    { name: 'Page', value: pageUrl || 'Unknown', inline: false },
+    { name: 'Message', value: message.slice(0, 1500) + (message.length > 1500 ? '...' : '') },
+  ]
+
+  if (userEmail) {
+    fields.splice(1, 0, { name: 'Email', value: userEmail, inline: true })
+  }
 
   const embed: DiscordEmbed = {
     title: '💬 New Feedback',
     color: 0x8b5cf6,
-    fields: [
-      { name: 'From', value: userDisplay, inline: true },
-      { name: 'Page', value: pageUrl || 'Unknown', inline: false },
-      { name: 'Message', value: message.slice(0, 1500) + (message.length > 1500 ? '...' : '') },
-    ],
+    fields,
     footer: { text: BRAND_NAME },
     timestamp: new Date().toISOString(),
   }
