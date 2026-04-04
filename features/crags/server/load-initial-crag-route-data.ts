@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import { buildSelectableImageIdByImageId } from '@/lib/image-identity'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
@@ -5,24 +6,6 @@ import { dedupeCragRoutes, formatCragRoutes, getAverageCoordinates, mapRouteTarg
 import type { ClimbIdentityRow, RouteLineTargetRow } from '@/features/crags/lib/crag-page-domain'
 import type { InitialCragRouteData, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { Database } from '@/types/database'
-
-type SupabaseClientLike = {
-  rpc: (fn: 'get_crag_route_intelligence', args: { p_crag_id: string }) => Promise<{ data: Database['public']['Functions']['get_crag_route_intelligence']['Returns'] | null; error: unknown }>
-  from: (table: 'images' | 'route_lines' | 'crag_images' | 'climbs') => {
-    select: (query: string) => {
-      eq: (column: string, value: string) => {
-        order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => OrderedQueryResult
-      }
-      in: (column: string, values: string[]) => {
-        order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => OrderedQueryResult
-      }
-    }
-  }
-}
-
-type OrderedQueryResult = Promise<{ data: unknown[] | null; error: unknown }> & {
-  order: (column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => OrderedQueryResult
-}
 
 interface ImageRow {
   id: string
@@ -37,7 +20,7 @@ interface CragImageLinkRow {
 }
 
 export async function loadInitialCragRouteData(
-  supabase: SupabaseClientLike,
+  supabase: SupabaseClient<Database>,
   cragId: string,
   cragCoords?: { latitude: number | null; longitude: number | null }
 ): Promise<InitialCragRouteData> {

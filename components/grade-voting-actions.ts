@@ -35,7 +35,7 @@ export async function submitGradeVoteAction(climbId: string, grade: string): Pro
   const userId = auth.data.userId
 
   const supabase = await getServerClient()
-  const effectiveClimbId = await resolveEffectiveClimbId(supabase as never, climbId)
+  const effectiveClimbId = await resolveEffectiveClimbId(supabase, climbId)
 
   if (!effectiveClimbId) {
     return { success: false, error: 'Climb not found', status: 404 }

@@ -32,7 +32,7 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
   }
 
   const supabase = getUnauthenticatedClient()
-  const initialRouteData = await loadInitialCragRouteData(supabase as never, id, {
+  const initialRouteData = await loadInitialCragRouteData(supabase, id, {
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
   })
