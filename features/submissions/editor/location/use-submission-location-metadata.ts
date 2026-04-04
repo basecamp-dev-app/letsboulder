@@ -5,7 +5,7 @@ import {
   formatCoordinate,
   isCragMetadataDirty,
   isImageMetadataDirty,
-} from '@/features/editor/location/location-metadata'
+} from '@/features/submissions/lib/location-metadata'
 import { useLocationSearch } from './use-location-search'
 import type { FaceDirection } from '@/features/submissions/lib/submission-types'
 

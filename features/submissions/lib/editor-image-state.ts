@@ -1,5 +1,5 @@
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
-import type { RoutePoint } from '@/features/submissions/lib/submission-types'
+import type { RoutePoint } from '@/types/climbing'
 
 export type EditorLocationMode = 'shared' | 'custom'
 

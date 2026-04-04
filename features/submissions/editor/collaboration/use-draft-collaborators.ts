@@ -6,7 +6,7 @@ import {
   fetchDraftCollaborators,
   removeDraftCollaborator,
   revokeDraftInvite,
-} from '@/features/editor/collaboration/collaboration-api'
+} from './collaboration-api'
 import { useInviteLinkCopy } from './use-invite-link-copy'
 import type { CollaboratorItem, InviteItem } from '@/features/submissions/lib/editor-types'
 

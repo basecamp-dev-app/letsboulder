@@ -6,7 +6,7 @@ import { WorkstationHeader } from '@/features/submissions/components/workstation
 import { WorkstationImageStrip } from '@/features/submissions/components/workstation/image-strip'
 import { WorkstationMapPanel } from '@/features/submissions/components/workstation/map-panel'
 import { WorkstationToolBar } from '@/features/submissions/components/workstation/tool-bar'
-import type { ClimbType } from '@/features/submissions/lib/submission-types'
+import type { ClimbType } from '@/types/climbing'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { RouteEditorRail } from '@/features/route-editor/components/RouteEditorRail'
 import type { UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'

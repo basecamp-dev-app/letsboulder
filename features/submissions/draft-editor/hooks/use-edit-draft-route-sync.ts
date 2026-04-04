@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-utils'
-import { haveStoredRoutesChanged } from '@/features/editor/route-store-sync'
+import { haveStoredRoutesChanged } from '@/features/submissions/lib/route-store-sync'
 import type { EditableRoute } from '@/features/submissions/lib/editor-types'
 import type { RouteLine } from '@/features/submissions/lib/submission-types'
 import type { DraftRoute } from '@/features/submissions/draft-editor/lib/edit-draft-types'

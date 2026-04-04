@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { getGradeSystemForClimbType, useGradePreferences } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay, toWholeVGrade } from '@/lib/grade-display'
 import { PUBLIC_GRADES, type GradeSystem } from '@/lib/grades'
-import type { ClimbType } from '@/features/submissions/lib/submission-types'
+import type { ClimbType } from '@/types/climbing'
 
 const FRENCH_GRADES = PUBLIC_GRADES
 
