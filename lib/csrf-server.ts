@@ -80,21 +80,23 @@ export async function withApiMiddleware(
 
   const supabase = getServerClientFromRequest(request)
 
-  if (!requireUser) {
-    return { ok: true, supabase, userId: null }
-  }
+  let resolvedUserId: string | null = null
 
-  const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
+  if (requireUser || rateLimitKey) {
+    const { userId, authError } = await resolveUserIdWithFallback(request, supabase)
 
-  if (authError || !userId) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: unauthorizedMessage }, { status: 401 }),
+    if (requireUser && (authError || !userId)) {
+      return {
+        ok: false,
+        response: NextResponse.json({ error: unauthorizedMessage }, { status: 401 }),
+      }
     }
+
+    resolvedUserId = userId
   }
 
   if (rateLimitKey) {
-    const rateLimitResult = await rateLimit(request, rateLimitKey, userId)
+    const rateLimitResult = await rateLimit(request, rateLimitKey, resolvedUserId ?? undefined)
     if (!rateLimitResult.success) {
       return {
         ok: false,
@@ -103,5 +105,9 @@ export async function withApiMiddleware(
     }
   }
 
-  return { ok: true, supabase, userId }
+  if (!requireUser) {
+    return { ok: true, supabase, userId: null }
+  }
+
+  return { ok: true, supabase, userId: resolvedUserId! }
 }
