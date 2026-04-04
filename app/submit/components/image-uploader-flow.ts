@@ -5,6 +5,9 @@ import type { NewImageSelection } from '@/features/submissions/lib/submission-ty
 import { isHeicFile } from '@/lib/image-utils'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { extractGpsFromBuffer, extractGpsFromFile } from '@/lib/image-gps'
+import { getImageDimensions, type ImageDimensions } from '@/lib/image-dimensions'
+
+export { getImageDimensions, type ImageDimensions }
 
 interface MediaUploadSession {
   imageId: string
@@ -12,11 +15,6 @@ interface MediaUploadSession {
   bucket: string
   uploadUrl: string
   uploadHeaders: Record<string, string>
-}
-
-interface UploadDimensions {
-  width: number
-  height: number
 }
 
 export interface SubmissionImageGpsDetection {
@@ -87,21 +85,6 @@ export async function compressSubmissionImage(file: File, previewBlob: Blob | nu
   })
 }
 
-export async function getImageDimensions(source: string): Promise<UploadDimensions> {
-  const img = new Image()
-  img.src = source
-
-  await new Promise<void>((resolve) => {
-    img.onload = () => resolve()
-    img.onerror = () => resolve()
-  })
-
-  return {
-    width: img.naturalWidth || 0,
-    height: img.naturalHeight || 0,
-  }
-}
-
 export async function uploadSubmissionImageSession(file: File, gpsData: GpsData | null): Promise<MediaUploadSession> {
   const objectUrl = URL.createObjectURL(file)
   const dimensions = await getImageDimensions(objectUrl)
@@ -132,7 +115,7 @@ export function buildSubmittedImageSelection(
   uploadSession: MediaUploadSession,
   previewUrl: string,
   gpsData: GpsData | null,
-  dimensions: UploadDimensions
+  dimensions: ImageDimensions
 ): NewImageSelection {
   return {
     mode: 'new',

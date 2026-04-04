@@ -5,6 +5,7 @@ import { Camera, X } from 'lucide-react'
 import Image from 'next/image'
 import { compressImage } from '@/lib/image-compression'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { getImageDimensions } from '@/lib/image-dimensions'
 
 interface CragMultiImageUploaderProps {
   cragId: string
@@ -54,19 +55,6 @@ export default function CragMultiImageUploader({
       maxWidthOrHeight: 1600,
       maxSizeKB: 700,
       initialQuality: 0.82,
-    })
-  }
-
-  async function getImageDimensions(objectUrl: string): Promise<{ width: number; height: number }> {
-    return new Promise((resolve) => {
-      const image = new window.Image()
-      image.onload = () => {
-        resolve({ width: image.naturalWidth || 0, height: image.naturalHeight || 0 })
-      }
-      image.onerror = () => {
-        resolve({ width: 0, height: 0 })
-      }
-      image.src = objectUrl
     })
   }
 
