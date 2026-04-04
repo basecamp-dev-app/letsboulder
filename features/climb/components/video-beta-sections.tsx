@@ -1,5 +1,3 @@
-'use client'
-
 import Link from 'next/link'
 import { formatLengthFromCm, type MeasurementUnits } from '@/lib/measurement-units'
 import { getVideoEmbedUrl, type VideoPlatform } from '@/lib/video-beta'

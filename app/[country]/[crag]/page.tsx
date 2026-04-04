@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
-import CragPageClient from '@/features/crags/components/CragPageClient'
+import CragPageShell from '@/features/crags/components/CragPageShell'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import CragStructuredData from '@/features/crags/components/CragStructuredData'
 import type { BreadcrumbItem, CragPageCrag } from '@/features/crags/lib/crag-page-types'
@@ -199,7 +199,7 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
         canonicalPath={canonicalPath}
         breadcrumbs={breadcrumbs}
       />
-      <CragPageClient
+      <CragPageShell
         id={crag.id}
         initialCrag={initialCrag}
         initialImages={initialRouteData.initialImages}
