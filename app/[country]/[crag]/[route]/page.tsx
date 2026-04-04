@@ -3,7 +3,6 @@ import { notFound, redirect } from 'next/navigation'
 import { SITE_URL } from '@/lib/site'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
-import type { Database } from '@/types/database'
 
 export const revalidate = 60
 

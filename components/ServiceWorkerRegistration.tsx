@@ -48,8 +48,7 @@ export default function ServiceWorkerRegistration() {
             }
           })
         })
-      } catch (error) {
-        console.error('Service worker registration failed:', error)
+      } catch (_error) {
       }
     }
 

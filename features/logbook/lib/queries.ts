@@ -95,7 +95,7 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
       .single(),
     supabase
       .from('user_climbs')
-      .select('*, climbs(id, name, grade, slug, crag_id, route_lines!inner(images!inner(url, crags!inner(name))))')
+      .select('*, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')
       .eq('user_id', userId)
       .order('created_at', { ascending: false }),
   ])

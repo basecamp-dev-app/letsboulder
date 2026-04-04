@@ -41,8 +41,6 @@ export default function EditDraftPage() {
   const {
     addImageInputRef,
     publishRequirementsRef,
-    cragSectionRef,
-    locationSectionRef,
     drawingAreaRef,
     routeCanvasRef,
     skipRouteStoreSyncRef,

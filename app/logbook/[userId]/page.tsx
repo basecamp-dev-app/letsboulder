@@ -55,7 +55,7 @@ async function getPublicLogs(userId: string): Promise<LogbookClimb[]> {
 
   const { data: logsData, error: logsError } = await supabase
     .from('user_climbs')
-    .select('*, climbs(id, name, grade, route_lines!inner(images!inner(url, crags!inner(name))))')
+    .select('*, climbs(id, name, grade, route_lines(images(url, crags(name))))')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
