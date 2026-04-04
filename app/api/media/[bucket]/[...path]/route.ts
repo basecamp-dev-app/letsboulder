@@ -4,7 +4,7 @@ import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 import { createR2Client } from '@/lib/media/r2'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
 
 function buildCdnUrl(objectPath: string): string | null {

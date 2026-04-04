@@ -2,15 +2,16 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
 import type { NextRequest } from 'next/server'
-import { serverEnv } from '@/lib/env'
+import { env } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
 
 export async function getServerClient() {
   const cookieStore = await cookies()
 
   return createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
@@ -26,8 +27,8 @@ export function getServerClientFromRequest(request: NextRequest) {
   const requestCookies = request.cookies
 
   return createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
@@ -41,7 +42,7 @@ export function getServerClientFromRequest(request: NextRequest) {
 
 export function getAdminClient() {
   return createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_URL,
     serverEnv.SUPABASE_SERVICE_ROLE_KEY,
     {
       cookies: {
@@ -54,8 +55,8 @@ export function getAdminClient() {
 
 export function getUnauthenticatedClient() {
   return createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return [] },
@@ -102,7 +103,7 @@ interface GymPinRow {
 }
 
 export const fetchMapPins = cache(async (): Promise<PlacePin[]> => {
-  const includePending = serverEnv.NEXT_PUBLIC_ALLOW_PENDING_IMAGES
+  const includePending = env.NEXT_PUBLIC_ALLOW_PENDING_IMAGES
   const supabase = await getServerClient()
 
   try {

@@ -6,7 +6,7 @@ import { withApiMiddleware } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { buildWelcomeEmail } from '@/lib/email/welcome-email'
 import { getAdminClient } from '@/lib/supabase-server'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { parseWithSchema } from '@/lib/api-validation'
 
 const welcomeEmailSchema = z.object({

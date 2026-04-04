@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { buildMediaProxyUrl, parsePrivateMediaRef } from '@/lib/media-proxy'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import type { CompleteSummaryFace, CragRow, FaceRouteSummary, ImageInfoRow, ClimbInfo } from '@/lib/offline/build-climb-pack-types'
 import type { OfflineMapPin } from '@/features/climb/lib/queries'
 

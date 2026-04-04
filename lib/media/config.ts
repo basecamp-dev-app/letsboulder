@@ -1,4 +1,4 @@
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import type { MediaModerationProvider } from '@/lib/media/types'
 
 interface MediaStorageConfig {

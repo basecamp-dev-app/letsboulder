@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { serverEnv } from '@/lib/env'
+import { env } from '@/lib/env'
 import { reportError } from '@/lib/errors'
 
 const INTERNAL_USER_ID_HEADER = 'x-internal-user-id'
@@ -129,8 +129,8 @@ export async function applyProxyAuth({ request, requestHeaders, response }: Appl
   }
 
   const supabase = createServerClient(
-    serverEnv.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {

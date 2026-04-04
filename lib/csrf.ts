@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { NextRequest, NextResponse } from 'next/server'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 
 const CSRF_COOKIE_NAME = 'csrf_token'
 
@@ -11,7 +11,7 @@ function getCsrfSecret(): Uint8Array {
     throw new Error('FATAL: CSRF_SECRET missing')
   }
 
-  return new TextEncoder().encode(csrfSecretValue || `dev-csrf-${process.pid}`)
+  return new TextEncoder().encode(csrfSecretValue || 'dev-csrf-secret')
 }
 
 export async function generateCsrfToken(): Promise<string> {

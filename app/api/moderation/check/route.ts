@@ -4,7 +4,7 @@ import { getAdminClient } from '@/lib/supabase-server'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { moderateImageFromBytes, moderateImageFromUrl } from '@/lib/image-moderation'
 import { withApiMiddleware } from '@/lib/csrf-server'
-import { serverEnv } from '@/lib/env'
+import { serverEnv } from '@/lib/env.server'
 import { parseWithSchema } from '@/lib/api-validation'
 
 const moderationCheckSchema = z.object({
