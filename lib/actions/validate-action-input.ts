@@ -14,12 +14,12 @@ type ActionValidationFailure = {
 export type ActionValidationResult<T> = ActionValidationSuccess<T> | ActionValidationFailure
 
 function createValidationFailure(error: z.ZodError): ActionResult {
-  const fieldErrors = error.flatten().fieldErrors
+  const fieldErrors = error.flatten().fieldErrors as Record<string, string[] | undefined>
   const firstFieldError = Object.values(fieldErrors as Record<string, string[] | undefined>)
     .flatMap((messages) => messages ?? [])
     .find((message) => typeof message === 'string' && message.length > 0)
 
-  return fail(firstFieldError || 'Invalid request data', 400)
+  return fail(firstFieldError || 'Invalid request data', 400, fieldErrors)
 }
 
 export function validateActionInput<TSchema extends ZodType>(

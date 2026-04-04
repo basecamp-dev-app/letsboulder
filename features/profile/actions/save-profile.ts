@@ -25,7 +25,13 @@ interface SaveProfileInput {
 
 export async function saveProfileAction(input: SaveProfileInput): Promise<ActionResult<{ suggestions?: string[] }>> {
   const validation = validateActionInput(saveProfileSchema, input)
-  if (!validation.success) return fail<{ suggestions?: string[] }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+  if (!validation.success) {
+    return fail<{ suggestions?: string[] }>(
+      validation.result.error || 'Invalid request data',
+      validation.result.status || 400,
+      validation.result.fieldErrors
+    )
+  }
 
   const auth = await getActionAuth()
   if (!auth.success) {

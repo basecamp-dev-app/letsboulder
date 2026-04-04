@@ -144,7 +144,13 @@ export async function createCommunityPostAction(input: {
   end_at?: string | null
 }): Promise<ActionResult<Record<string, unknown>>> {
   const validation = validateActionInput(createCommunityPostSchema, input)
-  if (!validation.success) return fail<Record<string, unknown>>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+  if (!validation.success) {
+    return fail<Record<string, unknown>>(
+      validation.result.error || 'Invalid request data',
+      validation.result.status || 400,
+      validation.result.fieldErrors
+    )
+  }
 
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
@@ -160,10 +166,35 @@ export async function createCommunityPostAction(input: {
   const startAt = parseDate(validation.data.start_at)
   const endAt = parseDate(validation.data.end_at)
 
-  if (type === 'session' && !startAt) return { success: false, error: 'Valid start_at is required for session posts', status: 400 }
-  if (discipline && !ALLOWED_DISCIPLINES.has(discipline)) return { success: false, error: 'Invalid discipline', status: 400 }
+  if (type === 'session' && !startAt) {
+    return {
+      success: false,
+      error: 'Valid start_at is required for session posts',
+      status: 400,
+      fieldErrors: {
+        start_at: ['Valid start_at is required for session posts'],
+      },
+    }
+  }
+  if (discipline && !ALLOWED_DISCIPLINES.has(discipline)) {
+    return {
+      success: false,
+      error: 'Invalid discipline',
+      status: 400,
+      fieldErrors: {
+        discipline: ['Invalid discipline'],
+      },
+    }
+  }
   if (type === 'session' && endAt && startAt && new Date(endAt).getTime() < new Date(startAt).getTime()) {
-    return { success: false, error: 'end_at must be after start_at', status: 400 }
+    return {
+      success: false,
+      error: 'end_at must be after start_at',
+      status: 400,
+      fieldErrors: {
+        end_at: ['end_at must be after start_at'],
+      },
+    }
   }
 
   const supabase = await getServerClient()
@@ -200,7 +231,13 @@ export async function createCommunityPostAction(input: {
 
 export async function createCommunityCommentAction(postId: string, body: string): Promise<ActionResult<{ comments: Awaited<ReturnType<typeof buildCommentPayload>> }>> {
   const validation = validateActionInput(createCommunityCommentSchema, { postId, body })
-  if (!validation.success) return fail(validation.result.error || 'Invalid request data', validation.result.status || 400)
+  if (!validation.success) {
+    return fail(
+      validation.result.error || 'Invalid request data',
+      validation.result.status || 400,
+      validation.result.fieldErrors
+    )
+  }
 
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
