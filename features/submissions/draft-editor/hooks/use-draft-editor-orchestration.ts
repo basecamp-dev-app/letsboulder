@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { sortFaceDirections, coordinateKey } from '@/lib/face-directions'
-import { buildMapPins, reorderItemsByIds, resequenceRoutes, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
+import { buildMapPins, reorderItemsByIds, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
 import { buildHighResCanvasUrl } from '@/features/route-editor/route-editor-utils'
 import { useRouteStore } from '@/features/route-editor/store'
 import { useDraftUploadManager } from '@/features/submissions/upload/hooks/use-draft-upload-manager'
@@ -20,7 +20,7 @@ import { useDraftCollaborators } from '@/features/submissions/editor/collaborati
 import { useDraftLocationMetadata } from '@/features/submissions/editor/location/use-draft-location-metadata'
 import { useDraftConflictResolution } from '@/features/submissions/draft-editor/hooks/use-draft-conflict-resolution'
 import { useDraftRouteEditing } from '@/features/submissions/draft-editor/hooks/use-draft-route-editing'
-import type { FaceDirection, ImageSelection, RouteLine } from '@/features/submissions/lib/submission-types'
+import type { FaceDirection, ImageSelection } from '@/features/submissions/lib/submission-types'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import type { UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
 import { uploadDebug } from '@/lib/media/upload-debug'
@@ -29,7 +29,6 @@ import {
   buildDraftRouteLines,
   isValidLocationCoordinate,
   parseDraftMarkerPosition,
-  resolveDraftClimbType,
   type ManageImageTab,
 } from '@/features/submissions/draft-editor/lib/edit-draft-types'
 
@@ -421,7 +420,7 @@ export function useDraftEditorOrchestration({
     })
   }, [activeImageCustomPosition, activeImageId, quickSwitcherImages])
 
-  const { handleCanvasRoutesUpdate, scheduleDraftPersist, skipRouteStoreSyncRef } = useEditDraftRouteSync({
+  const { handleCanvasRoutesUpdate, skipRouteStoreSyncRef } = useEditDraftRouteSync({
     activeDraftImageId,
     routeType,
     routeStoreRoutes,

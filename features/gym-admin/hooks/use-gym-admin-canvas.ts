@@ -19,7 +19,6 @@ interface UseGymAdminCanvasReturn {
 
 export function useGymAdminCanvas({
   activeFloorPlan,
-  routes,
   setRoutes,
 }: UseGymAdminCanvasParams): UseGymAdminCanvasReturn {
   const [markerTargetId, setMarkerTargetId] = useState<string | null>(null)

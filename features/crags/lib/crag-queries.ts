@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
-import { buildSelectableImageIdByImageId } from '@/lib/image-identity'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
-import { fetchRouteTargetMapsForClimbIds, getAverageCoordinates, getStoredCragClimbPayloadsSafely, hydrateOfflineCragData } from '@/features/crags/lib/crag-page-domain'
+import { getAverageCoordinates, getStoredCragClimbPayloadsSafely, hydrateOfflineCragData } from '@/features/crags/lib/crag-page-domain'
 import type { CragRouteIntelligenceRow, RawImageRow } from '@/features/crags/lib/crag-page-domain'
 import type { CragPageCrag, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 
@@ -14,8 +13,6 @@ export const cragKeys = {
   routeTargets: (climbIdsFingerprint: string) =>
     [...cragKeys.all, 'route-targets', climbIdsFingerprint] as const,
 }
-
-const CRAG_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000
 
 function isOffline() {
   return typeof navigator !== 'undefined' && navigator.onLine === false
@@ -136,14 +133,6 @@ export async function fetchCragImages(
   }
 
   const mergedImagesData = [...allImagesData, ...supplementaryImagesData]
-  const selectableImageIdByImageId = buildSelectableImageIdByImageId(
-    mergedImagesData.map((image) => ({
-      id: image.id,
-      latitude: image.latitude,
-      longitude: image.longitude,
-    })),
-    (supplementaryImageIdsData || []) as Array<{ linked_image_id: string | null; source_image_id: string | null }>
-  )
 
   const primaryImagesData = mergedImagesData.filter(
     (img: { id: string; url: string }) => !supplementaryImageIds.has(img.id) && !supplementaryImageUrls.has(img.url)

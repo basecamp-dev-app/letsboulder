@@ -8,7 +8,6 @@ import { getDisplayImageId } from '@/lib/image-identity'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { serverEnv } from '@/lib/env'
-import type { Database } from '@/types/database'
 
 interface ImageInfoRow {
   id: string
