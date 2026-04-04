@@ -5,8 +5,9 @@ import { extractGpsFromFile } from '@/lib/image-gps'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import { createAttachUpload } from '@/features/submissions/upload/lib/attach-upload'
+import { enqueueUploads, prepareRetryQueue, removeUploadEntry, resetQueuedUpload } from '@/features/submissions/upload/lib/media-upload-controller-helpers'
 import { buildPreviewUrl, getImageDimensions, preprocessFile } from '@/features/submissions/upload/lib/preprocess-image'
-import { moveQueueItemToFront, pickNextQueueClientId, resetUploadForQueue } from '@/features/submissions/upload/lib/media-upload-queue-state'
+import { pickNextQueueClientId, resetUploadForQueue } from '@/features/submissions/upload/lib/media-upload-queue-state'
 import { shouldResumeQueuedUploads } from '@/features/submissions/upload/lib/media-upload-resume-state'
 import { createClientId, ensureFileName, MAX_UPLOADS_PER_TARGET, type MediaUploadItem, type MediaUploadTarget, type QueueEntry, type UploadCompleteCallback } from '@/features/submissions/upload/lib/upload-types'
 
@@ -329,12 +330,9 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
       queueLengthAfterEnqueue: queueOrderRef.current.length + createdUploads.length,
     })
 
-    const nextUploads = { ...uploadsRef.current }
-    createdUploads.forEach((upload) => {
-      nextUploads[upload.clientId] = upload
-    })
-    uploadsRef.current = nextUploads
-    queueOrderRef.current = [...queueOrderRef.current, ...createdUploads.map((upload) => upload.clientId)]
+      const { nextUploads, nextQueueOrder } = enqueueUploads(uploadsRef.current, queueOrderRef.current, createdUploads)
+      uploadsRef.current = nextUploads
+      queueOrderRef.current = nextQueueOrder
 
     queueMicrotask(() => {
       startNextUploadRef.current()
@@ -347,10 +345,10 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
 
     alreadyAttachedRef.current.delete(clientId)
     setIsPaused(false)
-    const nextQueueOrder = moveQueueItemToFront(queueOrderRef.current, clientId)
+    const nextQueueOrder = prepareRetryQueue(queueOrderRef.current, clientId)
     queueOrderRef.current = nextQueueOrder
     setQueueOrder(nextQueueOrder)
-    updateUpload(clientId, resetUploadForQueue)
+    updateUpload(clientId, resetQueuedUpload)
     uploadDebug('queue-retry-requested', { clientId })
     queueMicrotask(() => {
       startNextUploadRef.current()
@@ -358,29 +356,24 @@ export function useMediaUploadQueueController(): MediaUploadQueueController {
   }, [updateUpload])
 
   const removeUpload = useCallback(async (clientId: string) => {
-    const upload = uploadsRef.current[clientId]
-    if (!upload) return
-    if (upload.uploadedImageId) {
-      await deleteMediaUploadSession(upload.uploadedImageId).catch(() => null)
-    }
-    revokePreviewUrl(clientId)
-    setUploads((current) => {
-      const next = { ...current }
-      delete next[clientId]
-      return next
+    const { nextUploads, nextQueueOrder } = await removeUploadEntry({
+      clientId,
+      uploads: uploadsRef.current,
+      queueOrder: queueOrderRef.current,
+      queueEntries: queueEntriesRef.current,
+      alreadyAttached: alreadyAttachedRef.current,
+      processingClientIds: processingClientIdsRef.current,
+      revokePreviewUrl,
     })
-    queueEntriesRef.current.delete(clientId)
-    alreadyAttachedRef.current.delete(clientId)
-    const nextQueueOrder = queueOrderRef.current.filter((queuedClientId) => queuedClientId !== clientId)
+    uploadsRef.current = nextUploads
+    setUploads(nextUploads)
     queueOrderRef.current = nextQueueOrder
     setQueueOrder(nextQueueOrder)
-    processingClientIdsRef.current.delete(clientId)
     if (activeClientIdRef.current === clientId) {
       activeClientIdRef.current = null
     }
     setActiveClientId((current) => current === clientId ? null : current)
     setIsPaused(false)
-    uploadDebug('queue-item-removed', { clientId })
     startNextUploadRef.current()
   }, [revokePreviewUrl])
 
