@@ -1,3 +1,5 @@
+import { EARTH_RADIUS_METERS, toRad } from '@/lib/geo/haversine'
+
 export interface SpatialImageNode {
   displayImageId: string
   cragImageId?: string | null
@@ -23,18 +25,13 @@ export interface StableSpatialOrderResult {
   imageIndexByDisplayImageId: Map<string, number>
 }
 
-const EARTH_RADIUS_METERS = 6371000
 const STACK_EPSILON_METERS = 0.5
 
-function toRadians(value: number) {
-  return value * (Math.PI / 180)
-}
-
 function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const dLat = toRadians(lat2 - lat1)
-  const dLon = toRadians(lon2 - lon1)
-  const fromLat = toRadians(lat1)
-  const toLat = toRadians(lat2)
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const fromLat = toRad(lat1)
+  const toLat = toRad(lat2)
 
   const a = Math.sin(dLat / 2) ** 2
     + Math.cos(fromLat) * Math.cos(toLat) * Math.sin(dLon / 2) ** 2

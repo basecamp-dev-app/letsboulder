@@ -10,6 +10,8 @@ const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLa
 const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false })
 const CircleMarker = dynamic(() => import('react-leaflet').then((mod) => mod.CircleMarker), { ssr: false })
 
+import { haversineMeters } from '@/lib/geo/haversine'
+
 let L: typeof import('leaflet') | null = null
 
 interface LocationMapSnippetProps {
@@ -21,18 +23,7 @@ interface LocationMapSnippetProps {
 const NEARBY_DISTANCE_METERS = 500
 
 function getDistanceMeters(aLat: number, aLng: number, bLat: number, bLng: number) {
-  const toRadians = (value: number) => value * (Math.PI / 180)
-  const earthRadius = 6371000
-  const dLat = toRadians(bLat - aLat)
-  const dLng = toRadians(bLng - aLng)
-  const lat1 = toRadians(aLat)
-  const lat2 = toRadians(bLat)
-
-  const haversine =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2)
-
-  return 2 * earthRadius * Math.asin(Math.sqrt(haversine))
+  return haversineMeters(aLat, aLng, bLat, bLng)
 }
 
 export default function LocationMapSnippet({ latitude, longitude, className }: LocationMapSnippetProps) {

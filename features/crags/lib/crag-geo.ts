@@ -1,12 +1,9 @@
+import { EARTH_RADIUS_METERS, toRad } from '@/lib/geo/haversine'
 import type { ClusterableCragImage, CragPinCluster } from '@/lib/crag-pin-clusters'
 import type { ImageData } from '@/features/crags/lib/crag-page-types'
 
 const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
 const faceDirectionIndex = new Map(FACE_DIRECTIONS.map((direction, index) => [direction, index]))
-
-function toRad(deg: number) {
-  return (deg * Math.PI) / 180
-}
 
 function bearingDegrees(from: [number, number], to: [number, number]) {
   const [lat1, lon1] = from.map(toRad)
@@ -19,7 +16,6 @@ function bearingDegrees(from: [number, number], to: [number, number]) {
 }
 
 function haversineMeters(from: [number, number], to: [number, number]) {
-  const R = 6371000
   const [lat1, lon1] = from.map(toRad)
   const [lat2, lon2] = to.map(toRad)
   const dLat = lat2 - lat1
@@ -28,7 +24,7 @@ function haversineMeters(from: [number, number], to: [number, number]) {
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return R * c
+  return EARTH_RADIUS_METERS * c
 }
 
 export function sortImagesByViewCenter(images: ImageData[], viewCenter: [number, number] | null) {

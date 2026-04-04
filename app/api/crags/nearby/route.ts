@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
+import { haversineMeters } from '@/lib/geo/haversine'
 
 export async function GET(request: NextRequest) {
   const supabase = getServerClientFromRequest(request)
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
         regionName: crag.region_name,
         subArea: crag.sub_area,
         distance: crag.latitude && crag.longitude
-          ? calculateDistance(latitude, longitude, crag.latitude, crag.longitude)
+          ? Math.round(haversineMeters(latitude, longitude, crag.latitude, crag.longitude))
           : null
       }))
       .sort((a, b) => {
@@ -93,17 +94,3 @@ function getCountryName(countryCode: string | null): string | null {
   }
 }
 
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371
-  const dLat = toRad(lat2 - lat1)
-  const dLon = toRad(lon2 - lon1)
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return Math.round(R * c)
-}
-
-function toRad(deg: number): number {
-  return deg * (Math.PI / 180)
-}

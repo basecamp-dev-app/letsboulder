@@ -1,3 +1,5 @@
+import { EARTH_RADIUS_METERS } from '@/lib/geo/haversine'
+
 export interface ClusterableCragImage {
   id: string
   latitude: number | null
@@ -22,8 +24,6 @@ interface ClusterBuildState<TImage extends ClusterableCragImage> {
   anchor: TImage
   images: TImage[]
 }
-
-const EARTH_RADIUS_METERS = 6371000
 
 function toRadians(value: number) {
   return value * (Math.PI / 180)
