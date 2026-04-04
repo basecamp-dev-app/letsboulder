@@ -280,6 +280,30 @@ Run `supabase start` to get local credentials.
 
 `INTERNAL_MODERATION_SECRET` is optional for local dev. If it is missing, route photo uploads are auto-approved so images are immediately visible during development.
 
+### Rate Limiting (Upstash Redis — Optional)
+
+Rate limiting uses Upstash Redis when configured, but works without it via a **graceful fallback**:
+
+| Tier | Behavior when Upstash is unavailable |
+|---|---|
+| **Critical** (`sensitive`, `strict`, `submissions`) | In-memory sliding window enforced per-process |
+| **All others** | Fail open — requests always allowed (`limit: 9999`) |
+
+**Important:** The in-memory fallback is **not shared across Vercel instances**, so each replica tracks its own counters. For production, configure Upstash to get consistent rate limiting.
+
+To set up Upstash for local development:
+
+1. Create a free database at https://upstash.com
+2. Copy the REST URL and REST Token
+3. Add to `.env.local`:
+
+```bash
+UPSTASH_REDIS_REST_URL=https://your-database.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your-token
+```
+
+A warning is logged on startup when Upstash is not configured. The first time the fallback activates, a warning is also logged to the console.
+
 ### Media Pipeline (R2 + Cloudflare Worker)
 
 For local development, the media pipeline uses the staging Cloudflare Worker. Add these to `.env.local`:
