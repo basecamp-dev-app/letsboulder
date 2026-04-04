@@ -129,6 +129,30 @@ describe('DraftIntakeView', () => {
     expect(mockReplace).toHaveBeenCalledWith('/logbook/drafts/draft-1/edit')
   })
 
+  it('keeps continue disabled while uploads are still in flight', async () => {
+    const user = userEvent.setup()
+
+    mockGetUploadsForDraft.mockReturnValue([
+      createUpload({
+        clientId: 'uploading-1',
+        status: 'UPLOADING',
+        progress: 48,
+        attachedRecordId: 'image-1',
+      }),
+    ])
+
+    render(<DraftIntakeView />)
+
+    const input = document.querySelector('input[type="file"]')
+    expect(input).not.toBeNull()
+
+    await user.upload(input as HTMLInputElement, createFile('one.jpg', 'image/jpeg'))
+
+    const continueButton = await screen.findByRole('button', { name: 'Finish uploads to continue' })
+    expect(continueButton).toBeDisabled()
+    expect(mockReplace).not.toHaveBeenCalled()
+  })
+
   it('retries failed uploads from the error state', async () => {
     const user = userEvent.setup()
 
