@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { getServerClient } from '@/lib/supabase-server'
 import { fetchServerLogbookData } from '@/features/logbook/lib/queries-server'
 import { type OwnLogbookData } from '@/features/logbook/lib/queries'
+import { reportError } from '@/lib/errors'
 import LogbookClient from './LogbookClient'
 
 export default async function LogbookPage() {
@@ -22,7 +23,7 @@ export default async function LogbookPage() {
   try {
     initialData = await fetchServerLogbookData(user, baseUrl)
   } catch (error) {
-    console.error('Failed to fetch logbook data server-side:', error)
+    reportError(error, { message: 'Failed to fetch logbook data server-side' })
   }
 
   return <LogbookClient user={user} initialData={initialData} />

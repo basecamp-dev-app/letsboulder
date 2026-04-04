@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { SupabaseClient, User } from '@supabase/supabase-js'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { reportError } from '@/lib/errors'
 
 async function syncProfileFields(supabase: SupabaseClient, userId: string, profileData: Record<string, unknown>) {
   const { data: updatedRows, error: updateError } = await supabase
@@ -181,7 +182,7 @@ function AuthCallbackContent() {
               email: user.email,
               firstName: activeProfile?.first_name || null,
             }),
-          }).catch(console.error)
+          }).catch((err) => reportError(err, { message: 'Failed to send welcome email' }))
         }
 
         setStatus('success')
@@ -280,7 +281,7 @@ function AuthCallbackContent() {
               email: user.email,
               firstName: activeProfile?.first_name || null,
             }),
-          }).catch(console.error)
+          }).catch((err) => reportError(err, { message: 'Failed to send welcome email' }))
         }
 
         setStatus('success')

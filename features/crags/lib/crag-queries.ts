@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase'
+import { reportError } from '@/lib/errors'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import { getAverageCoordinates, getStoredCragClimbPayloadsSafely, hydrateOfflineCragData } from '@/features/crags/lib/crag-page-domain'
@@ -95,8 +96,8 @@ export async function fetchCragImages(
     throw new Error(`Crag not found: ${cragError?.message}`)
   }
 
-  if (imagesError) console.error('Error fetching images:', imagesError)
-  if (supplementaryImageIdsError) console.error('Error fetching supplementary image IDs:', supplementaryImageIdsError)
+  if (imagesError) reportError(new Error('Error fetching images'), { message: 'Error fetching images', extra: imagesError })
+  if (supplementaryImageIdsError) reportError(new Error('Error fetching supplementary image IDs'), { message: 'Error fetching supplementary image IDs', extra: supplementaryImageIdsError })
 
   const supplementaryImageIds = new Set<string>(
     (supplementaryImageIdsData || [])
@@ -128,7 +129,7 @@ export async function fetchCragImages(
       .select('id, url, latitude, longitude, created_at, is_verified, verification_count, route_lines(count)')
       .in('id', missingSupplementaryImageIds)
 
-    if (extraImagesError) console.error('Error fetching supplementary images:', extraImagesError)
+    if (extraImagesError) reportError(new Error('Error fetching supplementary images'), { message: 'Error fetching supplementary images', extra: extraImagesError })
     else supplementaryImagesData = (extraImagesData || []) as RawImageRow[]
   }
 

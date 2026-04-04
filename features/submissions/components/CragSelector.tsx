@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { SubmissionCrag } from '@/features/submissions/lib/submission-types'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { reportError } from '@/lib/errors'
 import { useAtlasAutoSync } from '@/features/submissions/editor/location/use-atlas-auto-sync'
 import AtlasContextCard from '@/features/submissions/components/atlas-context-card'
 
@@ -71,7 +72,7 @@ export default function CragSelector({
         setNearbyCrags(data)
       }
     } catch {
-      console.error('Failed to fetch nearby crags')
+      reportError(new Error('Failed to fetch nearby crags'), { message: 'Failed to fetch nearby crags' })
     } finally {
       setNearbyLoading(false)
     }

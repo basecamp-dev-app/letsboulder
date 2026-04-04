@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import type { StoredClimbManifest, StoredCragManifest } from '@/lib/offline/storage'
 import { listOfflinePacksForLaunch } from '@/lib/offline/packs'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
+import { reportError } from '@/lib/errors'
 
 function getOfflineClimbLaunchHref(climb: StoredClimbManifest) {
   return `/climb/${climb.climbId}`
@@ -62,7 +63,7 @@ export default function OfflineLibraryClient() {
         )
         setError(null)
       } catch (loadError) {
-        console.error('Failed to load offline library:', loadError)
+        reportError(loadError, { message: 'Failed to load offline library' })
         if (cancelled) return
         setError('Unable to read offline storage on this device.')
         setStatus('Unable to load saved offline packs right now.')

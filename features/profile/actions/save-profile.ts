@@ -3,6 +3,7 @@
 import { type ActionResult } from '@/lib/actions/action-result'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { getServerClient } from '@/lib/supabase-server'
+import { reportError } from '@/lib/errors'
 
 interface SaveProfileInput {
   username?: string
@@ -92,7 +93,7 @@ export async function saveProfileAction(input: SaveProfileInput): Promise<Action
       }
     }
 
-    console.error('Profile update error:', updateError)
+    reportError(updateError, { message: 'Profile update error' })
     return { success: false, error: 'Failed to update profile', status: 500 }
   }
 

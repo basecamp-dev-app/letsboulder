@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Region } from '@/features/submissions/lib/submission-types'
 import { createRegionAction } from '@/features/submissions/actions/regions'
+import { reportError } from '@/lib/errors'
 
 interface RegionSelectorProps {
   onSelect: (region: Region) => void
@@ -55,7 +56,7 @@ export default function RegionSelector({
         setResults([])
       }
     } catch (error) {
-      console.error('Error searching regions:', error)
+      reportError(error, { message: 'Error searching regions' })
       setResults([])
     } finally {
       setLoading(false)

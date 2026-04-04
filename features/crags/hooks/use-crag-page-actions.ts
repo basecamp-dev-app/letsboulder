@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { submitCragFlagAction } from '@/features/moderation/actions'
 import { createClient } from '@/lib/supabase'
+import { reportError } from '@/lib/errors'
 import type { CragSwitcherOption } from '@/features/crags/components/CragPageToolbar'
 import { getCragOfflinePreview, removeCragOffline, saveCragOffline } from '@/lib/offline/packs'
 import { getOfflineCragState } from '@/features/crags/lib/crag-offline-domain'
@@ -67,7 +68,7 @@ export function useCragPageActions({
       setOfflinePreview(preview)
       setOfflineError(null)
     } catch (error) {
-      console.error('Failed to load crag offline preview:', error)
+      reportError(error as Error, { message: 'Failed to load crag offline preview' })
       setOfflineError('Offline pack preview is unavailable right now.')
       setOfflinePreview(null)
     } finally {
@@ -243,7 +244,7 @@ export function useCragPageActions({
       setToast(result.warning || (offlinePreview?.existingPack ? 'Offline crag pack updated' : 'Crag saved for offline use'))
       setTimeout(() => setToast(null), 3000)
     } catch (error) {
-      console.error('Failed to save crag offline pack:', error)
+      reportError(error as Error, { message: 'Failed to save crag offline pack' })
       setToast(error instanceof Error ? error.message : 'Failed to save crag offline pack')
       setTimeout(() => setToast(null), 3000)
     } finally {
@@ -269,7 +270,7 @@ export function useCragPageActions({
       setToast('Offline crag pack removed')
       setTimeout(() => setToast(null), 2500)
     } catch (error) {
-      console.error('Failed to remove crag pack:', error)
+      reportError(error as Error, { message: 'Failed to remove crag pack' })
       setToast('Failed to remove offline crag pack')
       setTimeout(() => setToast(null), 2500)
     } finally {

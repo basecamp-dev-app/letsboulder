@@ -7,6 +7,7 @@ import type { CragOfflinePackManifest, OfflineMapPin } from '@/lib/climb/queries
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { estimateCompressedImageBytes } from '@/lib/media-proxy'
 import { serverEnv } from '@/lib/env'
+import { reportError } from '@/lib/errors'
 
 export const revalidate = 3600
 
@@ -96,7 +97,10 @@ export async function GET(
             faces: pack.faces,
           }
         } catch (error) {
-          console.error('Failed to build climb summary for crag offline pack:', { cragId, climbId: climb.id, error })
+          reportError(error, {
+            message: 'Failed to build climb summary for crag offline pack',
+            extra: { cragId, climbId: climb.id },
+          })
           failedClimbIds.push({
             climbId: climb.id,
             error: error instanceof Error ? error.message : 'Unknown climb-pack error',
@@ -136,7 +140,7 @@ export async function GET(
     try {
       tileManifest = buildTileManifestForPins(savedPins)
     } catch (tileError) {
-      console.error('Failed to build crag offline tile manifest:', { cragId, tileError })
+      reportError(tileError, { message: 'Failed to build crag offline tile manifest', extra: { cragId } })
     }
     const cragVersionHash = hashParts({
       crag: { id: crag.id, name: crag.name, canonicalPath },
@@ -178,7 +182,7 @@ export async function GET(
 
     return NextResponse.json(payload)
   } catch (error) {
-    console.error('Offline crag pack route error:', error)
+    reportError(error, { message: 'Offline crag pack route error' })
     return NextResponse.json({ error: 'Failed to load crag pack' }, { status: 500 })
   }
 }

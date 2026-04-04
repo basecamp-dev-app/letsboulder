@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Loader2, MessageSquare, Trash2 } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase'
+import { reportError } from '@/lib/errors'
 import { createCommentAction, deleteCommentAction } from '@/components/comments/actions'
 
 type TargetType = 'crag' | 'image' | 'climb'
@@ -223,7 +224,7 @@ export default function CommentThread({ targetType, targetId, className, userId 
       setNextOffset(finalNextOffset)
       setError(null)
     } catch (err) {
-      console.error('Comments load error:', err)
+      reportError(err instanceof Error ? err : new Error('Comments load error'), { message: 'Could not load comments' })
       setError('Could not load comments')
     } finally {
       setLoading(false)
@@ -302,7 +303,7 @@ export default function CommentThread({ targetType, targetId, className, userId 
       setCategory(threadConfig.defaultCategory)
       setError(null)
     } catch (err) {
-      console.error('Comment submit error:', err)
+      reportError(err instanceof Error ? err : new Error('Comment submit error'), { message: 'Could not post comment' })
       setError('Could not post comment')
     } finally {
       setSubmitting(false)
@@ -323,7 +324,7 @@ export default function CommentThread({ targetType, targetId, className, userId 
       setComments((prev) => prev.filter((comment) => comment.id !== commentId))
       setError(null)
     } catch (err) {
-      console.error('Comment delete error:', err)
+      reportError(err instanceof Error ? err : new Error('Comment delete error'), { message: 'Could not delete comment' })
       setError('Could not delete comment')
     } finally {
       setDeletingId(null)

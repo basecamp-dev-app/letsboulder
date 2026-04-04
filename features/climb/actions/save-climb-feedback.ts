@@ -13,6 +13,7 @@ import {
 } from '@/lib/grade-feedback'
 import { normalizeGrade, GRADES } from '@/lib/grades'
 import { getServerClient } from '@/lib/supabase-server'
+import { reportError } from '@/lib/errors'
 
 interface ConsensusBucket {
   index: number
@@ -152,7 +153,7 @@ export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Pr
     .maybeSingle()
 
   if (existingLogError) {
-    console.error('Failed to fetch user log:', existingLogError)
+    reportError(existingLogError, { message: 'Failed to fetch user log' })
     return { success: false, error: 'Failed to fetch user log', status: 500 }
   }
 
@@ -183,7 +184,7 @@ export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Pr
     .eq('climb_id', effectiveClimbId)
 
   if (updateError) {
-    console.error('Failed to save climb feedback:', updateError)
+    reportError(updateError, { message: 'Failed to save climb feedback' })
     return { success: false, error: 'Failed to save climb feedback', status: 500 }
   }
 
@@ -194,7 +195,7 @@ export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Pr
     .not('grade_opinion', 'is', null)
 
   if (votesError) {
-    console.error('Failed to compute grade consensus:', votesError)
+    reportError(votesError, { message: 'Failed to compute grade consensus' })
     return { success: false, error: 'Failed to compute grade consensus', status: 500 }
   }
 
@@ -211,7 +212,7 @@ export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Pr
       .eq('shared_climb_id', effectiveClimbId)
 
     if (climbUpdateError) {
-      console.error('Failed to update climb grade from consensus:', climbUpdateError)
+      reportError(climbUpdateError, { message: 'Failed to update climb grade from consensus' })
       return { success: false, error: 'Failed to update climb grade from consensus', status: 500 }
     }
 

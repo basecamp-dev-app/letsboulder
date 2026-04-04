@@ -5,6 +5,7 @@ import { ok, type ActionResult } from '@/lib/actions/action-result'
 import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
 import { isValidGrade } from '@/lib/grade-constants'
 import { loadGradeDistribution, upsertGradeVote } from '@/lib/grades/grade-votes'
+import { reportError } from '@/lib/errors'
 import { getServerClient } from '@/lib/supabase-server'
 
 interface GradeVoteSummary {
@@ -51,7 +52,7 @@ export async function submitGradeVoteAction(climbId: string, grade: string): Pro
   })
 
   if (upsertError) {
-    console.error('Error saving grade vote:', upsertError)
+    reportError(upsertError as Error, { message: 'Error saving grade vote' })
     return { success: false, error: 'Error saving grade vote', status: 500 }
   }
 
@@ -63,7 +64,7 @@ export async function submitGradeVoteAction(climbId: string, grade: string): Pro
   })
 
   if (votesError) {
-    console.error('Error loading grade votes:', votesError)
+    reportError(votesError as Error, { message: 'Error loading grade votes' })
     return { success: false, error: 'Error loading grade votes', status: 500 }
   }
 

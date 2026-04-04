@@ -4,6 +4,7 @@ import { getActionAuth } from '@/lib/actions/action-auth'
 import { ok, type ActionResult } from '@/lib/actions/action-result'
 import { resolveEffectiveClimbId } from '@/lib/climbs/effective-climb'
 import { getServerClient } from '@/lib/supabase-server'
+import { reportError } from '@/lib/errors'
 
 type LogStyle = 'flash' | 'top' | 'try'
 
@@ -62,7 +63,7 @@ export async function logRoutesAction(
     .upsert(logs, { onConflict: 'user_id,climb_id' })
 
   if (error) {
-    console.error('Failed to log climbs:', error)
+    reportError(error, { message: 'Failed to log climbs' })
     return { success: false, error: 'Failed to log climbs', status: 500 }
   }
 

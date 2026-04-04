@@ -6,6 +6,7 @@ import type { GradeVotingProps } from '@/lib/verification-types'
 import { submitGradeVoteAction } from '@/components/grade-voting-actions'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
+import { reportError } from '@/lib/errors'
 
 const GRADE_COLORS: Record<string, string> = {
   '5A': 'bg-gray-100', '5A+': 'bg-gray-200', '5B': 'bg-gray-300', '5B+': 'bg-gray-400', '5C': 'bg-gray-500', '5C+': 'bg-gray-600',
@@ -30,7 +31,7 @@ export default function GradeVoting({ climbId, currentGrade, votes, userVote, on
       if (!result.success) throw new Error(result.error || 'Failed to vote')
       await onVote(grade)
     } catch (error) {
-      console.error('Vote error:', error)
+      reportError(error instanceof Error ? error : new Error('Vote error'), { message: 'Vote failed' })
     } finally {
       setLoading(false)
     }

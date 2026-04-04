@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { EditableRoute, FloorPlan, GymListItem } from '../types'
+import { reportError } from '@/lib/errors'
 
 interface UseGymAdminDataReturn {
   gyms: GymListItem[]
@@ -34,7 +35,7 @@ export function useGymAdminData(): UseGymAdminDataReturn {
       const response = await fetch('/api/gym-admin/gyms')
       if (!response.ok) {
         const payload = await response.json().catch(() => ({} as { error?: string }))
-        console.error('Failed to load gyms:', payload.error)
+        reportError(new Error('Failed to load gyms'), { message: 'Failed to load gyms', extra: payload.error })
         return
       }
       const payload = await response.json() as { gyms: GymListItem[] }
@@ -44,7 +45,7 @@ export function useGymAdminData(): UseGymAdminDataReturn {
         setSelectedGymId(prev => prev || items[0].id)
       }
     } catch {
-      console.error('Failed to load gyms')
+      reportError(new Error('Failed to load gyms'), { message: 'Failed to load gyms' })
     } finally {
       setLoadingGyms(false)
     }
@@ -56,7 +57,7 @@ export function useGymAdminData(): UseGymAdminDataReturn {
       const response = await fetch(`/api/gym-admin/gyms/${gymId}/starter-routes`)
       if (!response.ok) {
         const payload = await response.json().catch(() => ({} as { error?: string }))
-        console.error('Failed to load gym routes:', payload.error)
+        reportError(new Error('Failed to load gym routes'), { message: 'Failed to load gym routes', extra: payload.error })
         return
       }
       const payload = await response.json() as {
@@ -87,7 +88,7 @@ export function useGymAdminData(): UseGymAdminDataReturn {
         marker: route.marker,
       })))
     } catch {
-      console.error('Failed to load gym routes')
+      reportError(new Error('Failed to load gym routes'), { message: 'Failed to load gym routes' })
     } finally {
       setLoadingConfig(false)
     }

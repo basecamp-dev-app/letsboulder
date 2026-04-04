@@ -20,6 +20,7 @@ import { ProfileSettingsSection } from '@/app/(shell)/settings/components/profil
 import { SettingsTabs } from '@/app/(shell)/settings/components/settings-tabs'
 import type { GradeOption, SettingsProfileFormData, SettingsTab } from '@/app/(shell)/settings/components/settings-content.types'
 import { UnitsSettingsSection } from '@/app/(shell)/settings/components/units-settings-section'
+import { reportError } from '@/lib/errors'
 
 interface SettingsContentProps {
   user: User
@@ -121,7 +122,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
 
   useEffect(() => {
     if (error) {
-      console.error('Error fetching settings:', error)
+      reportError(error, { message: 'Error fetching settings' })
     }
   }, [error])
 
@@ -326,7 +327,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
       if (!response.ok) throw new Error('Failed to send confirmation email')
       setDeleteSent(true)
     } catch (error) {
-      console.error('Initiate delete error:', error)
+      reportError(error, { message: 'Initiate delete error' })
       setDeleteLoading(false)
     }
   }

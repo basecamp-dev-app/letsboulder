@@ -3,6 +3,7 @@ import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { createR2Client } from '@/lib/media/r2'
+import { reportError } from '@/lib/errors'
 
 export const runtime = 'nodejs'
 
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    console.error('Private draft media proxy error:', error)
+    reportError(error, { message: 'Private draft media proxy error' })
     return NextResponse.json({ error: 'Failed to load media' }, { status: 500 })
   }
 }

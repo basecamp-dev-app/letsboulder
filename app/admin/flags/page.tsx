@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { Loader2, Check, Trash2 } from 'lucide-react'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { reportError } from '@/lib/errors'
 
 interface Flag {
   id: string
@@ -50,7 +51,7 @@ export default function AdminFlagsPage() {
           setFlags(data.flags)
         }
       } catch (error) {
-        console.error('Error fetching flags:', error)
+        reportError(error, { message: 'Error fetching flags' })
       } finally {
         setLoading(false)
       }
@@ -81,7 +82,7 @@ export default function AdminFlagsPage() {
         setTimeout(() => setToast(null), 3000)
       }
     } catch (error) {
-      console.error('Error resolving flag:', error)
+      reportError(error, { message: 'Error resolving flag' })
       setToast('Failed to resolve flag')
       setTimeout(() => setToast(null), 3000)
     } finally {

@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { serverEnv } from '@/lib/env'
 import { BRAND_NAME, SITE_URL } from '@/lib/site'
+import { reportError } from '@/lib/errors'
 
 const DISCORD_SUBMISSIONS_WEBHOOK = serverEnv.DISCORD_SUBMISSIONS_WEBHOOK_URL
 const DISCORD_FLAGS_WEBHOOK = serverEnv.DISCORD_FLAGS_WEBHOOK_URL
@@ -44,11 +45,11 @@ async function sendDiscordWebhook(webhookUrl: string, payload: DiscordWebhookPay
 
     if (!response.ok) {
       const text = await response.text()
-      console.error(`[Discord] Webhook failed: ${response.status} - ${text}`)
+      reportError(new Error(`[Discord] Webhook failed: ${response.status} - ${text}`), { message: '[Discord] Webhook failed' })
     }
   } catch (error) {
     clearTimeout(timeoutId)
-    console.error('[Discord] Webhook error:', error)
+    reportError(error, { message: '[Discord] Webhook error' })
   }
 }
 

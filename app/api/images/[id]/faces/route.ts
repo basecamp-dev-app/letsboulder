@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUnauthenticatedClient, getAdminClient } from '@/lib/supabase-server'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
+import { reportError } from '@/lib/errors'
 
 type SupabaseClient = ReturnType<typeof getUnauthenticatedClient>
 
@@ -437,7 +438,7 @@ export async function GET(
     const { data: primaryImage, error: primaryError } = await fetchPrimaryImage(supabase, imageId)
 
     if (primaryError) {
-      console.error('Faces primary image query failed:', primaryError)
+      reportError(primaryError, { message: 'Faces primary image query failed' })
       return NextResponse.json({ error: 'Failed to fetch image faces' }, { status: 500 })
     }
 
@@ -476,7 +477,7 @@ export async function GET(
     )
 
     if (relatedError) {
-      console.error('Faces related images query failed:', relatedError)
+      reportError(relatedError, { message: 'Faces related images query failed' })
       return NextResponse.json({ error: 'Failed to fetch related faces' }, { status: 500 })
     }
 
@@ -562,7 +563,7 @@ export async function GET(
       total_routes_combined: summary?.total_routes_combined ?? 0,
     })
   } catch (error) {
-    console.error('Failed to fetch image faces:', error)
+    reportError(error, { message: 'Failed to fetch image faces' })
     return NextResponse.json({ error: 'Failed to fetch image faces' }, { status: 500 })
   }
 }

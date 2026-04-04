@@ -10,6 +10,7 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { useMapEvents } from 'react-leaflet'
 import { runWhenIdle } from '@/lib/run-when-idle'
 import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult, type PinFeature, type PlacePin } from '@/lib/map/place-pins'
+import { reportError } from '@/lib/errors'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -225,7 +226,7 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
     try {
       const pinsResponse = await fetch('/api/crags/pins')
       if (!pinsResponse.ok) {
-        console.error('Error fetching place pins:', pinsResponse.status)
+        reportError(new Error('Error fetching place pins'), { message: 'Error fetching place pins', extra: { status: pinsResponse.status } })
         setPlacePins([])
         return
       }
@@ -233,7 +234,7 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
       const { pins: apiPins } = await pinsResponse.json()
       setPlacePins((apiPins || []) as PlacePin[])
     } catch (err) {
-      console.error('Error loading place pins:', err)
+      reportError(err instanceof Error ? err : new Error('Error loading place pins'), { message: 'Error loading place pins' })
       setPlacePins([])
     }
   }, [initialPlacePins.length, isClient])

@@ -3,6 +3,7 @@
 import { type ActionResult } from '@/lib/actions/action-result'
 import { notifyGymOwnerApplication } from '@/lib/discord'
 import { getServerClient } from '@/lib/supabase-server'
+import { reportError } from '@/lib/errors'
 
 type ApplicationRole = 'owner' | 'manager' | 'head_setter'
 type ApplicationFacility = 'sport' | 'boulder'
@@ -84,7 +85,7 @@ export async function submitGymOwnerApplicationAction(input: GymOwnerApplication
     .single()
 
   if (error || !data) {
-    console.error('Failed to submit application:', error)
+    reportError(error, { message: 'Failed to submit application' })
     return { success: false, error: 'Failed to submit application', status: 500 }
   }
 
@@ -102,7 +103,7 @@ export async function submitGymOwnerApplicationAction(input: GymOwnerApplication
     additionalComments,
     createdAt: data.created_at,
   }).catch(err => {
-    console.error('Discord gym owner application notification error:', err)
+    reportError(err, { message: 'Discord gym owner application notification error' })
   })
 
   return { success: true }

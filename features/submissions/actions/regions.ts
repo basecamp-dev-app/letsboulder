@@ -3,6 +3,7 @@
 import { type ActionResult } from '@/lib/actions/action-result'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { getServerClient } from '@/lib/supabase-server'
+import { reportError } from '@/lib/errors'
 
 interface RegionResult {
   id: string
@@ -31,7 +32,7 @@ export async function createRegionAction(name: string, countryCode?: string | nu
     .limit(1)
 
   if (checkError) {
-    console.error('Error checking existing climbing area:', checkError)
+    reportError(checkError, { message: 'Error checking existing climbing area' })
     return { success: false, error: 'Error checking existing climbing area', status: 500 }
   }
 
@@ -54,7 +55,7 @@ export async function createRegionAction(name: string, countryCode?: string | nu
     .single()
 
   if (insertError || !region) {
-    console.error('Error creating climbing area:', insertError)
+    reportError(insertError, { message: 'Error creating climbing area' })
     return { success: false, error: 'Error creating climbing area', status: 500 }
   }
 

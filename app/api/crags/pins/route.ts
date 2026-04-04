@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
+import { reportError } from '@/lib/errors'
 import { serverEnv } from '@/lib/env'
 
 interface CragPinRow {
@@ -53,7 +54,7 @@ export async function GET() {
     if (withArgError) {
       const isMissingFunctionSignature = withArgError.code === 'PGRST202'
       if (!isMissingFunctionSignature) {
-        console.error('Error fetching crag pins:', withArgError)
+        reportError(withArgError, { message: 'Error fetching crag pins' })
         return NextResponse.json({ error: 'Failed to fetch crag pins' }, { status: 500 })
       }
 
@@ -61,7 +62,7 @@ export async function GET() {
 
       const { data: fallbackRows, error: fallbackError } = await supabase.rpc('get_crag_pins')
       if (fallbackError) {
-        console.error('Error fetching crag pins:', fallbackError)
+        reportError(fallbackError, { message: 'Error fetching crag pins' })
         return NextResponse.json({ error: 'Failed to fetch crag pins' }, { status: 500 })
       }
 
@@ -81,7 +82,7 @@ export async function GET() {
         .in('id', cragIds)
 
       if (cragMetaError) {
-        console.error('Error fetching crag pin metadata:', cragMetaError)
+        reportError(cragMetaError, { message: 'Error fetching crag pin metadata' })
         return NextResponse.json({ error: 'Failed to fetch crag pin metadata' }, { status: 500 })
       }
 
@@ -99,7 +100,7 @@ export async function GET() {
       .not('slug', 'is', null)
 
     if (gymError) {
-      console.error('Error fetching gym pins:', gymError)
+      reportError(gymError, { message: 'Error fetching gym pins' })
       return NextResponse.json({ error: 'Failed to fetch gym pins' }, { status: 500 })
     }
 
@@ -134,7 +135,7 @@ export async function GET() {
 
     return NextResponse.json({ pins: [...cragPins, ...gymPins] })
   } catch (error) {
-    console.error('Unexpected error fetching crag pins:', error)
+    reportError(error, { message: 'Unexpected error fetching crag pins' })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { cache } from 'react'
 import type { NextRequest } from 'next/server'
 import { serverEnv } from '@/lib/env'
+import { reportError } from '@/lib/errors'
 
 export async function getServerClient() {
   const cookieStore = await cookies()
@@ -114,13 +115,13 @@ export const fetchMapPins = cache(async (): Promise<PlacePin[]> => {
     if (withArgError) {
       const isMissingFunctionSignature = withArgError.code === 'PGRST202'
       if (!isMissingFunctionSignature) {
-        console.error('Error fetching crag pins:', withArgError)
+        reportError(withArgError, { message: 'Error fetching crag pins' })
         return []
       }
 
       const { data: fallbackRows, error: fallbackError } = await supabase.rpc('get_crag_pins')
       if (fallbackError) {
-        console.error('Error fetching crag pins:', fallbackError)
+        reportError(fallbackError, { message: 'Error fetching crag pins' })
         return []
       }
 
@@ -140,7 +141,7 @@ export const fetchMapPins = cache(async (): Promise<PlacePin[]> => {
         .in('id', cragIds)
 
       if (cragMetaError) {
-        console.error('Error fetching crag pin metadata:', cragMetaError)
+        reportError(cragMetaError, { message: 'Error fetching crag pin metadata' })
         return []
       }
 
@@ -158,7 +159,7 @@ export const fetchMapPins = cache(async (): Promise<PlacePin[]> => {
       .not('slug', 'is', null)
 
     if (gymError) {
-      console.error('Error fetching gym pins:', gymError)
+      reportError(gymError, { message: 'Error fetching gym pins' })
       return []
     }
 
@@ -193,7 +194,7 @@ export const fetchMapPins = cache(async (): Promise<PlacePin[]> => {
 
     return [...cragPins, ...gymPins]
   } catch (error) {
-    console.error('Unexpected error fetching crag pins:', error)
+    reportError(error, { message: 'Unexpected error fetching crag pins' })
     return []
   }
 })

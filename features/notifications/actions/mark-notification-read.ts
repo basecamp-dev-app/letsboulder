@@ -3,6 +3,7 @@
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { ok, type ActionResult } from '@/lib/actions/action-result'
 import { getServerClient } from '@/lib/supabase-server'
+import { reportError } from '@/lib/errors'
 
 export async function markNotificationReadAction(notificationId: string): Promise<ActionResult> {
   if (!notificationId) {
@@ -28,7 +29,7 @@ export async function markNotificationReadAction(notificationId: string): Promis
     .eq('user_id', userId)
 
   if (error) {
-    console.error('Error marking notification as read:', error)
+    reportError(error, { message: 'Error marking notification as read' })
     return { success: false, error: 'Error marking notification as read', status: 500 }
   }
 

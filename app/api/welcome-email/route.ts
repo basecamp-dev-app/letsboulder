@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Resend } from 'resend'
-import { createErrorResponse } from '@/lib/errors'
+import { createErrorResponse, reportError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { buildWelcomeEmail } from '@/lib/email/welcome-email'
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (profileError || !profile) {
-      console.error('Profile not found for email:', email)
+      reportError(new Error('Profile not found for email'), { message: 'Profile not found for email', extra: { email } })
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
 
   } catch (error) {
-    console.error('Welcome email error:', error)
+    reportError(error, { message: 'Welcome email error' })
     return createErrorResponse(error, 'Welcome email error')
   }
 }

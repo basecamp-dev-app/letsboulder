@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { type ActionResult } from '@/lib/actions/action-result'
 import { getAdminClient, getServerClient } from '@/lib/supabase-server'
+import { reportError } from '@/lib/errors'
 import { assertDraftReadAccess, normalizeDraftRoutePayload } from '@/features/submissions/server/drafts/draft-route-helpers'
 import {
   buildDraftConflictResponse,
@@ -396,7 +397,7 @@ export async function updateSubmissionImageMetadataAction(imageId: string, body:
       .in('id', [...relatedImageIds])
 
     if (syncCoordsError) {
-      console.error('Failed to sync linked image coordinates:', syncCoordsError)
+      reportError(syncCoordsError, { message: 'Failed to sync linked image coordinates' })
     }
   }
 

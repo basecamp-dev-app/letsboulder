@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { withApiMiddleware } from '@/lib/csrf-server'
-import { createErrorResponse } from '@/lib/errors'
+import { createErrorResponse, reportError } from '@/lib/errors'
 import { getMediaModerationConfig } from '@/lib/media/config'
 import { ensurePrivateObjectExists } from '@/lib/media/r2'
 import { serverEnv } from '@/lib/env'
@@ -137,10 +137,13 @@ export async function POST(
       triggeredByUserId: user.id,
       trigger: 'upload',
     }).catch((enqueueError: unknown) => {
-      console.error('Failed to enqueue media ingest after upload completion', {
-        imageId: image.id,
-        purpose,
-        error: enqueueError instanceof Error ? enqueueError.message : enqueueError,
+      reportError(enqueueError instanceof Error ? enqueueError : new Error('Failed to enqueue media ingest after upload completion'), {
+        message: 'Failed to enqueue media ingest after upload completion',
+        extra: {
+          imageId: image.id,
+          purpose,
+          error: enqueueError instanceof Error ? enqueueError.message : enqueueError,
+        },
       })
     })
 

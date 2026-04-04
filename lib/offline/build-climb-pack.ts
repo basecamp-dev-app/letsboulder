@@ -8,6 +8,7 @@ import { getDisplayImageId } from '@/lib/image-identity'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { serverEnv } from '@/lib/env'
+import { reportError } from '@/lib/errors'
 
 interface ImageInfoRow {
   id: string
@@ -614,7 +615,7 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
         mergedFaceMap.set(key, mergeFaces(mergedFaceMap.get(key), discoveredFace))
       }
     } catch (error) {
-      console.error('Canonical route enrichment failed:', error)
+      reportError(error, { message: 'Canonical route enrichment failed' })
       canonicalRouteFaces = null
       routeFaceRows = []
       routeDiscoveredFaceMap.clear()

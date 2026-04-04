@@ -6,6 +6,7 @@ import NextImage from 'next/image'
 import { createClient } from '@/lib/supabase'
 import { compressImage, extractStoragePath } from '@/components/avatar-image-utils'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { reportError } from '@/lib/errors'
 
 interface AvatarUploaderProps {
   avatarUrl?: string
@@ -114,7 +115,7 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
       }, 500)
 
     } catch (err) {
-      console.error('Avatar upload error:', err)
+      reportError(err instanceof Error ? err : new Error('Avatar upload error'), { message: err instanceof Error ? err.message : 'Upload failed' })
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setUploading(false)
@@ -156,7 +157,7 @@ export default function AvatarUploader({ avatarUrl, initials, onAvatarUpdate }: 
       }, 500)
 
     } catch (err) {
-      console.error('Avatar remove error:', err)
+      reportError(err instanceof Error ? err : new Error('Avatar remove error'), { message: err instanceof Error ? err.message : 'Failed to remove avatar' })
       setError(err instanceof Error ? err.message : 'Failed to remove avatar')
     } finally {
       setUploading(false)
