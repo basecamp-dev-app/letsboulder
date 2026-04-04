@@ -1,5 +1,3 @@
-'use client'
-
 import dynamic from 'next/dynamic'
 
 const TopThisPlacePanel = dynamic(() => import('@/features/community/components/TopThisPlacePanel'))

@@ -1,5 +1,3 @@
-'use client'
-
 import { ArrowUpDown, ChevronDown, Download, Filter, Loader2, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
