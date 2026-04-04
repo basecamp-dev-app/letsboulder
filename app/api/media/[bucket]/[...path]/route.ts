@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 import { createR2Client } from '@/lib/media/r2'
 import { serverEnv } from '@/lib/env'
+import { reportError } from '@/lib/errors'
 
 function buildCdnUrl(objectPath: string): string | null {
   const cdnBaseUrl = serverEnv.NEXT_PUBLIC_MEDIA_CDN_URL
@@ -332,7 +333,7 @@ export async function GET(
 
     return await serveFromSupabaseStorage(request, bucket, objectPath)
   } catch (error) {
-    console.error('Media proxy error:', error)
+    reportError(error, { message: 'Media proxy error' })
     return NextResponse.json(
       { error: 'Failed to load media' },
       {

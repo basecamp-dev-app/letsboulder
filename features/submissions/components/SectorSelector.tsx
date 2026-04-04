@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { reportError } from '@/lib/errors'
 
 interface Sector {
   id: string
@@ -46,7 +47,7 @@ export default function SectorSelector({
         setSectors(data)
       }
     } catch {
-      console.error('Failed to fetch sectors')
+      reportError(new Error('Failed to fetch sectors'), { message: 'Failed to fetch sectors' })
     } finally {
       setLoading(false)
     }
@@ -87,7 +88,7 @@ export default function SectorSelector({
         setIsOpen(false)
       }
     } catch {
-      console.error('Failed to create sector')
+      reportError(new Error('Failed to create sector'), { message: 'Failed to create sector' })
     } finally {
       setIsCreating(false)
     }

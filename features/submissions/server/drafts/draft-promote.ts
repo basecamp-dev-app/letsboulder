@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { serverEnv } from '@/lib/env'
-import { createErrorResponse } from '@/lib/errors'
+import { createErrorResponse, reportError } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
 import { getMediaModerationConfig } from '@/lib/media/config'
 import { isPermissionDeniedError, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
@@ -158,7 +158,7 @@ export async function promoteDraftToSubmission(input: {
     const cragName = typeof crag.name === 'string' && crag.name.trim().length > 0 ? crag.name : 'Unknown Crag'
 
     await notifyNewSubmission(supabase, notificationClimbs, cragName, cragId, userId).catch((error) => {
-      console.error('Discord notification error:', error)
+      reportError(error, { message: 'Discord notification error' })
     })
   }
 
@@ -192,17 +192,22 @@ export async function promoteDraftToSubmission(input: {
       .then(async (res) => {
         if (res.ok) return
         const text = await res.text().catch(() => '')
-        console.error('Failed to queue moderation for published draft:', {
-          draftId,
-          imageId: result.image_id,
-          status: res.status,
-          body: text.slice(0, 500),
+        reportError(new Error('Failed to queue moderation for published draft'), {
+          message: 'Failed to queue moderation for published draft',
+          extra: {
+            draftId,
+            imageId: result.image_id,
+            status: res.status,
+            body: text.slice(0, 500),
+          },
         })
       })
-      .catch((queueError) => console.error('Failed to queue moderation for published draft:', {
-        draftId,
-        imageId: result.image_id,
-        error: queueError,
+      .catch((queueError) => reportError(queueError, {
+        message: 'Failed to queue moderation for published draft',
+        extra: {
+          draftId,
+          imageId: result.image_id,
+        },
       }))
   }
 

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { submitCragReportAction } from '@/features/moderation/actions'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { reportError } from '@/lib/errors'
 
 interface ReportCragModalProps {
   cragId: string
@@ -61,7 +62,7 @@ export default function ReportCragModal({ cragId, cragName, onClose, onSubmitted
         setError(result.error || 'Failed to submit report')
       }
     } catch (error) {
-      console.error('Error reporting crag:', error)
+      reportError(error instanceof Error ? error : new Error('Error reporting crag'), { message: 'Failed to submit report. Please try again.' })
       setError('Failed to submit report. Please try again.')
     } finally {
       setSubmitting(false)

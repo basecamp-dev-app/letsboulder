@@ -5,6 +5,7 @@ import { getActionAuth } from '@/lib/actions/action-auth'
 import { notifyNewFlag } from '@/lib/discord'
 import { createFlag } from '@/lib/flags/create-flag'
 import { getServerClient } from '@/lib/supabase-server'
+import { reportError } from '@/lib/errors'
 
 const VALID_FLAG_TYPES = ['location', 'route_line', 'route_name', 'image_quality', 'wrong_crag', 'other']
 const MAX_COMMENT_LENGTH = 250
@@ -46,7 +47,7 @@ export async function submitImageFlagAction(imageId: string, flagType: string, c
     cragId: image.crag_id,
     comment: trimmedComment,
     flaggerId: auth.data.userId,
-  }).catch(err => console.error('Discord notification error:', err))
+  }).catch(err => reportError(err, { message: 'Discord notification error' }))
 
   return { success: true }
 }
@@ -92,7 +93,7 @@ export async function submitClimbFlagAction(climbId: string, flagType: string, c
     cragId: climb.crag_id,
     comment: trimmedComment,
     flaggerId: auth.data.userId,
-  }).catch(err => console.error('Discord notification error:', err))
+  }).catch(err => reportError(err, { message: 'Discord notification error' }))
 
   return { success: true }
 }
@@ -128,7 +129,7 @@ export async function submitCragFlagAction(cragId: string): Promise<ActionResult
     cragId: crag.id,
     comment: DEFAULT_COMMENT,
     flaggerId: auth.data.userId,
-  }).catch(err => console.error('Discord notification error:', err))
+  }).catch(err => reportError(err, { message: 'Discord notification error' }))
 
   return { success: true }
 }

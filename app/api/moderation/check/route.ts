@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAdminClient } from '@/lib/supabase-server'
-import { createErrorResponse } from '@/lib/errors'
+import { createErrorResponse, reportError } from '@/lib/errors'
 import { moderateImageFromBytes, moderateImageFromUrl } from '@/lib/image-moderation'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { serverEnv } from '@/lib/env'
@@ -20,10 +20,10 @@ export async function POST(request: NextRequest) {
 
   const internalSecret = request.headers.get('x-internal-secret')
   if (!internalSecret || internalSecret !== serverEnv.INTERNAL_MODERATION_SECRET) {
-    console.error('Unauthorized moderation check request', {
+    reportError(new Error('Unauthorized moderation check request'), { message: 'Unauthorized moderation check request', extra: {
       hasHeader: Boolean(internalSecret),
       headerLength: internalSecret ? internalSecret.length : 0,
-    })
+    } })
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

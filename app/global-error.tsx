@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { generateErrorId } from '@/lib/errors'
 
 export default function GlobalError({
@@ -13,7 +14,9 @@ export default function GlobalError({
   const [errorId] = useState(() => generateErrorId())
 
   useEffect(() => {
-    console.error(`[${errorId}] Global error:`, error)
+    Sentry.captureException(error, {
+      tags: { error_id: errorId, location: 'global' },
+    })
   }, [error, errorId])
 
   return (

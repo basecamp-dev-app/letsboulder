@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { generateErrorId } from '@/lib/errors'
@@ -15,7 +16,9 @@ export default function Error({
   const [errorId] = useState(() => generateErrorId())
 
   useEffect(() => {
-    console.error(`[${errorId}] Shell page error:`, error)
+    Sentry.captureException(error, {
+      tags: { error_id: errorId, location: 'shell' },
+    })
   }, [error, errorId])
 
   return (

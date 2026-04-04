@@ -66,6 +66,8 @@ const serverEnvSchema = z.object({
   TEST_API_KEY: z.string().optional(),
   TEST_USER_PASSWORD: z.string().optional(),
   TEST_USER_ID: z.string().optional(),
+
+  SENTRY_DSN: z.string().optional(),
 })
 
 function parseServerEnv(): z.infer<typeof serverEnvSchema> {

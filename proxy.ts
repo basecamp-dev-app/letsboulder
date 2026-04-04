@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { serverEnv } from '@/lib/env'
+import { reportError } from '@/lib/errors'
 
 const INTERNAL_USER_ID_HEADER = 'x-internal-user-id'
 const CSRF_COOKIE_NAME = 'csrf_token'
@@ -412,7 +413,7 @@ export default async function proxy(request: NextRequest) {
         supabaseResponse = updatedResponse
       }
     } catch (error) {
-      console.error('[Proxy Auth Error]:', error)
+      reportError(error, { message: 'Proxy Auth Error' })
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
   }

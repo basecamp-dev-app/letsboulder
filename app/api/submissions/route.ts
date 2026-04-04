@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createErrorResponse } from '@/lib/errors'
+import { createErrorResponse, reportError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { notifyNewSubmission } from '@/lib/discord'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
@@ -286,13 +286,16 @@ export async function POST(request: NextRequest) {
           .then(async (res) => {
             if (res.ok) return
             const text = await res.text().catch(() => '')
-            console.error('Failed to queue moderation:', {
-              imageId,
-              status: res.status,
-              body: text.slice(0, 500),
+            reportError(new Error('Failed to queue moderation'), {
+              message: 'Failed to queue moderation',
+              extra: {
+                imageId,
+                status: res.status,
+                body: text.slice(0, 500),
+              },
             })
           })
-          .catch((err) => console.error('Failed to queue moderation:', { imageId, error: err }))
+          .catch((err) => reportError(err, { message: 'Failed to queue moderation', extra: { imageId } }))
       }
     }
 
@@ -306,7 +309,7 @@ export async function POST(request: NextRequest) {
       const cragName = cragData?.name || 'Unknown Crag'
 
       await notifyNewSubmission(supabase, executionResult.notificationClimbs, cragName, cragId, userId).catch(err => {
-        console.error('Discord notification error:', err)
+        reportError(err, { message: 'Discord notification error' })
       })
 
       revalidatePath('/')

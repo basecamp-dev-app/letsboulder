@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { submitImageFlagAction } from '@/features/moderation/actions'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { reportError } from '@/lib/errors'
 
 const FLAG_TYPES = [
   { value: 'location', label: 'Location', description: 'Wrong GPS coordinates' },
@@ -76,7 +77,7 @@ export default function FlagImageModal({ imageId, onClose, onSubmitted }: FlagIm
         onClose()
       }, 2000)
     } catch (error) {
-      console.error('Error flagging image:', error)
+      reportError(error instanceof Error ? error : new Error('Error flagging image'), { message: 'Failed to submit flag. Please try again.' })
       setError('Failed to submit flag. Please try again.')
     } finally {
       setSubmitting(false)

@@ -2,6 +2,7 @@
 
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { ok, type ActionResult } from '@/lib/actions/action-result'
+import { reportError } from '@/lib/errors'
 import { getServerClient } from '@/lib/supabase-server'
 
 type TargetType = 'crag' | 'image' | 'climb'
@@ -125,7 +126,7 @@ export async function createCommentAction(input: CreateCommentInput): Promise<Ac
     .single()
 
   if (insertError || !insertedComment) {
-    console.error('Error creating comment:', insertError)
+    reportError(insertError as Error, { message: 'Error creating comment' })
     return { success: false, error: 'Error creating comment', status: 500 }
   }
 
@@ -153,7 +154,7 @@ export async function deleteCommentAction(commentId: string): Promise<ActionResu
   })
 
   if (error) {
-    console.error('Error deleting comment:', error)
+    reportError(error as Error, { message: 'Error deleting comment' })
     return { success: false, error: 'Error deleting comment', status: 500 }
   }
 

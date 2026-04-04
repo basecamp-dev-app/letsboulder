@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createErrorResponse } from '@/lib/errors'
+import { createErrorResponse, reportError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { getMediaModerationConfig, getMediaStorageConfig } from '@/lib/media/config'
 import { createPrivateUploadUrl } from '@/lib/media/r2'
@@ -86,14 +86,17 @@ export async function POST(request: NextRequest) {
       .insert(insertPayload)
 
     if (insertError) {
-      console.error('[upload-sessions] DB insert failed', {
-        error: insertError.message,
-        code: insertError.code,
-        details: insertError.details,
-        hint: insertError.hint,
-        userId: user.id,
-        imageId,
-        objectKey,
+      reportError(insertError, {
+        message: '[upload-sessions] DB insert failed',
+        extra: {
+          error: insertError.message,
+          code: insertError.code,
+          details: insertError.details,
+          hint: insertError.hint,
+          userId: user.id,
+          imageId,
+          objectKey,
+        },
       })
       return createErrorResponse(insertError, 'Failed to create image upload session')
     }
@@ -111,9 +114,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response)
   } catch (error) {
-    console.error('[upload-sessions] Unexpected error', {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+    reportError(error, {
+      message: '[upload-sessions] Unexpected error',
+      extra: {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
     })
     return createErrorResponse(error, 'Failed to create upload session')
   }

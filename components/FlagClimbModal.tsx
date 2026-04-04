@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react'
 import { submitClimbFlagAction } from '@/features/moderation/actions'
 import { useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { reportError } from '@/lib/errors'
 
 const FLAG_TYPES = [
   { value: 'location', label: 'Location', description: 'Wrong GPS coordinates' },
@@ -78,7 +79,7 @@ export default function FlagClimbModal({ climbId, climbName, onClose, onSubmitte
         onClose()
       }, 2000)
     } catch (submitError) {
-      console.error('Error flagging climb:', submitError)
+      reportError(submitError instanceof Error ? submitError : new Error('Error flagging climb'), { message: 'Failed to submit flag. Please try again.' })
       setError('Failed to submit flag. Please try again.')
     } finally {
       setSubmitting(false)

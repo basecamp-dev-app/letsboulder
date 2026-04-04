@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { createClient } from '@/lib/supabase'
 import { formatGradeForDisplay } from '@/lib/grade-display'
+import { reportError } from '@/lib/errors'
 
 interface LeaderboardEntry {
   rank: number
@@ -100,7 +101,7 @@ export default function LeaderboardPage() {
         setPagination(data.pagination)
       }
     } catch (error) {
-      console.error('Failed to fetch leaderboard:', error)
+      reportError(error, { message: 'Failed to fetch leaderboard' })
     } finally {
       setLoading(false)
     }

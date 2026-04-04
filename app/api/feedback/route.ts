@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyFeedback } from '@/lib/discord'
+import { reportError } from '@/lib/errors'
 import { createServerClient } from '@supabase/ssr'
 import { serverEnv } from '@/lib/env'
 
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Feedback API error:', error)
+    reportError(error, { message: 'Feedback API error' })
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

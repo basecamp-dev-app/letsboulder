@@ -4,6 +4,7 @@ import { getActionAuth } from '@/lib/actions/action-auth'
 import { type ActionResult } from '@/lib/actions/action-result'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { getServerClient } from '@/lib/supabase-server'
+import { reportError } from '@/lib/errors'
 
 const VALID_GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const
 const VALID_GRADE_SYSTEMS = ['font_scale', 'v_scale', 'yds_equivalent', 'french_equivalent', 'british_equivalent'] as const
@@ -140,7 +141,7 @@ export async function saveSettingsAction(input: SaveSettingsInput): Promise<Acti
     .eq('id', auth.data.userId)
 
   if (error) {
-    console.error('Settings save error:', error)
+    reportError(error, { message: 'Settings save error' })
     return { success: false, error: 'Failed to save', status: 500 }
   }
 

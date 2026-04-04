@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { reportError } from '@/lib/errors'
 
 export interface CountryResolutionResult {
   countryId: string | null
@@ -30,7 +31,7 @@ export async function resolveCountryFromCoordinates(
     .rpc('get_upload_context', { search_lat: searchLat, search_lng: searchLng })
 
   if (error) {
-    console.error('[resolveCountryFromCoordinates] RPC error:', error)
+    reportError(error, { message: '[resolveCountryFromCoordinates] RPC error' })
     return { countryId: null, countryCode: null, countryName: null, regionName: null, unRegionName: null, continentName: null, source: null }
   }
 

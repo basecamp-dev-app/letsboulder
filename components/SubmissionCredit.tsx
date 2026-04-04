@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import { reportError } from '@/lib/errors'
 import { SubmissionCreditPlatform, normalizeSubmissionCreditHandle, formatSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { CREDIT_PLATFORM_OPTIONS } from '@/features/submissions/lib/editor-constants'
@@ -37,7 +38,7 @@ export default function SubmissionCredit({ imageId, onCreditSaved }: SubmissionC
           setHandle(settings.contributionCreditHandle)
         }
       } catch (err) {
-        console.error('Error fetching default credit:', err)
+        reportError(err instanceof Error ? err : new Error('Error fetching default credit'), { message: 'Error fetching default credit' })
       } finally {
         setIsLoading(false)
       }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { RATE_LIMITS } from '@/lib/rate-limit'
-import { createErrorResponse } from '@/lib/errors'
+import { createErrorResponse, reportError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { makeUniqueSlug } from '@/lib/slug'
 import { revalidatePath } from 'next/cache'
@@ -475,7 +475,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (createError) {
-      console.error('Create crag insert failed:', createError)
+      reportError(createError, { message: 'Create crag insert failed' })
       return createErrorResponse(createError, 'Error creating crag')
     }
 
@@ -500,7 +500,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(createdCrag, { status: 201 })
   } catch (error) {
-    console.error('POST /api/crags failed:', error)
+    reportError(error, { message: 'POST /api/crags failed' })
     return createErrorResponse(error, 'Error creating crag')
   }
 }

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { SELECTABLE_GRADES } from '@/lib/grade-constants'
 import type { CorrectionSectionProps, CorrectionType } from '@/lib/verification-types'
 import { csrfFetch } from '@/hooks/useCsrf'
+import { reportError } from '@/lib/errors'
 
 const CORRECTION_TYPE_LABELS: Record<CorrectionType, string> = {
   location: 'Location',
@@ -87,7 +88,7 @@ export default function CorrectionSection({
       setSuggestedGrade('6A')
       setReason('')
     } catch (error) {
-      console.error('Correction error:', error)
+      reportError(error instanceof Error ? error : new Error('Correction error'), { message: 'Failed to submit correction' })
     } finally {
       setLoading(false)
     }
@@ -312,7 +313,7 @@ function CorrectionCard({
 
       await onVote(correction.id, voteType)
     } catch (error) {
-      console.error('Vote error:', error)
+      reportError(error instanceof Error ? error : new Error('Vote error'), { message: 'Failed to vote on correction' })
     } finally {
       setLoading(false)
     }
