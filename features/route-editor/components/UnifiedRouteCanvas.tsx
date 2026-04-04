@@ -12,7 +12,7 @@ import { useRouteDrawing } from '@/features/route-editor/hooks/useRouteDrawing'
 import { useHitTesting } from '@/features/route-editor/hooks/useHitTesting'
 import { useRouteStore } from '@/features/route-editor/store'
 import type { CanvasMode, RouteLine } from '@/types/domain'
-import type { ClimbType } from '@/features/submissions/lib/submission-types'
+import type { ClimbType } from '@/types/climbing'
 
 interface UnifiedRouteCanvasProps {
   mode: CanvasMode

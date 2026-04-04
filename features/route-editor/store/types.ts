@@ -6,7 +6,7 @@ import type {
   DrawingRoute,
   InteractionTool,
 } from '@/types/domain'
-import type { ClimbType } from '@/features/submissions/lib/submission-types'
+import type { ClimbType } from '@/types/climbing'
 
 export interface RouteEditorDraft {
   routeId: string | null

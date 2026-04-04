@@ -9,7 +9,7 @@ import {
   type RouteSerializerInput,
   type RouteEditorSerializableRoute,
 } from '@/features/route-editor/route-editor-utils'
-import type { RoutePoint } from '@/features/submissions/lib/submission-types'
+import type { RoutePoint } from '@/types/climbing'
 
 describe('parseRoutePoints', () => {
   test('returns empty array for null/undefined', () => {

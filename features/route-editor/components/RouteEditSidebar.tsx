@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import GradePicker from '@/features/grades/components/GradePicker'
 import { getGradeSystemForClimbType, useGradePreferences } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
-import type { ClimbType } from '@/features/submissions/lib/submission-types'
+import type { ClimbType } from '@/types/climbing'
 
 const ROUTE_TYPES = [
   { value: 'sport', label: 'Sport' },

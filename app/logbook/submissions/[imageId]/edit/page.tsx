@@ -19,7 +19,7 @@ import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-u
 import { ToastContainer, useToast } from '@/features/logbook/components/toast'
 import type { UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
 import { useRouteStore } from '@/features/route-editor/store'
-import { haveStoredRoutesChanged, serializeStoredRoutes } from '@/features/editor/route-store-sync'
+import { haveStoredRoutesChanged, serializeStoredRoutes } from '@/features/submissions/lib/route-store-sync'
 import type { RouteLine } from '@/types/domain'
 import { SubmissionWorkstation } from '@/features/submissions/components/SubmissionWorkstation'
 import { SubmissionDetailsPanel } from '@/features/submissions/submission-editor/components/SubmissionDetailsPanel'

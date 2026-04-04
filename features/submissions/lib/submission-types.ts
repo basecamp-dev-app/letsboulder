@@ -3,9 +3,12 @@ import { VALID_GRADES, isValidGrade } from '@/lib/grade-constants'
 import type { GpsData, FaceDirection, FaceDirectionsByImage } from '@/types/domain'
 import { FACE_DIRECTIONS } from '@/types/domain'
 
+import type { ClimbType, RoutePoint } from '@/types/climbing'
+
 export { VALID_GRADES, FACE_DIRECTIONS, isValidGrade }
 export type { Grade } from '@/lib/grade-constants'
 export type { GpsData, FaceDirection, FaceDirectionsByImage }
+export type { ClimbType, RoutePoint }
 
 export type Region = Pick<Database['public']['Tables']['regions']['Row'], 'id' | 'name' | 'country_code' | 'center_lat' | 'center_lon' | 'created_at'>
 
@@ -34,11 +37,6 @@ export interface SubmissionCrag {
   rock_type: string | null
   type: 'sport' | 'boulder' | 'trad' | 'mixed'
   created_at: string
-}
-
-export interface RoutePoint {
-  x: number
-  y: number
 }
 
 export interface RouteLine {
@@ -114,8 +112,6 @@ export interface CragImageSelection {
 }
 
 export type ImageSelection = ExistingImageSelection | NewImageSelection | CragImageSelection
-
-export type ClimbType = 'sport' | 'boulder' | 'trad' | 'deep-water-solo'
 
 export interface SubmissionContext {
   crag: Pick<SubmissionCrag, 'id' | 'name' | 'latitude' | 'longitude'> | null

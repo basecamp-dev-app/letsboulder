@@ -1,7 +1,7 @@
 'use client'
 
 import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
-import type { ClimbType } from '@/features/submissions/lib/submission-types'
+import type { ClimbType } from '@/types/climbing'
 import type { RouteLine } from '@/types/domain'
 
 interface WorkstationCanvasPanelProps {

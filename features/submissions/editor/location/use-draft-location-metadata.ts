@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { formatCoordinate } from '@/features/editor/location/location-metadata'
+import { formatCoordinate } from '@/features/submissions/lib/location-metadata'
 import { useLocationSearch } from './use-location-search'
 
 export function useDraftLocationMetadata() {
