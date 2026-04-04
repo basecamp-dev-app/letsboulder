@@ -1,14 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
 import { useImageNavigation } from '@/features/image-first/hooks/use-image-navigation'
+import { ImageFirstCanvasCarousel, ImageFirstDeferredSections, ImageFirstFooterRail, ImageFirstHeader } from '@/features/image-first/components/image-first-sections'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
-import { RouteEditorRail } from '@/features/route-editor/components/RouteEditorRail'
-import { UnifiedRouteCanvas } from '@/features/route-editor/components/UnifiedRouteCanvas'
-import LightweightCragMap from '@/components/LightweightCragMap'
 import { normalizePoints } from '@/lib/canvasMath'
 import type { Database } from '@/types/database'
 import { createClient } from '@/lib/supabase'
@@ -415,17 +412,14 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-white">
-      <header className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/70 to-transparent px-4 py-4">
-        <div className="text-sm text-white/80">
-          {cragSlug}
-          {activeSector ? ` / ${activeSector.name}` : ''}
-          {' / '}
-          Image {activeImageIndex + 1} of {navigationContext.orderedImageIds.length}
-          {activeStack && activeStack.imageIds.length > 1
-            ? ` / Stack ${activeStack.imageIds.indexOf(activeImageId || '') + 1} of ${activeStack.imageIds.length}`
-            : ''}
-        </div>
-      </header>
+      <ImageFirstHeader
+        cragSlug={cragSlug}
+        activeSectorName={activeSector?.name || null}
+        activeImageIndex={activeImageIndex}
+        totalImages={navigationContext.orderedImageIds.length}
+        stackIndex={activeStack && activeStack.imageIds.length > 1 ? activeStack.imageIds.indexOf(activeImageId || '') : null}
+        stackLength={activeStack && activeStack.imageIds.length > 1 ? activeStack.imageIds.length : null}
+      />
 
       <main className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-14">
         <button
@@ -437,47 +431,18 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
           Prev
         </button>
 
-        <div className="w-full max-w-6xl overflow-hidden" ref={emblaRef}>
-          <div className="flex">
-            {navigationContext.orderedImageIds.map((imageId, index) => {
-              const imageMeta = navigationContext.imageMap[imageId]
-              if (!imageMeta) return null
-              const isActive = index === activeImageIndex
-
-              return (
-                <div
-                  key={imageId}
-                  className="relative min-w-0 shrink-0 grow-0 basis-full"
-                >
-                  <div className="relative h-[60vh] w-full">
-                    <Image
-                      src={isActive ? activeCanvasImageUrl : imageMeta.src}
-                      alt="Crag viewer"
-                      fill
-                      sizes="(max-width: 1280px) 100vw, 72rem"
-                      priority={isActive ? heroImage.priority : false}
-                      className="object-contain"
-                      loading={isActive ? 'eager' : 'lazy'}
-                    />
-                    {isActive && (
-                      <>
-                        <div className="hidden print:block">Canvas URL: {activeCanvasImageUrl}</div>
-                        <UnifiedRouteCanvas
-                          key={activeImageId}
-                          mode="browse"
-                          imageUrl={activeCanvasImageUrl}
-                          routes={visibleRoutes}
-                          activeRouteId={activeRouteId}
-                          onRouteSelect={handleRouteSelect}
-                        />
-                      </>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <ImageFirstCanvasCarousel
+          emblaRef={emblaRef}
+          orderedImageIds={navigationContext.orderedImageIds}
+          imageMap={navigationContext.imageMap}
+          activeImageIndex={activeImageIndex}
+          activeImageId={activeImageId}
+          activeCanvasImageUrl={activeCanvasImageUrl}
+          activeRouteId={activeRouteId}
+          heroPriority={heroImage.priority}
+          visibleRoutes={visibleRoutes}
+          onRouteSelect={handleRouteSelect}
+        />
 
         <button
           type="button"
@@ -493,15 +458,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         </button>
       </main>
 
-      <div className="px-4 pb-4">
-        <div className="mx-auto w-full max-w-6xl">
-          <RouteEditorRail
-            routes={visibleRoutes}
-            selectedRouteId={activeRouteId}
-            onSelectRoute={handleRouteSelect}
-          />
-        </div>
-      </div>
+      <ImageFirstFooterRail visibleRoutes={visibleRoutes} activeRouteId={activeRouteId} onRouteSelect={handleRouteSelect} />
 
       <ClimbInfoPanel
         selectedClimb={selectedClimb}
@@ -549,34 +506,10 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onSetPendingStarRating={setPendingStarRating}
         onSaveFeedback={handleSaveFeedback}
         onGoToLogbook={handleGoToLogbook}
-        deferredSections={
-          <>
-            {mapPins.length > 0 ? (
-              <LightweightCragMap
-                className="mt-4"
-                pins={mapPins}
-                activePinId={activeImageId}
-                onPinSelect={(imageId) => {
-                  const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
-                  if (nextIndex >= 0) {
-                    setActiveImageIndex(nextIndex)
-                  }
-                }}
-                heightClassName="min-h-[220px]"
-              />
-            ) : null}
-            {!activeClimbId ? (
-              <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                <div className="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">
-                  Overview
-                </div>
-                <p className="mt-2">
-                  Select a route line to view details, or keep swiping to explore this area.
-                </p>
-              </div>
-            ) : null}
-          </>
-        }
+        deferredSections={<ImageFirstDeferredSections mapPins={mapPins} activeImageId={activeImageId} activeClimbId={activeClimbId} onSelectPin={(imageId) => {
+          const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
+          if (nextIndex >= 0) setActiveImageIndex(nextIndex)
+        }} />}
       />
     </div>
   )
