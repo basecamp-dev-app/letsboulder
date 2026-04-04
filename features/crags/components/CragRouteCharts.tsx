@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
+import { useGradeSystem } from '@/lib/grades/preferences'
 
 const CragRouteChartsContent = dynamic(
   () => import('@/features/crags/components/CragRouteChartsContent'),

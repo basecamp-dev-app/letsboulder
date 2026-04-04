@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { submitCragFlagAction } from '@/features/moderation/actions'
+import { submitCragFlagAction } from '@/features/moderation/public'
 import { createClient } from '@/lib/supabase'
 import { reportError } from '@/lib/errors'
 import type { CragSwitcherOption } from '@/features/crags/components/CragPageToolbar'

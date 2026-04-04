@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
+import { useGradeSystem } from '@/lib/grades/preferences'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { communityKeys, fetchRankings } from '@/features/community/lib/queries'
 

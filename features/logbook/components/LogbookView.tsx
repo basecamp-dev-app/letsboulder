@@ -5,11 +5,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
-import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
+import { useGradeSystem } from '@/lib/grades/preferences'
 import { EmptyLogbook } from '@/features/logbook/components/LogbookStates'
 import { LogbookStatsSection } from '@/features/logbook/components/LogbookStatsSection'
 import { LogbookSubmissionsSection } from '@/features/logbook/components/LogbookSubmissionsSection'
-import { ToastContainer, useToast } from '@/features/logbook/components/Toast'
+import { ToastContainer } from '@/components/ui/toast'
+import { useToast } from '@/hooks/use-toast'
 import { ownLogbookQueryKey, type OwnLogbookData } from '@/features/logbook/lib/queries'
 import {
   getLogbookLowestGrade,
@@ -31,7 +32,7 @@ import {
   deletePublishedSubmissionAction,
   deleteSubmissionDraftAction,
   publishSubmissionDraftAction,
-} from '@/features/submissions/actions/manage-submissions'
+} from '@/features/submissions/public'
 import type { Submission } from '@/types/submissions'
 
 interface LogbookViewProps {
