@@ -54,7 +54,7 @@ export async function POST(
   { params }: { params: Promise<{ imageId: string }> }
 ) {
   const { imageId } = await params
-  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false, rateLimitKey: 'uploadSessionComplete' })
   if (!middlewareResult.ok) return middlewareResult.response
 
   const { supabase } = middlewareResult

@@ -149,6 +149,7 @@ export async function PATCH(
 ) {
   const middlewareResult = await withApiMiddleware(request, {
     unauthorizedMessage: 'Authentication required',
+    rateLimitKey: 'authenticatedWrite',
   })
   if (!middlewareResult.ok) return middlewareResult.response
 
@@ -356,6 +357,7 @@ export async function DELETE(
 ) {
   const middlewareResult = await withApiMiddleware(request, {
     unauthorizedMessage: 'Authentication required',
+    rateLimitKey: 'sensitive',
   })
   if (!middlewareResult.ok) return middlewareResult.response
 

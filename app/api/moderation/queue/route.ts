@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', userId)
+    const rateLimitResult = await rateLimit(request, 'authenticatedWrite', userId)
     const rateLimitResponse = createRateLimitResponse(rateLimitResult)
     if (!rateLimitResult.success) {
       return rateLimitResponse

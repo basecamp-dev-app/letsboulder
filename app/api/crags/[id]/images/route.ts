@@ -303,7 +303,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  const middlewareResult = await withApiMiddleware(request, {
+    requireUser: false,
+    rateLimitKey: 'authenticatedWrite',
+  })
   if (!middlewareResult.ok) return middlewareResult.response
 
   const rawParams = await params

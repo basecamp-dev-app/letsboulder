@@ -18,6 +18,7 @@ const routeSubmitSchema = z.object({
 
 export async function POST(request: NextRequest) {
   const middlewareResult = await withApiMiddleware(request, {
+    rateLimitKey: 'authenticatedWrite',
     unauthorizedMessage: 'Authentication required',
   })
   if (!middlewareResult.ok) return middlewareResult.response

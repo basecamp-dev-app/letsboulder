@@ -6,7 +6,7 @@ import { parsePagination } from '@/lib/pagination'
 
 export async function GET(request: NextRequest) {
 
-  const rateLimitResult = rateLimit(request, 'publicSearch')
+  const rateLimitResult = await rateLimit(request, 'publicSearch')
   const rateLimitResponse = createRateLimitResponse(rateLimitResult)
   if (!rateLimitResult.success) {
     return rateLimitResponse

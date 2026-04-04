@@ -92,7 +92,7 @@ function validateRequestOrigin(request: NextRequest): NextResponse | null {
 }
 
 export async function POST(request: NextRequest) {
-  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false, rateLimitKey: 'signedUrls' })
   if (!middlewareResult.ok) return middlewareResult.response
 
   const originError = validateRequestOrigin(request)

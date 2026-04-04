@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
-import { rateLimit, RATE_LIMITS, createRateLimitResponse } from '@/lib/rate-limit'
+import { RATE_LIMITS } from '@/lib/rate-limit'
 import { createErrorResponse } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { makeUniqueSlug } from '@/lib/slug'
@@ -220,7 +220,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  const middlewareResult = await withApiMiddleware(request, {
+    requireUser: false,
+    rateLimitKey: 'authenticatedWrite',
+  })
   if (!middlewareResult.ok) return middlewareResult.response
 
   const { supabase } = middlewareResult
@@ -241,12 +244,6 @@ export async function POST(request: NextRequest) {
     const trimmedName = name
     const trimmedRegionTag = region_tag?.trim() || ''
     const trimmedSubArea = sub_area?.trim() || ''
-
-    const rateLimitResult = rateLimit(request, 'authenticatedWrite', user?.id)
-    const rateLimitResponse = createRateLimitResponse(rateLimitResult)
-    if (!rateLimitResult.success) {
-      return rateLimitResponse
-    }
 
     if (latitude != null && longitude != null) {
       const { data: existingCrags } = await supabase

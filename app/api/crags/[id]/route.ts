@@ -22,7 +22,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false, rateLimitKey: 'authenticatedWrite' })
   if (!middlewareResult.ok) return middlewareResult.response
 
   const { id: cragId } = await params
@@ -211,7 +211,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const middlewareResult = await withApiMiddleware(request, { requireUser: false })
+  const middlewareResult = await withApiMiddleware(request, { requireUser: false, rateLimitKey: 'sensitive' })
   if (!middlewareResult.ok) return middlewareResult.response
 
   const { id: cragId } = await params

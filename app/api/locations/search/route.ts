@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Query must be at least 2 characters' }, { status: 400 })
   }
 
-  const rateLimitResult = rateLimit(request, 'externalApi')
+  const rateLimitResult = await rateLimit(request, 'externalApi')
   const rateLimitResponse = createRateLimitResponse(rateLimitResult)
   if (!rateLimitResult.success) {
     return rateLimitResponse
