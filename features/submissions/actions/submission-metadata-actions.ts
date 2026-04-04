@@ -2,28 +2,58 @@
 
 import { revalidatePath } from 'next/cache'
 import { getActionAuth } from '@/lib/actions/action-auth'
-import { type ActionResult } from '@/lib/actions/action-result'
+import { fail, type ActionResult } from '@/lib/actions/action-result'
+import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { isValidGrade } from '@/lib/grade-constants'
 import { buildConsensusUpdates } from '@/features/grades/lib/grade-votes'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { getAdminClient, getServerClient } from '@/lib/supabase-server'
+import { z } from 'zod'
+
+const submissionCreditSchema = z.object({
+  imageId: z.string().trim().min(1, 'Image ID is required'),
+  platformInput: z.unknown(),
+  handleInput: z.unknown(),
+})
+
+const submissionAnonymousSchema = z.object({
+  imageId: z.string().trim().min(1, 'Image ID is required'),
+  isAnonymousSubmission: z.boolean(),
+})
+
+const submissionCragSchema = z.object({
+  imageId: z.string().trim().min(1, 'Image ID is required'),
+  cragName: z.string().trim().min(1, 'Invalid payload'),
+  regionTag: z.string().trim().min(1, 'Invalid payload'),
+  subArea: z.string().nullable().optional(),
+})
+
+const submissionGradeVotesSchema = z.object({
+  imageId: z.string().trim().min(1, 'Image ID is required'),
+  grades: z.array(z.object({
+    routeLineId: z.string().trim().min(1),
+    grade: z.string().refine((value) => isValidGrade(value)),
+  })).min(1, 'A valid grades array is required'),
+})
 
 export async function updateSubmissionCreditAction(imageId: string, platformInput: unknown, handleInput: unknown): Promise<ActionResult<{ credit: { platform: string | null; handle: string | null } }>> {
+  const validation = validateActionInput(submissionCreditSchema, { imageId, platformInput, handleInput })
+  if (!validation.success) return fail<{ credit: { platform: string | null; handle: string | null } }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
 
-  const handle = normalizeSubmissionCreditHandle(handleInput)
+  const handle = normalizeSubmissionCreditHandle(validation.data.handleInput)
   let platform: ReturnType<typeof normalizeSubmissionCreditPlatform> = null
   if (handle) {
-    platform = normalizeSubmissionCreditPlatform(platformInput)
+    platform = normalizeSubmissionCreditPlatform(validation.data.platformInput)
     if (!platform) return { success: false, error: 'Valid platform is required when handle is provided', status: 400 }
   }
 
   const supabase = await getServerClient()
   const { data: result, error: rpcError } = await supabase.rpc('update_own_submission_credit', {
-    p_image_id: imageId,
+    p_image_id: validation.data.imageId,
     p_platform: platform,
     p_handle: handle,
   })
@@ -51,15 +81,17 @@ export async function updateSubmissionCreditAction(imageId: string, platformInpu
 }
 
 export async function updateSubmissionAnonymousAction(imageId: string, isAnonymousSubmission: boolean): Promise<ActionResult<{ submission: { isAnonymousSubmission: boolean } }>> {
+  const validation = validateActionInput(submissionAnonymousSchema, { imageId, isAnonymousSubmission })
+  if (!validation.success) return fail<{ submission: { isAnonymousSubmission: boolean } }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
 
   const supabase = await getServerClient()
   const { data: result, error: rpcError } = await supabase.rpc('update_own_submission_anonymity', {
-    p_image_id: imageId,
-    p_is_anonymous: isAnonymousSubmission,
+    p_image_id: validation.data.imageId,
+    p_is_anonymous: validation.data.isAnonymousSubmission,
   })
 
   if (rpcError) {
@@ -74,18 +106,19 @@ export async function updateSubmissionAnonymousAction(imageId: string, isAnonymo
 }
 
 export async function updateSubmissionCragAction(imageId: string, cragName: string, regionTag: string, subArea?: string | null): Promise<ActionResult<{ crag: unknown }>> {
+  const validation = validateActionInput(submissionCragSchema, { imageId, cragName, regionTag, subArea })
+  if (!validation.success) return fail<{ crag: unknown }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
-  if (!cragName.trim() || !regionTag.trim()) return { success: false, error: 'Invalid payload', status: 400 }
 
   const supabase = await getServerClient()
   const { data: result, error: rpcError } = await supabase.rpc('update_submission_crag_metadata', {
-    p_image_id: imageId,
-    p_crag_name: cragName.trim(),
-    p_region_tag: regionTag.trim(),
-    p_sub_area: typeof subArea === 'string' ? subArea.trim() || null : null,
+    p_image_id: validation.data.imageId,
+    p_crag_name: validation.data.cragName,
+    p_region_tag: validation.data.regionTag,
+    p_sub_area: typeof validation.data.subArea === 'string' ? validation.data.subArea.trim() || null : null,
   })
 
   if (rpcError) {
@@ -95,7 +128,7 @@ export async function updateSubmissionCragAction(imageId: string, cragName: stri
     return { success: false, error: 'Update submission crag metadata error', status: 500 }
   }
 
-  const { data: image } = await supabase.from('images').select('crag_id').eq('id', imageId).single()
+  const { data: image } = await supabase.from('images').select('crag_id').eq('id', validation.data.imageId).single()
   revalidatePath('/')
   if (image?.crag_id) {
     const { data: cragData } = await supabase.from('crags').select('slug, country_code').eq('id', image.crag_id).single()
@@ -108,17 +141,18 @@ export async function updateSubmissionCragAction(imageId: string, cragName: stri
 }
 
 export async function saveSubmissionGradeVotesAction(imageId: string, grades: Array<{ routeLineId: string; grade: string }>): Promise<ActionResult<{ votesUpdated: number; collaboratorCount: number }>> {
+  const validation = validateActionInput(submissionGradeVotesSchema, { imageId, grades })
+  if (!validation.success) return fail<{ votesUpdated: number; collaboratorCount: number }>(validation.result.error || 'A valid grades array is required', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
-  if (!Array.isArray(grades) || grades.length === 0 || grades.some((item) => !item?.routeLineId || !isValidGrade(item.grade))) {
-    return { success: false, error: 'A valid grades array is required', status: 400 }
-  }
+  const validatedImageId = validation.data.imageId
+  const validatedGrades = validation.data.grades
 
   const supabase = await getServerClient()
   const supabaseAdmin = getAdminClient()
-  const { data: image, error: imageError } = await supabase.from('images').select('id, created_by').eq('id', imageId).maybeSingle()
+  const { data: image, error: imageError } = await supabase.from('images').select('id, created_by').eq('id', validatedImageId).maybeSingle()
   if (imageError) return { success: false, error: 'Save submission grade votes error', status: 500 }
   if (!image) return { success: false, error: 'Image not found', status: 404 }
 
@@ -130,7 +164,7 @@ export async function saveSubmissionGradeVotesAction(imageId: string, grades: Ar
     const { data: collaboratorAccess, error: collaboratorError } = await supabase
       .from('submission_collaborators')
       .select('image_id')
-      .eq('image_id', imageId)
+      .eq('image_id', validatedImageId)
       .eq('user_id', auth.data.userId)
       .maybeSingle()
     if (collaboratorError) return { success: false, error: 'Save submission grade votes error', status: 500 }
@@ -138,8 +172,8 @@ export async function saveSubmissionGradeVotesAction(imageId: string, grades: Ar
   }
   if (!hasAccess) return { success: false, error: 'Only the owner or a collaborator can set grade votes', status: 403 }
 
-  const uniqueRouteLineIds = Array.from(new Set(grades.map((item) => item.routeLineId)))
-  const { data: routeLines, error: routeLinesError } = await supabase.from('route_lines').select('id, climb_id').eq('image_id', imageId).in('id', uniqueRouteLineIds)
+  const uniqueRouteLineIds = Array.from(new Set(validatedGrades.map((item) => item.routeLineId)))
+  const { data: routeLines, error: routeLinesError } = await supabase.from('route_lines').select('id, climb_id').eq('image_id', validatedImageId).in('id', uniqueRouteLineIds)
   if (routeLinesError) return { success: false, error: 'Save submission grade votes error', status: 500 }
 
   const climbIdByRouteLineId = new Map((routeLines || []).map((routeLine) => [routeLine.id, routeLine.climb_id]))
@@ -147,12 +181,12 @@ export async function saveSubmissionGradeVotesAction(imageId: string, grades: Ar
     return { success: false, error: 'One or more routes are invalid for this submission', status: 400 }
   }
 
-  const { data: collaboratorRows, error: collaboratorsError } = await supabase.from('submission_collaborators').select('user_id').eq('image_id', imageId)
+  const { data: collaboratorRows, error: collaboratorsError } = await supabase.from('submission_collaborators').select('user_id').eq('image_id', validatedImageId)
   if (collaboratorsError) return { success: false, error: 'Save submission grade votes error', status: 500 }
   if (!supabaseAdmin) return { success: false, error: 'Service role key missing', status: 500 }
 
   const voterUserIds = Array.from(new Set([ownerId, ...((collaboratorRows || []).map((row) => row.user_id).filter((id): id is string => typeof id === 'string' && !!id))]))
-  const voteRows = grades.flatMap((item) => {
+  const voteRows = validatedGrades.flatMap((item) => {
     const climbId = climbIdByRouteLineId.get(item.routeLineId)
     if (!climbId) return []
     return voterUserIds.map((voterUserId) => ({ climb_id: climbId, user_id: voterUserId, grade: item.grade }))

@@ -1,12 +1,19 @@
 'use server'
 
 import { getActionAuth } from '@/lib/actions/action-auth'
-import { ok, type ActionResult } from '@/lib/actions/action-result'
+import { fail, ok, type ActionResult } from '@/lib/actions/action-result'
+import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { resolveEffectiveClimbId } from '@/features/climb/lib/effective-climb'
 import { isValidGrade } from '@/lib/grade-constants'
 import { loadGradeDistribution, upsertGradeVote } from '@/features/grades/lib/grade-votes'
 import { reportError } from '@/lib/errors'
 import { getServerClient } from '@/lib/supabase-server'
+import { z } from 'zod'
+
+const submitGradeVoteSchema = z.object({
+  climbId: z.string().trim().min(1, 'Climb not found'),
+  grade: z.string().refine((value) => isValidGrade(value), 'Invalid grade'),
+})
 
 interface GradeVoteSummary {
   vote_count: number
@@ -16,12 +23,10 @@ interface GradeVoteSummary {
 }
 
 export async function submitGradeVoteAction(climbId: string, grade: string): Promise<ActionResult<GradeVoteSummary>> {
-  if (!climbId) {
-    return { success: false, error: 'Climb not found', status: 404 }
-  }
-
-  if (typeof grade !== 'string' || !isValidGrade(grade)) {
-    return { success: false, error: 'Invalid grade', status: 400 }
+  const validation = validateActionInput(submitGradeVoteSchema, { climbId, grade })
+  if (!validation.success) {
+    const status = validation.result.error === 'Climb not found' ? 404 : validation.result.status || 400
+    return fail<GradeVoteSummary>(validation.result.error || 'Invalid request data', status)
   }
 
   const auth = await getActionAuth()
@@ -34,9 +39,10 @@ export async function submitGradeVoteAction(climbId: string, grade: string): Pro
   }
 
   const userId = auth.data.userId
+  const { climbId: validatedClimbId, grade: validatedGrade } = validation.data
 
   const supabase = await getServerClient()
-  const effectiveClimbId = await resolveEffectiveClimbId(supabase, climbId)
+  const effectiveClimbId = await resolveEffectiveClimbId(supabase, validatedClimbId)
 
   if (!effectiveClimbId) {
     return { success: false, error: 'Climb not found', status: 404 }
@@ -48,7 +54,7 @@ export async function submitGradeVoteAction(climbId: string, grade: string): Pro
     entityColumn: 'climb_id',
     entityId: effectiveClimbId,
     userId,
-    grade,
+    grade: validatedGrade,
   })
 
   if (upsertError) {

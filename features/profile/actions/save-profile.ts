@@ -1,9 +1,20 @@
 'use server'
 
-import { type ActionResult } from '@/lib/actions/action-result'
+import { fail, type ActionResult } from '@/lib/actions/action-result'
+import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
+import { z } from 'zod'
+
+const allowedGenders = ['male', 'female', 'other', 'prefer_not_to_say'] as const
+
+const saveProfileSchema = z.object({
+  username: z.string().trim().min(1, 'Username cannot be empty').min(3, 'Username must be between 3 and 30 characters').max(30, 'Username must be between 3 and 30 characters').regex(/^[A-Za-z0-9._-]+$/, 'Username can only contain letters, numbers, underscores, periods, and hyphens').optional(),
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  gender: z.enum(allowedGenders).nullable().optional(),
+})
 
 interface SaveProfileInput {
   username?: string
@@ -13,6 +24,9 @@ interface SaveProfileInput {
 }
 
 export async function saveProfileAction(input: SaveProfileInput): Promise<ActionResult<{ suggestions?: string[] }>> {
+  const validation = validateActionInput(saveProfileSchema, input)
+  if (!validation.success) return fail<{ suggestions?: string[] }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) {
     return { success: false, error: auth.error, status: auth.status }
@@ -22,34 +36,7 @@ export async function saveProfileAction(input: SaveProfileInput): Promise<Action
     return { success: false, error: 'Unauthorized', status: 401 }
   }
 
-  const { username, first_name, last_name, gender } = input
-
-  if (username !== undefined) {
-    const trimmedUsername = username.trim()
-
-    if (trimmedUsername.length === 0) {
-      return { success: false, error: 'Username cannot be empty', status: 400 }
-    }
-
-    if (trimmedUsername.length < 3 || trimmedUsername.length > 30) {
-      return { success: false, error: 'Username must be between 3 and 30 characters', status: 400 }
-    }
-
-    if (!/^[A-Za-z0-9._-]+$/.test(trimmedUsername)) {
-      return {
-        success: false,
-        error: 'Username can only contain letters, numbers, underscores, periods, and hyphens',
-        status: 400,
-      }
-    }
-  }
-
-  if (gender !== undefined && gender !== null) {
-    const allowedGenders = ['male', 'female', 'other', 'prefer_not_to_say']
-    if (!allowedGenders.includes(gender)) {
-      return { success: false, error: 'Invalid gender value', status: 400 }
-    }
-  }
+  const { username, first_name, last_name, gender } = validation.data
 
   const updateData: Record<string, unknown> = {}
   if (username !== undefined) updateData.username = username.trim()

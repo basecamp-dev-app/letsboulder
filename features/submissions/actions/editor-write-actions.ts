@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { getActionAuth } from '@/lib/actions/action-auth'
-import { type ActionResult } from '@/lib/actions/action-result'
+import { fail, type ActionResult } from '@/lib/actions/action-result'
+import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { getAdminClient, getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
 import { assertDraftReadAccess, normalizeDraftRoutePayload } from '@/features/submissions/server/drafts/draft-route-helpers'
@@ -17,6 +18,7 @@ import { deleteSubmissionRoute } from '@/features/submissions/server/submissions
 import { updateSubmissionRoutes } from '@/features/submissions/server/submissions/update-submission-routes'
 import { type SubmissionRouteMutationDeps } from '@/features/submissions/server/submissions/route-line-shared'
 import { FACE_DIRECTIONS, type FaceDirection } from '@/features/submissions/lib/submission-types'
+import { z } from 'zod'
 
 interface DraftPatchBody {
   images: DraftPatchImage[]
@@ -99,18 +101,45 @@ function normalizeFacesPayload(value: unknown): { imageIds: string[] } | null {
   return { imageIds }
 }
 
+const draftPatchSchema = z.object({
+  draftId: z.string().trim().min(1, 'Draft ID is required'),
+  body: z.object({
+    images: z.array(z.object({
+      id: z.string().trim().min(1),
+      display_order: z.number().int(),
+      route_data: z.record(z.string(), z.unknown()),
+    })).min(1, 'images must be a non-empty array of {id, display_order, route_data}'),
+    expected_updated_at: z.string().trim().min(1, 'expected_updated_at is required and must be a valid ISO timestamp'),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    cragId: z.string().trim().min(1).nullable().optional(),
+  }),
+})
+
+const syncDraftRoutesSchema = z.object({
+  draftId: z.string().trim().min(1, 'Draft ID is required'),
+  draftImageId: z.string().trim().min(1, 'draftImageId is required'),
+  routes: z.unknown(),
+})
+
+const imageBodySchema = z.object({
+  imageId: z.string().trim().min(1, 'Image ID is required'),
+  body: z.unknown(),
+})
+
 export async function patchSubmissionDraftAction(draftId: string, body: DraftPatchBody): Promise<ActionResult<{ draft: DraftPatchResult | { updated_at: string } }>> {
+  const validation = validateActionInput(draftPatchSchema, { draftId, body })
+  if (!validation.success) return fail<{ draft: DraftPatchResult | { updated_at: string } }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!draftId) return { success: false, error: 'Draft ID is required', status: 400 }
 
-  const images = normalizePatchImages(body?.images)
+  const images = normalizePatchImages(validation.data.body.images)
   if (!images) {
     return { success: false, error: 'images must be a non-empty array of {id, display_order, route_data}', status: 400 }
   }
 
-  const expectedUpdatedAtRaw = typeof body?.expected_updated_at === 'string' ? body.expected_updated_at.trim() : ''
+  const expectedUpdatedAtRaw = validation.data.body.expected_updated_at
   const expectedUpdatedAtDate = expectedUpdatedAtRaw ? new Date(expectedUpdatedAtRaw) : null
   if (!expectedUpdatedAtDate || Number.isNaN(expectedUpdatedAtDate.getTime())) {
     return { success: false, error: 'expected_updated_at is required and must be a valid ISO timestamp', status: 400 }
@@ -120,7 +149,7 @@ export async function patchSubmissionDraftAction(draftId: string, body: DraftPat
   const { data: draft, error: draftError } = await supabase
     .from('submission_drafts')
     .select('id, user_id, status, updated_at, last_edited_by')
-    .eq('id', draftId)
+    .eq('id', validation.data.draftId)
     .maybeSingle()
 
   if (draftError || !draft) return { success: false, error: 'Draft not found', status: 404 }
@@ -128,10 +157,10 @@ export async function patchSubmissionDraftAction(draftId: string, body: DraftPat
   const isOwner = draft.user_id === auth.data.userId
   if (!isOwner) {
     const { data: collaboratorAccess, error: collaboratorError } = await supabase
-      .from('submission_draft_collaborators')
-      .select('draft_id')
-      .eq('draft_id', draftId)
-      .eq('user_id', auth.data.userId)
+        .from('submission_draft_collaborators')
+        .select('draft_id')
+        .eq('draft_id', validation.data.draftId)
+        .eq('user_id', auth.data.userId)
       .maybeSingle()
 
     if (collaboratorError || !collaboratorAccess) {
@@ -164,7 +193,7 @@ export async function patchSubmissionDraftAction(draftId: string, body: DraftPat
   }
 
   const { data: patchResultRaw, error: patchError } = await supabase.rpc('patch_submission_draft_images_atomic', {
-    p_draft_id: draftId,
+    p_draft_id: validation.data.draftId,
     p_images: images,
     p_expected_updated_at: expectedUpdatedAtRaw,
   })
@@ -174,7 +203,7 @@ export async function patchSubmissionDraftAction(draftId: string, body: DraftPat
       const { data: currentDraft } = await supabase
         .from('submission_drafts')
         .select('updated_at, last_edited_by')
-        .eq('id', draftId)
+        .eq('id', validation.data.draftId)
         .maybeSingle()
 
       let lastUpdatedByDisplayName: string | null = null
@@ -200,15 +229,15 @@ export async function patchSubmissionDraftAction(draftId: string, body: DraftPat
   }
 
   const patchResult = (patchResultRaw || null) as DraftPatchResult | null
-  const metadataPatch = body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : null
-  const nextCragId = typeof body?.cragId === 'string' ? body.cragId : body?.cragId === null ? null : undefined
+  const metadataPatch = validation.data.body.metadata ?? null
+  const nextCragId = validation.data.body.cragId
 
   if (metadataPatch || nextCragId !== undefined) {
-    const { data: existingDraft, error: existingDraftError } = await supabase
-      .from('submission_drafts')
-      .select('metadata')
-      .eq('id', draftId)
-      .single()
+      const { data: existingDraft, error: existingDraftError } = await supabase
+        .from('submission_drafts')
+        .select('metadata')
+        .eq('id', validation.data.draftId)
+        .single()
 
     if (existingDraftError) return { success: false, error: 'Failed to read submission draft metadata', status: 500 }
 
@@ -253,7 +282,7 @@ export async function patchSubmissionDraftAction(draftId: string, body: DraftPat
     const { data: updatedDraft, error: updateDraftError } = await supabase
       .from('submission_drafts')
       .update(updatePayload)
-      .eq('id', draftId)
+      .eq('id', validation.data.draftId)
       .eq('status', 'draft')
       .select('updated_at')
       .maybeSingle()
@@ -263,34 +292,35 @@ export async function patchSubmissionDraftAction(draftId: string, body: DraftPat
     return {
       success: true,
       data: {
-        draft: {
-          ...(patchResult || { draft_id: draftId, updated_at: updatePayload.updated_at, updated_count: 0, images: [] }),
+          draft: {
+          ...(patchResult || { draft_id: validation.data.draftId, updated_at: updatePayload.updated_at, updated_count: 0, images: [] }),
           updated_at: updatedDraft?.updated_at || patchResult?.updated_at || updatePayload.updated_at,
         },
       },
     }
   }
 
-  return { success: true, data: { draft: patchResult || { draft_id: draftId, updated_at: draft.updated_at, updated_count: 0, images: [] } } }
+  return { success: true, data: { draft: patchResult || { draft_id: validation.data.draftId, updated_at: draft.updated_at, updated_count: 0, images: [] } } }
 }
 
 export async function syncSubmissionDraftRoutesAction(draftId: string, draftImageId: string, routes: unknown): Promise<ActionResult> {
+  const validation = validateActionInput(syncDraftRoutesSchema, { draftId, draftImageId, routes })
+  if (!validation.success) return validation.result
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!draftId) return { success: false, error: 'Draft ID is required', status: 400 }
-  if (!draftImageId) return { success: false, error: 'draftImageId is required', status: 400 }
 
-  const normalizedRoutes = normalizeDraftRoutePayload(routes)
+  const normalizedRoutes = normalizeDraftRoutePayload(validation.data.routes)
   if (!normalizedRoutes) return { success: false, error: 'routes must be an array', status: 400 }
 
   const supabase = await getServerClient()
-  const access = await assertDraftReadAccess(supabase, draftId, auth.data.userId)
+  const access = await assertDraftReadAccess(supabase, validation.data.draftId, auth.data.userId)
   if (access.error) return { success: false, error: 'Forbidden', status: access.error.status }
 
   const { error } = await supabase.rpc('sync_submission_draft_routes', {
-    p_draft_id: draftId,
-    p_draft_image_id: draftImageId,
+    p_draft_id: validation.data.draftId,
+    p_draft_image_id: validation.data.draftImageId,
     p_routes: normalizedRoutes.map((route) => ({
       id: route.id,
       name: route.name,
@@ -309,61 +339,69 @@ export async function syncSubmissionDraftRoutesAction(draftId: string, draftImag
 }
 
 export async function createPublishedSubmissionRoutesAction(imageId: string, body: unknown): Promise<ActionResult> {
+  const validation = validateActionInput(imageBodySchema, { imageId, body })
+  if (!validation.success) return validation.result
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
 
   const supabase = await getServerClient()
   const supabaseAdmin = getAdminClient()
-  const deps: SubmissionRouteMutationDeps = { supabase, supabaseAdmin, userId: auth.data.userId, imageId }
-  const response = await createSubmissionRoutes(deps, body)
+  const deps: SubmissionRouteMutationDeps = { supabase, supabaseAdmin, userId: auth.data.userId, imageId: validation.data.imageId }
+  const response = await createSubmissionRoutes(deps, validation.data.body)
   const payload = await response.json().catch(() => ({} as { error?: string }))
   if (!response.ok) return { success: false, error: payload.error || 'Create routes error', status: response.status }
   return { success: true, data: payload }
 }
 
 export async function updatePublishedSubmissionRoutesAction(imageId: string, body: unknown): Promise<ActionResult> {
+  const validation = validateActionInput(imageBodySchema, { imageId, body })
+  if (!validation.success) return validation.result
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
 
   const supabase = await getServerClient()
-  const deps: SubmissionRouteMutationDeps = { supabase, supabaseAdmin: null, userId: auth.data.userId, imageId }
-  const response = await updateSubmissionRoutes(deps, body)
+  const deps: SubmissionRouteMutationDeps = { supabase, supabaseAdmin: null, userId: auth.data.userId, imageId: validation.data.imageId }
+  const response = await updateSubmissionRoutes(deps, validation.data.body)
   const payload = await response.json().catch(() => ({} as { error?: string }))
   if (!response.ok) return { success: false, error: payload.error || 'Update submitted routes error', status: response.status }
   return { success: true, data: payload }
 }
 
 export async function deletePublishedSubmissionRouteAction(imageId: string, body: unknown): Promise<ActionResult> {
+  const validation = validateActionInput(imageBodySchema, { imageId, body })
+  if (!validation.success) return validation.result
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
 
   const supabase = await getServerClient()
   const supabaseAdmin = getAdminClient()
-  const deps: SubmissionRouteMutationDeps = { supabase, supabaseAdmin, userId: auth.data.userId, imageId }
-  const response = await deleteSubmissionRoute(deps, body)
+  const deps: SubmissionRouteMutationDeps = { supabase, supabaseAdmin, userId: auth.data.userId, imageId: validation.data.imageId }
+  const response = await deleteSubmissionRoute(deps, validation.data.body)
   const payload = await response.json().catch(() => ({} as { error?: string }))
   if (!response.ok) return { success: false, error: payload.error || 'Delete route error', status: response.status, data: payload }
   return { success: true, data: payload }
 }
 
 export async function updateSubmissionImageMetadataAction(imageId: string, body: unknown): Promise<ActionResult<{ metadata: Record<string, unknown> }>> {
+  const validation = validateActionInput(imageBodySchema, { imageId, body })
+  if (!validation.success) return fail<{ metadata: Record<string, unknown> }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
 
-  const payload = normalizeImageMetadataPayload(body)
+  const payload = normalizeImageMetadataPayload(validation.data.body)
   if (!payload) return { success: false, error: 'Invalid payload', status: 400 }
 
   const supabase = await getServerClient()
   const { data: result, error: rpcError } = await supabase.rpc('update_submission_image_metadata', {
-    p_image_id: imageId,
+    p_image_id: validation.data.imageId,
     p_latitude: payload.latitude,
     p_longitude: payload.longitude,
     p_face_directions: payload.faceDirections,
@@ -379,8 +417,8 @@ export async function updateSubmissionImageMetadataAction(imageId: string, body:
     return { success: false, error: 'Update submission image metadata error', status: 500 }
   }
 
-  const { data: directLink } = await supabase.from('crag_images').select('source_image_id').eq('linked_image_id', imageId).maybeSingle()
-  const sourceImageId = typeof directLink?.source_image_id === 'string' && directLink.source_image_id ? directLink.source_image_id : imageId
+  const { data: directLink } = await supabase.from('crag_images').select('source_image_id').eq('linked_image_id', validation.data.imageId).maybeSingle()
+  const sourceImageId = typeof directLink?.source_image_id === 'string' && directLink.source_image_id ? directLink.source_image_id : validation.data.imageId
   const relatedImageIds = new Set<string>([sourceImageId])
   const { data: linkedImages } = await supabase.from('crag_images').select('linked_image_id').eq('source_image_id', sourceImageId)
 
@@ -402,7 +440,7 @@ export async function updateSubmissionImageMetadataAction(imageId: string, body:
   }
 
   revalidatePath('/')
-  const { data: image } = await supabase.from('images').select('crag_id').eq('id', imageId).single()
+  const { data: image } = await supabase.from('images').select('crag_id').eq('id', validation.data.imageId).single()
   if (image?.crag_id) {
     const { data: cragData } = await supabase.from('crags').select('slug, country_code').eq('id', image.crag_id).single()
     if (cragData?.slug && cragData?.country_code) {
@@ -426,19 +464,21 @@ export async function updateSubmissionImageMetadataAction(imageId: string, body:
 }
 
 export async function reorderSubmissionFacesAction(imageId: string, body: unknown): Promise<ActionResult<{ updatedCount: number }>> {
+  const validation = validateActionInput(imageBodySchema, { imageId, body })
+  if (!validation.success) return fail<{ updatedCount: number }>(validation.result.error || 'Invalid request data', validation.result.status || 400)
+
   const auth = await getActionAuth()
   if (!auth.success) return { success: false, error: auth.error, status: auth.status }
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
-  if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
 
-  const payload = normalizeFacesPayload(body)
+  const payload = normalizeFacesPayload(validation.data.body)
   if (!payload) return { success: false, error: 'Invalid payload', status: 400 }
 
   const supabase = await getServerClient()
   const { data: image, error: imageError } = await supabase
     .from('images')
     .select('submission_id, crag_id')
-    .eq('id', imageId)
+    .eq('id', validation.data.imageId)
     .maybeSingle()
 
   if (imageError) return { success: false, error: 'Reorder submission faces error', status: 500 }
