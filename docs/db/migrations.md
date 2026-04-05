@@ -2,7 +2,7 @@
 
 ## Rule
 
-- The canonical database schema is defined by `supabase/migrations/*.sql` in git.
+- The canonical database schema and migration ledger are defined by `supabase/migrations/*.sql` in git.
 - Any schema change must be represented as a new migration committed to the repo.
 - Avoid applying schema changes manually via the Supabase dashboard SQL editor (except true emergencies). If you do, immediately capture the change as a migration and commit it.
 
@@ -37,7 +37,7 @@ ls supabase/migrations | sed -n 's/\(^[0-9]\{14\}\).*/\1/p' | sort
 3. Differences:
 
 - In git but not DB: apply migrations.
-- In DB but not git: reconstruct those changes into new migration files.
+- In DB but not git: reconstruct those versions into git so the repo remains the full migration ledger. If the original SQL was superseded, add a historical placeholder migration file instead of leaving CI to repair around the gap.
 
 ## Recommended Cleanup Workflow (Prod Canonical)
 

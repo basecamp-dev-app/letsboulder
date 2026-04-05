@@ -36,19 +36,6 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
 
-      - name: Revert orphaned migration versions
-        run: |
-          # These migration files were applied manually via SQL Editor and
-          # then removed from the repo because the Supabase CLI cannot parse
-          # PL/pgSQL function bodies. Revert them in the remote history so
-          # db push doesn't fail with "versions not found locally".
-          supabase migration repair --status reverted 20260345000001 --linked
-          supabase migration repair --status reverted 20260345000003 --linked
-          supabase migration repair --status reverted 20260345000004 --linked
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-
       - name: Apply migrations
         run: supabase db push --linked --include-all --yes
         env:
