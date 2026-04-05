@@ -5,7 +5,6 @@ import { useQuery } from '@tanstack/react-query'
 import type { User } from '@supabase/supabase-js'
 import { useSearchParams } from 'next/navigation'
 import LogbookView from '@/features/logbook/components/LogbookView'
-import { LogbookSkeleton } from '@/features/logbook/components/LogbookStates'
 import { useToast } from '@/features/logbook/components/Toast'
 import { fetchOwnLogbookData, ownLogbookQueryKey, type OwnLogbookData } from '@/features/logbook/lib/queries'
 import type { ServerLogbookSummary } from '@/features/logbook/lib/queries-server'
@@ -36,17 +35,10 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: Serve
     gcTime: 30 * 60 * 1000,
   })
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-gray-950">
-        <LogbookSkeleton variant="own" />
-      </div>
-    )
-  }
-
   return (
     <LogbookView
       toastListener={<LogbookPaymentToastListener onToast={addToast} />}
+      isHydratingSubmissions={isLoading && !!initialData}
       userId={user.id}
       isOwnProfile={true}
       initialLogs={initialData?.logs || data?.logs || []}
