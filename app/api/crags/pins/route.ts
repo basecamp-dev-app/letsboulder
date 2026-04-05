@@ -58,7 +58,7 @@ export async function GET() {
         return NextResponse.json({ error: 'Failed to fetch crag pins' }, { status: 500 })
       }
 
-      console.warn('get_crag_pins(include_pending) not available, falling back to get_crag_pins()')
+      reportError(new Error('get_crag_pins(include_pending) not available, falling back to get_crag_pins()'), { level: 'warning' })
 
       const { data: fallbackRows, error: fallbackError } = await supabase.rpc('get_crag_pins')
       if (fallbackError) {

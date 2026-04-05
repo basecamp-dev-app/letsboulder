@@ -1,6 +1,6 @@
 'use client'
 
-import { Facebook, Link2, MessageCircle, Twitter } from 'lucide-react'
+import { Link2, MessageCircle, Share2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -26,11 +26,11 @@ export default function ClimbShareDialog({ open, climbName, onOpenChange, onShar
         </DialogHeader>
         <div className="grid grid-cols-4 gap-3 py-4">
           <Button variant="outline" onClick={onShareTwitter} className="flex flex-col items-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800">
-            <Twitter className="w-6 h-6 text-blue-400" />
-            <span className="text-xs">Twitter</span>
+            <X className="w-6 h-6 text-blue-400" />
+            <span className="text-xs">X</span>
           </Button>
           <Button variant="outline" onClick={onShareFacebook} className="flex flex-col items-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800">
-            <Facebook className="w-6 h-6 text-blue-600" />
+            <Share2 className="w-6 h-6 text-blue-600" />
             <span className="text-xs">Facebook</span>
           </Button>
           <Button variant="outline" onClick={onShareWhatsApp} className="flex flex-col items-center gap-2 h-auto py-4 border-gray-700 hover:bg-gray-800">

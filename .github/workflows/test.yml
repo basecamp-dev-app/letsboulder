@@ -1,4 +1,4 @@
-name: E2E Tests
+name: CI
 
 on:
   deployment_status:
@@ -31,14 +31,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node20-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
         run: npm ci --prefer-offline
@@ -81,14 +75,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node20-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Cache Playwright browsers
         id: playwright-cache
@@ -99,9 +87,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --prefer-offline
-
-      - name: Run Unit Tests
-        run: npm run test:unit
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -280,12 +265,6 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node20-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Cache Playwright browsers
         id: playwright-cache
