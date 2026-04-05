@@ -306,8 +306,9 @@ export async function GET(
   }
 
   const isR2 = isR2ManagedBucket(bucket)
+  const isPublicR2 = bucket === serverEnv.R2_PUBLIC_BUCKET
 
-  if (process.env.NODE_ENV === 'production' && isR2) {
+  if (process.env.NODE_ENV === 'production' && isPublicR2) {
     const cdnUrl = buildCdnUrl(objectPath)
     if (cdnUrl) {
       return NextResponse.redirect(cdnUrl, 302)
