@@ -3,16 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import NextImage from 'next/image'
 import type { NewImageSelection } from '@/features/submissions/lib/submission-types'
-import type { GpsData } from '@/types/domain'
-import { isHeicFile, isSupportedImageFile } from '@/lib/image-utils'
-import { extractGpsFromFile } from '@/lib/image-gps'
 import {
   buildSubmittedImageSelection,
   compressSubmissionImage,
   detectSubmissionImageGps,
   getImageDimensions,
   uploadSubmissionImageSession,
-} from '@/app/submit/components/image-uploader-flow'
+} from '@/features/submissions/lib/image-uploader-flow'
+import { extractGpsFromFile } from '@/lib/image-gps'
+import { isHeicFile, isSupportedImageFile } from '@/lib/image-utils'
+import type { GpsData } from '@/types/domain'
 
 interface ImageUploaderProps {
   onComplete: (result: NewImageSelection) => void
@@ -260,11 +260,12 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           )}
 
           <button
+            type="button"
             onClick={handleConfirm}
-            disabled={compressing}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={!compressedFile || compressing}
+            className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {compressing ? 'Compressing...' : 'Upload Photo'}
+            Upload Photo
           </button>
         </div>
       ) : (
@@ -272,30 +273,33 @@ export default function ImageUploader({ onComplete, onError, onUploading }: Imag
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
-          onClick={() => fileInputRef.current?.click()}
-          className={`
-            border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200
-            ${isDragging
-              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-              : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
-            }
-            ${compressing ? 'opacity-50 cursor-not-allowed' : ''}
-          `}
+          className={`rounded-lg border-2 border-dashed p-8 text-center transition ${
+            isDragging
+              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10'
+              : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500'
+          }`}
         >
-          <svg className={`w-12 h-12 mx-auto ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mt-2">
-            {isDragging ? 'Drop original image file here' : 'Choose original image file'}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            JPEG, PNG, HEIC, WebP, max 20MB
-          </p>
-          {(isAndroidDevice || isIosDevice) && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Use Files/My Files (not Gallery/Photos picker) to preserve GPS metadata
-            </p>
-          )}
+          <div className="space-y-4">
+            <div className="mx-auto h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+              <svg className="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={compressing}
+                className="text-lg font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                Choose original image file
+              </button>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">or drag and drop it here</p>
+            </div>
+
+            <p className="text-xs text-gray-400 dark:text-gray-500">Supports JPEG, PNG, WebP, HEIC, and HEIF up to 20MB.</p>
+          </div>
         </div>
       )}
     </div>

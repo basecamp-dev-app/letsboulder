@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { csrfFetch } from '@/hooks/useCsrf'
 import { saveSettingsAction } from '@/features/settings/actions/save-settings'
-import { updateGradePreferences } from '@/lib/grades/preferences'
-import type { GradeSystem } from '@/lib/grade-display'
-import { formatLengthInputFromCm, parseLengthInputToCm, type MeasurementUnits } from '@/lib/measurement-units'
 import { settingsQueryKey, type SettingsPayload } from '@/features/settings/lib/queries'
-import { normalizeSubmissionCreditHandle, type SubmissionCreditPlatform } from '@/lib/submission-credit'
 import { reportError } from '@/lib/errors'
+import type { GradeSystem } from '@/lib/grade-display'
+import { updateGradePreferences } from '@/lib/grades/preferences'
+import { formatLengthInputFromCm, parseLengthInputToCm, type MeasurementUnits } from '@/lib/measurement-units'
+import { normalizeSubmissionCreditHandle, type SubmissionCreditPlatform } from '@/lib/submission-credit'
+import { csrfFetch } from '@/hooks/useCsrf'
 
 interface UseSettingsFormParams {
   data: SettingsPayload | undefined
@@ -112,7 +112,7 @@ export function useSettingsForm({ data, isLoading, error }: UseSettingsFormParam
   }
 
   const handleFormChange = (field: keyof typeof formData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData((prev) => ({ ...prev, [field]: value }))
     setIsDirty(true)
   }
 
@@ -258,10 +258,10 @@ export function useSettingsForm({ data, isLoading, error }: UseSettingsFormParam
     setDeleteModalOpen(open)
     if (!open) {
       setConfirmText('')
+      setDeleteLoading(false)
+      setDeleteSent(false)
     }
   }
-
-  const isConfirmed = confirmText.toLowerCase().trim() === 'delete my account'
 
   return {
     loading,
@@ -281,11 +281,10 @@ export function useSettingsForm({ data, isLoading, error }: UseSettingsFormParam
     deleteRouteUploads,
     deleteLoading,
     confirmText,
-    setConfirmText,
     deleteSent,
     setDeleteSent,
     setDeleteRouteUploads,
-    isConfirmed,
+    isConfirmed: confirmText.trim().toLowerCase() === 'delete my account',
     handleFormChange,
     handleUnitsChange,
     handleSave,
@@ -297,5 +296,6 @@ export function useSettingsForm({ data, isLoading, error }: UseSettingsFormParam
     handleInitiateDelete,
     handleDeleteCancel,
     handleDeleteModalOpenChange,
+    setConfirmText,
   }
 }

@@ -4,6 +4,12 @@ function normalizePath(value) {
   return value.replace(/\\/g, '/').replace(/\/+/g, '/')
 }
 
+function isEntrypointFile(pathname) {
+  const normalized = normalizePath(pathname).replace(/\.[^.]+$/, '')
+  const filename = normalized.split('/').at(-1)
+  return filename === 'page' || filename === 'layout' || filename === 'loading' || filename === 'error' || filename === 'not-found' || filename === 'template' || filename === 'route'
+}
+
 function getRouteScopeFromFile(filename) {
   const normalized = normalizePath(path.relative(process.cwd(), filename))
   if (!normalized.startsWith('app/')) return null
@@ -65,6 +71,8 @@ export default {
     messages: {
       crossRouteImport:
         'Do not import from {{importPath}} across route subtrees. Move reusable code into features/**, lib/**, or components/**.',
+      aliasImportWithinApp:
+        'Do not import {{importPath}} via @/app/** inside app/**. Use a route-local relative import or move reusable code into features/**, lib/**, or components/**.',
     },
   },
   create(context) {
@@ -82,6 +90,15 @@ export default {
         const importPath = node.source.value
         const importScope = getRouteScopeFromImport(importPath)
         if (!importScope) return
+
+        if (importPath.startsWith('@/app/') && !isEntrypointFile(importPath.slice(2))) {
+          context.report({
+            node,
+            messageId: 'aliasImportWithinApp',
+            data: { importPath },
+          })
+          return
+        }
 
         if (!isSameOrNestedScope(sourceScope, importScope)) {
           context.report({

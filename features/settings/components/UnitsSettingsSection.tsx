@@ -1,7 +1,7 @@
 'use client'
 
+import type { GradeOption } from '@/features/settings/types/settings-content'
 import type { GradeSystem } from '@/lib/grade-display'
-import type { GradeOption } from '@/app/(shell)/settings/components/settings-content.types'
 
 interface GradeSystemGroupProps {
   title: string
