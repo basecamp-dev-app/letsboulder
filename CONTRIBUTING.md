@@ -4,10 +4,8 @@ Solo-developer project — bouldering topo and climbing logbook.
 
 ## Branch Strategy
 
-- `dev` — working and staging branch, all day-to-day development
-- `main` — production branch, auto-deploys to letsboulder.com
-- Merge `dev` → `main` for production releases
-- Merge `main` → `dev` after each release to keep branches aligned
+- `main` — single production branch, all development goes here
+- CI runs on push to main, auto-deploys to letsboulder.com
 
 ## Commit Conventions
 

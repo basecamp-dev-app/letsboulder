@@ -82,30 +82,21 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 
 ## Solo Workflow
 
-- Do all day-to-day development in `dev`
+- Work directly on `main` - all changes go to main
 - Test locally first with `npm run dev`
-- Push `dev` when you want to verify the deployed staging environment
-- After staging looks good, merge `dev` into `main` and push `main`
-- Merge `main` back into `dev` so both branches stay aligned after each release
-- Keep `main` as production-only and avoid direct commits there
+- Push `main` when ready - CI runs and Vercel deploys to production
 
-Typical release flow:
+Typical workflow:
 
 ```bash
-git checkout dev
-git pull origin dev
-
-# work, test, commit
-git push origin dev
-
 git checkout main
 git pull origin main
-git merge dev
+
+# work, test, commit
 git push origin main
 
-git checkout dev
-git merge main
-git push origin dev
+# CI runs automatically
+# Vercel deploys to letsboulder.com
 ```
 
 ## Documentation
