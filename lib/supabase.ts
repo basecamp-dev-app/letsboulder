@@ -8,9 +8,16 @@ export function createClient() {
     return browserClient
   }
 
+  const supabaseUrl = clientEnv.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  }
+
   const client = createBrowserClient(
-    clientEnv.NEXT_PUBLIC_SUPABASE_URL,
-    clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       auth: {
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
