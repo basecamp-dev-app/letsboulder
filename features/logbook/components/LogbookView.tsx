@@ -7,7 +7,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { useGradeSystem } from '@/lib/grades/preferences'
-import { EmptyLogbook } from '@/features/logbook/components/LogbookStates'
+import { EmptyLogbook, LogEntrySkeleton } from '@/features/logbook/components/LogbookStates'
 import { LogbookStatsSection } from '@/features/logbook/components/LogbookStatsSection'
 import { ToastContainer } from '@/components/ui/toast'
 import { useToast } from '@/hooks/use-toast'
@@ -38,6 +38,7 @@ const DeferredLogbookSubmissions = dynamic(() => import('@/app/(shell)/logbook/D
 
 interface LogbookViewProps {
   toastListener?: React.ReactNode
+  isHydratingSubmissions?: boolean
   userId: string
   isOwnProfile: boolean
   initialLogs?: LogbookClimb[]
@@ -45,7 +46,15 @@ interface LogbookViewProps {
   initialSubmissions?: Submission[]
 }
 
-export default function LogbookView({ toastListener, userId, isOwnProfile, initialLogs = [], profile, initialSubmissions = [] }: LogbookViewProps) {
+export default function LogbookView({
+  toastListener,
+  isHydratingSubmissions = false,
+  userId,
+  isOwnProfile,
+  initialLogs = [],
+  profile,
+  initialSubmissions = [],
+}: LogbookViewProps) {
   const gradeSystem = useGradeSystem()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -305,6 +314,8 @@ export default function LogbookView({ toastListener, userId, isOwnProfile, initi
           climbUrlMap={climbUrlMap}
         />
       ) : null}
+
+      {isHydratingSubmissions && submissions.length === 0 ? <LogEntrySkeleton count={3} /> : null}
 
       {(isOwnProfile || submissions.length > 0) ? (
         <DeferredLogbookSubmissions
