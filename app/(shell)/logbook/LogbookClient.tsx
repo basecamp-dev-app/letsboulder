@@ -38,9 +38,6 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
     queryFn: () => fetchOwnLogbookData(user),
     initialData,
     gcTime: 30 * 60 * 1000,
-    meta: {
-      persist: true,
-    },
   })
 
   useEffect(() => {

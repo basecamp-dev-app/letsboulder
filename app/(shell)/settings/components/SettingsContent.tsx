@@ -66,9 +66,6 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   const { data, isLoading, error } = useQuery({
     queryKey: settingsQueryKey,
     queryFn: fetchSettings,
-    meta: {
-      persist: true,
-    },
   })
 
   const form = useSettingsForm({ data, isLoading, error })

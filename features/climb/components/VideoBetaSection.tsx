@@ -61,9 +61,6 @@ export default function VideoBetaSection({ climbId }: VideoBetaSectionProps) {
   const { data: settingsData } = useQuery({
     queryKey: settingsQueryKey,
     queryFn: fetchSettings,
-    meta: {
-      persist: true,
-    },
   })
 
   const units = (settingsData?.settings.units || 'metric') as MeasurementUnits

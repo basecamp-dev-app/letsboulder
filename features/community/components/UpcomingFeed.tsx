@@ -57,7 +57,6 @@ function UpcomingSessionCard({ post }: { post: CommunitySessionPost }) {
   const { data: engagement, isLoading: isLoadingEngagement } = useQuery({
     queryKey: communityKeys.engagement(post.id),
     queryFn: () => fetchEngagement(post.id),
-    meta: { persist: true },
   })
 
   const rsvpMutation = useMutation({

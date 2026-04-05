@@ -1,11 +1,14 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import type { Session, User } from '@supabase/supabase-js'
 import { QueryClient } from '@tanstack/react-query'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
-import { createIdbPersister } from '@/lib/query-persistence'
+import { createIdbPersister, removeLegacyPersistedQueryCache, removePersistedQueryCache } from '@/lib/query-persistence'
+import { createClient } from '@/lib/supabase'
 
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000
+const ANON_QUERY_CACHE_SCOPE = 'anon'
 
 function createQueryClient() {
   return new QueryClient({
@@ -22,7 +25,39 @@ function createQueryClient() {
 
 export default function QueryProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(createQueryClient)
-  const [persister] = useState(createIdbPersister)
+  const supabase = useMemo(() => createClient(), [])
+  const [authScope, setAuthScope] = useState(ANON_QUERY_CACHE_SCOPE)
+  const previousAuthScopeRef = useRef(authScope)
+  const persister = useMemo(() => createIdbPersister(authScope), [authScope])
+
+  useEffect(() => {
+    let mounted = true
+
+    void removeLegacyPersistedQueryCache()
+
+    void supabase.auth.getUser().then(({ data: { user } }: { data: { user: User | null } }) => {
+      if (!mounted) return
+      setAuthScope(user?.id ?? ANON_QUERY_CACHE_SCOPE)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
+      setAuthScope(session?.user?.id ?? ANON_QUERY_CACHE_SCOPE)
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    const previousAuthScope = previousAuthScopeRef.current
+    if (previousAuthScope === authScope) return
+
+    queryClient.clear()
+    void removePersistedQueryCache(previousAuthScope)
+    previousAuthScopeRef.current = authScope
+  }, [authScope, queryClient])
 
   return (
     <PersistQueryClientProvider
