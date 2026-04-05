@@ -27,7 +27,7 @@ Bouldering topo and climbing logbook web app.
 ### Web App (Next.js 16)
 
 - **Location**: Root of repo
-- **Deploy**: Vercel, auto-deploys from `dev` and `main` branches
+- **Deploy**: Vercel, auto-deploys from `main` branch
 - **Router**: App Router (`app/`) with Server Components and Server Actions
 - **Client State**: feature route editor store (`features/route-editor/store/index.ts`) for route drawing state
 - **Server State**: TanStack React Query with 12-hour IndexedDB persistence (`lib/query-persistence.ts`)

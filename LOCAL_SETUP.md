@@ -160,23 +160,18 @@ npm run start
 
 ## Solo Git Workflow
 
-Use a simple two-branch flow:
-
-- `dev` is your working and staging branch
-- `main` is your production branch
-- after each production release, merge `main` back into `dev` so both branches stay aligned
-- do not keep a separate local `main` checkout unless you actively need it
-
-Recommended release flow:
+Use a single `main` branch - all changes go directly to main:
 
 ```bash
-git checkout dev
-git pull origin dev
+git checkout main
+git pull origin main
 
 # make changes, test locally, commit
-git push origin dev
+git push origin main
 
-# verify the dev deployment, including media flows backed by Cloudflare Worker + R2
+# CI runs automatically
+# Vercel deploys to production
+```
 
 git checkout main
 git pull origin main
