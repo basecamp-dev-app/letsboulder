@@ -1,9 +1,9 @@
 'use client'
 
-import { getLengthInputBounds, getLengthInputLabel, type MeasurementUnits } from '@/lib/measurement-units'
 import { CREDIT_PLATFORM_OPTIONS } from '@/features/submissions/lib/editor-constants'
 import { normalizeSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
-import type { SettingsProfileFormData } from '@/app/(shell)/settings/components/settings-content.types'
+import { getLengthInputBounds, getLengthInputLabel, type MeasurementUnits } from '@/lib/measurement-units'
+import type { SettingsProfileFormData } from '@/features/settings/types/settings-content'
 
 interface ProfileSettingsSectionProps {
   formData: SettingsProfileFormData

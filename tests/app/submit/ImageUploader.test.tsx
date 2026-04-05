@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import ImageUploader from '@/app/submit/components/ImageUploader'
+import ImageUploader from '@/features/submissions/components/ImageUploader'
 
 const mockExtractGpsFromFile = vi.fn()
 const mockBuildSubmittedImageSelection = vi.fn()
@@ -19,7 +19,7 @@ vi.mock('@/lib/image-gps', () => ({
   extractGpsFromFile: (...args: Parameters<typeof mockExtractGpsFromFile>) => mockExtractGpsFromFile(...args),
 }))
 
-vi.mock('@/app/submit/components/image-uploader-flow', () => ({
+vi.mock('@/features/submissions/lib/image-uploader-flow', () => ({
   buildSubmittedImageSelection: (...args: Parameters<typeof mockBuildSubmittedImageSelection>) => mockBuildSubmittedImageSelection(...args),
   compressSubmissionImage: (...args: Parameters<typeof mockCompressSubmissionImage>) => mockCompressSubmissionImage(...args),
   detectSubmissionImageGps: (...args: Parameters<typeof mockDetectSubmissionImageGps>) => mockDetectSubmissionImageGps(...args),

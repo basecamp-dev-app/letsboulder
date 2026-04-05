@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getServerClient } from '@/lib/supabase-server'
-import DraftIntakeClient from '@/app/submit/components/DraftIntakeClient'
+import DraftIntakeClient from '@/features/submissions/components/DraftIntakeClient'
 
 export default async function SubmitPage() {
   const supabase = await getServerClient()

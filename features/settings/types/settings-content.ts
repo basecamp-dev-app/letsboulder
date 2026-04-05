@@ -1,5 +1,5 @@
-import type { GradeSystem } from '@/lib/grade-display'
 import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
+import type { GradeSystem } from '@/lib/grade-display'
 
 export interface SettingsProfileFormData {
   firstName: string
