@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import MapViewport from '@/components/MapViewport'
 import { SITE_URL } from '@/lib/site'
+import { fetchMapPins } from '@/lib/supabase-server'
 
 export const revalidate = 60
 
@@ -32,6 +33,7 @@ export const metadata: Metadata = {
 }
 
 export default async function Home() {
+  const initialPlacePins = await fetchMapPins()
   const siteNavigation = {
     '@context': 'https://schema.org',
     '@type': 'SiteNavigationElement',
@@ -65,7 +67,7 @@ export default async function Home() {
 
   return (
     <>
-      <MapViewport />
+      <MapViewport initialPlacePins={initialPlacePins} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify([siteNavigation, webSite]) }}

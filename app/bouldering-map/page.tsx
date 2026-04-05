@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import MapViewport from '@/components/MapViewport'
+import { fetchMapPins } from '@/lib/supabase-server'
 
 export const metadata: Metadata = {
   title: 'Bouldering Map',
@@ -22,7 +23,8 @@ export const metadata: Metadata = {
   },
 }
 
-export default function BoulderingMapPage() {
+export default async function BoulderingMapPage() {
+  const initialPlacePins = await fetchMapPins()
   const webPageSchema = {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
@@ -33,7 +35,7 @@ export default function BoulderingMapPage() {
 
   return (
     <>
-      <MapViewport />
+      <MapViewport initialPlacePins={initialPlacePins} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}

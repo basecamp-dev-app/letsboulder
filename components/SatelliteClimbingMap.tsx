@@ -246,11 +246,11 @@ export default function SatelliteClimbingMap({
   }, [initialPlacePins.length, isClient])
 
   useEffect(() => {
-    if (!isClient || !mapLoaded || !hasUserInteracted) return
+    if (!isClient || !mapLoaded) return
     return runWhenIdle(() => {
       void loadPlacePins()
     }, 150)
-  }, [hasUserInteracted, isClient, loadPlacePins, mapLoaded])
+  }, [isClient, loadPlacePins, mapLoaded])
 
   useEffect(() => {
     if (!isClient || !mapLoaded || !hasUserInteracted) return
