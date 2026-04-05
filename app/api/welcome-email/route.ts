@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     const welcomeEmail = buildWelcomeEmail({ appUrl, firstName: firstName ?? null })
 
     if (!resendApiKey) {
-      console.warn('RESEND_API_KEY missing, returning mock welcome email response')
+      reportError(new Error('RESEND_API_KEY missing, returning mock welcome email response'), { level: 'warning' })
       return NextResponse.json({ success: true, id: 'mock_id' })
     }
 

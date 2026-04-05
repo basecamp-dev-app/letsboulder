@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { reportError } from '@/lib/errors'
 
 async function parseJsonSafe(response: Response): Promise<unknown> {
   const text = await response.text()
@@ -100,11 +101,7 @@ export async function GET(request: NextRequest) {
       const users = Array.isArray(listUsersData.users) ? listUsersData.users : []
 
       if (!listUsersResponse.ok) {
-        console.error('Test auth user list failed', {
-          status: listUsersResponse.status,
-          email: resolvedEmail,
-          payload: listUsersData,
-        })
+        reportError(new Error('Test auth user list failed'), { extra: { status: listUsersResponse.status, email: resolvedEmail, payload: listUsersData } })
         return NextResponse.json({ error: 'Failed to list test users' }, { status: 500 })
       }
 
@@ -148,11 +145,7 @@ export async function GET(request: NextRequest) {
       const createdUserEmail = createUserData.user?.email || createUserData.email || resolvedEmail
 
       if (!createUserResponse.ok || !createdUserId) {
-        console.error('Test auth user create failed', {
-          status: createUserResponse.status,
-          email: resolvedEmail,
-          payload: createUserData,
-        })
+        reportError(new Error('Test auth user create failed'), { extra: { status: createUserResponse.status, email: resolvedEmail, payload: createUserData } })
         return NextResponse.json({ error: 'Failed to create test user' }, { status: 500 })
       }
 
@@ -181,11 +174,7 @@ export async function GET(request: NextRequest) {
     const updateUserData = await parseJsonSafe(updateUserResponse)
 
     if (!updateUserResponse.ok) {
-      console.error('Test auth user update failed', {
-        status: updateUserResponse.status,
-        userId: resolvedUserId,
-        payload: updateUserData,
-      })
+      reportError(new Error('Test auth user update failed'), { extra: { status: updateUserResponse.status, userId: resolvedUserId, payload: updateUserData } })
       return NextResponse.json(
         { error: 'Failed to prepare test user' },
         { status: 500 }
@@ -210,11 +199,7 @@ export async function GET(request: NextRequest) {
     const tokenData = await parseJsonSafe(tokenResponse) as { access_token?: string; refresh_token?: string }
 
     if (!tokenResponse.ok || !tokenData.access_token || !tokenData.refresh_token) {
-      console.error('Test auth token exchange failed', {
-        status: tokenResponse.status,
-        userId: resolvedUserId,
-        payload: tokenData,
-      })
+      reportError(new Error('Test auth token exchange failed'), { extra: { status: tokenResponse.status, userId: resolvedUserId, payload: tokenData } })
       return NextResponse.json(
         { error: 'Failed to create auth session' },
         { status: 500 }
@@ -244,10 +229,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (sessionError) {
-      console.error('Test auth session persist failed', {
-        userId: resolvedUserId,
-        error: sessionError.message,
-      })
+      reportError(new Error('Test auth session persist failed'), { extra: { userId: resolvedUserId, error: sessionError.message } })
       return NextResponse.json(
         { error: 'Failed to persist auth session' },
         { status: 500 }
@@ -268,7 +250,7 @@ export async function GET(request: NextRequest) {
 
     return response
   } catch (error) {
-    console.error('Test auth error:', error)
+    reportError(error, { message: 'Test auth error' })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

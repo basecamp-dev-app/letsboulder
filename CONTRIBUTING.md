@@ -29,6 +29,14 @@ This project uses conventional commits:
 - Never commit `console.log`
 - Prefer Server Actions for UI mutations, Route Handlers for public API/webhooks
 
+## Logging
+
+- **Request-path code** (`app/api/**`, `lib/`, `features/**/server/**`): use `reportError` from `@/lib/errors` for warnings and errors. Never use `console.*` directly.
+- **Workers** (`workers/**`, `apps/**`): `console.*` is allowed for operational logging (job lifecycle, failures, startup).
+- **Scripts** (`scripts/**`): `console.*` is allowed for CLI output and progress reporting.
+- **Test setup** (`global-setup.ts`, `global-teardown.ts`): `console.*` is allowed for bootstrap diagnostics.
+- **`lib/errors.ts`**: the `console.error` inside `reportError` is the intentional non-production fallback and should not be removed.
+
 ## Module Boundaries
 
 - Use `app/` for route entrypoints and route-local wrappers only.
