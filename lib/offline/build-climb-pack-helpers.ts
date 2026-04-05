@@ -91,6 +91,24 @@ export function getAdminClient() {
   })
 }
 
+export const PUBLIC_OFFLINE_CLIMB_STATUSES = ['active', 'approved'] as const
+
+export async function isPublicOfflineClimbVisible(
+  supabase: ReturnType<typeof getAdminClient>,
+  climbId: string
+) {
+  const { data, error } = await supabase
+    .from('climbs')
+    .select('id')
+    .eq('id', climbId)
+    .is('deleted_at', null)
+    .in('status', [...PUBLIC_OFFLINE_CLIMB_STATUSES])
+    .maybeSingle()
+
+  if (error) throw error
+  return Boolean(data?.id)
+}
+
 export function hashValue(value: unknown) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 16)
 }
