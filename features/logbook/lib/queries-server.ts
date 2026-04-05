@@ -92,6 +92,12 @@ export interface OwnLogbookData {
   submissions: Submission[]
 }
 
+export interface ServerLogbookSummary {
+  user: User
+  logs: LoggedClimb[]
+  profile: LogbookProfile | null
+}
+
 async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerClient>>, userId: string, baseUrl?: string): Promise<Submission[]> {
   const { data: draftSubmissions } = await supabase
     .from('submission_drafts')
@@ -169,9 +175,8 @@ async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerCl
   })
 }
 
-export async function fetchServerLogbookData(user: User, baseUrl?: string): Promise<OwnLogbookData> {
+async function fetchServerLogbookLogsAndProfile(userId: string) {
   const supabase = await getServerClient()
-  const userId = user.id
 
   const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }] = await Promise.all([
     supabase
@@ -238,10 +243,30 @@ export async function fetchServerLogbookData(user: User, baseUrl?: string): Prom
     return { ...log, canonical_url: canonicalUrl }
   })
 
+  return {
+    supabase,
+    logs: logsWithUrls,
+    profile: (profileData || null) as LogbookProfile | null,
+  }
+}
+
+export async function fetchServerLogbookSummary(user: User): Promise<ServerLogbookSummary> {
+  const { logs, profile } = await fetchServerLogbookLogsAndProfile(user.id)
+
+  return {
+    user,
+    logs,
+    profile,
+  }
+}
+
+export async function fetchServerLogbookSubmissions(user: User, baseUrl?: string): Promise<Submission[]> {
+  const supabase = await getServerClient()
+
   const { data: contributionRows, error: contribError } = await supabase
     .from('images')
     .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name), route_lines(count)')
-    .eq('created_by', userId)
+    .eq('created_by', user.id)
     .or('moderation_status.eq.approved,moderation_status.eq.pending,moderation_status.is.null')
     .order('created_at', { ascending: false })
     .limit(200)
@@ -262,13 +287,20 @@ export async function fetchServerLogbookData(user: User, baseUrl?: string): Prom
       .filter((s) => s.route_lines_count > 0)
   }
 
-  const draftSubmissions = await fetchServerDrafts(supabase, userId, baseUrl)
+  const draftSubmissions = await fetchServerDrafts(supabase, user.id, baseUrl)
+
+  return [...publishedSubmissions, ...draftSubmissions]
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+}
+
+export async function fetchServerLogbookData(user: User, baseUrl?: string): Promise<OwnLogbookData> {
+  const { logs, profile } = await fetchServerLogbookLogsAndProfile(user.id)
+  const submissions = await fetchServerLogbookSubmissions(user, baseUrl)
 
   return {
     user,
-    logs: logsWithUrls,
-    profile: (profileData || null) as LogbookProfile | null,
-    submissions: [...publishedSubmissions, ...draftSubmissions]
-      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
+    logs,
+    profile,
+    submissions,
   }
 }
