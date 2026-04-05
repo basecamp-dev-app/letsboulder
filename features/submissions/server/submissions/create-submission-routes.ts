@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createErrorResponse } from '@/lib/errors'
 import { isValidGrade } from '@/lib/grade-constants'
-import { makeUniqueSlug } from '@/lib/slug'
+import { makeUniqueSlug, fetchUsedSlugs } from '@/lib/slug'
 import {
   MAX_ROUTES_PER_REQUEST,
   normalizeNewRoutes,
@@ -81,19 +81,9 @@ export async function createSubmissionRoutes(
     }
   }
 
-  const usedRouteSlugs = new Set<string>()
-  if (image.crag_id) {
-    const { data: existingSlugs } = await supabase
-      .from('climbs')
-      .select('slug')
-      .eq('crag_id', image.crag_id)
-      .not('slug', 'is', null)
-      .limit(10000)
-
-    for (const row of (existingSlugs || []) as Array<{ slug: string | null }>) {
-      if (row.slug) usedRouteSlugs.add(row.slug)
-    }
-  }
+  const usedRouteSlugs = image.crag_id
+    ? await fetchUsedSlugs(deps.supabase, 'climbs', { crag_id: image.crag_id })
+    : new Set<string>()
 
   const climbsData = routes.map((route, index) => {
     const trimmedName = route.name.trim()

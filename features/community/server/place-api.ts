@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { makeUniqueSlug } from '@/lib/slug'
+import { makeUniqueSlug, fetchUsedSlugs } from '@/lib/slug'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { parseWithSchema } from '@/lib/api-validation'
@@ -77,18 +77,7 @@ function normalizeDisciplines(type: 'crag' | 'gym', disciplines: string[], prima
 async function generatePlaceSlug(supabase: RequestSupabaseClient, name: string, countryCode: string | null, type: string) {
   if (!countryCode) return null
 
-  const usedPlaceSlugs = new Set<string>()
-  const { data: existingSlugs } = await supabase
-    .from('places')
-    .select('slug')
-    .eq('country_code', countryCode)
-    .eq('type', type)
-    .not('slug', 'is', null)
-    .limit(10000)
-
-  for (const row of (existingSlugs || []) as Array<{ slug: string | null }>) {
-    if (row.slug) usedPlaceSlugs.add(row.slug)
-  }
+  const usedPlaceSlugs = await fetchUsedSlugs(supabase, 'places', { country_code: countryCode, type })
 
   return makeUniqueSlug(name, usedPlaceSlugs)
 }
