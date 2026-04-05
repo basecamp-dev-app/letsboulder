@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import GymOwnerApplyForm from '@/app/gym-owners/components/GymOwnerApplyForm'
+import GymOwnerApplyForm from '@/features/gym-owners/components/GymOwnerApplyForm'
 
 export const metadata: Metadata = {
   title: 'Gym Owners Apply',

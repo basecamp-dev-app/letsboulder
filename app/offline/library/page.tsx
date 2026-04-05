@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import OfflineLibraryClient from '@/app/offline/components/OfflineLibraryClient'
+import OfflineLibraryClient from '@/features/offline/components/OfflineLibraryClient'
 
 export const metadata: Metadata = {
   title: 'Offline Library',

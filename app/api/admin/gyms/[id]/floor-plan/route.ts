@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getActiveFloorPlan, saveFloorPlan } from '@/features/admin/gyms/server/floor-plans'
+import { requireAdmin } from '@/features/admin/server'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { parseWithSchema } from '@/lib/api-validation'
-import { requireAdmin } from '@/features/admin/server'
 
 const saveFloorPlanSchema = z.object({
   name: z.string().trim().min(1, 'name is required'),
@@ -20,12 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id: gymId } = await params
 
   try {
-    const { data: floorPlan, error } = await supabase
-      .from('gym_floor_plans')
-      .select('id, gym_place_id, name, image_url, image_width, image_height, is_active, created_at')
-      .eq('gym_place_id', gymId)
-      .eq('is_active', true)
-      .maybeSingle()
+    const { data: floorPlan, error } = await getActiveFloorPlan(supabase, gymId)
 
     if (error) return createErrorResponse(error, 'Failed to load floor plan')
     return NextResponse.json({ floor_plan: floorPlan || null })
@@ -53,39 +49,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { name, image_url: imageUrl, image_width: imageWidth, image_height: imageHeight } = parsedBody.data
 
-    const { data: gymPlace } = await supabase
-      .from('places')
-      .select('id, type')
-      .eq('id', gymId)
-      .eq('type', 'gym')
-      .maybeSingle()
+    const result = await saveFloorPlan(supabase, {
+      gymId,
+      name,
+      imageUrl,
+      imageWidth,
+      imageHeight,
+    })
 
-    if (!gymPlace) return NextResponse.json({ error: 'Gym not found' }, { status: 404 })
+    if (result.notFound) return NextResponse.json({ error: 'Gym not found' }, { status: 404 })
+    if (result.error) return createErrorResponse(result.error, 'Failed to save floor plan')
 
-    const { error: deactivateError } = await supabase
-      .from('gym_floor_plans')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('gym_place_id', gymId)
-      .eq('is_active', true)
-
-    if (deactivateError) return createErrorResponse(deactivateError, 'Failed to deactivate previous floor plan')
-
-    const { data: createdPlan, error: createError } = await supabase
-      .from('gym_floor_plans')
-      .insert({
-        gym_place_id: gymId,
-        name,
-        image_url: imageUrl,
-        image_width: imageWidth,
-        image_height: imageHeight,
-        is_active: true,
-      })
-      .select('id, gym_place_id, name, image_url, image_width, image_height, is_active, created_at')
-      .single()
-
-    if (createError) return createErrorResponse(createError, 'Failed to save floor plan')
-
-    return NextResponse.json({ floor_plan: createdPlan }, { status: 201 })
+    return NextResponse.json({ floor_plan: result.floorPlan }, { status: 201 })
   } catch (error) {
     return createErrorResponse(error, 'Failed to save floor plan')
   }

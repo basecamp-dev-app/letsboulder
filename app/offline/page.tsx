@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import OfflineDispatcher from '@/app/offline/components/OfflineDispatcher'
+import OfflineDispatcher from '@/features/offline/components/OfflineDispatcher'
 
 export const metadata: Metadata = {
   title: 'Offline Climbs',
