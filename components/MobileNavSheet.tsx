@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { VisuallyHidden } from '@/components/ui/visually-hidden'
 import { MOBILE_MORE_MENU_ITEMS } from '@/lib/nav-items'
 import { suppressOverlayCleanup, useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { csrfFetch } from '@/lib/csrf-client'
@@ -79,17 +81,21 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
     router.replace('/auth')
   }
 
-  if (!isOpen) return null
-
   return (
-    <>
-      <div
-        className="fixed inset-0 bg-black/50 z-[4000] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
-        onClick={onClose}
-      />
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl z-[4001] p-4 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom-0 data-[state=open]:slide-in-from-bottom-0">
-        <div className="w-12 h-1 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-4" />
-        <nav className="space-y-1">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[4000]"
+        className="top-auto bottom-0 left-0 right-0 z-[4001] max-w-none translate-x-0 translate-y-0 rounded-t-2xl rounded-b-none border-0 p-4 sm:max-w-none data-[state=closed]:slide-out-to-bottom-0 data-[state=open]:slide-in-from-bottom-0"
+      >
+        <VisuallyHidden>
+          <DialogTitle>Navigation menu</DialogTitle>
+        </VisuallyHidden>
+        <VisuallyHidden>
+          <DialogDescription>Navigate to key areas of letsboulder and access sign in options.</DialogDescription>
+        </VisuallyHidden>
+        <div className="w-12 h-1 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-4" aria-hidden="true" />
+        <nav className="space-y-1" aria-label="Mobile navigation">
           {MOBILE_MORE_MENU_ITEMS.map((item) => (
             <button
               key={item.href}
@@ -132,7 +138,7 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
             </button>
           )}
         </nav>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   )
 }

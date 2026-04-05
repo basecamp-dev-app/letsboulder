@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useId, useState, useRef, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -43,11 +43,13 @@ interface ClimbSearchRow {
 export default function Header() {
   const headerRef = useRef<HTMLElement>(null)
   const { user, load: loadAuthUser } = useLazyAuthUser()
+  const searchListboxId = useId()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [showMoreDropdown, setShowMoreDropdown] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1)
   const latestSearchRequestRef = useRef(0)
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchAbortRef = useRef<AbortController | null>(null)
@@ -99,6 +101,7 @@ export default function Header() {
       searchAbortRef.current?.abort()
       searchAbortRef.current = null
       setSearchResults([])
+      setActiveSearchIndex(-1)
       setIsSearching(false)
       return
     }
@@ -167,6 +170,7 @@ export default function Header() {
 
       if (requestId === latestSearchRequestRef.current) {
         setSearchResults(results)
+        setActiveSearchIndex(results.length > 0 ? 0 : -1)
       }
     } finally {
       if (requestId === latestSearchRequestRef.current) {
@@ -188,6 +192,7 @@ export default function Header() {
     if (!trimmedQuery || trimmedQuery.length < 2) {
       latestSearchRequestRef.current += 1
       setSearchResults([])
+      setActiveSearchIndex(-1)
       setIsSearching(false)
       return
     }
@@ -208,11 +213,13 @@ export default function Header() {
     const query = e.target.value
     setSearchQuery(query)
     setShowSearchDropdown(true)
+    setActiveSearchIndex(-1)
   }
 
   const handleResultClick = (result: SearchResult) => {
     setShowSearchDropdown(false)
     setSearchQuery('')
+    setActiveSearchIndex(-1)
     if (result.type === 'crag') {
       if (result.slug && result.country_code) {
         router.push(`/${result.country_code.toLowerCase()}/${result.slug}`)
@@ -239,6 +246,44 @@ export default function Header() {
       void loadAuthUser()
     }
     setShowMoreDropdown(!showMoreDropdown)
+  }
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    const hasResults = searchResults.length > 0
+
+    if (event.key === 'ArrowDown') {
+      if (!hasResults) return
+      event.preventDefault()
+      setShowSearchDropdown(true)
+      setActiveSearchIndex((currentIndex) => {
+        if (currentIndex < 0) return 0
+        return (currentIndex + 1) % searchResults.length
+      })
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      if (!hasResults) return
+      event.preventDefault()
+      setShowSearchDropdown(true)
+      setActiveSearchIndex((currentIndex) => {
+        if (currentIndex < 0) return searchResults.length - 1
+        return (currentIndex - 1 + searchResults.length) % searchResults.length
+      })
+      return
+    }
+
+    if (event.key === 'Enter') {
+      if (!showSearchDropdown || activeSearchIndex < 0 || !searchResults[activeSearchIndex]) return
+      event.preventDefault()
+      handleResultClick(searchResults[activeSearchIndex])
+      return
+    }
+
+    if (event.key === 'Escape') {
+      setShowSearchDropdown(false)
+      setActiveSearchIndex(-1)
+    }
   }
 
   return (
@@ -271,9 +316,20 @@ export default function Header() {
           <input
             type="text"
             placeholder="Search crags or climbs..."
+            aria-label="Search crags or climbs"
             value={searchQuery}
             onChange={handleSearchChange}
+            onKeyDown={handleSearchKeyDown}
             onFocus={() => setShowSearchDropdown(true)}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={showSearchDropdown}
+            aria-controls={showSearchDropdown ? searchListboxId : undefined}
+            aria-activedescendant={
+              showSearchDropdown && activeSearchIndex >= 0 && searchResults[activeSearchIndex]
+                ? `${searchListboxId}-${searchResults[activeSearchIndex].type}-${searchResults[activeSearchIndex].id}`
+                : undefined
+            }
             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           />
           {isSearching && (
@@ -282,12 +338,25 @@ export default function Header() {
             </div>
           )}
           {showSearchDropdown && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-[60vh] overflow-y-auto z-[1200] md:z-50">
-              {searchResults.map((result) => (
+            <div
+              id={searchListboxId}
+              role="listbox"
+              aria-label="Search results"
+              className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-[60vh] overflow-y-auto z-[1200] md:z-50"
+            >
+              {searchResults.map((result, index) => (
                 <button
                   key={`${result.type}-${result.id}`}
+                  id={`${searchListboxId}-${result.type}-${result.id}`}
                   onClick={() => handleResultClick(result)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                  onMouseEnter={() => setActiveSearchIndex(index)}
+                  role="option"
+                  aria-selected={activeSearchIndex === index}
+                  className={`w-full px-4 py-3 text-left border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${
+                    activeSearchIndex === index
+                      ? 'bg-gray-50 dark:bg-gray-800'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}
                 >
                   <div>
                     <p className="font-medium text-gray-900 dark:text-gray-100">{result.name}</p>
@@ -300,10 +369,13 @@ export default function Header() {
             </div>
           )}
           {showSearchDropdown && searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center text-gray-500 dark:text-gray-400 z-[1200] md:z-50">
-              No results found
-            </div>
-          )}
+              <div
+                role="status"
+                className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center text-gray-500 dark:text-gray-400 z-[1200] md:z-50"
+              >
+                No results found
+              </div>
+            )}
         </div>
 
         <nav className="flex items-center gap-1">

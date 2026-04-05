@@ -16,4 +16,22 @@ test.describe('Settings (Authenticated)', () => {
     await expect(page.getByLabel('Last Name')).toBeVisible()
     await expect(page.getByLabel('Bio')).toBeVisible()
   })
+
+  test('@full settings tabs expose tab semantics and keyboard navigation', async ({ page }) => {
+    await page.goto('/settings')
+
+    await expect(page).not.toHaveURL(/\/auth/)
+
+    const tablist = page.getByRole('tablist', { name: /settings sections/i })
+    await expect(tablist).toBeVisible()
+
+    const profileTab = page.getByRole('tab', { name: 'Profile' })
+    const unitsTab = page.getByRole('tab', { name: 'Units' })
+
+    await expect(profileTab).toHaveAttribute('aria-selected', 'true')
+    await profileTab.focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(unitsTab).toBeFocused()
+    await expect(unitsTab).toHaveAttribute('aria-selected', 'true')
+  })
 })
