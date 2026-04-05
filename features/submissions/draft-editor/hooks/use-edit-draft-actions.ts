@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState, type RefObject } from 'react'
+import { useCallback, useMemo, useRef, useState, type RefObject } from 'react'
 import { useRouter } from 'next/navigation'
 import { deleteSubmissionDraftAction, publishSubmissionDraftAction } from '@/features/submissions/actions/manage-submissions'
 import {
@@ -13,6 +13,8 @@ import { buildRouteCompletionPayload } from '@/features/route-editor/route-edito
 import type { DraftConflictState } from '@/features/submissions/draft-editor/hooks/use-draft-conflict-resolution'
 import type { DraftCanvasSource, DraftConflictResponse, DraftPayload, DraftRoute, DraftSavePayload, ManageImageTab } from '@/features/submissions/draft-editor/lib/edit-draft-types'
 import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
+
+const RATE_LIMIT_ERROR_MESSAGE = 'You are saving too quickly right now. Please wait a moment and try again.'
 
 interface UseEditDraftActionsParams {
   draftId: string
@@ -91,6 +93,7 @@ export function useEditDraftActions({
   const [savingDraft, setSavingDraft] = useState(false)
   const [publishingDraft, setPublishingDraft] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
+  const saveInFlightRef = useRef(false)
 
   const syncDraftRoutes = useCallback(async (resolvedRoutesByImageId: Record<string, DraftRoute[]>) => {
     if (!draft?.id) {
@@ -198,7 +201,9 @@ export function useEditDraftActions({
     const resolvedRoutesByImageId = options?.overrideRoutesByImageId ?? routesByImageId
     const resolvedCragId = options?.overrideCragId ?? cragId
     if (!draft || !draftUpdatedAt) return false
+    if (saveInFlightRef.current) return false
 
+    saveInFlightRef.current = true
     setSavingDraft(true)
     setError(null)
     setSuccess(null)
@@ -241,7 +246,7 @@ export function useEditDraftActions({
             return false
           }
         }
-        throw new Error(result.error || payload.error || 'Failed to save draft')
+        throw new Error(result.status === 429 ? RATE_LIMIT_ERROR_MESSAGE : (result.error || payload.error || 'Failed to save draft'))
       }
 
       if (!payload.draft) {
@@ -262,6 +267,7 @@ export function useEditDraftActions({
       setError(saveError instanceof Error ? saveError.message : 'Failed to save draft')
       return false
     } finally {
+      saveInFlightRef.current = false
       setSavingDraft(false)
     }
   }, [buildSavePayload, cragId, currentUserId, draft, draftUpdatedAt, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, syncDraftRoutes])

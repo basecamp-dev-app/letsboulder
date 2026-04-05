@@ -22,6 +22,7 @@ interface UnifiedRouteCanvasProps {
   activeRouteId?: string | null
   onRouteSelect?: (routeId: string | null) => void
   onRoutesUpdate?: (routes: RouteLine[]) => void
+  onImageOrientationChange?: (orientation: 'portrait' | 'landscape') => void
   className?: string
 }
 
@@ -61,6 +62,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   activeRouteId: controlledActiveRouteId,
   onRouteSelect,
   onRoutesUpdate,
+  onImageOrientationChange,
   className = '',
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -108,7 +110,9 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   const imageBounds = useMemo(() => {
     if (naturalWidth === 0 || !finalDimensions) return null
 
-    const hRatio = finalDimensions.width / naturalWidth
+    const isPortrait = naturalHeight > naturalWidth
+    const targetWidth = isPortrait ? Math.min(finalDimensions.width, finalDimensions.height * 0.72) : finalDimensions.width
+    const hRatio = targetWidth / naturalWidth
     const vRatio = finalDimensions.height / naturalHeight
     const ratio = Math.min(hRatio, vRatio)
 
@@ -125,6 +129,11 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
       centerY,
     }
   }, [naturalWidth, naturalHeight, finalDimensions])
+
+  useEffect(() => {
+    if (!naturalWidth || !naturalHeight || !onImageOrientationChange) return
+    onImageOrientationChange(naturalHeight > naturalWidth ? 'portrait' : 'landscape')
+  }, [naturalHeight, naturalWidth, onImageOrientationChange])
 
   const { isDrawingEnabled, addPoint } = useRouteDrawing()
 
@@ -213,7 +222,9 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
 
     if (naturalWidth === 0) return
 
-    const hRatio = finalDimensions.width / naturalWidth
+    const isPortrait = naturalHeight > naturalWidth
+    const targetWidth = isPortrait ? Math.min(finalDimensions.width, finalDimensions.height * 0.72) : finalDimensions.width
+    const hRatio = targetWidth / naturalWidth
     const vRatio = finalDimensions.height / naturalHeight
     const ratio = Math.min(hRatio, vRatio)
 
