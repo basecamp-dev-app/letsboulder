@@ -4,7 +4,13 @@ import dotenv from 'dotenv'
 
 dotenv.config({ path: path.resolve(__dirname, 'tests/.env.test') })
 
-const localBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
+const resolvedBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
+
+if (process.env.CI && !process.env.PLAYWRIGHT_BASE_URL?.trim()) {
+  throw new Error('CI requires PLAYWRIGHT_BASE_URL so smoke tests target the resolved environment')
+}
+
+console.log(`[playwright] baseURL=${resolvedBaseUrl}`)
 
 export default defineConfig({
   testDir: './tests',
@@ -20,7 +26,7 @@ export default defineConfig({
   workers: process.env.CI ? 3 : undefined,
   reporter: 'html',
   use: {
-    baseURL: process.env.CI ? 'https://dev.letsboulder.com' : localBaseUrl,
+    baseURL: resolvedBaseUrl,
     trace: 'on-first-retry',
     headless: true,
     ...(process.env.CF_ACCESS_CLIENT_ID || process.env.CF_ACCESS_CLIENT_SECRET || process.env.INTERNAL_TEST_KEY ? {
@@ -65,7 +71,7 @@ export default defineConfig({
   ],
   webServer: process.env.CI ? undefined : {
     command: 'npm run dev',
-    url: localBaseUrl,
+    url: resolvedBaseUrl,
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
     env: {

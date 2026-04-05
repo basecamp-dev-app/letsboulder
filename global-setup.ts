@@ -69,8 +69,7 @@ async function ensureSeedData() {
 }
 
 async function globalSetup() {
-  const baseURL = process.env.PLAYWRIGHT_BASE_URL
-    || (process.env.CI ? 'https://dev.letsboulder.com' : 'http://localhost:3000')
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
   
   const testApiKey = process.env.TEST_API_KEY?.trim()
   const testUserId = process.env.TEST_USER_ID?.trim()
