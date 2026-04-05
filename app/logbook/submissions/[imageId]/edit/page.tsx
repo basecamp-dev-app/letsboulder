@@ -19,7 +19,7 @@ import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-u
 import { ToastContainer, useToast } from '@/features/logbook/components/Toast'
 import type { UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
 import { useRouteStore } from '@/features/route-editor/store'
-import { haveStoredRoutesChanged, serializeStoredRoutes } from '@/features/submissions/lib/route-store-sync'
+import { serializeStoredRoutes } from '@/features/submissions/lib/route-store-sync'
 import type { RouteLine } from '@/types/domain'
 import { SubmissionWorkstation } from '@/features/submissions/components/SubmissionWorkstation'
 import { SubmissionDetailsPanel } from '@/features/submissions/submission-editor/components/SubmissionDetailsPanel'
@@ -30,6 +30,42 @@ import { CollaboratorDialog } from '@/features/submissions/components/editor/Col
 import { useSubmissionEditorData } from '@/features/submissions/submission-editor/hooks/use-submission-editor-data'
 import { useSubmissionLocationMetadata } from '@/features/submissions/editor/location/use-submission-location-metadata'
 import { useSubmissionCollaborators } from '@/features/submissions/editor/collaboration/use-submission-collaborators'
+import {
+  normalizePublishedRoute,
+  removePublishedRoute,
+  replaceDraftRoutesWithPublishedRoutes,
+} from '@/features/submissions/submission-editor/lib/published-route-editor-state'
+import { usePublishedRouteEditorSync } from '@/features/submissions/submission-editor/hooks/use-published-route-editor-sync'
+
+interface CreatedPublishedRoutePayload {
+  id: string
+  climb_id: string
+  points: RouteLine['points']
+  sequence_order: number
+  image_width: number | null
+  image_height: number | null
+  climbs: {
+    id: string
+    name: string | null
+    grade: string
+    status: string
+    route_type: string | null
+    description: string | null
+  } | Array<{
+    id: string
+    name: string | null
+    grade: string
+    status: string
+    route_type: string | null
+    description: string | null
+  }> | null
+}
+
+function readCreatedRoutesPayload(data: unknown): CreatedPublishedRoutePayload[] {
+  if (!data || typeof data !== 'object' || !('routes' in data)) return []
+  const routes = (data as { routes?: unknown }).routes
+  return Array.isArray(routes) ? routes as CreatedPublishedRoutePayload[] : []
+}
 
 export default function EditSubmittedRoutesPage() {
   const { toasts, addToast, removeToast } = useToast()
@@ -38,7 +74,6 @@ export default function EditSubmittedRoutesPage() {
   const collaborators = useSubmissionCollaborators(editor.activeImageId, addToast, editor.setError)
   const drawingAreaRef = useRef<HTMLDivElement | null>(null)
   const routeCanvasRef = useRef<UnifiedRouteCanvasRef | null>(null)
-  const lastSeededRouteImageIdRef = useRef<string | null>(null)
   const [savingAllChanges, setSavingAllChanges] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(true)
   const [orientationOpen, setOrientationOpen] = useState(true)
@@ -51,8 +86,6 @@ export default function EditSubmittedRoutesPage() {
   const atlasSync = useAtlasAutoSync(editor.markerPosition?.[0] ?? null, editor.markerPosition?.[1] ?? null)
   const {
     selectedRouteId,
-    routes: routeStoreRoutes,
-    setRoutes: setRouteStoreRoutes,
     setSelectedRoute,
     setActiveRoute,
     setEditorPanelOpen,
@@ -61,6 +94,11 @@ export default function EditSubmittedRoutesPage() {
     undoLastPoint,
     setInteractionTool,
   } = useRouteStore()
+  usePublishedRouteEditorSync({
+    activeImageId: editor.activeImageId,
+    editedRoutes: editor.editedRoutes,
+    setEditedRoutes: editor.setEditedRoutes,
+  })
   const syncLocationFromEditor = useCallback(() => {
     location.setLatitude(editor.latitude)
     location.setLongitude(editor.longitude)
@@ -88,25 +126,8 @@ export default function EditSubmittedRoutesPage() {
   }, [collaborators, collaborators.loadCollaborators, collaborators.shareOpen])
 
   const handleCanvasRoutesUpdate = useCallback((routes: RouteLine[]) => {
-    setRouteStoreRoutes(routes)
     editor.setEditedRoutes(routes)
-  }, [editor, setRouteStoreRoutes])
-
-  useEffect(() => {
-    if (!editor.activeImageId) return
-    if (!editor.existingRouteLines?.length) return
-
-    if (lastSeededRouteImageIdRef.current === editor.activeImageId) {
-      if (haveStoredRoutesChanged(routeStoreRoutes, editor.existingRouteLines)) {
-        editor.setEditedRoutes(routeStoreRoutes)
-      }
-      return
-    }
-
-    lastSeededRouteImageIdRef.current = editor.activeImageId
-    setRouteStoreRoutes(editor.existingRouteLines)
-    editor.setEditedRoutes(editor.existingRouteLines)
-  }, [editor, editor.activeImageId, editor.existingRouteLines, editor.setEditedRoutes, routeStoreRoutes, setRouteStoreRoutes])
+  }, [editor])
 
   const handleSaveAllChanges = useCallback(async () => {
     if (savingAllChanges || !editor.activeImageId) return
@@ -160,6 +181,8 @@ export default function EditSubmittedRoutesPage() {
         (route) => route.climb_id && route.created_at !== 'draft-created'
       )
 
+      let reconciledRoutes = editor.editedRoutes
+
       if (newRoutes.length > 0) {
         const result = await createPublishedSubmissionRoutesAction(editor.activeImageId, {
           routes: newRoutes.map((route) => ({
@@ -173,6 +196,12 @@ export default function EditSubmittedRoutesPage() {
           })),
         })
         if (!result.success) throw new Error(result.error || 'Failed to create routes')
+
+        const createdRoutes = readCreatedRoutesPayload(result.data)
+          .map((route) => normalizePublishedRoute(route, editor.activeImageId))
+          .filter((route): route is RouteLine => route !== null)
+
+        reconciledRoutes = replaceDraftRoutesWithPublishedRoutes(reconciledRoutes, createdRoutes)
       }
 
       if (existingRoutes.length > 0 && !areSerializedRoutesEqual(
@@ -204,11 +233,8 @@ export default function EditSubmittedRoutesPage() {
         }
       }
 
-      if (newRoutes.length > 0) {
-        window.location.reload()
-      } else {
-        editor.setInitialEditedRoutes(editor.editedRoutes)
-      }
+      editor.setEditedRoutes(reconciledRoutes)
+      editor.setInitialEditedRoutes(reconciledRoutes)
 
       editor.setSuccess('Submission changes saved')
     } catch (error) {
@@ -244,16 +270,25 @@ export default function EditSubmittedRoutesPage() {
         return
       }
 
-      if (!result.success) throw new Error(result.error || payload?.error || 'Failed to delete route')
+       if (!result.success) throw new Error(result.error || payload?.error || 'Failed to delete route')
+        const nextRoutes = removePublishedRoute(editor.editedRoutes, routeLineId)
+        editor.setEditedRoutes(nextRoutes)
+        editor.setInitialEditedRoutes(nextRoutes)
+        setSelectedRoute(null)
+        setActiveRoute(null)
+        setEditorPanelOpen(false)
+        setDeleteTransferOpen(false)
+        setPendingDeleteRouteLineId(null)
+        setDeleteTransferCandidates([])
+        setDeleteTransferSourceRouteName('')
+        setSelectedTargetRouteLineId('')
         editor.setSuccess('Route deleted')
-        editor.setCanvasKey((value) => value + 1)
-        window.location.reload()
     } catch (error) {
       editor.setError(error instanceof Error ? error.message : 'Failed to delete route')
     } finally {
       setDeletingRoute(false)
     }
-  }, [deletingRoute, editor])
+  }, [deletingRoute, editor, setActiveRoute, setEditorPanelOpen, setSelectedRoute])
 
   const deleteDialogCandidates = useMemo(() => deleteTransferCandidates, [deleteTransferCandidates])
 
