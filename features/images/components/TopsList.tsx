@@ -1,9 +1,9 @@
 'use client'
 
-import Link from 'next/link'
 import Image from 'next/image'
+import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
-import { formatRelativeDate } from './route-detail-utils'
+import { formatRelativeDate } from '@/features/images/lib/route-detail-utils'
 
 interface RecentTopItem {
   user_id: string
