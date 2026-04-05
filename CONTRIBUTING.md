@@ -48,6 +48,7 @@ This project uses conventional commits:
 ## Testing
 
 - Run `npm run lint` before committing
+- Run `npm run check:csrf-fetch` before committing client-side API mutations
 - Run `npm run test:unit` for unit tests
 - Run `npm run test:integration` for integration tests
 - E2E tests via Playwright: `npx playwright test`
