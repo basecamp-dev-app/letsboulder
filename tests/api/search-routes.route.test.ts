@@ -251,6 +251,16 @@ describe('Search routes', () => {
     expect(json.error).toBe('crag_id or image_id is required')
   })
 
+  test('image search returns 429 when rate limiting rejects the request', async () => {
+    vi.mocked(rateLimit).mockResolvedValueOnce({ success: false, remaining: 0, resetTime: Date.now() + 1000, limit: 10 })
+
+    const response = await getImageSearch(new NextRequest('http://localhost:3000/api/images/search?crag_id=crag-1'))
+    const json = await response.json()
+
+    expect(response.status).toBe(429)
+    expect(json.error).toBe('Too many requests')
+  })
+
   test('image search returns route lines for image lookups when requested', async () => {
     const supabase = {
       from: vi.fn((table: string) => {
