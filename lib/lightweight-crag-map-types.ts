@@ -3,6 +3,7 @@ export interface LightweightCragMapPin {
   latitude: number
   longitude: number
   label?: string
+  activeImageIds?: string[]
   interactive?: boolean
   tone?: 'draft' | 'published'
 }

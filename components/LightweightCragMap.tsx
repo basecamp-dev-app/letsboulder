@@ -14,12 +14,17 @@ const ZoomControl = dynamic(() => import('react-leaflet').then((mod) => mod.Zoom
 
 function pinVisualStyles(active: boolean) {
   return {
-    background: active ? '#b91c1c' : '#ef4444',
+    background: active ? '#d4a017' : '#ef4444',
     border: 'white',
-    shadow: '0 4px 12px rgba(15,23,42,0.22)',
+    shadow: active ? '0 8px 22px rgba(212,160,23,0.38)' : '0 4px 12px rgba(15,23,42,0.22)',
     size: 24,
     fontSize: 11,
   }
+}
+
+function isPinActive(pin: LightweightCragMapPin, activePinId: string | null) {
+  if (!activePinId) return false
+  return pin.id === activePinId || pin.activeImageIds?.includes(activePinId) === true
 }
 
 interface MapPinMarkerProps {
@@ -98,12 +103,15 @@ function normalizePins(pins: LightweightCragMapPin[], activePinId: string | null
 
   return Array.from(groupedPins.values()).map((group, index) => {
     const representative = activePinId
-      ? group.find((pin) => pin.id === activePinId) || group[0]
+      ? group.find((pin) => isPinActive(pin, activePinId)) || group[0]
       : group[0]
+
+    const activeImageIds = Array.from(new Set(group.flatMap((pin) => pin.activeImageIds?.length ? pin.activeImageIds : [pin.id])))
 
     return {
       ...representative,
       label: representative.label || group[0]?.label || String(index + 1),
+      activeImageIds,
     }
   })
 }
@@ -154,7 +162,7 @@ export default function LightweightCragMap({
     uploadDebug('map-debug-state', {
       activePinId,
       normalizedPinsCount: normalizedPins.length,
-      hasActivePin: Boolean(activePinId && normalizedPins.some((pin) => pin.id === activePinId)),
+      hasActivePin: Boolean(activePinId && normalizedPins.some((pin) => isPinActive(pin, activePinId))),
       normalizedPinIds: normalizedPins.map((pin) => pin.id),
     })
   }, [activePinId, normalizedPins])
@@ -231,7 +239,7 @@ export default function LightweightCragMap({
                 key={pin.id}
                 pin={pin}
                 index={index}
-                active={pin.id === activePinId}
+                active={isPinActive(pin, activePinId)}
                 leafletLib={leafletLib}
                 onPinSelect={onPinSelect}
               />

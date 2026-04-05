@@ -353,17 +353,24 @@ export async function buildImageFirstPayload(args: {
       imageId: string
       latitude: number
       longitude: number
+      activeImageIds: string[]
       routeSlug: string | null
     }>>((pins, node) => {
       const latitude = node.latitude as number
       const longitude = node.longitude as number
       const duplicate = pins.find((pin) => pin.latitude === latitude && pin.longitude === longitude)
-      if (duplicate) return pins
+      if (duplicate) {
+        if (!duplicate.activeImageIds.includes(node.displayImageId)) {
+          duplicate.activeImageIds.push(node.displayImageId)
+        }
+        return pins
+      }
 
       pins.push({
         imageId: node.displayImageId,
         latitude,
         longitude,
+        activeImageIds: [node.displayImageId],
         routeSlug: resolvedRoute?.climbSlug || null,
       })
       return pins
