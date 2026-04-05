@@ -38,11 +38,10 @@ export function ImageFirstCanvasCarousel(props: {
           const imageMeta = imageMap[imageId]
           if (!imageMeta) return null
           const isActive = index === activeImageIndex
-          const aspectRatio = `${imageMeta.width} / ${imageMeta.height}`
 
           return (
             <div key={imageId} className="relative min-w-0 shrink-0 grow-0 basis-full">
-              <div className="relative w-full" style={{ aspectRatio }}>
+              <div className="relative h-[58dvh] w-full md:h-[68dvh] lg:h-[72dvh]">
                 <Image
                   src={isActive ? activeCanvasImageUrl : imageMeta.src}
                   alt="Crag viewer"
