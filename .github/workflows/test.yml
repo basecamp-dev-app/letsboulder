@@ -1,17 +1,19 @@
 name: CI
 
 on:
+  push:
+    branches: [main, dev]
   deployment_status:
   pull_request:
     branches: [main, dev]
   workflow_dispatch:
     inputs:
       playwright_base_url:
-        description: 'Optional base URL override for Playwright runs'
+        description: "Optional base URL override for Playwright runs"
         required: false
         type: string
   schedule:
-    - cron: '0 2 * * *'
+    - cron: "0 2 * * *"
 
 permissions:
   contents: read
@@ -31,8 +33,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20.20.0'
-          cache: 'npm'
+          node-version: "20.20.0"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci --prefer-offline
@@ -69,6 +71,24 @@ jobs:
             echo "Skipping type drift check (not a pull_request event)"
           fi
 
+  media-worker:
+    name: Media Worker Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.20.0"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: Typecheck media worker
+        run: npm --prefix apps/media-worker run check
+
   smoke:
     name: E2E Smoke
     if: |
@@ -87,8 +107,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20.20.0'
-          cache: 'npm'
+          node-version: "20.20.0"
+          cache: "npm"
 
       - name: Cache Playwright browsers
         id: playwright-cache
@@ -277,8 +297,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20.20.0'
-          cache: 'npm'
+          node-version: "20.20.0"
+          cache: "npm"
 
       - name: Cache Playwright browsers
         id: playwright-cache
