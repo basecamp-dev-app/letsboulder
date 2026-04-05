@@ -39,7 +39,7 @@ This project uses conventional commits:
 
 ## Module Boundaries
 
-- Use `app/` for route entrypoints and route-local wrappers only.
+- Use `app/` for route entrypoints, route-local wrappers, and route-level composition only.
 - Put new product-domain code under `features/<domain>/`.
 - Keep root `components/` for shared UI, app shell, and `components/ui/` primitives.
 - Keep root `lib/` for cross-feature technical utilities, not feature-owned business logic.

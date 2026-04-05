@@ -46,4 +46,5 @@ features/<feature-name>/
 Run `npx tsx scripts/check-feature-compliance.ts` to check all features and print a compliance table.
 The script exits with code 1 if any feature is non-compliant.
 
-CI enforces compliance via `npm run lint:features`.
+CI enforces structural compliance via `npm run check:features`.
+`npm run lint:features` remains a local lint helper for the feature tree, but it is not the authoritative compliance gate.

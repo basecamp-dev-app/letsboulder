@@ -87,7 +87,7 @@ Bouldering topo and climbing logbook web app.
 
 The web app is standardizing on feature-first product boundaries.
 
-- `app/` owns route entrypoints only: page/layout/loading/template/metadata files and route-local wrappers.
+- `app/` owns route entrypoints, route-local wrappers, and route-level composition of feature-owned hooks/components. Reusable product logic should not live in `app/`.
 - `features/` owns product-domain code: domain components, hooks, server loaders, actions, types, and feature-local utilities.
 - `components/` owns shared app shell and reusable UI, especially `components/ui/`.
 - `lib/` owns cross-feature technical utilities and platform integrations.
@@ -119,4 +119,4 @@ The web app is standardizing on feature-first product boundaries.
 | `features/route-editor/store/index.ts` | Zustand store for route selection |
 | `features/submissions/server/submissions/` | Submission API validation and mode executors |
 | `features/submissions/server/drafts/` | Draft API orchestration, collaboration, and promotion helpers |
-| `supabase/migrations/` | 213 SQL migration files |
+| `supabase/migrations/` | 219 SQL migration files |
