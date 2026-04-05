@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  const hasLocation = latParam && lngParam
-  const latitude = hasLocation ? parseFloat(latParam!) : null
-  const longitude = hasLocation ? parseFloat(lngParam!) : null
+  const hasLocation = latParam !== null && lngParam !== null
+  const latitude = hasLocation ? parseFloat(latParam) : null
+  const longitude = hasLocation ? parseFloat(lngParam) : null
 
   try {
     let select = supabase
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 
     if (hasLocation && latitude !== null && longitude !== null && results.length > 0) {
       results = results.map(place => {
-        const distance = place.latitude && place.longitude
+        const distance = place.latitude !== null && place.longitude !== null
           ? Math.round(haversineMeters(latitude, longitude, place.latitude, place.longitude))
           : null
         return { ...place, distance }
@@ -82,4 +82,3 @@ export async function GET(request: NextRequest) {
     return createErrorResponse(error, 'Error searching places')
   }
 }
-

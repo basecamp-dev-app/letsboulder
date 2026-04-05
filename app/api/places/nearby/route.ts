@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
     const results = places
       .map(place => ({
         ...place,
-        distance: place.latitude && place.longitude
+        distance: place.latitude !== null && place.longitude !== null
           ? Math.round(haversineMeters(latitude, longitude, place.latitude, place.longitude))
           : null
       }))
@@ -88,4 +88,3 @@ export async function GET(request: NextRequest) {
     return createErrorResponse(error, 'Error fetching nearby places')
   }
 }
-

@@ -6,22 +6,20 @@ export const revalidate = 60
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const query = searchParams.get('q') || ''
+  const query = searchParams.get('q')?.trim() || ''
+
+  if (query.length < 2) {
+    return NextResponse.json([])
+  }
   
   const supabase = getServerClientFromRequest(request)
 
   try {
-    let queryBuilder = supabase
+    const { data, error } = await supabase
       .from('climbing_areas')
       .select('id, name, country_code, center_lat, center_lon, created_at')
       .order('name', { ascending: true })
-
-    // Filter by search query if provided
-    if (query.length >= 2) {
-      queryBuilder = queryBuilder.ilike('name', `%${query}%`)
-    }
-
-    const { data, error } = await queryBuilder
+      .ilike('name', `%${query}%`)
 
     if (error) {
       return createErrorResponse(error, 'Error fetching climbing areas')

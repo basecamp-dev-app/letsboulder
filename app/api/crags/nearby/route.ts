@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
         countryCode: crag.country_code,
         regionName: crag.region_name,
         subArea: crag.sub_area,
-        distance: crag.latitude && crag.longitude
+        distance: crag.latitude !== null && crag.longitude !== null
           ? Math.round(haversineMeters(latitude, longitude, crag.latitude, crag.longitude))
           : null
       }))
@@ -93,4 +93,3 @@ function getCountryName(countryCode: string | null): string | null {
     return countryCode.toUpperCase()
   }
 }
-

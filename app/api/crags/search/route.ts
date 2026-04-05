@@ -38,9 +38,9 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  const hasLocation = latParam && lngParam
-  const latitude = hasLocation ? parseFloat(latParam!) : null
-  const longitude = hasLocation ? parseFloat(lngParam!) : null
+  const hasLocation = latParam !== null && lngParam !== null
+  const latitude = hasLocation ? parseFloat(latParam) : null
+  const longitude = hasLocation ? parseFloat(lngParam) : null
 
   try {
     let nameSelect = supabase
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
 
     if (hasLocation && latitude !== null && longitude !== null && results.length > 0) {
       results = results.map(crag => {
-        const distance = crag.latitude && crag.longitude
+        const distance = crag.latitude !== null && crag.longitude !== null
           ? Math.round(haversineMeters(latitude, longitude, crag.latitude, crag.longitude))
           : null
         return { ...crag, distance }
@@ -179,4 +179,3 @@ function getCountryName(countryCode: string | null): string | null {
     return countryCode.toUpperCase()
   }
 }
-
