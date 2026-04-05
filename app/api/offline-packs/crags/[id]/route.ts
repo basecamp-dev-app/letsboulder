@@ -8,6 +8,7 @@ import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { estimateCompressedImageBytes } from '@/lib/media-proxy'
 import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
+import { PUBLIC_OFFLINE_CLIMB_STATUSES } from '@/lib/offline/build-climb-pack-helpers'
 
 export const revalidate = 3600
 
@@ -62,6 +63,7 @@ export async function GET(
         .select('id, name, slug, status')
         .eq('crag_id', cragId)
         .is('deleted_at', null)
+        .in('status', [...PUBLIC_OFFLINE_CLIMB_STATUSES])
         .order('name', { ascending: true }),
     ])
 
