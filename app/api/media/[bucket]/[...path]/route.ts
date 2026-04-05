@@ -14,17 +14,33 @@ function buildCdnUrl(objectPath: string): string | null {
   return `${cdnBaseUrl}/${normalizedPath}`
 }
 
+function getCorsHeaders(access: MediaAccess): HeadersInit {
+  if (access === 'private') {
+    return {}
+  }
+
+  return {
+    'Access-Control-Allow-Origin': '*',
+  }
+}
+
+function buildResponseHeaders(
+  access: MediaAccess,
+  headers: Record<string, string>
+): HeadersInit {
+  return {
+    ...headers,
+    ...getCorsHeaders(access),
+  }
+}
+
 export async function OPTIONS(request: NextRequest) {
-  const origin = request.headers.get('origin') || '*'
   return new NextResponse(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': origin,
+    headers: buildResponseHeaders('private', {
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Allow-Credentials': 'true',
-      'Vary': 'Origin',
-    },
+    }),
   })
 }
 
@@ -256,12 +272,6 @@ async function canReadObject(bucket: string, path: string, userId: string | null
   return null
 }
 
-const corsHeaders = (request: NextRequest) => ({
-  'Access-Control-Allow-Origin': request.headers.get('origin') || '*',
-  'Access-Control-Allow-Credentials': 'true',
-  'Vary': 'Origin',
-})
-
 async function serveFromSupabaseStorage(
   request: NextRequest,
   bucket: string,
@@ -274,7 +284,7 @@ async function serveFromSupabaseStorage(
   if (error || !data?.signedUrl) {
     return NextResponse.json({ error: 'Failed to load media' }, {
       status: 404,
-      headers: corsHeaders(request),
+      headers: getCorsHeaders(access),
     })
   }
 
@@ -282,7 +292,7 @@ async function serveFromSupabaseStorage(
   if (!fetched.ok) {
     return NextResponse.json({ error: 'Failed to load media' }, {
       status: 404,
-      headers: corsHeaders(request),
+      headers: getCorsHeaders(access),
     })
   }
 
@@ -291,13 +301,11 @@ async function serveFromSupabaseStorage(
 
   if (!shouldTransform) {
     return new NextResponse(fetched.body, {
-      headers: {
+      headers: buildResponseHeaders(access, {
         'Content-Type': contentType,
         'Content-Length': fetched.headers.get('content-length') || '',
         'Cache-Control': getMediaCacheControl(access),
-        ...corsHeaders(request),
-        Vary: 'Origin',
-      },
+      }),
     })
   }
 
@@ -308,13 +316,12 @@ async function serveFromSupabaseStorage(
   const responseContentType = transformed?.contentType || contentType
 
   return new NextResponse(new Uint8Array(responseBytes), {
-    headers: {
+    headers: buildResponseHeaders(access, {
       'Content-Type': responseContentType,
       'Content-Length': String(responseBytes.byteLength),
       'Cache-Control': getMediaCacheControl(access),
-      ...corsHeaders(request),
-      Vary: 'Accept, Origin',
-    },
+      Vary: 'Accept',
+    }),
   })
 }
 
@@ -339,7 +346,7 @@ async function serveFromR2(
   if (!response.Body) {
     return NextResponse.json({ error: 'Failed to load media' }, {
       status: 404,
-      headers: corsHeaders(request),
+      headers: getCorsHeaders(access),
     })
   }
 
@@ -348,13 +355,11 @@ async function serveFromR2(
 
   if (!shouldTransform) {
     return new NextResponse(response.Body as ReadableStream, {
-      headers: {
+      headers: buildResponseHeaders(access, {
         'Content-Type': contentType,
         'Content-Length': response.ContentLength ? String(response.ContentLength) : '',
         'Cache-Control': getMediaCacheControl(access),
-        ...corsHeaders(request),
-        Vary: 'Origin',
-      },
+      }),
     })
   }
 
@@ -367,13 +372,12 @@ async function serveFromR2(
   const responseContentType = transformed?.contentType || contentType
 
   return new NextResponse(new Uint8Array(responseBytes), {
-    headers: {
+    headers: buildResponseHeaders(access, {
       'Content-Type': responseContentType,
       'Content-Length': String(responseBytes.byteLength),
       'Cache-Control': getMediaCacheControl(access),
-      ...corsHeaders(request),
-      Vary: 'Accept, Origin',
-    },
+      Vary: 'Accept',
+    }),
   })
 }
 
@@ -387,7 +391,7 @@ export async function GET(
   if (!bucket || !objectPath) {
     return NextResponse.json({ error: 'Invalid media path' }, {
       status: 400,
-      headers: corsHeaders(request),
+      headers: getCorsHeaders('private'),
     })
   }
 
@@ -401,7 +405,7 @@ export async function GET(
     if (!access) {
       return NextResponse.json({ error: 'Not found' }, {
         status: 404,
-        headers: corsHeaders(request),
+        headers: getCorsHeaders('private'),
       })
     }
 
@@ -416,7 +420,7 @@ export async function GET(
       { error: 'Failed to load media' },
       {
         status: 500,
-        headers: corsHeaders(request),
+        headers: getCorsHeaders('private'),
       }
     )
   }
