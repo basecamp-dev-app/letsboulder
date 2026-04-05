@@ -34,9 +34,18 @@ export default function LogbookClient({ user, initialData }: LogbookClientProps)
 function LogbookContent({ user, initialData }: { user: User; initialData?: ServerLogbookSummary }) {
   const searchParams = useSearchParams()
   const { addToast } = useToast()
+  const hydratedInitialData = initialData
+    ? {
+        user,
+        logs: initialData.logs,
+        profile: initialData.profile,
+        submissions: [],
+      } satisfies OwnLogbookData
+    : undefined
   const { data, isLoading } = useQuery({
     queryKey: ownLogbookQueryKey,
     queryFn: () => fetchOwnLogbookData(user),
+    initialData: hydratedInitialData,
     gcTime: 30 * 60 * 1000,
   })
 
