@@ -1,0 +1,18 @@
+self.__WB_DISABLE_DEV_LOGS = true
+
+const SHELL_CACHE = 'offline-shell-v3'
+const PACK_CACHE = 'offline-climb-packs-v3'
+const MEDIA_CACHE = 'offline-media-v2'
+const TILE_CACHE = 'offline-tiles-v2'
+const ROUTE_ASSET_CACHE = 'offline-route-assets-v2'
+const TRANSIENT_CACHE = 'runtime-transient-v2'
+const OFFLINE_LAUNCH_URL = '/offline'
+const OFFLINE_LIBRARY_URL = '/offline/library'
+const HOME_URL = '/'
+const MANIFEST_URL = '/manifest.json'
+const LOGO_URL = '/logo.png'
+const LOGO_LIGHT_URL = '/logo-light.png'
+const LOGO_DARK_URL = '/logo-dark.png'
+const OFFLINE_JOB_CHANNEL = 'offline-pack-jobs'
+const ACTIVE_CACHES = [SHELL_CACHE, PACK_CACHE, MEDIA_CACHE, TILE_CACHE, ROUTE_ASSET_CACHE, TRANSIENT_CACHE]
+const SHELL_ROUTES = [HOME_URL, OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, MANIFEST_URL, LOGO_URL, LOGO_LIGHT_URL, LOGO_DARK_URL]
