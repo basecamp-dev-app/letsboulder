@@ -60,6 +60,18 @@ function pickOutputFormat(request: NextRequest, contentType: string, requestedFo
   return null
 }
 
+function requestNeedsImageTransform(request: NextRequest, contentType: string): boolean {
+  const widthParam = parsePositiveInt(request.nextUrl.searchParams.get('w'))
+  const requestedFormat = request.nextUrl.searchParams.get('format')
+  const requestedQuality = request.nextUrl.searchParams.has('q')
+
+  if (!contentType.startsWith('image/')) {
+    return false
+  }
+
+  return widthParam !== null || requestedFormat !== null || requestedQuality
+}
+
 async function transformImage(
   request: NextRequest,
   bytes: Buffer,
@@ -68,7 +80,7 @@ async function transformImage(
   const widthParam = parsePositiveInt(request.nextUrl.searchParams.get('w'))
   const quality = normalizeQuality(request.nextUrl.searchParams.get('q'))
   const requestedFormat = request.nextUrl.searchParams.get('format')
-  const shouldTransform = widthParam !== null || requestedFormat !== null || request.nextUrl.searchParams.has('q')
+  const shouldTransform = requestNeedsImageTransform(request, contentType)
 
   if (!shouldTransform || !contentType.startsWith('image/')) {
     return null
@@ -274,8 +286,22 @@ async function serveFromSupabaseStorage(
     })
   }
 
-  const bytes = Buffer.from(await fetched.arrayBuffer())
   const contentType = fetched.headers.get('content-type') || 'application/octet-stream'
+  const shouldTransform = access === 'private' && requestNeedsImageTransform(request, contentType)
+
+  if (!shouldTransform) {
+    return new NextResponse(fetched.body, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': fetched.headers.get('content-length') || '',
+        'Cache-Control': getMediaCacheControl(access),
+        ...corsHeaders(request),
+        Vary: 'Origin',
+      },
+    })
+  }
+
+  const bytes = Buffer.from(await fetched.arrayBuffer())
 
   const transformed = await transformImage(request, bytes, contentType)
   const responseBytes = transformed?.bytes || bytes
@@ -298,6 +324,15 @@ async function serveFromR2(
   objectPath: string,
   access: MediaAccess
 ): Promise<NextResponse> {
+  const isPublicObject = access === 'public' && bucket === serverEnv.R2_PUBLIC_BUCKET
+
+  if (isPublicObject) {
+    const cdnUrl = buildCdnUrl(objectPath)
+    if (cdnUrl) {
+      return NextResponse.redirect(cdnUrl, 302)
+    }
+  }
+
   const r2 = createR2Client()
   const response = await r2.send(new GetObjectCommand({ Bucket: bucket, Key: objectPath }))
 
@@ -308,10 +343,26 @@ async function serveFromR2(
     })
   }
 
-  const bytes = await streamToBuffer(response.Body as AsyncIterable<Uint8Array>)
   const contentType = response.ContentType || 'application/octet-stream'
+  const shouldTransform = access === 'private' && requestNeedsImageTransform(request, contentType)
 
-  const transformed = await transformImage(request, bytes, contentType)
+  if (!shouldTransform) {
+    return new NextResponse(response.Body as ReadableStream, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': response.ContentLength ? String(response.ContentLength) : '',
+        'Cache-Control': getMediaCacheControl(access),
+        ...corsHeaders(request),
+        Vary: 'Origin',
+      },
+    })
+  }
+
+  const bytes = await streamToBuffer(response.Body as AsyncIterable<Uint8Array>)
+
+  const transformed = access === 'private'
+    ? await transformImage(request, bytes, contentType)
+    : null
   const responseBytes = transformed?.bytes || bytes
   const responseContentType = transformed?.contentType || contentType
 
@@ -341,15 +392,6 @@ export async function GET(
   }
 
   const isR2 = isR2ManagedBucket(bucket)
-  const isPublicR2 = bucket === serverEnv.R2_PUBLIC_BUCKET
-
-  if (process.env.NODE_ENV === 'production' && isPublicR2) {
-    const cdnUrl = buildCdnUrl(objectPath)
-    if (cdnUrl) {
-      return NextResponse.redirect(cdnUrl, 302)
-    }
-  }
-
   const supabase = getServerClientFromRequest(request)
 
   try {
