@@ -4,6 +4,8 @@ import dotenv from 'dotenv'
 
 dotenv.config({ path: path.resolve(__dirname, 'tests/.env.test') })
 
+const localBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
+
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.ts',
@@ -18,7 +20,7 @@ export default defineConfig({
   workers: process.env.CI ? 3 : undefined,
   reporter: 'html',
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || (process.env.CI ? 'https://dev.letsboulder.com' : 'http://localhost:3000'),
+    baseURL: process.env.CI ? 'https://dev.letsboulder.com' : localBaseUrl,
     trace: 'on-first-retry',
     headless: true,
     ...(process.env.CF_ACCESS_CLIENT_ID || process.env.CF_ACCESS_CLIENT_SECRET || process.env.INTERNAL_TEST_KEY ? {
@@ -63,7 +65,7 @@ export default defineConfig({
   ],
   webServer: process.env.CI ? undefined : {
     command: 'npm run dev',
-    url: 'http://localhost:3000',
+    url: localBaseUrl,
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
     env: {
