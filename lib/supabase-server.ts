@@ -10,8 +10,8 @@ export async function getServerClient() {
   const cookieStore = await cookies()
 
   return createServerClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {
       cookies: {
         getAll() {
@@ -27,8 +27,8 @@ export function getServerClientFromRequest(request: NextRequest) {
   const requestCookies = request.cookies
 
   return createServerClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {
       cookies: {
         getAll() {
@@ -42,8 +42,8 @@ export function getServerClientFromRequest(request: NextRequest) {
 
 export function getAdminClient() {
   return createServerClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    serverEnv.SUPABASE_SERVICE_ROLE_KEY,
+    env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    serverEnv.SUPABASE_SERVICE_ROLE_KEY ?? '',
     {
       cookies: {
         getAll() { return [] },
@@ -55,8 +55,8 @@ export function getAdminClient() {
 
 export function getUnauthenticatedClient() {
   return createServerClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {
       cookies: {
         getAll() { return [] },

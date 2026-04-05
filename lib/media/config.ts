@@ -21,7 +21,7 @@ export function getMediaStorageConfig(): MediaStorageConfig {
     s3Endpoint: serverEnv.R2_S3_ENDPOINT,
     privateBucket: serverEnv.R2_PRIVATE_BUCKET,
     publicBucket: serverEnv.R2_PUBLIC_BUCKET,
-    cdnBaseUrl: serverEnv.NEXT_PUBLIC_MEDIA_CDN_URL.replace(/\/$/, ''),
+    cdnBaseUrl: serverEnv.NEXT_PUBLIC_MEDIA_CDN_URL?.replace(/\/$/, '') ?? '',
   }
 }
 

@@ -127,8 +127,8 @@ export async function applyProxyAuth({ request, requestHeaders, response }: Appl
   }
 
   const supabase = createServerClient(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
     {
       cookies: {
         getAll() {
@@ -142,7 +142,7 @@ export async function applyProxyAuth({ request, requestHeaders, response }: Appl
             },
           })
           mergeResponseMetadata(nextResponse, updatedResponse)
-          cookiesToSet.forEach(({ name, value, options }) => updatedResponse.cookies.set(name, value, options))
+          cookiesToSet.forEach(({ name, value, options }: { name: string; value: string; options?: Record<string, unknown> }) => updatedResponse.cookies.set(name, value, options))
           nextResponse = updatedResponse
         },
       },
