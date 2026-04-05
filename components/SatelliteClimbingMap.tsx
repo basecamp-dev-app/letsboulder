@@ -121,7 +121,13 @@ function MapInteractionWatcher({ onInteract }: { onInteract: () => void }) {
   return null
 }
 
-export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initialPlacePins?: PlacePin[] }) {
+export default function SatelliteClimbingMap({
+  initialPlacePins = [],
+  onReady,
+}: {
+  initialPlacePins?: PlacePin[]
+  onReady?: () => void
+}) {
   const router = useRouter()
   const mapRef = useRef<L.Map | null>(null)
   const [isClient, setIsClient] = useState(false)
@@ -391,6 +397,7 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
         worldCopyJump={false}
         whenReady={() => {
           setMapLoaded(true)
+          onReady?.()
         }}
       >
         <DefaultLocationWatcher defaultLocation={defaultLocation} mapRef={mapRef} />

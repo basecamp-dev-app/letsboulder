@@ -9,7 +9,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useGradeSystem } from '@/lib/grades/preferences'
 import { EmptyLogbook } from '@/features/logbook/components/LogbookStates'
 import { LogbookStatsSection } from '@/features/logbook/components/LogbookStatsSection'
-import { LogbookSubmissionsSection } from '@/features/logbook/components/LogbookSubmissionsSection'
 import { ToastContainer } from '@/components/ui/toast'
 import { useToast } from '@/hooks/use-toast'
 import { ownLogbookQueryKey, type OwnLogbookData } from '@/features/logbook/lib/queries'
@@ -38,6 +37,7 @@ const DeferredLogbookSubmissions = dynamic(() => import('@/app/(shell)/logbook/D
 })
 
 interface LogbookViewProps {
+  toastListener?: React.ReactNode
   userId: string
   isOwnProfile: boolean
   initialLogs?: LogbookClimb[]
@@ -45,7 +45,7 @@ interface LogbookViewProps {
   initialSubmissions?: Submission[]
 }
 
-export default function LogbookView({ userId, isOwnProfile, initialLogs = [], profile, initialSubmissions = [] }: LogbookViewProps) {
+export default function LogbookView({ toastListener, userId, isOwnProfile, initialLogs = [], profile, initialSubmissions = [] }: LogbookViewProps) {
   const gradeSystem = useGradeSystem()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -222,6 +222,7 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
       {isMounted ? <ToastContainer toasts={toasts} onRemove={removeToast} /> : null}
+      {toastListener}
 
       {isOwnProfile && profile && (
         <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">
