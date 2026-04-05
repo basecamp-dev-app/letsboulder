@@ -27,14 +27,13 @@ export interface RateLimitConfig {
   tokens: number
   window: string
   prefix: string
+  fallbackMode: 'local-bucket' | 'fail-open'
 }
 
 let upstashDepsPromise: Promise<UpstashDeps | null> | null = null
 let redisClient: UpstashRedisClient | null = null
 let upstashUnavailableWarningLogged = false
 const limiterCache = new Map<string, RateLimiterInstance>()
-
-const CRITICAL_TIERS = new Set(['sensitive', 'strict', 'submissions'])
 
 interface InMemoryBucket {
   count: number
@@ -49,7 +48,7 @@ const UPSTASH_TOKEN = serverEnv.UPSTASH_REDIS_REST_TOKEN
 export const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = Object.fromEntries(
   Object.entries(RATE_LIMIT_TIERS).map(([key, tier]) => [
     key,
-    { tokens: tier.tokens, window: tier.window, prefix: tier.prefix },
+    { tokens: tier.tokens, window: tier.window, prefix: tier.prefix, fallbackMode: tier.fallbackMode },
   ])
 )
 
@@ -137,9 +136,7 @@ export async function checkRateLimit(
     }
 
     const config = RATE_LIMIT_CONFIGS[configKey]
-    const isCritical = CRITICAL_TIERS.has(configKey)
-
-    if (isCritical && config) {
+    if (config?.fallbackMode === 'local-bucket') {
       const now = Date.now()
       const windowMs = parseWindowMs(config.window)
       const key = `${config.prefix}:${identifier}`
