@@ -16,6 +16,7 @@
     "media-backfill": "node scripts/media/backfill-images.mjs",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",
     "lint": "eslint --cache --concurrency auto",
+    "check:csrf-fetch": "node scripts/check-api-mutation-fetches.mjs",
     "lint:features": "eslint --cache --concurrency auto features/ --rule 'local-rules/consistent-feature-structure: warn'",
     "check:features": "npx tsx scripts/check-feature-compliance.ts",
     "typecheck": "tsc --noEmit",

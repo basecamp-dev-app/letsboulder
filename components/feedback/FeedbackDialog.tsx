@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { MessageSquare, X, Loader2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { csrfFetch } from '@/lib/csrf-client'
 
 interface FeedbackDialogProps {
   open: boolean
@@ -28,7 +29,7 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
         timestamp: new Date().toISOString(),
       }
 
-      const response = await fetch('/api/feedback', {
+      const response = await csrfFetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

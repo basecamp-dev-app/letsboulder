@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { MOBILE_MORE_MENU_ITEMS } from '@/lib/nav-items'
 import { suppressOverlayCleanup, useOverlayHistory } from '@/hooks/useOverlayHistory'
+import { csrfFetch } from '@/lib/csrf-client'
 import { useLazyAuthUser } from '@/components/use-lazy-auth-user'
 
 interface MobileNavSheetProps {
@@ -67,7 +68,8 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
   const handleSignOut = async () => {
     suppressOverlayCleanup('mobile-nav-sheet')
     onClose()
-    await fetch('/api/auth/signout', { method: 'POST' })
+    const response = await csrfFetch('/api/auth/signout', { method: 'POST' })
+    if (!response.ok) return
     router.replace('/')
   }
 
