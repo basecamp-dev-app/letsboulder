@@ -12,7 +12,7 @@ const serverOnlyEnvSchema = z.object({
   R2_SECRET_ACCESS_KEY: isTest ? z.string().min(1).default('test-secret-key') : z.string().min(1),
   CSRF_SECRET: z.string().min(1).optional(),
   DELETE_ACCOUNT_SECRET: z.string().min(1).optional(),
-  INTERNAL_MODERATION_SECRET: isTest ? z.string().min(1).default('test-mod-secret') : z.string().min(1),
+  INTERNAL_MODERATION_SECRET: z.string().min(1).optional(),
   MEDIA_MODERATION_ENABLED: z.preprocess(
     (v) => (v === 'false' ? false : v === 'true' ? true : true),
     z.boolean().default(true),
