@@ -38,7 +38,7 @@ Bouldering topo and climbing logbook web app.
 - **Auth**: Supabase Auth with JWT sessions
 - **Extensions**: PostGIS for geo queries
 - **Key RPCs**: `get_crag_pins`, `get_crag_route_intelligence`, `get_upload_context`, `create_unified_submission`
-- **Migrations**: `supabase/migrations/*.sql` (212 files, canonical source of truth)
+- **Migrations**: `supabase/migrations/*.sql` (213 files, canonical source of truth)
 - **Types**: Auto-generated in `types/database.ts` via `supabase gen types`
 
 ### Media Pipeline (Cloudflare Worker + R2)
@@ -111,7 +111,7 @@ The web app is standardizing on feature-first product boundaries.
 | `lib/supabase-server.ts` | Server Supabase client with cached RPCs |
 | `types/database.ts` | Auto-generated DB types (3,365 lines) |
 | `lib/csrf.ts` | JWT-based CSRF token system |
-| `lib/rate-limit.ts` | Upstash Redis rate limiter (13 tiers) |
+| `lib/rate-limit.ts` | Upstash Redis rate limiter (12 tiers) |
 | `lib/media/r2.ts` | Cloudflare R2 S3 operations |
 | `lib/grades.ts` | Grade conversion engine (3A-9C+) |
 | `public/sw.js` | Service worker for offline PWA |
@@ -119,4 +119,4 @@ The web app is standardizing on feature-first product boundaries.
 | `features/route-editor/store/index.ts` | Zustand store for route selection |
 | `features/submissions/server/submissions/` | Submission API validation and mode executors |
 | `features/submissions/server/drafts/` | Draft API orchestration, collaboration, and promotion helpers |
-| `supabase/migrations/` | 212 SQL migration files |
+| `supabase/migrations/` | 213 SQL migration files |

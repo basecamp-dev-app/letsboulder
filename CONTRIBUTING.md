@@ -51,6 +51,15 @@ This project uses conventional commits:
 - Always run `--dry-run` before `db push`
 - Run `supabase gen types` after schema changes to update `types/database.ts`
 
+## PR Verification Checklist
+
+Before opening a PR, verify docs are in sync with code:
+
+- [ ] Migration count matches `ls supabase/migrations | wc -l`
+- [ ] Rate limit tier count matches `lib/rate-limit-config.ts`
+- [ ] API route table in `docs/api/routes.md` matches `app/api/**` directories
+- [ ] Run `bash docs/verify.sh` (zero drift)
+
 ## Build Commands
 
 ```bash
