@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Bookmark } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
-import { csrfFetch } from '@/hooks/useCsrf'
+import { saveSettingsAction } from '@/features/settings/actions/save-settings'
 import { useMapEvents } from 'react-leaflet'
 import { runWhenIdle } from '@/lib/run-when-idle'
 import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult, type PinFeature, type PlacePin } from '@/lib/map/place-pins'
@@ -327,21 +327,17 @@ export default function SatelliteClimbingMap({ initialPlacePins = [] }: { initia
 
     setSaveLocationLoading(true)
     try {
-      const response = await csrfFetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          defaultLocationLat: center.lat,
-          defaultLocationLng: center.lng,
-          defaultLocationZoom: zoom
-        })
+      const result = await saveSettingsAction({
+        defaultLocationLat: center.lat,
+        defaultLocationLng: center.lng,
+        defaultLocationZoom: zoom,
       })
 
-      if (response.ok) {
+      if (result.success) {
         setDefaultLocation({ lat: center.lat, lng: center.lng, zoom })
         setToast('view saved')
       } else {
-        setToast('Failed to save location')
+        setToast(result.error || 'Failed to save location')
       }
     } catch {
       setToast('Failed to save location')

@@ -27,15 +27,14 @@ export default function SubmissionCredit({ imageId, onCreditSaved }: SubmissionC
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
 
-        const response = await fetch('/api/settings')
+        const response = await fetch('/api/profile')
         if (!response.ok) return
 
         const data = await response.json()
-        const settings = data.settings
 
-        if (settings?.contributionCreditPlatform && settings?.contributionCreditHandle) {
-          setPlatform(settings.contributionCreditPlatform as SubmissionCreditPlatform)
-          setHandle(settings.contributionCreditHandle)
+        if (data?.contribution_credit_platform && data?.contribution_credit_handle) {
+          setPlatform(data.contribution_credit_platform as SubmissionCreditPlatform)
+          setHandle(data.contribution_credit_handle)
         }
       } catch (err) {
         reportError(err instanceof Error ? err : new Error('Error fetching default credit'), { message: 'Error fetching default credit' })
