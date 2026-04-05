@@ -15,6 +15,7 @@ interface LogbookSubmissionsSectionProps {
   isOwnProfile: boolean
   submissions: Submission[]
   visibleSubmissions: Submission[]
+  isLoading?: boolean
   ownerSubmissionTab: OwnerSubmissionsTab
   ownerSubmissionCounts: OwnerSubmissionCounts
   deletingDraftId: string | null
@@ -30,6 +31,7 @@ export function LogbookSubmissionsSection({
   isOwnProfile,
   submissions,
   visibleSubmissions,
+  isLoading = false,
   ownerSubmissionTab,
   ownerSubmissionCounts,
   deletingDraftId,
@@ -78,7 +80,12 @@ export function LogbookSubmissionsSection({
             </Link>
           </div>
         )}
-        {isOwnProfile && visibleSubmissions.length === 0 ? (
+        {isLoading ? (
+          <p className="py-2 text-sm text-gray-500 dark:text-gray-400">
+            Loading submissions...
+          </p>
+        ) : null}
+        {isOwnProfile && !isLoading && visibleSubmissions.length === 0 ? (
           <p className="py-2 text-sm text-gray-500 dark:text-gray-400">
             {getOwnerSubmissionEmptyMessage(ownerSubmissionTab)}
           </p>

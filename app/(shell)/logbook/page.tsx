@@ -1,8 +1,6 @@
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 import { getServerClient } from '@/lib/supabase-server'
-import { fetchServerLogbookData } from '@/features/logbook/lib/queries-server'
-import { type OwnLogbookData } from '@/features/logbook/lib/queries'
+import { fetchServerLogbookSummary } from '@/features/logbook/lib/queries-server'
 import { reportError } from '@/lib/errors'
 import LogbookClient from './LogbookClient'
 
@@ -14,14 +12,9 @@ export default async function LogbookPage() {
     redirect('/auth?redirect_to=/logbook')
   }
 
-  const headersList = await headers()
-  const host = headersList.get('host')
-  const protocol = headersList.get('x-forwarded-proto') || 'https'
-  const baseUrl = `${protocol}://${host}`
-
-  let initialData: OwnLogbookData | undefined = undefined
+  let initialData = undefined
   try {
-    initialData = await fetchServerLogbookData(user, baseUrl)
+    initialData = await fetchServerLogbookSummary(user)
   } catch (error) {
     reportError(error, { message: 'Failed to fetch logbook data server-side' })
   }

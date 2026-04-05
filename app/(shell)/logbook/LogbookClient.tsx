@@ -8,6 +8,7 @@ import LogbookView from '@/features/logbook/components/LogbookView'
 import { LogbookSkeleton } from '@/features/logbook/components/LogbookStates'
 import { useToast } from '@/features/logbook/components/Toast'
 import { fetchOwnLogbookData, ownLogbookQueryKey, type OwnLogbookData } from '@/features/logbook/lib/queries'
+import type { ServerLogbookSummary } from '@/features/logbook/lib/queries-server'
 
 function LoadingFallback() {
   return (
@@ -19,7 +20,7 @@ function LoadingFallback() {
 
 interface LogbookClientProps {
   user: User
-  initialData?: OwnLogbookData
+  initialData?: ServerLogbookSummary
 }
 
 export default function LogbookClient({ user, initialData }: LogbookClientProps) {
@@ -30,13 +31,12 @@ export default function LogbookClient({ user, initialData }: LogbookClientProps)
   )
 }
 
-function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLogbookData }) {
+function LogbookContent({ user, initialData }: { user: User; initialData?: ServerLogbookSummary }) {
   const searchParams = useSearchParams()
   const { addToast } = useToast()
   const { data, isLoading } = useQuery({
     queryKey: ownLogbookQueryKey,
     queryFn: () => fetchOwnLogbookData(user),
-    initialData,
     gcTime: 30 * 60 * 1000,
   })
 
@@ -61,8 +61,8 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
     <LogbookView
       userId={user.id}
       isOwnProfile={true}
-      initialLogs={data?.logs || []}
-      profile={data?.profile || undefined}
+      initialLogs={initialData?.logs || data?.logs || []}
+      profile={initialData?.profile || data?.profile || undefined}
       initialSubmissions={data?.submissions || []}
     />
   )

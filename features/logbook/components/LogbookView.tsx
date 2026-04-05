@@ -2,6 +2,7 @@
 
 import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
@@ -15,14 +16,11 @@ import { ownLogbookQueryKey, type OwnLogbookData } from '@/features/logbook/lib/
 import {
   getLogbookLowestGrade,
   getLogbookStats,
-  getOwnerSubmissionCounts,
   getRecentLogbookLogs,
-  getVisibleOwnerSubmissions,
   replaceOwnLogbookLogs,
   replaceOwnLogbookSubmissions,
   type LogbookClimb,
   type LogbookProfile,
-  type OwnerSubmissionsTab,
 } from '@/features/logbook/lib/logbook-view'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
@@ -34,6 +32,10 @@ import {
   publishSubmissionDraftAction,
 } from '@/features/submissions/public'
 import type { Submission } from '@/types/submissions'
+
+const DeferredLogbookSubmissions = dynamic(() => import('@/app/(shell)/logbook/DeferredLogbookSubmissions'), {
+  ssr: false,
+})
 
 interface LogbookViewProps {
   userId: string
@@ -53,7 +55,6 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
   const [deletingSubmissionId, setDeletingSubmissionId] = useState<string | null>(null)
   const [publishingDraftId, setPublishingDraftId] = useState<string | null>(null)
-  const [ownerSubmissionTab, setOwnerSubmissionTab] = useState<OwnerSubmissionsTab>('all')
   const [isMounted, setIsMounted] = useState(false)
   const { toasts, addToast, removeToast } = useToast()
 
@@ -218,12 +219,6 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
     }
   }
 
-  const ownerSubmissionCounts = useMemo(() => getOwnerSubmissionCounts(submissions), [submissions])
-  const ownerVisibleSubmissions = useMemo(
-    () => getVisibleOwnerSubmissions(submissions, ownerSubmissionTab),
-    [ownerSubmissionTab, submissions]
-  )
-
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
       {isMounted ? <ToastContainer toasts={toasts} onRemove={removeToast} /> : null}
@@ -311,16 +306,13 @@ export default function LogbookView({ userId, isOwnProfile, initialLogs = [], pr
       ) : null}
 
       {(isOwnProfile || submissions.length > 0) ? (
-        <LogbookSubmissionsSection
+        <DeferredLogbookSubmissions
+          userId={userId}
           isOwnProfile={isOwnProfile}
-          submissions={submissions}
-          visibleSubmissions={ownerVisibleSubmissions}
-          ownerSubmissionTab={ownerSubmissionTab}
-          ownerSubmissionCounts={ownerSubmissionCounts}
+          initialSubmissions={initialSubmissions}
           deletingDraftId={deletingDraftId}
           publishingDraftId={publishingDraftId}
           deletingSubmissionId={deletingSubmissionId}
-          onOwnerSubmissionTabChange={(tab) => setOwnerSubmissionTab(tab)}
           onDeleteDraft={handleDeleteDraft}
           onPublishDraft={handlePublishDraft}
           onDeleteSubmission={handleDeleteSubmission}
