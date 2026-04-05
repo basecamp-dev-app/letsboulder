@@ -38,7 +38,7 @@ Bouldering topo and climbing logbook web app.
 - **Auth**: Supabase Auth with JWT sessions
 - **Extensions**: PostGIS for geo queries
 - **Key RPCs**: `get_crag_pins`, `get_crag_route_intelligence`, `get_upload_context`, `create_unified_submission`
-- **Migrations**: `supabase/migrations/*.sql` (213 files, canonical source of truth)
+- **Migrations**: `supabase/migrations/*.sql` (includes historical placeholder versions for remote-only migrations; canonical source of truth)
 - **Types**: Auto-generated in `types/database.ts` via `supabase gen types`
 
 ### Media Pipeline (Cloudflare Worker + R2)
