@@ -4,15 +4,15 @@ import { EnvValidationError, getSharedEnv, type SharedEnv } from '@/lib/env'
 const isTest = process.env.NODE_ENV === 'test'
 
 const serverOnlyEnvSchema = z.object({
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).default(isTest ? 'test-service-role-key' : ''),
-  R2_S3_ENDPOINT: z.string().url().default(isTest ? 'https://test.r2.cloudflarestorage.com' : ''),
-  R2_PRIVATE_BUCKET: z.string().min(1).default(isTest ? 'test-private' : ''),
-  R2_PUBLIC_BUCKET: z.string().min(1).default(isTest ? 'test-public' : ''),
-  R2_ACCESS_KEY_ID: z.string().min(1).default(isTest ? 'test-key-id' : ''),
-  R2_SECRET_ACCESS_KEY: z.string().min(1).default(isTest ? 'test-secret-key' : ''),
+  SUPABASE_SERVICE_ROLE_KEY: isTest ? z.string().min(1).default('test-service-role-key') : z.string().min(1),
+  R2_S3_ENDPOINT: isTest ? z.string().url().default('https://test.r2.cloudflarestorage.com') : z.string().url(),
+  R2_PRIVATE_BUCKET: isTest ? z.string().min(1).default('test-private') : z.string().min(1),
+  R2_PUBLIC_BUCKET: isTest ? z.string().min(1).default('test-public') : z.string().min(1),
+  R2_ACCESS_KEY_ID: isTest ? z.string().min(1).default('test-key-id') : z.string().min(1),
+  R2_SECRET_ACCESS_KEY: isTest ? z.string().min(1).default('test-secret-key') : z.string().min(1),
   CSRF_SECRET: z.string().min(1).optional(),
   DELETE_ACCOUNT_SECRET: z.string().min(1).optional(),
-  INTERNAL_MODERATION_SECRET: z.string().min(1).default(isTest ? 'test-mod-secret' : ''),
+  INTERNAL_MODERATION_SECRET: isTest ? z.string().min(1).default('test-mod-secret') : z.string().min(1),
   MEDIA_MODERATION_ENABLED: z.preprocess(
     (v) => (v === 'false' ? false : v === 'true' ? true : true),
     z.boolean().default(true),
@@ -66,6 +66,10 @@ export function getServerEnv(): ServerEnv {
 
     throw error
   }
+}
+
+export function validateServerEnv(): void {
+  getServerEnv()
 }
 
 export const serverEnv = new Proxy({} as ServerEnv, {

@@ -13,9 +13,9 @@ export class EnvValidationError extends Error {
 }
 
 const sharedEnvSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url().default(isTest ? 'http://127.0.0.1:54321' : ''),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).default(isTest ? 'test-anon-key' : ''),
-  NEXT_PUBLIC_MEDIA_CDN_URL: z.string().url().default(isTest ? 'https://test-cdn.example.com' : ''),
+  NEXT_PUBLIC_SUPABASE_URL: isTest ? z.string().url().default('http://127.0.0.1:54321') : z.string().url(),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: isTest ? z.string().min(1).default('test-anon-key') : z.string().min(1),
+  NEXT_PUBLIC_MEDIA_CDN_URL: isTest ? z.string().url().default('https://test-cdn.example.com') : z.string().url(),
   NEXT_PUBLIC_APP_URL: z.string().default('http://localhost:3000'),
   NEXT_PUBLIC_SITE_URL: z.string().optional(),
   NEXT_PUBLIC_ALLOW_PENDING_IMAGES: z.preprocess(
@@ -49,6 +49,10 @@ export function getSharedEnv(): SharedEnv {
 
     throw error
   }
+}
+
+export function validateSharedEnv(): void {
+  getSharedEnv()
 }
 
 export const env = new Proxy({} as SharedEnv, {

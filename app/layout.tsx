@@ -6,6 +6,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 import RootClientUtilities from '@/components/RootClientUtilities'
 import QueryProviders from '@/components/QueryProviders'
+import '@/lib/env-startup'
 import {
   BRAND_NAME,
   INSTAGRAM_URL,
