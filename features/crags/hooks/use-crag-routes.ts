@@ -29,6 +29,12 @@ export function useCragRoutes({
 }: UseCragRoutesParams) {
   const hasInitialRouteData = initialRoutes !== null
 
+  useEffect(() => {
+    if (!hasInitialRouteData || routesLoadState === 'loaded') return
+
+    setRoutesLoadState('loaded')
+  }, [hasInitialRouteData, routesLoadState, setRoutesLoadState])
+
   const { data, isLoading, isError, isFetching } = useQuery({
     queryKey: cragKeys.routes(id),
     queryFn: () => fetchCragRoutes(id),
@@ -55,7 +61,4 @@ export function useCragRoutes({
     }
   }, [data, isError, isFetching, isLoading, hasInitialRouteData, setRoutes, setRoutesLoadState, setRoutePreviewByClimbId, setRouteNavigationTargetByClimbId])
 
-  if (hasInitialRouteData && routesLoadState !== 'loaded') {
-    setRoutesLoadState('loaded')
-  }
 }
