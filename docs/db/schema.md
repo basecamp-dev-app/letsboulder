@@ -234,6 +234,25 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 - RLS helper functions: `is_submission_collaborator(image_id, user_id)` and `is_submission_draft_collaborator(draft_id, user_id)`.
 - Invite claims: `claim_submission_collaborator_invite(token)` and `claim_submission_draft_collaborator_invite(token)`.
 
+### RLS Policy Matrix (Submission & Collaboration)
+
+| Table | SELECT | INSERT | UPDATE | DELETE |
+|---|---|---|---|---|
+| `submission_drafts` | owner or collaborator | owner only (policy) + RPC | owner or collaborator (draft status) | owner only |
+| `submission_draft_images` | owner or collaborator | owner or collaborator (draft status) | owner or collaborator (draft status) | owner only (draft status) |
+| `submission_draft_routes` | owner or collaborator | owner or collaborator (draft status, FOR ALL) | owner or collaborator (draft status, FOR ALL) | owner or collaborator (draft status, FOR ALL) |
+| `submission_collaborators` | self or owner | owner only | (none — RPC only) | owner or self |
+| `submission_collaborator_invites` | owner | owner only | (none — RPC only) | owner only |
+| `submission_draft_collaborators` | self or owner | owner only (draft status) | (none — RPC only) | owner or self |
+| `submission_draft_collaborator_invites` | owner | owner only (draft status) | (none — RPC only) | owner only |
+| `images` | existing + collaborator read | existing | existing | existing |
+
+**Key security notes:**
+- `promote_draft_to_submission` is `SECURITY DEFINER` and bypasses RLS, but gates via `user_can_edit_submission_draft()` before proceeding.
+- `handle_submission_draft_promoted` trigger is `SECURITY DEFINER` and fires on draft→submitted status change. The UPDATE policy on `submission_drafts` gates who can trigger this transition.
+- `is_submission_collaborator` and `is_submission_draft_collaborator` are `SECURITY DEFINER` — appropriate for RLS helpers reading `auth.uid()`.
+- `promote_draft_to_submission` has been redefined 18+ times across migrations. The canonical version is in `20260343000000_add_submission_draft_routes.sql` which reads from `submission_draft_routes` table (not legacy `route_data` JSONB).
+
 ### Triggers
 | Trigger | Table | Purpose |
 |---------|-------|---------|
