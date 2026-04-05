@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
 import { useImageNavigation } from '@/features/image-first/hooks/use-image-navigation'
-import { ImageFirstCanvasCarousel, ImageFirstDeferredSections, ImageFirstFooterRail, ImageFirstHeader } from '@/features/image-first/components/image-first-sections'
+import { ImageFirstCanvasCarousel, ImageFirstDeferredSections, ImageFirstFooterRail } from '@/features/image-first/components/image-first-sections'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
 import { normalizePoints } from '@/lib/canvasMath'
 import type { Database } from '@/types/database'
@@ -16,6 +16,9 @@ import { getGradeSystemForClimbType, useGradePreferences } from '@/lib/grades/pr
 import { logRoutesAction } from '@/features/logbook/actions/log-routes'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
+import { ToastContainer } from '@/components/ui/toast'
+import { useToast } from '@/hooks/use-toast'
+import LightweightCragMap from '@/components/LightweightCragMap'
 
 type UserClimbRow = Database['public']['Tables']['user_climbs']['Row']
 
@@ -44,6 +47,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const router = useRouter()
   const pathname = usePathname()
   const gradePreferences = useGradePreferences()
+  const { toasts, addToast, removeToast } = useToast()
   const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
   const [userPresent, setUserPresent] = useState(false)
   const [selectedClimbLogged, setSelectedClimbLogged] = useState(false)
@@ -64,8 +68,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     activeImageId,
     activeRouteId,
     activeClimbId,
-    activeSector,
-    activeStack,
     emblaRef,
     setActiveImageIndex,
     setUserSelectedRouteId,
@@ -360,15 +362,37 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     setLogging(true)
     try {
       const result = await logRoutesAction([activeClimbId], style)
-      if (!result.success) return false
+      if (!result.success) {
+        addToast('Failed to log climb', 'error')
+        return false
+      }
 
       setSelectedClimbLogged(true)
       setSelectedClimbFeedbackCollapsed(false)
+      addToast(`Logged as ${style === 'flash' ? 'Flash' : style === 'top' ? 'Top' : 'Try'}`, 'success')
       return true
     } finally {
       setLogging(false)
     }
-  }, [activeClimbId, userPresent])
+  }, [activeClimbId, addToast, userPresent])
+
+  const applySavedFeedback = useCallback((payload: {
+    updatedGrade?: string
+    gradeUpdated?: boolean
+    gradeOpinion?: GradeOpinion | null
+    starRating?: number | null
+  }, fallback: { gradeOpinion?: GradeOpinion | null; starRating?: number | null }) => {
+    setSelectedClimbLog({
+      gradeOpinion: payload.gradeOpinion ?? fallback.gradeOpinion ?? null,
+      starRating: payload.starRating ?? fallback.starRating ?? null,
+    })
+    setSelectedClimbHasSavedFeedback(true)
+    setSelectedClimbFeedbackCollapsed(true)
+
+    if (activeClimbId && payload.gradeUpdated && payload.updatedGrade) {
+      updateLocalClimbGrade(activeClimbId, payload.updatedGrade)
+    }
+  }, [activeClimbId, updateLocalClimbGrade])
 
   const handleSaveFeedback = useCallback(async () => {
     if (!activeClimbId || !userPresent) return
@@ -391,20 +415,82 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         starRating?: number | null
       }
 
-      setSelectedClimbLog({
-        gradeOpinion: payload.gradeOpinion ?? pendingGradeOpinion ?? null,
-        starRating: payload.starRating ?? pendingStarRating ?? null,
+      applySavedFeedback(payload, {
+        gradeOpinion: pendingGradeOpinion,
+        starRating: pendingStarRating,
       })
-      setSelectedClimbHasSavedFeedback(true)
-      setSelectedClimbFeedbackCollapsed(true)
-
-      if (payload.gradeUpdated && payload.updatedGrade) {
-        updateLocalClimbGrade(activeClimbId, payload.updatedGrade)
-      }
     } finally {
       setSavingFeedback(false)
     }
-  }, [activeClimbId, pendingGradeOpinion, pendingStarRating, updateLocalClimbGrade, userPresent])
+  }, [activeClimbId, applySavedFeedback, pendingGradeOpinion, pendingStarRating, userPresent])
+
+  const handleGradeOpinionSelect = useCallback(async (gradeOpinion: GradeOpinion) => {
+    if (!activeClimbId || !userPresent) return
+
+    setPendingGradeOpinion(gradeOpinion)
+    setSavingFeedback(true)
+    try {
+      const result = await saveClimbFeedbackAction({
+        climbId: activeClimbId,
+        gradeOpinion,
+        starRating: pendingStarRating,
+      })
+
+      if (!result.success) {
+        addToast('Failed to save grade feel', 'error')
+        return
+      }
+
+      const payload = (result.data || {}) as {
+        updatedGrade?: string
+        gradeUpdated?: boolean
+        gradeOpinion?: GradeOpinion | null
+        starRating?: number | null
+      }
+
+      applySavedFeedback(payload, {
+        gradeOpinion,
+        starRating: pendingStarRating,
+      })
+      addToast('Saved grade feel', 'success')
+    } finally {
+      setSavingFeedback(false)
+    }
+  }, [activeClimbId, addToast, applySavedFeedback, pendingStarRating, userPresent])
+
+  const handleStarRatingSelect = useCallback(async (starRating: number | null) => {
+    if (!activeClimbId || !userPresent) return
+
+    setPendingStarRating(starRating)
+    setSavingFeedback(true)
+    try {
+      const result = await saveClimbFeedbackAction({
+        climbId: activeClimbId,
+        gradeOpinion: pendingGradeOpinion,
+        starRating,
+      })
+
+      if (!result.success) {
+        addToast('Failed to save climb rating', 'error')
+        return
+      }
+
+      const payload = (result.data || {}) as {
+        updatedGrade?: string
+        gradeUpdated?: boolean
+        gradeOpinion?: GradeOpinion | null
+        starRating?: number | null
+      }
+
+      applySavedFeedback(payload, {
+        gradeOpinion: pendingGradeOpinion,
+        starRating,
+      })
+      addToast(starRating === null ? 'Cleared climb rating' : 'Saved climb rating', 'success')
+    } finally {
+      setSavingFeedback(false)
+    }
+  }, [activeClimbId, addToast, applySavedFeedback, pendingGradeOpinion, userPresent])
 
   const handleGoToLogbook = useCallback(() => {
     router.push('/logbook')
@@ -412,14 +498,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-white">
-      <ImageFirstHeader
-        cragSlug={cragSlug}
-        activeSectorName={activeSector?.name || null}
-        activeImageIndex={activeImageIndex}
-        totalImages={navigationContext.orderedImageIds.length}
-        stackIndex={activeStack && activeStack.imageIds.length > 1 ? activeStack.imageIds.indexOf(activeImageId || '') : null}
-        stackLength={activeStack && activeStack.imageIds.length > 1 ? activeStack.imageIds.length : null}
-      />
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       <main className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-14">
         <button
@@ -459,6 +538,22 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       </main>
 
       <ImageFirstFooterRail visibleRoutes={visibleRoutes} activeRouteId={activeRouteId} onRouteSelect={handleRouteSelect} />
+
+      {mapPins.length > 0 ? (
+        <div className="px-4 pb-4">
+          <div className="mx-auto w-full max-w-6xl">
+            <LightweightCragMap
+              pins={mapPins}
+              activePinId={activeImageId}
+              onPinSelect={(imageId) => {
+                const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
+                if (nextIndex >= 0) setActiveImageIndex(nextIndex)
+              }}
+              heightClassName="min-h-[240px] md:min-h-[280px]"
+            />
+          </div>
+        </div>
+      ) : null}
 
       <ClimbInfoPanel
         selectedClimb={selectedClimb}
@@ -502,14 +597,11 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onGoToAuth={handleGoToAuth}
         onLog={handleLog}
         onSetFeedbackCollapsed={setSelectedClimbFeedbackCollapsed}
-        onSetPendingGradeOpinion={setPendingGradeOpinion}
-        onSetPendingStarRating={setPendingStarRating}
+        onSetPendingGradeOpinion={handleGradeOpinionSelect}
+        onSetPendingStarRating={handleStarRatingSelect}
         onSaveFeedback={handleSaveFeedback}
         onGoToLogbook={handleGoToLogbook}
-        deferredSections={<ImageFirstDeferredSections mapPins={mapPins} activeImageId={activeImageId} activeClimbId={activeClimbId} onSelectPin={(imageId) => {
-          const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
-          if (nextIndex >= 0) setActiveImageIndex(nextIndex)
-        }} />}
+        deferredSections={<ImageFirstDeferredSections activeClimbId={activeClimbId} />}
       />
     </div>
   )

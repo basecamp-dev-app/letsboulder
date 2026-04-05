@@ -1,7 +1,6 @@
 'use client'
 
 import Image from 'next/image'
-import LightweightCragMap from '@/components/LightweightCragMap'
 import { RouteEditorRail } from '@/features/route-editor/components/RouteEditorRail'
 import { UnifiedRouteCanvas } from '@/features/route-editor/components/UnifiedRouteCanvas'
 
@@ -13,19 +12,9 @@ export function ImageFirstHeader(props: {
   stackIndex: number | null
   stackLength: number | null
 }) {
-  const { cragSlug, activeSectorName, activeImageIndex, totalImages, stackIndex, stackLength } = props
+  void props
 
-  return (
-    <header className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/70 to-transparent px-4 py-4">
-      <div className="text-sm text-white/80">
-        {cragSlug}
-        {activeSectorName ? ` / ${activeSectorName}` : ''}
-        {' / '}
-        Image {activeImageIndex + 1} of {totalImages}
-        {stackIndex !== null && stackLength !== null ? ` / Stack ${stackIndex + 1} of ${stackLength}` : ''}
-      </div>
-    </header>
-  )
+  return null
 }
 
 export function ImageFirstCanvasCarousel(props: {
@@ -99,24 +88,12 @@ export function ImageFirstFooterRail(props: {
 }
 
 export function ImageFirstDeferredSections(props: {
-  mapPins: Array<{ id: string; latitude: number; longitude: number; label: string }>
-  activeImageId: string | null
-  onSelectPin: (imageId: string) => void
   activeClimbId: string | null
 }) {
-  const { mapPins, activeImageId, onSelectPin, activeClimbId } = props
+  const { activeClimbId } = props
 
   return (
     <>
-      {mapPins.length > 0 ? (
-        <LightweightCragMap
-          className="mt-4"
-          pins={mapPins}
-          activePinId={activeImageId}
-          onPinSelect={onSelectPin}
-          heightClassName="min-h-[220px]"
-        />
-      ) : null}
       {!activeClimbId ? (
         <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
           <div className="text-xs font-medium uppercase tracking-[0.2em] text-gray-500">Overview</div>
