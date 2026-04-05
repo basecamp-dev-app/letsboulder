@@ -1,50 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { UserClimbRowWithDetailsSchema } from '@/lib/supabase-result-schemas'
+import { loadPlaceUserClimbs, enrichPlaceClimbsWithProfiles } from '@/features/community/server/load-place-climb-data'
 
 interface RouteParams {
   slug: string
-}
-
-type RecentSendRow = {
-  user_id: string
-  style: string
-  created_at: string
-  climb_id: string
-  star_rating: number | null
-  climbs: {
-    id: string
-    name: string
-    grade: string
-    place_id: string | null
-    crag_id: string | null
-  } | null
-}
-
-interface ProfileRow {
-  id: string
-  username: string | null
-  display_name: string | null
-  first_name: string | null
-  last_name: string | null
-  avatar_url: string | null
-  is_public: boolean
-}
-
-function getDisplayName(profile: ProfileRow): string {
-  const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
-  if (fullName) return fullName
-  if (profile.display_name) return profile.display_name
-  if (profile.username) return profile.username
-  return `Climber ${profile.id.slice(0, 4)}`
-}
-
-function getClimbRecord(
-  climbs: RecentSendRow['climbs']
-): { id: string; name: string; grade: string; place_id: string | null; crag_id: string | null } | null {
-  if (Array.isArray(climbs)) return climbs[0] || null
-  return climbs || null
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
@@ -70,53 +30,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       return NextResponse.json({ error: 'Place not found' }, { status: 404 })
     }
 
-    const placeId = place.id
-
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
-    const [byPlaceResult, byLegacyCragResult] = await Promise.all([
-      supabase
-        .from('user_climbs')
-        .select('user_id, style, created_at, climb_id, star_rating, climbs!inner(id, name, grade, place_id, crag_id)')
-        .in('style', ['top', 'flash', 'onsight'])
-        .gte('created_at', sixtyDaysAgo)
-        .eq('climbs.place_id', placeId)
-        .order('created_at', { ascending: false })
-        .limit(limit),
-      supabase
-        .from('user_climbs')
-        .select('user_id, style, created_at, climb_id, star_rating, climbs!inner(id, name, grade, place_id, crag_id)')
-        .in('style', ['top', 'flash', 'onsight'])
-        .gte('created_at', sixtyDaysAgo)
-        .eq('climbs.crag_id', placeId)
-        .is('climbs.place_id', null)
-        .order('created_at', { ascending: false })
-        .limit(limit),
-    ])
+    const climbs = await loadPlaceUserClimbs(supabase, place.id, { windowStart: sixtyDaysAgo })
 
-    if (byPlaceResult.error) {
-      return createErrorResponse(byPlaceResult.error, 'Place recent sends query error')
-    }
-    if (byLegacyCragResult.error) {
-      return createErrorResponse(byLegacyCragResult.error, 'Place recent sends query error')
-    }
-
-    const deduped = new Map<string, RecentSendRow>()
-    const allRows = UserClimbRowWithDetailsSchema.parse([
-      ...(byPlaceResult.data || []),
-      ...(byLegacyCragResult.data || []),
-    ])
-    for (const row of allRows) {
-      if (!row.created_at) continue
-      deduped.set(`${row.user_id}:${row.climb_id}:${row.created_at}:${row.style}`, row)
-    }
-
-    const recentSends = Array.from(deduped.values())
-      .filter(row => row.created_at)
-      .sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime())
-    const userIds = Array.from(new Set(recentSends.map((row) => row.user_id)))
-
-    if (userIds.length === 0) {
+    if (climbs.length === 0) {
       return NextResponse.json(
         {
           place: { id: place.id, name: place.name, slug: place.slug },
@@ -130,45 +48,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       )
     }
 
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('id, username, display_name, first_name, last_name, avatar_url, is_public')
-      .eq('is_public', true)
-      .in('id', userIds)
+    const enriched = await enrichPlaceClimbsWithProfiles(supabase, climbs)
 
-    if (profilesError) {
-      return createErrorResponse(profilesError, 'Place recent sends profiles error')
-    }
-
-    const profileMap = new Map(((profiles || []) as ProfileRow[]).map((profile) => [profile.id, profile]))
-
-    const responseRows = recentSends
-      .map((row) => {
-        const profile = profileMap.get(row.user_id)
-        if (!profile) return null
-
-        const climb = getClimbRecord(row.climbs)
-        if (!climb) return null
-
-        return {
-          user_id: row.user_id,
-          style: row.style,
-          created_at: row.created_at,
-          profile: {
-            id: profile.id,
-            display_name: getDisplayName(profile),
-            avatar_url: profile.avatar_url,
-          },
-          climb: {
-            id: climb.id,
-            name: climb.name,
-            grade: climb.grade,
-          },
-          rating: typeof row.star_rating === 'number' ? row.star_rating : null,
-        }
-      })
-      .filter((row): row is NonNullable<typeof row> => row !== null)
+    const responseRows = enriched
       .slice(0, limit)
+      .map((row) => ({
+        user_id: row.user_id,
+        style: row.style,
+        created_at: row.created_at,
+        profile: row.profile,
+        climb: row.climb,
+        rating: typeof row.star_rating === 'number' ? row.star_rating : null,
+      }))
 
     return NextResponse.json(
       {

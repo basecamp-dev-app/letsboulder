@@ -2,51 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { FLASH_BONUS, getGradeFromPoints, getGradePoints } from '@/lib/grades'
-import { UserClimbRowSchema } from '@/lib/supabase-result-schemas'
+import { loadPlaceUserClimbs, enrichPlaceClimbsWithProfiles, type PlaceClimbRow } from '@/features/community/server/load-place-climb-data'
+import { getClimbRecord } from '@/lib/profile-helpers'
 
 type RankingSort = 'grade' | 'tops'
 type RankingWindow = '60d' | 'all-time'
 
 interface RouteParams {
   slug: string
-}
-
-type UserClimbRow = {
-  user_id: string
-  climb_id: string
-  style: string
-  created_at: string
-  climbs: {
-    id: string
-    grade: string
-    place_id: string | null
-    crag_id: string | null
-  } | null
-}
-
-interface ProfileRow {
-  id: string
-  username: string | null
-  display_name: string | null
-  first_name: string | null
-  last_name: string | null
-  avatar_url: string | null
-  is_public: boolean
-}
-
-function getDisplayName(userId: string, profile: ProfileRow | undefined): string {
-  const fullName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim()
-  if (fullName) return fullName
-  if (profile?.display_name) return profile.display_name
-  if (profile?.username) return profile.username
-  return `Climber ${userId.slice(0, 4)}`
-}
-
-function getClimbRecord(climbs: UserClimbRow['climbs']): { id: string; grade: string; place_id: string | null } | null {
-  if (Array.isArray(climbs)) {
-    return climbs[0] || null
-  }
-  return climbs || null
 }
 
 interface LeaderboardEntry {
@@ -85,69 +48,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
       return NextResponse.json({ error: 'Place not found' }, { status: 404 })
     }
 
-    const placeId = place.id
-
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
-    async function fetchClimbs(windowStart: string | null): Promise<UserClimbRow[]> {
-      let byPlaceQuery = supabase
-        .from('user_climbs')
-        .select('user_id, climb_id, style, created_at, climbs!inner(id, grade, place_id, crag_id)')
-        .in('style', ['top', 'flash', 'onsight'])
-        .eq('climbs.place_id', placeId)
-
-      let byLegacyCragQuery = supabase
-        .from('user_climbs')
-        .select('user_id, climb_id, style, created_at, climbs!inner(id, grade, place_id, crag_id)')
-        .in('style', ['top', 'flash', 'onsight'])
-        .eq('climbs.crag_id', placeId)
-        .is('climbs.place_id', null)
-
-      if (windowStart) {
-        byPlaceQuery = byPlaceQuery.gte('created_at', windowStart)
-        byLegacyCragQuery = byLegacyCragQuery.gte('created_at', windowStart)
-      }
-
-      const [byPlaceResult, byLegacyCragResult] = await Promise.all([byPlaceQuery, byLegacyCragQuery])
-
-      if (byPlaceResult.error) {
-        throw byPlaceResult.error
-      }
-      if (byLegacyCragResult.error) {
-        throw byLegacyCragResult.error
-      }
-
-      const combinedRows = UserClimbRowSchema.parse([
-        ...(byPlaceResult.data || []),
-        ...(byLegacyCragResult.data || []),
-      ])
-
-      const deduped = new Map<string, UserClimbRow>()
-      for (const row of combinedRows) {
-        deduped.set(`${row.user_id}:${row.climb_id}:${row.created_at}:${row.style}`, row)
-      }
-
-      return Array.from(deduped.values())
+    async function fetchClimbs(windowStart: string | null): Promise<PlaceClimbRow[]> {
+      return loadPlaceUserClimbs(supabase, place!.id, { windowStart })
     }
 
-    async function buildLeaderboard(userClimbs: UserClimbRow[]): Promise<LeaderboardEntry[]> {
-      const userIds = Array.from(new Set(userClimbs.map((row) => row.user_id)))
-      if (userIds.length === 0) return []
+    async function buildLeaderboard(userClimbs: PlaceClimbRow[]): Promise<LeaderboardEntry[]> {
+      const enriched = await enrichPlaceClimbsWithProfiles(supabase, userClimbs)
+      if (enriched.length === 0) return []
 
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, first_name, last_name, avatar_url, is_public')
-        .eq('is_public', true)
-        .in('id', userIds)
+      const profileMap = new Map(
+        enriched.map((e) => [e.user_id, e.profile])
+      )
 
-      if (profilesError) {
-        throw profilesError
-      }
-
-      const profileMap = new Map(((profiles || []) as ProfileRow[]).map((profile) => [profile.id, profile]))
-      const publicUserIds = userIds.filter((userId) => profileMap.has(userId))
-
-      const climbsByUser = new Map<string, UserClimbRow[]>()
+      const climbsByUser = new Map<string, PlaceClimbRow[]>()
       for (const row of userClimbs) {
         if (!profileMap.has(row.user_id)) continue
         const existing = climbsByUser.get(row.user_id)
@@ -158,8 +73,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
         }
       }
 
-      const withSortValue = publicUserIds
-        .map((userId) => {
+      const withSortValue = Array.from(profileMap.entries())
+        .map(([userId, profile]) => {
           const rows = climbsByUser.get(userId) || []
           const climbCount = rows.length
 
@@ -177,13 +92,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
 
           const avgPoints = validClimbCount > 0 ? Math.round(totalPoints / validClimbCount) : 0
           const avgGrade = getGradeFromPoints(avgPoints)
-          const profile = profileMap.get(userId)
 
           return {
             rank: 0,
             user_id: userId,
-            username: getDisplayName(userId, profile),
-            avatar_url: profile?.avatar_url || null,
+            username: profile.display_name,
+            avatar_url: profile.avatar_url,
             avg_grade: avgGrade,
             climb_count: climbCount,
             sort_value: sort === 'tops' ? climbCount : avgPoints,

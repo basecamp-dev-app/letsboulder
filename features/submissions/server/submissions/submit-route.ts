@@ -1,6 +1,6 @@
 import { notifyNewSubmission } from '@/lib/discord'
 import { userOwnsUploadedObject } from '@/lib/media/ownership'
-import { makeUniqueSlug } from '@/lib/slug'
+import { makeUniqueSlug, fetchUsedSlugs } from '@/lib/slug'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { serverEnv } from '@/lib/env.server'
 import { getMediaModerationConfig } from '@/lib/media/config'
@@ -157,19 +157,9 @@ export async function submitRoute(request: NextRequest) {
     let executionResult: SubmissionExecutionResult | null = null
     const cragId = body.mode === 'new' ? body.cragId : existingCragId
 
-    const usedRouteSlugs = new Set<string>()
-    if (cragId) {
-      const { data: existingSlugs } = await supabase
-        .from('climbs')
-        .select('slug')
-        .eq('crag_id', cragId)
-        .not('slug', 'is', null)
-        .limit(10000)
-
-      for (const row of (existingSlugs || []) as Array<{ slug: string | null }>) {
-        if (row.slug) usedRouteSlugs.add(row.slug)
-      }
-    }
+    const usedRouteSlugs = cragId
+      ? await fetchUsedSlugs(supabase, 'climbs', { crag_id: cragId })
+      : new Set<string>()
 
     for (let index = 0; index < preparedRoutes.length; index += 1) {
       const route = preparedRoutes[index]

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
-import { makeUniqueSlug } from '@/lib/slug'
+import { makeUniqueSlug, fetchUsedSlugs } from '@/lib/slug'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { resolveCountryFromCoordinates } from '@/lib/location/resolve-country'
 import { getBoundingBoxesForCountry, validateCoordinatesInBoundingBox } from '@/lib/geo/bounding-boxes'
@@ -13,30 +13,6 @@ import type { Database } from '@/types/database'
 
 type RequestSupabaseClient = ReturnType<typeof import('@/lib/supabase-server').getServerClientFromRequest>
 type LocationTagRow = Pick<Database['public']['Tables']['location_tags']['Row'], 'id' | 'kind' | 'name' | 'country_code'>
-
-interface CragPrimaryTagRow {
-  crag_id: string
-  location_tags:
-    | { id: string; name: string }
-    | Array<{ id: string; name: string }>
-    | null
-}
-
-interface CragWithCounts {
-  id: string
-  name: string
-  latitude: number | null
-  longitude: number | null
-  rock_type: string | null
-  type: string | null
-  region_tag: string | null
-  sub_area: string | null
-  has_primary_region_tag: boolean
-  climb_count: number
-  image_count: number
-  route_type_counts: Array<{ type: string; count: number }>
-  created_at: string | null
-}
 
 export const createCragSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
@@ -290,122 +266,19 @@ async function resolveCragCountry(
 }
 
 async function generateCragSlug(supabase: RequestSupabaseClient, name: string, countryCode: string | null): Promise<string> {
-  const usedCragSlugs = new Set<string>()
-  const { data: existingSlugs } = await supabase
-    .from('crags')
-    .select('slug')
-    .eq('country_code', countryCode || '')
-    .not('slug', 'is', null)
-    .limit(10000)
-
-  for (const row of (existingSlugs || []) as Array<{ slug: string | null }>) {
-    if (row.slug) usedCragSlugs.add(row.slug)
-  }
+  const usedCragSlugs = await fetchUsedSlugs(supabase, 'crags', { country_code: countryCode || '' })
 
   return makeUniqueSlug(name, usedCragSlugs)
 }
 
+import { loadAdminCragsWithCounts } from './load-admin-crags'
+
 export async function listAdminCrags(supabase: RequestSupabaseClient) {
-  try {
-    const { data: crags, error: cragsError } = await supabase
-      .from('crags')
-      .select('id, name, latitude, longitude, rock_type, type, region_name, sub_area, created_at')
-
-    if (cragsError) {
-      return createErrorResponse(cragsError, 'Error fetching crags')
-    }
-
-    const cragIds = crags?.map((crag) => crag.id) || []
-
-    let primaryTags: CragPrimaryTagRow[] = []
-    if (cragIds.length > 0) {
-      const { data: primaryTagRows, error: primaryTagError } = await supabase
-        .from('crag_location_tags')
-        .select('crag_id, location_tags!inner(id,name)')
-        .eq('is_primary_region', true)
-        .in('crag_id', cragIds)
-
-      if (primaryTagError) {
-        return createErrorResponse(primaryTagError, 'Error fetching crag tags')
-      }
-
-      primaryTags = (primaryTagRows || []) as CragPrimaryTagRow[]
-    }
-
-    const primaryTagMap = new Map<string, string>()
-    const cragIdsWithPrimaryTag = new Set<string>()
-    for (const row of primaryTags) {
-      const locationTag = Array.isArray(row.location_tags) ? row.location_tags[0] : row.location_tags
-      if (!locationTag?.name) continue
-      primaryTagMap.set(row.crag_id, locationTag.name)
-      cragIdsWithPrimaryTag.add(row.crag_id)
-    }
-
-    let climbCounts: Array<{ crag_id: string | null; route_type: string | null; status: string | null; deleted_at: string | null }> = []
-    let imageCounts: Array<{ crag_id: string | null }> = []
-
-    if (cragIds.length > 0) {
-      const [{ data: climbData, error: climbError }, { data: imageData, error: imageError }] = await Promise.all([
-        supabase.from('climbs').select('crag_id, id, route_type, status, deleted_at').in('crag_id', cragIds),
-        supabase.from('images').select('crag_id, id').in('crag_id', cragIds),
-      ])
-
-      if (climbError) {
-        return createErrorResponse(climbError, 'Error fetching climb counts')
-      }
-
-      if (imageError) {
-        return createErrorResponse(imageError, 'Error fetching image counts')
-      }
-
-      climbCounts = climbData || []
-      imageCounts = imageData || []
-    }
-
-    const climbCountMap = new Map<string, number>()
-    const routeTypeCountMap = new Map<string, Map<string, number>>()
-    for (const climb of climbCounts) {
-      if (!climb.crag_id || climb.deleted_at) continue
-      if (climb.status && climb.status !== 'approved') continue
-
-      climbCountMap.set(climb.crag_id, (climbCountMap.get(climb.crag_id) || 0) + 1)
-
-      const normalizedType = normalizeRouteType(climb.route_type)
-      if (!normalizedType) continue
-
-      const perCrag = routeTypeCountMap.get(climb.crag_id) || new Map<string, number>()
-      perCrag.set(normalizedType, (perCrag.get(normalizedType) || 0) + 1)
-      routeTypeCountMap.set(climb.crag_id, perCrag)
-    }
-
-    const imageCountMap = new Map<string, number>()
-    for (const image of imageCounts) {
-      if (!image.crag_id) continue
-      imageCountMap.set(image.crag_id, (imageCountMap.get(image.crag_id) || 0) + 1)
-    }
-
-    const cragsWithCounts: CragWithCounts[] = (crags || []).map((crag) => ({
-      id: crag.id,
-      name: crag.name,
-      latitude: crag.latitude,
-      longitude: crag.longitude,
-      rock_type: crag.rock_type,
-      type: crag.type,
-      region_tag: primaryTagMap.get(crag.id) || crag.region_name || null,
-      sub_area: crag.sub_area || null,
-      has_primary_region_tag: cragIdsWithPrimaryTag.has(crag.id),
-      climb_count: climbCountMap.get(crag.id) || 0,
-      image_count: imageCountMap.get(crag.id) || 0,
-      route_type_counts: Array.from(routeTypeCountMap.get(crag.id)?.entries() || [])
-        .map(([type, count]) => ({ type, count }))
-        .sort((a, b) => (b.count !== a.count ? b.count - a.count : a.type.localeCompare(b.type))),
-      created_at: crag.created_at,
-    }))
-
-    return NextResponse.json({ crags: cragsWithCounts })
-  } catch (error) {
-    return createErrorResponse(error, 'Error fetching crags')
+  const { crags, error } = await loadAdminCragsWithCounts(supabase)
+  if (error) {
+    return createErrorResponse(new Error(error), 'Error fetching crags')
   }
+  return NextResponse.json({ crags })
 }
 
 export async function createCrag(request: NextRequest, supabase: RequestSupabaseClient) {

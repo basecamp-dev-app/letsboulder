@@ -3,26 +3,9 @@ import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { resolveEffectiveClimbId } from '@/features/climb/lib/effective-climb'
 import type { Database } from '@/types/database'
+import { getDisplayName, type ProfileRow } from '@/lib/profile-helpers'
 
 type RecentTopLogRow = Pick<Database['public']['Tables']['user_climbs']['Row'], 'user_id' | 'style' | 'created_at'>
-
-interface ProfileRow {
-  id: string
-  username: string | null
-  display_name: string | null
-  first_name: string | null
-  last_name: string | null
-  avatar_url: string | null
-  is_public: boolean
-}
-
-function getDisplayName(profile: ProfileRow): string {
-  const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
-  if (fullName) return fullName
-  if (profile.display_name) return profile.display_name
-  if (profile.username) return profile.username
-  return `Climber ${profile.id.slice(0, 4)}`
-}
 
 export async function GET(
   request: NextRequest,
