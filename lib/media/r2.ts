@@ -8,7 +8,10 @@ const UPLOAD_URL_TTL_SECONDS = 900
 const READ_URL_TTL_SECONDS = 3600
 
 function getR2Credentials() {
-  return { accessKeyId: serverEnv.R2_ACCESS_KEY_ID, secretAccessKey: serverEnv.R2_SECRET_ACCESS_KEY }
+  return { 
+    accessKeyId: serverEnv.R2_ACCESS_KEY_ID ?? '', 
+    secretAccessKey: serverEnv.R2_SECRET_ACCESS_KEY ?? '' 
+  }
 }
 
 export function createR2Client(): S3Client {
