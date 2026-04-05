@@ -2600,6 +2600,43 @@ export type Database = {
           total_routes_combined: number
         }[]
       }
+      get_place_rankings_leaderboard: {
+        Args: {
+          p_limit?: number
+          p_page?: number
+          p_place_id: string
+          p_sort?: string
+          p_window_start?: string | null
+        }
+        Returns: {
+          avatar_url: string | null
+          avg_grade: string
+          climb_count: number
+          rank: number
+          total_users: number
+          user_id: string
+          username: string
+        }[]
+      }
+      get_rankings_leaderboard: {
+        Args: {
+          p_gender?: string | null
+          p_limit?: number
+          p_page?: number
+          p_region_id?: string | null
+          p_sort?: string
+          p_window_start?: string | null
+        }
+        Returns: {
+          avatar_url: string | null
+          avg_grade: string
+          climb_count: number
+          rank: number
+          total_users: number
+          user_id: string
+          username: string
+        }[]
+      }
       get_star_rating_summary: {
         Args: { p_climb_id: string }
         Returns: {

@@ -1,43 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
-import { getGradePoints, getGradeFromPoints, FLASH_BONUS } from '@/lib/grades'
 import { createErrorResponse } from '@/lib/errors'
-import { UserClimbQueryResultSchema } from '@/lib/supabase-result-schemas'
+import { loadGlobalRankingsLeaderboard } from '@/features/rankings/server/leaderboard'
 
 export const revalidate = 60
-
-type UserClimbQueryResult = {
-  id: string
-  user_id: string
-  created_at: string
-  style: string
-  climbs: {
-    id: string
-    grade: string
-  } | null
-}
-
-type RegionRouteLine = {
-  climb_id: string
-  images: {
-    crags: {
-      climbing_areas: {
-        id: string
-      }
-    }
-  } | null
-}
-
-interface ProfileRow {
-  id: string
-  username: string | null
-  first_name: string | null
-  last_name: string | null
-  display_name: string | null
-  avatar_url: string | null
-  gender: string | null
-  is_public: boolean | null
-}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -65,143 +31,31 @@ export async function GET(request: NextRequest) {
   try {
     const genderParam = gender === 'all' ? null : gender
     const regionParam = region === 'all' ? null : region
-
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
 
-    let query = supabase
-      .from('user_climbs')
-      .select(`
-        id,
-        user_id,
-        created_at,
-        style,
-        climbs!inner(id, grade)
-      `, { count: 'exact' })
-      .in('style', ['top', 'flash'])
-      .gte('created_at', sixtyDaysAgo)
-
-    if (genderParam) {
-      const { data: genderProfiles } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('gender', genderParam)
-      
-      const genderUserIds = genderProfiles?.map(p => p.id) || []
-      if (genderUserIds.length > 0) {
-        query = query.in('user_id', genderUserIds)
-      } else {
-        return NextResponse.json({
-          leaderboard: [],
-          pagination: { page, limit, total_users: 0, total_pages: 0 },
-        })
-      }
-    }
-
-    const { data: userClimbs, error } = await query
+    const { data, error } = await loadGlobalRankingsLeaderboard(supabase, {
+      gender: genderParam,
+      regionId: regionParam,
+      sort,
+      page,
+      limit,
+      windowStart: sixtyDaysAgo,
+    })
 
     if (error) {
       return createErrorResponse(error, 'Query error')
     }
 
-    let filteredClimbs = userClimbs ? UserClimbQueryResultSchema.parse(userClimbs) : []
-    
-    if (regionParam) {
-      const climbIds = [...new Set(filteredClimbs.map((uc) => uc.climbs?.id).filter(Boolean) || [])]
-      if (climbIds.length > 0) {
-        const { data: routeLinesData } = await supabase
-          .from('route_lines')
-          .select('climb_id, images!inner(crags!inner(climbing_areas:region_id!inner(id, name))))')
-          .in('climb_id', climbIds)
-
-        const regionClimbIds = new Set<string>()
-        if (routeLinesData) {
-          for (const rl of routeLinesData) {
-            if (!rl) continue
-            if ('climb_id' in rl && 'images' in rl) {
-              const routeLine = rl as RegionRouteLine
-              if (routeLine.climb_id && routeLine.images?.crags?.climbing_areas?.id === regionParam) {
-                regionClimbIds.add(routeLine.climb_id)
-              }
-            }
-          }
-        }
-        filteredClimbs = filteredClimbs.filter((uc) => uc.climbs && regionClimbIds.has(uc.climbs.id))
-      }
-    }
-
-    const userClimbsMap: Record<string, UserClimbQueryResult[]> = {}
-    filteredClimbs.forEach((uc) => {
-      if (!userClimbsMap[uc.user_id]) {
-        userClimbsMap[uc.user_id] = []
-      }
-      userClimbsMap[uc.user_id].push(uc)
-    })
-
-    const userIds = Object.keys(userClimbsMap)
-
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, username, first_name, last_name, display_name, avatar_url, gender, is_public')
-      .eq('is_public', true)
-      .in('id', userIds)
-
-    const profilesMap = new Map(profiles?.map(p => [p.id, p]) || [])
-
-    const publicUserIds = userIds.filter(userId => profilesMap.has(userId))
-
-    const getUsername = (userId: string, profile: ProfileRow | undefined): string => {
-      const fullName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim()
-      if (fullName) return fullName
-      if (profile?.display_name) return profile.display_name
-      if (profile?.username) return profile.username
-      return `Climber ${userId.slice(0, 4)}`
-    }
-
-    const leaderboard = publicUserIds.map(userId => {
-      const userClimbsArr = userClimbsMap[userId] || []
-      const climbCount = userClimbsArr.length
-
-      let totalPoints = 0
-      let validClimbCount = 0
-      userClimbsArr.forEach((uc) => {
-        const climb = uc.climbs
-        const basePoints = getGradePoints(climb?.grade)
-        if (basePoints > 0) {
-          const points = uc.style === 'flash' ? basePoints + FLASH_BONUS : basePoints
-          totalPoints += points
-          validClimbCount++
-        }
-      })
-      const avgPoints = validClimbCount > 0 ? Math.round(totalPoints / validClimbCount) : 0
-      const avgGrade = getGradeFromPoints(avgPoints)
-
-      const profile = profilesMap.get(userId)
-      return {
-        rank: 0,
-        user_id: userId,
-        username: getUsername(userId, profile),
-        avatar_url: profile?.avatar_url,
-        avg_grade: avgGrade,
-        climb_count: climbCount,
-        sort_value: sort === 'tops' ? climbCount : avgPoints,
-      }
-    }).sort((a, b) => b.sort_value - a.sort_value)
-
-    leaderboard.forEach((entry, index) => {
-      entry.rank = index + 1
-      delete (entry as { sort_value?: number }).sort_value
-    })
-
-    const publicTotalUsers = publicUserIds.length
-    const paginatedLeaderboard = leaderboard.slice(offset, offset + limit)
+    const leaderboard = data?.leaderboard || []
+    const totalUsers = data?.totalUsers || 0
 
     return NextResponse.json({
-      leaderboard: paginatedLeaderboard,
+      leaderboard,
       pagination: {
         page,
         limit,
-        total_users: publicTotalUsers,
-        total_pages: Math.ceil(publicTotalUsers / limit),
+        total_users: totalUsers,
+        total_pages: Math.ceil(totalUsers / limit),
       },
     }, {
       headers: {
