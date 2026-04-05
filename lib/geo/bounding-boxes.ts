@@ -1,5 +1,11 @@
 import { getGeoJsonBoundingBoxesForCountryFallback } from '@/lib/geo/country-bounds'
 
+// Bounding boxes are used as validation guardrails for user-provided coordinates,
+// NOT as a fallback for country resolution. Country resolution is DB-backed via
+// get_upload_context RPC which uses ST_Covers on countries.boundary (GIST indexed).
+// Bounding boxes provide a secondary sanity check when users manually select a country
+// code, ensuring coordinates are plausible for that country's territories.
+
 export interface BoundingBox {
   name: string;           // e.g., 'Contiguous', 'Hawaii', 'Mainland'
   minLat: number;

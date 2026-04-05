@@ -26,9 +26,10 @@ CREATE INDEX IF NOT EXISTS idx_images_continent ON public.images(continent_name)
 COMMENT ON COLUMN public.images.country_id IS 'Derived from location GPS via Natural Earth Admin-0 boundaries';
 
 -- 4. Backfill existing images with atlas data using ST_Point constructor
--- This populates atlas metadata for all images that have coordinates but missing country_id
--- NOTE: ST_Covers check disabled - requires boundary geometry which is not yet populated
--- TODO: Re-enable spatial matching once countries.boundary is populated with Natural Earth data
+-- NOTE: ST_Covers check was disabled here because countries.boundary was not yet populated.
+-- Boundaries were populated later in 20260335000047_fix_get_upload_context_country_lookup.sql.
+-- This migration is historical and should not be re-run. New images get country resolution
+-- via get_upload_context RPC which uses ST_Covers with the GIST index on countries.boundary.
 UPDATE public.images i
 SET
   country_id = c.id,
@@ -43,4 +44,4 @@ JOIN public.un_regions u ON r.un_region_name = u.name
 WHERE i.latitude IS NOT NULL
   AND i.longitude IS NOT NULL
   AND i.country_id IS NULL
-  AND false; -- Disabled: ST_Covers(c.boundary, ST_SetSRID(ST_Point(i.longitude, i.latitude), 4326))
+  AND false; -- Disabled: was historical, boundaries populated in 20260335000047
