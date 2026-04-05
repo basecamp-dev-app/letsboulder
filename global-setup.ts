@@ -93,14 +93,18 @@ async function globalSetup() {
   
   try {
     const authUrl = new URL('/api/test/auth', baseURL)
-    authUrl.searchParams.set('api_key', testApiKey)
-    if (testUserId) authUrl.searchParams.set('user_id', testUserId)
-    if (testUserEmail) authUrl.searchParams.set('email', testUserEmail)
 
-    console.log(`Authenticating via ${new URL('/api/test/auth', baseURL).toString()}`)
+    console.log(`Authenticating via ${authUrl.toString()}`)
 
-    const requestOptions: { headers: Record<string, string> } = {
-      headers: {},
+    const bodyData: Record<string, string> = { api_key: testApiKey }
+    if (testUserId) bodyData.user_id = testUserId
+    if (testUserEmail) bodyData.email = testUserEmail
+
+    const requestOptions: { headers: Record<string, string>; data: Record<string, string> } = {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      data: bodyData,
     }
 
     if (process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET) {
@@ -114,7 +118,7 @@ async function globalSetup() {
       requestOptions.headers['x-internal-test-key'] = internalTestKey
     }
 
-    const response = await context.request.get(authUrl.toString(), requestOptions)
+    const response = await context.request.post(authUrl.toString(), requestOptions)
     
     if (!response.ok()) {
       const contentType = response.headers()['content-type'] || 'unknown'

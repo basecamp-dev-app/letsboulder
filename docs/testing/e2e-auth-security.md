@@ -2,6 +2,13 @@
 
 The Playwright authenticated suite uses a test-only endpoint at `/api/test/auth`.
 
+## Endpoint Contract
+
+- **Method**: POST only (GET returns 404).
+- **Body**: JSON with `api_key` and either `user_id` or `email`.
+- **Headers**: `x-test-auth: 1` required; `x-internal-test-key` required for non-localhost.
+- **Env gate**: `ENABLE_TEST_AUTH_ENDPOINT=true` must be set or the endpoint returns 404.
+
 ## Required Environment Scoping
 
 - Set `TEST_API_KEY` and `TEST_USER_PASSWORD` only in pre-production environments.
@@ -12,7 +19,7 @@ The Playwright authenticated suite uses a test-only endpoint at `/api/test/auth`
 
 - Rotate `TEST_API_KEY` if there is any suspicion of leakage.
 - Keep pre-production data sanitized when possible.
-- Do not log full auth URLs containing `api_key`.
+- Secrets are sent in the POST body and headers, never in URL query strings.
 
 ## CI Notes
 

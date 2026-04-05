@@ -208,14 +208,16 @@ jobs:
       - name: Preflight test auth endpoint
         run: |
           base_url='${{ env.PLAYWRIGHT_BASE_URL }}'
-          test_url="$base_url/api/test/auth?api_key=${TEST_API_KEY}&user_id=${TEST_USER_ID}"
 
           status_code=$(curl -s -o /tmp/test-auth-response.txt -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
             -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
             -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
             -H "x-internal-test-key: ${INTERNAL_TEST_KEY}" \
             -H "x-test-auth: 1" \
-            "$test_url")
+            -d '{"api_key":"'"${TEST_API_KEY}"'","user_id":"'"${TEST_USER_ID}"'"}' \
+            "$base_url/api/test/auth")
 
           if [ "$status_code" -ne 200 ]; then
             echo "Preflight auth failed with status $status_code"
@@ -309,14 +311,16 @@ jobs:
       - name: Preflight test auth endpoint
         run: |
           base_url='${{ env.PLAYWRIGHT_BASE_URL }}'
-          test_url="$base_url/api/test/auth?api_key=${TEST_API_KEY}&user_id=${TEST_USER_ID}"
 
           status_code=$(curl -s -o /tmp/test-auth-response.txt -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
             -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
             -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
             -H "x-internal-test-key: ${INTERNAL_TEST_KEY}" \
             -H "x-test-auth: 1" \
-            "$test_url")
+            -d '{"api_key":"'"${TEST_API_KEY}"'","user_id":"'"${TEST_USER_ID}"'"}' \
+            "$base_url/api/test/auth")
 
           if [ "$status_code" -ne 200 ]; then
             echo "Preflight auth failed with status $status_code"
