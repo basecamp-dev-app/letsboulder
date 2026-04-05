@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       .setExpirationTime(Math.floor((Date.now() + DELETE_TOKEN_EXPIRY) / 1000))
       .sign(deleteTokenSecret)
 
-    const deleteUrl = `${serverEnv.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/settings/delete-confirm?token=${token}`
+    const deleteUrl = `${serverEnv.NEXT_PUBLIC_APP_URL}/settings/delete-confirm?token=${token}`
     const deleteAccountEmail = buildDeleteAccountEmail({ deleteUrl })
 
     const resend = new Resend(serverEnv.RESEND_API_KEY)

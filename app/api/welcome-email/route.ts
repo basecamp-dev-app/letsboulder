@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'Welcome email already sent' })
     }
 
-    const appUrl = serverEnv.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const appUrl = serverEnv.NEXT_PUBLIC_APP_URL
     const resendApiKey = serverEnv.RESEND_API_KEY
     const welcomeEmail = buildWelcomeEmail({ appUrl, firstName: firstName ?? null })
 
