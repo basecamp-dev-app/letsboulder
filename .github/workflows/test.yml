@@ -261,6 +261,7 @@ jobs:
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           PLAYWRIGHT_BASE_URL: ${{ env.PLAYWRIGHT_BASE_URL }}
           CI: true
+          ENABLE_TEST_AUTH_ENDPOINT: 'true'
 
       - name: Upload Playwright smoke report
         if: always()
