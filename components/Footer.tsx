@@ -68,12 +68,15 @@ export default function Footer() {
           </Link>
           <button
             onClick={() => setIsNavSheetOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={isNavSheetOpen}
+            aria-label="Open navigation menu"
             className={`flex flex-col items-center p-2 ${isActive('/logbook') || isActive('/gear') || isActive('/impact') || isActive('/about') || isActive('/settings') ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
             </svg>
-            <span className="text-[10px] mt-0.5">More</span>
+            <span className="text-[10px] mt-0.5" aria-hidden="true">More</span>
           </button>
         </nav>
       </footer>

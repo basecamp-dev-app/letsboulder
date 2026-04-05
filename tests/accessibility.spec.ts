@@ -1,6 +1,39 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Accessibility', () => {
+  test('@full mobile navigation exposes dialog semantics and closes on escape', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+
+    await page.getByRole('button', { name: /open navigation menu/i }).click()
+
+    const dialog = page.getByRole('dialog', { name: /navigation menu/i })
+    await expect(dialog).toBeVisible()
+    await expect(dialog.getByRole('navigation', { name: /mobile navigation/i })).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+  })
+
+  test('@full header search exposes combobox results and keyboard selection', async ({ page }) => {
+    await page.goto('/')
+
+    const searchbox = page.getByRole('combobox', { name: /search crags or climbs/i })
+    await searchbox.fill('a')
+    await searchbox.fill('ab')
+
+    const listbox = page.getByRole('listbox', { name: /search results/i })
+    const emptyState = page.getByText(/no results found/i)
+
+    await expect(listbox.or(emptyState)).toBeVisible({ timeout: 10000 })
+
+    if (await listbox.isVisible().catch(() => false)) {
+      await expect(listbox.locator('[role="option"][aria-selected="true"]').first()).toBeVisible()
+      await page.keyboard.press('ArrowDown')
+      await expect(searchbox).toHaveAttribute('aria-expanded', 'true')
+    }
+  })
+
   test('@full auth page has proper heading structure', async ({ page }) => {
     await page.goto('/auth')
     
