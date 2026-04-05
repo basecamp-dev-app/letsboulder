@@ -13,7 +13,11 @@ async function parseJsonSafe(response: Response): Promise<unknown> {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
+  if (process.env.ENABLE_TEST_AUTH_ENDPOINT !== 'true') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   const hostHeader = request.headers.get('host') || request.nextUrl.host
   const host = hostHeader.split(':')[0].toLowerCase()
   const isLocal = host === 'localhost' || host === '127.0.0.1'
@@ -27,9 +31,17 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const apiKey = request.nextUrl.searchParams.get('api_key')
-  const userId = request.nextUrl.searchParams.get('user_id')
-  const emailParam = request.nextUrl.searchParams.get('email')
+  let body: unknown = null
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const bodyPayload = body as Record<string, unknown> | null
+  const apiKey = typeof bodyPayload?.api_key === 'string' ? bodyPayload.api_key : null
+  const userId = typeof bodyPayload?.user_id === 'string' ? bodyPayload.user_id : null
+  const emailParam = typeof bodyPayload?.email === 'string' ? bodyPayload.email : null
   const testAuthHeader = request.headers.get('x-test-auth')
   const expectedApiKey = process.env.TEST_API_KEY?.trim()
   const testUserPassword = process.env.TEST_USER_PASSWORD?.trim()
