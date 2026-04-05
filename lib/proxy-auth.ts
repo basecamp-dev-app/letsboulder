@@ -3,8 +3,6 @@ import { createServerClient } from '@supabase/ssr'
 import { env } from '@/lib/env'
 import { reportError } from '@/lib/errors'
 
-const INTERNAL_USER_ID_HEADER = 'x-internal-user-id'
-
 const ALLOWED_REDIRECT_PATHS = [
   '/',
   '/map',
@@ -158,14 +156,7 @@ export async function applyProxyAuth({ request, requestHeaders, response }: Appl
 
     if (!user?.id) return nextResponse
 
-    requestHeaders.set(INTERNAL_USER_ID_HEADER, user.id)
-    const updatedResponse = NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    })
-    mergeResponseMetadata(nextResponse, updatedResponse)
-    return updatedResponse
+    return nextResponse
   } catch (error) {
     reportError(error, { message: 'Proxy Auth Error' })
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
