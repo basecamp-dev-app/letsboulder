@@ -27,6 +27,9 @@ import { GET as getCragSearch } from '@/app/api/crags/search/route'
 import { GET as getImageSearch } from '@/app/api/images/search/route'
 import { GET as getLocationSearch } from '@/app/api/locations/search/route'
 import { GET as getPlaceSearch } from '@/app/api/places/search/route'
+import { GET as getPlaceNearby } from '@/app/api/places/nearby/route'
+import { GET as getCragNearby } from '@/app/api/crags/nearby/route'
+import { GET as getRegionSearch } from '@/app/api/regions/search/route'
 import { rateLimit } from '@/lib/rate-limit'
 
 type QueryResult = { data: unknown; error: unknown }
@@ -46,6 +49,23 @@ function createPlacesClient(result: QueryResult) {
     gte: vi.fn(() => builder),
     lte: vi.fn(() => builder),
     ilike: vi.fn(() => builder),
+    limit: vi.fn(() => makeThenableResult(result)),
+  }
+
+  return {
+    from: vi.fn((table: string) => {
+      if (table !== 'places') throw new Error(`Unexpected table ${table}`)
+      return { select: vi.fn(() => builder) }
+    }),
+  }
+}
+
+function createNearbyPlacesClient(result: QueryResult) {
+  const builder = {
+    eq: vi.fn(() => builder),
+    gte: vi.fn(() => builder),
+    lte: vi.fn(() => builder),
+    order: vi.fn(() => builder),
     limit: vi.fn(() => makeThenableResult(result)),
   }
 
@@ -84,6 +104,22 @@ function createCragsClient(namedCrags: unknown[], tagRows: unknown[] = []) {
   }
 }
 
+function createNearbyCragsClient(result: QueryResult) {
+  const builder = {
+    gte: vi.fn(() => builder),
+    lte: vi.fn(() => builder),
+    order: vi.fn(() => builder),
+    limit: vi.fn(() => makeThenableResult(result)),
+  }
+
+  return {
+    from: vi.fn((table: string) => {
+      if (table !== 'crags') throw new Error(`Unexpected table ${table}`)
+      return { select: vi.fn(() => builder) }
+    }),
+  }
+}
+
 describe('Search routes', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -95,6 +131,15 @@ describe('Search routes', () => {
 
     expect(response.status).toBe(200)
     expect(json).toEqual([])
+  })
+
+  test('regions search returns empty array for short queries', async () => {
+    const response = await getRegionSearch(new NextRequest('http://localhost:3000/api/regions/search?q=a'))
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json).toEqual([])
+    expect(getServerClientFromRequest).not.toHaveBeenCalled()
   })
 
   test('places search filters by type and sorts by distance', async () => {
@@ -111,6 +156,21 @@ describe('Search routes', () => {
 
     expect(response.status).toBe(200)
     expect(json.map((row: { id: string }) => row.id)).toEqual(['gym-2', 'gym-1'])
+  })
+
+  test('places search keeps zero coordinates when computing distance', async () => {
+    getServerClientFromRequest.mockReturnValue(createPlacesClient({
+      data: [
+        { id: 'gym-0', name: 'Prime Meridian Gym', type: 'gym', latitude: 0, longitude: 0, primary_discipline: null, disciplines: [] },
+      ],
+      error: null,
+    }))
+
+    const response = await getPlaceSearch(new NextRequest('http://localhost:3000/api/places/search?q=gym&lat=0&lng=0'))
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json[0]).toEqual(expect.objectContaining({ id: 'gym-0', distance: 0 }))
   })
 
   test('crag search merges tag matches and normalizes country names', async () => {
@@ -137,6 +197,48 @@ describe('Search routes', () => {
       countryName: 'Switzerland',
     }))
     expect(json[1]).toEqual(expect.objectContaining({ id: 'crag-2', name: 'Needles' }))
+  })
+
+  test('crag search keeps zero coordinates when computing distance', async () => {
+    getServerClientFromRequest.mockReturnValue(createCragsClient([
+      { id: 'crag-0', name: 'Meridian Boulder', latitude: 0, longitude: 0, country_code: 'gb', region_name: 'Greenwich', sub_area: null, rock_type: 'sandstone' },
+    ]))
+
+    const response = await getCragSearch(new NextRequest('http://localhost:3000/api/crags/search?q=me&lat=0&lng=0'))
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json[0]).toEqual(expect.objectContaining({ id: 'crag-0', distance: 0 }))
+  })
+
+  test('places nearby keeps zero coordinates when computing distance', async () => {
+    getServerClientFromRequest.mockReturnValue(createNearbyPlacesClient({
+      data: [
+        { id: 'gym-0', name: 'Origin Gym', type: 'gym', latitude: 0, longitude: 0, rock_type: null, primary_discipline: null, disciplines: [] },
+      ],
+      error: null,
+    }))
+
+    const response = await getPlaceNearby(new NextRequest('http://localhost:3000/api/places/nearby?lat=0&lng=0'))
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json[0]).toEqual(expect.objectContaining({ id: 'gym-0', distance: 0 }))
+  })
+
+  test('crags nearby keeps zero coordinates when computing distance', async () => {
+    getServerClientFromRequest.mockReturnValue(createNearbyCragsClient({
+      data: [
+        { id: 'crag-0', name: 'Origin Crag', latitude: 0, longitude: 0, rock_type: 'granite', type: 'outdoor', country_code: 'gb', region_name: 'Greenwich', sub_area: null },
+      ],
+      error: null,
+    }))
+
+    const response = await getCragNearby(new NextRequest('http://localhost:3000/api/crags/nearby?lat=0&lng=0'))
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json[0]).toEqual(expect.objectContaining({ id: 'crag-0', distance: 0 }))
   })
 
   test('image search rejects requests without crag_id or image_id', async () => {

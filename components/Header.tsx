@@ -226,9 +226,9 @@ export default function Header() {
       } else {
         router.push(`/crag/${result.id}`)
       }
-    } else if (result.type === 'climb' && result.latitude && result.longitude) {
+    } else if (result.type === 'climb' && result.latitude != null && result.longitude != null) {
       router.push(`/?lat=${result.latitude}&lng=${result.longitude}&zoom=16&climbId=${result.id}`)
-    } else if (result.latitude && result.longitude) {
+    } else if (result.latitude != null && result.longitude != null) {
       router.push(`/?lat=${result.latitude}&lng=${result.longitude}&zoom=15`)
     } else {
       router.push('/')
