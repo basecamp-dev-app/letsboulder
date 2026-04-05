@@ -42,6 +42,7 @@ export interface ImageFirstPayload {
     imageId: string
     latitude: number
     longitude: number
+    activeImageIds: string[]
     routeSlug: string | null
   }>
 }

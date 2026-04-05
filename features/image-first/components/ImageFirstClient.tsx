@@ -307,6 +307,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       latitude: pin.latitude,
       longitude: pin.longitude,
       label: String(index + 1),
+      activeImageIds: pin.activeImageIds,
     }))
   }, [payload.mapPins])
 
