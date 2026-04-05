@@ -15,5 +15,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to sign out' }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, clearAuthCaches: true })
 }

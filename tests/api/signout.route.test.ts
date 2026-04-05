@@ -46,7 +46,7 @@ describe('POST /api/auth/signout', () => {
     const json = await response.json()
 
     expect(response.status).toBe(200)
-    expect(json).toEqual({ success: true })
+    expect(json).toEqual({ success: true, clearAuthCaches: true })
     expect(signOut).toHaveBeenCalledTimes(1)
     expect(getServerClientFromRequest).toHaveBeenCalledWith(request)
   })

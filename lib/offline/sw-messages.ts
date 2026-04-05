@@ -26,6 +26,7 @@ export interface OfflineJobProgressEvent {
 }
 
 const OFFLINE_JOB_CHANNEL = 'offline-pack-jobs'
+const AUTH_CACHE_CLEAR_CHANNEL = 'auth-cache-clear'
 
 async function waitForServiceWorkerActivation(registration: ServiceWorkerRegistration) {
   const candidate = registration.installing || registration.waiting
@@ -119,4 +120,14 @@ export function subscribeToOfflineJobProgress(jobId: string, callback: (event: O
   return () => {
     channel.close()
   }
+}
+
+export function broadcastAuthCacheClear() {
+  if (typeof window === 'undefined' || !('BroadcastChannel' in window)) {
+    return
+  }
+
+  const channel = new BroadcastChannel(AUTH_CACHE_CLEAR_CHANNEL)
+  channel.postMessage({ type: 'CLEAR_AUTH_CACHES' })
+  channel.close()
 }

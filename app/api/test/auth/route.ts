@@ -18,8 +18,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const hostHeader = request.headers.get('host') || request.nextUrl.host
-  const host = hostHeader.split(':')[0].toLowerCase()
+  const host = request.nextUrl.hostname.toLowerCase()
   const isLocal = host === 'localhost' || host === '127.0.0.1'
 
   if (!isLocal) {
