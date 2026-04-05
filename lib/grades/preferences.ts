@@ -52,7 +52,7 @@ async function fetchGradePreferences(): Promise<GradePreferences> {
   }
 
   if (!gradePreferencesRequest) {
-    gradePreferencesRequest = fetch('/api/settings')
+    gradePreferencesRequest = fetch('/api/profile')
       .then(async (response) => {
         if (!response.ok) {
           gradePreferencesCache = getDefaultPreferences()
@@ -60,9 +60,9 @@ async function fetchGradePreferences(): Promise<GradePreferences> {
         }
         const data = await response.json()
         const prefs = normalizeGradePreferences({
-          boulder: normalizeGradeSystem(data?.settings?.boulderSystem),
-          route: normalizeGradeSystem(data?.settings?.routeSystem),
-          trad: normalizeGradeSystem(data?.settings?.tradSystem),
+          boulder: normalizeGradeSystem(data?.boulder_system),
+          route: normalizeGradeSystem(data?.route_system),
+          trad: normalizeGradeSystem(data?.trad_system),
         })
         gradePreferencesCache = prefs
         if (typeof window !== 'undefined') {

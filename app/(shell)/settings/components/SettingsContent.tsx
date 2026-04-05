@@ -6,6 +6,7 @@ import { User } from '@supabase/supabase-js'
 import { Loader2 } from 'lucide-react'
 import SupportCard from '@/components/SupportCard'
 import { Button } from '@/components/ui/button'
+import { ToastContainer } from '@/components/ui/toast'
 import { AppearanceSettingsSection } from '@/features/settings/components/AppearanceSettingsSection'
 import { PrivacySettingsSection } from '@/features/settings/components/PrivacySettingsSection'
 import { ProfileSettingsSection } from '@/features/settings/components/ProfileSettingsSection'
@@ -14,29 +15,13 @@ import { UnitsSettingsSection } from '@/features/settings/components/UnitsSettin
 import { useSettingsForm } from '@/features/settings/hooks/use-settings-form'
 import { fetchSettings, settingsQueryKey } from '@/features/settings/lib/queries'
 import type { GradeOption, SettingsTab } from '@/features/settings/types/settings-content'
+import { useToast } from '@/hooks/use-toast'
 
 interface SettingsContentProps {
   user: User
 }
 
 const CONFIRMATION_TEXT = 'delete my account'
-
-function Toast({ message, onClose }: { message: string | null; onClose: () => void }) {
-  useEffect(() => {
-    if (message) {
-      const timer = setTimeout(onClose, 2000)
-      return () => clearTimeout(timer)
-    }
-  }, [message, onClose])
-
-  if (!message) return null
-
-  return (
-    <div className="fixed bottom-4 right-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg shadow-lg text-sm z-50">
-      {message}
-    </div>
-  )
-}
 
 const TABS: SettingsTab[] = [
   { id: 'profile', label: 'Profile' },
@@ -63,6 +48,7 @@ const TRAD_GRADE_OPTIONS: GradeOption[] = [
 ]
 
 export default function SettingsContent({ user }: SettingsContentProps) {
+  const { toasts, addToast, removeToast } = useToast()
   const { data, isLoading, error } = useQuery({
     queryKey: settingsQueryKey,
     queryFn: fetchSettings,
@@ -104,6 +90,12 @@ export default function SettingsContent({ user }: SettingsContentProps) {
     handleDeleteCancel,
     handleDeleteModalOpenChange,
   } = form
+
+  useEffect(() => {
+    if (!toast) return
+    addToast(toast, toast === 'Saved' ? 'success' : 'error')
+    setToast(null)
+  }, [addToast, setToast, toast])
 
   const [activeTab, setActiveTab] = useState('profile')
 
@@ -206,31 +198,33 @@ export default function SettingsContent({ user }: SettingsContentProps) {
               />
             )}
 
+            <div className="mt-10 border-t border-gray-200 pt-6 dark:border-gray-700">
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleSave}
+                  disabled={!isDirty || saveLoading}
+                  className="min-w-[120px]"
+                >
+                  {saveLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
+              </div>
+            </div>
+
             <div className="mt-10 max-w-xl border-t border-gray-200 pt-8 dark:border-gray-700">
               <SupportCard compact />
             </div>
           </div>
-
-          <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-            <Button
-              onClick={handleSave}
-              disabled={!isDirty || saveLoading}
-              className="min-w-[120px]"
-            >
-              {saveLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Changes'
-              )}
-            </Button>
-          </div>
         </div>
       </div>
 
-      <Toast message={toast} onClose={() => setToast(null)} />
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   )
 }
