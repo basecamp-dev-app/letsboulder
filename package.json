@@ -23,7 +23,7 @@
     "test:unit": "vitest run --config vitest.config.ts",
     "test:components": "vitest run --config vitest.component.config.ts",
     "test:integration": "vitest run --config vitest.config.ts --mode integration",
-    "test:integration:ci": "vitest run --config vitest.config.ts --mode integration tests/api/api-middleware.test.ts tests/api/mutation-validation.route.test.ts tests/api/profile.route.test.ts tests/api/routes-submit.route.test.ts tests/api/submissions.test.ts tests/features/gym-owners/actions.test.ts tests/features/route-editor/route-editor-utils.test.ts tests/features/moderation/vote-logic.test.ts"
+    "test:integration:coverage": "vitest run --config vitest.config.ts --mode integration --coverage"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.996.0",
@@ -90,6 +90,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.4",
+    "@vitest/coverage-v8": "^4.1.2",
     "dotenv": "^17.3.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
