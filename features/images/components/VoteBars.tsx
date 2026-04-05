@@ -1,10 +1,10 @@
 'use client'
 
 import { useMemo } from 'react'
-import type { GradeVoteDistribution } from '@/lib/verification-types'
-import type { GradeSystem } from '@/lib/grades'
+import { sortVotesByGradeOrder } from '@/features/images/lib/route-detail-utils'
 import { formatGradeForDisplay } from '@/lib/grade-display'
-import { sortVotesByGradeOrder } from './route-detail-utils'
+import type { GradeSystem } from '@/lib/grades'
+import type { GradeVoteDistribution } from '@/lib/verification-types'
 
 function VoteBars({ votes, userVote, gradeSystem }: { votes: GradeVoteDistribution[]; userVote: string | null; gradeSystem: GradeSystem }) {
   const sortedVotes = useMemo(() => sortVotesByGradeOrder(votes), [votes])
