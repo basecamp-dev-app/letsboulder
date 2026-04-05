@@ -247,34 +247,6 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
-      - name: Preflight test auth endpoint
-        run: |
-          base_url='${{ env.PLAYWRIGHT_BASE_URL }}'
-
-          status_code=$(curl -s -o /tmp/test-auth-response.txt -w "%{http_code}" \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
-            -H "x-internal-test-key: ${INTERNAL_TEST_KEY}" \
-            -H "x-test-auth: 1" \
-            -d '{"api_key":"'"${TEST_API_KEY}"'","user_id":"'"${TEST_USER_ID}"'"}' \
-            "$base_url/api/test/auth")
-
-          if [ "$status_code" -ne 200 ]; then
-            echo "Preflight auth failed with status $status_code"
-            cat /tmp/test-auth-response.txt
-            exit 1
-          fi
-          echo "Preflight auth succeeded"
-        env:
-          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
-          TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
-          INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-          ENABLE_TEST_AUTH_ENDPOINT: 'true'
-
       - name: Run Playwright smoke suite
         run: npx playwright test --project=public --project=authenticated --grep @smoke
         env:
@@ -350,34 +322,6 @@ jobs:
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-
-      - name: Preflight test auth endpoint
-        run: |
-          base_url='${{ env.PLAYWRIGHT_BASE_URL }}'
-
-          status_code=$(curl -s -o /tmp/test-auth-response.txt -w "%{http_code}" \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-            -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
-            -H "x-internal-test-key: ${INTERNAL_TEST_KEY}" \
-            -H "x-test-auth: 1" \
-            -d '{"api_key":"'"${TEST_API_KEY}"'","user_id":"'"${TEST_USER_ID}"'"}' \
-            "$base_url/api/test/auth")
-
-          if [ "$status_code" -ne 200 ]; then
-            echo "Preflight auth failed with status $status_code"
-            cat /tmp/test-auth-response.txt
-            exit 1
-          fi
-          echo "Preflight auth succeeded"
-        env:
-          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
-          TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
-          INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-          ENABLE_TEST_AUTH_ENDPOINT: 'true'
 
       - name: Run Playwright full suite
         run: npx playwright test --grep @full
