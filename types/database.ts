@@ -2515,6 +2515,23 @@ export type Database = {
         Returns: boolean
       }
       delete_empty_crags: { Args: { grace_period?: string }; Returns: number }
+      delete_account_atomic: {
+        Args: {
+          p_delete_route_uploads: boolean
+          p_email: string
+          p_user_id: string
+        }
+        Returns: {
+          deleted_climbs: number
+          deleted_images: number
+          deleted_logs: number
+          deleted_profile: boolean
+          deleted_route_upload_images: number
+          deleted_user_climbs: number
+          nullified_climbs: number
+          nullified_images: number
+        }[]
+      }
       find_region_by_location: {
         Args: { search_lat: number; search_lng: number }
         Returns: {

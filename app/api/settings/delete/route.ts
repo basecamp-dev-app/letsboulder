@@ -1,11 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
-import { createErrorResponse, sanitizeError } from '@/lib/errors'
+import { createErrorResponse, reportError, sanitizeError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { getAdminClient } from '@/lib/supabase-server'
 import { serverEnv } from '@/lib/env.server'
+import type { Database } from '@/types/database'
 import { z } from 'zod'
 import { parseWithSchema } from '@/lib/api-validation'
+
+type DeleteAccountResult = Database['public']['Functions']['delete_account_atomic']['Returns'][number]
+
+function createDeleteFailureResponse(message: string, error: unknown, userId: string, deleteRouteUploads: boolean) {
+  reportError(error, {
+    message,
+    extra: { userId, deleteRouteUploads },
+  })
+
+  return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 })
+}
+
+async function removeStorageFolder(
+  bucket: 'avatars' | 'route-uploads',
+  userId: string,
+  limit: number
+): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
+  const supabaseAdmin = getAdminClient()
+  const { data: files, error: listError } = await supabaseAdmin.storage.from(bucket).list(userId, { limit })
+
+  if (listError) {
+    return {
+      ok: false,
+      response: createDeleteFailureResponse(
+        `Failed to list ${bucket} during account deletion`,
+        listError,
+        userId,
+        bucket === 'route-uploads'
+      ),
+    }
+  }
+
+  if (!files || files.length === 0) {
+    return { ok: true }
+  }
+
+  const paths = files.map((file) => `${userId}/${file.name}`)
+  const { error: removeError } = await supabaseAdmin.storage.from(bucket).remove(paths)
+
+  if (removeError) {
+    return {
+      ok: false,
+      response: createDeleteFailureResponse(
+        `Failed to remove ${bucket} during account deletion`,
+        removeError,
+        userId,
+        bucket === 'route-uploads'
+      ),
+    }
+  }
+
+  return { ok: true }
+}
 
 function getDeleteTokenSecret(): Uint8Array {
   const secret = serverEnv.DELETE_ACCOUNT_SECRET
@@ -23,6 +77,12 @@ function getDeleteTokenSecret(): Uint8Array {
 
 const deleteSettingsQuerySchema = z.object({
   token: z.string().min(1, 'Missing confirmation token'),
+})
+
+const deleteTokenPayloadSchema = z.object({
+  action: z.literal('delete-account'),
+  userId: z.string().uuid(),
+  deleteRouteUploads: z.boolean(),
 })
 
 export async function POST(request: NextRequest) {
@@ -49,9 +109,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 })
   }
 
-  if (payload.action !== 'delete-account') {
+  const parsedPayload = deleteTokenPayloadSchema.safeParse(payload)
+  if (!parsedPayload.success) {
     return NextResponse.json({ error: 'Invalid token purpose' }, { status: 400 })
   }
+
+  const deletePayload = parsedPayload.data
 
   const { supabase, userId } = middlewareResult
 
@@ -63,64 +126,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (userId !== payload.userId) {
+    if (userId !== deletePayload.userId) {
       return NextResponse.json({ error: 'Token does not match user' }, { status: 403 })
     }
 
-    if (payload.deleteRouteUploads) {
-      await supabaseAdmin.from('deleted_accounts').insert({
-        user_id: userId,
-        email: user.email,
-        delete_route_uploads: payload.deleteRouteUploads
-      })
-
-      const { data: files } = await supabase.storage
-        .from('route-uploads')
-        .list(userId, { limit: 1000 })
-
-      if (files && files.length > 0) {
-        const paths = files.map(f => `${userId}/${f.name}`)
-        await supabase.storage.from('route-uploads').remove(paths)
-      }
+    if (deletePayload.deleteRouteUploads) {
+      const routeUploadsResult = await removeStorageFolder('route-uploads', userId, 1000)
+      if (!routeUploadsResult.ok) return routeUploadsResult.response
     }
 
-    const { data: avatarFiles } = await supabase.storage
-      .from('avatars')
-      .list(userId, { limit: 10 })
+    const avatarResult = await removeStorageFolder('avatars', userId, 10)
+    if (!avatarResult.ok) return avatarResult.response
 
-    if (avatarFiles && avatarFiles.length > 0) {
-      const paths = avatarFiles.map(f => `${userId}/${f.name}`)
-      await supabase.storage.from('avatars').remove(paths)
+    const { data: deleteResults, error: deleteError } = await supabaseAdmin.rpc('delete_account_atomic', {
+      p_user_id: userId,
+      p_email: user.email,
+      p_delete_route_uploads: deletePayload.deleteRouteUploads,
+    })
+
+    if (deleteError) {
+      return createDeleteFailureResponse('Account deletion RPC failed', deleteError, userId, deletePayload.deleteRouteUploads)
     }
 
-    await supabase.from('admin_actions').delete().eq('user_id', userId)
-    await supabase.from('user_climbs').delete().eq('user_id', userId)
-    await supabase.from('climb_corrections').delete().eq('user_id', userId)
-    await supabase.from('correction_votes').delete().eq('user_id', userId)
-    await supabase.from('logs').delete().eq('user_id', userId)
-    await supabase.from('climb_verifications').delete().eq('user_id', userId)
-    await supabase.from('grade_votes').delete().eq('user_id', userId)
-    await supabase.from('route_grades').delete().eq('user_id', userId)
+    const deleteResult = deleteResults?.[0] as DeleteAccountResult | undefined
 
-    if (payload.deleteRouteUploads) {
-      await supabase.from('images').delete().eq('created_by', userId)
-      await supabase.from('climbs').delete().eq('user_id', userId)
-    } else {
-      await supabase.from('images').update({ created_by: null }).eq('created_by', userId)
-      await supabase.from('climbs').update({ user_id: null }).eq('user_id', userId)
+    if (!deleteResult?.deleted_profile) {
+      return createDeleteFailureResponse(
+        'Account deletion RPC did not confirm profile deletion',
+        new Error('delete_account_atomic returned no successful result'),
+        userId,
+        deletePayload.deleteRouteUploads
+      )
     }
 
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', userId)
-
-    if (profileError) {
-      return createErrorResponse(profileError, 'Error deleting profile')
+    const { error: signOutError } = await supabase.auth.signOut()
+    if (signOutError) {
+      return createDeleteFailureResponse('Failed to sign out after account deletion', signOutError, userId, deletePayload.deleteRouteUploads)
     }
 
-    await supabase.auth.signOut()
-    await supabaseAdmin.auth.admin.deleteUser(userId)
+    const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+    if (deleteUserError) {
+      return createDeleteFailureResponse('Failed to delete auth user after account deletion', deleteUserError, userId, deletePayload.deleteRouteUploads)
+    }
 
     return NextResponse.json({ success: true })
 
