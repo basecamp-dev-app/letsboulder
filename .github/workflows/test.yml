@@ -31,7 +31,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20.20.0'
           cache: 'npm'
 
       - name: Install dependencies
@@ -42,6 +42,18 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Run Unit Tests
+        run: npm run test:unit
+
+      - name: Run Component Tests
+        run: npm run test:components
+
+      - name: Run Integration Tests
+        run: npm run test:integration:ci
 
       - name: Check type drift
         run: |
@@ -75,7 +87,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20.20.0'
           cache: 'npm'
 
       - name: Cache Playwright browsers
@@ -265,7 +277,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20.20.0'
           cache: 'npm'
 
       - name: Cache Playwright browsers
