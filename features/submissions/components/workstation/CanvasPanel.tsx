@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { UnifiedRouteCanvas, type UnifiedRouteCanvasRef } from '@/features/route-editor/components/UnifiedRouteCanvas'
 import type { ClimbType } from '@/types/climbing'
 import type { RouteLine } from '@/types/domain'
@@ -33,8 +34,10 @@ export function WorkstationCanvasPanel({
   onRetryActiveImage,
   onDeleteActiveImage,
 }: WorkstationCanvasPanelProps) {
+  const [imageOrientation, setImageOrientation] = useState<'portrait' | 'landscape'>('landscape')
+
   return (
-    <div className="min-h-[52dvh] overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900 md:min-h-[60dvh]">
+    <div className={`overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900 ${imageOrientation === 'portrait' ? 'min-h-[72dvh] md:min-h-[78dvh]' : 'min-h-[52dvh] md:min-h-[60dvh]'}`}>
       {activeImageReady ? (
         <UnifiedRouteCanvas
           ref={routeCanvasRef}
@@ -44,7 +47,8 @@ export function WorkstationCanvasPanel({
           defaultClimbType={defaultClimbType}
           routes={existingRouteLines}
           onRoutesUpdate={onRoutesUpdate}
-          className="h-full min-h-[52dvh] md:min-h-[60dvh]"
+          onImageOrientationChange={setImageOrientation}
+          className={imageOrientation === 'portrait' ? 'h-full min-h-[72dvh] md:min-h-[78dvh]' : 'h-full min-h-[52dvh] md:min-h-[60dvh]'}
         />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-3 bg-gray-100 px-6 text-center text-sm text-gray-500 dark:bg-gray-900 dark:text-gray-300">

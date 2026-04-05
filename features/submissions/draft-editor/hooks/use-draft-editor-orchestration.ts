@@ -48,6 +48,7 @@ export function useDraftEditorOrchestration({
   const [addingImages, setAddingImages] = useState(false)
   const [removingImageId, setRemovingImageId] = useState<string | null>(null)
   const [switchingImageId, setSwitchingImageId] = useState<string | null>(null)
+  const [uploadAutoAssignToken, setUploadAutoAssignToken] = useState<string | null>(null)
   const switchingImageLockRef = useRef(false)
   const addImageInputRef = useRef<HTMLInputElement | null>(null)
   const publishRequirementsRef = useRef<HTMLDivElement | null>(null)
@@ -272,7 +273,17 @@ export function useDraftEditorOrchestration({
     searchQuery,
     setSearchingLocation,
     setLocationSearchError,
+    uploadAutoAssignToken,
   })
+
+  useEffect(() => {
+    if (!draftId) return
+    const unsubscribe = subscribeToUploadComplete((target, clientId, attachedRecordId) => {
+      if (target.kind !== 'draft' || target.draftId !== draftId) return
+      setUploadAutoAssignToken(attachedRecordId || clientId)
+    })
+    return unsubscribe
+  }, [draftId, subscribeToUploadComplete])
 
   const hasValidLocation = effectivePublishLocation !== null
 

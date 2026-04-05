@@ -55,6 +55,7 @@ interface UseEditDraftLocationSyncParams {
   searchQuery: string
   setSearchingLocation: (value: boolean) => void
   setLocationSearchError: (value: string | null) => void
+  uploadAutoAssignToken: string | null
 }
 
 export function useEditDraftLocationSync({
@@ -97,6 +98,7 @@ export function useEditDraftLocationSync({
   searchQuery,
   setSearchingLocation,
   setLocationSearchError,
+  uploadAutoAssignToken,
 }: UseEditDraftLocationSyncParams) {
   const patchDraftLocation = useCallback(async ({
     expectedUpdatedAt,
@@ -146,7 +148,7 @@ export function useEditDraftLocationSync({
       return { ok: true as const, updatedAt: payload.draft.updated_at as string }
     }
 
-    return { ok: false as const, updatedAt: null }
+    return { ok: false as const, updatedAt: null, status: response.status as number }
   }, [atlasSync.atlas, creditHandle, creditPlatform, draftId, imagesPayload, isAnonymousSubmission, setDraftUpdatedAt])
 
   const averagedRouteImageLocation = useMemo<[number, number] | null>(() => {
@@ -309,7 +311,7 @@ export function useEditDraftLocationSync({
     }, 200)
 
     return () => window.clearTimeout(timer)
-  }, [cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, setCragId, setRouteType, setSelectedCrag])
+  }, [cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, setCragId, setRouteType, setSelectedCrag, uploadAutoAssignToken])
 
   const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
     if (activeDraftImageId && activeImageLocationMode === 'custom') {
