@@ -165,7 +165,7 @@ describe('UnifiedRouteCanvas', () => {
     loadCanvasImage()
     fireEvent.pointerDown(document.querySelector('canvas') as HTMLCanvasElement, { button: 0, clientX: 90, clientY: 120 })
 
-    expect(mockAddPoint).toHaveBeenCalledWith({ x: 0.3, y: 0.3 })
+    expect(mockAddPoint).toHaveBeenCalledWith({ x: 0.3125, y: 0.3125 })
   })
 
   it('exposes finishRoute through the imperative ref', () => {

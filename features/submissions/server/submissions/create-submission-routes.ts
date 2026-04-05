@@ -115,7 +115,10 @@ export async function createSubmissionRoutes(
     image_height: routes[index].imageHeight,
   }))
 
-  const { error: routeLinesError } = await writeClient.from('route_lines').insert(routeLinesData)
+  const { data: createdRouteLines, error: routeLinesError } = await writeClient
+    .from('route_lines')
+    .insert(routeLinesData)
+    .select('id, climb_id, points, sequence_order, image_width, image_height, climbs(id, name, grade, status, route_type, description)')
   if (routeLinesError) return createErrorResponse(routeLinesError, 'Create routes error')
 
   const { data: collaboratorRows, error: collaboratorsError } = await supabase
@@ -149,5 +152,6 @@ export async function createSubmissionRoutes(
     success: true,
     createdCount: climbs.length,
     message: `Added ${climbs.length} route${climbs.length === 1 ? '' : 's'}`,
+    routes: createdRouteLines || [],
   })
 }

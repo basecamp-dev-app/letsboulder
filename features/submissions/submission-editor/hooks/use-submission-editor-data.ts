@@ -8,10 +8,10 @@ import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from
 import { reorderSubmissionFacesAction } from '@/features/submissions/actions/editor-write-actions'
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine } from '@/features/submissions/lib/submission-types'
 import type { RoutePoint } from '@/types/climbing'
-import { normalizePoints } from '@/lib/canvasMath'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { createClient } from '@/lib/supabase'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
+import { haveRouteEdits } from '@/features/submissions/submission-editor/lib/published-route-editor-state'
 
 interface ImageRouteLineQuery {
   id: string
@@ -75,12 +75,11 @@ export function useSubmissionEditorData() {
   const routeImageId = params.imageId as string
   const requestedFaceImageId = searchParams.get('face')
   const activeImageId = requestedFaceImageId || routeImageId
-  const { setRoutes, setMode, setInteractionTool, reset } = useRouteStore()
+  const { setMode, setInteractionTool, reset } = useRouteStore()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [imageSelection, setImageSelection] = useState<ImageSelection | null>(null)
-  const [existingRouteLines, setExistingRouteLines] = useState<RouteLine[]>([])
   const [editedRoutes, setEditedRoutes] = useState<RouteLine[]>([])
   const [initialEditedRoutes, setInitialEditedRoutes] = useState<RouteLine[]>([])
   const [canvasKey, setCanvasKey] = useState(0)
@@ -109,7 +108,6 @@ export function useSubmissionEditorData() {
   const [initialCreditHandle, setInitialCreditHandle] = useState('')
   const [manageFaces, setManageFaces] = useState<ManageFaceTab[]>([])
   const [primaryManageImageId, setPrimaryManageImageId] = useState<string | null>(routeImageId)
-  const initializedImageIdRef = useRef<string | null>(null)
   const manageFacesRef = useRef<ManageFaceTab[]>([])
 
   useEffect(() => {
@@ -134,7 +132,7 @@ export function useSubmissionEditorData() {
   const cragMetadataDirty = useMemo(() => canEditCragMetadata && (cragName.trim() !== initialCragName.trim() || regionTag.trim() !== initialRegionTag.trim() || subArea.trim() !== initialSubArea.trim()), [canEditCragMetadata, cragName, initialCragName, initialRegionTag, initialSubArea, regionTag, subArea])
   const creditDirty = useMemo(() => canEditContributionCredit && (initialCreditPlatform !== creditPlatform || initialCreditHandle !== creditHandle), [canEditContributionCredit, creditHandle, creditPlatform, initialCreditHandle, initialCreditPlatform])
   const anonymityDirty = useMemo(() => canEditContributionCredit && initialIsAnonymousSubmission !== isAnonymousSubmission, [canEditContributionCredit, initialIsAnonymousSubmission, isAnonymousSubmission])
-  const routeEditsDirty = useMemo(() => false, [])
+  const routeEditsDirty = useMemo(() => haveRouteEdits(editedRoutes, initialEditedRoutes), [editedRoutes, initialEditedRoutes])
   const changedRouteGradeVotes = useMemo(() => [], [])
   const hasPendingChanges = imageMetadataDirty || cragMetadataDirty || routeEditsDirty || changedRouteGradeVotes.length > 0 || creditDirty || anonymityDirty
   const routesToPersist = useMemo(() => [], [])
@@ -152,21 +150,6 @@ export function useSubmissionEditorData() {
     setInteractionTool('draw')
     return () => reset()
   }, [reset, setInteractionTool, setMode])
-
-  useEffect(() => {
-    if (!activeImageId || existingRouteLines.length === 0 || !imageSelection || !('imageUrl' in imageSelection)) return
-    if (initializedImageIdRef.current === activeImageId) return
-    let isActive = true
-    const img = new window.Image()
-    img.onload = () => {
-      if (!isActive) return
-      const normalizedRoutes = existingRouteLines.map((route) => ({ ...route, points: normalizePoints(route.points, { width: img.width, height: img.height, naturalWidth: img.width, naturalHeight: img.height }, route.image_width, route.image_height) }))
-      setRoutes(normalizedRoutes)
-      initializedImageIdRef.current = activeImageId
-    }
-    img.src = imageSelection.imageUrl
-    return () => { isActive = false }
-  }, [activeImageId, existingRouteLines, imageSelection, setRoutes])
 
   const loadSubmission = useCallback(async () => {
     if (!activeImageId) return
@@ -229,7 +212,6 @@ export function useSubmissionEditorData() {
       setInitialCreditPlatform(normalizedCreditPlatform)
       setInitialCreditHandle(submission.contribution_credit_handle || '')
       setInitialIsAnonymousSubmission(submission.is_anonymous_submission === true)
-      setExistingRouteLines(mappedRouteLines)
       setInitialEditedRoutes(mappedRouteLines)
       setEditedRoutes(mappedRouteLines)
     } catch {
@@ -291,7 +273,6 @@ export function useSubmissionEditorData() {
     setError,
     setSuccess,
     imageSelection,
-    existingRouteLines,
     editedRoutes,
     setEditedRoutes,
     initialEditedRoutes,
