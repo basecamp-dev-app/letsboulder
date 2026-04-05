@@ -136,7 +136,37 @@ function isR2ManagedBucket(bucket: string): boolean {
   return bucket === serverEnv.R2_PRIVATE_BUCKET || bucket === serverEnv.R2_PUBLIC_BUCKET
 }
 
-async function canReadObject(bucket: string, path: string, userId: string | null) {
+type MediaAccess = 'public' | 'private'
+
+function mergeMediaAccess(current: MediaAccess, next: MediaAccess): MediaAccess {
+  return current === 'public' || next === 'public' ? 'public' : 'private'
+}
+
+function getMediaCacheControl(access: MediaAccess): string {
+  return access === 'public' ? 'public, max-age=31536000, immutable' : 'private, no-store'
+}
+
+function getRowAccess(
+  rows: Array<{ created_by: string | null; moderation_status: string | null }>,
+  userId: string | null
+): MediaAccess | null {
+  let access: MediaAccess | null = null
+
+  for (const row of rows) {
+    if (row.moderation_status === 'approved') {
+      access = mergeMediaAccess(access ?? 'private', 'public')
+      continue
+    }
+
+    if (userId && row.created_by === userId) {
+      access = mergeMediaAccess(access ?? 'private', 'private')
+    }
+  }
+
+  return access
+}
+
+async function canReadObject(bucket: string, path: string, userId: string | null): Promise<MediaAccess | null> {
   const admin = getServiceRoleClient()
 
   const isR2 = isR2ManagedBucket(bucket)
@@ -153,8 +183,9 @@ async function canReadObject(bucket: string, path: string, userId: string | null
       throw imageError
     }
 
-    if ((imageRows || []).some((row) => row.moderation_status === 'approved' || (!!userId && row.created_by === userId))) {
-      return true
+    const access = getRowAccess(imageRows || [], userId)
+    if (access) {
+      return access
     }
   }
 
@@ -185,8 +216,9 @@ async function canReadObject(bucket: string, path: string, userId: string | null
         throw linkedError
       }
 
-      if ((linkedImages || []).some((row) => row.moderation_status === 'approved' || (!!userId && row.created_by === userId))) {
-        return true
+      const access = getRowAccess(linkedImages || [], userId)
+      if (access) {
+        return access
       }
     }
   }
@@ -203,12 +235,13 @@ async function canReadObject(bucket: string, path: string, userId: string | null
       throw legacyError
     }
 
-    if ((legacyImageRows || []).some((row) => row.moderation_status === 'approved' || (!!userId && row.created_by === userId))) {
-      return true
+    const access = getRowAccess(legacyImageRows || [], userId)
+    if (access) {
+      return access
     }
   }
 
-  return false
+  return null
 }
 
 const corsHeaders = (request: NextRequest) => ({
@@ -220,7 +253,8 @@ const corsHeaders = (request: NextRequest) => ({
 async function serveFromSupabaseStorage(
   request: NextRequest,
   bucket: string,
-  objectPath: string
+  objectPath: string,
+  access: MediaAccess
 ): Promise<NextResponse> {
   const admin = getServiceRoleClient()
   const { data, error } = await admin.storage.from(bucket).createSignedUrl(objectPath, 300)
@@ -251,7 +285,7 @@ async function serveFromSupabaseStorage(
     headers: {
       'Content-Type': responseContentType,
       'Content-Length': String(responseBytes.byteLength),
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Cache-Control': getMediaCacheControl(access),
       ...corsHeaders(request),
       Vary: 'Accept, Origin',
     },
@@ -261,7 +295,8 @@ async function serveFromSupabaseStorage(
 async function serveFromR2(
   request: NextRequest,
   bucket: string,
-  objectPath: string
+  objectPath: string,
+  access: MediaAccess
 ): Promise<NextResponse> {
   const r2 = createR2Client()
   const response = await r2.send(new GetObjectCommand({ Bucket: bucket, Key: objectPath }))
@@ -284,7 +319,7 @@ async function serveFromR2(
     headers: {
       'Content-Type': responseContentType,
       'Content-Length': String(responseBytes.byteLength),
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Cache-Control': getMediaCacheControl(access),
       ...corsHeaders(request),
       Vary: 'Accept, Origin',
     },
@@ -319,9 +354,9 @@ export async function GET(
 
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    const allowed = await canReadObject(bucket, objectPath, user?.id || null)
+    const access = await canReadObject(bucket, objectPath, user?.id || null)
 
-    if (!allowed) {
+    if (!access) {
       return NextResponse.json({ error: 'Not found' }, {
         status: 404,
         headers: corsHeaders(request),
@@ -329,10 +364,10 @@ export async function GET(
     }
 
     if (isR2) {
-      return await serveFromR2(request, bucket, objectPath)
+      return await serveFromR2(request, bucket, objectPath, access)
     }
 
-    return await serveFromSupabaseStorage(request, bucket, objectPath)
+    return await serveFromSupabaseStorage(request, bucket, objectPath, access)
   } catch (error) {
     reportError(error, { message: 'Media proxy error' })
     return NextResponse.json(
