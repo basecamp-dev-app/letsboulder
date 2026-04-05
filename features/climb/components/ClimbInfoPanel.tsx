@@ -89,7 +89,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     imageLongitude,
     selectedClimbLogged,
     selectedClimbLog,
-    selectedClimbHasSavedFeedback,
     selectedClimbFeedbackCollapsed,
     selectedClimbRatingSummary,
     selectedClimbAverageRating,
@@ -110,7 +109,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     onSetFeedbackCollapsed,
     onSetPendingGradeOpinion,
     onSetPendingStarRating,
-    onSaveFeedback,
     onGoToLogbook,
     deferredSections,
   } = props
@@ -255,7 +253,6 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
             ) : (
               <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">How did the grade feel?</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Current grade: {formatGradeForDisplay(selectedClimb.grade, gradeSystem)}</p>
                 <div className="grid grid-cols-3 gap-2 mt-3">
                   {([
                     { value: 'soft', label: 'Soft' },
@@ -266,6 +263,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                       key={option.value}
                       type="button"
                       onClick={() => onSetPendingGradeOpinion(option.value)}
+                      disabled={savingFeedback}
                       className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${pendingGradeOpinion === option.value ? 'border-gray-900 dark:border-gray-100 bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                     >
                       {option.label}
@@ -278,21 +276,17 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                   {[1, 2, 3, 4, 5].map((value) => {
                     const active = (pendingStarRating ?? 0) >= value
                     return (
-                      <button key={value} type="button" onClick={() => onSetPendingStarRating(value)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" aria-label={`Rate ${value} star${value > 1 ? 's' : ''}`}>
+                      <button key={value} type="button" onClick={() => onSetPendingStarRating(value)} disabled={savingFeedback} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50" aria-label={`Rate ${value} star${value > 1 ? 's' : ''}`}>
                         <Star className={`w-5 h-5 ${active ? 'fill-amber-400 text-amber-500' : 'text-gray-300 dark:text-gray-600'}`} />
                       </button>
                     )
                   })}
                   {pendingStarRating ? (
-                    <button type="button" onClick={() => onSetPendingStarRating(null)} className="ml-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <button type="button" onClick={() => onSetPendingStarRating(null)} disabled={savingFeedback} className="ml-2 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-50">
                       Clear
                     </button>
                   ) : null}
                 </div>
-
-                <button onClick={onSaveFeedback} disabled={savingFeedback || (!pendingGradeOpinion && !pendingStarRating)} className="mt-4 w-full px-4 py-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
-                  {savingFeedback ? 'Saving...' : selectedClimbHasSavedFeedback ? 'Update Feedback' : 'Save Feedback'}
-                </button>
               </div>
             )}
 
