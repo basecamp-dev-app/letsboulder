@@ -41,6 +41,17 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message', handleMessageEvent)
 
+const AUTH_CACHE_CLEAR_CHANNEL = 'auth-cache-clear'
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'CLEAR_AUTH_CACHES') {
+    event.waitUntil((async () => {
+      await caches.delete(MEDIA_CACHE)
+      await caches.open(MEDIA_CACHE)
+    })())
+  }
+})
+
 self.addEventListener('fetch', (event) => {
   const request = event.request
 
@@ -68,7 +79,11 @@ self.addEventListener('fetch', (event) => {
       try {
         const response = await fetch(request)
         if (response.ok) {
-          await cache.put(request, response.clone())
+          const cacheControl = response.headers.get('Cache-Control') || ''
+          const isPublic = cacheControl.includes('public') && !cacheControl.includes('no-store')
+          if (isPublic) {
+            await cache.put(request, response.clone())
+          }
         }
         return response
       } catch {

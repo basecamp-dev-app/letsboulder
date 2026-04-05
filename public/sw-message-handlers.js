@@ -14,6 +14,13 @@ function handleMessageEvent(event) {
         return
       }
 
+      if (message.type === 'CLEAR_AUTH_CACHES') {
+        await caches.delete(MEDIA_CACHE)
+        const newMediaCache = await caches.open(MEDIA_CACHE)
+        respond({ ok: true })
+        return
+      }
+
       if (message.type === 'SAVE_CLIMB_PACK') {
         const pack = message.payload || {}
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []

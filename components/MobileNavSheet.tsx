@@ -72,6 +72,11 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
     onClose()
     const response = await csrfFetch('/api/auth/signout', { method: 'POST' })
     if (!response.ok) return
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      const channel = new BroadcastChannel('auth-cache-clear')
+      channel.postMessage({ type: 'CLEAR_AUTH_CACHES' })
+      channel.close()
+    }
     router.replace('/')
   }
 
