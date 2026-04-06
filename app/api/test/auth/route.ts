@@ -60,9 +60,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid API key' }, { status: 401 })
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  const serviceRoleKey = process.env.DEV_SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const serviceRoleKey = process.env.DEV_SUPABASE_SERVICE_ROLE_KEY
+
+    console.log('Environment check:', { supabaseUrl: !!supabaseUrl, anonKey: !!anonKey, serviceRoleKey: !!serviceRoleKey })
 
   if (!anonKey || !serviceRoleKey) {
     return NextResponse.json({ error: 'Test auth requires DEV_SUPABASE_SERVICE_ROLE_KEY' }, { status: 500 })
@@ -160,6 +162,8 @@ export async function POST(request: NextRequest) {
 
     resolvedUserId = foundUser.id
     resolvedEmail = foundUser.email?.trim().toLowerCase() || resolvedEmail
+
+    console.log('Creating session for user:', resolvedUserId, resolvedEmail)
 
     const tokenResponse = await fetch(
       `${supabaseUrl}/auth/v1/admin/sessions`,
