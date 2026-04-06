@@ -290,6 +290,11 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
+      - name: Link Supabase project
+        run: npx supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
+        env:
+          SUPABASE_DB_URL: ${{ secrets.DEV_SUPABASE_DB_URL }}
+
       - name: Apply Supabase migrations
         run: npx supabase db push
         env:
@@ -376,6 +381,11 @@ jobs:
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
+      - name: Link Supabase project
+        run: npx supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
+        env:
+          SUPABASE_DB_URL: ${{ secrets.DEV_SUPABASE_DB_URL }}
 
       - name: Apply Supabase migrations
         run: npx supabase db push
