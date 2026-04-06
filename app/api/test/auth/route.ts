@@ -161,38 +161,13 @@ export async function POST(request: NextRequest) {
     resolvedUserId = foundUser.id
     resolvedEmail = foundUser.email?.trim().toLowerCase() || resolvedEmail
 
-    const updateUserResponse = await fetch(
-      `${supabaseUrl}/auth/v1/admin/users/${resolvedUserId}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${serviceRoleKey}`,
-          'apikey': serviceRoleKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          password: testUserPassword,
-          email_confirm: true,
-        }),
-      }
-    )
-
-    const updateUserData = await parseJsonSafe(updateUserResponse)
-
-    if (!updateUserResponse.ok) {
-      reportError(new Error('Test auth user update failed'), { extra: { status: updateUserResponse.status, userId: resolvedUserId, payload: updateUserData } })
-      return NextResponse.json(
-        { error: 'Failed to prepare test user' },
-        { status: 500 }
-      )
-    }
-
     const tokenResponse = await fetch(
-      `${supabaseUrl}/auth/v1/token?grant_type=password`,
+      `${supabaseUrl}/auth/v1/admin/generate_link`,
       {
         method: 'POST',
         headers: {
-          'apikey': anonKey,
+          'apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -202,10 +177,10 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    const tokenData = await parseJsonSafe(tokenResponse) as { access_token?: string; refresh_token?: string }
+    const linkData = await parseJsonSafe(tokenResponse) as { access_token?: string; refresh_token?: string }
 
-    if (!tokenResponse.ok || !tokenData.access_token || !tokenData.refresh_token) {
-      reportError(new Error('Test auth token exchange failed'), { extra: { status: tokenResponse.status, userId: resolvedUserId, payload: tokenData } })
+    if (!tokenResponse.ok || !linkData.access_token || !linkData.refresh_token) {
+      reportError(new Error('Test auth token exchange failed'), { extra: { status: tokenResponse.status, userId: resolvedUserId, payload: linkData } })
       return NextResponse.json(
         { error: 'Failed to create auth session' },
         { status: 500 }
@@ -230,8 +205,8 @@ export async function POST(request: NextRequest) {
     )
 
     const { error: sessionError } = await supabase.auth.setSession({
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
+      access_token: linkData.access_token,
+      refresh_token: linkData.refresh_token,
     })
 
     if (sessionError) {
