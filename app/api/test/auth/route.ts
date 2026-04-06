@@ -18,16 +18,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const host = request.nextUrl.hostname.toLowerCase()
-  const isLocal = host === 'localhost' || host === '127.0.0.1'
+  const internalTestKey = request.headers.get('x-internal-test-key')
+  const expectedInternalTestKey = process.env.INTERNAL_TEST_KEY?.trim()
 
-  if (!isLocal) {
-    const internalTestKey = request.headers.get('x-internal-test-key')
-    const expectedInternalTestKey = process.env.INTERNAL_TEST_KEY?.trim()
-
-    if (!expectedInternalTestKey || internalTestKey?.trim() !== expectedInternalTestKey) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+  if (!expectedInternalTestKey || internalTestKey?.trim() !== expectedInternalTestKey) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   let body: unknown = null
