@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { moveQueueItemToFront, pickNextQueueClientId, resetUploadForQueue } from '@/features/submissions/upload/lib/media-upload-queue-state'
-import type { MediaUploadItem } from '@/features/submissions/upload/lib/upload-types'
+import { moveQueueItemToFront, pickNextQueueClientId, resetUploadForQueue } from '@/features/media-upload/lib/media-upload-queue-state'
+import type { MediaUploadItem } from '@/features/media-upload/lib/upload-types'
 
 function createUpload(overrides: Partial<MediaUploadItem> = {}): MediaUploadItem {
   return {

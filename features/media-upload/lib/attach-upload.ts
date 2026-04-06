@@ -1,4 +1,4 @@
-import type { CragAttachResponse, DraftAttachResponse, MediaUploadItem, UploadCompleteCallback } from '@/features/submissions/upload/lib/upload-types'
+import type { CragAttachResponse, DraftAttachResponse, MediaUploadItem, UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
 import { csrfFetch } from '@/lib/csrf-client'
 
 interface AttachUploadDependencies {

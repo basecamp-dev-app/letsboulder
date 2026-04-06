@@ -9,4 +9,4 @@ export {
   revokeDraftInvite,
   removeSubmissionCollaborator,
   removeDraftCollaborator,
-} from '@/features/submissions/editor/collaboration/collaboration-api'
+} from '@/features/collaboration/collaboration-api'

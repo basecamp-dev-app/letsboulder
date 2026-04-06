@@ -10,8 +10,8 @@ import {
 import { serializeDraftMetadataV2, type OrientationDirection } from '@/features/submissions/lib/draft-metadata'
 import { normalizeSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
 import { buildRouteCompletionPayload } from '@/features/route-editor/route-editor-utils'
-import type { DraftConflictState } from '@/features/submissions/draft-editor/hooks/use-draft-conflict-resolution'
-import type { DraftCanvasSource, DraftConflictResponse, DraftPayload, DraftRoute, DraftSavePayload, ManageImageTab } from '@/features/submissions/draft-editor/lib/edit-draft-types'
+import type { DraftConflictState } from '@/features/draft-editor/hooks/use-draft-conflict-resolution'
+import type { DraftCanvasSource, DraftConflictResponse, DraftPayload, DraftRoute, DraftSavePayload, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
 import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 
 const RATE_LIMIT_ERROR_MESSAGE = 'You are saving too quickly right now. Please wait a moment and try again.'

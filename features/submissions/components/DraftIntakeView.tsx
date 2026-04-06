@@ -10,7 +10,7 @@ import { createSubmissionDraftAction } from '@/features/submissions/actions/mana
 import ImagePicker from '@/features/submissions/components/ImagePicker'
 import { DraftImageGallery, DraftUploadStatus, type DraftIntakeImage } from '@/features/submissions/components/draft-intake-sections'
 import { csrfFetch } from '@/hooks/useCsrf'
-import { useDraftUploadManager } from '@/features/submissions/upload/hooks/use-draft-upload-manager'
+import { useDraftUploadManager } from '@/features/media-upload/hooks/use-draft-upload-manager'
 import { type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 

@@ -5,7 +5,7 @@ import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-u
 import { haveStoredRoutesChanged } from '@/features/submissions/lib/route-store-sync'
 import type { EditableRoute } from '@/features/submissions/lib/editor-types'
 import type { RouteLine } from '@/features/submissions/lib/submission-types'
-import type { DraftRoute } from '@/features/submissions/draft-editor/lib/edit-draft-types'
+import type { DraftRoute } from '@/features/draft-editor/lib/edit-draft-types'
 
 interface UseEditDraftRouteSyncParams {
   activeDraftImageId: string | null

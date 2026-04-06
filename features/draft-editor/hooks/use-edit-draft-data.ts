@@ -13,9 +13,9 @@ import type {
   DraftRoute,
   ManageImageTab,
   PublishedCragImagePin,
-} from '@/features/submissions/draft-editor/lib/edit-draft-types'
-import { buildManageImageLabel, isDraftImageReady } from '@/features/submissions/draft-editor/lib/edit-draft-types'
-import type { MediaUploadItem } from '@/features/submissions/upload/hooks/use-media-upload-manager'
+} from '@/features/draft-editor/lib/edit-draft-types'
+import { buildManageImageLabel, isDraftImageReady } from '@/features/draft-editor/lib/edit-draft-types'
+import type { MediaUploadItem } from '@/features/media-upload/hooks/use-media-upload-manager'
 
 interface UseEditDraftDataParams {
   draftId: string

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shouldResumeQueuedUploads } from '@/features/submissions/upload/lib/media-upload-resume-state'
+import { shouldResumeQueuedUploads } from '@/features/media-upload/lib/media-upload-resume-state'
 
 describe('shouldResumeQueuedUploads', () => {
   it('only resumes when visible, idle, and queued items remain', () => {

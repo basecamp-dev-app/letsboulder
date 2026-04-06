@@ -1,10 +1,10 @@
 'use client'
 
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react'
-import { useMediaUploadQueueController } from '@/features/submissions/upload/hooks/use-media-upload-queue-controller'
-import { isSameTarget, type MediaUploadItem, type MediaUploadTarget, type UploadCompleteCallback } from '@/features/submissions/upload/lib/upload-types'
+import { useMediaUploadQueueController } from '@/features/media-upload/hooks/use-media-upload-queue-controller'
+import { isSameTarget, type MediaUploadItem, type MediaUploadTarget, type UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
 
-export type { MediaUploadItem, MediaUploadTarget, UploadCompleteCallback } from '@/features/submissions/upload/lib/upload-types'
+export type { MediaUploadItem, MediaUploadTarget, UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
 
 interface MediaUploadManagerValue {
   uploads: MediaUploadItem[]
