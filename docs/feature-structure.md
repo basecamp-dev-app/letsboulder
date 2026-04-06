@@ -2,7 +2,7 @@
 
 ## Standard Pattern
 
-Every feature under `features/` MUST follow this directory structure:
+Features under `features/` SHOULD follow this directory structure:
 
 ```
 features/<feature-name>/
@@ -33,18 +33,75 @@ features/<feature-name>/
 | `server/` | Server-only code | Server actions, Supabase queries, auth guards |
 | `types/` | TypeScript type definitions | Feature-specific interfaces, enums, type guards |
 
+## Allowed Deviations
+
+The following patterns are acceptable deviations from the standard structure:
+
+### Compatibility Shims
+
+Re-export files that preserve old import paths during code migrations. These MUST include a comment stating they are for backward compatibility and SHOULD be removed once all importers are updated.
+
+```
+features/editor/route-store-sync.ts   # → re-exports from features/submissions/lib/
+features/editor/location/             # → re-exports from features/submissions/lib/
+features/editor/collaboration/        # → re-exports from features/submissions/editor/
+```
+
+### Server Actions at Feature Root
+
+Features with a small number of server actions may place `actions.ts` at the feature root instead of inside `server/`. Features with many actions should use an `actions/` directory.
+
+```
+features/comments/actions.ts
+features/grades/actions.ts
+features/submissions/actions/
+```
+
+### Nested Sub-Features
+
+Large features may contain nested sub-features that follow the same structure. Sub-features need not include all five directories — only the ones they require.
+
+```
+features/admin/crags/       # admin sub-feature for crag management
+features/admin/gyms/        # admin sub-feature for gym management
+features/submissions/upload/
+features/submissions/draft-editor/
+features/submissions/submission-editor/
+```
+
+### Feature-Specific Stores
+
+Features with complex client state may include a `store/` directory for Zustand/Redux slices.
+
+```
+features/route-editor/store/
+```
+
+### Public API Barrels
+
+Features may expose a `public.ts` barrel to curate their public API surface.
+
+```
+features/moderation/public.ts
+features/submissions/public.ts
+```
+
+### Types Alongside types/
+
+A `types.ts` file at the feature root is acceptable alongside a `types/` directory when it holds feature-wide shared types while `types/` holds domain-specific definitions.
+
 ## Rules
 
-1. **All five directories MUST exist** in every feature, even if empty (add an `index.ts` barrel export)
+1. **All five standard directories SHOULD exist** in every feature — the compliance script checks for their presence
 2. **Server code MUST stay in `server/`** — never import Supabase client directly in components
 3. **Use `@/features/<name>/...`** imports — never relative imports across features
 4. **Barrel exports** — each directory should have an `index.ts` that re-exports its contents
-5. **`types.ts` file** — if a feature has only 1-2 types, a single `types.ts` at the feature root is acceptable
+5. **No dead duplicates** — `app/` should not contain copies of files that live in `features/`; use re-exports instead
 
 ## Compliance
 
 Run `npx tsx scripts/check-feature-compliance.ts` to check all features and print a compliance table.
-The script exits with code 1 if any feature is non-compliant.
+The script exits with code 1 if any feature is missing the five standard directories.
 
 CI enforces structural compliance via `npm run check:features`.
 `npm run lint:features` remains a local lint helper for the feature tree, but it is not the authoritative compliance gate.

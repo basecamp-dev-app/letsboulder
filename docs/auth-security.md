@@ -21,11 +21,9 @@ JWT-based token system using `jose` library (`lib/csrf.ts`).
 - Primary auth via `supabase.auth.getUser()` returning JWT session
 - Session tokens stored in cookies managed by `@supabase/ssr`
 
-**Internal Header Fallback (`lib/auth-context.ts`):**
-- `x-internal-user-id` header enables trusted server-to-server auth
-- `getTrustedUserIdFromRequest()` extracts and validates the header (max 128 chars)
-- `resolveUserIdWithFallback()` tries internal header first, falls back to Supabase Auth
-- Returns `{ userId, authError? }` for downstream error handling
+**Internal Header Stripped:**
+- The `x-internal-user-id` header is explicitly stripped by the middleware proxy (`proxy.ts`) to prevent client-side spoofing.
+- No fallback or trusted-header auth path exists; all requests must authenticate via Supabase Auth.
 
 ## Rate Limiting
 

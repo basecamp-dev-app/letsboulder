@@ -81,7 +81,7 @@ Bouldering topo and climbing logbook web app.
 2. Browser stores session in cookies via `@supabase/ssr`
 3. Server Actions verify JWT via `supabase.auth.getUser()`
 4. CSRF protection via JWT tokens in httpOnly cookies (`lib/csrf.ts`)
-5. Internal header `x-internal-user-id` for trusted server-to-server calls
+5. The `x-internal-user-id` header is stripped by middleware (`proxy.ts`) to prevent spoofing
 
 ## Module Boundaries
 
