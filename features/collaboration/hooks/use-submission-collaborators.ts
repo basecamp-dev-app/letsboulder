@@ -6,7 +6,7 @@ import {
   fetchSubmissionCollaborators,
   removeSubmissionCollaborator,
   revokeSubmissionInvite,
-} from './collaboration-api'
+} from '../lib/collaboration-api'
 import { useInviteLinkCopy } from './use-invite-link-copy'
 import type { CollaboratorItem, InviteItem } from '@/features/submissions/lib/editor-types'
 

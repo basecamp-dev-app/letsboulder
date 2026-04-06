@@ -15,7 +15,7 @@ import { useEditDraftRouteSync } from '@/features/draft-editor/hooks/use-edit-dr
 import { useEditDraftUploads } from '@/features/draft-editor/hooks/use-edit-draft-uploads'
 import { useDraftEditorActions } from '@/features/draft-editor/hooks/use-draft-editor-actions'
 import { useDraftEditorDerivedState } from '@/features/draft-editor/hooks/use-draft-editor-derived-state'
-import { useDraftCollaborators } from '@/features/collaboration/use-draft-collaborators'
+import { useDraftCollaborators } from '@/features/collaboration/hooks/use-draft-collaborators'
 import { useDraftLocationMetadata } from '@/features/submissions/editor/location/use-draft-location-metadata'
 import { useDraftConflictResolution } from '@/features/draft-editor/hooks/use-draft-conflict-resolution'
 import { useDraftRouteEditing } from '@/features/draft-editor/hooks/use-draft-route-editing'
