@@ -290,6 +290,12 @@ jobs:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 
+      - name: Apply Supabase migrations
+        run: npx supabase db push
+        env:
+          SUPABASE_DB_URL: ${{ secrets.DEV_SUPABASE_DB_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
+
       - name: Run Playwright smoke suite
         run: npx playwright test --project=public --project=authenticated --grep @smoke
         env:
@@ -370,6 +376,12 @@ jobs:
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
+      - name: Apply Supabase migrations
+        run: npx supabase db push
+        env:
+          SUPABASE_DB_URL: ${{ secrets.DEV_SUPABASE_DB_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Run Playwright full suite
         run: npx playwright test --grep @full
