@@ -162,23 +162,25 @@ export async function POST(request: NextRequest) {
     resolvedUserId = foundUser.id
     resolvedEmail = foundUser.email?.trim().toLowerCase() || resolvedEmail
 
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
+    const tokenResponse = await fetch(
+      `${supabaseUrl}/auth/v1/admin/users/${resolvedUserId}/sessions`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      }
+    )
 
-    const adminApi = supabaseAdmin.auth.admin as unknown as {
-      createSession: (userId: string) => Promise<{ data: { session: { access_token: string; refresh_token: string } }; error: Error | null }>
-    }
+    const sessionData = await parseJsonSafe(tokenResponse) as { access_token?: string; refresh_token?: string }
 
-    const { data: sessionData, error: sessionError } = await adminApi.createSession(resolvedUserId)
-
-    if (sessionError || !sessionData?.session) {
-      reportError(new Error('Test auth admin session failed'), { extra: { userId: resolvedUserId, error: sessionError?.message } })
+    if (!tokenResponse.ok || !sessionData.access_token || !sessionData.refresh_token) {
+      reportError(new Error('Test auth admin session failed'), { extra: { status: tokenResponse.status, userId: resolvedUserId, payload: sessionData } })
       return NextResponse.json(
-        { error: 'Failed to create auth session', details: sessionError?.message },
+        { error: 'Failed to create auth session', details: `HTTP ${tokenResponse.status}` },
         { status: 500 }
       )
     }
@@ -201,8 +203,8 @@ export async function POST(request: NextRequest) {
     )
 
     const { error: setSessionError } = await supabase.auth.setSession({
-      access_token: sessionData.session.access_token,
-      refresh_token: sessionData.session.refresh_token,
+      access_token: sessionData.access_token,
+      refresh_token: sessionData.refresh_token,
     })
 
     if (setSessionError) {
