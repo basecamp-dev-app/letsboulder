@@ -69,6 +69,9 @@ export function getServerEnv(): ServerEnv {
 }
 
 export function validateServerEnv(): void {
+  if (process.env.ENABLE_TEST_AUTH_ENDPOINT === 'true' && process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: ENABLE_TEST_AUTH_ENDPOINT cannot be enabled in production')
+  }
   getServerEnv()
 }
 
