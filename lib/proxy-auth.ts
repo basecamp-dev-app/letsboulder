@@ -22,35 +22,8 @@ const SESSION_REFRESH_PREFIXES = [
   '/admin',
   '/gym-admin',
   '/logbook',
+  '/auth',
 ]
-
-const PROTECTED_STATE_CHANGING_PREFIXES = [
-  '/api/notifications',
-  '/api/submissions',
-  '/api/places',
-  '/api/gym-admin',
-  '/api/routes/submit',
-  '/api/settings',
-  '/api/profile',
-  '/api/log-routes',
-  '/api/flags',
-  '/api/moderation',
-  '/api/logs',
-  '/api/crags/report',
-  '/api/corrections',
-]
-
-function mergeResponseMetadata(fromResponse: NextResponse, intoResponse: NextResponse): void {
-  fromResponse.headers.forEach((value, key) => {
-    if (key.toLowerCase() !== 'set-cookie') {
-      intoResponse.headers.set(key, value)
-    }
-  })
-
-  fromResponse.cookies.getAll().forEach((cookie) => {
-    intoResponse.cookies.set(cookie)
-  })
-}
 
 function isStateChangingMethod(method: string): boolean {
   const normalized = method.toUpperCase()
@@ -70,17 +43,8 @@ function isAllowedRedirectPath(path: string): boolean {
 function shouldRefreshSupabaseSession(pathname: string, method: string): boolean {
   if (pathname.startsWith('/auth')) return true
 
-  if (isStateChangingMethod(method)) {
-    if (PROTECTED_STATE_CHANGING_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
-      return true
-    }
-
-    if (pathname.match(/^\/api\/climbs\/[^/]+\/(flag|grade-vote|correction|verify)$/)) return true
-    if (pathname.match(/^\/api\/images\/[^/]+\/(flag|flags)$/)) return true
-    if (pathname.match(/^\/api\/routes\/[^/]+\/grades$/)) return true
-    if (pathname.match(/^\/api\/comments\/[^/]+$/)) return true
-
-    return false
+  if (isStateChangingMethod(method) && pathname.startsWith('/api/')) {
+    return true
   }
 
   return SESSION_REFRESH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
@@ -99,6 +63,18 @@ function shouldSkipSessionRefreshForPrefetch(pathname: string, request: NextRequ
   if (request.method.toUpperCase() !== 'GET') return false
 
   return pathname === '/submit' || pathname.startsWith('/submit/') || pathname === '/logbook' || pathname.startsWith('/logbook/')
+}
+
+function mergeResponseMetadata(fromResponse: NextResponse, intoResponse: NextResponse): void {
+  fromResponse.headers.forEach((value, key) => {
+    if (key.toLowerCase() !== 'set-cookie') {
+      intoResponse.headers.set(key, value)
+    }
+  })
+
+  fromResponse.cookies.getAll().forEach((cookie) => {
+    intoResponse.cookies.set(cookie)
+  })
 }
 
 type ApplyProxyAuthParams = {
