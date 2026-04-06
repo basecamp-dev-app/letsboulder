@@ -124,36 +124,6 @@ export async function POST(request: NextRequest) {
     const accessToken = jwt.sign(payload, serviceRoleKey, { algorithm: 'HS256' })
     const refreshToken = jwt.sign(payload, serviceRoleKey, { algorithm: 'HS256' })
 
-    const cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }> = []
-
-    const supabase = createServerClient(
-      supabaseUrl,
-      anonKey,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll(newCookies) {
-            newCookies.forEach((cookie) => cookiesToSet.push(cookie))
-          },
-        },
-      }
-    )
-
-    const { error: setSessionError } = await supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken,
-    })
-
-    if (setSessionError) {
-      reportError(new Error('Test auth session persist failed'), { extra: { error: setSessionError.message } })
-      return NextResponse.json(
-        { error: 'Failed to persist auth session' },
-        { status: 500 }
-      )
-    }
-
     const response = NextResponse.json({
       success: true,
       user: {
@@ -162,8 +132,20 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    cookiesToSet.forEach(({ name, value, options }) => {
-      response.cookies.set(name, value, options)
+    response.cookies.set('sb-access-token', accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: expiresIn,
+      path: '/',
+    })
+
+    response.cookies.set('sb-refresh-token', refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: expiresIn * 7,
+      path: '/',
     })
 
     return response
