@@ -64,8 +64,6 @@ export async function POST(request: NextRequest) {
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     const serviceRoleKey = process.env.DEV_SUPABASE_SERVICE_ROLE_KEY
 
-    console.log('Environment check:', { supabaseUrl: !!supabaseUrl, anonKey: !!anonKey, serviceRoleKey: !!serviceRoleKey })
-
   if (!anonKey || !serviceRoleKey) {
     return NextResponse.json({ error: 'Test auth requires DEV_SUPABASE_SERVICE_ROLE_KEY' }, { status: 500 })
   }
@@ -163,10 +161,8 @@ export async function POST(request: NextRequest) {
     resolvedUserId = foundUser.id
     resolvedEmail = foundUser.email?.trim().toLowerCase() || resolvedEmail
 
-    console.log('Creating session for user:', resolvedUserId, resolvedEmail)
-
     const tokenResponse = await fetch(
-      `${supabaseUrl}/auth/v1/admin/sessions`,
+      `${supabaseUrl}/auth/v1/admin/users/${resolvedUserId}/sessions`,
       {
         method: 'POST',
         headers: {
@@ -174,15 +170,11 @@ export async function POST(request: NextRequest) {
           'Authorization': `Bearer ${serviceRoleKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          user_id: resolvedUserId,
-        }),
+        body: JSON.stringify({}),
       }
     )
 
     const sessionData = await parseJsonSafe(tokenResponse) as { access_token?: string; refresh_token?: string; error?: string }
-
-    console.log('Admin sessions response:', tokenResponse.status, sessionData)
 
     if (!tokenResponse.ok || !sessionData.access_token || !sessionData.refresh_token) {
       reportError(new Error('Test auth admin session failed'), { extra: { status: tokenResponse.status, userId: resolvedUserId, payload: sessionData } })
