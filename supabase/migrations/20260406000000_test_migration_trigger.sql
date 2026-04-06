@@ -1,5 +1,5 @@
 -- Test git action trigger
 -- This migration adds a comment to test that the CI pipeline is triggered on push to main
--- 2026-04-06 v2
+-- 2026-04-06 v3
 
-COMMENT ON FUNCTION public.delete_account_atomic IS 'Test migration - no functional change';
+COMMENT ON FUNCTION public.delete_account_atomic IS 'Test migration - no functional change v3';
