@@ -7,11 +7,11 @@ const CSRF_COOKIE_NAME = 'csrf_token'
 function getCsrfSecret(): Uint8Array {
   const csrfSecretValue = serverEnv.CSRF_SECRET
 
-  if (!csrfSecretValue && process.env.NODE_ENV === 'production') {
-    throw new Error('FATAL: CSRF_SECRET missing')
+  if (!csrfSecretValue) {
+    throw new Error('FATAL: CSRF_SECRET is required')
   }
 
-  return new TextEncoder().encode(csrfSecretValue || 'dev-csrf-secret')
+  return new TextEncoder().encode(csrfSecretValue)
 }
 
 export async function generateCsrfToken(): Promise<string> {
