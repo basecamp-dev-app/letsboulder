@@ -178,6 +178,8 @@ export async function POST(request: NextRequest) {
 
     const sessionData = await parseJsonSafe(tokenResponse) as { access_token?: string; refresh_token?: string; error?: string }
 
+    console.log('Admin sessions response:', tokenResponse.status, sessionData)
+
     if (!tokenResponse.ok || !sessionData.access_token || !sessionData.refresh_token) {
       reportError(new Error('Test auth admin session failed'), { extra: { status: tokenResponse.status, userId: resolvedUserId, payload: sessionData } })
       return NextResponse.json(
