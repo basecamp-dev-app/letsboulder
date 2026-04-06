@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   const resolvedUserId = userId?.trim() || null
   const resolvedEmail = emailParam?.trim().toLowerCase() || null
 
-  if (!resolvedUserId || !resolvedEmail) {
+  if (!resolvedUserId && !resolvedEmail) {
     return NextResponse.json({ error: 'Missing user_id or email' }, { status: 400 })
   }
 

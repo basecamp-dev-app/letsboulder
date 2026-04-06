@@ -270,7 +270,7 @@ jobs:
 
       - name: Validate Playwright env
         run: |
-          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_PASSWORD INTERNAL_TEST_KEY CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET)
+          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_EMAIL TEST_USER_PASSWORD INTERNAL_TEST_KEY CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET)
           for var in "${required_vars[@]}"; do
             if [ -z "${!var}" ]; then
               echo "Missing required environment variable: $var"
@@ -283,6 +283,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
@@ -296,6 +297,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
@@ -347,7 +349,7 @@ jobs:
 
       - name: Validate Playwright env
         run: |
-          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_PASSWORD INTERNAL_TEST_KEY CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET)
+          required_vars=(NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY TEST_API_KEY TEST_USER_ID TEST_USER_EMAIL TEST_USER_PASSWORD INTERNAL_TEST_KEY CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET)
           for var in "${required_vars[@]}"; do
             if [ -z "${!var}" ]; then
               echo "Missing required environment variable: $var"
@@ -360,6 +362,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
@@ -373,6 +376,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
           TEST_USER_ID: ${{ secrets.TEST_USER_ID }}
+          TEST_USER_EMAIL: ${{ secrets.TEST_USER_EMAIL }}
           TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
           INTERNAL_TEST_KEY: ${{ secrets.INTERNAL_TEST_KEY }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
