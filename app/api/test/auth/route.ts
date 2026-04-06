@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     resolvedEmail = foundUser.email?.trim().toLowerCase() || resolvedEmail
 
     const tokenResponse = await fetch(
-      `${supabaseUrl}/auth/v1/admin/generate_link`,
+      `${supabaseUrl}/auth/v1/admin/sessions`,
       {
         method: 'POST',
         headers: {
@@ -171,16 +171,15 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: resolvedEmail,
-          password: testUserPassword,
+          user_id: resolvedUserId,
         }),
       }
     )
 
-    const linkData = await parseJsonSafe(tokenResponse) as { access_token?: string; refresh_token?: string }
+    const sessionData = await parseJsonSafe(tokenResponse) as { access_token?: string; refresh_token?: string }
 
-    if (!tokenResponse.ok || !linkData.access_token || !linkData.refresh_token) {
-      reportError(new Error('Test auth token exchange failed'), { extra: { status: tokenResponse.status, userId: resolvedUserId, payload: linkData } })
+    if (!tokenResponse.ok || !sessionData.access_token || !sessionData.refresh_token) {
+      reportError(new Error('Test auth admin session failed'), { extra: { status: tokenResponse.status, userId: resolvedUserId, payload: sessionData } })
       return NextResponse.json(
         { error: 'Failed to create auth session' },
         { status: 500 }
@@ -205,8 +204,8 @@ export async function POST(request: NextRequest) {
     )
 
     const { error: sessionError } = await supabase.auth.setSession({
-      access_token: linkData.access_token,
-      refresh_token: linkData.refresh_token,
+      access_token: sessionData.access_token,
+      refresh_token: sessionData.refresh_token,
     })
 
     if (sessionError) {
