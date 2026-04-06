@@ -294,6 +294,7 @@ jobs:
         run: npx supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
         env:
           SUPABASE_DB_URL: ${{ secrets.DEV_SUPABASE_DB_URL }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Apply Supabase migrations
         run: npx supabase db push
@@ -386,6 +387,7 @@ jobs:
         run: npx supabase link --project-ref ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
         env:
           SUPABASE_DB_URL: ${{ secrets.DEV_SUPABASE_DB_URL }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Apply Supabase migrations
         run: npx supabase db push
