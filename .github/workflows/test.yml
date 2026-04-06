@@ -208,8 +208,14 @@ jobs:
               dev: 'https://dev.letsboulder.com',
             };
 
-            const ref = context.payload.push?.ref || context.payload.pull_request?.base?.ref || '';
-            const branch = ref.replace('refs/heads/', '');
+            const ref = github.ref || context.payload.push?.ref || context.payload.pull_request?.base?.ref || '';
+            let branch = ref.replace('refs/heads/', '');
+
+            if (!branch && context.eventName === 'push') {
+              core.info('No branch found in push event, defaulting to main');
+              branch = 'main';
+            }
+
             const mappedUrl = branchUrlMap[branch];
 
             if (mappedUrl) {
