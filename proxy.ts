@@ -11,10 +11,52 @@ function isStateChangingMethod(method: string): boolean {
   return normalized === 'POST' || normalized === 'PUT' || normalized === 'PATCH' || normalized === 'DELETE'
 }
 
-function shouldRequireCsrfEarly(pathname: string, method: string): boolean {
+function shouldSkipMiddleware(pathname: string, method: string): boolean {
+  const normalizedMethod = method.toUpperCase()
+  if (normalizedMethod !== 'GET') return false
+
+  const publicReadOnlyPrefixes = [
+    '/api/csrf',
+    '/api/regions',
+    '/api/rankings',
+    '/api/places/search',
+    '/api/places/nearby',
+    '/api/moderation/queue',
+    '/api/offline-packs',
+    '/api/media/private',
+    '/api/media/upload-sessions',
+    '/api/locations/search',
+    '/api/locations/reverse',
+    '/api/logbook/contributions',
+    '/api/flags',
+    '/api/location-tags',
+    '/api/gear',
+    '/api/gym-admin/gyms',
+    '/api/images/search',
+    '/api/crags/search',
+    '/api/crags/pins',
+    '/api/crags/nearby',
+    '/api/community',
+    '/api/uploads/signed-url',
+    '/api/uploads/signed-urls',
+    '/api/crags/',
+    '/api/climbs/',
+    '/api/admin/gyms/',
+    '/api/submissions/drafts/collaborate',
+    '/api/submissions/collaborate',
+    '/api/routes/',
+    '/api/profile',
+    '/api/notifications',
+    '/api/comments',
+    '/api/media/',
+  ]
+
+  return publicReadOnlyPrefixes.some((prefix) => pathname.startsWith(prefix))
+}
+
+function shouldRequireCsrf(pathname: string, method: string): boolean {
   const normalizedMethod = method.toUpperCase()
   if (!isStateChangingMethod(normalizedMethod)) return false
-  if (!pathname.startsWith('/api/')) return false
   if (pathname.startsWith('/api/locations/detect')) return false
 
   return true
@@ -32,7 +74,11 @@ export default async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  if (shouldRequireCsrfEarly(pathname, request.method)) {
+  if (shouldSkipMiddleware(pathname, request.method)) {
+    return response
+  }
+
+  if (shouldRequireCsrf(pathname, request.method)) {
     const csrfHeader = request.headers.get('x-csrf-token')
     const csrfCookie = request.cookies.get(CSRF_COOKIE_NAME)?.value
 
@@ -62,34 +108,12 @@ export default async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/api/locations/detect',
+    '/api/:path*',
     '/auth/:path*',
     '/settings/:path*',
     '/submit/:path*',
     '/admin/:path*',
     '/gym-admin/:path*',
     '/logbook/:path*',
-    '/api/notifications/:path*',
-    '/api/submissions/:path*',
-    '/api/places',
-    '/api/gym-admin/:path*',
-    '/api/routes/submit/:path*',
-    '/api/settings/:path*',
-    '/api/profile/:path*',
-    '/api/log-routes/:path*',
-    '/api/flags/:path*',
-    '/api/moderation/:path*',
-    '/api/logs/:path*',
-    '/api/crags/report/:path*',
-    '/api/climbs/(.*)/status',
-    '/api/climbs/(.*)/flag',
-    '/api/climbs/(.*)/grade-vote',
-    '/api/climbs/(.*)/correction',
-    '/api/climbs/(.*)/verify',
-    '/api/images/(.*)/flag',
-    '/api/images/(.*)/flags',
-    '/api/comments/(.*)',
-    '/api/routes/(.*)/grades',
-    '/api/corrections/(.*)/vote',
   ],
 }
