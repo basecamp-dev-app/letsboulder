@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { reportError } from '@/lib/errors'
+import jwt from 'jsonwebtoken'
 
 export async function POST(request: NextRequest) {
   if (process.env.ENABLE_TEST_AUTH_ENDPOINT !== 'true') {
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const resolvedUserId = userId?.trim() || null
+    let resolvedUserId = userId?.trim() || null
     let resolvedEmail = emailParam?.trim().toLowerCase() || null
 
     if (resolvedUserId && !resolvedEmail) {
@@ -80,8 +81,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to resolve test user email' }, { status: 500 })
     }
 
-    let targetUserId = resolvedUserId
-    let targetEmail = resolvedEmail
+    const targetUserId = resolvedUserId
+    const targetEmail = resolvedEmail
 
     const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers()
 
@@ -90,14 +91,14 @@ export async function POST(request: NextRequest) {
         (u) => u.email?.toLowerCase() === resolvedEmail?.toLowerCase()
       )
       if (existingUser) {
-        targetUserId = existingUser.id
-        targetEmail = existingUser.email || resolvedEmail
+        resolvedUserId = existingUser.id
+        resolvedEmail = existingUser.email || resolvedEmail
       }
     }
 
-    if (!targetUserId) {
+    if (!resolvedUserId) {
       const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email: targetEmail,
+        email: resolvedEmail,
         password: testUserPassword,
         email_confirm: true,
       })
@@ -107,9 +108,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to create test user' }, { status: 500 })
       }
 
-      targetUserId = createdUser.user.id
-      targetEmail = createdUser.user.email || targetEmail
+      resolvedUserId = createdUser.user.id
+      resolvedEmail = createdUser.user.email || resolvedEmail
     }
+
+    const expiresIn = 3600
+    const payload = {
+      aud: 'authenticated',
+      exp: Math.floor(Date.now() / 1000) + expiresIn,
+      sub: resolvedUserId,
+      email: resolvedEmail,
+      role: 'authenticated',
+    }
+
+    const accessToken = jwt.sign(payload, serviceRoleKey, { algorithm: 'HS256' })
+    const refreshToken = jwt.sign(payload, serviceRoleKey, { algorithm: 'HS256' })
 
     const cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }> = []
 
@@ -128,22 +141,9 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: targetEmail,
-    })
-
-    if (sessionError || !sessionData.properties?.hashed_token) {
-      reportError(new Error('Test auth session create failed'), { extra: { error: sessionError?.message } })
-      return NextResponse.json(
-        { error: 'Failed to create auth session', details: sessionError?.message },
-        { status: 500 }
-      )
-    }
-
     const { error: setSessionError } = await supabase.auth.setSession({
-      access_token: sessionData.properties.hashed_token,
-      refresh_token: sessionData.properties.hashed_token,
+      access_token: accessToken,
+      refresh_token: refreshToken,
     })
 
     if (setSessionError) {
@@ -157,8 +157,8 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       success: true,
       user: {
-        id: targetUserId,
-        email: targetEmail,
+        id: resolvedUserId,
+        email: resolvedEmail,
       },
     })
 
