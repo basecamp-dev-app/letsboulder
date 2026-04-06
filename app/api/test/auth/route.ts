@@ -169,9 +169,13 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.createSession(resolvedUserId)
+    const adminApi = supabaseAdmin.auth.admin as unknown as {
+      createSession: (userId: string) => Promise<{ data: { session: { access_token: string; refresh_token: string } }; error: Error | null }>
+    }
 
-    if (sessionError || !sessionData.session) {
+    const { data: sessionData, error: sessionError } = await adminApi.createSession(resolvedUserId)
+
+    if (sessionError || !sessionData?.session) {
       reportError(new Error('Test auth admin session failed'), { extra: { userId: resolvedUserId, error: sessionError?.message } })
       return NextResponse.json(
         { error: 'Failed to create auth session', details: sessionError?.message },
