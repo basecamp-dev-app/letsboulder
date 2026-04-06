@@ -112,3 +112,4 @@ git push origin main
 - [Auth & Security](docs/auth-security.md) — CSRF, rate limiting, auth patterns
 - [Offline / PWA](docs/offline-pwa.md) — service worker, pack building, cache layers
 - [Submission Workflow](docs/submission-workflow.md) — draft-to-publish pipeline
+# Test commit to trigger CI
