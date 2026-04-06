@@ -1,0 +1,17 @@
+name: Sync Dev
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  merge-to-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Merge main to dev
+        run: git push origin main:dev
