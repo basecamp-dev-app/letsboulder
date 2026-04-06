@@ -29,7 +29,7 @@ import { DeleteRouteTransferDialog } from '@/features/submissions/submission-edi
 import { CollaboratorDialog } from '@/features/submissions/components/editor/CollaboratorDialog'
 import { useSubmissionEditorData } from '@/features/submissions/submission-editor/hooks/use-submission-editor-data'
 import { useSubmissionLocationMetadata } from '@/features/submissions/editor/location/use-submission-location-metadata'
-import { useSubmissionCollaborators } from '@/features/collaboration/use-submission-collaborators'
+import { useSubmissionCollaborators } from '@/features/collaboration/hooks/use-submission-collaborators'
 import {
   normalizePublishedRoute,
   removePublishedRoute,
