@@ -176,4 +176,124 @@ describe('Media proxy route', () => {
     expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
     expect(response.headers.get('Access-Control-Allow-Credentials')).toBeNull()
   })
+
+  test('returns 400 for invalid media path (missing bucket)', async () => {
+    getServerClientFromRequest.mockReturnValue(createAuthClient(null))
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/media//photo.jpg'),
+      { params: Promise.resolve({ bucket: '', path: ['photo.jpg'] }) }
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  test('returns 400 for invalid media path (missing object)', async () => {
+    getServerClientFromRequest.mockReturnValue(createAuthClient(null))
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/media/private-bucket/'),
+      { params: Promise.resolve({ bucket: 'private-bucket', path: [] }) }
+    )
+
+    expect(response.status).toBe(400)
+  })
+
+  test('private media returns 404 when user has no access', async () => {
+    getServerClientFromRequest.mockReturnValue(createAuthClient('user-1'))
+    createClient.mockReturnValue(createAdminClient([{ created_by: 'other-user', moderation_status: 'pending' }]))
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/media/private-bucket/originals/photo.jpg'),
+      { params: Promise.resolve({ bucket: 'private-bucket', path: ['originals', 'photo.jpg'] }) }
+    )
+
+    expect(response.status).toBe(404)
+  })
+
+  test('public media allows anonymous access with approved images', async () => {
+    getServerClientFromRequest.mockReturnValue(createAuthClient(null))
+    createClient.mockReturnValue(createAdminClient([{ created_by: null, moderation_status: 'approved' }]))
+    createR2Client.mockReturnValue({
+      send: vi.fn(async () => ({
+        Body: createR2Body(new Uint8Array([4, 5, 6])),
+        ContentType: 'image/jpeg',
+        ContentLength: 3,
+      })),
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/media/public-bucket/derived/photo.jpg'),
+      { params: Promise.resolve({ bucket: 'public-bucket', path: ['derived', 'photo.jpg'] }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+  })
+
+  test('public media with pending images returns 404', async () => {
+    getServerClientFromRequest.mockReturnValue(createAuthClient(null))
+    createClient.mockReturnValue(createAdminClient([{ created_by: null, moderation_status: 'pending' }]))
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/media/public-bucket/derived/photo.jpg'),
+      { params: Promise.resolve({ bucket: 'public-bucket', path: ['derived', 'photo.jpg'] }) }
+    )
+
+    expect(response.status).toBe(404)
+  })
+})
+
+describe('Media transform behavior', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  test('public media caches with long TTL', async () => {
+    getServerClientFromRequest.mockReturnValue(createAuthClient(null))
+    createClient.mockReturnValue(createAdminClient([{ created_by: null, moderation_status: 'approved' }]))
+    createR2Client.mockReturnValue({
+      send: vi.fn(async () => ({
+        Body: createR2Body(new Uint8Array([4, 5, 6])),
+        ContentType: 'image/jpeg',
+        ContentLength: 3,
+      })),
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/media/public-bucket/derived/photo.jpg'),
+      { params: Promise.resolve({ bucket: 'public-bucket', path: ['derived', 'photo.jpg'] }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable')
+  })
+})
+
+describe('Media error handling', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  test('returns 500 on database error', async () => {
+    getServerClientFromRequest.mockReturnValue(createAuthClient('user-1'))
+    createClient.mockReturnValue({
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            limit: vi.fn(async () => {
+              throw new Error('Database connection failed')
+            }),
+          })),
+        })),
+      })),
+    })
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/media/private-bucket/originals/photo.jpg'),
+      { params: Promise.resolve({ bucket: 'private-bucket', path: ['originals', 'photo.jpg'] }) }
+    )
+
+    expect(response.status).toBe(500)
+  })
 })
