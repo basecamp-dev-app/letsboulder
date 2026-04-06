@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { createClient } from '@supabase/supabase-js'
-import { reportError } from '@/lib/errors'
 import jwt from 'jsonwebtoken'
 
 export async function POST(request: NextRequest) {
@@ -29,7 +26,6 @@ export async function POST(request: NextRequest) {
   const emailParam = typeof bodyPayload?.email === 'string' ? bodyPayload.email : null
   const testAuthHeader = request.headers.get('x-test-auth')
   const expectedApiKey = process.env.TEST_API_KEY?.trim()
-  const testUserPassword = process.env.TEST_USER_PASSWORD?.trim()
 
   if (!apiKey || (!userId && !emailParam)) {
     return NextResponse.json({ error: 'Missing api_key and test identity' }, { status: 400 })
@@ -43,114 +39,59 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Test auth not configured on server' }, { status: 500 })
   }
 
-  if (!testUserPassword) {
-    return NextResponse.json({ error: 'TEST_USER_PASSWORD is required on server' }, { status: 500 })
-  }
-
   if (apiKey.trim() !== expectedApiKey) {
     return NextResponse.json({ error: 'Invalid API key' }, { status: 401 })
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   const serviceRoleKey = process.env.DEV_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  if (!anonKey || !serviceRoleKey) {
+  if (!serviceRoleKey) {
     return NextResponse.json({ error: 'Test auth requires service role key' }, { status: 500 })
   }
 
-  try {
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
+  const resolvedUserId = userId?.trim() || null
+  const resolvedEmail = emailParam?.trim().toLowerCase() || null
 
-    let resolvedUserId = userId?.trim() || null
-    let resolvedEmail = emailParam?.trim().toLowerCase() || null
-
-    if (resolvedUserId && !resolvedEmail) {
-      const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(resolvedUserId)
-      if (!userError && userData?.user?.email) {
-        resolvedEmail = userData.user.email?.trim().toLowerCase() || null
-      }
-    }
-
-    if (!resolvedEmail) {
-      return NextResponse.json({ error: 'Failed to resolve test user email' }, { status: 500 })
-    }
-
-    const targetUserId = resolvedUserId
-    const targetEmail = resolvedEmail
-
-    const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-
-    if (!listError && listData.users) {
-      const existingUser = listData.users.find(
-        (u) => u.email?.toLowerCase() === resolvedEmail?.toLowerCase()
-      )
-      if (existingUser) {
-        resolvedUserId = existingUser.id
-        resolvedEmail = existingUser.email || resolvedEmail
-      }
-    }
-
-    if (!resolvedUserId) {
-      const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email: resolvedEmail,
-        password: testUserPassword,
-        email_confirm: true,
-      })
-
-      if (createError || !createdUser.user) {
-        reportError(new Error('Test auth user create failed'), { extra: { error: createError?.message } })
-        return NextResponse.json({ error: 'Failed to create test user' }, { status: 500 })
-      }
-
-      resolvedUserId = createdUser.user.id
-      resolvedEmail = createdUser.user.email || resolvedEmail
-    }
-
-    const expiresIn = 3600
-    const payload = {
-      aud: 'authenticated',
-      exp: Math.floor(Date.now() / 1000) + expiresIn,
-      sub: resolvedUserId,
-      email: resolvedEmail,
-      role: 'authenticated',
-    }
-
-    const accessToken = jwt.sign(payload, serviceRoleKey, { algorithm: 'HS256' })
-    const refreshToken = jwt.sign(payload, serviceRoleKey, { algorithm: 'HS256' })
-
-    const response = NextResponse.json({
-      success: true,
-      user: {
-        id: resolvedUserId,
-        email: resolvedEmail,
-      },
-    })
-
-    response.cookies.set('sb-access-token', accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      maxAge: expiresIn,
-      path: '/',
-    })
-
-    response.cookies.set('sb-refresh-token', refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      maxAge: expiresIn * 7,
-      path: '/',
-    })
-
-    return response
-  } catch (error) {
-    reportError(error, { message: 'Test auth error' })
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  if (!resolvedUserId || !resolvedEmail) {
+    return NextResponse.json({ error: 'Missing user_id or email' }, { status: 400 })
   }
+
+  const expiresIn = 3600
+  const payload = {
+    aud: 'authenticated',
+    exp: Math.floor(Date.now() / 1000) + expiresIn,
+    sub: resolvedUserId,
+    email: resolvedEmail,
+    role: 'authenticated',
+    email_confirmed_at: new Date().toISOString(),
+  }
+
+  const accessToken = jwt.sign(payload, serviceRoleKey, { algorithm: 'HS256' })
+  const refreshToken = jwt.sign(payload, serviceRoleKey, { algorithm: 'HS256' })
+
+  const response = NextResponse.json({
+    success: true,
+    user: {
+      id: resolvedUserId,
+      email: resolvedEmail,
+    },
+  })
+
+  response.cookies.set('sb-access-token', accessToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    maxAge: expiresIn,
+    path: '/',
+  })
+
+  response.cookies.set('sb-refresh-token', refreshToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    maxAge: expiresIn * 7,
+    path: '/',
+  })
+
+  return response
 }
