@@ -48,6 +48,7 @@ export const runtime = 'nodejs'
 
 const MAX_WIDTH = 2400
 const DEFAULT_QUALITY = 85
+const MAX_TRANSFORM_SIZE = 50 * 1024 * 1024 // 50 MB
 
 function parsePositiveInt(value: string | null): number | null {
   if (!value) return null
@@ -93,6 +94,11 @@ async function transformImage(
   bytes: Buffer,
   contentType: string
 ): Promise<{ bytes: Buffer; contentType: string } | null> {
+  if (bytes.byteLength > MAX_TRANSFORM_SIZE) {
+    console.warn(`[media] Skipping transform: object too large (${bytes.byteLength} bytes)`)
+    return null
+  }
+
   const widthParam = parsePositiveInt(request.nextUrl.searchParams.get('w'))
   const quality = normalizeQuality(request.nextUrl.searchParams.get('q'))
   const requestedFormat = request.nextUrl.searchParams.get('format')
@@ -309,6 +315,18 @@ async function serveFromSupabaseStorage(
     })
   }
 
+  const contentLength = fetched.headers.get('content-length')
+  if (contentLength && Number(contentLength) > MAX_TRANSFORM_SIZE) {
+    console.warn(`[media] Skipping transform: Supabase object too large (${contentLength} bytes)`)
+    return new NextResponse(fetched.body, {
+      headers: buildResponseHeaders(access, {
+        'Content-Type': contentType,
+        'Content-Length': contentLength,
+        'Cache-Control': getMediaCacheControl(access),
+      }),
+    })
+  }
+
   const bytes = Buffer.from(await fetched.arrayBuffer())
 
   const transformed = await transformImage(request, bytes, contentType)
@@ -358,6 +376,17 @@ async function serveFromR2(
       headers: buildResponseHeaders(access, {
         'Content-Type': contentType,
         'Content-Length': response.ContentLength ? String(response.ContentLength) : '',
+        'Cache-Control': getMediaCacheControl(access),
+      }),
+    })
+  }
+
+  if (response.ContentLength && response.ContentLength > MAX_TRANSFORM_SIZE) {
+    console.warn(`[media] Skipping transform: R2 object too large (${response.ContentLength} bytes)`)
+    return new NextResponse(response.Body as ReadableStream, {
+      headers: buildResponseHeaders(access, {
+        'Content-Type': contentType,
+        'Content-Length': String(response.ContentLength),
         'Cache-Control': getMediaCacheControl(access),
       }),
     })
