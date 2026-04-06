@@ -167,7 +167,6 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers: {
           'apikey': anonKey,
-          'Authorization': `Bearer ${serviceRoleKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
