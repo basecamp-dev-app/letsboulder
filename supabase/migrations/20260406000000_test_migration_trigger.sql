@@ -1,0 +1,3 @@
+-- Test git action trigger
+-- This migration intentionally does nothing but add a comment
+-- to test that the CI pipeline is triggered on push to main
