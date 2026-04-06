@@ -107,7 +107,10 @@ jobs:
         github.event_name != 'deployment_status' ||
         (
           github.event.deployment_status.state == 'success' &&
-          github.event.deployment.ref == 'main'
+          (
+            github.event.deployment.ref == 'refs/heads/main' ||
+            github.event.deployment.ref == 'refs/heads/dev'
+          )
         )
       )
     runs-on: ubuntu-latest
@@ -200,9 +203,22 @@ jobs:
               return;
             }
 
-            const fallbackBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'https://letsboulder.com';
-            core.info(`Using fallback base URL: ${fallbackBaseUrl}`);
-            core.setOutput('base_url', fallbackBaseUrl);
+            const branchUrlMap = {
+              main: 'https://dev.letsboulder.com',
+              dev: 'https://dev.letsboulder.com',
+            };
+
+            const ref = context.payload.push?.ref || context.payload.pull_request?.base?.ref || '';
+            const branch = ref.replace('refs/heads/', '');
+            const mappedUrl = branchUrlMap[branch];
+
+            if (mappedUrl) {
+              core.info(`Using mapped URL for ${branch}: ${mappedUrl}`);
+              core.setOutput('base_url', mappedUrl);
+              return;
+            }
+
+            core.setFailed(`No resolvable base URL for event '${context.eventName}' on branch '${branch}'. Smoke tests require an explicit deployment URL.`);
 
       - name: Wait for preview readiness
         run: |
@@ -211,6 +227,21 @@ jobs:
             echo "Failed to resolve PLAYWRIGHT_BASE_URL"
             exit 1
           fi
+
+          # Validate URL matches expected environment
+          case "$base_url" in
+            *dev.letsboulder.com*|*vercel.app*)
+              echo "URL domain validation passed: $base_url"
+              ;;
+            *letsboulder.com*)
+              echo "::error::Resolved URL '$base_url' points to production. Smoke tests must run against dev/staging environments only."
+              exit 1
+              ;;
+            *)
+              echo "::error::Unexpected URL domain '$base_url'. Expected dev.letsboulder.com or vercel.app preview."
+              exit 1
+              ;;
+          esac
 
           for i in $(seq 1 20); do
             status_code=$(curl -s -o /dev/null -w "%{http_code}" "$base_url/auth")
