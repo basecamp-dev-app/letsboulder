@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { coordinateKey } from '@/lib/face-directions'
 import { buildMapPins, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
 import { buildHighResCanvasUrl } from '@/features/route-editor/route-editor-utils'
-import { buildDraftRouteLines, isValidLocationCoordinate, type DraftRoute, type ManageImageTab } from '@/features/submissions/draft-editor/lib/edit-draft-types'
+import { buildDraftRouteLines, isValidLocationCoordinate, type DraftRoute, type ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
 import type { ImageSelection } from '@/features/submissions/lib/submission-types'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 

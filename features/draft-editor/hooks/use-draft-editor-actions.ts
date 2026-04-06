@@ -5,7 +5,7 @@ import { sortFaceDirections } from '@/lib/face-directions'
 import { reorderItemsByIds, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
 import { csrfFetch } from '@/hooks/useCsrf'
 import type { FaceDirection } from '@/features/submissions/lib/submission-types'
-import type { DraftCanvasSource, DraftPayload, ManageImageTab } from '@/features/submissions/draft-editor/lib/edit-draft-types'
+import type { DraftCanvasSource, DraftPayload, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
 
 interface UseDraftEditorActionsParams {
   draft: DraftPayload | null

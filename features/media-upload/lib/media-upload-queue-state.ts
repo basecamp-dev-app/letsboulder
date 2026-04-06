@@ -1,4 +1,4 @@
-import type { MediaUploadItem } from '@/features/submissions/upload/lib/upload-types'
+import type { MediaUploadItem } from '@/features/media-upload/lib/upload-types'
 
 export interface MediaUploadQueueState {
   uploads: Record<string, MediaUploadItem>

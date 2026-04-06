@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { extractGpsFromFile } from '@/lib/image-gps'
 import { completeMediaUploadSession, createMediaUploadSession, deleteMediaUploadSession, uploadFileToMediaSession } from '@/lib/media/client-upload'
 import { uploadDebug } from '@/lib/media/upload-debug'
-import { createAttachUpload } from '@/features/submissions/upload/lib/attach-upload'
-import { enqueueUploads, prepareRetryQueue, removeUploadEntry, resetQueuedUpload } from '@/features/submissions/upload/lib/media-upload-controller-helpers'
-import { buildPreviewUrl, getImageDimensions, preprocessFile } from '@/features/submissions/upload/lib/preprocess-image'
-import { pickNextQueueClientId, resetUploadForQueue } from '@/features/submissions/upload/lib/media-upload-queue-state'
-import { shouldResumeQueuedUploads } from '@/features/submissions/upload/lib/media-upload-resume-state'
-import { createClientId, ensureFileName, MAX_UPLOADS_PER_TARGET, type MediaUploadItem, type MediaUploadTarget, type QueueEntry, type UploadCompleteCallback } from '@/features/submissions/upload/lib/upload-types'
+import { createAttachUpload } from '@/features/media-upload/lib/attach-upload'
+import { enqueueUploads, prepareRetryQueue, removeUploadEntry, resetQueuedUpload } from '@/features/media-upload/lib/media-upload-controller-helpers'
+import { buildPreviewUrl, getImageDimensions, preprocessFile } from '@/features/media-upload/lib/preprocess-image'
+import { pickNextQueueClientId, resetUploadForQueue } from '@/features/media-upload/lib/media-upload-queue-state'
+import { shouldResumeQueuedUploads } from '@/features/media-upload/lib/media-upload-resume-state'
+import { createClientId, ensureFileName, MAX_UPLOADS_PER_TARGET, type MediaUploadItem, type MediaUploadTarget, type QueueEntry, type UploadCompleteCallback } from '@/features/media-upload/lib/upload-types'
 
 export interface MediaUploadQueueController {
   uploads: Record<string, MediaUploadItem>

@@ -1,7 +1,7 @@
 import { compressImage } from '@/lib/image-compression'
 import { convertHeicToJpegBlob } from '@/lib/heic-converter'
 import { isHeicFile } from '@/lib/image-utils'
-import { THUMBNAIL_MAX_WIDTH } from '@/features/submissions/upload/lib/upload-types'
+import { THUMBNAIL_MAX_WIDTH } from '@/features/media-upload/lib/upload-types'
 import { getImageDimensions } from '@/lib/image-dimensions'
 
 export { getImageDimensions }

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DraftIntakeView from '@/features/submissions/components/DraftIntakeView'
-import type { MediaUploadItem } from '@/features/submissions/upload/lib/upload-types'
+import type { MediaUploadItem } from '@/features/media-upload/lib/upload-types'
 
 const mockReplace = vi.fn()
 const mockAddToast = vi.fn()
@@ -38,7 +38,7 @@ vi.mock('@/hooks/useCsrf', () => ({
   csrfFetch: (...args: Parameters<typeof mockCsrfFetch>) => mockCsrfFetch(...args),
 }))
 
-vi.mock('@/features/submissions/upload/hooks/use-draft-upload-manager', () => ({
+vi.mock('@/features/media-upload/hooks/use-draft-upload-manager', () => ({
   useDraftUploadManager: () => ({
     queueDraftUploads: mockQueueDraftUploads,
     registerDraftUpdatedAt: mockRegisterDraftUpdatedAt,

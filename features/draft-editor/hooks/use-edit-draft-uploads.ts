@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, type MutableRefObject, type RefObject } from 'react'
 import { csrfFetch } from '@/hooks/useCsrf'
-import type { DraftConflictState } from '@/features/submissions/draft-editor/hooks/use-draft-conflict-resolution'
+import type { DraftConflictState } from '@/features/draft-editor/hooks/use-draft-conflict-resolution'
 import type {
   CragImagePayload,
   DraftConflictResponse,
@@ -10,8 +10,8 @@ import type {
   DraftPayload,
   DraftRoute,
   ManageImageTab,
-} from '@/features/submissions/draft-editor/lib/edit-draft-types'
-import type { MediaUploadItem, UploadCompleteCallback } from '@/features/submissions/upload/hooks/use-media-upload-manager'
+} from '@/features/draft-editor/lib/edit-draft-types'
+import type { MediaUploadItem, UploadCompleteCallback } from '@/features/media-upload/hooks/use-media-upload-manager'
 
 interface UseEditDraftUploadsParams {
   draftId: string

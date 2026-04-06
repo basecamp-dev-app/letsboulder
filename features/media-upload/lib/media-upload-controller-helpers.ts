@@ -1,7 +1,7 @@
 import { deleteMediaUploadSession } from '@/lib/media/client-upload'
-import { moveQueueItemToFront, resetUploadForQueue } from '@/features/submissions/upload/lib/media-upload-queue-state'
+import { moveQueueItemToFront, resetUploadForQueue } from '@/features/media-upload/lib/media-upload-queue-state'
 import { uploadDebug } from '@/lib/media/upload-debug'
-import type { MediaUploadItem, QueueEntry } from '@/features/submissions/upload/lib/upload-types'
+import type { MediaUploadItem, QueueEntry } from '@/features/media-upload/lib/upload-types'
 
 export function enqueueUploads<TUpload extends MediaUploadItem>(
   currentUploads: Record<string, TUpload>,

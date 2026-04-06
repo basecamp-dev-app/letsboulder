@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { DraftUploadQueue } from '@/features/submissions/upload/components/DraftUploadQueue'
-import type { MediaUploadItem } from '@/features/submissions/upload/lib/upload-types'
+import { DraftUploadQueue } from '@/features/media-upload/components/DraftUploadQueue'
+import type { MediaUploadItem } from '@/features/media-upload/lib/upload-types'
 
 function createUpload(overrides: Partial<MediaUploadItem> = {}): MediaUploadItem {
   return {

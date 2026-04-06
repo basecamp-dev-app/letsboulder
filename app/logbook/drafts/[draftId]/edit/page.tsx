@@ -7,15 +7,15 @@ import { SubmissionWorkstation } from '@/features/submissions/components/Submiss
 import { resequenceRoutes } from '@/features/submissions/lib/editor-image-state'
 import type { RouteLine } from '@/features/submissions/lib/submission-types'
 import { CollaboratorDialog } from '@/features/submissions/components/editor/CollaboratorDialog'
-import { useDraftConflictResolution } from '@/features/submissions/draft-editor/hooks/use-draft-conflict-resolution'
-import { useDraftRouteEditing } from '@/features/submissions/draft-editor/hooks/use-draft-route-editing'
-import { useDraftEditorOrchestration } from '@/features/submissions/draft-editor/hooks/use-draft-editor-orchestration'
+import { useDraftConflictResolution } from '@/features/draft-editor/hooks/use-draft-conflict-resolution'
+import { useDraftRouteEditing } from '@/features/draft-editor/hooks/use-draft-route-editing'
+import { useDraftEditorOrchestration } from '@/features/draft-editor/hooks/use-draft-editor-orchestration'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DraftToolbar } from '@/features/submissions/draft-editor/components/DraftToolbar'
-import { DraftMetadataPanel } from '@/features/submissions/draft-editor/components/DraftMetadataPanel'
-import { DraftDetailsPanel } from '@/features/submissions/draft-editor/components/DraftDetailsPanel'
-import { DraftUploadQueue } from '@/features/submissions/upload/components/DraftUploadQueue'
-import { resolveDraftClimbType } from '@/features/submissions/draft-editor/lib/edit-draft-types'
+import { DraftToolbar } from '@/features/draft-editor/components/DraftToolbar'
+import { DraftMetadataPanel } from '@/features/draft-editor/components/DraftMetadataPanel'
+import { DraftDetailsPanel } from '@/features/draft-editor/components/DraftDetailsPanel'
+import { DraftUploadQueue } from '@/features/media-upload/components/DraftUploadQueue'
+import { resolveDraftClimbType } from '@/features/draft-editor/lib/edit-draft-types'
 
 
 export default function EditDraftPage() {
