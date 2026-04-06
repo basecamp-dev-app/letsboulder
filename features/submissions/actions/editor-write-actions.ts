@@ -2,7 +2,7 @@
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
-import { getAdminClient, getServerClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit, getServerClient } from '@/lib/supabase-server'
 import { reportError } from '@/lib/errors'
 import { assertDraftReadAccess, normalizeDraftRoutePayload } from '@/features/submissions/server/drafts/draft-route-helpers'
 import { buildDraftConflictResult, mergeDraftMetadata, revalidateSubmissionImagePaths } from '@/features/submissions/actions/editor-write-action-helpers'
@@ -292,7 +292,7 @@ export async function createPublishedSubmissionRoutesAction(imageId: string, bod
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
 
   const supabase = await getServerClient()
-  const supabaseAdmin = getAdminClient()
+  const supabaseAdmin = getAdminClientWithAudit('create submission route')
   const deps: SubmissionRouteMutationDeps = { supabase, supabaseAdmin, userId: auth.data.userId, imageId: validation.data.imageId }
   const response = await createSubmissionRoutes(deps, validation.data.body)
   const payload = await response.json().catch(() => ({} as { error?: string }))
@@ -325,7 +325,7 @@ export async function deletePublishedSubmissionRouteAction(imageId: string, body
   if (!auth.data?.userId) return { success: false, error: 'Authentication required', status: 401 }
 
   const supabase = await getServerClient()
-  const supabaseAdmin = getAdminClient()
+  const supabaseAdmin = getAdminClientWithAudit('create submission route')
   const deps: SubmissionRouteMutationDeps = { supabase, supabaseAdmin, userId: auth.data.userId, imageId: validation.data.imageId }
   const response = await deleteSubmissionRoute(deps, validation.data.body)
   const payload = await response.json().catch(() => ({} as { error?: string }))

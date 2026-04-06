@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAdminClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
 import type { Database } from '@/types/database'
@@ -18,7 +18,7 @@ export async function deleteDraft(
   }
 
   const { supabase, userId } = middlewareResult
-  const storageClient = getAdminClient()
+  const storageClient = getAdminClientWithAudit('delete draft storage cleanup')
 
   try {
     const { data: draft, error: draftError } = await supabase

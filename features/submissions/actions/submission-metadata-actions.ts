@@ -7,7 +7,7 @@ import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { isValidGrade } from '@/lib/grade-constants'
 import { buildConsensusUpdates } from '@/features/grades/lib/grade-votes'
 import { normalizeSubmissionCreditHandle, normalizeSubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
-import { getAdminClient, getServerClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit, getServerClient } from '@/lib/supabase-server'
 import { z } from 'zod'
 
 const submissionCreditSchema = z.object({
@@ -151,7 +151,7 @@ export async function saveSubmissionGradeVotesAction(imageId: string, grades: Ar
   const validatedGrades = validation.data.grades
 
   const supabase = await getServerClient()
-  const supabaseAdmin = getAdminClient()
+  const supabaseAdmin = getAdminClientWithAudit('update grade votes')
   const { data: image, error: imageError } = await supabase.from('images').select('id, created_by').eq('id', validatedImageId).maybeSingle()
   if (imageError) return { success: false, error: 'Save submission grade votes error', status: 500 }
   if (!image) return { success: false, error: 'Image not found', status: 404 }

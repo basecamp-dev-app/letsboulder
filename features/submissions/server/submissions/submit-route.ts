@@ -4,7 +4,7 @@ import { makeUniqueSlug, fetchUsedSlugs } from '@/lib/slug'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import { serverEnv } from '@/lib/env.server'
 import { getMediaModerationConfig } from '@/lib/media/config'
-import { getAdminClient, getServerClientFromRequest } from '@/lib/supabase-server'
+import { getAdminClientWithAudit, getServerClientFromRequest } from '@/lib/supabase-server'
 import { parseWithSchema } from '@/lib/api-validation'
 import { reportError } from '@/lib/errors'
 import { submissionRequestSchema } from '@/features/submissions/server/submissions/submit-route-schema'
@@ -99,7 +99,7 @@ export async function submitRoute(request: NextRequest) {
   const debugAuth = serverEnv.DEBUG_SUBMISSIONS_AUTH === '1'
   const requestUrl = new URL(request.url)
   const supabase = getServerClientFromRequest(request)
-  const supabaseAdmin = getAdminClient()
+  const supabaseAdmin = getAdminClientWithAudit('submit new submission')
 
   let uploadedBlobsToCleanup: Array<{ bucket: string; path: string }> = []
   let shouldCleanupUploadedBlobs = false
