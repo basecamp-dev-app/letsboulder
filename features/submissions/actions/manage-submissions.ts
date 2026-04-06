@@ -5,7 +5,7 @@ import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
-import { getAdminClient, getServerClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit, getServerClient } from '@/lib/supabase-server'
 import { deleteSubmission } from '@/features/submissions/server/submissions/delete-submission'
 import { promoteDraftToSubmission } from '@/features/submissions/server/drafts/draft-promote'
 import { buildUploadSignature, normalizeCreateImages, validateDraftImageOwnership } from '@/features/submissions/server/drafts/draft-route-helpers'
@@ -174,7 +174,7 @@ export async function deleteSubmissionDraftAction(draftId: string): Promise<Acti
   if (!draftId) return { success: false, error: 'Draft ID is required', status: 400 }
 
   const supabase = await getServerClient()
-  const storageClient = getAdminClient()
+  const storageClient = getAdminClientWithAudit('cleanup draft storage objects')
   const { data: draft, error: draftError } = await supabase
     .from('submission_drafts')
     .select('id, user_id, status')
@@ -237,7 +237,7 @@ export async function deletePublishedSubmissionAction(imageId: string): Promise<
   if (!imageId) return { success: false, error: 'Image ID is required', status: 400 }
 
   const supabase = await getServerClient()
-  const supabaseAdmin = getAdminClient()
+  const supabaseAdmin = getAdminClientWithAudit('delete published submission')
   const response = await deleteSubmission({ supabase, supabaseAdmin, userId: auth.data.userId, imageId: validation.data.imageId })
   const payload = await response.json().catch(() => ({} as { error?: string }))
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getUnauthenticatedClient, getAdminClient } from '@/lib/supabase-server'
+import { getUnauthenticatedClient, getAdminClientWithAudit } from '@/lib/supabase-server'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
 import { reportError } from '@/lib/errors'
 
@@ -311,7 +311,7 @@ async function resolveCanonicalFaceImageId(supabase: SupabaseClient, imageId: st
 
 export async function loadImageFaces(requestedImageId: string) {
   const supabase = getUnauthenticatedClient()
-  const signingClient = getAdminClient()
+  const signingClient = getAdminClientWithAudit('load image faces for signing')
 
   try {
     const imageId = await resolveCanonicalFaceImageId(supabase, requestedImageId)

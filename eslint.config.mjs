@@ -33,6 +33,35 @@ const eslintConfig = defineConfig([
     rules: {
       'no-restricted-imports': 'off',
       'local-rules/no-cross-route-app-imports': 'error',
+      'local-rules/no-service-role-import': 'error',
+    },
+  },
+  // Restrict getAdminClient to audited paths (API routes, server modules, offline)
+  {
+    files: [
+      'app/api/**/*.{ts,tsx}',
+      'features/submissions/server/**/*.{ts,tsx}',
+      'features/crags/server/**/*.{ts,tsx}',
+      'lib/offline/**/*.{ts,tsx}',
+    ],
+    plugins: {
+      'local-rules': localRules,
+    },
+    rules: {
+      'local-rules/no-service-role-import': 'off',
+    },
+  },
+  // Apply no-service-role-import rule to other server contexts
+  {
+    files: [
+      'features/submissions/actions/**/*.{ts,tsx}',
+      'features/crags/actions/**/*.{ts,tsx}',
+    ],
+    plugins: {
+      'local-rules': localRules,
+    },
+    rules: {
+      'local-rules/no-service-role-import': 'error',
     },
   },
   // Enforce no-restricted-imports for @supabase/ssr in app page/component files (not API routes)

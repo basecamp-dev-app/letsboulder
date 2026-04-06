@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createErrorResponse } from '@/lib/errors'
 import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
 import { createSignedObjectUrls } from '@/lib/media/object-urls'
-import { getAdminClient, getServerClientFromRequest } from '@/lib/supabase-server'
+import { getAdminClientWithAudit, getServerClientFromRequest } from '@/lib/supabase-server'
 
 type RequestSupabaseClient = ReturnType<typeof getServerClientFromRequest>
 
@@ -38,7 +38,7 @@ function parsePrivateStorageUrl(url: string): { bucket: string; path: string } |
 }
 
 export async function loadCragImages(supabase: RequestSupabaseClient, cragId: string) {
-  const supabaseAdmin = getAdminClient()
+  const supabaseAdmin = getAdminClientWithAudit('load crag images for signing')
 
   try {
     const { data: existingCrag, error: cragError } = await supabase
