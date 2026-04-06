@@ -39,6 +39,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Test auth not configured on server' }, { status: 500 })
   }
 
+  const testUserPassword = process.env.TEST_USER_PASSWORD?.trim()
+
+  if (!testUserPassword) {
+    return NextResponse.json({ error: 'TEST_USER_PASSWORD is required on server' }, { status: 500 })
+  }
+
   if (apiKey.trim() !== expectedApiKey) {
     return NextResponse.json({ error: 'Invalid API key' }, { status: 401 })
   }

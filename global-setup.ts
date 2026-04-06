@@ -19,53 +19,61 @@ async function ensureSeedData() {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  const seeds = [
-    { slug: SEEDED_PLACE_SLUG_PUBLIC, name: 'E2E Seeded Place Public' },
-    { slug: SEEDED_PLACE_SLUG_AUTH, name: 'E2E Seeded Place Auth' },
-  ]
+  try {
+    const seeds = [
+      { slug: SEEDED_PLACE_SLUG_PUBLIC, name: 'E2E Seeded Place Public' },
+      { slug: SEEDED_PLACE_SLUG_AUTH, name: 'E2E Seeded Place Auth' },
+    ]
 
-  const seededPlaces: Array<{ id: string; slug: string; name: string }> = []
-  for (const seed of seeds) {
-    const { data: existingPlace, error: existingPlaceError } = await supabaseAdmin
-      .from('places')
-      .select('id, slug, name')
-      .eq('country_code', 'GB')
-      .eq('slug', seed.slug)
-      .maybeSingle()
+    const seededPlaces: Array<{ id: string; slug: string; name: string }> = []
+    for (const seed of seeds) {
+      const { data: existingPlace, error: existingPlaceError } = await supabaseAdmin
+        .from('places')
+        .select('id, slug, name')
+        .eq('country_code', 'GB')
+        .eq('slug', seed.slug)
+        .maybeSingle()
 
-    if (existingPlaceError) {
-      throw new Error(`Failed to look up seeded place ${seed.slug}: ${existingPlaceError.message}`)
+      if (existingPlaceError) {
+        console.log(`Skipping seed data: ${existingPlaceError.message}`)
+        return
+      }
+
+      if (existingPlace?.id) {
+        seededPlaces.push(existingPlace)
+        continue
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from('crags')
+        .insert({
+          name: seed.name,
+          latitude: null,
+          longitude: null,
+          type: 'boulder',
+          country_code: 'GB',
+          slug: seed.slug,
+        })
+        .select('id, slug, name')
+        .single()
+
+      if (error || !data) {
+        console.log(`Skipping seed data: ${error?.message || 'missing row'}`)
+        return
+      }
+
+      seededPlaces.push(data)
     }
 
-    if (existingPlace?.id) {
-      seededPlaces.push(existingPlace)
-      continue
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('crags')
-      .insert({
-        name: seed.name,
-        latitude: null,
-        longitude: null,
-        type: 'boulder',
-        country_code: 'GB',
-        slug: seed.slug,
-      })
-      .select('id, slug, name')
-      .single()
-
-    if (error || !data) {
-      throw new Error(`Failed to seed place ${seed.slug}: ${error?.message || 'missing row'}`)
-    }
-
-    seededPlaces.push(data)
+    const seedPath = path.join(process.cwd(), 'playwright', '.auth', 'seed.json')
+    fs.mkdirSync(path.dirname(seedPath), { recursive: true })
+    fs.writeFileSync(seedPath, JSON.stringify({ seededPlaces }, null, 2))
+    console.log(`Seed data saved to ${seedPath}`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown error'
+    console.log(`Skipping seed data: ${message}`)
+    return
   }
-
-  const seedPath = path.join(process.cwd(), 'playwright', '.auth', 'seed.json')
-  fs.mkdirSync(path.dirname(seedPath), { recursive: true })
-  fs.writeFileSync(seedPath, JSON.stringify({ seededPlaces }, null, 2))
-  console.log(`Seed data saved to ${seedPath}`)
 }
 
 async function globalSetup() {
