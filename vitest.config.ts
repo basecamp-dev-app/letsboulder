@@ -23,6 +23,18 @@ export default defineConfig({
         functions: 0,
         branches: 0,
         statements: 0,
+        'app/api/test/auth/route.ts': {
+          lines: 29,
+          functions: 14,
+          branches: 31,
+          statements: 29,
+        },
+        'app/api/submissions/drafts/[id]/route.ts': {
+          lines: 68,
+          functions: 71,
+          branches: 46,
+          statements: 68,
+        },
         'app/api/offline-packs/climbs/[id]/route.ts': {
           lines: 85,
           functions: 100,
