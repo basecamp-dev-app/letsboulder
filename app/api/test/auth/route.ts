@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    let resolvedUserId = userId?.trim() || null
+    const resolvedUserId = userId?.trim() || null
     let resolvedEmail = emailParam?.trim().toLowerCase() || null
 
     if (resolvedUserId && !resolvedEmail) {
@@ -111,19 +111,6 @@ export async function POST(request: NextRequest) {
       targetEmail = createdUser.user.email || targetEmail
     }
 
-    const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
-      email: targetEmail,
-      password: testUserPassword,
-    })
-
-    if (signInError || !signInData.session) {
-      reportError(new Error('Test auth sign in failed'), { extra: { error: signInError?.message } })
-      return NextResponse.json(
-        { error: 'Failed to create auth session', details: signInError?.message },
-        { status: 500 }
-      )
-    }
-
     const cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }> = []
 
     const supabase = createServerClient(
@@ -141,9 +128,22 @@ export async function POST(request: NextRequest) {
       }
     )
 
+    const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'magiclink',
+      email: targetEmail,
+    })
+
+    if (sessionError || !sessionData.properties?.hashed_token) {
+      reportError(new Error('Test auth session create failed'), { extra: { error: sessionError?.message } })
+      return NextResponse.json(
+        { error: 'Failed to create auth session', details: sessionError?.message },
+        { status: 500 }
+      )
+    }
+
     const { error: setSessionError } = await supabase.auth.setSession({
-      access_token: signInData.session.access_token,
-      refresh_token: signInData.session.refresh_token,
+      access_token: sessionData.properties.hashed_token,
+      refresh_token: sessionData.properties.hashed_token,
     })
 
     if (setSessionError) {
