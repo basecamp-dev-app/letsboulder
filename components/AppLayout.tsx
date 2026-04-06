@@ -12,7 +12,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isOfflineLaunchPage = pathname === '/offline' || pathname === '/offline/library'
   const [isOffline, setIsOffline] = useState(false)
   const isOfflineFieldPage = isOffline && (/^\/climb\//.test(pathname) || /^\/crag\//.test(pathname) || /^\/[a-z]{2}\//.test(pathname))
-  const hideHeader = isOfflineLaunchPage
   const hideFooter = isSubmitPage || isImmersiveMobilePage || isOfflineLaunchPage || isOfflineFieldPage
 
   useEffect(() => {
@@ -30,18 +29,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--app-header-offset', hideHeader ? '0px' : '4rem')
+    document.documentElement.style.setProperty('--app-header-offset', '0px')
     document.documentElement.style.setProperty('--app-mobile-footer-offset', hideFooter ? '0px' : '4rem')
 
     return () => {
-      document.documentElement.style.setProperty('--app-header-offset', '4rem')
+      document.documentElement.style.setProperty('--app-header-offset', '0px')
       document.documentElement.style.setProperty('--app-mobile-footer-offset', '4rem')
     }
-  }, [hideFooter, hideHeader])
+  }, [hideFooter])
 
   return (
     <>
-      {!hideHeader && <Header />}
+      <Header />
       <main id="main-content" className="min-h-screen">
         {children}
       </main>

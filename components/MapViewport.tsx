@@ -20,7 +20,7 @@ export default function MapViewport({ initialPlacePins = [] }: { initialPlacePin
   const [isMapReady, setIsMapReady] = useState(false)
 
   return (
-    <div className="fixed inset-0 overflow-visible pt-[var(--app-header-offset)] md:pt-0">
+    <div className="fixed inset-0 overflow-visible">
       {!isMapReady && <MapViewportFallback />}
       <SatelliteClimbingMap initialPlacePins={initialPlacePins} onReady={() => setIsMapReady(true)} />
     </div>

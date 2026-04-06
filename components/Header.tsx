@@ -292,7 +292,7 @@ export default function Header() {
   }
 
   return (
-    <header ref={headerRef} className="fixed top-0 left-0 right-0 z-[5000] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none block">
+    <header ref={headerRef} className="relative z-[50] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none block">
       <div className="container mx-auto px-4 py-2 flex justify-between items-center gap-4">
         <Link href="/" className="flex items-center flex-shrink-0 -my-4">
           <div className="relative w-20 h-20">
