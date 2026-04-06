@@ -37,6 +37,17 @@ jobs:
         id: migration_changes
         shell: bash
         run: |
+          MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | wc -l)
+          echo "Migration count: $MIGRATION_COUNT"
+          echo "count=$MIGRATION_COUNT" >> "$GITHUB_OUTPUT"
+
+          THRESHOLD=100
+          if [ "$MIGRATION_COUNT" -gt "$THRESHOLD" ]; then
+            echo "migration_count_exceeded=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "migration_count_exceeded=false" >> "$GITHUB_OUTPUT"
+          fi
+
           if [ "${{ github.event_name }}" = 'workflow_dispatch' ]; then
             echo 'changed=true' >> "$GITHUB_OUTPUT"
             exit 0
@@ -47,6 +58,11 @@ jobs:
           else
             echo 'changed=false' >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Migration count warning
+        if: steps.migration_changes.outputs.migration_count_exceeded == 'true'
+        run: |
+          echo "::warning::Migration count (${{ steps.migration_changes.outputs.count }}) exceeds $THRESHOLD. Consider squashing migrations to reduce operational risk."
 
       - name: Setup Supabase CLI
         if: steps.migration_changes.outputs.changed == 'true'
@@ -95,6 +111,17 @@ jobs:
         id: migration_changes
         shell: bash
         run: |
+          MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | wc -l)
+          echo "Migration count: $MIGRATION_COUNT"
+          echo "count=$MIGRATION_COUNT" >> "$GITHUB_OUTPUT"
+
+          THRESHOLD=100
+          if [ "$MIGRATION_COUNT" -gt "$THRESHOLD" ]; then
+            echo "migration_count_exceeded=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "migration_count_exceeded=false" >> "$GITHUB_OUTPUT"
+          fi
+
           if [ "${{ github.event_name }}" = 'workflow_dispatch' ]; then
             echo 'changed=true' >> "$GITHUB_OUTPUT"
             exit 0
@@ -105,6 +132,11 @@ jobs:
           else
             echo 'changed=false' >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Migration count warning
+        if: steps.migration_changes.outputs.migration_count_exceeded == 'true'
+        run: |
+          echo "::warning::Migration count (${{ steps.migration_changes.outputs.count }}) exceeds $THRESHOLD. Consider squashing migrations to reduce operational risk."
 
       - name: Setup Supabase CLI
         if: steps.migration_changes.outputs.changed == 'true'
