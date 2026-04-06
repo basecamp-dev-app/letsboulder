@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { reportError } from '@/lib/errors'
 
 async function parseJsonSafe(response: Response): Promise<unknown> {
@@ -161,27 +162,19 @@ export async function POST(request: NextRequest) {
     resolvedUserId = foundUser.id
     resolvedEmail = foundUser.email?.trim().toLowerCase() || resolvedEmail
 
-    const tokenResponse = await fetch(
-      `${supabaseUrl}/auth/v1/token?grant_type=password`,
-      {
-        method: 'POST',
-        headers: {
-          'apikey': anonKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: resolvedEmail,
-          password: testUserPassword,
-        }),
-      }
-    )
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
 
-    const tokenData = await parseJsonSafe(tokenResponse) as { access_token?: string; refresh_token?: string; error?: string }
+    const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.createSession(resolvedUserId)
 
-    if (!tokenResponse.ok || !tokenData.access_token || !tokenData.refresh_token) {
-      reportError(new Error('Test auth token exchange failed'), { extra: { status: tokenResponse.status, userId: resolvedUserId, payload: tokenData } })
+    if (sessionError || !sessionData.session) {
+      reportError(new Error('Test auth admin session failed'), { extra: { userId: resolvedUserId, error: sessionError?.message } })
       return NextResponse.json(
-        { error: 'Failed to create auth session', details: `HTTP ${tokenResponse.status}` },
+        { error: 'Failed to create auth session', details: sessionError?.message },
         { status: 500 }
       )
     }
@@ -203,13 +196,13 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
+    const { error: setSessionError } = await supabase.auth.setSession({
+      access_token: sessionData.session.access_token,
+      refresh_token: sessionData.session.refresh_token,
     })
 
-    if (sessionError) {
-      reportError(new Error('Test auth session persist failed'), { extra: { userId: resolvedUserId, error: sessionError.message } })
+    if (setSessionError) {
+      reportError(new Error('Test auth session persist failed'), { extra: { userId: resolvedUserId, error: setSessionError.message } })
       return NextResponse.json(
         { error: 'Failed to persist auth session' },
         { status: 500 }
