@@ -67,33 +67,46 @@ CREATE POLICY "Public read product clicks"
 -- ─────────────────────────────────────────────
 -- 3. get_climbs_with_consensus()
 -- ─────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.get_climbs_with_consensus()
-RETURNS TABLE (
-  id uuid,
-  name text,
-  grade text,
-  consensus_grade text,
-  total_votes bigint,
-  grade_tied boolean,
-  crag_id uuid,
-  place_id uuid
-)
-LANGUAGE sql STABLE
-AS $$
-  SELECT
-    c.id,
-    c.name,
-    c.grade,
-    c.consensus_grade,
-    c.total_votes::bigint,
-    c.grade_tied,
-    c.crag_id,
-    c.place_id
-  FROM public.climbs c
-  WHERE c.deleted_at IS NULL
-    AND c.status = 'approved'
-  ORDER BY c.total_votes DESC;
-$$;
+-- Conditional: only create get_climbs_with_consensus if consensus_grade column exists
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'climbs' 
+    AND column_name = 'consensus_grade'
+  ) THEN
+    CREATE OR REPLACE FUNCTION public.get_climbs_with_consensus()
+    RETURNS TABLE (
+      id uuid,
+      name text,
+      grade text,
+      consensus_grade text,
+      total_votes bigint,
+      grade_tied boolean,
+      crag_id uuid,
+      place_id uuid
+    )
+    LANGUAGE sql STABLE
+    AS $$
+      SELECT
+        c.id,
+        c.name,
+        c.grade,
+        c.consensus_grade,
+        c.total_votes::bigint,
+        c.grade_tied,
+        c.crag_id,
+        c.place_id
+      FROM public.climbs c
+      WHERE c.deleted_at IS NULL
+        AND c.status = 'approved'
+      ORDER BY c.total_votes DESC;
+    $$;
+  ELSE
+    RAISE NOTICE 'Skipping get_climbs_with_consensus function - consensus_grade column does not exist';
+  END IF;
+END $$;
 
 -- ─────────────────────────────────────────────
 -- 4. add_correction_type_value(type, value)
