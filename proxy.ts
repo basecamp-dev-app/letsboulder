@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { applyProxyAuth } from '@/lib/proxy-auth'
 import { applyProxyRateLimit } from '@/lib/proxy-rate-limit'
-
-const CSRF_COOKIE_NAME = 'csrf_token'
+import { validateCsrfToken } from '@/lib/csrf'
 
 const LOCATION_DETECT_MAX_BODY_BYTES = 2 * 1024
 
@@ -79,10 +78,8 @@ export default async function proxy(request: NextRequest) {
   }
 
   if (shouldRequireCsrf(pathname, request.method)) {
-    const csrfHeader = request.headers.get('x-csrf-token')
-    const csrfCookie = request.cookies.get(CSRF_COOKIE_NAME)?.value
-
-    if (!csrfHeader || !csrfCookie) {
+    const isValid = await validateCsrfToken(request)
+    if (!isValid) {
       return NextResponse.json({ error: 'Invalid or missing CSRF token' }, { status: 403 })
     }
   }
