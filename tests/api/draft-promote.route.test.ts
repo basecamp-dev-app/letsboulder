@@ -1,9 +1,9 @@
 import { describe, expect, test, vi } from 'vitest'
 import { createServerClient } from '@supabase/ssr'
 
-const mockServerEnv = {
+const mockServerEnv = vi.hoisted(() => ({
   INTERNAL_MODERATION_SECRET: 'test-moderation-secret',
-}
+}))
 
 vi.mock('@/lib/env.server', () => ({
   serverEnv: mockServerEnv,
