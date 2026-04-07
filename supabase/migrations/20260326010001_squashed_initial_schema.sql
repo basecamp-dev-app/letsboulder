@@ -1,3 +1,6384 @@
+
+-- Migration: 20260110180000_image_centric_schema.sql
+
+-- =====================================================
+-- Image-Centric Schema for Climbing App
+-- One pin per image, multiple routes per image
+-- Created: 2026-01-10
+-- =====================================================
+
+-- Drop existing tables if they exist (fresh start)
+DROP TABLE IF EXISTS admin_actions CASCADE;
+DROP TABLE IF EXISTS user_climbs CASCADE;
+DROP TABLE IF EXISTS route_lines CASCADE;
+DROP TABLE IF EXISTS climbs CASCADE;
+DROP TABLE IF EXISTS images CASCADE;
+DROP TABLE IF EXISTS crags CASCADE;
+DROP TABLE IF EXISTS regions CASCADE;
+
+-- =====================================================
+-- REGIONS: Geographic hierarchy
+-- =====================================================
+CREATE TABLE regions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    country_code VARCHAR(2),
+    center_lat DECIMAL(10,8),
+    center_lon DECIMAL(11,8),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO regions (name, country_code, center_lat, center_lon) VALUES
+    ('Guernsey', 'GG', 49.4556, -2.5766),
+    ('Alderney', 'GG', 49.7172, -2.2147),
+    ('Sark', 'GG', 49.4333, -2.3667),
+    ('Herm', 'GG', 49.4667, -2.4500),
+    ('Jersey', 'JE', 49.1917, -2.1106),
+    ('Cornwall', 'GB', 50.266, -5.0527),
+    ('Devon', 'GB', 50.7156, -3.5319),
+    ('Peak District', 'GB', 53.2286, -1.5572),
+    ('Lake District', 'GB', 54.4609, -3.0886),
+    ('Yorkshire', 'GB', 53.9915, -1.541),
+    ('Scotland', 'GB', 56.4907, -4.2026),
+    ('Wales', 'GB', 52.1307, -3.7837),
+    ('Fontainebleau', 'FR', 48.4049, 2.692),
+    ('Verdon', 'FR', 43.8105, 5.9422),
+    ('Céüse', 'FR', 44.4944, 5.9728),
+    ('Buoux', 'FR', 43.8222, 5.3914),
+    ('Catalonia', 'ES', 41.3874, 2.1686),
+    ('Andalusia', 'ES', 37.3925, -5.9942),
+    ('Mallorca', 'ES', 39.6953, 3.0176),
+    ('Dolomites', 'IT', 46.5553, 11.8635),
+    ('Sardinia', 'IT', 40.1209, 9.0101),
+    ('Joshua Tree', 'US', 34.1345, -115.9),
+    ('Red River Gorge', 'US', 37.8234, -83.6274),
+    ('Yosemite', 'US', 37.8651, -119.5383),
+    ('Boulder', 'US', 40.015, -105.2705),
+    ('Grampians', 'AU', -37.1384, 142.3468),
+    ('Blue Mountains', 'AU', -33.7151, 150.3119)
+ON CONFLICT DO NOTHING;
+
+-- =====================================================
+-- CRAGS: Climbing areas (fixed GPS location)
+-- =====================================================
+CREATE TABLE crags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(200) NOT NULL,
+    latitude DECIMAL(10,8) NOT NULL,
+    longitude DECIMAL(11,8) NOT NULL,
+    region_id UUID REFERENCES regions(id),
+    description TEXT,
+    access_notes TEXT,
+    rock_type VARCHAR(50),
+    type VARCHAR(20) DEFAULT 'sport',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_crags_location ON crags(latitude, longitude);
+CREATE INDEX idx_crags_region ON crags(region_id);
+CREATE INDEX idx_crags_type ON crags(type);
+
+-- =====================================================
+-- IMAGES: Photos with GPS (ONE PIN PER IMAGE)
+-- =====================================================
+CREATE TABLE images (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    url TEXT NOT NULL,
+    latitude DECIMAL(10,8),
+    longitude DECIMAL(11,8),
+    capture_date TIMESTAMPTZ,
+    crag_id UUID REFERENCES crags(id),
+    width INTEGER,
+    height INTEGER,
+    created_by UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_images_location ON images(latitude, longitude);
+CREATE INDEX idx_images_crag ON images(crag_id);
+CREATE INDEX idx_images_created_by ON images(created_by);
+
+-- =====================================================
+-- CLIMBS: Climb metadata (NO IMAGE URL, NO COORDINATES)
+-- =====================================================
+CREATE TABLE climbs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(200),
+    grade VARCHAR(10) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    route_type VARCHAR(20),
+    description TEXT,
+    user_id UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_climbs_status ON climbs(status);
+CREATE INDEX idx_climbs_grade ON climbs(grade);
+CREATE INDEX idx_climbs_user ON climbs(user_id);
+CREATE INDEX idx_climbs_name ON climbs(name);
+
+-- =====================================================
+-- ROUTE_LINES: Routes drawn on images
+-- =====================================================
+CREATE TABLE route_lines (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    image_id UUID NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+    climb_id UUID NOT NULL REFERENCES climbs(id) ON DELETE CASCADE,
+    points JSONB NOT NULL,
+    color VARCHAR(20) DEFAULT 'red',
+    sequence_order INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE(image_id, climb_id)
+);
+
+CREATE INDEX idx_route_lines_image ON route_lines(image_id);
+CREATE INDEX idx_route_lines_climb ON route_lines(climb_id);
+
+-- =====================================================
+-- USER_CLIMBS: Logged ascents
+-- =====================================================
+CREATE TABLE user_climbs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id),
+    climb_id UUID NOT NULL REFERENCES climbs(id),
+    style VARCHAR(20) NOT NULL,
+    notes TEXT,
+    date_climbed DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_user_climbs_user ON user_climbs(user_id);
+CREATE INDEX idx_user_climbs_climb ON user_climbs(climb_id);
+CREATE INDEX idx_user_climbs_date ON user_climbs(date_climbed);
+
+-- =====================================================
+-- ADMIN_ACTIONS: Moderation
+-- =====================================================
+CREATE TABLE admin_actions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    action VARCHAR(20) NOT NULL,
+    target_id UUID NOT NULL,
+    target_type VARCHAR(20),
+    details JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_admin_actions_target ON admin_actions(target_id, target_type);
+
+-- Migration: 20260111000000_find_region_by_location.sql
+
+-- Migration: Find Region by Location
+-- Purpose: Find nearest region within 50km of GPS point using PostGIS
+-- Created: 2026-01-11
+
+-- Enable PostGIS if not already enabled
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- Create function to find nearest region by location
+CREATE OR REPLACE FUNCTION find_region_by_location(
+  search_lat double precision,
+  search_lng double precision
+)
+RETURNS TABLE (
+  id uuid,
+  name varchar(100),
+  country_code varchar(2),
+  center_lat decimal(10,8),
+  center_lon decimal(11,8),
+  distance_meters double precision
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    r.id,
+    r.name,
+    r.country_code,
+    r.center_lat,
+    r.center_lon,
+    ST_Distance(
+      ST_SetSRID(ST_MakePoint(r.center_lon, r.center_lat), 4326)::geography,
+      ST_SetSRID(ST_MakePoint(search_lng, search_lat), 4326)::geography
+    ) AS distance_meters
+  FROM regions r
+  WHERE r.center_lat IS NOT NULL AND r.center_lon IS NOT NULL
+  ORDER BY distance_meters ASC
+  LIMIT 1;
+END;
+$$;
+
+-- Add indexes for region location queries
+CREATE INDEX IF NOT EXISTS idx_regions_center ON regions(center_lat, center_lon);
+
+-- Migration: 20260113120000_user_climbs_unique_constraint.sql
+
+-- Add unique constraint to user_climbs for upsert to work correctly
+
+ALTER TABLE user_climbs ADD CONSTRAINT idx_user_climbs_unique UNIQUE (user_id, climb_id);
+
+-- Migration: 20260114000001_fix_linter_errors_minimal.sql
+
+-- =====================================================
+-- Fix Supabase Linter Errors - Minimal Fix
+-- Only enables RLS on public tables
+-- Created: 2026-01-14
+-- =====================================================
+
+-- =====================================================
+-- ADMIN_ACTIONS: Enable RLS with admin-only access
+-- =====================================================
+
+-- Enable RLS on admin_actions
+DO $$ BEGIN
+    ALTER TABLE admin_actions ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Admin-only policy (using JWT role claim)
+DO $$ BEGIN
+    CREATE POLICY "Admins can manage admin actions" ON admin_actions
+        FOR ALL USING (auth.jwt() ->> 'role' = 'admin');
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- =====================================================
+-- CRAG_REPORTS: Add admin policy for resolving
+-- =====================================================
+
+-- Admin policy for resolving reports
+DO $$ BEGIN
+    CREATE POLICY "Admins can resolve crag reports" ON public.crag_reports
+        FOR UPDATE USING (auth.jwt() ->> 'role' = 'admin');
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- =====================================================
+-- GRADES: Already has RLS from production_sync.sql
+-- No action needed - linter error should be resolved
+-- =====================================================
+
+-- Migration: 20260115000000_submission_schema.sql
+
+-- =====================================================
+-- Submission Feature Schema
+-- Database setup for new image-centric submission flow
+-- Created: 2026-01-15
+-- =====================================================
+
+-- =====================================================
+-- REGIONS: Geographic hierarchy (NO GPS required for creation)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS regions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    country_code VARCHAR(2),
+    center_lat DECIMAL(10,8),
+    center_lon DECIMAL(11,8),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- CRAGS: Climbing areas (requires GPS)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS crags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(200) NOT NULL,
+    latitude DECIMAL(10,8) NOT NULL,
+    longitude DECIMAL(11,8) NOT NULL,
+    region_id UUID REFERENCES regions(id) ON DELETE SET NULL,
+    description TEXT,
+    access_notes TEXT,
+    rock_type VARCHAR(50),
+    type VARCHAR(20) DEFAULT 'sport',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_crags_region ON crags(region_id);
+CREATE INDEX IF NOT EXISTS idx_crags_type ON crags(type);
+CREATE INDEX IF NOT EXISTS idx_crags_name ON crags(name);
+
+-- =====================================================
+-- IMAGES: Photos with GPS (ONE PIN PER IMAGE)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS images (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    url TEXT NOT NULL,
+    latitude DECIMAL(10,8),
+    longitude DECIMAL(11,8),
+    capture_date TIMESTAMPTZ,
+    crag_id UUID REFERENCES crags(id) ON DELETE SET NULL,
+    width INTEGER,
+    height INTEGER,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_images_crag ON images(crag_id);
+CREATE INDEX IF NOT EXISTS idx_images_created_by ON images(created_by);
+CREATE INDEX IF NOT EXISTS idx_images_created_at ON images(created_at);
+
+-- =====================================================
+-- CLIMBS: Climb metadata (NO IMAGE URL, NO COORDINATES)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS climbs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(200),
+    grade VARCHAR(10) NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    route_type VARCHAR(20),
+    description TEXT,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_climbs_status ON climbs(status);
+CREATE INDEX IF NOT EXISTS idx_climbs_user ON climbs(user_id);
+CREATE INDEX IF NOT EXISTS idx_climbs_name ON climbs(name);
+CREATE INDEX IF NOT EXISTS idx_climbs_created_at ON climbs(created_at);
+
+-- =====================================================
+-- ROUTE_LINES: Routes drawn on images
+-- =====================================================
+CREATE TABLE IF NOT EXISTS route_lines (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    image_id UUID NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+    climb_id UUID NOT NULL REFERENCES climbs(id) ON DELETE CASCADE,
+    points JSONB NOT NULL,
+    color VARCHAR(20) DEFAULT 'red',
+    sequence_order INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE(image_id, climb_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_route_lines_image ON route_lines(image_id);
+CREATE INDEX IF NOT EXISTS idx_route_lines_climb ON route_lines(climb_id);
+
+-- =====================================================
+-- ROW LEVEL SECURITY POLICIES
+-- =====================================================
+
+-- Regions: Public read, authenticated create
+DO $$ BEGIN
+  ALTER TABLE regions ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Public read regions" ON regions FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Authenticated create regions" ON regions FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Crags: Public read, authenticated create
+DO $$ BEGIN
+  ALTER TABLE crags ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Public read crags" ON crags FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Authenticated create crags" ON crags FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Images: Public read, owner create
+DO $$ BEGIN
+  ALTER TABLE images ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Public read images" ON images FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Owner create images" ON images FOR INSERT WITH CHECK (auth.uid() = created_by);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Climbs: Public read, owner create, owner update (pending only)
+DO $$ BEGIN
+  ALTER TABLE climbs ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Public read climbs" ON climbs FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Owner create climbs" ON climbs FOR INSERT WITH CHECK (auth.uid() = user_id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Owner update own pending climbs" ON climbs FOR UPDATE 
+    USING (auth.uid() = user_id AND status = 'pending')
+    WITH CHECK (auth.uid() = user_id AND status = 'pending');
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Route Lines: Public read, owner create (via climbs ownership)
+DO $$ BEGIN
+  ALTER TABLE route_lines ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Public read route_lines" ON route_lines FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY "Owner create route_lines" ON route_lines FOR INSERT WITH CHECK (
+    EXISTS (SELECT 1 FROM climbs WHERE id = route_lines.climb_id AND user_id = auth.uid())
+  );
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- =====================================================
+-- SEED INITIAL REGIONS
+-- =====================================================
+INSERT INTO regions (name, country_code, center_lat, center_lon) VALUES
+    ('Guernsey', 'GG', 49.4556, -2.5766),
+    ('Alderney', 'GG', 49.7172, -2.2147),
+    ('Sark', 'GG', 49.4333, -2.3667),
+    ('Herm', 'GG', 49.4667, -2.4500),
+    ('Jersey', 'JE', 49.1917, -2.1106),
+    ('Cornwall', 'GB', 50.266, -5.0527),
+    ('Devon', 'GB', 50.7156, -3.5319),
+    ('Peak District', 'GB', 53.2286, -1.5572),
+    ('Lake District', 'GB', 54.4609, -3.0886),
+    ('Yorkshire', 'GB', 53.9915, -1.541),
+    ('Scotland', 'GB', 56.4907, -4.2026),
+    ('Wales', 'GB', 52.1307, -3.7837),
+    ('Fontainebleau', 'FR', 48.4049, 2.692),
+    ('Verdon', 'FR', 43.8105, 5.9422),
+    ('Céüse', 'FR', 44.4944, 5.9728),
+    ('Buoux', 'FR', 43.8222, 5.3914),
+    ('Catalonia', 'ES', 41.3874, 2.1686),
+    ('Andalusia', 'ES', 37.3925, -5.9942),
+    ('Mallorca', 'ES', 39.6953, 3.0176),
+    ('Dolomites', 'IT', 46.5553, 11.8635),
+    ('Sardinia', 'IT', 40.1209, 9.0101),
+    ('Joshua Tree', 'US', 34.1345, -115.9),
+    ('Red River Gorge', 'US', 37.8234, -83.6274),
+    ('Yosemite', 'US', 37.8651, -119.5383),
+    ('Boulder', 'US', 40.015, -105.2705),
+    ('Grampians', 'AU', -37.1384, 142.3468),
+    ('Blue Mountains', 'AU', -33.7151, 150.3119)
+ON CONFLICT DO NOTHING;
+
+-- Migration: 20260115000002_public_profile_rls.sql
+
+-- =====================================================
+-- MIGRATION: Public Profile Access RLS Policies
+-- Enables viewing of public logbooks and profiles
+-- Created: 2026-01-15
+-- Updated: 2026-01-16 - Fixed to only use existing tables
+-- =====================================================
+
+-- =====================================================
+-- PROFILES: Add is_public column if table exists
+-- Note: profiles table is created by Supabase auth trigger
+-- =====================================================
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'profiles') THEN
+        ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT true;
+        CREATE INDEX IF NOT EXISTS idx_profiles_is_public ON profiles(is_public);
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- =====================================================
+-- RLS POLICIES FOR PUBLIC PROFILE ACCESS
+-- =====================================================
+
+-- Enable RLS on profiles if table exists and RLS not enabled
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'profiles') THEN
+        ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Public read access to profiles (username, avatar, basic info)
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'profiles' 
+               AND NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'Public read profiles')) THEN
+        CREATE POLICY "Public read profiles" ON profiles FOR SELECT USING (true);
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Owner can update their own profile
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'profiles'
+               AND NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'Owner update profile')) THEN
+        CREATE POLICY "Owner update profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Authenticated users can create profiles
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'profiles'
+               AND NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'profiles' AND policyname = 'Authenticated create profile')) THEN
+        CREATE POLICY "Authenticated create profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- =====================================================
+-- SKIP: logs table does not exist in current schema
+-- =====================================================
+-- The logs table referenced in this migration does not exist.
+-- Skipping all logs-related RLS policies.
+-- =====================================================
+
+-- =====================================================
+-- USER_CLIMBS: RLS for public logbook access
+-- =====================================================
+
+-- Enable RLS on user_climbs if not already enabled
+DO $$ BEGIN
+    ALTER TABLE user_climbs ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Public read access to user_climbs for users with public profiles
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'user_climbs' AND policyname = 'Public read user_climbs for public profiles') THEN
+        CREATE POLICY "Public read user_climbs for public profiles" ON user_climbs FOR SELECT USING (
+            NOT EXISTS (
+                SELECT 1 FROM profiles
+                WHERE profiles.id = user_climbs.user_id
+            ) OR EXISTS (
+                SELECT 1 FROM profiles
+                WHERE profiles.id = user_climbs.user_id
+                AND COALESCE(profiles.is_public, true) = true
+            )
+        );
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Owner can always read their own user_climbs
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'user_climbs' AND policyname = 'Owner read own user_climbs') THEN
+        CREATE POLICY "Owner read own user_climbs" ON user_climbs FOR SELECT USING (auth.uid() = user_id);
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Owner can create user_climbs
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'user_climbs' AND policyname = 'Owner create user_climbs') THEN
+        CREATE POLICY "Owner create user_climbs" ON user_climbs FOR INSERT WITH CHECK (auth.uid() = user_id);
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Owner can update their own user_climbs
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'user_climbs' AND policyname = 'Owner update user_climbs') THEN
+        CREATE POLICY "Owner update user_climbs" ON user_climbs FOR UPDATE USING (auth.uid() = user_id);
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Owner can delete their own user_climbs
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'user_climbs' AND policyname = 'Owner delete user_climbs') THEN
+        CREATE POLICY "Owner delete user_climbs" ON user_climbs FOR DELETE USING (auth.uid() = user_id);
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- =====================================================
+-- CLIMBS: RLS for viewing climbs in public logbooks
+-- =====================================================
+
+-- Enable RLS on climbs if not already enabled
+DO $$ BEGIN
+    ALTER TABLE climbs ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- Public read access to climbs (basic climb info)
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'climbs' AND policyname = 'Public read climbs') THEN
+        CREATE POLICY "Public read climbs" ON climbs FOR SELECT USING (true);
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- =====================================================
+-- INDEXES FOR PERFORMANCE
+-- =====================================================
+
+-- Index on route_lines for crag name lookups in logbooks
+CREATE INDEX IF NOT EXISTS idx_route_lines_climb ON route_lines(climb_id);
+
+-- =====================================================
+-- HELPER FUNCTION: Check if user profile is public
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION is_profile_public(user_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN (
+        SELECT COALESCE(is_public, true)
+        FROM profiles
+        WHERE id = user_id
+    );
+EXCEPTION WHEN OTHERS THEN
+    RETURN true;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- =====================================================
+-- VERIFICATION
+-- =====================================================
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'profiles') THEN
+        SELECT 'Profiles RLS enabled: ' || (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'profiles') as status;
+    ELSE
+        SELECT 'profiles table not yet created (will be created on first auth)' as status;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+SELECT 'User_climbs RLS enabled: ' || (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'user_climbs') as status;
+SELECT 'Climbs RLS enabled: ' || (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'climbs') as status;
+
+-- Migration: 20260119000000_prod_sync.sql
+
+-- Removed: drop statements for logs table (doesn't exist locally)
+-- Removed: drop extension pg_net
+
+  create table if not exists "public"."deletion_requests" (
+    "id" uuid not null default gen_random_uuid(),
+    "user_id" uuid not null,
+    "created_at" timestamp with time zone not null default now(),
+    "scheduled_at" timestamp with time zone not null,
+    "cancelled_at" timestamp with time zone,
+    "delete_route_uploads" boolean not null default false,
+    "primary_reason" text,
+    "deleted_at" timestamp with time zone
+      );
+
+
+
+  create table if not exists "public"."product_clicks" (
+    "product_id" text not null,
+    "click_count" bigint default 0,
+    "updated_at" timestamp with time zone default now()
+      );
+
+
+create table if not exists "public"."profiles" (
+  "id" uuid not null references auth.users on delete cascade,
+  "updated_at" timestamp with time zone,
+  "username" text unique,
+  "avatar_url" text,
+  "website" text
+    );
+
+  alter table "public"."profiles" add column if not exists "default_location" text;
+
+  alter table "public"."profiles" add column if not exists "default_location_lat" numeric(10,8);
+
+  alter table "public"."profiles" add column if not exists "default_location_lng" numeric(11,8);
+
+  alter table "public"."profiles" add column if not exists "default_location_name" text;
+
+  alter table "public"."profiles" add column if not exists "default_location_zoom" integer;
+
+  alter table "public"."profiles" add column if not exists "grade_system" character varying(10) default 'font'::character varying;
+
+  alter table "public"."profiles" add column if not exists "is_public" boolean default true;
+
+  alter table "public"."profiles" add column if not exists "name" text;
+
+  alter table "public"."profiles" add column if not exists "theme_preference" character varying(20) default 'system'::character varying;
+
+  alter table "public"."profiles" add column if not exists "units" character varying(10) default 'metric'::character varying;
+
+CREATE UNIQUE INDEX if not exists deletion_requests_pkey ON public.deletion_requests USING btree (id);
+
+CREATE INDEX if not exists idx_deletion_requests_scheduled ON public.deletion_requests USING btree (scheduled_at) WHERE ((cancelled_at IS NULL) AND (deleted_at IS NULL));
+
+CREATE INDEX if not exists idx_product_clicks_count ON public.product_clicks USING btree (click_count DESC);
+
+CREATE INDEX if not exists idx_profiles_is_public ON public.profiles USING btree (is_public);
+
+CREATE UNIQUE INDEX if not exists product_clicks_pkey ON public.product_clicks USING btree (product_id);
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'deletion_requests') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'deletion_requests' AND constraint_name = 'deletion_requests_pkey') THEN
+      alter table "public"."deletion_requests" add constraint "deletion_requests_pkey" PRIMARY KEY using index "deletion_requests_pkey";
+    END IF;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'product_clicks') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'product_clicks' AND constraint_name = 'product_clicks_pkey') THEN
+      alter table "public"."product_clicks" add constraint "product_clicks_pkey" PRIMARY KEY using index "product_clicks_pkey";
+    END IF;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'deletion_requests') THEN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'deletion_requests' AND constraint_name = 'deletion_requests_user_id_fkey') THEN
+      alter table "public"."deletion_requests" add constraint "deletion_requests_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'deletion_requests' AND constraint_name = 'deletion_requests_user_id_fkey') THEN
+      alter table "public"."deletion_requests" validate constraint "deletion_requests_user_id_fkey";
+    END IF;
+  END IF;
+END $$;
+
+set check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION public.get_user_count()
+ RETURNS bigint
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT COUNT(*) FROM auth.users;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.increment_crag_report_count(target_crag_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  UPDATE crags SET report_count = report_count + 1 WHERE id = target_crag_id;
+END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.increment_gear_click(product_id_input text)
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  INSERT INTO product_clicks (product_id, click_count, updated_at)
+  VALUES (product_id_input, 1, NOW())
+  ON CONFLICT (product_id)
+  DO UPDATE SET
+    click_count = product_clicks.click_count + 1,
+    updated_at = NOW();
+END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.is_profile_public(user_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN (
+        SELECT COALESCE(is_public, true)
+        FROM profiles
+        WHERE id = user_id
+    );
+END;
+$function$
+;
+
+grant delete on table "public"."deletion_requests" to "anon";
+
+grant insert on table "public"."deletion_requests" to "anon";
+
+grant references on table "public"."deletion_requests" to "anon";
+
+grant select on table "public"."deletion_requests" to "anon";
+
+grant trigger on table "public"."deletion_requests" to "anon";
+
+grant truncate on table "public"."deletion_requests" to "anon";
+
+grant update on table "public"."deletion_requests" to "anon";
+
+grant delete on table "public"."deletion_requests" to "authenticated";
+
+grant insert on table "public"."deletion_requests" to "authenticated";
+
+grant references on table "public"."deletion_requests" to "authenticated";
+
+grant select on table "public"."deletion_requests" to "authenticated";
+
+grant trigger on table "public"."deletion_requests" to "authenticated";
+
+grant truncate on table "public"."deletion_requests" to "authenticated";
+
+grant update on table "public"."deletion_requests" to "authenticated";
+
+grant delete on table "public"."deletion_requests" to "service_role";
+
+grant insert on table "public"."deletion_requests" to "service_role";
+
+grant references on table "public"."deletion_requests" to "service_role";
+
+grant select on table "public"."deletion_requests" to "service_role";
+
+grant trigger on table "public"."deletion_requests" to "service_role";
+
+grant truncate on table "public"."deletion_requests" to "service_role";
+
+grant update on table "public"."deletion_requests" to "service_role";
+
+grant delete on table "public"."product_clicks" to "anon";
+
+grant insert on table "public"."product_clicks" to "anon";
+
+grant references on table "public"."product_clicks" to "anon";
+
+grant select on table "public"."product_clicks" to "anon";
+
+grant trigger on table "public"."product_clicks" to "anon";
+
+grant truncate on table "public"."product_clicks" to "anon";
+
+grant update on table "public"."product_clicks" to "anon";
+
+grant delete on table "public"."product_clicks" to "authenticated";
+
+grant insert on table "public"."product_clicks" to "authenticated";
+
+grant references on table "public"."product_clicks" to "authenticated";
+
+grant select on table "public"."product_clicks" to "authenticated";
+
+grant trigger on table "public"."product_clicks" to "authenticated";
+
+grant truncate on table "public"."product_clicks" to "authenticated";
+
+grant update on table "public"."product_clicks" to "authenticated";
+
+grant delete on table "public"."product_clicks" to "service_role";
+
+grant insert on table "public"."product_clicks" to "service_role";
+
+grant references on table "public"."product_clicks" to "service_role";
+
+grant select on table "public"."product_clicks" to "service_role";
+
+grant trigger on table "public"."product_clicks" to "service_role";
+
+grant truncate on table "public"."product_clicks" to "service_role";
+
+grant update on table "public"."product_clicks" to "service_role";
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read user_climbs for public profiles' AND tablename = 'user_climbs') THEN
+    create policy "Public read user_climbs for public profiles"
+    on "public"."user_climbs"
+    as permissive
+    for select
+    to public
+    using ((EXISTS ( SELECT 1
+       FROM public.profiles
+      WHERE ((profiles.id = user_climbs.user_id) AND (profiles.is_public = true)))));
+  END IF;
+END $$;
+
+
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can upload' AND tablename = 'objects') THEN
+    create policy "Authenticated users can upload"
+    on "storage"."objects"
+    as permissive
+    for insert
+    to public
+    with check (((bucket_id = 'route-uploads'::text) AND (auth.role() = 'authenticated'::text)));
+  END IF;
+END $$;
+
+
+
+
+-- Migration: 20260120000000_verification_system.sql
+
+-- =====================================================
+-- Community Verification & Corrections System
+-- Enables community-driven route quality control
+-- Created: 2026-01-20
+-- =====================================================
+
+-- Enable PostGIS for location-based queries
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- =====================================================
+-- CLIMB_VERIFICATIONS: Track who verified each route
+-- =====================================================
+CREATE TABLE IF NOT EXISTS climb_verifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  climb_id UUID NOT NULL REFERENCES climbs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+
+  UNIQUE(climb_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_climb_verifications_climb ON climb_verifications(climb_id);
+CREATE INDEX IF NOT EXISTS idx_climb_verifications_user ON climb_verifications(user_id);
+
+-- =====================================================
+-- GRADE_VOTES: Community grade consensus
+-- =====================================================
+CREATE TABLE IF NOT EXISTS grade_votes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  climb_id UUID NOT NULL REFERENCES climbs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  grade VARCHAR(10) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+
+  UNIQUE(climb_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_grade_votes_climb ON grade_votes(climb_id);
+CREATE INDEX IF NOT EXISTS idx_grade_votes_user ON grade_votes(user_id);
+
+-- =====================================================
+-- CLIMB_CORRECTIONS: Proposed corrections to route data
+-- =====================================================
+CREATE TABLE IF NOT EXISTS climb_corrections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  climb_id UUID NOT NULL REFERENCES climbs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  correction_type VARCHAR(20) NOT NULL CHECK (correction_type IN ('location', 'name', 'line', 'grade')),
+  original_value JSONB,
+  suggested_value JSONB NOT NULL,
+  reason TEXT,
+
+  status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  approval_count INTEGER DEFAULT 0,
+  rejection_count INTEGER DEFAULT 0,
+
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_climb_corrections_climb ON climb_corrections(climb_id);
+CREATE INDEX IF NOT EXISTS idx_climb_corrections_status ON climb_corrections(status);
+CREATE INDEX IF NOT EXISTS idx_climb_corrections_user ON climb_corrections(user_id);
+
+-- =====================================================
+-- CORRECTION_VOTES: Approve/reject corrections
+-- =====================================================
+CREATE TABLE IF NOT EXISTS correction_votes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  correction_id UUID NOT NULL REFERENCES climb_corrections(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  vote_type VARCHAR(10) NOT NULL CHECK (vote_type IN ('approve', 'reject')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+
+  UNIQUE(correction_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_correction_votes_correction ON correction_votes(correction_id);
+CREATE INDEX IF NOT EXISTS idx_correction_votes_user ON correction_votes(user_id);
+
+-- =====================================================
+-- RLS POLICIES
+-- =====================================================
+
+-- climb_verifications: Public read, authenticated create/delete (own vote only)
+ALTER TABLE climb_verifications ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read verifications' AND tablename = 'climb_verifications') THEN
+    CREATE POLICY "Public read verifications" ON climb_verifications FOR SELECT USING (true);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated create verification' AND tablename = 'climb_verifications') THEN
+    CREATE POLICY "Authenticated create verification" ON climb_verifications FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated delete own verification' AND tablename = 'climb_verifications') THEN
+    CREATE POLICY "Authenticated delete own verification" ON climb_verifications FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+-- grade_votes: Public read, authenticated create/update/delete (own vote only)
+ALTER TABLE grade_votes ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read grade votes' AND tablename = 'grade_votes') THEN
+    CREATE POLICY "Public read grade votes" ON grade_votes FOR SELECT USING (true);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated create grade vote' AND tablename = 'grade_votes') THEN
+    CREATE POLICY "Authenticated create grade vote" ON grade_votes FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated update own grade vote' AND tablename = 'grade_votes') THEN
+    CREATE POLICY "Authenticated update own grade vote" ON grade_votes FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated delete own grade vote' AND tablename = 'grade_votes') THEN
+    CREATE POLICY "Authenticated delete own grade vote" ON grade_votes FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+-- climb_corrections: Public read, authenticated create (own corrections only)
+ALTER TABLE climb_corrections ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read corrections' AND tablename = 'climb_corrections') THEN
+    CREATE POLICY "Public read corrections" ON climb_corrections FOR SELECT USING (true);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated create correction' AND tablename = 'climb_corrections') THEN
+    CREATE POLICY "Authenticated create correction" ON climb_corrections FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated update own correction' AND tablename = 'climb_corrections') THEN
+    CREATE POLICY "Authenticated update own correction" ON climb_corrections FOR UPDATE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+-- correction_votes: Public read, authenticated create (own votes only)
+ALTER TABLE correction_votes ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read correction votes' AND tablename = 'correction_votes') THEN
+    CREATE POLICY "Public read correction votes" ON correction_votes FOR SELECT USING (true);
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated create correction vote' AND tablename = 'correction_votes') THEN
+    CREATE POLICY "Authenticated create correction vote" ON correction_votes FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated delete own correction vote' AND tablename = 'correction_votes') THEN
+    CREATE POLICY "Authenticated delete own correction vote" ON correction_votes FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+-- =====================================================
+-- HELPER FUNCTION: Check if climb is verified
+-- =====================================================
+CREATE OR REPLACE FUNCTION is_climb_verified(climb_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM climb_verifications
+    WHERE climb_id = is_climb_verified.climb_id
+    GROUP BY climb_id
+    HAVING COUNT(*) >= 3
+  );
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- =====================================================
+-- HELPER FUNCTION: Get verification count
+-- =====================================================
+CREATE OR REPLACE FUNCTION get_verification_count(climb_id UUID)
+RETURNS INTEGER AS $$
+BEGIN
+  RETURN (
+    SELECT COUNT(*) FROM climb_verifications
+    WHERE climb_id = get_verification_count.climb_id
+  );
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- =====================================================
+-- HELPER FUNCTION: Get grade vote distribution
+-- =====================================================
+CREATE OR REPLACE FUNCTION get_grade_vote_distribution(climb_id UUID)
+RETURNS TABLE (grade VARCHAR(10), vote_count INTEGER) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT grade, COUNT(*) as vote_count
+  FROM grade_votes
+  WHERE climb_id = get_grade_vote_distribution.climb_id
+  GROUP BY grade
+  ORDER BY COUNT(*) DESC;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- =====================================================
+-- HELPER FUNCTION: Get consensus grade
+-- =====================================================
+CREATE OR REPLACE FUNCTION get_consensus_grade(climb_id UUID)
+RETURNS VARCHAR(10) AS $$
+BEGIN
+  RETURN (
+    SELECT grade
+    FROM grade_votes
+    WHERE climb_id = get_consensus_grade.climb_id
+    GROUP BY grade
+    ORDER BY COUNT(*) DESC
+    LIMIT 1
+  );
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Migration: 20260120000002_seed_and_fix.sql
+
+-- Migration: Seed global regions and crags
+-- Purpose: Add popular climbing regions and crags worldwide for launch
+-- Created: 2026-01-20
+
+ALTER TABLE regions ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE crags ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE crags ADD COLUMN IF NOT EXISTS access_notes TEXT;
+
+INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('20260120000000_verification_system')
+ON CONFLICT (version) DO NOTHING;
+
+DROP POLICY IF EXISTS "Public read verifications" ON climb_verifications;
+DROP POLICY IF EXISTS "Authenticated create verification" ON climb_verifications;
+DROP POLICY IF EXISTS "Authenticated delete own verification" ON climb_verifications;
+DROP POLICY IF EXISTS "Public read grade votes" ON grade_votes;
+DROP POLICY IF EXISTS "Authenticated create grade vote" ON grade_votes;
+DROP POLICY IF EXISTS "Authenticated update own grade vote" ON grade_votes;
+DROP POLICY IF EXISTS "Authenticated delete own grade vote" ON grade_votes;
+DROP POLICY IF EXISTS "Public read corrections" ON climb_corrections;
+DROP POLICY IF EXISTS "Authenticated create correction" ON climb_corrections;
+DROP POLICY IF EXISTS "Authenticated update own correction" ON climb_corrections;
+DROP POLICY IF EXISTS "Public read correction votes" ON correction_votes;
+DROP POLICY IF EXISTS "Authenticated create correction vote" ON correction_votes;
+DROP POLICY IF EXISTS "Authenticated delete own correction vote" ON correction_votes;
+
+CREATE POLICY "Public read verifications" ON climb_verifications FOR SELECT USING (true);
+CREATE POLICY "Authenticated create verification" ON climb_verifications FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Authenticated delete own verification" ON climb_verifications FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Public read grade votes" ON grade_votes FOR SELECT USING (true);
+CREATE POLICY "Authenticated create grade vote" ON grade_votes FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Authenticated update own grade vote" ON grade_votes FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Authenticated delete own grade vote" ON grade_votes FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Public read corrections" ON climb_corrections FOR SELECT USING (true);
+CREATE POLICY "Authenticated create correction" ON climb_corrections FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Authenticated update own correction" ON climb_corrections FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Public read correction votes" ON correction_votes FOR SELECT USING (true);
+CREATE POLICY "Authenticated create correction vote" ON correction_votes FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Authenticated delete own correction vote" ON correction_votes FOR DELETE USING (auth.uid() = user_id);
+
+INSERT INTO regions (id, name, country_code, center_lat, center_lon, description) VALUES
+('d00d1601-1f48-4fd8-9441-9ad3b60be4b1', 'Fontainebleau', 'FR', 48.4165, 2.702, 'World-famous sandstone bouldering forest near Paris.'),
+('8ef71105-64ee-417c-98cf-0a790d84d73c', 'Grasse', 'FR', 43.7102, 6.934, 'Sandstone bouldering near Nice.'),
+('c22b8193-088d-48be-8b8f-0568e32a71ad', 'Verdon', 'FR', 43.7568, 5.764, 'Limestone sport climbing in the stunning Verdon Gorge.'),
+('ffe0e34c-93f4-4feb-9196-20523704ee61', 'Calanques', 'FR', 43.2167, 5.45, 'Limestone sport climbing and bouldering near Marseille.'),
+('0b060f77-3a6f-4de4-a745-f21890e656e9', 'Albert', 'FR', 50.2865, 2.774, 'Sandstone bouldering in northern France.'),
+('506ca344-b714-4af6-a730-4da55a92628c', 'Buoux', 'FR', 43.8233, 5.3933, 'Historic limestone sport climbing area in Provence.'),
+('3f43b7b6-db85-4b4e-a9c2-304a218596ed', 'Céüse', 'FR', 44.2833, 5.8333, 'Limestone sport climbing with classic long routes.'),
+('96f6d71d-9fef-4806-a3bb-aa54e4b66fd1', 'Chamonix', 'FR', 45.9237, 6.8694, 'Alpine climbing capital.'),
+('582fd7dc-17d6-46c9-aeb7-13b696984847', 'Annecy', 'FR', 45.8992, 6.1293, 'Limestone and granite climbing near Lake Annecy.'),
+('93ef1c65-93a0-4385-9993-875cfc5e3933', 'Magic Wood', 'CH', 46.8667, 9.0333, 'World-class sandstone bouldering in the Swiss Alps.'),
+('84a0095e-71e5-4276-8b7f-e2efb7528a7e', 'Chironico', 'CH', 46.45, 8.8, 'Sandstone bouldering in Ticino.'),
+('ba15cedd-3eeb-46e8-aa5c-2a0847fc5c35', 'Cresciano', 'CH', 46.3167, 8.8333, 'Sandstone bouldering in Ticino.'),
+('971e53e4-535b-4b95-be84-0de3b942eacb', 'Finale Ligure', 'IT', 44.17, 8.34, 'Limestone sport climbing paradise on the Italian Riviera.'),
+('7322e708-7cbf-4037-bd19-c2fb1ccd1b49', 'Arco', 'IT', 45.9167, 10.8833, 'Limestone sport climbing in the Italian Alps.'),
+('da2901eb-0149-4ed0-a89a-71f5aa2373d2', 'Sardinia', 'IT', 40.5, 9.0, 'Limestone sport climbing and deep water soloing on the island.'),
+('eb408c34-a6e9-48b1-a41f-869d72667829', 'Siurana', 'ES', 41.2667, 0.9667, 'Limestone sport climbing in Catalonia.'),
+('9bcc9fd3-25a4-4ee1-9270-94f5ff478100', 'Margalef', 'ES', 41.4833, 0.75, 'Limestone sport climbing in Montserrat area.'),
+('780414a2-1b4b-4eeb-b69f-d5ae8cc94190', 'Rodellar', 'ES', 42.3333, -0.0667, 'Limestone sport climbing in the Sierra de Guara.'),
+('13a1a858-8aaa-44d4-b1fd-17bca4795a9e', 'Albarracín', 'ES', 40.4, -1.45, 'Sandstone sport climbing in central Spain.'),
+('83cb124f-ce37-4b66-b9f1-176239a934fb', 'Cádiz', 'ES', 36.5, -6.25, 'Coastal limestone and sandstone.'),
+('db6b8558-a1d8-43af-9d4e-a238f8019bd6', 'Mallorca', 'ES', 39.6167, 3.0, 'Limestone sport climbing on the Balearic Islands.'),
+('fd77c1f0-d316-450d-b425-80ca06c4c292', 'Arrábida', 'PT', 38.4667, -9.0, 'Limestone sport climbing near Lisbon.'),
+('10ba4de6-f6af-4110-978d-96387234df6b', 'Bertrix', 'BE', 49.85, 5.25, 'Sandstone bouldering in the Ardennes.'),
+('81e0ffce-5bf5-4cb9-9f00-a1864d566de1', 'Rochehaut', 'BE', 49.8333, 5.2833, 'Sandstone bouldering near the Ourthe River.'),
+('c512a71e-0b43-4f12-8d88-be76cf04107e', 'Portland', 'GB', 50.5667, -2.45, 'Portland limestone in Dorset.'),
+('9ce14517-cfaa-4bde-9cb5-4569885e0127', 'Peak District', 'GB', 53.25, -1.5, 'Sandstone trad climbing.'),
+('8b73700f-7d47-4b6e-87d8-60bace4cbc98', 'Yorkshire', 'GB', 54.0, -1.5, 'Gritstone and limestone.'),
+('c4241ea6-bdaa-4765-bff5-2ed6cb8ffea8', 'Lake District', 'GB', 54.5, -3.0, 'Mountain rock and slate.'),
+('900ad305-e6df-47fa-bc89-1d7fa5f53cf1', 'Cornwall', 'GB', 50.2667, -5.05, 'Coastal granite and serpentinite.'),
+('350100db-930b-440a-b70e-5a334d3813b0', 'Scotland', 'GB', 56.0, -4.0, 'Highland granite and schist.'),
+('7c731ece-cb43-4753-b833-1c803e72799c', 'Devon', 'GB', 50.75, -3.75, 'Limestone and sandstone.'),
+('7e8da1db-5405-404a-8e94-90bced5544e1', 'Bishop', 'CA', 37.3861, -118.3868, 'Limestone bouldering at Happythought and The Buttermilks.'),
+('d7eb80ce-9089-42a7-86dd-b981084cbc9b', 'Hueco Tanks', 'TX', 31.9, -105.9667, 'Desert boulders with holds like "the Moon".'),
+('cfafe4c1-2d8a-4254-a6cf-31cda83eedda', 'Red River Gorge', 'KY', 37.8, -83.0, 'Limestone sport climbing paradise.'),
+('5363e58a-1d56-4a3a-95a6-c63511d2af0f', 'Joe''s Valley', 'UT', 39.5, -111.0, 'Sandstone bouldering in Utah canyon.'),
+('beef2777-d4a6-4791-b46d-954b99b5e5e5', 'Indian Creek', 'UT', 38.0333, -109.5, 'Sandstone splitter cracks.'),
+('9f3f4dda-f736-4e42-bdf5-2aa0aa9ec724', 'Yosemite', 'CA', 37.745, -119.5936, 'Granite big walls and sport.'),
+('3d0e91f0-66c3-4b89-b4df-295eb33e2b57', 'Red Rocks', 'NV', 36.1333, -115.4333, 'Desert sandstone sport and trad.'),
+('9b6c84c9-0628-417a-ae90-24b8ad480310', 'Boulder Canyon', 'CO', 40.0, -105.5, 'Granite and gneiss sport.'),
+('82c91e57-d519-4aab-a5df-7c1d070e8ca0', 'Fort Collins', 'CO', 40.55, -105.07, 'Horsetooth and Greyrock areas.'),
+('761f4cfb-607c-4d7c-8689-97e889aaf87b', 'Lake Tahoe', 'CA', 38.95, -119.95, 'Granite bouldering and sport.'),
+('51d6f36d-0c25-435d-aef3-568d526b2eaa', 'Little Cottonwood', 'UT', 40.5667, -111.8, 'Granite sport at Gate Buttress.'),
+('c52116ff-1e4c-4f9c-88ed-d845ee84afae', 'Flagstaff', 'AZ', 35.2, -111.65, 'Volcanic rock.'),
+('d16f3ec8-4227-44c3-b59d-54e16ce5516f', 'Joshua Tree', 'CA', 33.9, -115.9, 'Desert granite.'),
+('ebb13272-5d82-4aee-8de6-ab22deb4aa72', 'Owens River Gorge', 'CA', 37.8, -118.9, 'Limestone sport climbing.'),
+('f211367b-bb5f-469f-bf31-c0428558a885', 'Maple Canyon', 'UT', 39.85, -111.75, 'Conglomerate sport climbing.'),
+('abe2b690-393b-4ac2-963e-9807b3233921', 'Smith Rocks', 'OR', 44.3667, -121.15, 'Limestone sport climbing.'),
+('3b3da8c8-5263-4938-b26a-422717122f62', 'Linville Gorge', 'NC', 35.95, -81.95, 'Limestone and gneiss.'),
+('73884dad-8e60-49ea-84f6-63b5d209d465', 'New River Gorge', 'WV', 38.0, -81.0, 'Limestone sport climbing.'),
+('18ecd6c2-a40f-4323-a56e-b2e6fd02cdcd', 'Rumney', 'NH', 43.8, -71.8, 'Limestone sport climbing.'),
+('2437e2b5-7e61-40aa-9690-aa9bbf4cc53b', 'Shawangunks', 'NY', 41.7, -74.3, 'Historic American climbing.'),
+('3faa8c8d-1b74-4677-9256-f741248bbe78', 'Squamish', 'BC', 49.7, -123.15, 'Granite. The Chief, Smoke Bluffs.'),
+('67aa15e6-a042-497f-a9d6-018fd6e0164e', 'Canmore', 'AB', 51.0833, -115.35, 'Limestone and granite.'),
+('ca2806c7-86e0-4a7b-abaf-5e119e3a303e', 'Montreal', 'QC', 45.5, -73.6, 'Urban climbing.'),
+('46dd6679-1e73-40fe-9ea9-fdb6ba0a7545', 'Ottawa', 'ON', 45.4167, -75.7, 'Gneiss boulders.'),
+('1d4f87c4-de54-4bfa-be90-b74c8f63582a', 'Jasper', 'AB', 52.8833, -118.05, 'Alpine granite.'),
+('f313715b-898e-49cc-93c4-7b85106ff210', 'Rocklands', 'ZA', -32.4833, 19.0333, 'World-famous sandstone bouldering.'),
+('39827b3a-5568-4b7b-9902-141932145ffa', 'Cederberg', 'ZA', -32.5, 19.0, 'Sandstone boulders.'),
+('67a73691-f7de-4219-9179-4a124b94efbf', 'Montagne d''Or', 'RE', -21.1, 55.6, 'Bouldering on Réunion Island.'),
+('09fa8192-5aa6-4009-9eba-044d9dc23f55', 'Sydney', 'AU', -33.87, 151.21, 'Sandstone at Nowra, Mount York.'),
+('9cf7649d-1117-4405-a67e-961c7351ebd7', 'Wanaka', 'NZ', -44.7, 169.15, 'Granite bouldering at Matrix.'),
+('91427529-14ba-4b3f-af2a-ad7389975818', 'Queenstown', 'NZ', -45.03, 168.66, 'Alpine setting.'),
+('7a325beb-9538-421b-9e11-48208fb58c55', 'Brisbane', 'AU', -27.5, 153.0, 'Sandstone.'),
+('4a6eb3af-e4db-49f9-ac11-c31bc1dfcea0', 'Yangshuo', 'CN', 24.7833, 110.5, 'Limestone karst.'),
+('b84cfeea-01c1-4aed-9653-348b4c3c3b30', 'Narita', 'JP', 35.7833, 140.3, 'Bouldering near Tokyo.'),
+('25012d4e-417e-4765-8d74-d43d28ce7bd5', 'Longdong', 'TW', 24.15, 121.65, 'Coastal climbing.'),
+('73cc93b1-b2e4-4095-b8aa-868ce69e080a', 'Kalymnos', 'GR', 36.95, 26.9833, 'World-famous limestone island.'),
+('98cd4f88-5e20-46cd-8559-f425161005fe', 'Meteora', 'GR', 39.7167, 21.6333, 'Limestone pillars with monasteries.'),
+('c3861c06-23dc-4f3f-a418-49bb1fec062e', 'Mendoza', 'AR', -32.8833, -68.8333, 'Granite and limestone.'),
+('7c9b4ecd-9ec9-4e86-bf35-752012bb5a5f', 'Sierra de la Ventana', 'AR', -38.0, -62.0, 'Sandstone climbing.'),
+('b93249a9-04af-4697-8251-30a838fd2e9a', 'El Potrero Chico', 'MX', 25.95, -100.5, 'Limestone sport climbing.'),
+('e511b0a7-9e86-4639-89ad-4d9476cde3c0', 'Yucatán', 'MX', 20.98, -89.5, 'Cenotes and limestone.'),
+('ce168e68-061e-4126-9800-785a5f53f15a', 'Costa Rica', 'CR', 9.75, -83.75, 'Limestone near Caribbean.'),
+('9d5a077b-bcc9-456e-b314-eefb4d130d46', 'Guernsey', 'GG', 49.45, -2.58, 'Granite boulders and cliffs.'),
+('e15c7b80-67f5-4245-b04d-5888f0a16304', 'Jersey', 'JE', 49.2, -2.1, 'Granite bouldering and sea cliffs.'),
+('d0f80657-a7f9-430f-a5f7-1a1d6ebb95df', 'Frankenjura', 'DE', 49.65, 11.35, 'Limestone sport climbing.'),
+('6731e891-1182-4d40-8817-06767eda5b70', 'Saxon Switzerland', 'DE', 50.9167, 14.2, 'Sandstone pillars.'),
+('728f5a49-1c42-450b-8ad3-82f3f808d2aa', 'Norway', 'NO', 61.0, 8.0, 'Granite and gneiss.')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO crags (id, name, region_id, latitude, longitude, type, description, access_notes, rock_type) VALUES
+('84186445-0106-473a-9650-010eede151ee', '95', 'd00d1601-1f48-4fd8-9441-9ad3b60be4b1', 48.4165, 2.702, 'boulder', 'Iconic sector with classic problems from 5+ to 8C+.', 'Park at 95 parking, 15 min walk into forest.', 'sandstone'),
+('201d5892-50b2-4d0d-b56a-df0717e6eec6', '96', 'd00d1601-1f48-4fd8-9441-9ad3b60be4b1', 48.42, 2.705, 'boulder', 'Adjacent to 95, similar grade range.', 'Shared parking with 95.', 'sandstone'),
+('0147c66f-3a17-4b91-850f-c0a0ab6127f4', '97', 'd00d1601-1f48-4fd8-9441-9ad3b60be4b1', 48.425, 2.71, 'boulder', 'Higher grade sector.', '20 min walk from 95 parking.', 'sandstone'),
+('95ebd728-e06a-45ea-bbba-2d0788e566ec', 'Cuvier', 'd00d1601-1f48-4fd8-9441-9ad3b60be4b1', 48.4, 2.68, 'boulder', 'Large forest area.', 'Main parking for Cuvier.', 'sandstone'),
+('df6bb8c1-f32c-4af1-bb93-0b0f3785974c', 'Roche aux Sabots', 'd00d1601-1f48-4fd8-9441-9ad3b60be4b1', 48.39, 2.67, 'boulder', 'Popular sector.', 'Parking at Franchard.', 'sandstone'),
+('98a5d940-8ca3-4f10-943b-08b974d009f0', 'Apremont', 'd00d1601-1f48-4fd8-9441-9ad3b60be4b1', 48.43, 2.73, 'boulder', 'Remote sector.', 'Longer walk required.', 'sandstone'),
+('cd9afe35-9acb-44bb-920e-b0db7932b5da', 'Magic Wood', '93ef1c65-93a0-4385-9993-875cfc5e3933', 46.8667, 9.0333, 'boulder', 'World-class sandstone.', 'Parking near Valzeina.', 'sandstone'),
+('e2844d2b-1b37-4acc-865c-10a382f0dc9d', 'Chironico', '84a0095e-71e5-4276-8b7f-e2efb7528a7e', 46.45, 8.8, 'boulder', 'Powerful problems.', 'Parking in village.', 'sandstone'),
+('5b88f2a8-567b-4521-a025-fa284c56e290', 'Cresciano', 'ba15cedd-3eeb-46e8-aa5c-2a0847fc5c35', 46.3167, 8.8333, 'boulder', 'Powerful boulders.', 'Parking at lot.', 'sandstone'),
+('f980409d-ad57-45aa-93b2-1b7151ea765a', 'Finale Ligure', '971e53e4-535b-4b95-be84-0de3b942eacb', 44.17, 8.34, 'sport', 'Sport climbing paradise.', 'Many campgrounds.', 'limestone'),
+('b1f3d7f0-9d88-4f0e-ab30-a8b8f3b82345', 'Arco', '7322e708-7cbf-4037-bd19-c2fb1ccd1b49', 45.9167, 10.8833, 'sport', 'World Cup venue.', 'Camping at Lake Garda.', 'limestone'),
+('06eb53f9-1de6-48ab-a76e-55d1f25f287d', 'Siurana', 'eb408c34-a6e9-48b1-a41f-869d72667829', 41.2667, 0.9667, 'sport', 'Steep terrain.', 'Parking at crag.', 'limestone'),
+('044f203e-1f0c-4f7e-9cfc-b8c8ddd0a586', 'Margalef', '9bcc9fd3-25a4-4ee1-9270-94f5ff478100', 41.4833, 0.75, 'sport', 'Technical climbing.', 'Parking at village.', 'limestone'),
+('b595d3cd-2a87-4ae4-8621-2bf3773e3044', 'Rodellar', '780414a2-1b4b-4eeb-b69f-d5ae8cc94190', 42.3333, -0.0667, 'sport', 'Steep and pumpy.', 'Campground.', 'limestone'),
+('3894a820-ab30-415d-b48c-c0f8236f6627', 'Portland', 'c512a71e-0b43-4f12-8d88-be76cf04107e', 50.5667, -2.45, 'sport', 'Sea cliffs.', 'Portland quarries.', 'limestone'),
+('62b6e6b7-dca0-405c-a025-5fbe474a2d55', 'Stanage', '8b73700f-7d47-4b6e-87d8-60bace4cbc98', 53.35, -1.6, 'trad', 'Gritstone edge.', 'Robin Hood pub.', 'gritstone'),
+('edf818e8-8ecc-4867-ae77-65f24debd61c', 'Gordale Scar', '8b73700f-7d47-4b6e-87d8-60bace4cbc98', 54.0667, -2.15, 'trad', 'Classic gritstone.', 'National Trust.', 'gritstone'),
+('8c27b043-f63e-42ed-b3e4-1ba650ece6bb', 'Happythought', '7e8da1db-5405-404a-8e94-90bced5544e1', 37.3861, -118.3868, 'boulder', 'Limestone bouldering.', 'Pine Creek Lodge.', 'limestone'),
+('377dc643-d86c-48d9-b829-daa92d23cb35', 'The Buttermilks', '7e8da1db-5405-404a-8e94-90bced5544e1', 37.37, -118.4, 'boulder', 'Granite boulders.', 'Buttermilk Rd.', 'granite'),
+('3ce32906-189c-44fb-b032-8eaf1610d747', 'Hueco Tanks', 'd7eb80ce-9089-42a7-86dd-b981084cbc9b', 31.9, -105.9667, 'boulder', 'Desert boulders.', 'Park entry fee.', 'sandstone'),
+('27b33107-c383-4aad-a6a4-131e419bf9ea', 'PMRP', 'cfafe4c1-2d8a-4254-a6cf-31cda83eedda', 37.8, -83.0, 'sport', '500+ routes.', 'Miguel''s Pizza.', 'limestone'),
+('0ff2a2b5-0f19-4f8c-ae74-388781f872fb', 'Left Fork', '5363e58a-1d56-4a3a-95a6-c63511d2af0f', 39.5, -111.0, 'boulder', 'Circuit problems.', 'Forest camping.', 'sandstone'),
+('d2247a2f-6086-40f5-9fda-cd6dac3b5d27', 'Right Fork', '5363e58a-1d56-4a3a-95a6-c63511d2af0f', 39.48, -110.98, 'boulder', 'Classic circuits.', 'Shared parking.', 'sandstone'),
+('03201fce-5582-48ac-965d-788a8aad0ca3', 'Indian Creek', 'beef2777-d4a6-4791-b46d-954b99b5e5e5', 38.0333, -109.5, 'trad', 'Splitter cracks.', 'BLM camping.', 'sandstone'),
+('8b3220c9-bb23-47e9-b747-5a1afa785af0', 'Camp 4', '9f3f4dda-f736-4e42-bdf5-2aa0aa9ec724', 37.745, -119.5936, 'sport', 'Yosemite granite.', 'National Park.', 'granite'),
+('e73a07dc-fc36-4572-812e-405d7f532062', 'Red Rocks', '3d0e91f0-66c3-4b89-b4df-295eb33e2b57', 36.1333, -115.4333, 'sport', 'Desert sandstone.', 'Red Rock Canyon.', 'sandstone'),
+('4fd733cf-4e00-4609-86aa-681d791c3299', 'Rumney', '18ecd6c2-a40f-4323-a56e-b2e6fd02cdcd', 43.8, -71.8, 'sport', '200+ routes.', 'Parking fee.', 'limestone'),
+('2bd21adb-3e72-412f-bded-9d32be4b10a1', 'The Chief', '3faa8c8d-1b74-4677-9256-f741248bbe78', 49.7, -123.15, 'trad', 'Grand Wall.', 'Sea to Sky.', 'granite'),
+('a90ac6ca-4c6f-42bb-b075-c54f12a50464', 'Smoke Bluffs', '3faa8c8d-1b74-4677-9256-f741248bbe78', 49.72, -123.1, 'sport', 'Urban Squamish.', 'Mamquam Road.', 'granite'),
+('d3a44fd8-5228-4dbb-bb5e-d598b65bbc87', 'Northern', 'f313715b-898e-49cc-93c4-7b85106ff210', -32.4833, 19.0333, 'boulder', 'Main area.', 'Conservancy entry.', 'sandstone'),
+('aa47b098-8ef3-4e9c-b8a6-862787144cc2', 'Playground', '39827b3a-5568-4b7b-9902-141932145ffa', -32.5, 19.0, 'boulder', 'Classic circuit.', 'Cederberg.', 'sandstone'),
+('be49c3b4-28e2-42c0-a988-2a8464f982f3', 'Torque Boulder', '9d5a077b-bcc9-456e-b314-eefb4d130d46', 49.5091, -2.518, 'boulder', 'Headland boulder.', 'Coastal path.', 'granite'),
+('8b4a6cc0-b3cd-423a-b536-f477e99bcb51', 'Jerbourg', '9d5a077b-bcc9-456e-b314-eefb4d130d46', 49.45, -2.53, 'boulder', 'Sea cliffs.', 'Coastguard.', 'granite'),
+('495e115e-fc48-40c8-b24a-56aaa804b331', 'Nowra', '09fa8192-5aa6-4009-9eba-044d9dc23f55', -34.85, 150.6, 'boulder', 'Classic circuit.', 'Nowra Park.', 'sandstone'),
+('2441fe89-0fa8-46c9-a549-ef8d6b64dda7', 'Mount York', '09fa8192-5aa6-4009-9eba-044d9dc23f55', -33.75, 150.25, 'boulder', 'Historic boulders.', 'Mount York Rd.', 'sandstone'),
+('64023ebf-b7c4-48e2-9a51-31d10194226c', 'Matrix', '9cf7649d-1117-4405-a67e-961c7351ebd7', -44.7, 169.15, 'boulder', 'Granite boulders.', 'Matrix area.', 'granite'),
+('ac3e07e6-01b9-42ef-ad80-9a1d3833e269', 'Yangshuo', '4a6eb3af-e4db-49f9-ac11-c31bc1dfcea0', 24.7833, 110.5, 'sport', 'Limestone karst.', 'Guesthouses.', 'limestone'),
+('481552b3-7808-46d5-b9ac-f3ade0adedb2', 'Kalymnos', '73cc93b1-b2e4-4095-b8aa-868ce69e080a', 36.95, 26.9833, 'sport', 'Island paradise.', 'Ferry.', 'limestone'),
+('a690321c-3c46-4e29-b0c3-68ad7a8a05ec', 'El Potrero Chico', 'b93249a9-04af-4697-8251-30a838fd2e9a', 25.95, -100.5, 'sport', '600m+ walls.', 'Campground.', 'limestone'),
+('81d549a9-9d3b-4819-9aa4-49c9fc7b224c', 'Frankenjura', 'd0f80657-a7f9-430f-a5f7-1a1d6ebb95df', 49.65, 11.35, 'sport', '5000+ routes.', 'Beer culture.', 'limestone'),
+('a5e0042b-6a26-46f8-a1dc-b824a3cd32e9', 'Saxon Switzerland', '6731e891-1182-4d40-8817-06767eda5b70', 50.9167, 14.2, 'trad', 'Sandstone pillars.', 'Bastei.', 'sandstone')
+ON CONFLICT (id) DO NOTHING;
+
+-- Migration: 20260120000003_create_profile_trigger.sql
+
+-- =====================================================
+-- MIGRATION: Auto-create profiles for new users
+-- Created: 2026-01-20
+-- =====================================================
+
+-- Function to handle new user profile creation
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, theme_preference)
+  VALUES (NEW.id, 'system');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to call function on new user signup
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Migration: 20260121074609_fix_otp_trigger_null_check.sql
+
+-- =====================================================
+-- Fix Email OTP Login - Null-Safe app_metadata Check
+-- Created: 2026-01-21
+-- =====================================================
+
+-- Fix the handle_user_metadata_update function to handle null app_metadata
+-- The original function fails during email OTP because app_metadata is null
+-- This fix uses COALESCE to safely handle null values
+
+CREATE OR REPLACE FUNCTION public.handle_user_metadata_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.raw_user_meta_data IS DISTINCT FROM OLD.raw_user_meta_data
+     AND COALESCE(NEW.app_metadata->>'provider', '') = 'google' THEN
+    UPDATE public.profiles
+    SET
+      first_name = COALESCE(
+        NEW.raw_user_meta_data->>'given_name',
+        split_part(NEW.raw_user_meta_data->>'full_name', ' ', 1)
+      ),
+      last_name = COALESCE(
+        NEW.raw_user_meta_data->>'family_name',
+        split_part(NEW.raw_user_meta_data->>'full_name', ' ', 2)
+      ),
+      avatar_url = COALESCE(
+        NEW.raw_user_meta_data->>'avatar_url',
+        NEW.raw_user_meta_data->>'picture'
+      ),
+      email = COALESCE(NEW.email, email),
+      updated_at = NOW()
+    WHERE id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Migration: 20260121080000_fix_app_metadata_field.sql
+
+-- =====================================================
+-- Fix app_metadata field access in trigger
+-- Created: 2026-01-21
+-- =====================================================
+
+-- The previous trigger fails during OTP login because NEW.app_metadata
+-- may not be accessible. This fix safely handles missing/null metadata.
+
+CREATE OR REPLACE FUNCTION public.handle_user_metadata_update()
+RETURNS TRIGGER AS $$
+DECLARE
+  provider_text text;
+BEGIN
+  BEGIN
+    provider_text := NEW.app_metadata->>'provider';
+  EXCEPTION
+    WHEN undefined_column THEN
+      provider_text := NULL;
+  END;
+
+  IF NEW.raw_user_meta_data IS DISTINCT FROM OLD.raw_user_meta_data
+     AND COALESCE(provider_text, '') = 'google' THEN
+    UPDATE public.profiles SET
+      first_name = COALESCE(NEW.raw_user_meta_data->>'given_name', split_part(NEW.raw_user_meta_data->>'full_name', ' ', 1)),
+      last_name = COALESCE(NEW.raw_user_meta_data->>'family_name', split_part(NEW.raw_user_meta_data->>'full_name', ' ', 2)),
+      avatar_url = COALESCE(NEW.raw_user_meta_data->>'avatar_url', NEW.raw_user_meta_data->>'picture'),
+      email = COALESCE(NEW.email, email),
+      updated_at = NOW()
+    WHERE id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Migration: 20260122000000_simplified_flagging_system.sql
+
+-- =====================================================
+-- Simplified Flagging System
+-- Any authenticated user can flag, only admins can resolve
+-- Created: 2026-01-22
+-- =====================================================
+
+-- =====================================================
+-- Add is_admin to profiles
+-- =====================================================
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT false;
+
+-- =====================================================
+-- CLIMB_FLAGS: Report issues with climbs
+-- =====================================================
+CREATE TABLE IF NOT EXISTS climb_flags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    climb_id UUID NOT NULL REFERENCES climbs(id) ON DELETE CASCADE,
+    crag_id UUID REFERENCES crags(id) ON DELETE SET NULL,
+    flagger_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    flag_type VARCHAR(50) NOT NULL CHECK (flag_type IN ('location', 'route_line', 'route_name', 'image_quality', 'wrong_crag', 'other')),
+    comment TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'resolved')),
+    action_taken VARCHAR(20) CHECK (action_taken IN ('keep', 'edit', 'remove')),
+    resolved_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    resolved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_climb_flags_climb ON climb_flags(climb_id);
+CREATE INDEX IF NOT EXISTS idx_climb_flags_status ON climb_flags(status);
+CREATE INDEX IF NOT EXISTS idx_climb_flags_flagged_by ON climb_flags(flagger_id);
+CREATE INDEX IF NOT EXISTS idx_climb_flags_resolved_by ON climb_flags(resolved_by);
+
+-- =====================================================
+-- NOTIFICATIONS: Alert users
+-- =====================================================
+CREATE TABLE IF NOT EXISTS notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL,
+    title TEXT NOT NULL,
+    message TEXT,
+    link TEXT,
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read) WHERE is_read = false;
+CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
+
+-- =====================================================
+-- RLS POLICIES
+-- =====================================================
+-- Profiles: Add update policy for is_admin (admin only)
+-- =====================================================
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Admin update profiles' AND tablename = 'profiles') THEN
+        CREATE POLICY "Admin update profiles" ON profiles FOR UPDATE
+            USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true))
+            WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true));
+    END IF;
+END $$;
+
+-- =====================================================
+-- Drop crag_members table (no longer needed)
+-- =====================================================
+DROP TABLE IF EXISTS crag_members CASCADE;
+
+DO $$
+BEGIN
+    ALTER TABLE climb_flags ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read climb_flags' AND tablename = 'climb_flags') THEN
+        CREATE POLICY "Public read climb_flags" ON climb_flags FOR SELECT USING (true);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated create climb_flags' AND tablename = 'climb_flags') THEN
+        CREATE POLICY "Authenticated create climb_flags" ON climb_flags FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Admin manage climb_flags' AND tablename = 'climb_flags') THEN
+        CREATE POLICY "Admin manage climb_flags" ON climb_flags FOR ALL
+            USING (
+                EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true)
+            )
+            WITH CHECK (
+                EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true)
+            );
+    END IF;
+END $$;
+
+-- notifications: User read/write own, public read (admin can read all)
+DO $$
+BEGIN
+    ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'User read own notifications' AND tablename = 'notifications') THEN
+        CREATE POLICY "User read own notifications" ON notifications FOR SELECT USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true));
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated create notifications' AND tablename = 'notifications') THEN
+        CREATE POLICY "Authenticated create notifications" ON notifications FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'User update own notifications' AND tablename = 'notifications') THEN
+        CREATE POLICY "User update own notifications" ON notifications FOR UPDATE USING (auth.uid() = user_id);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Admin read all notifications' AND tablename = 'notifications') THEN
+        CREATE POLICY "Admin read all notifications" ON notifications FOR SELECT USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true));
+    END IF;
+END $$;
+
+-- profiles: Add update policy for is_admin (admin only)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Admin update profiles' AND tablename = 'profiles') THEN
+        CREATE POLICY "Admin update profiles" ON profiles FOR UPDATE
+            USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true))
+            WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true));
+    END IF;
+END $$;
+
+-- Migration: 20260122163838_add_prod_columns_for_data_import.sql
+
+-- =====================================================
+-- Add columns needed for production data import
+-- Created: 2026-01-22
+-- =====================================================
+
+-- Add crag_id to climbs
+ALTER TABLE public.climbs ADD COLUMN IF NOT EXISTS crag_id uuid;
+
+-- Add missing columns to profiles
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS display_name text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS gender text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS country varchar(100);
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS country_code varchar(2);
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferred_grade_system varchar(10) DEFAULT 'french';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferred_style varchar(20) DEFAULT 'sport';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS total_climbs integer DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS total_points integer DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS highest_grade text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS name text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS default_location text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS default_location_name text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS default_location_lat numeric(10,8);
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS default_location_lng numeric(11,8);
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS default_location_zoom integer;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS grade_system varchar(10) DEFAULT 'font';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS units varchar(10) DEFAULT 'metric';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_public boolean DEFAULT true;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS theme_preference varchar(20) DEFAULT 'system';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS name_updated_at timestamptz;
+
+-- Add gender constraint
+DO $$ BEGIN
+    ALTER TABLE public.profiles ADD CONSTRAINT profiles_gender_check CHECK (gender = ANY (ARRAY['male', 'female', 'other', 'prefer_not_to_say']));
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- Add missing columns to crags
+ALTER TABLE public.crags ADD COLUMN IF NOT EXISTS tide_dependency varchar(20);
+
+-- Add missing columns to images
+ALTER TABLE public.images ADD COLUMN IF NOT EXISTS is_verified boolean DEFAULT false;
+ALTER TABLE public.images ADD COLUMN IF NOT EXISTS verification_count integer DEFAULT 0;
+
+-- Migration: 20260123000000_add_image_id_to_climb_flags.sql
+
+-- =====================================================
+-- Add image_id to climb_flags
+-- Allows flagging images directly (not just climbs)
+-- Created: 2026-01-22
+-- =====================================================
+
+ALTER TABLE climb_flags ADD COLUMN IF NOT EXISTS image_id UUID REFERENCES images(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS idx_climb_flags_image ON climb_flags(image_id);
+
+-- Migration: 20260123000002_make_climb_id_nullable.sql
+
+-- Make climb_id nullable for image flags
+-- Image flags don't require a climb_id, so we need to allow NULL values
+
+ALTER TABLE climb_flags ALTER COLUMN climb_id DROP NOT NULL;
+
+-- Migration: 20260123174919_add_tos_acceptance.sql
+
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS tos_accepted_at TIMESTAMPTZ;
+
+-- Migration: 20260125000000_add_welcome_email_column.sql
+
+-- Migration: Add welcome_email_sent_at column to profiles
+-- Purpose: Track when welcome emails are sent to prevent duplicate sends
+
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS welcome_email_sent_at TIMESTAMPTZ;
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_profiles_welcome_email_sent_at 
+ON public.profiles(welcome_email_sent_at) WHERE welcome_email_sent_at IS NULL;
+
+-- Migration: 20260125000001_add_deleted_accounts_log.sql
+
+-- Create table to log deleted accounts for audit trail
+-- This table persists even after user deletion from auth.users
+
+CREATE TABLE IF NOT EXISTS public.deleted_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  email TEXT NOT NULL,
+  deleted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  delete_route_uploads BOOLEAN NOT NULL DEFAULT false,
+  metadata JSONB DEFAULT '{}'::jsonb
+);
+
+-- Index for querying deleted accounts by user_id
+CREATE INDEX IF NOT EXISTS idx_deleted_accounts_user_id ON public.deleted_accounts(user_id);
+
+-- Index for querying deleted accounts by email (for searching)
+CREATE INDEX IF NOT EXISTS idx_deleted_accounts_email ON public.deleted_accounts(email);
+
+-- Index for querying recent deletions
+CREATE INDEX IF NOT EXISTS idx_deleted_accounts_deleted_at ON public.deleted_accounts(deleted_at DESC);
+
+-- Grant read access to authenticated users (for viewing their own deletion record)
+GRANT SELECT ON TABLE public.deleted_accounts TO authenticated;
+GRANT SELECT ON TABLE public.deleted_accounts TO anon;
+
+-- Grant insert access to service_role (for logging deletions)
+GRANT INSERT, DELETE ON TABLE public.deleted_accounts TO service_role;
+
+-- Migration: 20260125000002_allow_null_crag_coordinates.sql
+
+-- Allow crag coordinates to be NULL (will be calculated from climbs later)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_attribute a
+    JOIN pg_class c ON c.oid = a.attrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'crags'
+      AND a.attname = 'latitude'
+      AND a.attnotnull
+  ) THEN
+    ALTER TABLE public.crags ALTER COLUMN latitude DROP NOT NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_attribute a
+    JOIN pg_class c ON c.oid = a.attrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'crags'
+      AND a.attname = 'longitude'
+      AND a.attnotnull
+  ) THEN
+    ALTER TABLE public.crags ALTER COLUMN longitude DROP NOT NULL;
+  END IF;
+END $$;
+
+-- Migration: 20260126000000_impact_metrics_functions.sql
+
+-- Migration: Add impact metrics RPC functions
+-- Purpose: Create reusable functions for counting community impact metrics
+
+set check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION public.get_verified_routes_count()
+ RETURNS bigint
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT COUNT(*) FROM climbs
+  WHERE (verification_count >= 3 OR is_verified = true)
+  AND deleted_at IS NULL;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.get_total_sends_count()
+ RETURNS bigint
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT COUNT(*) FROM logs
+  WHERE status IN ('completed', 'flash', 'onsight');
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.get_boulders_with_gps_count()
+ RETURNS bigint
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT COUNT(DISTINCT c.crag_id)
+  FROM climbs c
+  INNER JOIN crags cr ON c.crag_id = cr.id
+  WHERE c.deleted_at IS NULL
+  AND cr.latitude IS NOT NULL
+  AND cr.longitude IS NOT NULL;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.get_community_photos_count()
+ RETURNS bigint
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT COUNT(*) FROM images;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.get_active_climbers_count()
+ RETURNS bigint
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT COUNT(DISTINCT user_id) FROM logs
+  WHERE date_climbed >= NOW() - INTERVAL '60 days';
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.get_total_climbs_count()
+ RETURNS bigint
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT COUNT(*) FROM climbs WHERE deleted_at IS NULL;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.get_total_logs_count()
+ RETURNS bigint
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT COUNT(*) FROM user_climbs;
+$function$
+;
+
+-- Migration: 20260127000000_fix_logs_count.sql
+
+-- Migration: Fix get_total_logs_count to query user_climbs table
+-- Previous version was querying empty 'logs' table instead of 'user_climbs'
+
+set check_function_bodies = off;
+
+CREATE OR REPLACE FUNCTION public.get_total_logs_count()
+ RETURNS bigint
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT COUNT(*) FROM user_climbs;
+$function$
+;
+
+-- Migration: 20260130000000_production_sync.sql
+
+-- =====================================================
+-- Production Sync Migration
+-- Adds missing tables and columns from production schema
+-- Created: 2026-01-30
+-- =====================================================
+
+-- Enable PostGIS for geometry types
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- =====================================================
+-- GRADES: Grade definitions for leaderboard
+-- =====================================================
+CREATE TABLE IF NOT EXISTS grades (
+    grade TEXT PRIMARY KEY,
+    points INTEGER NOT NULL
+);
+
+-- Add primary key if not exists (using DO block to avoid errors)
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'grades_pkey'
+    ) THEN
+        ALTER TABLE grades ADD CONSTRAINT grades_pkey PRIMARY KEY (grade);
+    END IF;
+END $$;
+
+INSERT INTO grades (grade, points) VALUES
+    ('1A', 100), ('1A+', 116), ('1B', 132), ('1B+', 148), ('1C', 164), ('1C+', 180),
+    ('2A', 196), ('2A+', 212), ('2B', 228), ('2B+', 244), ('2C', 260), ('2C+', 276),
+    ('3A', 292), ('3A+', 308), ('3B', 324), ('3B+', 340), ('3C', 356), ('3C+', 372),
+    ('4A', 388), ('4A+', 404), ('4B', 420), ('4B+', 436), ('4C', 452), ('4C+', 468),
+    ('5A', 484), ('5A+', 500), ('5B', 516), ('5B+', 532), ('5C', 548), ('5C+', 564),
+    ('6A', 580), ('6A+', 596), ('6B', 612), ('6B+', 628), ('6C', 644), ('6C+', 660),
+    ('7A', 676), ('7A+', 692), ('7B', 708), ('7B+', 724), ('7C', 740), ('7C+', 756),
+    ('8A', 772), ('8A+', 788), ('8B', 804), ('8B+', 820), ('8C', 836), ('8C+', 852),
+    ('9A', 868), ('9A+', 884), ('9B', 900), ('9B+', 916), ('9C', 932), ('9C+', 948)
+ON CONFLICT (grade) DO NOTHING;
+
+CREATE INDEX IF NOT EXISTS idx_grades_points ON grades(points);
+
+-- =====================================================
+-- LOGS: User climb logging
+-- =====================================================
+CREATE TABLE IF NOT EXISTS logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    climb_id UUID NOT NULL REFERENCES climbs(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'completed',
+    notes TEXT,
+    date_climbed DATE,
+    style VARCHAR(20) NOT NULL DEFAULT 'onsight',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_logs_user ON logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_logs_climb ON logs(climb_id);
+CREATE INDEX IF NOT EXISTS idx_logs_date ON logs(date_climbed);
+
+-- =====================================================
+-- PROFILES: Extended user profiles
+-- =====================================================
+CREATE TABLE IF NOT EXISTS profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    username TEXT UNIQUE,
+    display_name TEXT,
+    avatar_url TEXT,
+    bio TEXT,
+    gender TEXT CHECK (gender IN ('male', 'female', 'other', 'prefer_not_to_say')),
+    country VARCHAR(100),
+    country_code VARCHAR(2),
+    preferred_grade_system VARCHAR(10) DEFAULT 'french',
+    preferred_style VARCHAR(20) DEFAULT 'sport',
+    total_climbs INTEGER DEFAULT 0,
+    total_points INTEGER DEFAULT 0,
+    highest_grade TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username);
+
+-- =====================================================
+-- CRAG_REPORTS: Crag moderation system
+-- =====================================================
+CREATE TABLE IF NOT EXISTS crag_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    crag_id UUID NOT NULL REFERENCES crags(id) ON DELETE CASCADE,
+    reporter_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    reason TEXT NOT NULL,
+    details TEXT,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'investigating', 'resolved', 'dismissed')),
+    moderator_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    moderator_note TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_crag_reports_crag ON crag_reports(crag_id);
+CREATE INDEX IF NOT EXISTS idx_crag_reports_status ON crag_reports(status);
+CREATE INDEX IF NOT EXISTS idx_crag_reports_reporter ON crag_reports(reporter_id);
+
+-- =====================================================
+-- ROUTE_GRADES: User-submitted grade votes
+-- =====================================================
+CREATE TABLE IF NOT EXISTS route_grades (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    climb_id UUID NOT NULL REFERENCES climbs(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    grade VARCHAR(10) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(climb_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_route_grades_climb ON route_grades(climb_id);
+CREATE INDEX IF NOT EXISTS idx_route_grades_user ON route_grades(user_id);
+
+-- =====================================================
+-- CLIMBS: Add missing verification columns
+-- =====================================================
+ALTER TABLE climbs ADD COLUMN IF NOT EXISTS verification_count INTEGER DEFAULT 0;
+ALTER TABLE climbs ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false;
+
+-- =====================================================
+-- CRAGS: Add missing columns
+-- =====================================================
+ALTER TABLE crags ADD COLUMN IF NOT EXISTS report_count INTEGER DEFAULT 0;
+ALTER TABLE crags ADD COLUMN IF NOT EXISTS is_flagged BOOLEAN DEFAULT false;
+ALTER TABLE crags ADD COLUMN IF NOT EXISTS boundary GEOMETRY(POLYGON, 4326);
+ALTER TABLE crags ADD COLUMN IF NOT EXISTS region_name VARCHAR(100);
+ALTER TABLE crags ADD COLUMN IF NOT EXISTS country VARCHAR(100);
+ALTER TABLE crags ADD COLUMN IF NOT EXISTS tide_dependency VARCHAR(20);
+
+CREATE INDEX IF NOT EXISTS idx_crags_report_count ON crags(report_count);
+CREATE INDEX IF NOT EXISTS idx_crags_is_flagged ON crags(is_flagged);
+CREATE INDEX IF NOT EXISTS idx_crags_boundary ON crags USING GIST(boundary);
+
+-- =====================================================
+-- IMAGES: Add missing verification columns
+-- =====================================================
+ALTER TABLE images ADD COLUMN IF NOT EXISTS verification_count INTEGER DEFAULT 0;
+ALTER TABLE images ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false;
+
+-- =====================================================
+-- RLS POLICIES
+-- =====================================================
+
+-- grades: Public read
+DO $$ BEGIN
+    ALTER TABLE grades ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Public read grades" ON grades FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- logs: Owner read/create, public read
+DO $$ BEGIN
+    ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Public read logs" ON logs FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Owner create logs" ON logs FOR INSERT WITH CHECK (auth.uid() = user_id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Owner update logs" ON logs FOR UPDATE USING (auth.uid() = user_id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- profiles: Public read, owner update
+DO $$ BEGIN
+    ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Public read profiles" ON profiles FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Owner update profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Authenticated create profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- crag_reports: Public read, authenticated create
+DO $$ BEGIN
+    ALTER TABLE crag_reports ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Public read crag reports" ON crag_reports FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Authenticated create crag report" ON crag_reports FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- route_grades: Public read, authenticated create (own vote only)
+DO $$ BEGIN
+    ALTER TABLE route_grades ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Public read route grades" ON route_grades FOR SELECT USING (true);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Authenticated create route grade" ON route_grades FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Authenticated update own route grade" ON route_grades FOR UPDATE USING (auth.uid() = user_id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN
+    CREATE POLICY "Authenticated delete own route grade" ON route_grades FOR DELETE USING (auth.uid() = user_id);
+EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- =====================================================
+-- HELPER FUNCTIONS
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION get_consensus_grade(climb_id UUID)
+RETURNS VARCHAR(10) AS $$
+BEGIN
+    RETURN (
+        SELECT grade
+        FROM route_grades
+        WHERE climb_id = get_consensus_grade.climb_id
+        GROUP BY grade
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+    );
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+CREATE OR REPLACE FUNCTION get_verification_count(climb_id UUID)
+RETURNS INTEGER AS $$
+BEGIN
+    RETURN (
+        SELECT COUNT(*) FROM climb_verifications
+        WHERE climb_id = get_verification_count.climb_id
+    );
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Migration: 20260130000001_add_name_columns.sql
+
+-- =====================================================
+-- Add name columns to profiles table
+-- Created: 2026-01-30
+-- =====================================================
+
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS first_name TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS last_name TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS email TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_profiles_first_name ON profiles(first_name);
+CREATE INDEX IF NOT EXISTS idx_profiles_last_name ON profiles(last_name);
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
+
+-- Migration: 20260201000000_sync_google_profile.sql
+
+-- =====================================================
+-- Sync Google profile data to profiles table
+-- Created: 2026-02-01
+-- =====================================================
+
+-- Update handle_new_user to sync Google metadata
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (
+    id,
+    first_name,
+    last_name,
+    avatar_url,
+    email
+  )
+  VALUES (
+    NEW.id,
+    COALESCE(
+      NEW.raw_user_meta_data->>'given_name',
+      split_part(NEW.raw_user_meta_data->>'full_name', ' ', 1)
+    ),
+    COALESCE(
+      NEW.raw_user_meta_data->>'family_name',
+      split_part(NEW.raw_user_meta_data->>'full_name', ' ', 2)
+    ),
+    COALESCE(
+      NEW.raw_user_meta_data->>'avatar_url',
+      NEW.raw_user_meta_data->>'picture'
+    ),
+    NEW.email
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create function to sync Google metadata on updates
+CREATE OR REPLACE FUNCTION public.handle_user_metadata_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.raw_user_meta_data IS DISTINCT FROM OLD.raw_user_meta_data
+     AND COALESCE(NEW.app_metadata->>'provider', '') = 'google' THEN
+    UPDATE public.profiles
+    SET
+      first_name = COALESCE(
+        NEW.raw_user_meta_data->>'given_name',
+        split_part(NEW.raw_user_meta_data->>'full_name', ' ', 1)
+      ),
+      last_name = COALESCE(
+        NEW.raw_user_meta_data->>'family_name',
+        split_part(NEW.raw_user_meta_data->>'full_name', ' ', 2)
+      ),
+      avatar_url = COALESCE(
+        NEW.raw_user_meta_data->>'avatar_url',
+        NEW.raw_user_meta_data->>'picture'
+      ),
+      email = COALESCE(NEW.email, email),
+      updated_at = NOW()
+    WHERE id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Drop existing trigger if it exists, then create new one
+DROP TRIGGER IF EXISTS on_auth_user_updated ON auth.users;
+CREATE TRIGGER on_auth_user_updated
+  AFTER UPDATE ON auth.users
+  FOR EACH ROW
+  WHEN (OLD.raw_user_meta_data IS DISTINCT FROM NEW.raw_user_meta_data)
+  EXECUTE FUNCTION public.handle_user_metadata_update();
+
+-- Ensure indexes exist for name fields
+CREATE INDEX IF NOT EXISTS idx_profiles_first_name ON profiles(first_name);
+CREATE INDEX IF NOT EXISTS idx_profiles_last_name ON profiles(last_name);
+
+-- Migration: 20260201000001_fix_history.sql
+
+-- =====================================================
+-- Fix migration history sync issue
+-- Created: 2026-02-01
+-- =====================================================
+
+-- This migration manually registers missing migrations
+-- as applied in the remote database to fix sync issues
+
+CREATE SCHEMA IF NOT EXISTS supabase_schema;
+
+CREATE TABLE IF NOT EXISTS supabase_schema.migrations (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    executed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO supabase_schema.migrations (id, name)
+VALUES ('20260120000000_verification_system', '20260120000000_verification_system')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO supabase_schema.migrations (id, name)
+VALUES ('20260201000000_sync_google_profile', '20260201000000_sync_google_profile')
+ON CONFLICT (id) DO NOTHING;
+
+-- Migration: 20260202000000_add_cascade_user_climbs.sql
+
+-- Add CASCADE to user_climbs.climb_id foreign key for hard delete support
+-- This ensures user_climbs records are automatically deleted when a climb is removed
+
+ALTER TABLE user_climbs
+DROP CONSTRAINT IF EXISTS user_climbs_climb_id_fkey,
+ADD CONSTRAINT user_climbs_climb_id_fkey
+  FOREIGN KEY (climb_id) REFERENCES climbs(id) ON DELETE CASCADE;
+
+-- Migration: 20260202090000_add_image_moderation_fields.sql
+
+-- =====================================================
+-- Image moderation fields (AWS Rekognition)
+-- Created: 2026-02-02
+-- =====================================================
+
+DO $$ BEGIN
+  ALTER TABLE images ADD COLUMN IF NOT EXISTS moderation_status TEXT DEFAULT 'pending';
+  ALTER TABLE images ADD COLUMN IF NOT EXISTS has_humans BOOLEAN;
+  ALTER TABLE images ADD COLUMN IF NOT EXISTS moderation_labels JSONB;
+  ALTER TABLE images ADD COLUMN IF NOT EXISTS moderated_at TIMESTAMPTZ;
+EXCEPTION WHEN undefined_table THEN
+  NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_images_moderation_status ON images(moderation_status);
+
+-- Migration: 20260203000000_add_admin_delete_policies.sql
+
+-- Add DELETE policies for admins on climbs and images tables
+-- This allows admin flag resolution to hard delete content
+
+-- Add DELETE policy for admins on climbs table
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'climbs' AND policyname = 'Admins can delete climbs'
+  ) THEN
+    CREATE POLICY "Admins can delete climbs" ON climbs
+    FOR DELETE
+    USING (
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = auth.uid() AND profiles.is_admin = true
+      )
+    );
+  END IF;
+END $$;
+
+-- Add DELETE policy for admins on images table
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'images' AND policyname = 'Admins can delete images'
+  ) THEN
+    CREATE POLICY "Admins can delete images" ON images
+    FOR DELETE
+    USING (
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = auth.uid() AND profiles.is_admin = true
+      )
+    );
+  END IF;
+END $$;
+
+-- Migration: 20260205000000_add_natural_image_dimensions.sql
+
+-- Add natural dimensions columns for correct route coordinate mapping
+-- These columns store the actual image dimensions (from the image file itself)
+-- which are used for route coordinate normalization and rendering
+
+ALTER TABLE images ADD COLUMN IF NOT EXISTS natural_width INTEGER;
+ALTER TABLE images ADD COLUMN IF NOT EXISTS natural_height INTEGER;
+
+-- Update existing images that have width/height but no natural dimensions
+-- This is a safe update that populates natural dimensions from existing width/height
+UPDATE images
+SET natural_width = width,
+    natural_height = height
+WHERE natural_width IS NULL
+  AND natural_height IS NULL
+  AND width IS NOT NULL
+  AND width > 0;
+
+-- Migration: 20260205000001_match_remote.sql
+
+-- Migration to match remote database state
+-- This file makes the migration history consistent between local and remote
+SELECT 1 AS noop;
+
+-- Migration: 20260205000002_add_image_dimensions_to_route_lines.sql
+
+-- Add displayed dimensions columns to route_lines for correct route rendering
+-- These store the image dimensions at the time the route was drawn
+ALTER TABLE route_lines ADD COLUMN IF NOT EXISTS image_width INTEGER;
+ALTER TABLE route_lines ADD COLUMN IF NOT EXISTS image_height INTEGER;
+
+-- Update existing routes to use natural dimensions as fallback
+UPDATE route_lines
+SET image_width = (SELECT natural_width FROM images WHERE images.id = route_lines.image_id),
+    image_height = (SELECT natural_height FROM images WHERE images.id = route_lines.image_id)
+WHERE image_width IS NULL AND image_height IS NULL
+  AND EXISTS (SELECT 1 FROM images WHERE images.id = route_lines.image_id AND natural_width IS NOT NULL);
+
+-- Migration: 20260205000003_enforce_image_moderation_visibility.sql
+
+-- =====================================================
+-- Enforce image moderation visibility via RLS
+-- Public can only read approved images
+-- Rejected images are not readable by anyone (including owner/admin)
+-- Created: 2026-02-05
+-- =====================================================
+
+DO $$
+BEGIN
+  -- Replace permissive public read policy
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+      AND policyname = 'Public read images'
+  ) THEN
+    EXECUTE 'DROP POLICY "Public read images" ON public.images';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+      AND policyname = 'Public read approved images'
+  ) THEN
+    EXECUTE $policy$
+      CREATE POLICY "Public read approved images" ON public.images
+      FOR SELECT
+      USING (coalesce(moderation_status, 'pending') = 'approved')
+    $policy$;
+  END IF;
+
+  -- Do not create owner/admin read policies: rejected images must not be visible
+  -- even to owners or admins.
+END $$;
+
+-- Migration: 20260205000004_reconcile_images_rls_policies.sql
+
+-- =====================================================
+-- Reconcile images RLS SELECT policies (idempotent)
+-- Ensures public can only read approved images.
+-- Rejected images are not readable by anyone (including owner/admin).
+-- Created: 2026-02-05
+-- =====================================================
+
+DO $$
+BEGIN
+  -- Remove legacy overly-permissive policy if it exists
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+      AND policyname = 'Public read images'
+  ) THEN
+    EXECUTE 'DROP POLICY "Public read images" ON public.images';
+  END IF;
+
+  -- Public: approved only
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+      AND policyname = 'Public read approved images'
+  ) THEN
+    EXECUTE $policy$
+      CREATE POLICY "Public read approved images" ON public.images
+      FOR SELECT
+      USING (coalesce(moderation_status, 'pending') = 'approved')
+    $policy$;
+  END IF;
+
+  -- Remove privileged SELECT policies (owner/admin). Even admins must not be
+  -- able to read rejected images via normal SELECT.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+      AND policyname = 'Owner read own images'
+  ) THEN
+    EXECUTE 'DROP POLICY "Owner read own images" ON public.images';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+      AND policyname = 'Admin read images'
+  ) THEN
+    EXECUTE 'DROP POLICY "Admin read images" ON public.images';
+  END IF;
+END $$;
+
+-- Migration: 20260205000005_lock_down_rejected_images_visibility.sql
+
+-- =====================================================
+-- Lock down rejected image visibility
+-- Rejected images must not be readable by anyone (including owner/admin)
+-- Public read is restricted to approved images only.
+-- Created: 2026-02-05
+-- =====================================================
+
+DO $$
+BEGIN
+  -- Remove any permissive/legacy policy
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+      AND policyname = 'Public read images'
+  ) THEN
+    EXECUTE 'DROP POLICY "Public read images" ON public.images';
+  END IF;
+
+  -- Remove privileged read policies
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+      AND policyname = 'Owner read own images'
+  ) THEN
+    EXECUTE 'DROP POLICY "Owner read own images" ON public.images';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+      AND policyname = 'Admin read images'
+  ) THEN
+    EXECUTE 'DROP POLICY "Admin read images" ON public.images';
+  END IF;
+
+  -- Ensure public approved-only policy exists
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+      AND policyname = 'Public read approved images'
+  ) THEN
+    EXECUTE $policy$
+      CREATE POLICY "Public read approved images" ON public.images
+      FOR SELECT
+      USING (coalesce(moderation_status, 'pending') = 'approved')
+    $policy$;
+  END IF;
+END $$;
+
+-- Migration: 20260206000000_add_admin_crag_delete_policy.sql
+
+-- Add DELETE policy for admins on crags table
+-- This allows admin flag resolution to hard delete crags
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'crags' AND policyname = 'Admins can delete crags'
+  ) THEN
+    CREATE POLICY "Admins can delete crags" ON crags
+    FOR DELETE
+    USING (
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE profiles.id = auth.uid() AND profiles.is_admin = true
+      )
+    );
+  END IF;
+END $$;
+
+-- Migration: 20260206000001_cascade_delete_crags.sql
+
+-- Change foreign keys to ON DELETE CASCADE for proper cascading deletes
+-- When a crag is deleted, all associated climbs and images will be auto-deleted
+
+-- First, get the current constraint names by attempting to drop and recreate
+
+-- Drop existing foreign key constraint on climbs.crag_id
+ALTER TABLE climbs DROP CONSTRAINT IF EXISTS climbs_crag_id_fkey;
+
+-- Add new constraint with CASCADE
+ALTER TABLE climbs ADD CONSTRAINT climbs_crag_id_fkey
+  FOREIGN KEY (crag_id) REFERENCES crags(id) ON DELETE CASCADE;
+
+-- Drop existing foreign key constraint on images.crag_id  
+ALTER TABLE images DROP CONSTRAINT IF EXISTS images_crag_id_fkey;
+
+-- Add new constraint with CASCADE
+ALTER TABLE images ADD CONSTRAINT images_crag_id_fkey
+  FOREIGN KEY (crag_id) REFERENCES crags(id) ON DELETE CASCADE;
+
+-- Migration: 20260207000000_add_crag_flag_types.sql
+
+-- Add crag-specific flag types to climb_flags table
+-- This allows users to flag crags with relevant issue types
+
+-- First, get the current constraint definition
+-- We need to drop and recreate with additional crag-specific types
+
+DO $$
+BEGIN
+  -- Drop existing constraint if it exists
+  ALTER TABLE climb_flags DROP CONSTRAINT IF EXISTS climb_flags_flag_type_check;
+EXCEPTION
+  WHEN undefined_object THEN null;
+END $$;
+
+-- Add new constraint with crag-specific flag types
+ALTER TABLE climb_flags ADD CONSTRAINT climb_flags_flag_type_check 
+  CHECK (flag_type IN (
+    'location', 
+    'route_line', 
+    'route_name', 
+    'image_quality', 
+    'wrong_crag',
+    'boundary',
+    'access',
+    'description',
+    'rock_type',
+    'name',
+    'other'
+  ));
+
+-- Migration: 20260207000001_add_images_status_column.sql
+
+-- =====================================================
+-- Add status column to images table for moderation workflow
+-- Backfill: column exists in prod/dev but was never migrated
+-- Created: 2026-02-07
+-- =====================================================
+
+DO $$ BEGIN
+  ALTER TABLE public.images ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected'));
+EXCEPTION WHEN undefined_table THEN
+  NULL;
+END $$;
+
+-- Create index for efficient filtering
+CREATE INDEX IF NOT EXISTS idx_images_status ON public.images(status);
+
+-- Migration: 20260208000000_fix_profile_creation.sql
+
+-- =====================================================
+-- Fix profile creation - PRODUCTION SAFE VERSION
+-- Created: 2026-01-24
+-- =====================================================
+
+-- Update handle_new_user to:
+-- 1. Skip profile creation if email is NULL
+-- 2. Prevent duplicate profiles for same email
+-- 3. Preserve existing admin status (don't auto-set)
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Skip if no email (Mailpit sometimes creates users without email)
+  IF NEW.email IS NULL THEN
+    RETURN NEW;
+  END IF;
+  
+  -- Check if profile exists for this email
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE email = NEW.email) THEN
+    -- Update existing profile with new auth user ID (preserve is_admin)
+    UPDATE public.profiles 
+    SET id = NEW.id, updated_at = NOW()
+    WHERE email = NEW.email;
+  ELSE
+    -- Create new profile (is_admin defaults to false)
+    INSERT INTO public.profiles (id, email, is_admin)
+    VALUES (NEW.id, NEW.email, false);
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create function to sync profile on login
+CREATE OR REPLACE FUNCTION public.sync_profile_on_login()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.email IS NOT NULL THEN
+    -- Update existing profile's auth user ID without changing is_admin
+    UPDATE public.profiles 
+    SET id = NEW.id, updated_at = NOW()
+    WHERE email = NEW.email;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Ensure insert trigger is created
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
+
+-- Create update trigger for profile sync on login
+DROP TRIGGER IF EXISTS on_auth_user_login ON auth.users;
+CREATE TRIGGER on_auth_user_login
+  AFTER UPDATE ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_profile_on_login();
+
+-- Clean up any existing NULL email profiles
+DELETE FROM public.profiles WHERE email IS NULL;
+
+-- FOR LOCAL DEVELOPMENT ONLY: Set all existing profiles to admin
+-- Remove this line before pushing to production!
+-- UPDATE public.profiles SET is_admin = true;
+
+-- FOR PRODUCTION: Manually set admin for specific users
+-- Example: UPDATE public.profiles SET is_admin = true WHERE email = 'admin@example.com';
+
+-- Migration: 20260208143000_enable_notifications_realtime.sql
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'notifications'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+  END IF;
+END
+$$;
+
+-- Migration: 20260209000000_logbook_performance.sql
+
+-- Logbook Performance Optimizations
+-- Indexes for faster logbook queries
+
+-- Composite index for user_climbs user_id + created_at ordering (most common query pattern)
+CREATE INDEX IF NOT EXISTS idx_user_climbs_user_created ON user_climbs(user_id, created_at DESC);
+
+-- Index for style filtering combined with user
+CREATE INDEX IF NOT EXISTS idx_user_climbs_user_style ON user_climbs(user_id, style);
+
+-- Index for climbing activity lookups
+CREATE INDEX IF NOT EXISTS idx_user_climbs_user_climb ON user_climbs(user_id, climb_id);
+
+-- Migration: 20260210000000_add_natural_dimensions_to_images.sql
+
+-- =====================================================
+-- Add natural dimensions columns to images
+-- =====================================================
+
+ALTER TABLE public.images ADD COLUMN IF NOT EXISTS natural_width INTEGER;
+ALTER TABLE public.images ADD COLUMN IF NOT EXISTS natural_height INTEGER;
+
+-- Migration: 20260215000000_add_missing_schema_columns.sql
+
+-- =====================================================
+-- Add all missing schema columns for fresh setups
+-- =====================================================
+
+-- profiles table
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS first_name TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_name TEXT;
+
+-- images table
+ALTER TABLE public.images ADD COLUMN IF NOT EXISTS natural_width INTEGER;
+ALTER TABLE public.images ADD COLUMN IF NOT EXISTS natural_height INTEGER;
+
+-- route_lines table
+ALTER TABLE public.route_lines ADD COLUMN IF NOT EXISTS image_width INTEGER;
+ALTER TABLE public.route_lines ADD COLUMN IF NOT EXISTS image_height INTEGER;
+
+-- Migration: 20260216000000_fix_auth_user_metadata_trigger.sql
+
+-- =====================================================
+-- Fix auth.users metadata trigger for all environments
+--
+-- Problem:
+-- Some Supabase auth schemas do not expose NEW.app_metadata on auth.users.
+-- Triggers referencing NEW.app_metadata break OTP/magic-link sign-in.
+--
+-- Fix:
+-- Prefer NEW.raw_app_meta_data (canonical), but safely fall back if needed.
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION public.handle_user_metadata_update()
+RETURNS TRIGGER AS $$
+DECLARE
+  provider_text text;
+BEGIN
+  provider_text := NULL;
+
+  -- Prefer auth.users.raw_app_meta_data; tolerate schemas that also expose app_metadata.
+  BEGIN
+    provider_text := NEW.app_metadata->>'provider';
+  EXCEPTION
+    WHEN undefined_column THEN
+      BEGIN
+        provider_text := NEW.raw_app_meta_data->>'provider';
+      EXCEPTION
+        WHEN undefined_column THEN
+          provider_text := NULL;
+      END;
+  END;
+
+  IF NEW.raw_user_meta_data IS DISTINCT FROM OLD.raw_user_meta_data
+     AND COALESCE(provider_text, '') = 'google' THEN
+    UPDATE public.profiles
+    SET
+      first_name = COALESCE(
+        NEW.raw_user_meta_data->>'given_name',
+        split_part(NEW.raw_user_meta_data->>'full_name', ' ', 1)
+      ),
+      last_name = COALESCE(
+        NEW.raw_user_meta_data->>'family_name',
+        split_part(NEW.raw_user_meta_data->>'full_name', ' ', 2)
+      ),
+      avatar_url = COALESCE(
+        NEW.raw_user_meta_data->>'avatar_url',
+        NEW.raw_user_meta_data->>'picture'
+      ),
+      email = COALESCE(NEW.email, email),
+      updated_at = NOW()
+    WHERE id = NEW.id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_updated ON auth.users;
+CREATE TRIGGER on_auth_user_updated
+  AFTER UPDATE ON auth.users
+  FOR EACH ROW
+  WHEN (OLD.raw_user_meta_data IS DISTINCT FROM NEW.raw_user_meta_data)
+  EXECUTE FUNCTION public.handle_user_metadata_update();
+
+-- Migration: 20260217000000_add_route_and_crag_slugs.sql
+
+-- Add stable, SEO-friendly slugs for crags and routes
+-- =====================================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- =====================================================
+-- Columns
+-- =====================================================
+
+ALTER TABLE public.crags ADD COLUMN IF NOT EXISTS country_code VARCHAR(2);
+ALTER TABLE public.crags ADD COLUMN IF NOT EXISTS slug TEXT;
+
+ALTER TABLE public.climbs ADD COLUMN IF NOT EXISTS slug TEXT;
+
+-- =====================================================
+-- Slug helper
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION public.slugify(input TEXT)
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT trim(both '-' FROM regexp_replace(lower(coalesce(input, '')), '[^a-z0-9]+', '-', 'g'))
+$$;
+
+-- =====================================================
+-- Backfill crag_id on climbs (best-effort)
+-- =====================================================
+
+UPDATE public.climbs c
+SET crag_id = x.crag_id
+FROM (
+  SELECT rl.climb_id, min(i.crag_id::text)::uuid AS crag_id
+  FROM public.route_lines rl
+  JOIN public.images i ON i.id = rl.image_id
+  WHERE i.crag_id IS NOT NULL
+  GROUP BY rl.climb_id
+) x
+WHERE c.crag_id IS NULL
+  AND c.id = x.climb_id
+  AND x.crag_id IS NOT NULL;
+
+-- =====================================================
+-- Backfill country_code on crags from region
+-- =====================================================
+
+UPDATE public.crags c
+SET country_code = upper(r.country_code)
+FROM public.regions r
+WHERE c.country_code IS NULL
+  AND c.region_id = r.id
+  AND r.country_code IS NOT NULL;
+
+-- =====================================================
+-- Backfill crag slugs (unique per country_code)
+-- =====================================================
+
+WITH base AS (
+  SELECT
+    id,
+    country_code,
+    NULLIF(public.slugify(name), '') AS base_slug
+  FROM public.crags
+  WHERE slug IS NULL OR slug = ''
+),
+ranked AS (
+  SELECT
+    id,
+    country_code,
+    coalesce(base_slug, 'crag') AS base_slug,
+    row_number() OVER (PARTITION BY country_code, coalesce(base_slug, 'crag') ORDER BY id) AS rn
+  FROM base
+)
+UPDATE public.crags c
+SET slug = CASE WHEN r.rn = 1 THEN r.base_slug ELSE r.base_slug || '-' || r.rn::text END
+FROM ranked r
+WHERE c.id = r.id;
+
+-- =====================================================
+-- Backfill climb slugs (unique per crag_id)
+-- =====================================================
+
+WITH base AS (
+  SELECT
+    id,
+    crag_id,
+    NULLIF(public.slugify(name), '') AS base_slug
+  FROM public.climbs
+  WHERE (slug IS NULL OR slug = '')
+    AND crag_id IS NOT NULL
+),
+ranked AS (
+  SELECT
+    id,
+    crag_id,
+    coalesce(base_slug, 'route') AS base_slug,
+    row_number() OVER (PARTITION BY crag_id, coalesce(base_slug, 'route') ORDER BY id) AS rn
+  FROM base
+)
+UPDATE public.climbs c
+SET slug = CASE WHEN r.rn = 1 THEN r.base_slug ELSE r.base_slug || '-' || r.rn::text END
+FROM ranked r
+WHERE c.id = r.id;
+
+-- =====================================================
+-- Indexes / constraints
+-- =====================================================
+
+CREATE INDEX IF NOT EXISTS idx_crags_country_code ON public.crags(country_code);
+CREATE INDEX IF NOT EXISTS idx_crags_slug ON public.crags(slug);
+CREATE INDEX IF NOT EXISTS idx_climbs_slug ON public.climbs(slug);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_crags_country_code_slug
+  ON public.crags(country_code, slug)
+  WHERE country_code IS NOT NULL AND slug IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_climbs_crag_id_slug
+  ON public.climbs(crag_id, slug)
+  WHERE crag_id IS NOT NULL AND slug IS NOT NULL;
+
+-- Migration: 20260218000000_map_crag_points.sql
+
+-- Map helper: return either bucket clusters (low zoom) or individual crags (high zoom)
+
+CREATE OR REPLACE FUNCTION public.get_map_crag_points(
+  min_lat double precision,
+  min_lng double precision,
+  max_lat double precision,
+  max_lng double precision,
+  zoom integer
+)
+RETURNS TABLE (
+  kind text,
+  id uuid,
+  name character varying,
+  latitude double precision,
+  longitude double precision,
+  count integer
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  cell double precision;
+  use_buckets boolean;
+BEGIN
+  IF zoom IS NULL THEN
+    zoom := 0;
+  END IF;
+
+  use_buckets := zoom < 10;
+
+  IF use_buckets THEN
+    cell := CASE
+      WHEN zoom <= 2 THEN 10.0
+      WHEN zoom <= 4 THEN 5.0
+      WHEN zoom <= 6 THEN 1.0
+      WHEN zoom <= 8 THEN 0.25
+      ELSE 0.1
+    END;
+  END IF;
+
+  IF NOT use_buckets THEN
+    RETURN QUERY
+    SELECT
+      'crag'::text AS kind,
+      c.id,
+      c.name,
+      c.latitude::double precision AS latitude,
+      c.longitude::double precision AS longitude,
+      1 AS count
+    FROM public.crags c
+    WHERE c.latitude IS NOT NULL
+      AND c.longitude IS NOT NULL
+      AND c.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND c.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (c.longitude::double precision >= min_lng OR c.longitude::double precision <= max_lng))
+      )
+    ORDER BY c.name
+    LIMIT 2000;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH filtered AS (
+    SELECT
+      c.latitude::double precision AS lat,
+      c.longitude::double precision AS lng
+    FROM public.crags c
+    WHERE c.latitude IS NOT NULL
+      AND c.longitude IS NOT NULL
+      AND c.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND c.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (c.longitude::double precision >= min_lng OR c.longitude::double precision <= max_lng))
+      )
+  ),
+  bucketed AS (
+    SELECT
+      (floor(lat / cell) * cell + cell / 2.0) AS bucket_lat,
+      (floor(lng / cell) * cell + cell / 2.0) AS bucket_lng,
+      count(*)::integer AS ct
+    FROM filtered
+    GROUP BY 1, 2
+  )
+  SELECT
+    'cluster'::text AS kind,
+    NULL::uuid AS id,
+    NULL::character varying AS name,
+    b.bucket_lat AS latitude,
+    b.bucket_lng AS longitude,
+    b.ct AS count
+  FROM bucketed b
+  ORDER BY b.ct DESC
+  LIMIT 1500;
+END;
+$$;
+
+-- Migration: 20260219000000_map_crag_points_require_images.sql
+
+-- Map helper: only include crags with at least one image
+
+CREATE OR REPLACE FUNCTION public.get_map_crag_points(
+  min_lat double precision,
+  min_lng double precision,
+  max_lat double precision,
+  max_lng double precision,
+  zoom integer
+)
+RETURNS TABLE (
+  kind text,
+  id uuid,
+  name character varying,
+  latitude double precision,
+  longitude double precision,
+  count integer
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  cell double precision;
+  use_buckets boolean;
+BEGIN
+  IF zoom IS NULL THEN
+    zoom := 0;
+  END IF;
+
+  use_buckets := zoom < 10;
+
+  IF use_buckets THEN
+    cell := CASE
+      WHEN zoom <= 2 THEN 10.0
+      WHEN zoom <= 4 THEN 5.0
+      WHEN zoom <= 6 THEN 1.0
+      WHEN zoom <= 8 THEN 0.25
+      ELSE 0.1
+    END;
+  END IF;
+
+  IF NOT use_buckets THEN
+    RETURN QUERY
+    SELECT
+      'crag'::text AS kind,
+      c.id,
+      c.name,
+      c.latitude::double precision AS latitude,
+      c.longitude::double precision AS longitude,
+      1 AS count
+    FROM public.crags c
+    WHERE c.latitude IS NOT NULL
+      AND c.longitude IS NOT NULL
+      AND c.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND c.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (c.longitude::double precision >= min_lng OR c.longitude::double precision <= max_lng))
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM public.images i
+        WHERE i.crag_id = c.id
+      )
+    ORDER BY c.name
+    LIMIT 2000;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH filtered AS (
+    SELECT
+      c.latitude::double precision AS lat,
+      c.longitude::double precision AS lng
+    FROM public.crags c
+    WHERE c.latitude IS NOT NULL
+      AND c.longitude IS NOT NULL
+      AND c.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND c.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (c.longitude::double precision >= min_lng OR c.longitude::double precision <= max_lng))
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM public.images i
+        WHERE i.crag_id = c.id
+      )
+  ),
+  bucketed AS (
+    SELECT
+      (floor(lat / cell) * cell + cell / 2.0) AS bucket_lat,
+      (floor(lng / cell) * cell + cell / 2.0) AS bucket_lng,
+      count(*)::integer AS ct
+    FROM filtered
+    GROUP BY 1, 2
+  )
+  SELECT
+    'cluster'::text AS kind,
+    NULL::uuid AS id,
+    NULL::character varying AS name,
+    b.bucket_lat AS latitude,
+    b.bucket_lng AS longitude,
+    b.ct AS count
+  FROM bucketed b
+  ORDER BY b.ct DESC
+  LIMIT 1500;
+END;
+$$;
+
+-- Migration: 20260220000000_map_crag_points_zoom_threshold.sql
+
+-- Map helper: show crags at zoom >= 9
+
+CREATE OR REPLACE FUNCTION public.get_map_crag_points(
+  min_lat double precision,
+  min_lng double precision,
+  max_lat double precision,
+  max_lng double precision,
+  zoom integer
+)
+RETURNS TABLE (
+  kind text,
+  id uuid,
+  name character varying,
+  latitude double precision,
+  longitude double precision,
+  count integer
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  cell double precision;
+  use_buckets boolean;
+BEGIN
+  IF zoom IS NULL THEN
+    zoom := 0;
+  END IF;
+
+  use_buckets := zoom < 9;
+
+  IF use_buckets THEN
+    cell := CASE
+      WHEN zoom <= 2 THEN 10.0
+      WHEN zoom <= 4 THEN 5.0
+      WHEN zoom <= 6 THEN 1.0
+      WHEN zoom <= 8 THEN 0.25
+      ELSE 0.1
+    END;
+  END IF;
+
+  IF NOT use_buckets THEN
+    RETURN QUERY
+    SELECT
+      'crag'::text AS kind,
+      c.id,
+      c.name,
+      c.latitude::double precision AS latitude,
+      c.longitude::double precision AS longitude,
+      1 AS count
+    FROM public.crags c
+    WHERE c.latitude IS NOT NULL
+      AND c.longitude IS NOT NULL
+      AND c.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND c.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (c.longitude::double precision >= min_lng OR c.longitude::double precision <= max_lng))
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM public.images i
+        WHERE i.crag_id = c.id
+      )
+    ORDER BY c.name
+    LIMIT 2000;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH filtered AS (
+    SELECT
+      c.latitude::double precision AS lat,
+      c.longitude::double precision AS lng
+    FROM public.crags c
+    WHERE c.latitude IS NOT NULL
+      AND c.longitude IS NOT NULL
+      AND c.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND c.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (c.longitude::double precision >= min_lng OR c.longitude::double precision <= max_lng))
+      )
+      AND EXISTS (
+        SELECT 1
+        FROM public.images i
+        WHERE i.crag_id = c.id
+      )
+  ),
+  bucketed AS (
+    SELECT
+      (floor(lat / cell) * cell + cell / 2.0) AS bucket_lat,
+      (floor(lng / cell) * cell + cell / 2.0) AS bucket_lng,
+      count(*)::integer AS ct
+    FROM filtered
+    GROUP BY 1, 2
+  )
+  SELECT
+    'cluster'::text AS kind,
+    NULL::uuid AS id,
+    NULL::character varying AS name,
+    b.bucket_lat AS latitude,
+    b.bucket_lng AS longitude,
+    b.ct AS count
+  FROM bucketed b
+  ORDER BY b.ct DESC
+  LIMIT 1500;
+END;
+$$;
+
+-- Migration: 20260221000000_map_crag_points_from_images.sql
+
+-- Map helper: use image GPS to derive crag points
+
+CREATE OR REPLACE FUNCTION public.get_map_crag_points(
+  min_lat double precision,
+  min_lng double precision,
+  max_lat double precision,
+  max_lng double precision,
+  zoom integer
+)
+RETURNS TABLE (
+  kind text,
+  id uuid,
+  name character varying,
+  latitude double precision,
+  longitude double precision,
+  count integer
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  cell double precision;
+  use_buckets boolean;
+BEGIN
+  IF zoom IS NULL THEN
+    zoom := 0;
+  END IF;
+
+  use_buckets := zoom < 9;
+
+  IF use_buckets THEN
+    cell := CASE
+      WHEN zoom <= 2 THEN 10.0
+      WHEN zoom <= 4 THEN 5.0
+      WHEN zoom <= 6 THEN 1.0
+      WHEN zoom <= 8 THEN 0.25
+      ELSE 0.1
+    END;
+  END IF;
+
+  IF NOT use_buckets THEN
+    RETURN QUERY
+    WITH image_points AS (
+      SELECT
+        i.crag_id,
+        avg(i.latitude)::double precision AS lat,
+        avg(i.longitude)::double precision AS lng
+      FROM public.images i
+      WHERE i.crag_id IS NOT NULL
+        AND i.latitude IS NOT NULL
+        AND i.longitude IS NOT NULL
+        AND i.latitude::double precision BETWEEN min_lat AND max_lat
+        AND (
+          (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+          OR
+          (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+        )
+      GROUP BY i.crag_id
+    )
+    SELECT
+      'crag'::text AS kind,
+      c.id,
+      c.name,
+      ip.lat AS latitude,
+      ip.lng AS longitude,
+      1 AS count
+    FROM image_points ip
+    JOIN public.crags c ON c.id = ip.crag_id
+    ORDER BY c.name
+    LIMIT 2000;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH image_points AS (
+    SELECT
+      i.crag_id,
+      avg(i.latitude)::double precision AS lat,
+      avg(i.longitude)::double precision AS lng
+    FROM public.images i
+    WHERE i.crag_id IS NOT NULL
+      AND i.latitude IS NOT NULL
+      AND i.longitude IS NOT NULL
+      AND i.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+      )
+    GROUP BY i.crag_id
+  ),
+  bucketed AS (
+    SELECT
+      (floor(lat / cell) * cell + cell / 2.0) AS bucket_lat,
+      (floor(lng / cell) * cell + cell / 2.0) AS bucket_lng,
+      count(*)::integer AS ct
+    FROM image_points
+    GROUP BY 1, 2
+  )
+  SELECT
+    'cluster'::text AS kind,
+    NULL::uuid AS id,
+    NULL::character varying AS name,
+    b.bucket_lat AS latitude,
+    b.bucket_lng AS longitude,
+    b.ct AS count
+  FROM bucketed b
+  ORDER BY b.ct DESC
+  LIMIT 1500;
+END;
+$$;
+
+-- Migration: 20260222000000_map_crag_points_join_crags.sql
+
+-- Map helper: only cluster images that belong to existing crags
+
+CREATE OR REPLACE FUNCTION public.get_map_crag_points(
+  min_lat double precision,
+  min_lng double precision,
+  max_lat double precision,
+  max_lng double precision,
+  zoom integer
+)
+RETURNS TABLE (
+  kind text,
+  id uuid,
+  name character varying,
+  latitude double precision,
+  longitude double precision,
+  count integer
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  cell double precision;
+  use_buckets boolean;
+BEGIN
+  IF zoom IS NULL THEN
+    zoom := 0;
+  END IF;
+
+  use_buckets := zoom < 9;
+
+  IF use_buckets THEN
+    cell := CASE
+      WHEN zoom <= 2 THEN 10.0
+      WHEN zoom <= 4 THEN 5.0
+      WHEN zoom <= 6 THEN 1.0
+      WHEN zoom <= 8 THEN 0.25
+      ELSE 0.1
+    END;
+  END IF;
+
+  IF NOT use_buckets THEN
+    RETURN QUERY
+    WITH image_points AS (
+      SELECT
+        c.id AS crag_id,
+        avg(i.latitude)::double precision AS lat,
+        avg(i.longitude)::double precision AS lng
+      FROM public.images i
+      JOIN public.crags c ON c.id = i.crag_id
+      WHERE i.latitude IS NOT NULL
+        AND i.longitude IS NOT NULL
+        AND i.latitude::double precision BETWEEN min_lat AND max_lat
+        AND (
+          (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+          OR
+          (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+        )
+      GROUP BY c.id
+    )
+    SELECT
+      'crag'::text AS kind,
+      c.id,
+      c.name,
+      ip.lat AS latitude,
+      ip.lng AS longitude,
+      1 AS count
+    FROM image_points ip
+    JOIN public.crags c ON c.id = ip.crag_id
+    ORDER BY c.name
+    LIMIT 2000;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH image_points AS (
+    SELECT
+      c.id AS crag_id,
+      avg(i.latitude)::double precision AS lat,
+      avg(i.longitude)::double precision AS lng
+    FROM public.images i
+    JOIN public.crags c ON c.id = i.crag_id
+    WHERE i.latitude IS NOT NULL
+      AND i.longitude IS NOT NULL
+      AND i.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+      )
+    GROUP BY c.id
+  ),
+  bucketed AS (
+    SELECT
+      (floor(lat / cell) * cell + cell / 2.0) AS bucket_lat,
+      (floor(lng / cell) * cell + cell / 2.0) AS bucket_lng,
+      count(*)::integer AS ct
+    FROM image_points
+    GROUP BY 1, 2
+  )
+  SELECT
+    'cluster'::text AS kind,
+    NULL::uuid AS id,
+    NULL::character varying AS name,
+    b.bucket_lat AS latitude,
+    b.bucket_lng AS longitude,
+    b.ct AS count
+  FROM bucketed b
+  ORDER BY b.ct DESC
+  LIMIT 1500;
+END;
+$$;
+
+-- Migration: 20260223000000_map_crag_points_bucket_metadata.sql
+
+-- Map helper: include bucket bounds and single-crag metadata
+
+DROP FUNCTION IF EXISTS public.get_map_crag_points(
+  double precision,
+  double precision,
+  double precision,
+  double precision,
+  integer
+);
+
+CREATE OR REPLACE FUNCTION public.get_map_crag_points(
+  min_lat double precision,
+  min_lng double precision,
+  max_lat double precision,
+  max_lng double precision,
+  zoom integer
+)
+RETURNS TABLE (
+  kind text,
+  id uuid,
+  name character varying,
+  latitude double precision,
+  longitude double precision,
+  count integer,
+  bucket_south double precision,
+  bucket_west double precision,
+  bucket_north double precision,
+  bucket_east double precision,
+  single_crag_id uuid,
+  single_crag_name character varying
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  cell double precision;
+  use_buckets boolean;
+BEGIN
+  IF zoom IS NULL THEN
+    zoom := 0;
+  END IF;
+
+  use_buckets := zoom < 8;
+
+  IF use_buckets THEN
+    cell := CASE
+      WHEN zoom <= 2 THEN 10.0
+      WHEN zoom <= 4 THEN 5.0
+      WHEN zoom <= 6 THEN 1.0
+      WHEN zoom <= 7 THEN 0.25
+      ELSE 0.1
+    END;
+  END IF;
+
+  IF NOT use_buckets THEN
+    RETURN QUERY
+    WITH image_points AS (
+      SELECT
+        c.id AS crag_id,
+        avg(i.latitude)::double precision AS lat,
+        avg(i.longitude)::double precision AS lng
+      FROM public.images i
+      JOIN public.crags c ON c.id = i.crag_id
+      WHERE i.latitude IS NOT NULL
+        AND i.longitude IS NOT NULL
+        AND i.latitude::double precision BETWEEN min_lat AND max_lat
+        AND (
+          (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+          OR
+          (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+        )
+      GROUP BY c.id
+    )
+    SELECT
+      'crag'::text AS kind,
+      c.id,
+      c.name,
+      ip.lat AS latitude,
+      ip.lng AS longitude,
+      1 AS count,
+      NULL::double precision AS bucket_south,
+      NULL::double precision AS bucket_west,
+      NULL::double precision AS bucket_north,
+      NULL::double precision AS bucket_east,
+      NULL::uuid AS single_crag_id,
+      NULL::character varying AS single_crag_name
+    FROM image_points ip
+    JOIN public.crags c ON c.id = ip.crag_id
+    ORDER BY c.name
+    LIMIT 2000;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH image_points AS (
+    SELECT
+      c.id AS crag_id,
+      avg(i.latitude)::double precision AS lat,
+      avg(i.longitude)::double precision AS lng
+    FROM public.images i
+    JOIN public.crags c ON c.id = i.crag_id
+    WHERE i.latitude IS NOT NULL
+      AND i.longitude IS NOT NULL
+      AND i.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+      )
+    GROUP BY c.id
+  ),
+  bucketed AS (
+    SELECT
+      (floor(lat / cell) * cell + cell / 2.0) AS bucket_lat,
+      (floor(lng / cell) * cell + cell / 2.0) AS bucket_lng,
+      count(*)::integer AS ct,
+      min(crag_id) AS min_crag_id
+    FROM image_points
+    GROUP BY 1, 2
+  )
+  SELECT
+    'cluster'::text AS kind,
+    NULL::uuid AS id,
+    NULL::character varying AS name,
+    b.bucket_lat AS latitude,
+    b.bucket_lng AS longitude,
+    b.ct AS count,
+    (b.bucket_lat - cell / 2.0) AS bucket_south,
+    (b.bucket_lng - cell / 2.0) AS bucket_west,
+    (b.bucket_lat + cell / 2.0) AS bucket_north,
+    (b.bucket_lng + cell / 2.0) AS bucket_east,
+    CASE WHEN b.ct = 1 THEN b.min_crag_id ELSE NULL END AS single_crag_id,
+    CASE WHEN b.ct = 1 THEN c.name ELSE NULL END AS single_crag_name
+  FROM bucketed b
+  LEFT JOIN public.crags c ON c.id = b.min_crag_id
+  ORDER BY b.ct DESC
+  LIMIT 1500;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_map_crag_points(
+  double precision,
+  double precision,
+  double precision,
+  double precision,
+  integer
+) TO anon, authenticated, service_role;
+
+-- Migration: 20260224000000_map_crag_points_security_definer.sql
+
+-- Map helper: allow public RPC access (bypass table grants/RLS)
+
+DROP FUNCTION IF EXISTS public.get_map_crag_points(
+  double precision,
+  double precision,
+  double precision,
+  double precision,
+  integer
+);
+
+CREATE OR REPLACE FUNCTION public.get_map_crag_points(
+  min_lat double precision,
+  min_lng double precision,
+  max_lat double precision,
+  max_lng double precision,
+  zoom integer
+)
+RETURNS TABLE (
+  kind text,
+  id uuid,
+  name character varying,
+  latitude double precision,
+  longitude double precision,
+  count integer,
+  bucket_south double precision,
+  bucket_west double precision,
+  bucket_north double precision,
+  bucket_east double precision,
+  single_crag_id uuid,
+  single_crag_name character varying
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  cell double precision;
+  use_buckets boolean;
+BEGIN
+  IF zoom IS NULL THEN
+    zoom := 0;
+  END IF;
+
+  use_buckets := zoom < 8;
+
+  IF use_buckets THEN
+    cell := CASE
+      WHEN zoom <= 2 THEN 10.0
+      WHEN zoom <= 4 THEN 5.0
+      WHEN zoom <= 6 THEN 1.0
+      WHEN zoom <= 7 THEN 0.25
+      ELSE 0.1
+    END;
+  END IF;
+
+  IF NOT use_buckets THEN
+    RETURN QUERY
+    WITH image_points AS (
+      SELECT
+        c.id AS crag_id,
+        avg(i.latitude)::double precision AS lat,
+        avg(i.longitude)::double precision AS lng
+      FROM public.images i
+      JOIN public.crags c ON c.id = i.crag_id
+      WHERE i.latitude IS NOT NULL
+        AND i.longitude IS NOT NULL
+        AND i.latitude::double precision BETWEEN min_lat AND max_lat
+        AND (
+          (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+          OR
+          (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+        )
+      GROUP BY c.id
+    )
+    SELECT
+      'crag'::text AS kind,
+      c.id,
+      c.name,
+      ip.lat AS latitude,
+      ip.lng AS longitude,
+      1 AS count,
+      NULL::double precision AS bucket_south,
+      NULL::double precision AS bucket_west,
+      NULL::double precision AS bucket_north,
+      NULL::double precision AS bucket_east,
+      NULL::uuid AS single_crag_id,
+      NULL::character varying AS single_crag_name
+    FROM image_points ip
+    JOIN public.crags c ON c.id = ip.crag_id
+    ORDER BY c.name
+    LIMIT 2000;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH image_points AS (
+    SELECT
+      c.id AS crag_id,
+      avg(i.latitude)::double precision AS lat,
+      avg(i.longitude)::double precision AS lng
+    FROM public.images i
+    JOIN public.crags c ON c.id = i.crag_id
+    WHERE i.latitude IS NOT NULL
+      AND i.longitude IS NOT NULL
+      AND i.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+      )
+    GROUP BY c.id
+  ),
+  bucketed AS (
+    SELECT
+      (floor(lat / cell) * cell + cell / 2.0) AS bucket_lat,
+      (floor(lng / cell) * cell + cell / 2.0) AS bucket_lng,
+      count(*)::integer AS ct,
+      min(crag_id) AS min_crag_id
+    FROM image_points
+    GROUP BY 1, 2
+  )
+  SELECT
+    'cluster'::text AS kind,
+    NULL::uuid AS id,
+    NULL::character varying AS name,
+    b.bucket_lat AS latitude,
+    b.bucket_lng AS longitude,
+    b.ct AS count,
+    (b.bucket_lat - cell / 2.0) AS bucket_south,
+    (b.bucket_lng - cell / 2.0) AS bucket_west,
+    (b.bucket_lat + cell / 2.0) AS bucket_north,
+    (b.bucket_lng + cell / 2.0) AS bucket_east,
+    CASE WHEN b.ct = 1 THEN b.min_crag_id ELSE NULL END AS single_crag_id,
+    CASE WHEN b.ct = 1 THEN c.name ELSE NULL END AS single_crag_name
+  FROM bucketed b
+  LEFT JOIN public.crags c ON c.id = b.min_crag_id
+  ORDER BY b.ct DESC
+  LIMIT 1500;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_map_crag_points(
+  double precision,
+  double precision,
+  double precision,
+  double precision,
+  integer
+) TO anon, authenticated, service_role;
+
+-- Migration: 20260225000000_map_crag_points_uuid_min_fix.sql
+
+-- Fix: Postgres does not support min(uuid) on some setups.
+-- Use min(crag_id::text) and join by text instead.
+
+DROP FUNCTION IF EXISTS public.get_map_crag_points(
+  double precision,
+  double precision,
+  double precision,
+  double precision,
+  integer
+);
+
+CREATE OR REPLACE FUNCTION public.get_map_crag_points(
+  min_lat double precision,
+  min_lng double precision,
+  max_lat double precision,
+  max_lng double precision,
+  zoom integer
+)
+RETURNS TABLE (
+  kind text,
+  id uuid,
+  name character varying,
+  latitude double precision,
+  longitude double precision,
+  count integer,
+  bucket_south double precision,
+  bucket_west double precision,
+  bucket_north double precision,
+  bucket_east double precision,
+  single_crag_id uuid,
+  single_crag_name character varying
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+  cell double precision;
+  use_buckets boolean;
+BEGIN
+  IF zoom IS NULL THEN
+    zoom := 0;
+  END IF;
+
+  use_buckets := zoom < 8;
+
+  IF use_buckets THEN
+    cell := CASE
+      WHEN zoom <= 2 THEN 10.0
+      WHEN zoom <= 4 THEN 5.0
+      WHEN zoom <= 6 THEN 1.0
+      WHEN zoom <= 7 THEN 0.25
+      ELSE 0.1
+    END;
+  END IF;
+
+  IF NOT use_buckets THEN
+    RETURN QUERY
+    WITH image_points AS (
+      SELECT
+        c.id AS crag_id,
+        avg(i.latitude)::double precision AS lat,
+        avg(i.longitude)::double precision AS lng
+      FROM public.images i
+      JOIN public.crags c ON c.id = i.crag_id
+      WHERE i.latitude IS NOT NULL
+        AND i.longitude IS NOT NULL
+        AND i.latitude::double precision BETWEEN min_lat AND max_lat
+        AND (
+          (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+          OR
+          (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+        )
+      GROUP BY c.id
+    )
+    SELECT
+      'crag'::text AS kind,
+      c.id,
+      c.name,
+      ip.lat AS latitude,
+      ip.lng AS longitude,
+      1 AS count,
+      NULL::double precision AS bucket_south,
+      NULL::double precision AS bucket_west,
+      NULL::double precision AS bucket_north,
+      NULL::double precision AS bucket_east,
+      NULL::uuid AS single_crag_id,
+      NULL::character varying AS single_crag_name
+    FROM image_points ip
+    JOIN public.crags c ON c.id = ip.crag_id
+    ORDER BY c.name
+    LIMIT 2000;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH image_points AS (
+    SELECT
+      c.id AS crag_id,
+      avg(i.latitude)::double precision AS lat,
+      avg(i.longitude)::double precision AS lng
+    FROM public.images i
+    JOIN public.crags c ON c.id = i.crag_id
+    WHERE i.latitude IS NOT NULL
+      AND i.longitude IS NOT NULL
+      AND i.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+      )
+    GROUP BY c.id
+  ),
+  bucketed AS (
+    SELECT
+      (floor(lat / cell) * cell + cell / 2.0) AS bucket_lat,
+      (floor(lng / cell) * cell + cell / 2.0) AS bucket_lng,
+      count(*)::integer AS ct,
+      min(crag_id::text) AS min_crag_id_text
+    FROM image_points
+    GROUP BY 1, 2
+  )
+  SELECT
+    'cluster'::text AS kind,
+    NULL::uuid AS id,
+    NULL::character varying AS name,
+    b.bucket_lat AS latitude,
+    b.bucket_lng AS longitude,
+    b.ct AS count,
+    (b.bucket_lat - cell / 2.0) AS bucket_south,
+    (b.bucket_lng - cell / 2.0) AS bucket_west,
+    (b.bucket_lat + cell / 2.0) AS bucket_north,
+    (b.bucket_lng + cell / 2.0) AS bucket_east,
+    CASE WHEN b.ct = 1 THEN b.min_crag_id_text::uuid ELSE NULL END AS single_crag_id,
+    CASE WHEN b.ct = 1 THEN c.name ELSE NULL END AS single_crag_name
+  FROM bucketed b
+  LEFT JOIN public.crags c ON c.id::text = b.min_crag_id_text
+  ORDER BY b.ct DESC
+  LIMIT 1500;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_map_crag_points(
+  double precision,
+  double precision,
+  double precision,
+  double precision,
+  integer
+) TO anon, authenticated, service_role;
+
+-- Migration: 20260226000000_map_crag_points_cluster_centroid.sql
+
+-- Improve map clustering UX:
+-- - Place cluster markers at centroid of points (not grid center)
+-- - Keep bucket bounds for deterministic drill-in
+-- - Avoid min(uuid) by using min(crag_id::text)
+
+CREATE OR REPLACE FUNCTION public.get_map_crag_points(
+  min_lat double precision,
+  min_lng double precision,
+  max_lat double precision,
+  max_lng double precision,
+  zoom integer
+)
+RETURNS TABLE (
+  kind text,
+  id uuid,
+  name character varying,
+  latitude double precision,
+  longitude double precision,
+  count integer,
+  bucket_south double precision,
+  bucket_west double precision,
+  bucket_north double precision,
+  bucket_east double precision,
+  single_crag_id uuid,
+  single_crag_name character varying
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  cell double precision;
+  use_buckets boolean;
+BEGIN
+  IF zoom IS NULL THEN
+    zoom := 0;
+  END IF;
+
+  use_buckets := zoom < 8;
+
+  IF use_buckets THEN
+    cell := CASE
+      WHEN zoom <= 2 THEN 10.0
+      WHEN zoom <= 4 THEN 5.0
+      WHEN zoom <= 6 THEN 1.0
+      WHEN zoom <= 7 THEN 0.25
+      ELSE 0.1
+    END;
+  END IF;
+
+  IF NOT use_buckets THEN
+    RETURN QUERY
+    WITH image_points AS (
+      SELECT
+        c.id AS crag_id,
+        avg(i.latitude)::double precision AS lat,
+        avg(i.longitude)::double precision AS lng
+      FROM public.images i
+      JOIN public.crags c ON c.id = i.crag_id
+      WHERE i.latitude IS NOT NULL
+        AND i.longitude IS NOT NULL
+        AND i.latitude::double precision BETWEEN min_lat AND max_lat
+        AND (
+          (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+          OR
+          (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+        )
+      GROUP BY c.id
+    )
+    SELECT
+      'crag'::text AS kind,
+      c.id,
+      c.name,
+      ip.lat AS latitude,
+      ip.lng AS longitude,
+      1 AS count,
+      NULL::double precision AS bucket_south,
+      NULL::double precision AS bucket_west,
+      NULL::double precision AS bucket_north,
+      NULL::double precision AS bucket_east,
+      NULL::uuid AS single_crag_id,
+      NULL::character varying AS single_crag_name
+    FROM image_points ip
+    JOIN public.crags c ON c.id = ip.crag_id
+    ORDER BY c.name
+    LIMIT 2000;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH image_points AS (
+    SELECT
+      c.id AS crag_id,
+      avg(i.latitude)::double precision AS lat,
+      avg(i.longitude)::double precision AS lng
+    FROM public.images i
+    JOIN public.crags c ON c.id = i.crag_id
+    WHERE i.latitude IS NOT NULL
+      AND i.longitude IS NOT NULL
+      AND i.latitude::double precision BETWEEN min_lat AND max_lat
+      AND (
+        (min_lng <= max_lng AND i.longitude::double precision BETWEEN min_lng AND max_lng)
+        OR
+        (min_lng > max_lng AND (i.longitude::double precision >= min_lng OR i.longitude::double precision <= max_lng))
+      )
+    GROUP BY c.id
+  ),
+  bucketed AS (
+    SELECT
+      (floor(lat / cell) * cell + cell / 2.0) AS bucket_lat,
+      (floor(lng / cell) * cell + cell / 2.0) AS bucket_lng,
+      avg(lat)::double precision AS centroid_lat,
+      avg(lng)::double precision AS centroid_lng,
+      count(*)::integer AS ct,
+      min(crag_id::text) AS min_crag_id_text
+    FROM image_points
+    GROUP BY 1, 2
+  )
+  SELECT
+    'cluster'::text AS kind,
+    NULL::uuid AS id,
+    NULL::character varying AS name,
+    b.centroid_lat AS latitude,
+    b.centroid_lng AS longitude,
+    b.ct AS count,
+    (b.bucket_lat - cell / 2.0) AS bucket_south,
+    (b.bucket_lng - cell / 2.0) AS bucket_west,
+    (b.bucket_lat + cell / 2.0) AS bucket_north,
+    (b.bucket_lng + cell / 2.0) AS bucket_east,
+    CASE WHEN b.ct = 1 THEN b.min_crag_id_text::uuid ELSE NULL END AS single_crag_id,
+    CASE WHEN b.ct = 1 THEN c.name ELSE NULL END AS single_crag_name
+  FROM bucketed b
+  LEFT JOIN public.crags c ON c.id::text = b.min_crag_id_text
+  ORDER BY b.ct DESC
+  LIMIT 1500;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_map_crag_points(
+  double precision,
+  double precision,
+  double precision,
+  double precision,
+  integer
+) TO anon, authenticated, service_role;
+
+-- Migration: 20260228000000_crag_location_from_images.sql
+
+-- Keep crag latitude/longitude derived from image GPS.
+-- Requirement: crags with coordinates must have at least one image with GPS.
+
+CREATE OR REPLACE FUNCTION public.recompute_crag_location(target_crag_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  avg_lat numeric;
+  avg_lng numeric;
+BEGIN
+  IF target_crag_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT
+    avg(i.latitude),
+    avg(i.longitude)
+  INTO avg_lat, avg_lng
+  FROM public.images i
+  WHERE i.crag_id = target_crag_id
+    AND i.latitude IS NOT NULL
+    AND i.longitude IS NOT NULL;
+
+  UPDATE public.crags c
+  SET
+    latitude = CASE WHEN avg_lat IS NULL THEN NULL ELSE avg_lat::numeric(10,8) END,
+    longitude = CASE WHEN avg_lng IS NULL THEN NULL ELSE avg_lng::numeric(11,8) END
+  WHERE c.id = target_crag_id;
+END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION public.images_recompute_crag_location_trigger()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM public.recompute_crag_location(NEW.crag_id);
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.crag_id IS DISTINCT FROM OLD.crag_id THEN
+      PERFORM public.recompute_crag_location(OLD.crag_id);
+      PERFORM public.recompute_crag_location(NEW.crag_id);
+      RETURN NEW;
+    END IF;
+
+    IF NEW.latitude IS DISTINCT FROM OLD.latitude OR NEW.longitude IS DISTINCT FROM OLD.longitude THEN
+      PERFORM public.recompute_crag_location(NEW.crag_id);
+      RETURN NEW;
+    END IF;
+
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    PERFORM public.recompute_crag_location(OLD.crag_id);
+    RETURN OLD;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+DROP TRIGGER IF EXISTS images_recompute_crag_location_insert ON public.images;
+DROP TRIGGER IF EXISTS images_recompute_crag_location_update ON public.images;
+DROP TRIGGER IF EXISTS images_recompute_crag_location_delete ON public.images;
+
+CREATE TRIGGER images_recompute_crag_location_insert
+AFTER INSERT ON public.images
+FOR EACH ROW
+EXECUTE FUNCTION public.images_recompute_crag_location_trigger();
+
+CREATE TRIGGER images_recompute_crag_location_update
+AFTER UPDATE OF crag_id, latitude, longitude ON public.images
+FOR EACH ROW
+EXECUTE FUNCTION public.images_recompute_crag_location_trigger();
+
+CREATE TRIGGER images_recompute_crag_location_delete
+AFTER DELETE ON public.images
+FOR EACH ROW
+EXECUTE FUNCTION public.images_recompute_crag_location_trigger();
+
+
+-- Backfill: set all crag coordinates from images.
+WITH agg AS (
+  SELECT
+    i.crag_id,
+    avg(i.latitude)::numeric(10,8) AS avg_lat,
+    avg(i.longitude)::numeric(11,8) AS avg_lng
+  FROM public.images i
+  WHERE i.crag_id IS NOT NULL
+    AND i.latitude IS NOT NULL
+    AND i.longitude IS NOT NULL
+  GROUP BY i.crag_id
+)
+UPDATE public.crags c
+SET latitude = a.avg_lat,
+    longitude = a.avg_lng
+FROM agg a
+WHERE c.id = a.crag_id;
+
+-- Enforce invariant: if no images with GPS exist for a crag, coordinates must be NULL.
+UPDATE public.crags c
+SET latitude = NULL,
+    longitude = NULL
+WHERE (c.latitude IS NOT NULL OR c.longitude IS NOT NULL)
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.images i
+    WHERE i.crag_id = c.id
+      AND i.latitude IS NOT NULL
+      AND i.longitude IS NOT NULL
+  );
+
+-- Migration: 20260228000001_drop_map_rpc.sql
+
+-- Cleanup: drop the experimental map RPC function.
+
+DROP FUNCTION IF EXISTS public.get_map_crag_points(
+  double precision,
+  double precision,
+  double precision,
+  double precision,
+  integer
+);
+
+-- Migration: 20260301000000_auto_delete_empty_crags.sql
+
+-- Auto-delete empty crags immediately when the last image is deleted.
+-- Also deletes crags when images are moved to different crags (leaving old crag empty).
+-- Note: This will cascade delete all climbs associated with the crag.
+
+CREATE OR REPLACE FUNCTION public.delete_empty_crag(
+  target_crag_id uuid,
+  grace_period interval DEFAULT interval '24 hours'
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  deleted_count integer := 0;
+BEGIN
+  IF target_crag_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  DELETE FROM public.crags c
+  WHERE c.id = target_crag_id
+    AND c.created_at < now() - grace_period
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.images i
+      WHERE i.crag_id = c.id
+    );
+
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+  RETURN deleted_count > 0;
+END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION public.delete_empty_crags(
+  grace_period interval DEFAULT interval '24 hours'
+)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  deleted_count integer := 0;
+BEGIN
+  DELETE FROM public.crags c
+  WHERE c.created_at < now() - grace_period
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.images i
+      WHERE i.crag_id = c.id
+    );
+
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+  RETURN deleted_count;
+END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION public.images_recompute_crag_location_trigger()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM public.recompute_crag_location(NEW.crag_id);
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+      IF NEW.crag_id IS DISTINCT FROM OLD.crag_id THEN
+      PERFORM public.recompute_crag_location(OLD.crag_id);
+      PERFORM public.recompute_crag_location(NEW.crag_id);
+      PERFORM public.delete_empty_crag(OLD.crag_id, interval '0 seconds');
+      RETURN NEW;
+    END IF;
+
+    IF NEW.latitude IS DISTINCT FROM OLD.latitude OR NEW.longitude IS DISTINCT FROM OLD.longitude THEN
+      PERFORM public.recompute_crag_location(NEW.crag_id);
+      RETURN NEW;
+    END IF;
+
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    PERFORM public.recompute_crag_location(OLD.crag_id);
+    PERFORM public.delete_empty_crag(OLD.crag_id, interval '0 seconds');
+    RETURN OLD;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+-- One-time cleanup for existing legacy rows.
+SELECT public.delete_empty_crags(interval '24 hours');
+
+-- Migration: 20260302000000_add_images_face_direction.sql
+
+ALTER TABLE images
+ADD COLUMN IF NOT EXISTS face_direction VARCHAR(2);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'images_face_direction_check'
+      AND conrelid = 'images'::regclass
+  ) THEN
+    ALTER TABLE images
+    ADD CONSTRAINT images_face_direction_check
+    CHECK (face_direction IS NULL OR face_direction IN ('N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'));
+  END IF;
+END $$;
+
+-- Migration: 20260302000012_add_delete_policy_for_submission_drafts.sql
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class
+    JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+    WHERE pg_namespace.nspname = 'public'
+      AND pg_class.relname = 'submission_drafts'
+      AND pg_class.relkind = 'r'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'submission_drafts' AND policyname = 'Users delete own submission_drafts'
+  ) THEN
+    CREATE POLICY "Users delete own submission_drafts"
+      ON public.submission_drafts
+      FOR DELETE
+      USING (auth.uid() = user_id);
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class
+    JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+    WHERE pg_namespace.nspname = 'public'
+      AND pg_class.relname = 'submission_draft_images'
+      AND pg_class.relkind = 'r'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'submission_draft_images' AND policyname = 'Users delete own submission_draft_images'
+  ) THEN
+    CREATE POLICY "Users delete own submission_draft_images"
+      ON public.submission_draft_images
+      FOR DELETE
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM public.submission_drafts d
+          WHERE d.id = submission_draft_images.draft_id
+            AND d.user_id = auth.uid()
+        )
+      );
+  END IF;
+END $$;
+
+-- Migration: 20260302161000_add_owner_read_images_policy.sql
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+      AND policyname = 'Owner read own images'
+  ) THEN
+    CREATE POLICY "Owner read own images"
+      ON public.images
+      FOR SELECT
+      USING (auth.uid() = created_by);
+  END IF;
+END $$;
+
+-- Migration: 20260303000000_fix_profiles_id_uniqueness.sql
+
+-- Ensure one profile row per auth user and enforce uniqueness on profiles.id
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'profiles'
+      AND column_name = 'id'
+  ) THEN
+    WITH ranked_profiles AS (
+      SELECT
+        ctid,
+        ROW_NUMBER() OVER (
+          PARTITION BY id
+          ORDER BY updated_at DESC NULLS LAST, ctid DESC
+        ) AS row_num
+      FROM public.profiles
+    )
+    DELETE FROM public.profiles p
+    USING ranked_profiles r
+    WHERE p.ctid = r.ctid
+      AND r.row_num > 1;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'profiles'
+      AND column_name = 'id'
+  ) THEN
+    CREATE UNIQUE INDEX IF NOT EXISTS profiles_id_key ON public.profiles USING btree (id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND tablename = 'profiles'
+      AND indexname = 'profiles_id_key'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.profiles'::regclass
+      AND contype = 'p'
+  ) THEN
+    ALTER TABLE public.profiles
+    ADD CONSTRAINT profiles_pkey PRIMARY KEY USING INDEX profiles_id_key;
+  END IF;
+END $$;
+
+-- Migration: 20260303000001_add_comments_community_boards.sql
+
+-- Community comments for crags and images (public read, authenticated write)
+
+CREATE TABLE IF NOT EXISTS public.comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  target_type TEXT NOT NULL CHECK (target_type IN ('crag', 'image')),
+  target_id UUID NOT NULL,
+  author_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  body TEXT NOT NULL CHECK (char_length(body) BETWEEN 1 AND 2000),
+  category TEXT NOT NULL DEFAULT 'other' CHECK (category IN ('history', 'broken_hold', 'approach_beta', 'beta', 'conditions', 'other')),
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_comments_target_created
+  ON public.comments(target_type, target_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_comments_author_created
+  ON public.comments(author_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_comments_visible_target_created
+  ON public.comments(target_type, target_id, created_at DESC)
+  WHERE deleted_at IS NULL;
+
+CREATE OR REPLACE FUNCTION public.validate_comment_target()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.target_type = 'crag' THEN
+    IF NOT EXISTS (SELECT 1 FROM public.crags c WHERE c.id = NEW.target_id) THEN
+      RAISE EXCEPTION 'Target crag does not exist';
+    END IF;
+  ELSIF NEW.target_type = 'image' THEN
+    IF NOT EXISTS (SELECT 1 FROM public.images i WHERE i.id = NEW.target_id) THEN
+      RAISE EXCEPTION 'Target image does not exist';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'Invalid target type';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS comments_validate_target_trigger ON public.comments;
+CREATE TRIGGER comments_validate_target_trigger
+BEFORE INSERT OR UPDATE OF target_type, target_id ON public.comments
+FOR EACH ROW
+EXECUTE FUNCTION public.validate_comment_target();
+
+CREATE OR REPLACE FUNCTION public.enforce_comment_soft_delete_only()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF OLD.target_type <> NEW.target_type
+     OR OLD.target_id <> NEW.target_id
+     OR OLD.author_id IS DISTINCT FROM NEW.author_id
+     OR OLD.body <> NEW.body
+     OR OLD.category <> NEW.category
+     OR OLD.created_at <> NEW.created_at THEN
+    RAISE EXCEPTION 'Comments cannot be edited';
+  END IF;
+
+  IF OLD.deleted_at IS NOT NULL THEN
+    RAISE EXCEPTION 'Comment already deleted';
+  END IF;
+
+  IF NEW.deleted_at IS NULL THEN
+    RAISE EXCEPTION 'Comments can only be soft-deleted';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS comments_soft_delete_only_trigger ON public.comments;
+CREATE TRIGGER comments_soft_delete_only_trigger
+BEFORE UPDATE ON public.comments
+FOR EACH ROW
+EXECUTE FUNCTION public.enforce_comment_soft_delete_only();
+
+DO $$
+BEGIN
+  ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'comments'
+      AND policyname = 'Public read visible comments'
+  ) THEN
+    CREATE POLICY "Public read visible comments"
+      ON public.comments
+      FOR SELECT
+      USING (deleted_at IS NULL);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'comments'
+      AND policyname = 'Authenticated create comments'
+  ) THEN
+    CREATE POLICY "Authenticated create comments"
+      ON public.comments
+      FOR INSERT
+      WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = author_id AND deleted_at IS NULL);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'comments'
+      AND policyname = 'Author soft delete comments'
+  ) THEN
+    CREATE POLICY "Author soft delete comments"
+      ON public.comments
+      FOR UPDATE
+      USING (auth.uid() = author_id AND deleted_at IS NULL)
+      WITH CHECK (auth.uid() = author_id);
+  END IF;
+END $$;
+
+-- Migration: 20260306000000_fix_comment_soft_delete_and_enable_rls.sql
+
+-- Fix comment soft-delete RLS and address Security Advisor RLS findings.
+
+-- ---------------------------------------------------------------------
+-- comments: allow author soft-delete transition (deleted_at NULL -> NOT NULL)
+-- ---------------------------------------------------------------------
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'comments'
+      AND policyname = 'Author soft delete comments'
+  ) THEN
+    DROP POLICY "Author soft delete comments" ON public.comments;
+  END IF;
+
+  CREATE POLICY "Author soft delete comments"
+    ON public.comments
+    FOR UPDATE
+    USING (auth.uid() = author_id AND deleted_at IS NULL)
+    WITH CHECK (auth.uid() = author_id AND deleted_at IS NOT NULL);
+END $$;
+
+-- ---------------------------------------------------------------------
+-- product_clicks: enable RLS and keep public read + public click increment
+-- ---------------------------------------------------------------------
+DO $$
+BEGIN
+  IF to_regclass('public.product_clicks') IS NOT NULL THEN
+    ALTER TABLE public.product_clicks ENABLE ROW LEVEL SECURITY;
+
+    IF EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'product_clicks'
+        AND policyname = 'Public read product clicks'
+    ) THEN
+      DROP POLICY "Public read product clicks" ON public.product_clicks;
+    END IF;
+
+    CREATE POLICY "Public read product clicks"
+      ON public.product_clicks
+      FOR SELECT
+      USING (true);
+
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE public.product_clicks FROM anon;
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE public.product_clicks FROM authenticated;
+
+    GRANT SELECT ON TABLE public.product_clicks TO anon;
+    GRANT SELECT ON TABLE public.product_clicks TO authenticated;
+
+    CREATE OR REPLACE FUNCTION public.increment_gear_click(product_id_input text)
+    RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $func$
+    BEGIN
+      INSERT INTO public.product_clicks (product_id, click_count, updated_at)
+      VALUES (product_id_input, 1, NOW())
+      ON CONFLICT (product_id)
+      DO UPDATE SET
+        click_count = public.product_clicks.click_count + 1,
+        updated_at = NOW();
+    END;
+    $func$;
+
+    REVOKE ALL ON FUNCTION public.increment_gear_click(text) FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION public.increment_gear_click(text) TO anon;
+    GRANT EXECUTE ON FUNCTION public.increment_gear_click(text) TO authenticated;
+    GRANT EXECUTE ON FUNCTION public.increment_gear_click(text) TO service_role;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------
+-- deleted_accounts: enable RLS and lock down to service_role only
+-- ---------------------------------------------------------------------
+DO $$
+BEGIN
+  IF to_regclass('public.deleted_accounts') IS NOT NULL THEN
+    ALTER TABLE public.deleted_accounts ENABLE ROW LEVEL SECURITY;
+
+    IF EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'deleted_accounts'
+        AND policyname = 'Service role manage deleted accounts'
+    ) THEN
+      DROP POLICY "Service role manage deleted accounts" ON public.deleted_accounts;
+    END IF;
+
+    CREATE POLICY "Service role manage deleted accounts"
+      ON public.deleted_accounts
+      FOR ALL
+      TO service_role
+      USING (true)
+      WITH CHECK (true);
+
+    REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON TABLE public.deleted_accounts FROM anon;
+    REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON TABLE public.deleted_accounts FROM authenticated;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------
+-- spatial_ref_sys: enable RLS with public read policy (PostGIS reference)
+-- ---------------------------------------------------------------------
+DO $$
+BEGIN
+  IF to_regclass('public.spatial_ref_sys') IS NOT NULL THEN
+    BEGIN
+      ALTER TABLE public.spatial_ref_sys ENABLE ROW LEVEL SECURITY;
+    EXCEPTION
+      WHEN insufficient_privilege THEN
+        RAISE NOTICE 'Skipping RLS enable on public.spatial_ref_sys (insufficient privilege)';
+        RETURN;
+    END;
+
+    IF EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'spatial_ref_sys'
+        AND policyname = 'Public read spatial_ref_sys'
+    ) THEN
+      DROP POLICY "Public read spatial_ref_sys" ON public.spatial_ref_sys;
+    END IF;
+
+    CREATE POLICY "Public read spatial_ref_sys"
+      ON public.spatial_ref_sys
+      FOR SELECT
+      USING (true);
+  END IF;
+END $$;
+
+-- Migration: 20260306010000_add_soft_delete_comment_rpc.sql
+
+-- Use SECURITY DEFINER RPC for comment soft-delete to avoid
+-- PostgREST UPDATE+RLS visibility edge cases.
+
+CREATE OR REPLACE FUNCTION public.soft_delete_comment(p_comment_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+DECLARE
+  current_user_id UUID := auth.uid();
+BEGIN
+  IF current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  UPDATE public.comments
+  SET deleted_at = NOW()
+  WHERE id = p_comment_id
+    AND author_id = current_user_id
+    AND deleted_at IS NULL;
+
+  RETURN FOUND;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.soft_delete_comment(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.soft_delete_comment(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.soft_delete_comment(UUID) TO service_role;
+
+-- Migration: 20260306020000_scope_comment_categories_by_target.sql
+
+-- Scope comment categories by target type to reduce duplicate discussion.
+
+DROP TRIGGER IF EXISTS comments_soft_delete_only_trigger ON public.comments;
+
+ALTER TABLE public.comments
+  DROP CONSTRAINT IF EXISTS comments_target_type_check;
+
+ALTER TABLE public.comments
+  DROP CONSTRAINT IF EXISTS comments_category_check;
+
+UPDATE public.comments
+SET category = CASE
+  WHEN target_type = 'crag' THEN
+    CASE
+      WHEN category = 'access' THEN 'access'
+      WHEN category IN ('approach', 'approach_beta') THEN 'approach'
+      WHEN category = 'parking' THEN 'parking'
+      WHEN category = 'closure' THEN 'closure'
+      ELSE 'general'
+    END
+  WHEN target_type = 'image' THEN
+    CASE
+      WHEN category = 'topo_error' THEN 'topo_error'
+      WHEN category = 'line_request' THEN 'line_request'
+      WHEN category = 'photo_outdated' THEN 'photo_outdated'
+      ELSE 'other_topo'
+    END
+  WHEN target_type = 'climb' THEN
+    CASE
+      WHEN category = 'beta' THEN 'beta'
+      WHEN category = 'broken_hold' THEN 'broken_hold'
+      WHEN category = 'conditions' THEN 'conditions'
+      WHEN category = 'grade' THEN 'grade'
+      WHEN category = 'history' THEN 'history'
+      ELSE 'beta'
+    END
+  ELSE 'general'
+END;
+
+ALTER TABLE public.comments
+  ADD CONSTRAINT comments_target_type_check
+  CHECK (target_type IN ('crag', 'image', 'climb'));
+
+ALTER TABLE public.comments
+  ADD CONSTRAINT comments_category_check
+  CHECK (
+    category IN (
+      'access',
+      'approach',
+      'parking',
+      'closure',
+      'general',
+      'topo_error',
+      'line_request',
+      'photo_outdated',
+      'other_topo',
+      'beta',
+      'broken_hold',
+      'conditions',
+      'grade',
+      'history'
+    )
+  );
+
+CREATE OR REPLACE FUNCTION public.validate_comment_target()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.target_type = 'crag' THEN
+    IF NOT EXISTS (SELECT 1 FROM public.crags c WHERE c.id = NEW.target_id) THEN
+      RAISE EXCEPTION 'Target crag does not exist';
+    END IF;
+  ELSIF NEW.target_type = 'image' THEN
+    IF NOT EXISTS (SELECT 1 FROM public.images i WHERE i.id = NEW.target_id) THEN
+      RAISE EXCEPTION 'Target image does not exist';
+    END IF;
+  ELSIF NEW.target_type = 'climb' THEN
+    IF NOT EXISTS (SELECT 1 FROM public.climbs cl WHERE cl.id = NEW.target_id) THEN
+      RAISE EXCEPTION 'Target climb does not exist';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'Invalid target type';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER comments_soft_delete_only_trigger
+BEFORE UPDATE ON public.comments
+FOR EACH ROW
+EXECUTE FUNCTION public.enforce_comment_soft_delete_only();
+
+-- Migration: 20260307000000_add_image_storage_columns.sql
+
+ALTER TABLE public.images
+ADD COLUMN IF NOT EXISTS storage_bucket TEXT;
+
+ALTER TABLE public.images
+ADD COLUMN IF NOT EXISTS storage_path TEXT;
+
+UPDATE public.images
+SET
+  storage_bucket = 'route-uploads',
+  storage_path = split_part(split_part(url, '/route-uploads/', 2), '?', 1)
+WHERE
+  storage_bucket IS NULL
+  AND storage_path IS NULL
+  AND url LIKE '%/route-uploads/%';
+
+CREATE INDEX IF NOT EXISTS idx_images_storage_location
+ON public.images(storage_bucket, storage_path);
+
+-- Migration: 20260307010000_gate_route_upload_reads.sql
+
+-- Gate private route upload reads:
+-- - anyone can read approved images
+-- - uploader can read their own uploads (for submit flow preview before moderation)
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'storage'
+      AND tablename = 'objects'
+      AND policyname = 'Route uploads read gated'
+  ) THEN
+    EXECUTE 'DROP POLICY "Route uploads read gated" ON storage.objects';
+  END IF;
+
+  EXECUTE $policy$
+    CREATE POLICY "Route uploads read gated"
+    ON storage.objects
+    FOR SELECT
+    TO public
+    USING (
+      bucket_id = 'route-uploads'
+      AND (
+        split_part(name, '/', 1) = auth.uid()::text
+        OR EXISTS (
+          SELECT 1
+          FROM public.images i
+          WHERE i.storage_bucket = 'route-uploads'
+            AND i.storage_path = storage.objects.name
+            AND coalesce(i.moderation_status, 'pending') = 'approved'
+        )
+      )
+    )
+  $policy$;
+END $$;
+
+-- Migration: 20260308000000_update_topo_note_categories.sql
+
+-- Replace image comment categories with positive topo note buckets.
+
+ALTER TABLE public.comments
+  DROP CONSTRAINT IF EXISTS comments_category_check;
+
+ALTER TABLE public.comments
+  ADD CONSTRAINT comments_category_check
+  CHECK (
+    category IN (
+      'access',
+      'approach',
+      'parking',
+      'closure',
+      'general',
+      'beta',
+      'fa_history',
+      'safety',
+      'gear_protection',
+      'conditions',
+      'approach_access',
+      'descent',
+      'rock_quality',
+      'highlights',
+      'variations',
+      'topo_error',
+      'line_request',
+      'photo_outdated',
+      'other_topo',
+      'broken_hold',
+      'grade',
+      'history'
+    )
+  );
+
+-- Migration: 20260309000000_add_user_climb_feedback_and_consensus_votes.sql
+
+ALTER TABLE public.user_climbs
+ADD COLUMN IF NOT EXISTS grade_opinion VARCHAR(10),
+ADD COLUMN IF NOT EXISTS grade_vote_baseline VARCHAR(10),
+ADD COLUMN IF NOT EXISTS star_rating SMALLINT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'user_climbs_grade_opinion_check'
+  ) THEN
+    ALTER TABLE public.user_climbs
+    ADD CONSTRAINT user_climbs_grade_opinion_check
+    CHECK (grade_opinion IS NULL OR grade_opinion IN ('soft', 'agree', 'hard'));
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'user_climbs_star_rating_check'
+  ) THEN
+    ALTER TABLE public.user_climbs
+    ADD CONSTRAINT user_climbs_star_rating_check
+    CHECK (star_rating IS NULL OR (star_rating >= 1 AND star_rating <= 5));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_user_climbs_grade_opinion
+ON public.user_climbs(climb_id, grade_opinion)
+WHERE grade_opinion IS NOT NULL;
+
+-- Migration: 20260309010000_add_star_rating_summary_rpc.sql
+
+CREATE OR REPLACE FUNCTION public.get_star_rating_summary(p_climb_id UUID)
+RETURNS TABLE(avg_rating NUMERIC, rating_count INTEGER)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+  SELECT
+    ROUND(AVG(star_rating)::numeric, 2) AS avg_rating,
+    COUNT(star_rating)::int AS rating_count
+  FROM public.user_climbs
+  WHERE climb_id = p_climb_id
+    AND star_rating IS NOT NULL;
+$function$;
+
+REVOKE ALL ON FUNCTION public.get_star_rating_summary(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_star_rating_summary(UUID) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_star_rating_summary(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_star_rating_summary(UUID) TO service_role;
+
+-- Migration: 20260310000000_add_places_and_sync_with_crags.sql
+
+-- =====================================================
+-- Places model (indoor + outdoor) with legacy crags sync
+-- =====================================================
+
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+CREATE TABLE IF NOT EXISTS public.places (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT NOT NULL CHECK (type IN ('crag', 'gym')),
+  name VARCHAR(200) NOT NULL,
+  latitude DECIMAL(10,8),
+  longitude DECIMAL(11,8),
+  region_id UUID REFERENCES public.regions(id) ON DELETE SET NULL,
+  description TEXT,
+  access_notes TEXT,
+  rock_type VARCHAR(50),
+  boundary GEOMETRY(POLYGON, 4326),
+  region_name VARCHAR(100),
+  country VARCHAR(100),
+  country_code VARCHAR(2),
+  tide_dependency VARCHAR(20),
+  report_count INTEGER NOT NULL DEFAULT 0,
+  is_flagged BOOLEAN NOT NULL DEFAULT false,
+  slug TEXT,
+  primary_discipline TEXT,
+  disciplines TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT places_primary_discipline_valid
+    CHECK (
+      primary_discipline IS NULL
+      OR primary_discipline = ANY(ARRAY['boulder', 'sport', 'trad', 'deep_water_solo', 'mixed', 'top_rope'])
+    ),
+  CONSTRAINT places_disciplines_valid
+    CHECK (
+      disciplines <@ ARRAY['boulder', 'sport', 'trad', 'deep_water_solo', 'mixed', 'top_rope']::TEXT[]
+    ),
+  CONSTRAINT places_primary_discipline_in_disciplines
+    CHECK (
+      primary_discipline IS NULL
+      OR primary_discipline = ANY(disciplines)
+    ),
+  CONSTRAINT places_gym_disciplines_guard
+    CHECK (
+      type <> 'gym'
+      OR NOT (disciplines && ARRAY['trad', 'deep_water_solo']::TEXT[])
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_places_type ON public.places(type);
+CREATE INDEX IF NOT EXISTS idx_places_name ON public.places(name);
+CREATE INDEX IF NOT EXISTS idx_places_location ON public.places(latitude, longitude);
+CREATE INDEX IF NOT EXISTS idx_places_region ON public.places(region_id);
+CREATE INDEX IF NOT EXISTS idx_places_country_code ON public.places(country_code);
+CREATE INDEX IF NOT EXISTS idx_places_slug ON public.places(slug);
+CREATE INDEX IF NOT EXISTS idx_places_boundary ON public.places USING GIST(boundary);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_places_country_code_slug
+  ON public.places(country_code, slug)
+  WHERE country_code IS NOT NULL AND slug IS NOT NULL;
+
+INSERT INTO public.places (
+  id,
+  type,
+  name,
+  latitude,
+  longitude,
+  region_id,
+  description,
+  access_notes,
+  rock_type,
+  boundary,
+  region_name,
+  country,
+  country_code,
+  tide_dependency,
+  report_count,
+  is_flagged,
+  slug,
+  primary_discipline,
+  disciplines,
+  created_at,
+  updated_at
+)
+SELECT
+  c.id,
+  'crag'::TEXT,
+  c.name,
+  c.latitude,
+  c.longitude,
+  c.region_id,
+  c.description,
+  c.access_notes,
+  c.rock_type,
+  c.boundary,
+  c.region_name,
+  c.country,
+  c.country_code,
+  c.tide_dependency,
+  COALESCE(c.report_count, 0),
+  COALESCE(c.is_flagged, false),
+  c.slug,
+  CASE
+    WHEN c.type IN ('boulder', 'sport', 'trad', 'deep_water_solo', 'mixed', 'top_rope') THEN c.type
+    WHEN c.type = 'crag' THEN 'mixed'
+    ELSE 'boulder'
+  END AS primary_discipline,
+  ARRAY[
+    CASE
+      WHEN c.type IN ('boulder', 'sport', 'trad', 'deep_water_solo', 'mixed', 'top_rope') THEN c.type
+      WHEN c.type = 'crag' THEN 'mixed'
+      ELSE 'boulder'
+    END
+  ]::TEXT[] AS disciplines,
+  c.created_at,
+  c.updated_at
+FROM public.crags c
+ON CONFLICT (id) DO UPDATE
+SET
+  type = EXCLUDED.type,
+  name = EXCLUDED.name,
+  latitude = EXCLUDED.latitude,
+  longitude = EXCLUDED.longitude,
+  region_id = EXCLUDED.region_id,
+  description = EXCLUDED.description,
+  access_notes = EXCLUDED.access_notes,
+  rock_type = EXCLUDED.rock_type,
+  boundary = EXCLUDED.boundary,
+  region_name = EXCLUDED.region_name,
+  country = EXCLUDED.country,
+  country_code = EXCLUDED.country_code,
+  tide_dependency = EXCLUDED.tide_dependency,
+  report_count = EXCLUDED.report_count,
+  is_flagged = EXCLUDED.is_flagged,
+  slug = EXCLUDED.slug,
+  primary_discipline = EXCLUDED.primary_discipline,
+  disciplines = EXCLUDED.disciplines,
+  updated_at = NOW();
+
+ALTER TABLE public.images ADD COLUMN IF NOT EXISTS place_id UUID;
+ALTER TABLE public.climbs ADD COLUMN IF NOT EXISTS place_id UUID;
+
+UPDATE public.images
+SET place_id = crag_id
+WHERE place_id IS NULL
+  AND crag_id IS NOT NULL;
+
+UPDATE public.climbs
+SET place_id = crag_id
+WHERE place_id IS NULL
+  AND crag_id IS NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'images_place_id_fkey'
+  ) THEN
+    ALTER TABLE public.images
+      ADD CONSTRAINT images_place_id_fkey
+      FOREIGN KEY (place_id) REFERENCES public.places(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'climbs_place_id_fkey'
+  ) THEN
+    ALTER TABLE public.climbs
+      ADD CONSTRAINT climbs_place_id_fkey
+      FOREIGN KEY (place_id) REFERENCES public.places(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_images_place ON public.images(place_id);
+CREATE INDEX IF NOT EXISTS idx_climbs_place ON public.climbs(place_id);
+
+CREATE OR REPLACE FUNCTION public.sync_crag_to_place()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  resolved_primary TEXT;
+BEGIN
+  IF pg_trigger_depth() > 1 THEN
+    IF TG_OP = 'DELETE' THEN
+      RETURN OLD;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM public.places WHERE id = OLD.id AND type = 'crag';
+    RETURN OLD;
+  END IF;
+
+  resolved_primary := CASE
+    WHEN NEW.type IN ('boulder', 'sport', 'trad', 'deep_water_solo', 'mixed', 'top_rope') THEN NEW.type
+    WHEN NEW.type = 'crag' THEN 'mixed'
+    ELSE 'boulder'
+  END;
+
+  INSERT INTO public.places (
+    id,
+    type,
+    name,
+    latitude,
+    longitude,
+    region_id,
+    description,
+    access_notes,
+    rock_type,
+    boundary,
+    region_name,
+    country,
+    country_code,
+    tide_dependency,
+    report_count,
+    is_flagged,
+    slug,
+    primary_discipline,
+    disciplines,
+    created_at,
+    updated_at
+  )
+  VALUES (
+    NEW.id,
+    'crag',
+    NEW.name,
+    NEW.latitude,
+    NEW.longitude,
+    NEW.region_id,
+    NEW.description,
+    NEW.access_notes,
+    NEW.rock_type,
+    NEW.boundary,
+    NEW.region_name,
+    NEW.country,
+    NEW.country_code,
+    NEW.tide_dependency,
+    COALESCE(NEW.report_count, 0),
+    COALESCE(NEW.is_flagged, false),
+    NEW.slug,
+    resolved_primary,
+    ARRAY[resolved_primary]::TEXT[],
+    COALESCE(NEW.created_at, NOW()),
+    COALESCE(NEW.updated_at, NOW())
+  )
+  ON CONFLICT (id) DO UPDATE
+  SET
+    type = 'crag',
+    name = EXCLUDED.name,
+    latitude = EXCLUDED.latitude,
+    longitude = EXCLUDED.longitude,
+    region_id = EXCLUDED.region_id,
+    description = EXCLUDED.description,
+    access_notes = EXCLUDED.access_notes,
+    rock_type = EXCLUDED.rock_type,
+    boundary = EXCLUDED.boundary,
+    region_name = EXCLUDED.region_name,
+    country = EXCLUDED.country,
+    country_code = EXCLUDED.country_code,
+    tide_dependency = EXCLUDED.tide_dependency,
+    report_count = EXCLUDED.report_count,
+    is_flagged = EXCLUDED.is_flagged,
+    slug = EXCLUDED.slug,
+    primary_discipline = EXCLUDED.primary_discipline,
+    disciplines = EXCLUDED.disciplines,
+    updated_at = NOW();
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS crags_sync_to_places_after_write ON public.crags;
+CREATE TRIGGER crags_sync_to_places_after_write
+AFTER INSERT OR UPDATE OR DELETE ON public.crags
+FOR EACH ROW
+EXECUTE FUNCTION public.sync_crag_to_place();
+
+CREATE OR REPLACE FUNCTION public.sync_place_to_crag()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF pg_trigger_depth() > 1 THEN
+    IF TG_OP = 'DELETE' THEN
+      RETURN OLD;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.type = 'crag' THEN
+      DELETE FROM public.crags WHERE id = OLD.id;
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  IF NEW.type = 'crag' THEN
+    INSERT INTO public.crags (
+      id,
+      name,
+      latitude,
+      longitude,
+      region_id,
+      description,
+      access_notes,
+      rock_type,
+      type,
+      created_at,
+      updated_at,
+      report_count,
+      is_flagged,
+      boundary,
+      region_name,
+      country,
+      tide_dependency,
+      country_code,
+      slug
+    )
+    VALUES (
+      NEW.id,
+      NEW.name,
+      NEW.latitude,
+      NEW.longitude,
+      NEW.region_id,
+      NEW.description,
+      NEW.access_notes,
+      NEW.rock_type,
+      COALESCE(NEW.primary_discipline, 'boulder'),
+      COALESCE(NEW.created_at, NOW()),
+      COALESCE(NEW.updated_at, NOW()),
+      COALESCE(NEW.report_count, 0),
+      COALESCE(NEW.is_flagged, false),
+      NEW.boundary,
+      NEW.region_name,
+      NEW.country,
+      NEW.tide_dependency,
+      NEW.country_code,
+      NEW.slug
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET
+      name = EXCLUDED.name,
+      latitude = EXCLUDED.latitude,
+      longitude = EXCLUDED.longitude,
+      region_id = EXCLUDED.region_id,
+      description = EXCLUDED.description,
+      access_notes = EXCLUDED.access_notes,
+      rock_type = EXCLUDED.rock_type,
+      type = EXCLUDED.type,
+      updated_at = NOW(),
+      report_count = EXCLUDED.report_count,
+      is_flagged = EXCLUDED.is_flagged,
+      boundary = EXCLUDED.boundary,
+      region_name = EXCLUDED.region_name,
+      country = EXCLUDED.country,
+      tide_dependency = EXCLUDED.tide_dependency,
+      country_code = EXCLUDED.country_code,
+      slug = EXCLUDED.slug;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS places_sync_to_crags_after_write ON public.places;
+CREATE TRIGGER places_sync_to_crags_after_write
+AFTER INSERT OR UPDATE OR DELETE ON public.places
+FOR EACH ROW
+EXECUTE FUNCTION public.sync_place_to_crag();
+
+DO $$
+BEGIN
+  ALTER TABLE public.places ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'places'
+      AND policyname = 'Public read places'
+  ) THEN
+    CREATE POLICY "Public read places"
+      ON public.places
+      FOR SELECT
+      USING (true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'places'
+      AND policyname = 'Authenticated create places'
+  ) THEN
+    CREATE POLICY "Authenticated create places"
+      ON public.places
+      FOR INSERT
+      WITH CHECK (auth.role() = 'authenticated');
+  END IF;
+END $$;
+
+-- Migration: 20260311000000_create_community_place_tables.sql
+
+-- =====================================================
+-- Community place-centric foundation (posts, rsvps, comments, follows)
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS public.community_posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  author_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  place_id UUID NOT NULL REFERENCES public.places(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('session', 'update', 'conditions', 'question')),
+  title TEXT,
+  body TEXT NOT NULL CHECK (char_length(body) BETWEEN 1 AND 2000),
+  discipline TEXT CHECK (discipline IN ('boulder', 'sport', 'trad', 'deep_water_solo', 'mixed', 'top_rope')),
+  grade_min TEXT,
+  grade_max TEXT,
+  start_at TIMESTAMPTZ,
+  end_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT community_posts_title_length CHECK (title IS NULL OR char_length(title) BETWEEN 1 AND 120),
+  CONSTRAINT community_posts_grade_min_length CHECK (grade_min IS NULL OR char_length(grade_min) <= 10),
+  CONSTRAINT community_posts_grade_max_length CHECK (grade_max IS NULL OR char_length(grade_max) <= 10),
+  CONSTRAINT community_posts_session_start_required CHECK (type <> 'session' OR start_at IS NOT NULL),
+  CONSTRAINT community_posts_end_after_start CHECK (end_at IS NULL OR start_at IS NULL OR end_at >= start_at)
+);
+
+CREATE TABLE IF NOT EXISTS public.community_post_rsvps (
+  post_id UUID NOT NULL REFERENCES public.community_posts(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'going' CHECK (status IN ('going', 'interested')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (post_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.community_post_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id UUID NOT NULL REFERENCES public.community_posts(id) ON DELETE CASCADE,
+  author_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL CHECK (char_length(body) BETWEEN 1 AND 2000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.community_place_follows (
+  place_id UUID NOT NULL REFERENCES public.places(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  notification_level TEXT NOT NULL DEFAULT 'all' CHECK (notification_level IN ('all', 'daily', 'off')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (place_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_community_posts_place_created
+  ON public.community_posts(place_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_community_posts_place_type_created
+  ON public.community_posts(place_id, type, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_community_posts_session_place_start
+  ON public.community_posts(place_id, start_at ASC)
+  WHERE type = 'session';
+
+CREATE INDEX IF NOT EXISTS idx_community_posts_author_created
+  ON public.community_posts(author_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_community_post_rsvps_user_created
+  ON public.community_post_rsvps(user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_community_post_comments_post_created
+  ON public.community_post_comments(post_id, created_at ASC);
+
+CREATE INDEX IF NOT EXISTS idx_community_post_comments_author_created
+  ON public.community_post_comments(author_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_community_place_follows_user_updated
+  ON public.community_place_follows(user_id, updated_at DESC);
+
+DO $$
+BEGIN
+  ALTER TABLE public.community_posts ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE public.community_post_rsvps ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE public.community_post_comments ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE public.community_place_follows ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_posts'
+      AND policyname = 'Public read community posts'
+  ) THEN
+    CREATE POLICY "Public read community posts"
+      ON public.community_posts
+      FOR SELECT
+      USING (true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_posts'
+      AND policyname = 'Authenticated create own community posts'
+  ) THEN
+    CREATE POLICY "Authenticated create own community posts"
+      ON public.community_posts
+      FOR INSERT
+      WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = author_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_posts'
+      AND policyname = 'Owner update community posts'
+  ) THEN
+    CREATE POLICY "Owner update community posts"
+      ON public.community_posts
+      FOR UPDATE
+      USING (auth.uid() = author_id)
+      WITH CHECK (auth.uid() = author_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_posts'
+      AND policyname = 'Owner delete community posts'
+  ) THEN
+    CREATE POLICY "Owner delete community posts"
+      ON public.community_posts
+      FOR DELETE
+      USING (auth.uid() = author_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_post_rsvps'
+      AND policyname = 'Public read community rsvps'
+  ) THEN
+    CREATE POLICY "Public read community rsvps"
+      ON public.community_post_rsvps
+      FOR SELECT
+      USING (true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_post_rsvps'
+      AND policyname = 'Users manage own community rsvps'
+  ) THEN
+    CREATE POLICY "Users manage own community rsvps"
+      ON public.community_post_rsvps
+      FOR ALL
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_post_comments'
+      AND policyname = 'Public read community comments'
+  ) THEN
+    CREATE POLICY "Public read community comments"
+      ON public.community_post_comments
+      FOR SELECT
+      USING (true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_post_comments'
+      AND policyname = 'Authenticated create own community comments'
+  ) THEN
+    CREATE POLICY "Authenticated create own community comments"
+      ON public.community_post_comments
+      FOR INSERT
+      WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = author_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_post_comments'
+      AND policyname = 'Owner update community comments'
+  ) THEN
+    CREATE POLICY "Owner update community comments"
+      ON public.community_post_comments
+      FOR UPDATE
+      USING (auth.uid() = author_id)
+      WITH CHECK (auth.uid() = author_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_post_comments'
+      AND policyname = 'Owner delete community comments'
+  ) THEN
+    CREATE POLICY "Owner delete community comments"
+      ON public.community_post_comments
+      FOR DELETE
+      USING (auth.uid() = author_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_place_follows'
+      AND policyname = 'Users read own place follows'
+  ) THEN
+    CREATE POLICY "Users read own place follows"
+      ON public.community_place_follows
+      FOR SELECT
+      USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'community_place_follows'
+      AND policyname = 'Users manage own place follows'
+  ) THEN
+    CREATE POLICY "Users manage own place follows"
+      ON public.community_place_follows
+      FOR ALL
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
+
+-- Migration: 20260312000000_add_climb_video_betas.sql
+
+-- =====================================================
+-- Climb video beta links + profile body metrics
+-- =====================================================
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS height_cm INTEGER,
+  ADD COLUMN IF NOT EXISTS reach_cm INTEGER;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'profiles_height_cm_check'
+      AND conrelid = 'public.profiles'::regclass
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT profiles_height_cm_check
+      CHECK (height_cm IS NULL OR (height_cm >= 100 AND height_cm <= 250));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'profiles_reach_cm_check'
+      AND conrelid = 'public.profiles'::regclass
+  ) THEN
+    ALTER TABLE public.profiles
+      ADD CONSTRAINT profiles_reach_cm_check
+      CHECK (reach_cm IS NULL OR (reach_cm >= 100 AND reach_cm <= 260));
+  END IF;
+END
+$$;
+
+CREATE TABLE IF NOT EXISTS public.climb_video_betas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  climb_id UUID NOT NULL REFERENCES public.climbs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT 'other'
+    CHECK (platform IN ('youtube', 'instagram', 'tiktok', 'vimeo', 'other')),
+  title TEXT,
+  notes TEXT,
+  uploader_gender TEXT CHECK (uploader_gender IN ('male', 'female', 'other', 'prefer_not_to_say')),
+  uploader_height_cm INTEGER CHECK (uploader_height_cm IS NULL OR (uploader_height_cm >= 100 AND uploader_height_cm <= 250)),
+  uploader_reach_cm INTEGER CHECK (uploader_reach_cm IS NULL OR (uploader_reach_cm >= 100 AND uploader_reach_cm <= 260)),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (climb_id, user_id, url)
+);
+
+CREATE INDEX IF NOT EXISTS idx_climb_video_betas_climb_created_at
+  ON public.climb_video_betas(climb_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_climb_video_betas_climb_platform
+  ON public.climb_video_betas(climb_id, platform);
+
+CREATE INDEX IF NOT EXISTS idx_climb_video_betas_user_created_at
+  ON public.climb_video_betas(user_id, created_at DESC);
+
+ALTER TABLE public.climb_video_betas ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'climb_video_betas'
+      AND policyname = 'Public read climb_video_betas'
+  ) THEN
+    CREATE POLICY "Public read climb_video_betas"
+      ON public.climb_video_betas
+      FOR SELECT
+      USING (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'climb_video_betas'
+      AND policyname = 'Owner create climb_video_betas'
+  ) THEN
+    CREATE POLICY "Owner create climb_video_betas"
+      ON public.climb_video_betas
+      FOR INSERT
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'climb_video_betas'
+      AND policyname = 'Owner update climb_video_betas'
+  ) THEN
+    CREATE POLICY "Owner update climb_video_betas"
+      ON public.climb_video_betas
+      FOR UPDATE
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'climb_video_betas'
+      AND policyname = 'Owner delete climb_video_betas'
+  ) THEN
+    CREATE POLICY "Owner delete climb_video_betas"
+      ON public.climb_video_betas
+      FOR DELETE
+      USING (auth.uid() = user_id);
+  END IF;
+END
+$$;
+
+-- Migration: 20260313000000_add_images_face_directions.sql
+
+ALTER TABLE images
+ADD COLUMN IF NOT EXISTS face_directions TEXT[];
+
+UPDATE images
+SET face_directions = ARRAY[face_direction]
+WHERE face_direction IS NOT NULL
+  AND (face_directions IS NULL OR array_length(face_directions, 1) IS NULL);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'images_face_directions_check'
+      AND conrelid = 'images'::regclass
+  ) THEN
+    ALTER TABLE images
+    ADD CONSTRAINT images_face_directions_check
+    CHECK (
+      face_directions IS NULL
+      OR face_directions <@ ARRAY['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']::TEXT[]
+    );
+  END IF;
+END $$;
+
+-- Migration: 20260314000000_cleanup_orphan_route_uploads.sql
+
+CREATE OR REPLACE FUNCTION public.cleanup_orphan_route_uploads(
+  max_age INTERVAL DEFAULT INTERVAL '72 hours',
+  max_delete INTEGER DEFAULT 300
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, storage
+AS $$
+DECLARE
+  deleted_count INTEGER := 0;
+BEGIN
+  WITH candidates AS (
+    SELECT o.name
+    FROM storage.objects o
+    LEFT JOIN public.images i
+      ON i.storage_bucket = o.bucket_id
+     AND i.storage_path = o.name
+    WHERE o.bucket_id = 'route-uploads'
+      AND i.id IS NULL
+      AND o.created_at < NOW() - max_age
+    ORDER BY o.created_at ASC
+    LIMIT GREATEST(max_delete, 0)
+  ), deleted AS (
+    DELETE FROM storage.objects o
+    USING candidates c
+    WHERE o.bucket_id = 'route-uploads'
+      AND o.name = c.name
+    RETURNING 1
+  )
+  SELECT COUNT(*) INTO deleted_count FROM deleted;
+
+  RETURN deleted_count;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.cleanup_orphan_route_uploads(INTERVAL, INTEGER) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.cleanup_orphan_route_uploads(INTERVAL, INTEGER) TO service_role;
+
+DO $$
+BEGIN
+  BEGIN
+    CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA extensions;
+
+    PERFORM cron.unschedule(jobid)
+    FROM cron.job
+    WHERE jobname = 'cleanup-orphan-route-uploads';
+
+    PERFORM cron.schedule(
+      'cleanup-orphan-route-uploads',
+      '25 3 * * *',
+      'SELECT public.cleanup_orphan_route_uploads(INTERVAL ''72 hours'', 300);'
+    );
+  EXCEPTION
+    WHEN OTHERS THEN
+      RAISE NOTICE 'pg_cron scheduling skipped: %', SQLERRM;
+  END;
+END;
+$$;
+
+-- Migration: 20260315000000_add_route_edit_rpc.sql
+
+CREATE OR REPLACE FUNCTION public.update_own_submitted_routes(
+  p_image_id UUID,
+  p_routes JSONB
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+DECLARE
+  current_user_id UUID := auth.uid();
+  route_item JSONB;
+  route_id UUID;
+  climb_id UUID;
+  route_name TEXT;
+  route_description TEXT;
+  route_points JSONB;
+  updated_count INTEGER := 0;
+BEGIN
+  IF current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  IF p_image_id IS NULL THEN
+    RAISE EXCEPTION 'Image ID is required';
+  END IF;
+
+  IF p_routes IS NULL OR jsonb_typeof(p_routes) <> 'array' OR jsonb_array_length(p_routes) = 0 THEN
+    RAISE EXCEPTION 'At least one route is required';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.images i
+    WHERE i.id = p_image_id
+      AND i.created_by = current_user_id
+  ) THEN
+    RAISE EXCEPTION 'You do not have permission to edit routes for this image';
+  END IF;
+
+  FOR route_item IN
+    SELECT value FROM jsonb_array_elements(p_routes)
+  LOOP
+    BEGIN
+      route_id := (route_item->>'id')::UUID;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE EXCEPTION 'Invalid route id provided';
+    END;
+
+    route_name := btrim(COALESCE(route_item->>'name', ''));
+    route_description := NULLIF(btrim(COALESCE(route_item->>'description', '')), '');
+    route_points := route_item->'points';
+
+    IF route_name = '' THEN
+      RAISE EXCEPTION 'Route name is required';
+    END IF;
+
+    IF char_length(route_name) > 200 THEN
+      RAISE EXCEPTION 'Route name must be 200 characters or less';
+    END IF;
+
+    IF route_description IS NOT NULL AND char_length(route_description) > 500 THEN
+      RAISE EXCEPTION 'Route description must be 500 characters or less';
+    END IF;
+
+    IF route_points IS NULL OR jsonb_typeof(route_points) <> 'array' OR jsonb_array_length(route_points) < 2 THEN
+      RAISE EXCEPTION 'Route points must contain at least 2 points';
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(route_points) AS pt
+      WHERE jsonb_typeof(pt->'x') <> 'number'
+        OR jsonb_typeof(pt->'y') <> 'number'
+        OR (pt->>'x')::double precision < 0
+        OR (pt->>'x')::double precision > 1
+        OR (pt->>'y')::double precision < 0
+        OR (pt->>'y')::double precision > 1
+    ) THEN
+      RAISE EXCEPTION 'Route points must be normalized values between 0 and 1';
+    END IF;
+
+    SELECT rl.climb_id
+    INTO climb_id
+    FROM public.route_lines rl
+    INNER JOIN public.climbs c ON c.id = rl.climb_id
+    WHERE rl.id = route_id
+      AND rl.image_id = p_image_id
+      AND c.user_id = current_user_id;
+
+    IF climb_id IS NULL THEN
+      RAISE EXCEPTION 'Route not found or not editable';
+    END IF;
+
+    UPDATE public.climbs
+    SET
+      name = route_name,
+      description = route_description,
+      updated_at = NOW()
+    WHERE id = climb_id;
+
+    UPDATE public.route_lines
+    SET points = route_points
+    WHERE id = route_id;
+
+    updated_count := updated_count + 1;
+  END LOOP;
+
+  RETURN updated_count;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.update_own_submitted_routes(UUID, JSONB) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.update_own_submitted_routes(UUID, JSONB) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.update_own_submitted_routes(UUID, JSONB) TO service_role;
+
+-- Migration: 20260315000046_gold_standard_geography.sql
+
+-- Auto-generated migration: Gold Standard Geography
+-- Simplified version - adds countries without schema restructure
+
+-- 0. Drop old regions table (replaced by new geography schema)
+DROP TABLE IF EXISTS public.regions CASCADE;
+
+-- 1. Create countries table (with boundary column for future Natural Earth data)
+CREATE TABLE IF NOT EXISTS public.countries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  iso_a2 TEXT NOT NULL UNIQUE,
+  iso_a3 TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  name_long TEXT,
+  formal_name TEXT,
+  abbrev TEXT,
+  admin_type TEXT,
+  region_id UUID,
+  scale_rank INTEGER,
+  label_rank INTEGER,
+  map_color INTEGER,
+  boundary geometry(Geometry, 4326),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 2. Create continents table
+CREATE TABLE IF NOT EXISTS public.continents (
+  name TEXT PRIMARY KEY
+);
+
+-- 3. Create un_regions table  
+CREATE TABLE IF NOT EXISTS public.un_regions (
+  name TEXT PRIMARY KEY,
+  continent_name TEXT NOT NULL REFERENCES public.continents(name)
+);
+
+-- 4. Create regions table (subregions)
+CREATE TABLE IF NOT EXISTS public.regions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  un_region_name TEXT NOT NULL REFERENCES public.un_regions(name),
+  country_code VARCHAR(2),
+  center_lat NUMERIC(10,8),
+  center_lon NUMERIC(11,8),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 5. Add country_id to existing tables
+ALTER TABLE public.crags ADD COLUMN IF NOT EXISTS country_id UUID REFERENCES public.countries(id) ON DELETE SET NULL;
+ALTER TABLE public.places ADD COLUMN IF NOT EXISTS country_id UUID REFERENCES public.countries(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_crags_country_id ON public.crags(country_id);
+CREATE INDEX IF NOT EXISTS idx_places_country_id ON public.places(country_id);
+
+-- 6. Insert continents
+INSERT INTO public.continents (name) VALUES
+  ('Africa'),
+  ('Americas'),
+  ('Antarctica'),
+  ('Asia'),
+  ('Europe'),
+  ('Oceania'),
+  ('Seven seas (open ocean)')
+ON CONFLICT (name) DO NOTHING;
+
+-- 7. Insert UN regions
+INSERT INTO public.un_regions (name, continent_name) VALUES
+  ('Africa', 'Africa'),
+  ('Americas', 'Americas'),
+  ('Antarctica', 'Antarctica'),
+  ('Asia', 'Asia'),
+  ('Europe', 'Europe'),
+  ('Oceania', 'Oceania'),
+  ('Seven seas (open ocean)', 'Seven seas (open ocean)')
+ON CONFLICT (name) DO UPDATE SET continent_name = EXCLUDED.continent_name;
+
+-- 8. Insert regions (subregions)
+INSERT INTO public.regions (name, un_region_name) VALUES
+  ('Antarctica', 'Antarctica'),
+  ('Australia and New Zealand', 'Oceania'),
+  ('Caribbean', 'Americas'),
+  ('Central America', 'Americas'),
+  ('Central Asia', 'Asia'),
+  ('Eastern Africa', 'Africa'),
+  ('Eastern Asia', 'Asia'),
+  ('Eastern Europe', 'Europe'),
+  ('Melanesia', 'Oceania'),
+  ('Middle Africa', 'Africa'),
+  ('Northern Africa', 'Africa'),
+  ('Northern America', 'Americas'),
+  ('Northern Europe', 'Europe'),
+  ('Seven seas (open ocean)', 'Seven seas (open ocean)'),
+  ('South America', 'Americas'),
+  ('South-Eastern Asia', 'Asia'),
+  ('Southern Africa', 'Africa'),
+  ('Southern Asia', 'Asia'),
+  ('Southern Europe', 'Europe'),
+  ('Western Africa', 'Africa'),
+  ('Western Asia', 'Asia'),
+  ('Western Europe', 'Europe')
+ON CONFLICT (name) DO UPDATE SET un_region_name = EXCLUDED.un_region_name;
+
+-- 9. Insert countries
+INSERT INTO public.countries (iso_a2, iso_a3, name, name_long, formal_name, abbrev, admin_type, region_id, scale_rank, label_rank, map_color) VALUES
+  ('AF', 'AFG', 'Afghanistan', 'Afghanistan', 'Islamic State of Afghanistan', 'Afg.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Asia' LIMIT 1), 1, 3, 5),
+  ('AO', 'AGO', 'Angola', 'Angola', 'People''s Republic of Angola', 'Ang.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Middle Africa' LIMIT 1), 1, 3, 3),
+  ('AL', 'ALB', 'Albania', 'Albania', 'Republic of Albania', 'Alb.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Europe' LIMIT 1), 1, 6, 1),
+  ('AE', 'ARE', 'United Arab Emirates', 'United Arab Emirates', 'United Arab Emirates', 'U.A.E.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 4, 2),
+  ('AR', 'ARG', 'Argentina', 'Argentina', 'Argentine Republic', 'Arg.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 2, 3),
+  ('AM', 'ARM', 'Armenia', 'Armenia', 'Republic of Armenia', 'Arm.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 6, 3),
+  ('AQ', 'ATA', 'Antarctica', 'Antarctica', '', 'Ant.', 'Indeterminate', (SELECT id FROM public.regions WHERE name = 'Antarctica' LIMIT 1), 1, 4, 4),
+  ('TF', 'ATF', 'Fr. S. Antarctic Lands', 'French Southern and Antarctic Lands', 'Territory of the French Southern and Antarctic Lands', 'Fr. S.A.L.', 'Dependency', (SELECT id FROM public.regions WHERE name = 'Seven seas (open ocean)' LIMIT 1), 3, 6, 7),
+  ('AU', 'AUS', 'Australia', 'Australia', 'Commonwealth of Australia', 'Auz.', 'Country', (SELECT id FROM public.regions WHERE name = 'Australia and New Zealand' LIMIT 1), 1, 2, 1),
+  ('AT', 'AUT', 'Austria', 'Austria', 'Republic of Austria', 'Aust.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Europe' LIMIT 1), 1, 4, 3),
+  ('AZ', 'AZE', 'Azerbaijan', 'Azerbaijan', 'Republic of Azerbaijan', 'Aze.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 5, 1),
+  ('BI', 'BDI', 'Burundi', 'Burundi', 'Republic of Burundi', 'Bur.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 6, 2),
+  ('BE', 'BEL', 'Belgium', 'Belgium', 'Kingdom of Belgium', 'Belg.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Europe' LIMIT 1), 1, 2, 3),
+  ('BJ', 'BEN', 'Benin', 'Benin', 'Republic of Benin', 'Benin', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 5, 1),
+  ('BF', 'BFA', 'Burkina Faso', 'Burkina Faso', 'Burkina Faso', 'B.F.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 3, 2),
+  ('BD', 'BGD', 'Bangladesh', 'Bangladesh', 'People''s Republic of Bangladesh', 'Bang.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Asia' LIMIT 1), 1, 3, 3),
+  ('BG', 'BGR', 'Bulgaria', 'Bulgaria', 'Republic of Bulgaria', 'Bulg.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Europe' LIMIT 1), 1, 4, 4),
+  ('BS', 'BHS', 'Bahamas', 'Bahamas', 'Commonwealth of the Bahamas', 'Bhs.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Caribbean' LIMIT 1), 1, 4, 1),
+  ('BA', 'BIH', 'Bosnia and Herz.', 'Bosnia and Herzegovina', 'Bosnia and Herzegovina', 'B.H.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Europe' LIMIT 1), 1, 5, 1),
+  ('BY', 'BLR', 'Belarus', 'Belarus', 'Republic of Belarus', 'Bela.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Europe' LIMIT 1), 1, 4, 1),
+  ('BZ', 'BLZ', 'Belize', 'Belize', 'Belize', 'Belize', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central America' LIMIT 1), 1, 6, 1),
+  ('BO', 'BOL', 'Bolivia', 'Bolivia', 'Plurinational State of Bolivia', 'Bolivia', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 3, 1),
+  ('BR', 'BRA', 'Brazil', 'Brazil', 'Federative Republic of Brazil', 'Brazil', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 2, 5),
+  ('BN', 'BRN', 'Brunei', 'Brunei Darussalam', 'Negara Brunei Darussalam', 'Brunei', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South-Eastern Asia' LIMIT 1), 1, 6, 4),
+  ('BT', 'BTN', 'Bhutan', 'Bhutan', 'Kingdom of Bhutan', 'Bhutan', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Asia' LIMIT 1), 1, 5, 5),
+  ('BW', 'BWA', 'Botswana', 'Botswana', 'Republic of Botswana', 'Bwa.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Africa' LIMIT 1), 1, 4, 6),
+  ('CF', 'CAF', 'Central African Rep.', 'Central African Republic', 'Central African Republic', 'C.A.R.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Middle Africa' LIMIT 1), 1, 4, 5),
+  ('CA', 'CAN', 'Canada', 'Canada', 'Canada', 'Can.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern America' LIMIT 1), 1, 2, 6),
+  ('CH', 'CHE', 'Switzerland', 'Switzerland', 'Swiss Confederation', 'Switz.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Europe' LIMIT 1), 1, 4, 5),
+  ('CL', 'CHL', 'Chile', 'Chile', 'Republic of Chile', 'Chile', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 2, 5),
+  ('CN', 'CHN', 'China', 'China', 'People''s Republic of China', 'China', 'Country', (SELECT id FROM public.regions WHERE name = 'Eastern Asia' LIMIT 1), 1, 2, 4),
+  ('CI', 'CIV', 'Côte d''Ivoire', 'Côte d''Ivoire', 'Republic of Ivory Coast', 'I.C.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 3, 4),
+  ('CM', 'CMR', 'Cameroon', 'Cameroon', 'Republic of Cameroon', 'Cam.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Middle Africa' LIMIT 1), 1, 3, 1),
+  ('CD', 'COD', 'Dem. Rep. Congo', 'Democratic Republic of the Congo', 'Democratic Republic of the Congo', 'D.R.C.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Middle Africa' LIMIT 1), 1, 2, 4),
+  ('CG', 'COG', 'Congo', 'Republic of Congo', 'Republic of Congo', 'Rep. Congo', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Middle Africa' LIMIT 1), 1, 4, 2),
+  ('CO', 'COL', 'Colombia', 'Colombia', 'Republic of Colombia', 'Col.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 2, 2),
+  ('CR', 'CRI', 'Costa Rica', 'Costa Rica', 'Republic of Costa Rica', 'C.R.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central America' LIMIT 1), 1, 5, 3),
+  ('CU', 'CUB', 'Cuba', 'Cuba', 'Republic of Cuba', 'Cuba', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Caribbean' LIMIT 1), 1, 3, 3),
+  ('CY', 'CYP', 'Cyprus', 'Cyprus', 'Republic of Cyprus', 'Cyp.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 5, 1),
+  ('CZ', 'CZE', 'Czech Rep.', 'Czech Republic', 'Czech Republic', 'Cz. Rep.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Europe' LIMIT 1), 1, 5, 1),
+  ('DE', 'DEU', 'Germany', 'Germany', 'Federal Republic of Germany', 'Ger.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Europe' LIMIT 1), 1, 2, 2),
+  ('DJ', 'DJI', 'Djibouti', 'Djibouti', 'Republic of Djibouti', 'Dji.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 5, 1),
+  ('DK', 'DNK', 'Denmark', 'Denmark', 'Kingdom of Denmark', 'Den.', 'Country', (SELECT id FROM public.regions WHERE name = 'Northern Europe' LIMIT 1), 1, 4, 4),
+  ('DO', 'DOM', 'Dominican Rep.', 'Dominican Republic', 'Dominican Republic', 'Dom. Rep.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Caribbean' LIMIT 1), 1, 5, 5),
+  ('DZ', 'DZA', 'Algeria', 'Algeria', 'People''s Democratic Republic of Algeria', 'Alg.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Africa' LIMIT 1), 1, 3, 5),
+  ('EC', 'ECU', 'Ecuador', 'Ecuador', 'Republic of Ecuador', 'Ecu.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 3, 1),
+  ('EG', 'EGY', 'Egypt', 'Egypt', 'Arab Republic of Egypt', 'Egypt', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Africa' LIMIT 1), 1, 2, 4),
+  ('ER', 'ERI', 'Eritrea', 'Eritrea', 'State of Eritrea', 'Erit.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 4, 3),
+  ('ES', 'ESP', 'Spain', 'Spain', 'Kingdom of Spain', 'Sp.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Europe' LIMIT 1), 1, 2, 4),
+  ('EE', 'EST', 'Estonia', 'Estonia', 'Republic of Estonia', 'Est.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Europe' LIMIT 1), 1, 6, 3),
+  ('ET', 'ETH', 'Ethiopia', 'Ethiopia', 'Federal Democratic Republic of Ethiopia', 'Eth.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 2, 4),
+  ('FI', 'FIN', 'Finland', 'Finland', 'Republic of Finland', 'Fin.', 'Country', (SELECT id FROM public.regions WHERE name = 'Northern Europe' LIMIT 1), 1, 3, 4),
+  ('FJ', 'FJI', 'Fiji', 'Fiji', 'Republic of Fiji', 'Fiji', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Melanesia' LIMIT 1), 1, 6, 5),
+  ('FK', 'FLK', 'Falkland Is.', 'Falkland Islands', 'Falkland Islands', 'Flk. Is.', 'Dependency', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 5, 6),
+  ('FR', 'FRA', 'France', 'France', 'French Republic', 'Fr.', 'Country', (SELECT id FROM public.regions WHERE name = 'Western Europe' LIMIT 1), 1, 2, 7),
+  ('GA', 'GAB', 'Gabon', 'Gabon', 'Gabonese Republic', 'Gabon', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Middle Africa' LIMIT 1), 1, 4, 6),
+  ('GB', 'GBR', 'United Kingdom', 'United Kingdom', 'United Kingdom of Great Britain and Northern Ireland', 'U.K.', 'Country', (SELECT id FROM public.regions WHERE name = 'Northern Europe' LIMIT 1), 1, 2, 6),
+  ('GE', 'GEO', 'Georgia', 'Georgia', 'Georgia', 'Geo.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 5, 5),
+  ('GH', 'GHA', 'Ghana', 'Ghana', 'Republic of Ghana', 'Ghana', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 3, 5),
+  ('GN', 'GIN', 'Guinea', 'Guinea', 'Republic of Guinea', 'Gin.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 3, 6),
+  ('GM', 'GMB', 'Gambia', 'The Gambia', 'Republic of the Gambia', 'Gambia', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 6, 1),
+  ('GW', 'GNB', 'Guinea-Bissau', 'Guinea-Bissau', 'Republic of Guinea-Bissau', 'GnB.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 6, 3),
+  ('GQ', 'GNQ', 'Eq. Guinea', 'Equatorial Guinea', 'Republic of Equatorial Guinea', 'Eq. G.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Middle Africa' LIMIT 1), 1, 4, 4),
+  ('GR', 'GRC', 'Greece', 'Greece', 'Hellenic Republic', 'Greece', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Europe' LIMIT 1), 1, 3, 2),
+  ('GL', 'GRL', 'Greenland', 'Greenland', 'Greenland', 'Grlnd.', 'Country', (SELECT id FROM public.regions WHERE name = 'Northern America' LIMIT 1), 1, 3, 4),
+  ('GT', 'GTM', 'Guatemala', 'Guatemala', 'Republic of Guatemala', 'Guat.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central America' LIMIT 1), 1, 3, 3),
+  ('GY', 'GUY', 'Guyana', 'Guyana', 'Co-operative Republic of Guyana', 'Guy.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 4, 3),
+  ('HN', 'HND', 'Honduras', 'Honduras', 'Republic of Honduras', 'Hond.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central America' LIMIT 1), 1, 5, 2),
+  ('HR', 'HRV', 'Croatia', 'Croatia', 'Republic of Croatia', 'Cro.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Europe' LIMIT 1), 1, 6, 5),
+  ('HT', 'HTI', 'Haiti', 'Haiti', 'Republic of Haiti', 'Haiti', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Caribbean' LIMIT 1), 1, 5, 2),
+  ('HU', 'HUN', 'Hungary', 'Hungary', 'Republic of Hungary', 'Hun.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Europe' LIMIT 1), 1, 5, 4),
+  ('ID', 'IDN', 'Indonesia', 'Indonesia', 'Republic of Indonesia', 'Indo.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South-Eastern Asia' LIMIT 1), 1, 2, 6),
+  ('IN', 'IND', 'India', 'India', 'Republic of India', 'India', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Asia' LIMIT 1), 1, 2, 1),
+  ('IE', 'IRL', 'Ireland', 'Ireland', 'Ireland', 'Ire.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Europe' LIMIT 1), 1, 3, 2),
+  ('IR', 'IRN', 'Iran', 'Iran', 'Islamic Republic of Iran', 'Iran', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Asia' LIMIT 1), 1, 2, 4),
+  ('IQ', 'IRQ', 'Iraq', 'Iraq', 'Republic of Iraq', 'Iraq', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 3, 1),
+  ('IS', 'ISL', 'Iceland', 'Iceland', 'Republic of Iceland', 'Iceland', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Europe' LIMIT 1), 1, 3, 1),
+  ('IL', 'ISR', 'Israel', 'Israel', 'State of Israel', 'Isr.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 4, 3),
+  ('IT', 'ITA', 'Italy', 'Italy', 'Italian Republic', 'Italy', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Europe' LIMIT 1), 1, 2, 6),
+  ('JM', 'JAM', 'Jamaica', 'Jamaica', 'Jamaica', 'Jam.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Caribbean' LIMIT 1), 1, 4, 1),
+  ('JO', 'JOR', 'Jordan', 'Jordan', 'Hashemite Kingdom of Jordan', 'Jord.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 4, 5),
+  ('JP', 'JPN', 'Japan', 'Japan', 'Japan', 'Japan', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Asia' LIMIT 1), 1, 2, 5),
+  ('KZ', 'KAZ', 'Kazakhstan', 'Kazakhstan', 'Republic of Kazakhstan', 'Kaz.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central Asia' LIMIT 1), 1, 3, 6),
+  ('KE', 'KEN', 'Kenya', 'Kenya', 'Republic of Kenya', 'Ken.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 2, 5),
+  ('KG', 'KGZ', 'Kyrgyzstan', 'Kyrgyzstan', 'Kyrgyz Republic', 'Kgz.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central Asia' LIMIT 1), 1, 4, 5),
+  ('KH', 'KHM', 'Cambodia', 'Cambodia', 'Kingdom of Cambodia', 'Camb.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South-Eastern Asia' LIMIT 1), 1, 3, 6),
+  ('KR', 'KOR', 'Korea', 'Republic of Korea', 'Republic of Korea', 'S.K.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Asia' LIMIT 1), 1, 2, 4),
+  ('KW', 'KWT', 'Kuwait', 'Kuwait', 'State of Kuwait', 'Kwt.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 6, 2),
+  ('LA', 'LAO', 'Lao PDR', 'Lao PDR', 'Lao People''s Democratic Republic', 'Laos', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South-Eastern Asia' LIMIT 1), 1, 4, 1),
+  ('LB', 'LBN', 'Lebanon', 'Lebanon', 'Lebanese Republic', 'Leb.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 5, 4),
+  ('LR', 'LBR', 'Liberia', 'Liberia', 'Republic of Liberia', 'Liberia', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 4, 2),
+  ('LY', 'LBY', 'Libya', 'Libya', 'Libya', 'Libya', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Africa' LIMIT 1), 1, 3, 1),
+  ('LK', 'LKA', 'Sri Lanka', 'Sri Lanka', 'Democratic Socialist Republic of Sri Lanka', 'Sri L.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Asia' LIMIT 1), 1, 3, 3),
+  ('LS', 'LSO', 'Lesotho', 'Lesotho', 'Kingdom of Lesotho', 'Les.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Africa' LIMIT 1), 1, 6, 1),
+  ('LT', 'LTU', 'Lithuania', 'Lithuania', 'Republic of Lithuania', 'Lith.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Europe' LIMIT 1), 1, 5, 6),
+  ('LU', 'LUX', 'Luxembourg', 'Luxembourg', 'Grand Duchy of Luxembourg', 'Lux.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Europe' LIMIT 1), 1, 6, 1),
+  ('LV', 'LVA', 'Latvia', 'Latvia', 'Republic of Latvia', 'Lat.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Europe' LIMIT 1), 1, 5, 4),
+  ('MA', 'MAR', 'Morocco', 'Morocco', 'Kingdom of Morocco', 'Mor.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Africa' LIMIT 1), 1, 3, 2),
+  ('MD', 'MDA', 'Moldova', 'Moldova', 'Republic of Moldova', 'Mda.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Europe' LIMIT 1), 1, 6, 3),
+  ('MG', 'MDG', 'Madagascar', 'Madagascar', 'Republic of Madagascar', 'Mad.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 3, 6),
+  ('MX', 'MEX', 'Mexico', 'Mexico', 'United Mexican States', 'Mex.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central America' LIMIT 1), 1, 2, 6),
+  ('MK', 'MKD', 'Macedonia', 'Macedonia', 'Former Yugoslav Republic of Macedonia', 'Mkd.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Europe' LIMIT 1), 1, 6, 5),
+  ('ML', 'MLI', 'Mali', 'Mali', 'Republic of Mali', 'Mali', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 3, 1),
+  ('MM', 'MMR', 'Myanmar', 'Myanmar', 'Republic of the Union of Myanmar', 'Myan.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South-Eastern Asia' LIMIT 1), 1, 3, 2),
+  ('ME', 'MNE', 'Montenegro', 'Montenegro', 'Montenegro', 'Mont.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Europe' LIMIT 1), 1, 6, 4),
+  ('MN', 'MNG', 'Mongolia', 'Mongolia', 'Mongolia', 'Mong.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Asia' LIMIT 1), 1, 3, 3),
+  ('MZ', 'MOZ', 'Mozambique', 'Mozambique', 'Republic of Mozambique', 'Moz.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 3, 4),
+  ('MR', 'MRT', 'Mauritania', 'Mauritania', 'Islamic Republic of Mauritania', 'Mrt.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 3, 3),
+  ('MW', 'MWI', 'Malawi', 'Malawi', 'Republic of Malawi', 'Mal.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 6, 1),
+  ('MY', 'MYS', 'Malaysia', 'Malaysia', 'Malaysia', 'Malay.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South-Eastern Asia' LIMIT 1), 1, 3, 2),
+  ('NA', 'NAM', 'Namibia', 'Namibia', 'Republic of Namibia', 'Nam.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Africa' LIMIT 1), 1, 3, 4),
+  ('NC', 'NCL', 'New Caledonia', 'New Caledonia', 'New Caledonia', 'New C.', 'Dependency', (SELECT id FROM public.regions WHERE name = 'Melanesia' LIMIT 1), 1, 3, 7),
+  ('NE', 'NER', 'Niger', 'Niger', 'Republic of Niger', 'Niger', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 3, 4),
+  ('NG', 'NGA', 'Nigeria', 'Nigeria', 'Federal Republic of Nigeria', 'Nigeria', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 2, 3),
+  ('NI', 'NIC', 'Nicaragua', 'Nicaragua', 'Republic of Nicaragua', 'Nic.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central America' LIMIT 1), 1, 5, 1),
+  ('NL', 'NLD', 'Netherlands', 'Netherlands', 'Kingdom of the Netherlands', 'Neth.', 'Country', (SELECT id FROM public.regions WHERE name = 'Western Europe' LIMIT 1), 1, 5, 4),
+  ('NO', 'NOR', 'Norway', 'Norway', 'Kingdom of Norway', 'Nor.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Europe' LIMIT 1), 1, 3, 5),
+  ('NP', 'NPL', 'Nepal', 'Nepal', 'Nepal', 'Nepal', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Asia' LIMIT 1), 1, 3, 2),
+  ('NZ', 'NZL', 'New Zealand', 'New Zealand', 'New Zealand', 'N.Z.', 'Country', (SELECT id FROM public.regions WHERE name = 'Australia and New Zealand' LIMIT 1), 1, 2, 3),
+  ('OM', 'OMN', 'Oman', 'Oman', 'Sultanate of Oman', 'Oman', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 4, 1),
+  ('PK', 'PAK', 'Pakistan', 'Pakistan', 'Islamic Republic of Pakistan', 'Pak.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Asia' LIMIT 1), 1, 2, 2),
+  ('PA', 'PAN', 'Panama', 'Panama', 'Republic of Panama', 'Pan.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central America' LIMIT 1), 1, 4, 4),
+  ('PE', 'PER', 'Peru', 'Peru', 'Republic of Peru', 'Peru', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 2, 4),
+  ('PH', 'PHL', 'Philippines', 'Philippines', 'Republic of the Philippines', 'Phil.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South-Eastern Asia' LIMIT 1), 1, 2, 3),
+  ('PG', 'PNG', 'Papua New Guinea', 'Papua New Guinea', 'Independent State of Papua New Guinea', 'P.N.G.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Melanesia' LIMIT 1), 1, 2, 4),
+  ('PL', 'POL', 'Poland', 'Poland', 'Republic of Poland', 'Pol.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Europe' LIMIT 1), 1, 3, 3),
+  ('PR', 'PRI', 'Puerto Rico', 'Puerto Rico', 'Commonwealth of Puerto Rico', 'P.R.', 'Dependency', (SELECT id FROM public.regions WHERE name = 'Caribbean' LIMIT 1), 1, 5, 4),
+  ('KP', 'PRK', 'Dem. Rep. Korea', 'Dem. Rep. Korea', 'Democratic People''s Republic of Korea', 'N.K.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Asia' LIMIT 1), 1, 3, 3),
+  ('PT', 'PRT', 'Portugal', 'Portugal', 'Portuguese Republic', 'Port.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Europe' LIMIT 1), 1, 2, 1),
+  ('PY', 'PRY', 'Paraguay', 'Paraguay', 'Republic of Paraguay', 'Para.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 4, 6),
+  ('PS', 'PSE', 'Palestine', 'Palestine', 'West Bank and Gaza', 'Pal.', 'Disputed', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 5, 3),
+  ('QA', 'QAT', 'Qatar', 'Qatar', 'State of Qatar', 'Qatar', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 5, 3),
+  ('RO', 'ROU', 'Romania', 'Romania', 'Romania', 'Rom.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Europe' LIMIT 1), 1, 3, 1),
+  ('RU', 'RUS', 'Russia', 'Russian Federation', 'Russian Federation', 'Rus.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Europe' LIMIT 1), 1, 2, 2),
+  ('RW', 'RWA', 'Rwanda', 'Rwanda', 'Republic of Rwanda', 'Rwa.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 3, 5),
+  ('EH', 'ESH', 'W. Sahara', 'Western Sahara', 'Sahrawi Arab Democratic Republic', 'W. Sah.', 'Indeterminate', (SELECT id FROM public.regions WHERE name = 'Northern Africa' LIMIT 1), 1, 7, 4),
+  ('SA', 'SAU', 'Saudi Arabia', 'Saudi Arabia', 'Kingdom of Saudi Arabia', 'Saud.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 2, 6),
+  ('SD', 'SDN', 'Sudan', 'Sudan', 'Republic of the Sudan', 'Sudan', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Africa' LIMIT 1), 1, 3, 2),
+  ('SS', 'SSD', 'S. Sudan', 'South Sudan', 'Republic of South Sudan', 'S. Sud.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 3, 1),
+  ('SN', 'SEN', 'Senegal', 'Senegal', 'Republic of Senegal', 'Sen.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 3, 2),
+  ('SB', 'SLB', 'Solomon Is.', 'Solomon Islands', '', 'S. Is.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Melanesia' LIMIT 1), 1, 3, 1),
+  ('SL', 'SLE', 'Sierra Leone', 'Sierra Leone', 'Republic of Sierra Leone', 'S.L.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 4, 1),
+  ('SV', 'SLV', 'El Salvador', 'El Salvador', 'Republic of El Salvador', 'El. S.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central America' LIMIT 1), 1, 6, 1),
+  ('SO', 'SOM', 'Somalia', 'Somalia', 'Federal Republic of Somalia', 'Som.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 6, 2),
+  ('RS', 'SRB', 'Serbia', 'Serbia', 'Republic of Serbia', 'Serb.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Europe' LIMIT 1), 1, 5, 3),
+  ('SR', 'SUR', 'Suriname', 'Suriname', 'Republic of Suriname', 'Sur.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 4, 1),
+  ('SK', 'SVK', 'Slovakia', 'Slovakia', 'Slovak Republic', 'Svk.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Europe' LIMIT 1), 1, 6, 2),
+  ('SI', 'SVN', 'Slovenia', 'Slovenia', 'Republic of Slovenia', 'Slo.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Europe' LIMIT 1), 1, 6, 2),
+  ('SE', 'SWE', 'Sweden', 'Sweden', 'Kingdom of Sweden', 'Swe.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Europe' LIMIT 1), 1, 3, 1),
+  ('SZ', 'SWZ', 'Swaziland', 'Swaziland', 'Kingdom of Swaziland', 'Swz.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Africa' LIMIT 1), 1, 4, 3),
+  ('SY', 'SYR', 'Syria', 'Syria', 'Syrian Arab Republic', 'Syria', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 3, 2),
+  ('TD', 'TCD', 'Chad', 'Chad', 'Republic of Chad', 'Chad', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Middle Africa' LIMIT 1), 1, 3, 6),
+  ('TG', 'TGO', 'Togo', 'Togo', 'Togolese Republic', 'Togo', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Africa' LIMIT 1), 1, 6, 3),
+  ('TH', 'THA', 'Thailand', 'Thailand', 'Kingdom of Thailand', 'Thai.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South-Eastern Asia' LIMIT 1), 1, 3, 3),
+  ('TJ', 'TJK', 'Tajikistan', 'Tajikistan', 'Republic of Tajikistan', 'Tjk.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central Asia' LIMIT 1), 1, 4, 3),
+  ('TM', 'TKM', 'Turkmenistan', 'Turkmenistan', 'Turkmenistan', 'Turkm.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central Asia' LIMIT 1), 1, 4, 3),
+  ('TL', 'TLS', 'Timor-Leste', 'Timor-Leste', 'Democratic Republic of Timor-Leste', 'T.L.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South-Eastern Asia' LIMIT 1), 1, 5, 2),
+  ('TT', 'TTO', 'Trinidad and Tobago', 'Trinidad and Tobago', 'Republic of Trinidad and Tobago', 'Tr.T.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Caribbean' LIMIT 1), 1, 5, 5),
+  ('TN', 'TUN', 'Tunisia', 'Tunisia', 'Republic of Tunisia', 'Tun.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Northern Africa' LIMIT 1), 1, 3, 4),
+  ('TR', 'TUR', 'Turkey', 'Turkey', 'Republic of Turkey', 'Tur.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 2, 6),
+  ('TW', 'TWN', 'Taiwan', 'Taiwan', '', 'Taiwan', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Asia' LIMIT 1), 1, 3, 1),
+  ('TZ', 'TZA', 'Tanzania', 'Tanzania', 'United Republic of Tanzania', 'Tanz.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 3, 3),
+  ('UG', 'UGA', 'Uganda', 'Uganda', 'Republic of Uganda', 'Uga.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 3, 6),
+  ('UA', 'UKR', 'Ukraine', 'Ukraine', 'Ukraine', 'Ukr.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Europe' LIMIT 1), 1, 3, 5),
+  ('UY', 'URY', 'Uruguay', 'Uruguay', 'Oriental Republic of Uruguay', 'Ury.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 4, 1),
+  ('US', 'USA', 'United States', 'United States', 'United States of America', 'U.S.A.', 'Country', (SELECT id FROM public.regions WHERE name = 'Northern America' LIMIT 1), 1, 2, 4),
+  ('UZ', 'UZB', 'Uzbekistan', 'Uzbekistan', 'Republic of Uzbekistan', 'Uzb.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Central Asia' LIMIT 1), 1, 3, 2),
+  ('VE', 'VEN', 'Venezuela', 'Venezuela', 'Bolivarian Republic of Venezuela', 'Ven.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South America' LIMIT 1), 1, 3, 1),
+  ('VN', 'VNM', 'Vietnam', 'Vietnam', 'Socialist Republic of Vietnam', 'Viet.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'South-Eastern Asia' LIMIT 1), 1, 2, 5),
+  ('VU', 'VUT', 'Vanuatu', 'Vanuatu', 'Republic of Vanuatu', 'Van.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Melanesia' LIMIT 1), 1, 4, 6),
+  ('YE', 'YEM', 'Yemen', 'Yemen', 'Republic of Yemen', 'Yem.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Western Asia' LIMIT 1), 1, 3, 5),
+  ('ZA', 'ZAF', 'South Africa', 'South Africa', 'Republic of South Africa', 'S.Af.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Southern Africa' LIMIT 1), 1, 2, 2),
+  ('ZM', 'ZMB', 'Zambia', 'Zambia', 'Republic of Zambia', 'Zambia', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 3, 5),
+  ('ZW', 'ZWE', 'Zimbabwe', 'Zimbabwe', 'Republic of Zimbabwe', 'Zimb.', 'Sovereign country', (SELECT id FROM public.regions WHERE name = 'Eastern Africa' LIMIT 1), 1, 3, 1)
+ON CONFLICT (iso_a2) DO UPDATE SET
+  iso_a3 = EXCLUDED.iso_a3,
+  name = EXCLUDED.name,
+  name_long = EXCLUDED.name_long,
+  formal_name = EXCLUDED.formal_name,
+  abbrev = EXCLUDED.abbrev,
+  admin_type = EXCLUDED.admin_type,
+  region_id = EXCLUDED.region_id,
+  scale_rank = EXCLUDED.scale_rank,
+  label_rank = EXCLUDED.label_rank,
+  map_color = EXCLUDED.map_color;
+
+-- Migration: 20260315000400_images_atlas_persistence.sql
+
+-- 1. Extend images table with atlas hierarchy columns
+ALTER TABLE public.images
+ADD COLUMN IF NOT EXISTS country_id uuid REFERENCES public.countries(id);
+
+ALTER TABLE public.images
+ADD COLUMN IF NOT EXISTS country_code text;
+
+ALTER TABLE public.images
+ADD COLUMN IF NOT EXISTS country_name text;
+
+ALTER TABLE public.images
+ADD COLUMN IF NOT EXISTS admin_region_name text;
+
+ALTER TABLE public.images
+ADD COLUMN IF NOT EXISTS un_region_name text;
+
+ALTER TABLE public.images
+ADD COLUMN IF NOT EXISTS continent_name text;
+
+-- 2. Add performance indexes
+CREATE INDEX IF NOT EXISTS idx_images_country_id ON public.images(country_id);
+CREATE INDEX IF NOT EXISTS idx_images_country_code ON public.images(country_code);
+CREATE INDEX IF NOT EXISTS idx_images_continent ON public.images(continent_name);
+
+-- 3. Add comment explaining the source of truth
+COMMENT ON COLUMN public.images.country_id IS 'Derived from location GPS via Natural Earth Admin-0 boundaries';
+
+-- 4. Backfill existing images with atlas data using ST_Point constructor
+-- NOTE: ST_Covers check was disabled here because countries.boundary was not yet populated.
+-- Boundaries were populated later in 20260335000047_fix_get_upload_context_country_lookup.sql.
+-- This migration is historical and should not be re-run. New images get country resolution
+-- via get_upload_context RPC which uses ST_Covers with the GIST index on countries.boundary.
+UPDATE public.images i
+SET
+  country_id = c.id,
+  country_code = c.iso_a2,
+  country_name = c.name,
+  admin_region_name = r.name,
+  un_region_name = r.un_region_name,
+  continent_name = u.continent_name
+FROM public.countries c
+JOIN public.regions r ON c.region_id = r.id
+JOIN public.un_regions u ON r.un_region_name = u.name
+WHERE i.latitude IS NOT NULL
+  AND i.longitude IS NOT NULL
+  AND i.country_id IS NULL
+  AND false; -- Disabled: was historical, boundaries populated in 20260335000047
+
+-- Migration: 20260316000000_add_submission_credit.sql
+
+ALTER TABLE public.images
+  ADD COLUMN IF NOT EXISTS contribution_credit_platform TEXT,
+  ADD COLUMN IF NOT EXISTS contribution_credit_handle TEXT;
+
+CREATE OR REPLACE FUNCTION public.update_own_submission_credit(
+  p_image_id UUID,
+  p_platform TEXT,
+  p_handle TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+DECLARE
+  current_user_id UUID := auth.uid();
+  normalized_platform TEXT;
+  normalized_handle TEXT;
+BEGIN
+  IF current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  IF p_image_id IS NULL THEN
+    RAISE EXCEPTION 'Image ID is required';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.images i
+    WHERE i.id = p_image_id
+      AND i.created_by = current_user_id
+  ) THEN
+    RAISE EXCEPTION 'You do not have permission to edit this submission';
+  END IF;
+
+  normalized_handle := NULLIF(btrim(COALESCE(p_handle, '')), '');
+
+  IF normalized_handle IS NULL THEN
+    normalized_platform := NULL;
+  ELSE
+    normalized_handle := regexp_replace(normalized_handle, '^@+', '');
+
+    IF char_length(normalized_handle) > 50 THEN
+      RAISE EXCEPTION 'Handle must be 50 characters or less';
+    END IF;
+
+    IF normalized_handle !~ '^[A-Za-z0-9._-]+$' THEN
+      RAISE EXCEPTION 'Handle can only include letters, numbers, periods, underscores, and hyphens';
+    END IF;
+
+    normalized_platform := lower(NULLIF(btrim(COALESCE(p_platform, '')), ''));
+
+    IF normalized_platform IS NULL THEN
+      RAISE EXCEPTION 'Platform is required when a handle is provided';
+    END IF;
+
+    IF normalized_platform NOT IN ('instagram', 'tiktok', 'youtube', 'x', 'other') THEN
+      RAISE EXCEPTION 'Invalid platform';
+    END IF;
+  END IF;
+
+  UPDATE public.images
+  SET
+    contribution_credit_platform = normalized_platform,
+    contribution_credit_handle = normalized_handle
+  WHERE id = p_image_id;
+
+  RETURN jsonb_build_object(
+    'platform', normalized_platform,
+    'handle', normalized_handle
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.update_own_submission_credit(UUID, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.update_own_submission_credit(UUID, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.update_own_submission_credit(UUID, TEXT, TEXT) TO service_role;
+
+-- Migration: 20260316000001_populate_country_boundaries.sql
+
 -- Migration: Populate country boundaries from Natural Earth
 -- Date: 2026-03-16
 -- Purpose: Inject 174 country polygons for ST_Covers spatial queries
@@ -177,3 +6558,1428 @@ UPDATE public.countries SET boundary = ST_GeomFromGeoJSON('{"type": "Polygon", "
 UPDATE public.countries SET boundary = ST_GeomFromGeoJSON('{"type": "Polygon", "coordinates": [[[31.521001417778876, -29.257386976846256], [31.325561150851, -29.401977634398914], [30.901762729625347, -29.909956963828037], [30.62281334811382, -30.42377573010613], [30.05571618014278, -31.140269463832958], [28.92555260591954, -32.1720411109725], [28.2197558936771, -32.771952813448856], [27.464608188595975, -33.2269637997788], [26.419452345492825, -33.61495045342619], [25.90966434093349, -33.6670402971764], [25.780628289500697, -33.94464609144834], [25.172861769315972, -33.796851495093584], [24.677853224392123, -33.98717579522455], [23.594043409934642, -33.794474379208154], [22.988188917744736, -33.91643075941698], [22.574157342222236, -33.86408253350531], [21.542799106541025, -34.258838799782936], [20.689052768647002, -34.417175388325234], [20.071261020597632, -34.79513681410799], [19.61640506356457, -34.81916635512371], [19.193278435958717, -34.46259897230979], [18.85531456876987, -34.444305515278465], [18.42464318204938, -33.99787281670897], [18.377410922934615, -34.13652068454807], [18.24449913907992, -33.86775156019803], [18.250080193767445, -33.28143075941444], [17.92519046394844, -32.61129078545343], [18.247909783611192, -32.42913136162457], [18.22176150887148, -31.66163298922567], [17.56691775886887, -30.725721123987547], [17.064416131262703, -29.878641045859162], [17.062917514726223, -29.875953871379984], [16.344976840895242, -28.5767050106977], [16.824017368240902, -28.08216155366447], [17.218928663815404, -28.35594329194681], [17.387497185951503, -28.78351409272978], [17.83615197110953, -28.85637786226132], [18.464899122804752, -29.04546192801728], [19.002127312911085, -28.972443129188868], [19.894734327888614, -28.461104831660776], [19.895767856534434, -24.76779021576059], [20.16572553882719, -24.91796192800077], [20.75860924651184, -25.86813648855145], [20.66647016773544, -26.477453301704923], [20.88960900237174, -26.828542982695915], [21.605896030369394, -26.726533705351756], [22.105968865657868, -26.280256036079138], [22.57953169118059, -25.979447523708146], [22.8242712745149, -25.50045867279477], [23.312096795350186, -25.26868987396572], [23.73356977712271, -25.390129489851617], [24.211266717228796, -25.670215752873574], [25.025170525825786, -25.7196700985769], [25.66466637543772, -25.486816094669713], [25.76584882986521, -25.17484547292368], [25.94165205252216, -24.69637338633322], [26.4857532081233, -24.616326592713104], [26.786406691197413, -24.240690606383485], [27.119409620886245, -23.574323011979775], [28.01723595552525, -22.82775359465908], [29.43218834810904, -22.091312758067588], [29.839036899542972, -22.102216485281176], [30.322883335091774, -22.271611830333935], [30.65986535006709, -22.151567478119915], [31.19140913262129, -22.2515096981724], [31.670397983534656, -23.658969008073864], [31.930588820124253, -24.36941659922254], [31.75240848158188, -25.484283949487413], [31.83777794772806, -25.84333180105135], [31.333157586397903, -25.66019052500895], [31.04407962415715, -25.731452325139443], [30.949666782359913, -26.02264902110415], [30.67660851412964, -26.398078301704608], [30.68596194837448, -26.743845310169533], [31.28277306491333, -27.285879408478998], [31.86806033705108, -27.177927341421277], [32.07166548028107, -26.73382008230491], [32.830120477028885, -26.742191664336197], [32.580264926897684, -27.470157566031816], [32.46213260267845, -28.301011244420557], [32.20338870619304, -28.75240488049007], [31.521001417778876, -29.257386976846256]], [[28.978262566857243, -28.95559661226171], [28.541700066855498, -28.64750172293757], [28.074338413207784, -28.851468601193588], [27.532511020627478, -29.24271087007536], [26.999261915807637, -29.875953871379984], [27.749397006956485, -30.645105889612225], [28.107204624145425, -30.54573211031495], [28.29106937023991, -30.2262167294543], [28.84839969250774, -30.070050551068256], [29.018415154748027, -29.74376555757737], [29.32516645683259, -29.257386976846256], [28.978262566857243, -28.95559661226171]]]}') WHERE iso_a2 = 'ZA';
 UPDATE public.countries SET boundary = ST_GeomFromGeoJSON('{"type": "Polygon", "coordinates": [[[32.75937544122132, -9.23059905358906], [33.2313879737753, -9.6767216935648], [33.48568769708359, -10.525558770391115], [33.315310499817286, -10.796549981329697], [33.114289178201915, -11.607198174692314], [33.306422153463075, -12.435778090060218], [32.991764357237884, -12.783870537978274], [32.68816531752313, -13.712857761289277], [33.214024692525214, -13.971860039936153], [30.17948123548183, -14.796099134991529], [30.27425581230511, -15.507786960515213], [29.516834344203147, -15.644677829656388], [28.947463413211267, -16.04305144619444], [28.8258687680285, -16.389748630440614], [28.467906121542683, -16.468400160388846], [27.59824344250276, -17.290830580314008], [27.044427117630732, -17.938026218337434], [26.70677330903564, -17.961228936436484], [26.381935255648926, -17.8460421688579], [25.264225701608012, -17.736539808831417], [25.08444339366457, -17.661815687737374], [25.07695031098226, -17.57882333747662], [24.682349074001507, -17.353410739819473], [24.033861525170778, -17.295843194246324], [23.215048455506064, -17.523116143465984], [22.56247846852426, -16.898451429921813], [21.887842644953874, -16.08031015387688], [21.933886346125917, -12.898437188369359], [24.016136508894675, -12.911046237848574], [23.930922072045377, -12.565847670138856], [24.079905226342845, -12.191296888887365], [23.904153680118185, -11.722281589406322], [24.01789350759259, -11.23729827234709], [23.912215203555718, -10.926826267137514], [24.25715538910399, -10.951992689663657], [24.31451622894795, -11.26282642989927], [24.78316979340295, -11.238693536018964], [25.418118116973204, -11.330935967659961], [25.752309604604733, -11.784965101776358], [26.553087599399618, -11.924439792532127], [27.164419793412463, -11.608748467661075], [27.388798862423783, -12.132747491100666], [28.155108676879987, -12.272480564017897], [28.523561639121027, -12.698604424696683], [28.934285922976837, -13.248958428605135], [29.69961388521949, -13.257226657771831], [29.61600141777123, -12.178894545137311], [29.34154788586909, -12.360743910372413], [28.642417433392353, -11.971568698782315], [28.372253045370428, -11.793646742401393], [28.49606977714177, -10.789883721564046], [28.67368167492893, -9.605924981324932], [28.449871046672826, -9.164918308146085], [28.734866570762502, -8.526559340044578], [29.00291222506047, -8.407031752153472], [30.346086053190817, -8.238256524288218], [30.74001549655179, -8.340007419470915], [31.15775133695005, -8.594578747317366], [31.556348097466497, -8.762048841998642], [32.19186486179197, -8.930358981973278], [32.75937544122132, -9.23059905358906]]]}') WHERE iso_a2 = 'ZM';
 UPDATE public.countries SET boundary = ST_GeomFromGeoJSON('{"type": "Polygon", "coordinates": [[[31.19140913262129, -22.2515096981724], [30.65986535006709, -22.151567478119915], [30.322883335091774, -22.271611830333935], [29.839036899542972, -22.102216485281176], [29.43218834810904, -22.091312758067588], [28.794656202924216, -21.63945403410745], [28.021370070108617, -21.485975030200585], [27.72722781750326, -20.851801853114715], [27.724747348753255, -20.49905852629039], [27.296504754350508, -20.391519870691], [26.164790887158485, -19.29308562589494], [25.85039147309473, -18.714412937090536], [25.649163445750162, -18.53602589281899], [25.264225701608012, -17.736539808831417], [26.381935255648926, -17.8460421688579], [26.70677330903564, -17.961228936436484], [27.044427117630732, -17.938026218337434], [27.59824344250276, -17.290830580314008], [28.467906121542683, -16.468400160388846], [28.8258687680285, -16.389748630440614], [28.947463413211267, -16.04305144619444], [29.516834344203147, -15.644677829656388], [30.27425581230511, -15.507786960515213], [30.338954705534544, -15.880839125230246], [31.17306399915768, -15.860943698797874], [31.636498243951195, -16.071990248277885], [31.8520406430406, -16.319417006091378], [32.32823896661023, -16.392074069893752], [32.847638787575846, -16.713398125884616], [32.84986087416439, -17.97905730557718], [32.65488569512715, -18.672089939043495], [32.61199425632489, -19.419382826416275], [32.772707960752626, -19.715592136313298], [32.65974327976258, -20.304290052982317], [32.50869306817344, -20.395292250248307], [32.244988234188014, -21.116488539313693], [31.19140913262129, -22.2515096981724]]]}') WHERE iso_a2 = 'ZW';
+
+-- Migration: 20260316000002_fix_get_upload_context.sql
+
+-- Migration: Fix get_upload_context RPC for full atlas hierarchy
+-- Date: 2026-03-16
+-- Purpose: Return complete hierarchy (Country, Admin Region, UN Region, Continent) via ST_Covers
+
+CREATE OR REPLACE FUNCTION public.get_upload_context(search_lat double precision, search_lng double precision)
+RETURNS JSON AS $$
+DECLARE
+    result JSON;
+BEGIN
+    SELECT json_build_object(
+        'continent', (
+            SELECT json_build_object(
+                'name', u.continent_name
+            )
+            FROM countries c
+            JOIN regions r ON c.region_id = r.id
+            JOIN un_regions u ON r.un_region_name = u.name
+            WHERE ST_Covers(c.boundary, ST_SetSRID(ST_Point(search_lng, search_lat), 4326))
+            LIMIT 1
+        ),
+        'un_region', (
+            SELECT json_build_object(
+                'name', r.un_region_name,
+                'continent_name', u.continent_name
+            )
+            FROM countries c
+            JOIN regions r ON c.region_id = r.id
+            JOIN un_regions u ON r.un_region_name = u.name
+            WHERE ST_Covers(c.boundary, ST_SetSRID(ST_Point(search_lng, search_lat), 4326))
+            LIMIT 1
+        ),
+        'region', (
+            SELECT json_build_object(
+                'name', r.name,
+                'country_code', c.iso_a2
+            )
+            FROM countries c
+            JOIN regions r ON c.region_id = r.id
+            WHERE ST_Covers(c.boundary, ST_SetSRID(ST_Point(search_lng, search_lat), 4326))
+            LIMIT 1
+        ),
+        'country', (
+            SELECT json_build_object(
+                'id', id,
+                'name', name,
+                'iso_a2', iso_a2
+            )
+            FROM countries 
+            WHERE ST_Covers(boundary, ST_SetSRID(ST_Point(search_lng, search_lat), 4326))
+            LIMIT 1
+        ),
+        'crag', (
+            SELECT json_build_object(
+                'id', id,
+                'name', name,
+                'distance_meters', ST_Distance(location, ST_MakePoint(search_lng, search_lat)::geography)
+            )
+            FROM crags 
+            WHERE ST_DWithin(location, ST_MakePoint(search_lng, search_lat)::geography, 150)
+            ORDER BY location <-> ST_MakePoint(search_lng, search_lat)::geography ASC
+            LIMIT 1
+        )
+    ) INTO result;
+    
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Migration: 20260316000003_enable_image_country_backfill.sql
+
+-- Migration: Enable image country backfill with spatial join
+-- Date: 2026-03-16
+-- Purpose: Populate atlas metadata for all existing images using ST_Covers
+
+UPDATE public.images i
+SET
+  country_id = c.id,
+  country_code = c.iso_a2,
+  country_name = c.name,
+  admin_region_name = r.name,
+  un_region_name = r.un_region_name,
+  continent_name = u.continent_name
+FROM public.countries c
+JOIN public.regions r ON c.region_id = r.id
+JOIN public.un_regions u ON r.un_region_name = u.name
+WHERE i.latitude IS NOT NULL
+  AND i.longitude IS NOT NULL
+  AND i.country_id IS NULL
+  AND ST_Covers(c.boundary, ST_SetSRID(ST_Point(i.longitude, i.latitude), 4326));
+
+-- Migration: 20260316000004_restore_postgis_and_boundaries.sql
+
+-- Migration: Restore PostGIS and add boundary column to countries
+-- Date: 2026-03-16
+-- Purpose: Re-enable PostGIS for Zero-Click GPS resolution
+
+-- Enable PostGIS extension
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- Add boundary column to countries table
+ALTER TABLE public.countries 
+ADD COLUMN IF NOT EXISTS boundary geometry(Geometry, 4326);
+
+-- Create spatial index for fast lookups (GiST index on geometry)
+CREATE INDEX IF NOT EXISTS idx_countries_boundary 
+ON public.countries USING GIST(boundary);
+
+-- Migration: 20260316010000_add_profile_submission_credit.sql
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS contribution_credit_platform TEXT,
+  ADD COLUMN IF NOT EXISTS contribution_credit_handle TEXT;
+
+CREATE OR REPLACE FUNCTION public.update_own_profile_submission_credit(
+  p_platform TEXT,
+  p_handle TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+DECLARE
+  current_user_id UUID := auth.uid();
+  normalized_platform TEXT;
+  normalized_handle TEXT;
+BEGIN
+  IF current_user_id IS NULL THEN
+    RAISE EXCEPTION 'Authentication required';
+  END IF;
+
+  normalized_handle := NULLIF(btrim(COALESCE(p_handle, '')), '');
+
+  IF normalized_handle IS NULL THEN
+    normalized_platform := NULL;
+  ELSE
+    normalized_handle := regexp_replace(normalized_handle, '^@+', '');
+
+    IF char_length(normalized_handle) > 50 THEN
+      RAISE EXCEPTION 'Handle must be 50 characters or less';
+    END IF;
+
+    IF normalized_handle !~ '^[A-Za-z0-9._-]+$' THEN
+      RAISE EXCEPTION 'Handle can only include letters, numbers, periods, underscores, and hyphens';
+    END IF;
+
+    normalized_platform := lower(NULLIF(btrim(COALESCE(p_platform, '')), ''));
+
+    IF normalized_platform IS NULL THEN
+      RAISE EXCEPTION 'Platform is required when a handle is provided';
+    END IF;
+
+    IF normalized_platform NOT IN ('instagram', 'tiktok', 'youtube', 'x', 'other') THEN
+      RAISE EXCEPTION 'Invalid platform';
+    END IF;
+  END IF;
+
+  UPDATE public.profiles
+  SET
+    contribution_credit_platform = normalized_platform,
+    contribution_credit_handle = normalized_handle,
+    updated_at = NOW()
+  WHERE id = current_user_id;
+
+  IF NOT FOUND THEN
+    INSERT INTO public.profiles (id, contribution_credit_platform, contribution_credit_handle)
+    VALUES (current_user_id, normalized_platform, normalized_handle);
+  END IF;
+
+  RETURN jsonb_build_object(
+    'platform', normalized_platform,
+    'handle', normalized_handle
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.update_own_profile_submission_credit(TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.update_own_profile_submission_credit(TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.update_own_profile_submission_credit(TEXT, TEXT) TO service_role;
+
+-- Migration: 20260317000000_harden_rls_and_grants.sql
+
+-- Hardening pass: tighten grants and ownership checks.
+
+DO $$
+BEGIN
+  IF to_regclass('public.deletion_requests') IS NOT NULL THEN
+    ALTER TABLE public.deletion_requests ENABLE ROW LEVEL SECURITY;
+
+    REVOKE ALL ON TABLE public.deletion_requests FROM anon;
+    REVOKE ALL ON TABLE public.deletion_requests FROM authenticated;
+
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.deletion_requests TO authenticated;
+    GRANT ALL ON TABLE public.deletion_requests TO service_role;
+
+    IF EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'deletion_requests'
+        AND policyname = 'Users manage own deletion requests'
+    ) THEN
+      DROP POLICY "Users manage own deletion requests" ON public.deletion_requests;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'deletion_requests'
+        AND policyname = 'Service role manage deletion requests'
+    ) THEN
+      DROP POLICY "Service role manage deletion requests" ON public.deletion_requests;
+    END IF;
+
+    CREATE POLICY "Users manage own deletion requests"
+      ON public.deletion_requests
+      FOR ALL
+      TO authenticated
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+
+    CREATE POLICY "Service role manage deletion requests"
+      ON public.deletion_requests
+      FOR ALL
+      TO service_role
+      USING (true)
+      WITH CHECK (true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF to_regclass('public.climb_verifications') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'climb_verifications'
+        AND policyname = 'Authenticated create verification'
+    ) THEN
+      DROP POLICY "Authenticated create verification" ON public.climb_verifications;
+    END IF;
+
+    CREATE POLICY "Authenticated create verification"
+      ON public.climb_verifications
+      FOR INSERT
+      WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF to_regclass('public.grade_votes') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'grade_votes'
+        AND policyname = 'Authenticated create grade vote'
+    ) THEN
+      DROP POLICY "Authenticated create grade vote" ON public.grade_votes;
+    END IF;
+
+    CREATE POLICY "Authenticated create grade vote"
+      ON public.grade_votes
+      FOR INSERT
+      WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF to_regclass('public.climb_corrections') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'climb_corrections'
+        AND policyname = 'Authenticated create correction'
+    ) THEN
+      DROP POLICY "Authenticated create correction" ON public.climb_corrections;
+    END IF;
+
+    CREATE POLICY "Authenticated create correction"
+      ON public.climb_corrections
+      FOR INSERT
+      WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF to_regclass('public.correction_votes') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'correction_votes'
+        AND policyname = 'Authenticated create correction vote'
+    ) THEN
+      DROP POLICY "Authenticated create correction vote" ON public.correction_votes;
+    END IF;
+
+    CREATE POLICY "Authenticated create correction vote"
+      ON public.correction_votes
+      FOR INSERT
+      WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF to_regclass('public.route_grades') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'route_grades'
+        AND policyname = 'Authenticated create route grade'
+    ) THEN
+      DROP POLICY "Authenticated create route grade" ON public.route_grades;
+    END IF;
+
+    CREATE POLICY "Authenticated create route grade"
+      ON public.route_grades
+      FOR INSERT
+      WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF to_regclass('public.climb_flags') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'climb_flags'
+        AND policyname = 'Authenticated create climb_flags'
+    ) THEN
+      DROP POLICY "Authenticated create climb_flags" ON public.climb_flags;
+    END IF;
+
+    CREATE POLICY "Authenticated create climb_flags"
+      ON public.climb_flags
+      FOR INSERT
+      WITH CHECK (auth.role() = 'authenticated' AND auth.uid() = flagger_id);
+  END IF;
+END $$;
+
+-- Migration: 20260317000001_restore_crags_region_fk.sql
+
+-- Restore the foreign key relationship between crags and regions
+-- This was severed when the regions table was rebuilt for the Atlas hierarchy
+
+-- First, clear orphaned region_ids that reference non-existent regions
+UPDATE public.crags 
+SET region_id = NULL 
+WHERE region_id IS NOT NULL 
+AND NOT EXISTS (SELECT 1 FROM public.regions r WHERE r.id = crags.region_id);
+
+-- Add FK from crags to regions
+ALTER TABLE public.crags 
+ADD CONSTRAINT crags_region_id_fkey 
+FOREIGN KEY (region_id) REFERENCES public.regions(id) ON DELETE SET NULL;
+
+-- Add FK from countries to regions (needed for the PostgREST join in crags page)
+ALTER TABLE public.countries 
+ADD CONSTRAINT countries_region_id_fkey 
+FOREIGN KEY (region_id) REFERENCES public.regions(id) ON DELETE SET NULL;
+
+-- Migration: 20260317000005_backfill_crags_country_id.sql
+
+-- Backfill country_id on existing crags using the ISO code
+UPDATE public.crags c 
+SET country_id = co.id 
+FROM public.countries co 
+WHERE co.iso_a2 = c.country_code 
+AND c.country_id IS NULL;
+
+-- Migration: 20260317000006_backfill_crag_country_id.sql
+
+-- Backfill country_id on crags from existing country_code
+-- Fix for 404 errors on map pins after geography migration
+
+UPDATE crags c
+SET country_id = (
+  SELECT id FROM countries co 
+  WHERE co.iso_a2 = c.country_code
+)
+WHERE c.country_id IS NULL AND c.country_code IS NOT NULL;
+
+-- Migration: 20260317010000_harden_grants_and_security_definer_search_path.sql
+
+-- Hardening pass: reduce broad grants and enforce search_path on SECURITY DEFINER functions.
+
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT tablename
+    FROM pg_tables
+    WHERE schemaname = 'public'
+  LOOP
+    EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.%I FROM anon;', r.tablename);
+    EXECUTE format('REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLE public.%I FROM authenticated;', r.tablename);
+  END LOOP;
+END $$;
+
+DO $$
+DECLARE
+  fn record;
+BEGIN
+  FOR fn IN
+    SELECT n.nspname AS schema_name,
+           p.proname AS function_name,
+           pg_get_function_identity_arguments(p.oid) AS identity_args
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.prosecdef = true
+      AND p.proname NOT LIKE 'st\_%'
+  LOOP
+    EXECUTE format(
+      'ALTER FUNCTION %I.%I(%s) SET search_path = public, auth, extensions;',
+      fn.schema_name,
+      fn.function_name,
+      fn.identity_args
+    );
+  END LOOP;
+END $$;
+
+-- Migration: 20260317020000_auto_derive_crag_type_from_climbs.sql
+
+CREATE OR REPLACE FUNCTION public.normalize_climb_route_type(raw_type TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  normalized TEXT;
+BEGIN
+  IF raw_type IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  normalized := lower(trim(replace(raw_type, '_', '-')));
+
+  IF normalized = 'bouldering' THEN
+    RETURN 'boulder';
+  ELSIF normalized = 'boulder' THEN
+    RETURN 'boulder';
+  ELSIF normalized = 'sport' THEN
+    RETURN 'sport';
+  ELSIF normalized = 'trad' THEN
+    RETURN 'trad';
+  ELSIF normalized = 'mixed' THEN
+    RETURN 'mixed';
+  ELSIF normalized = 'deep-water-solo' THEN
+    RETURN 'deep_water_solo';
+  ELSIF normalized = 'top-rope' THEN
+    RETURN 'top_rope';
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.refresh_crag_type_from_climbs(target_crag_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  winner_type TEXT;
+  winner_count INTEGER;
+  has_tie BOOLEAN;
+BEGIN
+  IF target_crag_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  WITH normalized_counts AS (
+    SELECT
+      public.normalize_climb_route_type(c.route_type) AS normalized_type,
+      COUNT(*)::INTEGER AS route_count
+    FROM public.climbs c
+    WHERE c.crag_id = target_crag_id
+      AND c.deleted_at IS NULL
+      AND COALESCE(c.status, 'approved') = 'approved'
+    GROUP BY public.normalize_climb_route_type(c.route_type)
+    HAVING public.normalize_climb_route_type(c.route_type) IS NOT NULL
+  ), ranked AS (
+    SELECT
+      normalized_type,
+      route_count,
+      DENSE_RANK() OVER (ORDER BY route_count DESC) AS count_rank
+    FROM normalized_counts
+  )
+  SELECT
+    (SELECT normalized_type FROM ranked WHERE count_rank = 1 LIMIT 1),
+    (SELECT route_count FROM ranked WHERE count_rank = 1 LIMIT 1),
+    (SELECT COUNT(*) > 1 FROM ranked WHERE count_rank = 1)
+  INTO winner_type, winner_count, has_tie;
+
+  IF winner_type IS NULL OR winner_count IS NULL THEN
+    RETURN;
+  END IF;
+
+  UPDATE public.crags
+  SET type = CASE
+    WHEN has_tie THEN 'mixed'
+    ELSE winner_type
+  END
+  WHERE id = target_crag_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sync_crag_type_from_climbs()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    PERFORM public.refresh_crag_type_from_climbs(OLD.crag_id);
+    RETURN OLD;
+  END IF;
+
+  IF TG_OP = 'UPDATE' AND OLD.crag_id IS DISTINCT FROM NEW.crag_id THEN
+    PERFORM public.refresh_crag_type_from_climbs(OLD.crag_id);
+  END IF;
+
+  PERFORM public.refresh_crag_type_from_climbs(NEW.crag_id);
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS climbs_sync_crag_type_after_write ON public.climbs;
+
+CREATE TRIGGER climbs_sync_crag_type_after_write
+AFTER INSERT OR UPDATE OF route_type, crag_id, status, deleted_at OR DELETE
+ON public.climbs
+FOR EACH ROW
+EXECUTE FUNCTION public.sync_crag_type_from_climbs();
+
+DO $$
+DECLARE
+  rec RECORD;
+BEGIN
+  FOR rec IN
+    SELECT DISTINCT crag_id
+    FROM public.climbs
+    WHERE crag_id IS NOT NULL
+  LOOP
+    PERFORM public.refresh_crag_type_from_climbs(rec.crag_id);
+  END LOOP;
+END;
+$$;
+
+-- Migration: 20260318000000_create_gym_owner_applications.sql
+
+CREATE TABLE IF NOT EXISTS public.gym_owner_applications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  gym_name TEXT NOT NULL CHECK (char_length(gym_name) BETWEEN 1 AND 200),
+  address TEXT NOT NULL CHECK (char_length(address) BETWEEN 1 AND 300),
+  facilities TEXT[] NOT NULL,
+  contact_phone TEXT NOT NULL CHECK (char_length(contact_phone) BETWEEN 1 AND 40),
+  contact_email TEXT NOT NULL CHECK (char_length(contact_email) BETWEEN 3 AND 160),
+  role TEXT NOT NULL CHECK (role IN ('owner', 'manager', 'head_setter')),
+  additional_comments TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewing', 'approved', 'rejected')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT gym_owner_applications_facilities_not_empty CHECK (cardinality(facilities) >= 1),
+  CONSTRAINT gym_owner_applications_facilities_valid CHECK (facilities <@ ARRAY['sport', 'boulder']::TEXT[])
+);
+
+CREATE INDEX IF NOT EXISTS idx_gym_owner_applications_status_created
+  ON public.gym_owner_applications(status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_gym_owner_applications_created
+  ON public.gym_owner_applications(created_at DESC);
+
+DO $$
+BEGIN
+  ALTER TABLE public.gym_owner_applications ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+GRANT INSERT ON TABLE public.gym_owner_applications TO anon;
+GRANT INSERT ON TABLE public.gym_owner_applications TO authenticated;
+GRANT SELECT, UPDATE ON TABLE public.gym_owner_applications TO service_role;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'gym_owner_applications'
+      AND policyname = 'Public create gym owner applications'
+  ) THEN
+    CREATE POLICY "Public create gym owner applications"
+      ON public.gym_owner_applications
+      FOR INSERT
+      WITH CHECK (true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'gym_owner_applications'
+      AND policyname = 'Admin read gym owner applications'
+  ) THEN
+    CREATE POLICY "Admin read gym owner applications"
+      ON public.gym_owner_applications
+      FOR SELECT
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE profiles.id = auth.uid()
+            AND profiles.is_admin = true
+        )
+      );
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'gym_owner_applications'
+      AND policyname = 'Admin update gym owner applications'
+  ) THEN
+    CREATE POLICY "Admin update gym owner applications"
+      ON public.gym_owner_applications
+      FOR UPDATE
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE profiles.id = auth.uid()
+            AND profiles.is_admin = true
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE profiles.id = auth.uid()
+            AND profiles.is_admin = true
+        )
+      );
+  END IF;
+END $$;
+
+-- Migration: 20260318010000_add_city_country_postcode_to_gym_owner_applications.sql
+
+ALTER TABLE public.gym_owner_applications
+  ADD COLUMN IF NOT EXISTS city TEXT,
+  ADD COLUMN IF NOT EXISTS country TEXT,
+  ADD COLUMN IF NOT EXISTS postcode_or_zip TEXT;
+
+UPDATE public.gym_owner_applications
+SET
+  city = COALESCE(NULLIF(city, ''), 'Unknown'),
+  country = COALESCE(NULLIF(country, ''), 'Unknown'),
+  postcode_or_zip = COALESCE(NULLIF(postcode_or_zip, ''), 'Unknown')
+WHERE city IS NULL OR city = '' OR country IS NULL OR country = '' OR postcode_or_zip IS NULL OR postcode_or_zip = '';
+
+ALTER TABLE public.gym_owner_applications
+  ALTER COLUMN city SET NOT NULL,
+  ALTER COLUMN country SET NOT NULL,
+  ALTER COLUMN postcode_or_zip SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'gym_owner_applications_city_length'
+      AND conrelid = 'public.gym_owner_applications'::regclass
+  ) THEN
+    ALTER TABLE public.gym_owner_applications
+      ADD CONSTRAINT gym_owner_applications_city_length CHECK (char_length(city) BETWEEN 1 AND 120);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'gym_owner_applications_country_length'
+      AND conrelid = 'public.gym_owner_applications'::regclass
+  ) THEN
+    ALTER TABLE public.gym_owner_applications
+      ADD CONSTRAINT gym_owner_applications_country_length CHECK (char_length(country) BETWEEN 1 AND 120);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'gym_owner_applications_postcode_or_zip_length'
+      AND conrelid = 'public.gym_owner_applications'::regclass
+  ) THEN
+    ALTER TABLE public.gym_owner_applications
+      ADD CONSTRAINT gym_owner_applications_postcode_or_zip_length CHECK (char_length(postcode_or_zip) BETWEEN 1 AND 32);
+  END IF;
+END $$;
+
+-- Migration: 20260318020000_create_gym_floor_plans_and_routes.sql
+
+CREATE TABLE IF NOT EXISTS public.gym_floor_plans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  gym_place_id UUID NOT NULL REFERENCES public.places(id) ON DELETE CASCADE,
+  name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 160),
+  image_url TEXT NOT NULL,
+  image_width INTEGER NOT NULL CHECK (image_width > 0),
+  image_height INTEGER NOT NULL CHECK (image_height > 0),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_gym_floor_plans_one_active_per_gym
+  ON public.gym_floor_plans(gym_place_id)
+  WHERE is_active = true;
+
+CREATE INDEX IF NOT EXISTS idx_gym_floor_plans_gym ON public.gym_floor_plans(gym_place_id);
+
+CREATE TABLE IF NOT EXISTS public.gym_routes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  gym_place_id UUID NOT NULL REFERENCES public.places(id) ON DELETE CASCADE,
+  floor_plan_id UUID NOT NULL REFERENCES public.gym_floor_plans(id) ON DELETE CASCADE,
+  name TEXT,
+  grade TEXT NOT NULL CHECK (char_length(grade) BETWEEN 1 AND 24),
+  discipline TEXT NOT NULL CHECK (discipline IN ('boulder', 'sport', 'top_rope', 'mixed')),
+  color TEXT,
+  setter_name TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'retired')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gym_routes_gym ON public.gym_routes(gym_place_id);
+CREATE INDEX IF NOT EXISTS idx_gym_routes_floor_plan ON public.gym_routes(floor_plan_id);
+CREATE INDEX IF NOT EXISTS idx_gym_routes_status ON public.gym_routes(status);
+
+CREATE TABLE IF NOT EXISTS public.gym_route_markers (
+  route_id UUID PRIMARY KEY REFERENCES public.gym_routes(id) ON DELETE CASCADE,
+  x_norm NUMERIC(8,6) NOT NULL CHECK (x_norm >= 0 AND x_norm <= 1),
+  y_norm NUMERIC(8,6) NOT NULL CHECK (y_norm >= 0 AND y_norm <= 1),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DO $$
+BEGIN
+  ALTER TABLE public.gym_floor_plans ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE public.gym_routes ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE public.gym_route_markers ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'gym_floor_plans' AND policyname = 'Public read gym_floor_plans'
+  ) THEN
+    CREATE POLICY "Public read gym_floor_plans"
+      ON public.gym_floor_plans
+      FOR SELECT
+      USING (true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'gym_routes' AND policyname = 'Public read gym_routes'
+  ) THEN
+    CREATE POLICY "Public read gym_routes"
+      ON public.gym_routes
+      FOR SELECT
+      USING (true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'gym_route_markers' AND policyname = 'Public read gym_route_markers'
+  ) THEN
+    CREATE POLICY "Public read gym_route_markers"
+      ON public.gym_route_markers
+      FOR SELECT
+      USING (true);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'gym_floor_plans' AND policyname = 'Admin write gym_floor_plans'
+  ) THEN
+    CREATE POLICY "Admin write gym_floor_plans"
+      ON public.gym_floor_plans
+      FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE profiles.id = auth.uid() AND profiles.is_admin = true
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE profiles.id = auth.uid() AND profiles.is_admin = true
+        )
+      );
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'gym_routes' AND policyname = 'Admin write gym_routes'
+  ) THEN
+    CREATE POLICY "Admin write gym_routes"
+      ON public.gym_routes
+      FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE profiles.id = auth.uid() AND profiles.is_admin = true
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE profiles.id = auth.uid() AND profiles.is_admin = true
+        )
+      );
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'gym_route_markers' AND policyname = 'Admin write gym_route_markers'
+  ) THEN
+    CREATE POLICY "Admin write gym_route_markers"
+      ON public.gym_route_markers
+      FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE profiles.id = auth.uid() AND profiles.is_admin = true
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE profiles.id = auth.uid() AND profiles.is_admin = true
+        )
+      );
+  END IF;
+END $$;
+
+-- Migration: 20260318030000_add_gym_memberships_and_scoped_route_access.sql
+
+CREATE TABLE IF NOT EXISTS public.gym_memberships (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  gym_place_id UUID NOT NULL REFERENCES public.places(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('owner', 'manager', 'head_setter', 'setter')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'invited', 'revoked')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_gym_memberships_user_gym
+  ON public.gym_memberships(user_id, gym_place_id);
+
+CREATE INDEX IF NOT EXISTS idx_gym_memberships_gym_status
+  ON public.gym_memberships(gym_place_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_gym_memberships_user_status
+  ON public.gym_memberships(user_id, status);
+
+DO $$
+BEGIN
+  ALTER TABLE public.gym_memberships ENABLE ROW LEVEL SECURITY;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'gym_memberships' AND policyname = 'Users read own gym memberships'
+  ) THEN
+    CREATE POLICY "Users read own gym memberships"
+      ON public.gym_memberships
+      FOR SELECT
+      USING (auth.uid() = user_id);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'gym_memberships' AND policyname = 'Admins manage gym memberships'
+  ) THEN
+    CREATE POLICY "Admins manage gym memberships"
+      ON public.gym_memberships
+      FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM public.profiles
+          WHERE profiles.id = auth.uid()
+            AND profiles.is_admin = true
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM public.profiles
+          WHERE profiles.id = auth.uid()
+            AND profiles.is_admin = true
+        )
+      );
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'gym_routes' AND policyname = 'Gym members write gym routes'
+  ) THEN
+    CREATE POLICY "Gym members write gym routes"
+      ON public.gym_routes
+      FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM public.gym_memberships gm
+          WHERE gm.user_id = auth.uid()
+            AND gm.gym_place_id = gym_routes.gym_place_id
+            AND gm.status = 'active'
+            AND gm.role IN ('owner', 'manager', 'head_setter', 'setter')
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM public.gym_memberships gm
+          WHERE gm.user_id = auth.uid()
+            AND gm.gym_place_id = gym_routes.gym_place_id
+            AND gm.status = 'active'
+            AND gm.role IN ('owner', 'manager', 'head_setter', 'setter')
+        )
+      );
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'gym_route_markers' AND policyname = 'Gym members write gym route markers'
+  ) THEN
+    CREATE POLICY "Gym members write gym route markers"
+      ON public.gym_route_markers
+      FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1
+          FROM public.gym_routes gr
+          JOIN public.gym_memberships gm ON gm.gym_place_id = gr.gym_place_id
+          WHERE gr.id = gym_route_markers.route_id
+            AND gm.user_id = auth.uid()
+            AND gm.status = 'active'
+            AND gm.role IN ('owner', 'manager', 'head_setter', 'setter')
+        )
+      )
+      WITH CHECK (
+        EXISTS (
+          SELECT 1
+          FROM public.gym_routes gr
+          JOIN public.gym_memberships gm ON gm.gym_place_id = gr.gym_place_id
+          WHERE gr.id = gym_route_markers.route_id
+            AND gm.user_id = auth.uid()
+            AND gm.status = 'active'
+            AND gm.role IN ('owner', 'manager', 'head_setter', 'setter')
+        )
+      );
+  END IF;
+END $$;
+
+-- Migration: 20260319010000_tighten_notifications_insert_policy.sql
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'notifications'
+      AND policyname = 'Authenticated create notifications'
+  ) THEN
+    DROP POLICY "Authenticated create notifications" ON public.notifications;
+  END IF;
+END $$;
+
+CREATE POLICY "Authenticated create notifications" ON public.notifications
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+-- Migration: 20260320000000_climb_gps_inherit_from_images.sql
+
+-- Climb GPS inherit from images, remove crag boundary polygons
+-- All climbs should inherit GPS from their image (image GPS is required on submission)
+-- Crag GPS should be calculated from the average of all climbs within the crag
+
+-- 1. Add latitude/longitude columns to climbs
+ALTER TABLE public.climbs ADD COLUMN IF NOT EXISTS latitude numeric(10,8);
+ALTER TABLE public.climbs ADD COLUMN IF NOT EXISTS longitude numeric(11,8);
+
+-- 2. Function: compute climb GPS from its image (via route_lines) - for use by route_lines trigger
+CREATE OR REPLACE FUNCTION public.recompute_climb_location_from_image()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  target_climb_id uuid;
+  img_lat numeric(10,8);
+  img_lng numeric(11,8);
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    target_climb_id := NEW.climb_id;
+  ELSIF TG_OP = 'UPDATE' THEN
+    target_climb_id := NEW.climb_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    target_climb_id := OLD.climb_id;
+  ELSE
+    RETURN OLD;
+  END IF;
+
+  IF target_climb_id IS NULL THEN
+    IF TG_OP = 'DELETE' THEN
+      RETURN OLD;
+    ELSE
+      RETURN NEW;
+    END IF;
+  END IF;
+
+  SELECT i.latitude, i.longitude
+  INTO img_lat, img_lng
+  FROM public.route_lines rl
+  JOIN public.images i ON i.id = rl.image_id
+  WHERE rl.climb_id = target_climb_id
+  ORDER BY rl.created_at ASC
+  LIMIT 1;
+
+  UPDATE public.climbs c
+  SET latitude = img_lat,
+      longitude = img_lng
+  WHERE c.id = target_climb_id;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+-- 3. Trigger on route_lines to auto-populate climb GPS when route line is added/updated
+DROP TRIGGER IF EXISTS route_lines_set_climb_gps ON public.route_lines;
+CREATE TRIGGER route_lines_set_climb_gps
+AFTER INSERT OR UPDATE OF image_id ON public.route_lines
+FOR EACH ROW
+EXECUTE FUNCTION public.recompute_climb_location_from_image();
+
+-- 4. Fix sync_crag_to_place function to remove boundary column
+CREATE OR REPLACE FUNCTION public.sync_crag_to_place()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  resolved_primary TEXT;
+BEGIN
+  IF pg_trigger_depth() > 1 THEN
+    IF TG_OP = 'DELETE' THEN
+      RETURN OLD;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM public.places WHERE id = OLD.id AND type = 'crag';
+    RETURN OLD;
+  END IF;
+
+  resolved_primary := CASE
+    WHEN NEW.type IN ('boulder', 'sport', 'trad', 'deep_water_solo', 'mixed', 'top_rope') THEN NEW.type
+    WHEN NEW.type = 'crag' THEN 'mixed'
+    ELSE 'boulder'
+  END;
+
+  INSERT INTO public.places (
+    id,
+    type,
+    name,
+    latitude,
+    longitude,
+    region_id,
+    description,
+    access_notes,
+    rock_type,
+    region_name,
+    country,
+    country_code,
+    tide_dependency,
+    report_count,
+    is_flagged,
+    slug,
+    primary_discipline,
+    disciplines,
+    created_at,
+    updated_at
+  )
+  VALUES (
+    NEW.id,
+    'crag',
+    NEW.name,
+    NEW.latitude,
+    NEW.longitude,
+    NEW.region_id,
+    NEW.description,
+    NEW.access_notes,
+    NEW.rock_type,
+    NEW.region_name,
+    NEW.country,
+    NEW.country_code,
+    NEW.tide_dependency,
+    COALESCE(NEW.report_count, 0),
+    COALESCE(NEW.is_flagged, false),
+    NEW.slug,
+    resolved_primary,
+    ARRAY[resolved_primary]::TEXT[],
+    COALESCE(NEW.created_at, NOW()),
+    COALESCE(NEW.updated_at, NOW())
+  )
+  ON CONFLICT (id) DO UPDATE
+  SET
+    type = 'crag',
+    name = EXCLUDED.name,
+    latitude = EXCLUDED.latitude,
+    longitude = EXCLUDED.longitude,
+    region_id = EXCLUDED.region_id,
+    description = EXCLUDED.description,
+    access_notes = EXCLUDED.access_notes,
+    rock_type = EXCLUDED.rock_type,
+    region_name = EXCLUDED.region_name,
+    country = EXCLUDED.country,
+    country_code = EXCLUDED.country_code,
+    tide_dependency = EXCLUDED.tide_dependency,
+    report_count = EXCLUDED.report_count,
+    is_flagged = EXCLUDED.is_flagged,
+    slug = EXCLUDED.slug,
+    primary_discipline = EXCLUDED.primary_discipline,
+    disciplines = EXCLUDED.disciplines,
+    updated_at = NOW();
+
+  RETURN NEW;
+END;
+$$;
+
+-- 5. New function: recompute crag location from climbs
+CREATE OR REPLACE FUNCTION public.recompute_crag_location(target_crag_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  avg_lat numeric;
+  avg_lng numeric;
+BEGIN
+  IF target_crag_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT
+    avg(c.latitude),
+    avg(c.longitude)
+  INTO avg_lat, avg_lng
+  FROM public.climbs c
+  WHERE c.crag_id = target_crag_id
+    AND c.latitude IS NOT NULL
+    AND c.longitude IS NOT NULL;
+
+  UPDATE public.crags cr
+  SET
+    latitude = CASE WHEN avg_lat IS NULL THEN NULL ELSE avg_lat::numeric(10,8) END,
+    longitude = CASE WHEN avg_lng IS NULL THEN NULL ELSE avg_lng::numeric(11,8) END
+  WHERE cr.id = target_crag_id;
+END;
+$$;
+
+-- 6. Trigger: recompute crag location when climbs change
+CREATE OR REPLACE FUNCTION public.climbs_recompute_crag_location_trigger()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.crag_id IS NOT NULL THEN
+      PERFORM public.recompute_crag_location(NEW.crag_id);
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF OLD.crag_id IS NOT NULL AND OLD.crag_id <> NEW.crag_id THEN
+      PERFORM public.recompute_crag_location(OLD.crag_id);
+    END IF;
+    IF NEW.crag_id IS NOT NULL AND (OLD.latitude IS DISTINCT FROM NEW.latitude OR OLD.longitude IS DISTINCT FROM NEW.longitude OR OLD.crag_id IS DISTINCT FROM NEW.crag_id) THEN
+      PERFORM public.recompute_crag_location(NEW.crag_id);
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.crag_id IS NOT NULL THEN
+      PERFORM public.recompute_crag_location(OLD.crag_id);
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS climbs_recompute_crag_location_insert ON public.climbs;
+DROP TRIGGER IF EXISTS climbs_recompute_crag_location_update ON public.climbs;
+DROP TRIGGER IF EXISTS climbs_recompute_crag_location_delete ON public.climbs;
+
+CREATE TRIGGER climbs_recompute_crag_location_insert
+AFTER INSERT ON public.climbs
+FOR EACH ROW
+EXECUTE FUNCTION public.climbs_recompute_crag_location_trigger();
+
+CREATE TRIGGER climbs_recompute_crag_location_update
+AFTER UPDATE OF crag_id, latitude, longitude ON public.climbs
+FOR EACH ROW
+EXECUTE FUNCTION public.climbs_recompute_crag_location_trigger();
+
+CREATE TRIGGER climbs_recompute_crag_location_delete
+AFTER DELETE ON public.climbs
+FOR EACH ROW
+EXECUTE FUNCTION public.climbs_recompute_crag_location_trigger();
+
+-- 7. Remove old image-based triggers
+DROP TRIGGER IF EXISTS images_recompute_crag_location_insert ON public.images;
+DROP TRIGGER IF EXISTS images_recompute_crag_location_update ON public.images;
+DROP TRIGGER IF EXISTS images_recompute_crag_location_delete ON public.images;
+
+-- 8. Backfill existing climbs from their images (via route_lines)
+WITH climb_image_gps AS (
+  SELECT
+    c.id as climb_id,
+    i.latitude::numeric(10,8) as lat,
+    i.longitude::numeric(11,8) as lng
+  FROM public.climbs c
+  JOIN public.route_lines rl ON rl.climb_id = c.id
+  JOIN public.images i ON i.id = rl.image_id
+  WHERE i.latitude IS NOT NULL AND i.longitude IS NOT NULL
+)
+UPDATE public.climbs c
+SET latitude = cg.lat,
+    longitude = cg.lng
+FROM climb_image_gps cg
+WHERE c.id = cg.climb_id;
+
+-- 9. Backfill crags from climbs
+WITH crag_climb_gps AS (
+  SELECT
+    c.crag_id,
+    avg(c.latitude)::numeric(10,8) as avg_lat,
+    avg(c.longitude)::numeric(11,8) as avg_lng
+  FROM public.climbs c
+  WHERE c.crag_id IS NOT NULL
+    AND c.latitude IS NOT NULL
+    AND c.longitude IS NOT NULL
+  GROUP BY c.crag_id
+)
+UPDATE public.crags cr
+SET latitude = ccg.avg_lat,
+    longitude = ccg.avg_lng
+FROM crag_climb_gps ccg
+WHERE cr.id = ccg.crag_id;
+
+-- 10. Remove boundary column from crags
+ALTER TABLE public.crags DROP COLUMN IF EXISTS boundary;
+
+-- Migration: 20260325000000_add_grade_mappings_table.sql
+
+-- Grade Mappings Table for Multi-Grade System Support
+-- Allows users to view grades in V-Scale, Font, YDS, or French
+
+-- 1.1 Create the mapping table
+CREATE TABLE IF NOT EXISTS grade_mappings (
+  grade_index INT PRIMARY KEY,
+  v_scale VARCHAR(10),
+  font_scale VARCHAR(10),
+  yds_equivalent VARCHAR(10),
+  french_equivalent VARCHAR(10),
+  difficulty_group VARCHAR(20)
+);
+
+-- 1.2 Insert bouldering data (VB to V16)
+-- Explicitly setting grade_index starting at 0 for consistent sorting
+INSERT INTO grade_mappings (grade_index, v_scale, font_scale, yds_equivalent, french_equivalent, difficulty_group) VALUES
+(0,  'VB',  '3',    '5.6',   '4',   'Beginner'),
+(1,  'V0',  '4',    '5.9',   '5',   'Beginner'),
+(2,  'V1',  '5',    '5.10a', '6a',  'Intermediate'),
+(3,  'V2',  '5+',   '5.10c', '6a+', 'Intermediate'),
+(4,  'V3',  '6A',   '5.11a', '6b',  'Intermediate'),
+(5,  'V4',  '6B',   '5.11c', '6c',  'Advanced'),
+(6,  'V5',  '6C',   '5.12a', '7a',  'Advanced'),
+(7,  'V6',  '6C+',  '5.12b', '7a+', 'Advanced'),
+(8,  'V7',  '7A',   '5.13a', '7b',  'Expert'),
+(9,  'V8',  '7B',   '5.13b', '7c',  'Expert'),
+(10, 'V9',  '7B+',  '5.13c', '7c+', 'Expert'),
+(11, 'V10', '7C',   '5.14a', '8a',  'Elite'),
+(12, 'V11', '8A',   '5.14c', '8a+', 'Elite'),
+(13, 'V12', '8A+',  '5.15a', '8b',  'Elite'),
+(14, 'V13', '8B',   '5.15b', '8c',  'Elite'),
+(15, 'V14', '8B+',  '5.15c', '9a',  'Elite'),
+(16, 'V15', '8C',   '5.15d', '9a+', 'Elite'),
+(17, 'V16', '8C+',  '5.16a', '9b',  'Elite')
+ON CONFLICT (grade_index) DO NOTHING;
+
+-- 1.3 Add columns to climbs table for grade_index support
+ALTER TABLE climbs ADD COLUMN IF NOT EXISTS grade_index INT REFERENCES grade_mappings(grade_index);
+ALTER TABLE climbs ADD COLUMN IF NOT EXISTS original_grade_string VARCHAR(24);
+
+-- 1.4 Backfill existing climbs with grade_index
+-- Uses french_equivalent (lowercase) to match existing French grade data
+UPDATE climbs
+SET 
+  grade_index = gm.grade_index,
+  original_grade_string = climbs.grade
+FROM grade_mappings gm
+WHERE LOWER(climbs.grade) = gm.french_equivalent
+  AND climbs.grade IS NOT NULL;
+
+-- 1.5 Add index for performance on grade_index queries
+CREATE INDEX IF NOT EXISTS idx_climbs_grade_index ON climbs(grade_index);
+
+-- 1.6 Enable RLS on grade_mappings (public read)
+ALTER TABLE grade_mappings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public read grade mappings" ON grade_mappings;
+CREATE POLICY "Public read grade mappings" ON grade_mappings FOR SELECT USING (true);
+
+-- Migration: 20260326000000_expand_grade_system_column.sql
+
+-- Increase grade_system column size to accommodate new values
+ALTER TABLE profiles ALTER COLUMN grade_system TYPE VARCHAR(20);
+
+-- Migration: 20260326010000_add_type_specific_grade_systems.sql
+
+-- Add type-specific grade system columns to profiles
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS boulder_system VARCHAR(20) DEFAULT 'v_scale';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS route_system VARCHAR(20) DEFAULT 'yds_equivalent';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS trad_system VARCHAR(20) DEFAULT 'yds_equivalent';
+
+-- Migrate existing grade_system to boulder_system for backward compatibility
+UPDATE profiles 
+SET boulder_system = CASE 
+  WHEN grade_system = 'v' THEN 'v_scale'
+  WHEN grade_system = 'font' THEN 'font_scale'
+  ELSE 'v_scale'
+END
+WHERE boulder_system = 'v_scale';
