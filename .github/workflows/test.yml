@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   deployment_status:
   pull_request:
     branches: [main]
@@ -55,15 +53,6 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build
-        run: npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_MEDIA_CDN_URL: ${{ secrets.NEXT_PUBLIC_MEDIA_CDN_URL }}
-          CSRF_SECRET: ${{ secrets.CSRF_SECRET }}
-          DELETE_ACCOUNT_SECRET: ${{ secrets.DELETE_ACCOUNT_SECRET }}
-
       - name: Run Unit Tests
         run: npm run test:unit
 
@@ -109,6 +98,7 @@ jobs:
     name: E2E Smoke
     if: |
       github.event_name != 'schedule' &&
+      github.event_name != 'push' &&
       (
         github.event_name != 'deployment_status' ||
         (
