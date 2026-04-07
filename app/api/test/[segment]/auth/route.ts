@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ segment: string }> },
+) {
+  const { segment } = await params
+  const expectedSegment = process.env.TEST_AUTH_PATH_SEGMENT?.trim()
+
+  if (!expectedSegment || segment !== expectedSegment) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   if (process.env.ENABLE_TEST_AUTH_ENDPOINT !== 'true') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }

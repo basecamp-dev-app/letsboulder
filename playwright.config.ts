@@ -79,6 +79,7 @@ export default defineConfig({
       TEST_API_KEY: process.env.TEST_API_KEY || '',
       TEST_USER_PASSWORD: process.env.TEST_USER_PASSWORD || '',
       INTERNAL_TEST_KEY: process.env.INTERNAL_TEST_KEY || '',
+      TEST_AUTH_PATH_SEGMENT: process.env.TEST_AUTH_PATH_SEGMENT || '',
       ENABLE_TEST_AUTH_ENDPOINT: 'true',
       NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
       NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',

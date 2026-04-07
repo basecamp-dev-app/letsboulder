@@ -36,14 +36,14 @@ tests/
 ## Playwright Projects
 
 - `public` — unauthenticated tests
-- `authenticated` — authenticated tests (uses `/api/test/auth` endpoint)
+- `authenticated` — authenticated tests (uses `/api/test/[segment]/auth` endpoint)
 - `mobile-safari` — mobile Safari viewport
 - `mobile-chrome` — mobile Chrome viewport
 
 ## E2E Auth
 
-- Uses test-only endpoint at `/api/test/auth`
-- Requires `TEST_API_KEY`, `TEST_USER_PASSWORD`, `TEST_USER_ID` env vars
+- Uses test-only endpoint at `/api/test/[segment]/auth`
+- Requires `TEST_API_KEY`, `TEST_USER_PASSWORD`, `TEST_USER_ID`, and `TEST_AUTH_PATH_SEGMENT` env vars
 - Auth state stored in `playwright/.auth/user.json`
 - See `e2e-auth-security.md` for security rules
 
@@ -59,4 +59,4 @@ tests/
 - Unit tests use `.test.ts` suffix
 - Smoke tests tagged with `@smoke`
 - Full tests tagged with `@full`
-- Auth state obtained via `global-setup.ts` which hits `/api/test/auth`
+- Auth state obtained via `global-setup.ts` which hits `/api/test/[segment]/auth`

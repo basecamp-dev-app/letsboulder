@@ -23,7 +23,7 @@ export default defineConfig({
         functions: 0,
         branches: 0,
         statements: 0,
-        'app/api/test/auth/route.ts': {
+        'app/api/test/[segment]/auth/route.ts': {
           lines: 29,
           functions: 14,
           branches: 31,
