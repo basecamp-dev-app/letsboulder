@@ -4,15 +4,15 @@ import { EnvValidationError, getSharedEnv, type SharedEnv } from '@/lib/env'
 const isTest = process.env.NODE_ENV === 'test'
 
 const serverOnlyEnvSchema = z.object({
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
-  R2_S3_ENDPOINT: z.string().url().optional(),
-  R2_PRIVATE_BUCKET: z.string().min(1).optional(),
-  R2_PUBLIC_BUCKET: z.string().min(1).optional(),
-  R2_ACCESS_KEY_ID: z.string().min(1).optional(),
-  R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
-  CSRF_SECRET: z.string().min(1).optional(),
-  DELETE_ACCOUNT_SECRET: z.string().min(1).optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  CSRF_SECRET: z.string().min(1),
+  DELETE_ACCOUNT_SECRET: z.string().min(1),
   INTERNAL_MODERATION_SECRET: z.string().min(1).optional(),
+  R2_S3_ENDPOINT: z.string().url(),
+  R2_PRIVATE_BUCKET: z.string().min(1),
+  R2_PUBLIC_BUCKET: z.string().min(1),
+  R2_ACCESS_KEY_ID: z.string().min(1),
+  R2_SECRET_ACCESS_KEY: z.string().min(1),
   MEDIA_MODERATION_ENABLED: z.preprocess(
     (v) => (v === 'false' ? false : v === 'true' ? true : true),
     z.boolean().default(true),
