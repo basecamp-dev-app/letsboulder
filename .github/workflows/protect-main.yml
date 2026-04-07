@@ -14,16 +14,35 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Check if push is from a merged PR
         id: check-pr
         run: |
-          # Check if this commit is part of a closed/merged PR
-          # If push came from a PR merge, there will be an associated PR
-          pr_response=$(gh api repos/${{ github.repository }}/commits/${{ github.sha }}/pulls --jq '.[] | select(.merged_at != null) | {number, title, merged_at}' 2>/dev/null)
+          COMMIT_SHA="${{ github.sha }}"
+          
+          # Check if this commit is a merge commit (has 2+ parents)
+          PARENT_COUNT=$(git cat-file -p "$COMMIT_SHA" | grep -c "^parent ")
+          
+          if [ "$PARENT_COUNT" -ge 2 ]; then
+            # This is a merge commit - get the first parent's SHA
+            PARENT_SHA=$(git cat-file -p "$COMMIT_SHA" | grep "^parent " | head -1 | awk '{print $2}')
+            echo "Detected merge commit. Checking parent: $PARENT_SHA"
+            CHECK_SHA="$PARENT_SHA"
+          else
+            # Regular commit - check the commit itself
+            CHECK_SHA="$COMMIT_SHA"
+          fi
+          
+          # Check if the relevant commit is part of a merged PR
+          pr_response=$(gh api repos/${{ github.repository }}/commits/"$CHECK_SHA"/pulls --jq '.[] | select(.merged_at != null) | {number, title, merged_at}' 2>/dev/null)
           
           if [ -z "$pr_response" ]; then
-            # No merged PR found for this commit - this is a direct push
-            echo "::error::Direct push to main detected. Commit ${{ github.sha }} is not part of a merged PR."
+            echo "::error::Direct push to main detected."
+            echo "::error::Commit $COMMIT_SHA is not part of a merged PR."
             echo "::error::All changes to main must go through a pull request."
             echo "::error::Please revert this push and submit your changes via PR instead."
             exit 1
@@ -31,6 +50,6 @@ jobs:
           
           echo "Commit is part of merged PR:"
           echo "$pr_response"
-          
+
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
