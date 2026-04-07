@@ -12,18 +12,13 @@ function isStateChangingMethod(method: string): boolean {
 
 function shouldSkipMiddleware(pathname: string, method: string): boolean {
   const normalizedMethod = method.toUpperCase()
-  if (normalizedMethod !== 'GET') return false
 
   const publicReadOnlyPrefixes = [
-    '/api/csrf',
     '/api/regions',
     '/api/rankings',
     '/api/places/search',
     '/api/places/nearby',
-    '/api/moderation/queue',
     '/api/offline-packs',
-    '/api/media/private',
-    '/api/media/upload-sessions',
     '/api/locations/search',
     '/api/locations/reverse',
     '/api/logbook/contributions',
@@ -41,16 +36,26 @@ function shouldSkipMiddleware(pathname: string, method: string): boolean {
     '/api/crags/',
     '/api/climbs/',
     '/api/admin/gyms/',
-    '/api/submissions/drafts/collaborate',
-    '/api/submissions/collaborate',
-    '/api/routes/',
     '/api/profile',
     '/api/notifications',
     '/api/comments',
-    '/api/media/',
   ]
 
-  return publicReadOnlyPrefixes.some((prefix) => pathname.startsWith(prefix))
+  if (publicReadOnlyPrefixes.some((prefix) => pathname.startsWith(prefix))) {
+    return normalizedMethod === 'GET'
+  }
+
+  const optedOutOfProxyAuthPrefixes = [
+    '/api/csrf',
+    '/api/media/private',
+    '/api/media/upload-sessions',
+    '/api/moderation/queue',
+    '/api/submissions/drafts/collaborate',
+    '/api/submissions/collaborate',
+    '/api/routes/',
+  ]
+
+  return optedOutOfProxyAuthPrefixes.some((prefix) => pathname.startsWith(prefix))
 }
 
 function shouldRequireCsrf(pathname: string, method: string): boolean {
