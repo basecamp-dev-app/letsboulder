@@ -121,18 +121,15 @@ jobs:
   smoke:
     name: E2E Smoke
     if: |
-      github.event_name != 'schedule' &&
-      github.event_name != 'push' &&
       (
-        github.event_name != 'deployment_status' ||
+        github.event_name == 'deployment_status' &&
+        github.event.deployment_status.state == 'success' &&
         (
-          github.event.deployment_status.state == 'success' &&
-          (
-            github.event.deployment.ref == 'refs/heads/main' ||
-            github.event.deployment.ref == 'refs/heads/dev'
-          )
+          github.event.deployment.ref == 'refs/heads/main' ||
+          github.event.deployment.ref == 'refs/heads/dev'
         )
-      )
+      ) ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -162,6 +159,10 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            // Smoke tests only run on deployment_status or workflow_dispatch
+            // deployment_status: use target_url from Vercel deployment
+            // workflow_dispatch: requires manual playwright_base_url input
+
             const manualBaseUrl = '${{ github.event.inputs.playwright_base_url || '' }}'.trim();
             if (manualBaseUrl) {
               core.info(`Using manual base URL: ${manualBaseUrl}`);
@@ -180,71 +181,8 @@ jobs:
               return;
             }
 
-            if (context.eventName === 'pull_request') {
-              const owner = context.repo.owner;
-              const repo = context.repo.repo;
-              const sha = context.payload.pull_request.head.sha;
-              const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-              for (let attempt = 1; attempt <= 30; attempt++) {
-                core.info(`Attempt ${attempt}/30: looking up Vercel deployment for ${sha}`);
-                const deployments = await github.paginate(github.rest.repos.listDeployments, {
-                  owner,
-                  repo,
-                  sha,
-                  per_page: 100,
-                });
-
-                for (const deployment of deployments) {
-                  const statuses = await github.paginate(github.rest.repos.listDeploymentStatuses, {
-                    owner,
-                    repo,
-                    deployment_id: deployment.id,
-                    per_page: 100,
-                  });
-
-                  const successStatus = statuses.find((status) => {
-                    if (status.state !== 'success') return false;
-                    const targetUrl = status.target_url || '';
-                    return /https:\/\/[a-z0-9-]+\.vercel\.app/i.test(targetUrl);
-                  });
-
-                  if (successStatus?.target_url) {
-                    core.info(`Resolved preview URL: ${successStatus.target_url}`);
-                    core.setOutput('base_url', successStatus.target_url);
-                    return;
-                  }
-                }
-
-                await sleep(20000);
-              }
-
-              core.setFailed('Timed out waiting for successful Vercel preview deployment URL.');
-              return;
-            }
-
-            const branchUrlMap = {
-              main: 'https://dev.letsboulder.com',
-              dev: 'https://dev.letsboulder.com',
-            };
-
-            const ref = github.ref || context.payload.push?.ref || context.payload.pull_request?.base?.ref || '';
-            let branch = ref.replace('refs/heads/', '');
-
-            if (!branch && context.eventName === 'push') {
-              core.info('No branch found in push event, defaulting to main');
-              branch = 'main';
-            }
-
-            const mappedUrl = branchUrlMap[branch];
-
-            if (mappedUrl) {
-              core.info(`Using mapped URL for ${branch}: ${mappedUrl}`);
-              core.setOutput('base_url', mappedUrl);
-              return;
-            }
-
-            core.setFailed(`No resolvable base URL for event '${context.eventName}' on branch '${branch}'. Smoke tests require an explicit deployment URL.`);
+            // workflow_dispatch without manual URL - not supported
+            core.setFailed('Smoke tests on workflow_dispatch require playwright_base_url input.');
 
       - name: Wait for preview readiness
         run: |
