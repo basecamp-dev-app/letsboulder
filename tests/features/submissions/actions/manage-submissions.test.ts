@@ -88,6 +88,16 @@ vi.mock('@/lib/supabase-server', async () => {
         }),
       },
     }),
+    getAdminClientWithAudit: vi.fn().mockResolvedValue({
+      from: vi.fn().mockImplementation(() => ({
+        select: vi.fn().mockImplementation(() => ({
+          eq: vi.fn().mockImplementation(() => ({
+            maybeSingle: createMaybeSingle(),
+            single: createMaybeSingle(),
+          })),
+        })),
+      })),
+    }),
   }
 })
 
@@ -113,6 +123,12 @@ vi.mock('@/lib/actions/action-auth', () => ({
 
 vi.mock('@/lib/media/draft-storage', () => ({
   cleanupDraftStorageObjects: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('@/features/submissions/server/drafts/draft-route-helpers', () => ({
+  normalizeCreateImages: vi.fn(),
+  buildUploadSignature: vi.fn(),
+  validateDraftImageOwnership: vi.fn(),
 }))
 
 import { getActionAuth } from '@/lib/actions/action-auth'

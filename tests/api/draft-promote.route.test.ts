@@ -1,6 +1,15 @@
 import { describe, expect, test, vi } from 'vitest'
 import { createServerClient } from '@supabase/ssr'
 
+const mockServerEnv = {
+  INTERNAL_MODERATION_SECRET: 'test-moderation-secret',
+}
+
+vi.mock('@/lib/env.server', () => ({
+  serverEnv: mockServerEnv,
+  getServerEnv: () => mockServerEnv,
+}))
+
 vi.mock('@/lib/discord', () => ({
   notifyNewSubmission: vi.fn(async () => undefined),
 }))

@@ -2,6 +2,15 @@ import { NextRequest } from 'next/server'
 import { describe, expect, test, vi } from 'vitest'
 import { createServerClient } from '@supabase/ssr'
 
+const mockServerEnv = {
+  INTERNAL_MODERATION_SECRET: 'test-moderation-secret',
+}
+
+vi.mock('@/lib/env.server', () => ({
+  serverEnv: mockServerEnv,
+  getServerEnv: () => mockServerEnv,
+}))
+
 const middlewareSupabaseStub = {} as Awaited<ReturnType<typeof withApiMiddleware>> extends { ok: true; supabase: infer TSupabase }
   ? TSupabase
   : never
