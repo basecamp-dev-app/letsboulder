@@ -88,13 +88,14 @@ jobs:
       - name: Trigger Vercel Deployment
         run: |
           echo "Triggering Vercel deployment via Deploy Hook..."
-          response=$(curl -s -w "%{http_code}" -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}")
-          code=$(echo "$response" | tail -c 3)
-          body=$(echo "$response" | head -c -3)
-          echo "Response code: $code"
-          echo "Response body: $body"
-          if [ "$code" != "200" ]; then
-            echo "::error::Failed to trigger Vercel deployment"
+          response=$(curl -s -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}")
+          echo "Response: $response"
+
+          # Check if response contains a valid Vercel job
+          if echo "$response" | grep -q '"state":"PENDING"'; then
+            echo "Vercel deployment triggered successfully"
+          else
+            echo "::error::Failed to trigger Vercel deployment: $response"
             exit 1
           fi
           echo "Vercel deployment triggered successfully"
