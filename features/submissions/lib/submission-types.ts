@@ -2,13 +2,16 @@ import type { Database } from '@/types/database'
 import { VALID_GRADES, isValidGrade } from '@/lib/grade-constants'
 import type { GpsData, FaceDirection, FaceDirectionsByImage } from '@/types/domain'
 import { FACE_DIRECTIONS } from '@/types/domain'
+import { ClimbRouteTypeEnum, type ClimbRouteType } from '@/lib/enums'
 
-import type { ClimbType, RoutePoint } from '@/types/climbing'
+import type { RoutePoint } from '@/types/climbing'
 
 export { VALID_GRADES, FACE_DIRECTIONS, isValidGrade }
 export type { Grade } from '@/lib/grade-constants'
 export type { GpsData, FaceDirection, FaceDirectionsByImage }
-export type { ClimbType, RoutePoint }
+export type { RoutePoint }
+export type { ClimbRouteType }
+export { CLIMB_ROUTE_TYPES } from '@/types/climbing'
 
 export type Region = Pick<Database['public']['Tables']['regions']['Row'], 'id' | 'name' | 'country_code' | 'center_lat' | 'center_lon' | 'created_at'>
 
@@ -70,7 +73,7 @@ export interface NewRouteData {
   imageHeight: number
   imageNaturalWidth: number
   imageNaturalHeight: number
-  climbType?: ClimbType
+  climbType?: ClimbRouteType
 }
 
 export type ImageSelectionMode = 'existing' | 'new' | 'crag-image'
@@ -119,7 +122,7 @@ export interface SubmissionContext {
   imageGps: { latitude: number; longitude: number } | null
   faceDirectionsByImage: FaceDirectionsByImage
   routes: NewRouteData[]
-  routeType: ClimbType | null
+  routeType: ClimbRouteType | null
   sectorId: string | null
 }
 
@@ -129,7 +132,7 @@ export type SubmissionStep =
   | { step: 'location'; imageGps: { latitude: number; longitude: number } | null }
   | { step: 'faceDirection'; imageGps: { latitude: number; longitude: number } | null }
   | { step: 'crag'; imageGps: { latitude: number; longitude: number } | null; cragId?: string; cragName?: string }
-  | { step: 'draw'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; draftKey?: string; defaultClimbType?: ClimbType }
+  | { step: 'draw'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; draftKey?: string; defaultClimbType?: ClimbRouteType }
   | { step: 'climbType'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; draftKey?: string }
   | { step: 'review'; imageGps: { latitude: number; longitude: number } | null; cragId: string; cragName: string; image: ImageSelection; routes: NewRouteData[]; draftKey?: string }
   | { step: 'submitting' }
