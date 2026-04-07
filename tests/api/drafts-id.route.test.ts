@@ -20,9 +20,10 @@ const { withApiMiddleware } = vi.hoisted(() => ({
   withApiMiddleware: vi.fn(),
 }))
 
-const { getServerClientFromRequest, getAdminClient } = vi.hoisted(() => ({
+const { getServerClientFromRequest, getAdminClient, getAdminClientWithAudit } = vi.hoisted(() => ({
   getServerClientFromRequest: vi.fn(),
   getAdminClient: vi.fn(),
+  getAdminClientWithAudit: vi.fn(),
 }))
 
 const { resolveUserIdWithFallback } = vi.hoisted(() => ({
@@ -48,6 +49,7 @@ vi.mock('@/lib/csrf-server', () => ({
 vi.mock('@/lib/supabase-server', () => ({
   getServerClientFromRequest,
   getAdminClient,
+  getAdminClientWithAudit,
 }))
 
 vi.mock('@/lib/auth-context', () => ({
