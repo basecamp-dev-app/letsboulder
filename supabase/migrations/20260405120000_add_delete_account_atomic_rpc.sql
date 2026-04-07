@@ -1,4 +1,4 @@
--- Test git action trigger
+-- Add delete_account_atomic RPC function
 CREATE OR REPLACE FUNCTION public.delete_account_atomic(
   p_user_id uuid,
   p_email text,
