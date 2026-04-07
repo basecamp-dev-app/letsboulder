@@ -1,89 +1,31 @@
 'use client'
 
+let csrfToken: string | null = null
 let csrfTokenPromise: Promise<string> | null = null
 
-const CSRF_TOKEN_KEY = 'csrf_token'
-const CSRF_META_KEY = 'csrf_token_meta'
-const CSRF_MAX_AGE_MS = 2 * 60 * 60 * 1000
-const CSRF_REFRESH_SKEW_MS = 5 * 60 * 1000
-
-function clearStoredCsrfToken(): void {
-  if (typeof window === 'undefined') return
-  localStorage.removeItem(CSRF_TOKEN_KEY)
-  localStorage.removeItem(CSRF_META_KEY)
-}
-
-function getStoredCsrfToken(): string {
+async function fetchCsrfToken(): Promise<string> {
   if (typeof window === 'undefined') return ''
 
-  const token = localStorage.getItem(CSRF_TOKEN_KEY) || ''
-  if (!token) return ''
-
-  const rawMeta = localStorage.getItem(CSRF_META_KEY)
-  if (!rawMeta) {
-    clearStoredCsrfToken()
-    return ''
-  }
-
-  try {
-    const parsed = JSON.parse(rawMeta) as { fetchedAt?: unknown }
-    const fetchedAt = typeof parsed.fetchedAt === 'number' ? parsed.fetchedAt : 0
-    if (!fetchedAt) {
-      clearStoredCsrfToken()
-      return ''
-    }
-
-    if (Date.now() - fetchedAt >= CSRF_MAX_AGE_MS - CSRF_REFRESH_SKEW_MS) {
-      clearStoredCsrfToken()
-      return ''
-    }
-
-    return token
-  } catch {
-    clearStoredCsrfToken()
-    return ''
-  }
+  const response = await fetch('/api/csrf', { method: 'GET', credentials: 'include' })
+  const data = await response.json().catch(() => ({} as { token?: string }))
+  const token = typeof data?.token === 'string' ? data.token : ''
+  csrfToken = token || null
+  return token
 }
 
-function storeCsrfToken(token: string): void {
-  if (typeof window === 'undefined' || !token) return
-  localStorage.setItem(CSRF_TOKEN_KEY, token)
-  localStorage.setItem(CSRF_META_KEY, JSON.stringify({ fetchedAt: Date.now() }))
-}
-
-async function fetchAndStoreCsrfToken(forceRefresh = false): Promise<string> {
+export async function primeCsrfToken(): Promise<string> {
   if (typeof window === 'undefined') return ''
+  if (csrfToken) return csrfToken
+  if (csrfTokenPromise) return csrfTokenPromise
 
-  if (!forceRefresh) {
-    const existing = getStoredCsrfToken()
-    if (existing) return existing
-  }
-
-  if (!forceRefresh && csrfTokenPromise) return csrfTokenPromise
-
-  const p = (async () => {
-    const response = await fetch('/api/csrf', { method: 'GET', credentials: 'include' })
-    const data = await response.json().catch(() => ({} as { token?: string }))
-    const token = typeof data?.token === 'string' ? data.token : ''
-    if (token) {
-      storeCsrfToken(token)
-    } else {
-      clearStoredCsrfToken()
-    }
-    return token
-  })()
-
-  if (!forceRefresh) csrfTokenPromise = p
+  const p = fetchCsrfToken()
+  csrfTokenPromise = p
 
   try {
     return await p
   } finally {
     if (csrfTokenPromise === p) csrfTokenPromise = null
   }
-}
-
-export async function primeCsrfToken(): Promise<string> {
-  return fetchAndStoreCsrfToken(false)
 }
 
 function isStateChangingMethod(method: string): boolean {
@@ -133,7 +75,7 @@ export async function csrfFetch(input: RequestInfo | URL, init?: RequestInit): P
   )
 
   if (typeof window !== 'undefined' && isSameOriginApi && isStateChanging) {
-    const token = await fetchAndStoreCsrfToken(false)
+    const token = await primeCsrfToken()
     if (token) headers.set('x-csrf-token', token)
   }
 
@@ -142,7 +84,7 @@ export async function csrfFetch(input: RequestInfo | URL, init?: RequestInit): P
   const response = await fetch(input, { ...init, headers, credentials })
 
   if (typeof window !== 'undefined' && isSameOriginApi && isStateChanging && await isCsrfError(response)) {
-    const refreshed = await fetchAndStoreCsrfToken(true)
+    const refreshed = await fetchCsrfToken()
     if (!refreshed) return response
 
     const retryHeaders = new Headers(headers)
