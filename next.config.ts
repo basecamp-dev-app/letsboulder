@@ -2,34 +2,24 @@ import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
 import webpack from 'webpack'
 
-function getMediaCdnRemotePattern() {
+function getMediaCdnRemotePattern(): URL | null {
   const raw = process.env.NEXT_PUBLIC_MEDIA_CDN_URL?.trim()
   if (!raw) return null
 
   try {
-    const url = new URL(raw)
-    return {
-      protocol: url.protocol.replace(':', '') as 'http' | 'https',
-      hostname: url.hostname,
-      port: url.port || undefined,
-      pathname: '/**',
-    }
+    return new URL(raw)
   } catch {
     return null
   }
 }
 
-function getSupabaseStorageRemotePattern() {
+function getSupabaseStorageRemotePattern(): URL | null {
   const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
   if (!raw) return null
 
   try {
     const url = new URL(raw)
-    return {
-      protocol: 'https',
-      hostname: url.hostname,
-      pathname: '/storage/v1/object/public/**',
-    }
+    return new URL(`/storage/v1/object/public/**`, raw)
   } catch {
     return null
   }
