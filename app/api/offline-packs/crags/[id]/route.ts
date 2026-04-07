@@ -1,14 +1,12 @@
 import { createHash } from 'node:crypto'
 import pLimit from 'p-limit'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { buildClimbOfflinePack } from '@/lib/offline/build-climb-pack'
 import type { CragOfflinePackManifest, OfflineMapPin } from '@/features/climb/lib/queries'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { estimateCompressedImageBytes } from '@/lib/media-proxy'
-import { serverEnv } from '@/lib/env.server'
 import { reportError } from '@/lib/errors'
-import { PUBLIC_OFFLINE_CLIMB_STATUSES } from '@/lib/offline/build-climb-pack-helpers'
+import { PUBLIC_OFFLINE_CLIMB_STATUSES, getOfflinePackClient } from '@/lib/offline/build-climb-pack-helpers'
 
 export const revalidate = 3600
 
@@ -22,22 +20,6 @@ interface ClimbRow {
 interface FailedClimbSummary {
   climbId: string
   error: string
-}
-
-function getAdminClient() {
-  const serviceRoleKey = serverEnv.SUPABASE_SERVICE_ROLE_KEY
-  const supabaseUrl = serverEnv.NEXT_PUBLIC_SUPABASE_URL
-
-  if (!serviceRoleKey || !supabaseUrl) {
-    throw new Error('Supabase service role is not configured')
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
 }
 
 function hashParts(value: unknown) {
@@ -55,7 +37,7 @@ export async function GET(
   }
 
   try {
-    const supabase = getAdminClient()
+    const supabase = getOfflinePackClient()
     const [{ data: crag, error: cragError }, { data: climbs, error: climbsError }] = await Promise.all([
       supabase.from('crags').select('id, name, slug, country_code').eq('id', cragId).maybeSingle(),
       supabase

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClientFromRequest, getAdminClient } from '@/lib/supabase-server'
+import { getServerClientFromRequest, getAdminClientWithAudit } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       ? Math.max(1, Math.min(Math.trunc(limitParam), 500))
       : 200
 
-    const readClient = getAdminClient()
+    const readClient = getAdminClientWithAudit('read user contribution history')
 
     const { data, error } = await readClient
       .from('images')

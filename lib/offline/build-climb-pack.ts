@@ -5,11 +5,11 @@ import type { ClimbPackResponse } from '@/features/climb/lib/queries'
 import { getDisplayImageId } from '@/lib/image-identity'
 import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { reportError } from '@/lib/errors'
-import { buildPrimaryPin, buildPrimaryFallbackFace, decorateMedia, getAdminClient, getFaceIdentityKey, hashValue, isPublicOfflineClimbVisible, mergeFaces, resolveCanonicalPaths } from '@/lib/offline/build-climb-pack-helpers'
+import { buildPrimaryPin, buildPrimaryFallbackFace, decorateMedia, getOfflinePackClient, getFaceIdentityKey, hashValue, isPublicOfflineClimbVisible, mergeFaces, resolveCanonicalPaths } from '@/lib/offline/build-climb-pack-helpers'
 import type { CompleteSummaryFace, CompleteSummaryPayload, CragRow, FullContextPayload, LegacyClimbRow, ProfileRow, RouteFaceQueryRow, RouteFaceRow } from '@/lib/offline/build-climb-pack-types'
 
 export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackResponse> {
-  const supabase = getAdminClient()
+  const supabase = getOfflinePackClient()
   const isVisible = await isPublicOfflineClimbVisible(supabase, climbId)
   if (!isVisible) {
     throw new Error('Climb not found')

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getAdminClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-server'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { createErrorResponse } from '@/lib/errors'
 import { cleanupDraftStorageObjects } from '@/lib/media/draft-storage'
@@ -69,7 +69,7 @@ export async function DELETE(
 
   const { supabase, userId } = middlewareResult
 
-  const storageClient = getAdminClient()
+  const storageClient = getAdminClientWithAudit('delete draft image from storage')
 
   try {
     const { data: draft, error: draftError } = await supabase

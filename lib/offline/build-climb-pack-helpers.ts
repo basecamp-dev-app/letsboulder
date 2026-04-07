@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto'
-import { createClient } from '@supabase/supabase-js'
 import { buildMediaProxyUrl, parsePrivateMediaRef } from '@/lib/media-proxy'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
-import { serverEnv } from '@/lib/env.server'
+import { getAdminClientWithAudit } from '@/lib/supabase-server'
 import type { CompleteSummaryFace, CragRow, FaceRouteSummary, ImageInfoRow, ClimbInfo } from '@/lib/offline/build-climb-pack-types'
 import type { OfflineMapPin } from '@/features/climb/lib/queries'
 
@@ -79,22 +78,14 @@ export function buildPrimaryFallbackFace(primaryImage: ImageInfoRow): CompleteSu
   }
 }
 
-export function getAdminClient() {
-  const serviceRoleKey = serverEnv.SUPABASE_SERVICE_ROLE_KEY
-  const supabaseUrl = serverEnv.NEXT_PUBLIC_SUPABASE_URL
-  if (!serviceRoleKey || !supabaseUrl) throw new Error('Supabase service role is not configured')
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
+export function getOfflinePackClient() {
+  return getAdminClientWithAudit('offline pack generation')
 }
 
 export const PUBLIC_OFFLINE_CLIMB_STATUSES = ['active', 'approved'] as const
 
 export async function isPublicOfflineClimbVisible(
-  supabase: ReturnType<typeof getAdminClient>,
+  supabase: ReturnType<typeof getOfflinePackClient>,
   climbId: string
 ) {
   const { data, error } = await supabase

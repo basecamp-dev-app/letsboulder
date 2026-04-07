@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 import { createErrorResponse, reportError, sanitizeError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
-import { getAdminClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-server'
 import { serverEnv } from '@/lib/env.server'
 import type { Database } from '@/types/database'
 import { z } from 'zod'
@@ -24,7 +24,7 @@ async function removeStorageFolder(
   userId: string,
   limit: number
 ): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
-  const supabaseAdmin = getAdminClient()
+  const supabaseAdmin = getAdminClientWithAudit('account deletion: storage cleanup')
   const { data: files, error: listError } = await supabaseAdmin.storage.from(bucket).list(userId, { limit })
 
   if (listError) {
@@ -43,7 +43,7 @@ async function removeStorageFolder(
     return { ok: true }
   }
 
-  const paths = files.map((file) => `${userId}/${file.name}`)
+  const paths = files.map((file: { name: string }) => `${userId}/${file.name}`)
   const { error: removeError } = await supabaseAdmin.storage.from(bucket).remove(paths)
 
   if (removeError) {
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
 
   const { supabase, userId } = middlewareResult
 
-  const supabaseAdmin = getAdminClient()
+  const supabaseAdmin = getAdminClientWithAudit('account deletion: user data cleanup')
 
   try {
     const { data: { user } } = await supabase.auth.getUser()
