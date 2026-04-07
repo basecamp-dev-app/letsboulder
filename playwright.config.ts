@@ -27,7 +27,7 @@ export default defineConfig({
   reporter: 'html',
   use: {
     baseURL: resolvedBaseUrl,
-    trace: 'on-first-retry',
+    trace: process.env.CI ? 'retain-on-failure' : 'on-first-retry',
     headless: true,
     ...(process.env.CF_ACCESS_CLIENT_ID || process.env.CF_ACCESS_CLIENT_SECRET || process.env.INTERNAL_TEST_KEY ? {
       extraHTTPHeaders: {
