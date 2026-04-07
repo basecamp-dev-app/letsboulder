@@ -5,10 +5,10 @@
 JWT-based token system using `jose` library (`lib/csrf.ts`).
 
 **Token Flow:**
-1. `generateCsrfToken()` creates a signed JWT with `action: 'csrf'` claim, expires in 2h
-2. `setCsrfCookie()` sets the token as `httpOnly`, `secure` (prod), `sameSite: strict` cookie named `csrf_token`
+1. `generateCsrfToken(userId)` creates a signed JWT with `action: 'csrf'` and `sub: userId` claims, expires in 2h
+2. `setCsrfCookie(request, response)` resolves user from request cookies, generates bound token, sets the cookie
 3. Client reads cookie value and sends it in `x-csrf-token` header
-4. `validateCsrfToken()` verifies header token matches cookie token, then validates JWT signature and claim
+4. `validateCsrfToken(request)` verifies header token matches cookie token, validates JWT signature, then verifies `sub` claim matches the resolved user ID
 
 **Usage:**
 - Route Handlers that accept mutations must call `validateCsrfToken()` before processing
