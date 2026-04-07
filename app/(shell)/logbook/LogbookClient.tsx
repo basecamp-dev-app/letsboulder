@@ -7,26 +7,25 @@ import { useSearchParams } from 'next/navigation'
 import LogbookView from '@/features/logbook/components/LogbookView'
 import { useToast } from '@/features/logbook/components/Toast'
 import { fetchOwnLogbookData, ownLogbookQueryKey, type OwnLogbookData } from '@/features/logbook/lib/queries'
-import type { ServerLogbookSummary } from '@/features/logbook/lib/queries-server'
 
 interface LogbookClientProps {
   user: User
-  initialData?: ServerLogbookSummary
+  initialData?: OwnLogbookData
 }
 
 export default function LogbookClient({ user, initialData }: LogbookClientProps) {
   return <LogbookContent user={user} initialData={initialData} />
 }
 
-function LogbookContent({ user, initialData }: { user: User; initialData?: ServerLogbookSummary }) {
+function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLogbookData }) {
   const { addToast } = useToast()
   const hydratedInitialData = initialData
     ? {
         user,
         logs: initialData.logs,
         profile: initialData.profile,
-        submissions: [],
-      } satisfies OwnLogbookData
+        submissions: initialData.submissions,
+      }
     : undefined
   const { data, isLoading } = useQuery({
     queryKey: ownLogbookQueryKey,
@@ -43,7 +42,7 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: Serve
       isOwnProfile={true}
       initialLogs={initialData?.logs || data?.logs || []}
       profile={initialData?.profile || data?.profile || undefined}
-      initialSubmissions={data?.submissions || []}
+      initialSubmissions={initialData?.submissions || data?.submissions || []}
     />
   )
 }
