@@ -220,12 +220,12 @@ export async function resolveFlag(request: NextRequest, supabase: RequestSupabas
         link = typedFlag.climb_id ? `/climbs/${typedFlag.climb_id}` : `/crag/${typedFlag.crag?.id}`
       }
 
-      await supabase.from('notifications').insert({
-        user_id: typedFlag.flagger_id,
-        type: 'flag_resolved',
-        title,
-        message: resolution_note ? `${message}\n\nNote: ${resolution_note}` : message,
-        link,
+      await supabase.rpc('create_notification', {
+        p_target_user_id: typedFlag.flagger_id,
+        p_type: 'flag_resolved',
+        p_title: title,
+        p_message: resolution_note ? `${message}\n\nNote: ${resolution_note}` : message,
+        p_link: link,
       })
     }
 
@@ -332,16 +332,16 @@ export async function voteOnModerationQueueItem(request: NextRequest, supabase: 
     const cragId = queueItem.crag?.id || queueItem.crag_id
 
     if (queueItem.submitter_id !== userId) {
-      await supabase.from('notifications').insert({
-        user_id: queueItem.submitter_id,
-        type: wasResolved ? 'submission_resolved' : 'vote_recorded',
-        title: wasResolved
+      await supabase.rpc('create_notification', {
+        p_target_user_id: queueItem.submitter_id,
+        p_type: wasResolved ? 'submission_resolved' : 'vote_recorded',
+        p_title: wasResolved
           ? (resolutionStatus === 'verified' ? 'Route approved!' : 'Route flagged for removal')
           : 'New vote on your route',
-        message: wasResolved
+        p_message: wasResolved
           ? `"${climbName}" at ${cragName} was ${resolutionStatus}`
           : `"${climbName}" at ${cragName} has ${newVerifyCount} verify and ${newFlagCount} flag votes`,
-        link: `/crags/${cragId}`,
+        p_link: `/crags/${cragId}`,
       })
     }
 

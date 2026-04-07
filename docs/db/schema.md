@@ -369,6 +369,11 @@ Both `crags` and `places` have a `synced_at TIMESTAMPTZ` column. When a sync ope
 | `delete_empty_crag(p_crag_id)` | Delete crag with no climbs/images |
 | `delete_empty_crags()` | Batch delete empty crags |
 
+### Notifications
+| Function | Purpose |
+|----------|---------|
+| `create_notification(p_target_user_id, p_type, p_title, p_message, p_link)` | Create notification for user (admin-only) |
+
 ### Utility
 | Function | Purpose |
 |----------|---------|

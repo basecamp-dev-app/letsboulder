@@ -1,20 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { createErrorResponse } from '@/lib/errors'
-import { withApiMiddleware } from '@/lib/csrf-server'
 import { parsePagination } from '@/lib/pagination'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { parseWithSchema } from '@/lib/api-validation'
 
 const NOTIFICATION_COLUMNS = 'id, user_id, type, title, message, link, is_read, created_at'
-
-const createNotificationSchema = z.object({
-  type: z.string().min(1, 'Type is required'),
-  title: z.string().min(1, 'Title is required'),
-  message: z.string().min(1, 'Message is required'),
-  link: z.string().optional(),
-})
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -59,39 +49,5 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     return createErrorResponse(error, 'Notifications fetch error')
-  }
-}
-
-export async function POST(request: NextRequest) {
-  const middlewareResult = await withApiMiddleware(request, {
-    unauthorizedMessage: 'Authentication required',
-    rateLimitKey: 'authenticatedWrite',
-  })
-  if (!middlewareResult.ok) return middlewareResult.response
-
-  const { supabase, userId } = middlewareResult
-
-  try {
-    const parsedBody = parseWithSchema(createNotificationSchema, await request.json())
-    if (!parsedBody.success) return parsedBody.response
-    const { type, title, message, link } = parsedBody.data
-
-    const { error } = await supabase
-      .from('notifications')
-      .insert({
-        user_id: userId,
-        type,
-        title,
-        message,
-        link,
-      })
-
-    if (error) {
-      return createErrorResponse(error, 'Error creating notification')
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    return createErrorResponse(error, 'Notification create error')
   }
 }

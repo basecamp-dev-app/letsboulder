@@ -98,12 +98,12 @@ export async function POST(request: NextRequest) {
         ? (moderationStatus === 'skipped' ? 'Your photo was approved because automated moderation is currently disabled.' : 'Your photo was approved and is now visible.')
         : (moderationStatus === 'error' ? 'Your photo is awaiting manual review.' : 'Your photo was rejected.')
 
-      await supabase.from('notifications').insert({
-        user_id: image.created_by,
-        type: 'moderation',
-        title,
-        message,
-        link: '/submit',
+      await supabase.rpc('create_notification', {
+        p_target_user_id: image.created_by,
+        p_type: 'moderation',
+        p_title: title,
+        p_message: message,
+        p_link: '/submit',
       })
     }
 
