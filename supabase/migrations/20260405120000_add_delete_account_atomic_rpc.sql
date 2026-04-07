@@ -1,3 +1,6 @@
+DO $migration$
+BEGIN
+  EXECUTE $fn$
 CREATE OR REPLACE FUNCTION public.delete_account_atomic(
   p_user_id uuid,
   p_email text,
@@ -81,10 +84,9 @@ BEGIN
     v_nullified_climbs_count,
     v_deleted_climbs_count;
 END;
-$function$;
+$function$
+$fn$;
 
-DO $$
-BEGIN
   EXECUTE 'REVOKE ALL ON FUNCTION public.delete_account_atomic(uuid, text, boolean) FROM PUBLIC';
   EXECUTE 'GRANT EXECUTE ON FUNCTION public.delete_account_atomic(uuid, text, boolean) TO service_role';
-END $$;
+END $migration$;
