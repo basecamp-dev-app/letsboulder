@@ -33,8 +33,8 @@ jobs:
           fetch-depth: 2
           ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.workflow_run.head_sha }}
 
-      - name: Detect migration changes
-        id: migration_changes
+      - name: Detect migration count
+        id: migration_count
         shell: bash
         run: |
           MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | wc -l)
@@ -48,47 +48,27 @@ jobs:
             echo "migration_count_exceeded=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if [ "${{ github.event_name }}" = 'workflow_dispatch' ]; then
-            echo 'changed=true' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if git diff --name-only HEAD^ HEAD -- 'supabase/migrations/**' '.github/workflows/supabase-migrations.yml' | grep -q .; then
-            echo 'changed=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Migration count warning
-        if: steps.migration_changes.outputs.migration_count_exceeded == 'true'
+        if: steps.migration_count.outputs.migration_count_exceeded == 'true'
         run: |
-          echo "::warning::Migration count (${{ steps.migration_changes.outputs.count }}) exceeds $THRESHOLD. Consider squashing migrations to reduce operational risk."
+          echo "::warning::Migration count (${{ steps.migration_count.outputs.count }}) exceeds $THRESHOLD. Consider squashing migrations to reduce operational risk."
 
       - name: Setup Supabase CLI
-        if: steps.migration_changes.outputs.changed == 'true'
         uses: supabase/setup-cli@v1
         with:
           version: 2.84.2
 
       - name: Link Supabase project
-        if: steps.migration_changes.outputs.changed == 'true'
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
 
       - name: Apply migrations
-        if: steps.migration_changes.outputs.changed == 'true'
         run: supabase db push --linked --include-all --yes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-
-      - name: Skip when no migration changes
-        if: steps.migration_changes.outputs.changed != 'true'
-        run: |
-          echo 'No migration-related changes in the successful push workflow.'
-          echo 'Skipping Supabase migration apply.'
 
   migrate-dev:
     name: Apply Supabase migrations (Development)
@@ -107,8 +87,8 @@ jobs:
           fetch-depth: 2
           ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.workflow_run.head_sha }}
 
-      - name: Detect migration changes
-        id: migration_changes
+      - name: Detect migration count
+        id: migration_count
         shell: bash
         run: |
           MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | wc -l)
@@ -122,30 +102,17 @@ jobs:
             echo "migration_count_exceeded=false" >> "$GITHUB_OUTPUT"
           fi
 
-          if [ "${{ github.event_name }}" = 'workflow_dispatch' ]; then
-            echo 'changed=true' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if git diff --name-only HEAD^ HEAD -- 'supabase/migrations/**' '.github/workflows/supabase-migrations.yml' | grep -q .; then
-            echo 'changed=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Migration count warning
-        if: steps.migration_changes.outputs.migration_count_exceeded == 'true'
+        if: steps.migration_count.outputs.migration_count_exceeded == 'true'
         run: |
-          echo "::warning::Migration count (${{ steps.migration_changes.outputs.count }}) exceeds $THRESHOLD. Consider squashing migrations to reduce operational risk."
+          echo "::warning::Migration count (${{ steps.migration_count.outputs.count }}) exceeds $THRESHOLD. Consider squashing migrations to reduce operational risk."
 
       - name: Setup Supabase CLI
-        if: steps.migration_changes.outputs.changed == 'true'
         uses: supabase/setup-cli@v1
         with:
           version: 2.84.2
 
       - name: Sync dev schema from prod
-        if: steps.migration_changes.outputs.changed == 'true'
         run: |
           supabase link --project-ref "$PROD_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
           supabase db pull --linked --schema public --skip-migration-history
@@ -155,7 +122,6 @@ jobs:
           PROD_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
 
       - name: Link dev project and apply migrations
-        if: steps.migration_changes.outputs.changed == 'true'
         run: |
           supabase link --project-ref "$SUPABASE_DEV_PROJECT_REF" --password "$SUPABASE_DEV_DB_PASSWORD"
           supabase db push --linked --include-all --yes
@@ -163,9 +129,3 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DEV_PROJECT_REF: ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
           SUPABASE_DEV_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
-
-      - name: Skip when no migration changes
-        if: steps.migration_changes.outputs.changed != 'true'
-        run: |
-          echo 'No migration-related changes in the successful push workflow.'
-          echo 'Skipping Supabase migration apply.'
