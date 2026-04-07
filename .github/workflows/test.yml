@@ -99,8 +99,6 @@ jobs:
           fi
           echo "Vercel deployment triggered successfully"
 
-  smoke:
-
   media-worker:
     name: Media Worker Check
     runs-on: ubuntu-latest
