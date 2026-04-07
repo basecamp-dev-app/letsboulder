@@ -16,7 +16,7 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $function$
+AS $$
 DECLARE
   v_deleted_profile_count integer := 0;
   v_deleted_route_upload_images_count integer := 0;
@@ -81,7 +81,7 @@ BEGIN
     v_nullified_climbs_count,
     v_deleted_climbs_count;
 END;
-$function$;
+$$;
 
 DO $$
 BEGIN
