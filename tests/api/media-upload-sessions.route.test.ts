@@ -35,6 +35,13 @@ vi.mock('@/lib/media/r2', () => ({
   ensurePrivateObjectExists: vi.fn(async () => undefined),
 }))
 
+vi.mock('@/lib/env.server', () => ({
+  serverEnv: {
+    CF_MEDIA_WORKER_URL: 'https://worker.example',
+    CF_MEDIA_WORKER_SECRET: 'secret',
+  },
+}))
+
 vi.mock('@/lib/media/upload-session', () => ({
   buildOriginalObjectKey: vi.fn(() => 'originals/image-123.jpg'),
   normalizeUploadSessionRequest: vi.fn((body: unknown) => body),
@@ -361,9 +368,6 @@ describe('Media upload session routes', () => {
       supabase: supabase as never,
       userId: null,
     } as unknown as MiddlewareResult)
-
-    process.env.CF_MEDIA_WORKER_URL = 'https://worker.example'
-    process.env.CF_MEDIA_WORKER_SECRET = 'secret'
 
     const response = await completeUploadSession(makeCompleteRequest({ purpose: 'crag_image' }), {
       params: Promise.resolve({ imageId: 'image-123' }),
