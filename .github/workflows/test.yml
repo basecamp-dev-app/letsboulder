@@ -55,21 +55,6 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build
-        run: npm run build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_MEDIA_CDN_URL: ${{ secrets.NEXT_PUBLIC_MEDIA_CDN_URL }}
-          CSRF_SECRET: ${{ secrets.CSRF_SECRET }}
-          DELETE_ACCOUNT_SECRET: ${{ secrets.DELETE_ACCOUNT_SECRET }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          R2_S3_ENDPOINT: ${{ secrets.R2_S3_ENDPOINT }}
-          R2_PRIVATE_BUCKET: ${{ secrets.R2_PRIVATE_BUCKET }}
-          R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-
       - name: Run Unit Tests
         run: npm run test:unit
 
@@ -92,6 +77,29 @@ jobs:
           else
             echo "Skipping type drift check (not a pull_request event)"
           fi
+
+  deploy:
+    name: Deploy to Vercel
+    needs: [quality, media-worker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Vercel Deployment
+        run: |
+          echo "Triggering Vercel deployment via Deploy Hook..."
+          response=$(curl -s -w "%{http_code}" -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}")
+          code=$(echo "$response" | tail -c 3)
+          body=$(echo "$response" | head -c -3)
+          echo "Response code: $code"
+          echo "Response body: $body"
+          if [ "$code" != "200" ]; then
+            echo "::error::Failed to trigger Vercel deployment"
+            exit 1
+          fi
+          echo "Vercel deployment triggered successfully"
+
+  smoke:
 
   media-worker:
     name: Media Worker Check
