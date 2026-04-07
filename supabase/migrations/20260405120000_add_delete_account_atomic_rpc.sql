@@ -83,5 +83,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.delete_account_atomic(uuid, text, boolean) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.delete_account_atomic(uuid, text, boolean) TO service_role;
+DO $$
+BEGIN
+  EXECUTE 'REVOKE ALL ON FUNCTION public.delete_account_atomic(uuid, text, boolean) FROM PUBLIC';
+  EXECUTE 'GRANT EXECUTE ON FUNCTION public.delete_account_atomic(uuid, text, boolean) TO service_role';
+END $$;
