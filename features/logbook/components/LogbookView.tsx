@@ -217,7 +217,7 @@ export default function LogbookView({
           publishedRoutes: String(routeCount),
         })
         startTransition(() => {
-          router.push(`/logbook/submissions/${imageId}/edit?${query.toString()}`)
+          router.push(`/submit?draft=${draftId}&publishedFaces=${imageCount}&publishedRoutes=${routeCount}`)
         })
       }
     } catch {

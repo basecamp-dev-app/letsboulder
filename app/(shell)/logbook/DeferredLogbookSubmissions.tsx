@@ -37,10 +37,10 @@ export default function DeferredLogbookSubmissions({
 }: DeferredLogbookSubmissionsProps) {
   const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions || [])
   const [ownerSubmissionTab, setOwnerSubmissionTab] = useState<OwnerSubmissionsTab>('all')
-  const [isLoading, setIsLoading] = useState(!initialSubmissions)
+  const [isLoading, setIsLoading] = useState(!initialSubmissions || initialSubmissions.length === 0)
 
   useEffect(() => {
-    if (initialSubmissions) {
+    if (initialSubmissions && initialSubmissions.length > 0) {
       setSubmissions(initialSubmissions)
       setIsLoading(false)
       return
