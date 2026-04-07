@@ -40,23 +40,6 @@ export function getServerClientFromRequest(request: NextRequest) {
   )
 }
 
-export function getAdminClient() {
-  console.warn(
-    '[WARNING] getAdminClient() bypasses RLS. Prefer getAdminClientWithAudit(reason) for audit trail. ' +
-    'If this is intentional, consider using the audited variant with a reason string.'
-  )
-  return createServerClient(
-    env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    serverEnv.SUPABASE_SERVICE_ROLE_KEY ?? '',
-    {
-      cookies: {
-        getAll() { return [] },
-        setAll() {},
-      },
-    }
-  )
-}
-
 export function getAdminClientWithAudit(reason: string) {
   console.log(`[ADMIN_CLIENT_AUDIT] ${reason} - ${new Date().toISOString()}`)
   return createServerClient(

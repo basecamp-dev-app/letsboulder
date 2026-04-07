@@ -7,7 +7,7 @@ vi.mock('@/lib/csrf-server', () => ({
 }))
 
 vi.mock('@/lib/supabase-server', () => ({
-  getAdminClient: vi.fn(),
+  getAdminClientWithAudit: vi.fn(),
 }))
 
 vi.mock('@/lib/env.server', () => ({
@@ -27,7 +27,7 @@ vi.mock('@/lib/errors', async () => {
 import { POST as confirmDelete } from '@/app/api/settings/delete/route'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { reportError } from '@/lib/errors'
-import { getAdminClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-server'
 
 type MiddlewareResult = Awaited<ReturnType<typeof withApiMiddleware>>
 
@@ -106,7 +106,7 @@ describe('settings delete route', () => {
       } as never,
     } as unknown as MiddlewareResult)
 
-    vi.mocked(getAdminClient).mockReturnValue({
+    vi.mocked(getAdminClientWithAudit).mockReturnValue({
       storage: {
         from: vi.fn((bucket: string) => {
           if (bucket === 'route-uploads') {

@@ -5,7 +5,7 @@ import { createErrorResponse, reportError } from '@/lib/errors'
 import { withApiMiddleware } from '@/lib/csrf-server'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { buildWelcomeEmail } from '@/lib/email/welcome-email'
-import { getAdminClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-server'
 import { serverEnv } from '@/lib/env.server'
 import { parseWithSchema } from '@/lib/api-validation'
 
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Email does not match authenticated user' }, { status: 403 })
   }
 
-  const supabase = getAdminClient()
+  const supabase = getAdminClientWithAudit('update welcome email sent flag')
 
   try {
     const { data: profile, error: profileError } = await supabase

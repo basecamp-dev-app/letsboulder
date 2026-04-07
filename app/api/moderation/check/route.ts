@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getAdminClient } from '@/lib/supabase-server'
+import { getAdminClientWithAudit } from '@/lib/supabase-server'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { moderateImageFromBytes, moderateImageFromUrl } from '@/lib/image-moderation'
 import { withApiMiddleware } from '@/lib/csrf-server'
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const supabase = getAdminClient()
+  const supabase = getAdminClientWithAudit('manual image moderation review')
 
   try {
     const parsedBody = parseWithSchema(moderationCheckSchema, await request.json())
