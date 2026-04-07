@@ -7,6 +7,7 @@
 import { ClimbRouteTypeEnum, type ClimbRouteType } from '@/lib/enums'
 
 export type { ClimbRouteType }
+export type ClimbType = ClimbRouteType
 export const CLIMB_ROUTE_TYPES = ClimbRouteTypeEnum.enum
 
 export interface RoutePoint {
