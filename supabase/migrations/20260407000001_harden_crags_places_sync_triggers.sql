@@ -142,13 +142,14 @@ ALTER TABLE public.crags ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ;
 ALTER TABLE public.places ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ;
 
 -- Step 3: Initialize synced_at to updated_at for existing rows
--- Disable triggers to prevent infinite loops during backfill
-ALTER TABLE public.crags DISABLE TRIGGER ALL;
-ALTER TABLE public.places DISABLE TRIGGER ALL;
+-- Disable user triggers to prevent infinite loops during backfill
+-- (DISABLE TRIGGER USER only affects user-defined triggers, not system FK triggers)
+ALTER TABLE public.crags DISABLE TRIGGER USER;
+ALTER TABLE public.places DISABLE TRIGGER USER;
 UPDATE public.crags SET synced_at = COALESCE(updated_at, NOW()) WHERE synced_at IS NULL;
 UPDATE public.places SET synced_at = COALESCE(updated_at, NOW()) WHERE synced_at IS NULL;
-ALTER TABLE public.crags ENABLE TRIGGER ALL;
-ALTER TABLE public.places ENABLE TRIGGER ALL;
+ALTER TABLE public.crags ENABLE TRIGGER USER;
+ALTER TABLE public.places ENABLE TRIGGER USER;
 
 -- Step 4: Recreate final versions with synced_at guard
 
