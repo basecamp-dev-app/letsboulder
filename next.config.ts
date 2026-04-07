@@ -19,7 +19,24 @@ function getMediaCdnRemotePattern() {
   }
 }
 
+function getSupabaseStorageRemotePattern() {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  if (!raw) return null
+
+  try {
+    const url = new URL(raw)
+    return {
+      protocol: 'https',
+      hostname: url.hostname,
+      pathname: '/storage/v1/object/public/**',
+    }
+  } catch {
+    return null
+  }
+}
+
 const mediaCdnRemotePattern = getMediaCdnRemotePattern()
+const supabaseStorageRemotePattern = getSupabaseStorageRemotePattern()
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -87,11 +104,7 @@ const nextConfig: NextConfig = {
       },
     ],
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'glxnbxbkedeogtcivpsx.supabase.co',
-        pathname: '/storage/v1/object/public/**',
-      },
+      ...(supabaseStorageRemotePattern ? [supabaseStorageRemotePattern] : []),
       {
         protocol: 'http',
         hostname: 'localhost',
