@@ -265,4 +265,4 @@ REVOKE ALL ON FUNCTION public.get_place_rankings_leaderboard(uuid, text, integer
 GRANT EXECUTE ON FUNCTION public.get_place_rankings_leaderboard(uuid, text, integer, integer, timestamptz) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_place_rankings_leaderboard(uuid, text, integer, integer, timestamptz) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_place_rankings_leaderboard(uuid, text, integer, integer, timestamptz) TO service_role;
-# Force migration trigger
+-- Force migration trigger
