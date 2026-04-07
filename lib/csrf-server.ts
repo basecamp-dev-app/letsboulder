@@ -19,7 +19,7 @@ export async function withCsrfProtection(
   }
 
   if (response) {
-    await setCsrfCookie(response)
+    await setCsrfCookie(request, response)
     return { valid: true, response }
   }
 
