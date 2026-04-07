@@ -1,6 +1,8 @@
 import type { RouteLine } from '@/features/submissions/lib/submission-types'
-import type { ClimbType, RoutePoint } from '@/types/climbing'
+import type { ClimbRouteType, RoutePoint } from '@/types/climbing'
 import type { OrientationDirection } from '@/features/submissions/lib/draft-metadata'
+
+export type ClimbType = ClimbRouteType
 
 export interface DraftImagePayload {
   id: string

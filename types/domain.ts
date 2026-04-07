@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 export interface GpsData {
   latitude: number
   longitude: number
@@ -5,7 +7,8 @@ export interface GpsData {
 
 export const FACE_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
 
-export type FaceDirection = typeof FACE_DIRECTIONS[number]
+type _FaceDirection = typeof FACE_DIRECTIONS[number]
+export type FaceDirection = _FaceDirection
 
 export interface RoutePoint {
   x: number
