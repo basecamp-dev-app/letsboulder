@@ -1,0 +1,10 @@
+repos:
+  - repo: local
+    hooks:
+      - id: no-test-migrations
+        name: Detect test migrations
+        entry: bash -c 'if ls supabase/migrations/*test*.sql supabase/migrations/*_test.sql 2>/dev/null | grep -q .; then echo "Test migrations found - remove before committing:"; ls supabase/migrations/*test*.sql supabase/migrations/*_test.sql 2>/dev/null; exit 1; fi'
+        language: system
+        types: [sql]
+        pass_filenames: false
+        stages: [pre-commit]

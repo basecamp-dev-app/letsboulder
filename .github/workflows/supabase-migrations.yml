@@ -37,12 +37,22 @@ jobs:
         id: migration_count
         shell: bash
         run: |
+          # Check for test migrations
+          if ls supabase/migrations/*test*.sql supabase/migrations/*_test.sql 2>/dev/null | grep -q .; then
+            echo "::error::Test migrations detected - remove before committing:"
+            ls supabase/migrations/*test*.sql supabase/migrations/*_test.sql 2>/dev/null
+            exit 1
+          fi
+
           MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | wc -l)
           echo "Migration count: $MIGRATION_COUNT"
           echo "count=$MIGRATION_COUNT" >> "$GITHUB_OUTPUT"
 
-          THRESHOLD=100
-          if [ "$MIGRATION_COUNT" -gt "$THRESHOLD" ]; then
+          THRESHOLD=75
+          SQUASH_THRESHOLD=125
+          if [ "$MIGRATION_COUNT" -gt "$SQUASH_THRESHOLD" ]; then
+            echo "migration_count_exceeded=squash_threshold_reached" >> "$GITHUB_OUTPUT"
+          elif [ "$MIGRATION_COUNT" -gt "$THRESHOLD" ]; then
             echo "migration_count_exceeded=true" >> "$GITHUB_OUTPUT"
           else
             echo "migration_count_exceeded=false" >> "$GITHUB_OUTPUT"
@@ -52,6 +62,11 @@ jobs:
         if: steps.migration_count.outputs.migration_count_exceeded == 'true'
         run: |
           echo "::warning::Migration count (${{ steps.migration_count.outputs.count }}) exceeds $THRESHOLD. Consider squashing migrations to reduce operational risk."
+
+      - name: Migration squash required
+        if: steps.migration_count.outputs.migration_count_exceeded == 'squash_threshold_reached'
+        run: |
+          echo "::error::Migration count (${{ steps.migration_count.outputs.count }}) exceeds $SQUASH_THRESHOLD. Squashing is required before merge."
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -91,12 +106,22 @@ jobs:
         id: migration_count
         shell: bash
         run: |
+          # Check for test migrations
+          if ls supabase/migrations/*test*.sql supabase/migrations/*_test.sql 2>/dev/null | grep -q .; then
+            echo "::error::Test migrations detected - remove before committing:"
+            ls supabase/migrations/*test*.sql supabase/migrations/*_test.sql 2>/dev/null
+            exit 1
+          fi
+
           MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | wc -l)
           echo "Migration count: $MIGRATION_COUNT"
           echo "count=$MIGRATION_COUNT" >> "$GITHUB_OUTPUT"
 
-          THRESHOLD=100
-          if [ "$MIGRATION_COUNT" -gt "$THRESHOLD" ]; then
+          THRESHOLD=75
+          SQUASH_THRESHOLD=125
+          if [ "$MIGRATION_COUNT" -gt "$SQUASH_THRESHOLD" ]; then
+            echo "migration_count_exceeded=squash_threshold_reached" >> "$GITHUB_OUTPUT"
+          elif [ "$MIGRATION_COUNT" -gt "$THRESHOLD" ]; then
             echo "migration_count_exceeded=true" >> "$GITHUB_OUTPUT"
           else
             echo "migration_count_exceeded=false" >> "$GITHUB_OUTPUT"
@@ -106,6 +131,11 @@ jobs:
         if: steps.migration_count.outputs.migration_count_exceeded == 'true'
         run: |
           echo "::warning::Migration count (${{ steps.migration_count.outputs.count }}) exceeds $THRESHOLD. Consider squashing migrations to reduce operational risk."
+
+      - name: Migration squash required
+        if: steps.migration_count.outputs.migration_count_exceeded == 'squash_threshold_reached'
+        run: |
+          echo "::error::Migration count (${{ steps.migration_count.outputs.count }}) exceeds $SQUASH_THRESHOLD. Squashing is required before merge."
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
