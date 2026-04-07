@@ -4,8 +4,16 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 const mockCreateClient = vi.fn()
 const mockBuildClimbOfflinePack = vi.fn()
 
+const { getAdminClientWithAudit } = vi.hoisted(() => ({
+  getAdminClientWithAudit: vi.fn(() => mockCreateClient()),
+}))
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: (...args: unknown[]) => mockCreateClient(...args),
+}))
+
+vi.mock('@/lib/supabase-server', () => ({
+  getAdminClientWithAudit,
 }))
 
 vi.mock('@/lib/offline/build-climb-pack', () => ({
