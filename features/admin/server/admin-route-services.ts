@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createErrorResponse } from '@/lib/errors'
 import { parseWithSchema } from '@/lib/api-validation'
 import { QueueItemSchema, QueueItemVoteSchema, FlagWithRelationsSchema } from '@/lib/supabase-result-schemas'
+import { calculateVoteCounts } from '../lib/vote-utils'
 
 import type { NextRequest } from 'next/server'
 
@@ -321,10 +322,10 @@ export async function voteOnModerationQueueItem(request: NextRequest, supabase: 
     const { error: insertError } = await supabase.from('moderation_votes').insert({ queue_id: queueId, voter_id: userId, vote_type, reason })
     if (insertError) return createErrorResponse(insertError, 'Error recording vote')
 
-    const newVerifyCount = vote_type === 'verify' ? queueItem.verify_count + 1 : queueItem.verify_count
-    const newFlagCount = vote_type === 'flag' ? queueItem.flag_count + 1 : queueItem.flag_count
-    const wasResolved = newVerifyCount >= 3 || newFlagCount >= 3
-    const resolutionStatus = newVerifyCount >= 3 ? 'verified' as const : newFlagCount >= 3 ? 'flagged' as const : null
+    const { newVerifyCount, newFlagCount, wasResolved, resolutionStatus } = calculateVoteCounts(
+      queueItem,
+      vote_type
+    )
 
     const climbName = queueItem.climb?.name || 'Unnamed route'
     const cragName = queueItem.crag?.name || 'Unknown crag'
