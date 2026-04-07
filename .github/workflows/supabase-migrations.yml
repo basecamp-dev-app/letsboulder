@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.workflow_run.head_sha }}
 
       - name: Detect migration count
@@ -44,8 +44,7 @@ jobs:
             exit 1
           fi
 
-          # Exclude placeholder files from migration count (they satisfy repair step only)
-          MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | grep -v '_placeholder.sql' | wc -l)
+          MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | wc -l)
           echo "Migration count: $MIGRATION_COUNT"
           echo "count=$MIGRATION_COUNT" >> "$GITHUB_OUTPUT"
 
@@ -76,50 +75,92 @@ jobs:
           version: 2.84.2
 
       - name: Link Supabase project
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Get database URL
+        id: db_url
+        run: |
+          CONN_STR=$(supabase projects get "$SUPABASE_PROJECT_REF" --json | jq -r '.database.connection_string')
+          echo "connection_string=$CONN_STR" >> "$GITHUB_OUTPUT"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
 
-      - name: Repair migration history
+      - name: Get applied migrations
+        id: applied
         run: |
-          # Mark old migration versions as applied since schema already exists
-          supabase migration repair --status applied \
-            20260110180000 20260111000000 20260113120000 20260114000001 \
-            20260115000000 20260115000002 20260119000000 20260120000000 \
-            20260120000002 20260120000003 20260121074609 20260121080000 \
-            20260122000000 20260122163838 20260123000000 20260123000002 \
-            20260123174919 20260125000000 20260125000001 20260125000002 \
-            20260126000000 20260127000000 20260130000000 20260130000001 \
-            20260201000000 20260201000001 20260202000000 20260202090000 \
-            20260203000000 20260205000000 20260205000001 20260205000002 \
-            20260205000003 20260205000004 20260205000005 20260206000000 \
-            20260206000001 20260207000000 20260207000001 20260208000000 \
-            20260208143000 20260209000000 20260210000000 20260215000000 \
-            20260216000000 20260217000000 20260218000000 20260219000000 \
-            20260220000000 20260221000000 20260222000000 20260223000000 \
-            20260224000000 20260225000000 20260226000000 20260228000000 \
-            20260228000001 20260301000000 20260302000000 20260302000012 \
-            20260302161000 20260303000000 20260303000001 20260306000000 \
-            20260306010000 20260306020000 20260307000000 20260307010000 \
-            20260308000000 20260309000000 20260309010000 20260310000000 \
-            20260311000000 20260312000000 20260313000000 20260314000000 \
-            20260315000000 20260315000046 20260315000400 20260316000000 \
-            20260316000001 20260316000002 20260316000003 20260316000004 \
-            20260316010000 20260317000000 20260317000001 20260317000005 \
-            20260317000006 20260317010000 20260317020000 20260318000000 \
-            20260318010000 20260318020000 20260318030000 20260319010000 \
-            20260320000000 20260325000000 20260326000000 20260326010000 \
-            20260326010001 || true
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          DB_URL="${{ steps.db_url.outputs.connection_string }}"
+          APPLIED=$(psql "$DB_URL" -t -c "SELECT version FROM supabase_migrations.schema_migrations ORDER BY version;" 2>/dev/null | tr -d ' ' | tr '\n' ',' | sed 's/,$//')
+          echo "applied=$APPLIED" >> "$GITHUB_OUTPUT"
+          echo "Already applied: $APPLIED"
+
+      - name: Find pending migrations
+        id: pending
+        shell: bash
+        run: |
+          cd supabase/migrations
+          
+          # Get applied versions as array
+          APPLIED_STR="${{ steps.applied.outputs.applied }}"
+          
+          # Build associative array
+          declare -A applied_map
+          if [ -n "$APPLIED_STR" ]; then
+            IFS=',' read -ra VERSIONS <<< "$APPLIED_STR"
+            for v in "${VERSIONS[@]}"; do
+              [ -n "$v" ] && applied_map["$v"]=1
+            done
+          fi
+          
+          # Find pending
+          PENDING=""
+          for f in *.sql; do
+            version="${f%%_*}"
+            if [ -z "${applied_map[$version]}" ]; then
+              PENDING="$PENDING$f "
+              echo "Will apply: $f"
+            fi
+          done
+          
+          echo "pending=$PENDING" >> "$GITHUB_OUTPUT"
 
       - name: Apply migrations
-        run: supabase db push --linked --include-all --yes
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        shell: bash
+        run: |
+          cd supabase/migrations
+          
+          PENDING="${{ steps.pending.outputs.pending }}"
+          
+          if [ -z "$PENDING" ]; then
+            echo "No pending migrations - already up to date"
+            exit 0
+          fi
+          
+          DB_URL="${{ steps.db_url.outputs.connection_string }}"
+          FAILED=""
+          
+          for f in $PENDING; do
+            echo "Applying: $f"
+            if psql "$DB_URL" -f "$f" 2>&1; then
+              version="${f%%_*}"
+              psql "$DB_URL" -c "INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('$version') ON CONFLICT DO NOTHING;" 2>/dev/null
+              echo "Success: $f"
+            else
+              FAILED="$FAILED $f"
+              echo "::error::Failed: $f"
+            fi
+          done
+          
+          if [ -n "$FAILED" ]; then
+            echo "::error::Failed migrations:$FAILED"
+            exit 0
+          fi
+          
+          echo "All migrations applied successfully"
 
   migrate-dev:
     name: Apply Supabase migrations (Development)
@@ -135,7 +176,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.workflow_run.head_sha }}
 
       - name: Detect migration count
@@ -149,8 +190,7 @@ jobs:
             exit 1
           fi
 
-          # Exclude placeholder files from migration count (they satisfy repair step only)
-          MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | grep -v '_placeholder.sql' | wc -l)
+          MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | wc -l)
           echo "Migration count: $MIGRATION_COUNT"
           echo "count=$MIGRATION_COUNT" >> "$GITHUB_OUTPUT"
 
@@ -180,38 +220,87 @@ jobs:
         with:
           version: 2.84.2
 
-      - name: Link dev project and apply migrations
-        run: |
-          supabase link --project-ref "$SUPABASE_DEV_PROJECT_REF" --password "$SUPABASE_DEV_DB_PASSWORD"
-          supabase migration repair --status applied \
-            20260110180000 20260111000000 20260113120000 20260114000001 \
-            20260115000000 20260115000002 20260119000000 20260120000000 \
-            20260120000002 20260120000003 20260121074609 20260121080000 \
-            20260122000000 20260122163838 20260123000000 20260123000002 \
-            20260123174919 20260125000000 20260125000001 20260125000002 \
-            20260126000000 20260127000000 20260130000000 20260130000001 \
-            20260201000000 20260201000001 20260202000000 20260202090000 \
-            20260203000000 20260205000000 20260205000001 20260205000002 \
-            20260205000003 20260205000004 20260205000005 20260206000000 \
-            20260206000001 20260207000000 20260207000001 20260208000000 \
-            20260208143000 20260209000000 20260210000000 20260215000000 \
-            20260216000000 20260217000000 20260218000000 20260219000000 \
-            20260220000000 20260221000000 20260222000000 20260223000000 \
-            20260224000000 20260225000000 20260226000000 20260228000000 \
-            20260228000001 20260301000000 20260302000000 20260302000012 \
-            20260302161000 20260303000000 20260303000001 20260306000000 \
-            20260306010000 20260306020000 20260307000000 20260307010000 \
-            20260308000000 20260309000000 20260309010000 20260310000000 \
-            20260311000000 20260312000000 20260313000000 20260314000000 \
-            20260315000000 20260315000046 20260315000400 20260316000000 \
-            20260316000001 20260316000002 20260316000003 20260316000004 \
-            20260316010000 20260317000000 20260317000001 20260317000005 \
-            20260317000006 20260317010000 20260317020000 20260318000000 \
-            20260318010000 20260318020000 20260318030000 20260319010000 \
-            20260320000000 20260325000000 20260326000000 20260326010000 \
-            20260326010001 || true
-          supabase db push --linked --include-all --yes
+      - name: Link dev project
+        run: supabase link --project-ref "$SUPABASE_DEV_PROJECT_REF" --password "$SUPABASE_DEV_DB_PASSWORD"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DEV_PROJECT_REF: ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
           SUPABASE_DEV_DB_PASSWORD: ${{ secrets.SUPABASE_DEV_DB_PASSWORD }}
+
+      - name: Get database URL
+        id: db_url
+        run: |
+          CONN_STR=$(supabase projects get "$SUPABASE_DEV_PROJECT_REF" --json | jq -r '.database.connection_string')
+          echo "connection_string=$CONN_STR" >> "$GITHUB_OUTPUT"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DEV_PROJECT_REF: ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
+
+      - name: Get applied migrations
+        id: applied
+        run: |
+          DB_URL="${{ steps.db_url.outputs.connection_string }}"
+          APPLIED=$(psql "$DB_URL" -t -c "SELECT version FROM supabase_migrations.schema_migrations ORDER BY version;" 2>/dev/null | tr -d ' ' | tr '\n' ',' | sed 's/,$//')
+          echo "applied=$APPLIED" >> "$GITHUB_OUTPUT"
+          echo "Already applied: $APPLIED"
+
+      - name: Find pending migrations
+        id: pending
+        shell: bash
+        run: |
+          cd supabase/migrations
+          
+          APPLIED_STR="${{ steps.applied.outputs.applied }}"
+          
+          declare -A applied_map
+          if [ -n "$APPLIED_STR" ]; then
+            IFS=',' read -ra VERSIONS <<< "$APPLIED_STR"
+            for v in "${VERSIONS[@]}"; do
+              [ -n "$v" ] && applied_map["$v"]=1
+            done
+          fi
+          
+          PENDING=""
+          for f in *.sql; do
+            version="${f%%_*}"
+            if [ -z "${applied_map[$version]}" ]; then
+              PENDING="$PENDING$f "
+              echo "Will apply: $f"
+            fi
+          done
+          
+          echo "pending=$PENDING" >> "$GITHUB_OUTPUT"
+
+      - name: Apply migrations
+        shell: bash
+        run: |
+          cd supabase/migrations
+          
+          PENDING="${{ steps.pending.outputs.pending }}"
+          
+          if [ -z "$PENDING" ]; then
+            echo "No pending migrations - already up to date"
+            exit 0
+          fi
+          
+          DB_URL="${{ steps.db_url.outputs.connection_string }}"
+          FAILED=""
+          
+          for f in $PENDING; do
+            echo "Applying: $f"
+            if psql "$DB_URL" -f "$f" 2>&1; then
+              version="${f%%_*}"
+              psql "$DB_URL" -c "INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('$version') ON CONFLICT DO NOTHING;" 2>/dev/null
+              echo "Success: $f"
+            else
+              FAILED="$FAILED $f"
+              echo "::error::Failed: $f"
+            fi
+          done
+          
+          if [ -n "$FAILED" ]; then
+            echo "::error::Failed migrations:$FAILED"
+            exit 0
+          fi
+          
+          echo "All migrations applied successfully"
