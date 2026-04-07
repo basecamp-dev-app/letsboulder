@@ -287,6 +287,14 @@ The `comments` table uses a polymorphic `target_id`/`target_type` pattern to att
 | `trg_submission_draft_promoted_handoff` | submission_drafts | Handle draft→submission promotion |
 | `*_updated_at` | media_jobs, submission_drafts, submission_draft_images | Timestamp touch |
 
+### Bidirectional Sync Guards (crags ↔ places)
+The `crags_sync_to_places_after_write` and `places_sync_to_crags_after_write` triggers maintain bidirectional sync between `crags` and `places` tables. Both use dual-layer guards to prevent infinite loops:
+
+- **Guard 1:** `pg_trigger_depth() > 1` — prevents direct trigger recursion
+- **Guard 2:** `synced_at` comparison — skips sync if row was just updated by the other trigger (prevents indirect loops)
+
+Both `crags` and `places` have a `synced_at TIMESTAMPTZ` column. When a sync operation completes, it sets `synced_at = NOW()`. The receiving trigger detects this change and returns early, breaking the loop.
+
 ### Auth Tables
 - **System tables:** Use RPC functions with `SECURITY DEFINER` for `auth.users` queries
 - **Reference:** `get_user_count()` function in database
