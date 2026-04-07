@@ -42,6 +42,7 @@ const serverOnlyEnvSchema = z.object({
   TEST_API_KEY: z.string().optional(),
   TEST_USER_PASSWORD: z.string().optional(),
   TEST_USER_ID: z.string().optional(),
+  TEST_AUTH_PATH_SEGMENT: z.string().min(1).optional(),
   SENTRY_DSN: z.string().optional(),
 })
 

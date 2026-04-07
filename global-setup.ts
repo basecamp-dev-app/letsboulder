@@ -85,6 +85,14 @@ async function globalSetup() {
   const testUserPassword = process.env.TEST_USER_PASSWORD?.trim()
   const internalTestKey = process.env.INTERNAL_TEST_KEY?.trim()
 
+  const testAuthPathSegment = process.env.TEST_AUTH_PATH_SEGMENT?.trim()
+
+  if (!testAuthPathSegment) {
+    console.log('TEST_AUTH_PATH_SEGMENT is required for test auth, skipping authentication')
+    await ensureSeedData()
+    return
+  }
+
   if (!testApiKey || (!testUserId && !testUserEmail) || !testUserPassword) {
     console.log('TEST_API_KEY, TEST_USER_PASSWORD, and either TEST_USER_EMAIL or TEST_USER_ID are required, skipping authentication')
     await ensureSeedData()
@@ -99,7 +107,7 @@ async function globalSetup() {
   const context = await browser.newContext()
   
   try {
-    const authUrl = new URL('/api/test/auth', baseURL)
+    const authUrl = new URL(`/api/test/${testAuthPathSegment}/auth`, baseURL)
 
     console.log(`Authenticating via ${authUrl.toString()}`)
 
@@ -131,7 +139,7 @@ async function globalSetup() {
       const contentType = response.headers()['content-type'] || 'unknown'
       if (contentType.includes('text/html')) {
         throw new Error(
-          `Auth failed: ${response.status()} HTML response from /api/test/auth (likely Cloudflare challenge). ` +
+          `Auth failed: ${response.status()} HTML response from /api/test/${testAuthPathSegment}/auth (likely Cloudflare challenge). ` +
           'Ensure CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET are present in Playwright job env.'
         )
       }
