@@ -1,1 +1,1 @@
-// Barrel for admin feature lib utilities
+export * from './vote-utils'
