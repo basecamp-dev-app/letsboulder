@@ -213,11 +213,27 @@ Font scale is the master index (42 entries). V-scale, YDS, French, British are d
 | `countries` | `images` | no action |
 | `regions` | `countries` | SET NULL |
 | `crags` | `climb_flags` | SET NULL |
+| `crags` | `comments` | Trigger soft-delete (crag) |
+| `images` | `comments` | Trigger soft-delete (image) |
+| `climbs` | `comments` | Trigger soft-delete (climb) |
 | `location_tags` | `crag_location_tags` | CASCADE |
 | `continents` | `un_regions` | no action |
 | `un_regions` | `regions` | no action |
 
 **Agent rule:** Before any DELETE operation, check this table or the migration files in `supabase/migrations/` to confirm ON DELETE behavior. Never assume cascade behavior.
+
+### Polymorphic Comments
+
+The `comments` table uses a polymorphic `target_id`/`target_type` pattern to attach comments to `crag`, `image`, or `climb` records. This design has no FK constraints — a deliberate tradeoff:
+
+**Why no FKs:** PostgreSQL does not support polymorphic foreign keys. A single `target_id` column cannot reference multiple tables.
+
+**How integrity is enforced:**
+- **On INSERT/UPDATE:** `validate_comment_target()` trigger checks that the referenced target exists (`comments_validate_target_trigger`)
+- **On target DELETE:** `soft_delete_comments_on_target_delete()` triggers on `crags`, `images`, `climbs` soft-delete associated comments (`deleted_at = now()`)
+- **On comment DELETE:** `enforce_comment_soft_delete_only()` trigger prevents hard deletes (`comments_soft_delete_only_trigger`)
+
+**Tradeoff:** No cascade at the DB level. Orphan comments are prevented by triggers, not FK constraints. If a trigger is dropped or disabled, orphans can accumulate.
 
 ### Media Pipeline Tables
 - `images` carries media-pipeline state in addition to legacy `url` storage fields.
