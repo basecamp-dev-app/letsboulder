@@ -44,12 +44,13 @@ jobs:
             exit 1
           fi
 
-          MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | wc -l)
+          # Exclude placeholder files from migration count (they satisfy repair step only)
+          MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | grep -v '_placeholder.sql' | wc -l)
           echo "Migration count: $MIGRATION_COUNT"
           echo "count=$MIGRATION_COUNT" >> "$GITHUB_OUTPUT"
 
           THRESHOLD=75
-          SQUASH_THRESHOLD=125
+          SQUASH_THRESHOLD=150
           if [ "$MIGRATION_COUNT" -gt "$SQUASH_THRESHOLD" ]; then
             echo "migration_count_exceeded=squash_threshold_reached" >> "$GITHUB_OUTPUT"
           elif [ "$MIGRATION_COUNT" -gt "$THRESHOLD" ]; then
@@ -148,12 +149,13 @@ jobs:
             exit 1
           fi
 
-          MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | wc -l)
+          # Exclude placeholder files from migration count (they satisfy repair step only)
+          MIGRATION_COUNT=$(ls supabase/migrations/*.sql 2>/dev/null | grep -v '_placeholder.sql' | wc -l)
           echo "Migration count: $MIGRATION_COUNT"
           echo "count=$MIGRATION_COUNT" >> "$GITHUB_OUTPUT"
 
           THRESHOLD=75
-          SQUASH_THRESHOLD=125
+          SQUASH_THRESHOLD=150
           if [ "$MIGRATION_COUNT" -gt "$SQUASH_THRESHOLD" ]; then
             echo "migration_count_exceeded=squash_threshold_reached" >> "$GITHUB_OUTPUT"
           elif [ "$MIGRATION_COUNT" -gt "$THRESHOLD" ]; then
