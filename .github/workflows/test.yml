@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   deployment_status:
   pull_request:
     branches: [main]
@@ -52,6 +54,21 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_MEDIA_CDN_URL: ${{ secrets.NEXT_PUBLIC_MEDIA_CDN_URL }}
+          CSRF_SECRET: ${{ secrets.CSRF_SECRET }}
+          DELETE_ACCOUNT_SECRET: ${{ secrets.DELETE_ACCOUNT_SECRET }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          R2_S3_ENDPOINT: ${{ secrets.R2_S3_ENDPOINT }}
+          R2_PRIVATE_BUCKET: ${{ secrets.R2_PRIVATE_BUCKET }}
+          R2_PUBLIC_BUCKET: ${{ secrets.R2_PUBLIC_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
 
       - name: Run Unit Tests
         run: npm run test:unit
