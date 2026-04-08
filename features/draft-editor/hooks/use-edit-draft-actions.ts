@@ -2,11 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState, type RefObject } from 'react'
 import { useRouter } from 'next/navigation'
-import { deleteSubmissionDraftAction, publishSubmissionDraftAction } from '@/features/submissions/actions/manage-submissions'
-import {
-  patchSubmissionDraftAction,
-  syncSubmissionDraftRoutesAction,
-} from '@/features/submissions/actions/editor-write-actions'
+import { csrfFetch } from '@/hooks/useCsrf'
 import { serializeDraftMetadataV2, type OrientationDirection } from '@/features/submissions/lib/draft-metadata'
 import { normalizeSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
 import { buildRouteCompletionPayload } from '@/features/route-editor/route-editor-utils'
@@ -105,9 +101,14 @@ export function useEditDraftActions({
     await Promise.all(
       [...draftImageIds].map(async (draftImageId) => {
         const routes = resolvedRoutesByImageId[draftImageId] || []
-        const result = await syncSubmissionDraftRoutesAction(draft.id, draftImageId, routes)
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to sync draft routes')
+        const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/routes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ draftImageId, routes }),
+        })
+        const payload = await response.json().catch(() => ({ error: 'Failed to sync draft routes' })) as { error?: string }
+        if (!response.ok) {
+          throw new Error(payload.error || 'Failed to sync draft routes')
         }
       })
     )
@@ -221,12 +222,23 @@ export function useEditDraftActions({
       } = {}
 
       for (let attempt = 0; attempt < 2; attempt += 1) {
-        const result = await patchSubmissionDraftAction(draft.id, {
-          ...savePayload,
-          expected_updated_at: expectedUpdatedAt,
+        const response = await csrfFetch(`/api/submissions/drafts/${draft.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...savePayload,
+            expected_updated_at: expectedUpdatedAt,
+          }),
         })
 
-        payload = result.success ? (result.data || {}) as typeof payload : ((result.data || { error: result.error }) as typeof payload)
+        const resultPayload = await response.json().catch(() => ({ error: 'Failed to save draft' })) as typeof payload
+        const result = {
+          success: response.ok,
+          status: response.status,
+          error: resultPayload.error,
+        }
+
+        payload = resultPayload
 
         if (result.success) break
         if (result.status === 409 && payload.code === 'draft_conflict') {
@@ -276,9 +288,12 @@ export function useEditDraftActions({
     if (!draftId || !isOwner) return
 
     setError(null)
-    const result = await deleteSubmissionDraftAction(draftId)
-    if (!result.success) {
-      setError(result.error || 'Failed to delete draft')
+    const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, {
+      method: 'DELETE',
+    })
+    const payload = await response.json().catch(() => ({ error: 'Failed to delete draft' })) as { error?: string }
+    if (!response.ok) {
+      setError(payload.error || 'Failed to delete draft')
       return
     }
 
@@ -332,8 +347,10 @@ export function useEditDraftActions({
       const saved = await saveDraft()
       if (!saved) return
 
-      const result = await publishSubmissionDraftAction(draft.id)
-      const payload = (result.data || {}) as {
+      const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/publish`, {
+        method: 'POST',
+      })
+      const payload = await response.json().catch(() => ({ error: 'Failed to publish draft' })) as {
         error?: string
         published?: {
           defaultImageId?: string
@@ -344,8 +361,8 @@ export function useEditDraftActions({
         }
       }
 
-      if (!result.success || !payload.published?.defaultImageId || !payload.published.canonicalPath) {
-        throw new Error(result.error || payload.error || 'Failed to publish draft')
+      if (!response.ok || !payload.published?.defaultImageId || !payload.published.canonicalPath) {
+        throw new Error(payload.error || 'Failed to publish draft')
       }
 
       const imageCount = Array.isArray(payload.published.imageIds) ? payload.published.imageIds.length : 1
