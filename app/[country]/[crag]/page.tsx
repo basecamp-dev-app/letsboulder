@@ -151,8 +151,15 @@ export async function generateMetadata({ params }: { params: Promise<CragSlugPar
   }
 }
 
-export default async function CragSlugPage({ params }: { params: Promise<CragSlugParams> }) {
+export default async function CragSlugPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<CragSlugParams>
+  searchParams: Promise<{ image?: string }>
+}) {
   const { country, crag: cragSlug } = await params
+  const { image } = await searchParams
   if (!country || country.length !== 2) notFound()
 
   const countryCode = country.toUpperCase()
@@ -210,6 +217,7 @@ export default async function CragSlugPage({ params }: { params: Promise<CragSlu
         initialRouteNavigationTargetByClimbId={initialRouteData.initialRouteNavigationTargetByClimbId}
         initialCragCenter={initialRouteData.initialCragCenter}
         initialPayloadLoadedAt={initialRouteData.loadedAt}
+        initialSelectedImageId={image || null}
       />
     </>
   )

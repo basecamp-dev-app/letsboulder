@@ -15,6 +15,7 @@ interface CragPageShellProps {
   initialCragCenter: [number, number] | null
   initialPayloadLoadedAt?: number
   communityPlaceSlug?: string | null
+  initialSelectedImageId?: string | null
 }
 
 export default function CragPageShell(props: CragPageShellProps) {

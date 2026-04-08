@@ -2,10 +2,11 @@
 
 import LightweightCragMap from '@/components/LightweightCragMap'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
+import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 
 interface CragMapViewProps {
   crag: CragPageCrag
-  mapPins: Array<{ id: string; latitude: number; longitude: number; label: string }>
+  mapPins: LightweightCragMapPin[]
   selectedImageId: string | null
   cragCenter: [number, number] | null
   isAdmin: boolean
