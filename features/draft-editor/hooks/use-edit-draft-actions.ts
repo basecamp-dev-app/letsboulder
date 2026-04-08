@@ -11,6 +11,7 @@ import type { DraftCanvasSource, DraftConflictResponse, DraftPayload, DraftRoute
 import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 
 const RATE_LIMIT_ERROR_MESSAGE = 'You are saving too quickly right now. Please wait a moment and try again.'
+const PUBLISH_RATE_LIMIT_ERROR_MESSAGE = 'You have reached the current draft publish limit. Please wait a moment and try again.'
 
 interface UseEditDraftActionsParams {
   draftId: string
@@ -379,6 +380,9 @@ export function useEditDraftActions({
       }
 
       if (!response.ok || !payload.published?.defaultImageId || !payload.published.canonicalPath) {
+        if (response.status === 429) {
+          throw new Error(PUBLISH_RATE_LIMIT_ERROR_MESSAGE)
+        }
         throw new Error(payload.error || 'Failed to publish draft')
       }
 
