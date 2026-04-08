@@ -247,6 +247,13 @@ BEGIN
     FROM tmp_storage_object_policies
     ORDER BY policyname
   LOOP
+    IF policy_record.policyname = 'Route uploads read gated' THEN
+      policy_record.qual := replace(
+        replace(policy_record.qual, '''pending''::text', '''pending''::image_moderation_status'),
+        '''approved''::text', '''approved''::image_moderation_status'
+      );
+    END IF;
+
     SELECT CASE
       WHEN policy_record.roles = ARRAY['public'] THEN 'PUBLIC'
       ELSE string_agg(quote_ident(role_name), ', ')
