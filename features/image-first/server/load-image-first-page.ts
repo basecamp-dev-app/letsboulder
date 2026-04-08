@@ -211,6 +211,7 @@ export async function buildImageFirstPayload(args: {
   country: string
   crag: string
   imageId: string
+  selectedImageId?: string | null
   routeId?: string | null
   routeSlug?: string | null
   climbId?: string | null
@@ -220,6 +221,7 @@ export async function buildImageFirstPayload(args: {
 
   const canonicalPath = `/${image.countryCode}/${image.cragSlug}/i/${image.canonicalId}`
   const query = new URLSearchParams()
+  if (args.selectedImageId) query.set('image', args.selectedImageId)
   if (args.routeSlug) {
     query.set('route', args.routeSlug)
   } else if (args.routeId) {

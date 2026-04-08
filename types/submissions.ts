@@ -1,6 +1,9 @@
 export interface Submission {
   id: string
   canonical_image_id: string | null
+  route_image_id?: string | null
+  route_line_id?: string | null
+  climb_id?: string | null
   kind: 'submitted' | 'draft'
   status: 'draft' | 'pending_review' | 'published'
   is_optimistic?: boolean

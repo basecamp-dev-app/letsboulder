@@ -13,15 +13,16 @@ export default async function ImagePage({
   searchParams,
 }: {
   params: Promise<ImagePageParams>
-  searchParams: Promise<{ route?: string; climb?: string }>
+  searchParams: Promise<{ image?: string; route?: string; climb?: string }>
 }) {
   const { country, crag, imageId } = await params
-  const { route, climb } = await searchParams
+  const { image, route, climb } = await searchParams
 
   const result = await buildImageFirstPayload({
     country,
     crag,
     imageId,
+    selectedImageId: image || null,
     routeId: route || null,
     routeSlug: route || null,
     climbId: climb || null,
