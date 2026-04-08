@@ -57,12 +57,19 @@ CREATE TYPE crag_type AS ENUM ('crag', 'boulder', 'sport', 'trad', 'mixed');
 
 -- Alter tables to use enum types
 -- Images
+DROP TRIGGER IF EXISTS trigger_crag_counts_images ON public.images;
+
 ALTER TABLE images ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE images ALTER COLUMN status TYPE image_status USING status::image_status;
 ALTER TABLE images ALTER COLUMN status SET DEFAULT 'pending'::image_status;
 ALTER TABLE images ALTER COLUMN visibility TYPE image_visibility USING visibility::image_visibility;
 ALTER TABLE images ALTER COLUMN processing_status TYPE image_processing_status USING processing_status::image_processing_status;
 ALTER TABLE images ALTER COLUMN moderation_status TYPE image_moderation_status USING moderation_status::image_moderation_status;
+
+CREATE TRIGGER trigger_crag_counts_images
+  AFTER INSERT OR DELETE OR UPDATE OF status ON public.images
+  FOR EACH ROW
+  EXECUTE FUNCTION public.trigger_recompute_crag_counts_images();
 
 -- Climb
 ALTER TABLE climbs ALTER COLUMN status TYPE climb_status USING status::climb_status;
