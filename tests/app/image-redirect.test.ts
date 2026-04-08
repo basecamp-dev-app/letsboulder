@@ -77,7 +77,7 @@ describe('app/image/[id]/page', () => {
     })
 
     expect(getImageByDisplayIdMock).toHaveBeenCalledWith('8bc21fe1-487c-4027-9e44-d9c4b4516194')
-    expect(redirectMock).toHaveBeenCalledWith('/mx/el-nuevo-testamento/i/8bc21fe1-487c-4027-9e44-d9c4b4516194?route=91e4f278-dfa7-4436-9aa2-f7752aac5ec6&climb=1403793e-07bd-4914-84d2-d8976d108052')
+    expect(redirectMock).toHaveBeenCalledWith('/mx/el-nuevo-testamento/i/8bc21fe1-487c-4027-9e44-d9c4b4516194?image=8bc21fe1-487c-4027-9e44-d9c4b4516194&route=91e4f278-dfa7-4436-9aa2-f7752aac5ec6&climb=1403793e-07bd-4914-84d2-d8976d108052')
   })
 
   test('falls through to notFound when no image matches', async () => {

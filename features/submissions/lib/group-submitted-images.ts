@@ -10,7 +10,7 @@ interface SubmissionImageRow {
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
   crags: { name?: string } | Array<{ name?: string }> | null
-  route_lines: Array<{ count?: number }> | null
+  route_lines: Array<{ count?: number } | { id: string; climb_id: string }> | null
 }
 
 interface CragImageLinkRow {
@@ -22,6 +22,9 @@ interface SubmissionGroupAggregate {
   id: string
   canonical_image_id: string
   canonical_url: string
+  route_image_id: string | null
+  route_line_id: string | null
+  climb_id: string | null
   created_at: string
   updated_at: string
   crag_name: string | null
@@ -73,8 +76,17 @@ function pickCragName(value: SubmissionImageRow['crags']): string | null {
 }
 
 function pickRouteLinesCount(value: SubmissionImageRow['route_lines']): number {
-  if (!Array.isArray(value) || !value[0]) return 0
-  return value[0].count || 0
+  if (!Array.isArray(value)) return 0
+  const first = value[0]
+  if (first && 'count' in first) return first.count || 0
+  return value.length
+}
+
+function pickFirstRouteLine(value: SubmissionImageRow['route_lines']): { id: string; climb_id: string } | null {
+  if (!Array.isArray(value) || value.length === 0) return null
+  const first = value[0]
+  if (!first || 'count' in first || !('id' in first) || !('climb_id' in first)) return null
+  return first
 }
 
 function resolveGroupKey(
@@ -126,6 +138,9 @@ export function groupSubmittedImages(
         id: groupKey,
         canonical_image_id: canonical.id,
         canonical_url: canonical.url,
+        route_image_id: routeLinesCount > 0 ? row.id : null,
+        route_line_id: routeLinesCount > 0 ? pickFirstRouteLine(row.route_lines)?.id || null : null,
+        climb_id: routeLinesCount > 0 ? pickFirstRouteLine(row.route_lines)?.climb_id || null : null,
         created_at: row.created_at,
         updated_at: row.created_at,
         crag_name: cragName,
@@ -144,6 +159,12 @@ export function groupSubmittedImages(
     }
 
     existing.route_lines_count += routeLinesCount
+    if (!existing.route_image_id && routeLinesCount > 0) {
+      const firstRouteLine = pickFirstRouteLine(row.route_lines)
+      existing.route_image_id = row.id
+      existing.route_line_id = firstRouteLine?.id || null
+      existing.climb_id = firstRouteLine?.climb_id || null
+    }
     if (!existing.crag_name && cragName) {
       existing.crag_name = cragName
     }
@@ -166,6 +187,9 @@ export function groupSubmittedImages(
     .map((group) => ({
       id: group.id,
       canonical_image_id: group.canonical_image_id,
+      route_image_id: group.route_image_id,
+      route_line_id: group.route_line_id,
+      climb_id: group.climb_id,
       kind: 'submitted' as const,
       status: toSubmittedStatus(group.has_published_image ? 'approved' : 'pending'),
       url: group.canonical_url,

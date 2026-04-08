@@ -127,12 +127,24 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
             : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
         const destinationHref = submission.kind === 'draft'
           ? draftHref
-          : submission.canonical_image_id
-            ? `/image/${submission.canonical_image_id}`
-            : `/image/${submission.id}`
-        const manageHref = submission.canonical_image_id
-          ? `/logbook/submissions/${submission.canonical_image_id}/edit`
-          : `/logbook/submissions/${submission.id}/edit`
+          : (() => {
+            const baseImageId = submission.canonical_image_id || submission.id
+            const query = new URLSearchParams()
+            if (submission.route_image_id) query.set('image', submission.route_image_id)
+            if (submission.route_line_id) query.set('route', submission.route_line_id)
+            if (submission.climb_id) query.set('climb', submission.climb_id)
+            const queryString = query.toString()
+            return `/image/${baseImageId}${queryString ? `?${queryString}` : ''}`
+          })()
+        const manageHref = (() => {
+          const baseImageId = submission.canonical_image_id || submission.id
+          const query = new URLSearchParams()
+          if (submission.route_image_id && submission.route_image_id !== baseImageId) {
+            query.set('face', submission.route_image_id)
+          }
+          const queryString = query.toString()
+          return `/logbook/submissions/${baseImageId}/edit${queryString ? `?${queryString}` : ''}`
+        })()
         const submissionImageId = submission.canonical_image_id || submission.id
         const isDeletingSubmission = deletingSubmissionId === submissionImageId
         const imageSrcRaw = resolveRouteImageUrl(submission.url)
