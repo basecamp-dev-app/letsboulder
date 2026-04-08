@@ -6,6 +6,7 @@ import {
   isImageMetadataDirty,
   isCragMetadataDirty,
 } from '@/features/editor/location/location-metadata'
+import { resolveEffectiveDraftPublishLocation } from '@/features/draft-editor/lib/edit-draft-types'
 
 describe('parseCoordinate', () => {
   test('returns null for empty string', () => {
@@ -132,5 +133,28 @@ describe('isCragMetadataDirty', () => {
   test('handles whitespace trimming', () => {
     const input = { ...baseInput, cragName: '  Yosemite  ' }
     expect(isCragMetadataDirty(input)).toBe(false)
+  })
+})
+
+describe('resolveEffectiveDraftPublishLocation', () => {
+  test('prefers an explicit marker position', () => {
+    expect(resolveEffectiveDraftPublishLocation([49.45, -2.55], [
+      { latitude: 48.1, longitude: 11.5 },
+    ])).toEqual([49.45, -2.55])
+  })
+
+  test('falls back to the first valid image gps position', () => {
+    expect(resolveEffectiveDraftPublishLocation(null, [
+      { latitude: null, longitude: null },
+      { latitude: 49.46, longitude: -2.54 },
+      { latitude: 49.47, longitude: -2.53 },
+    ])).toEqual([49.46, -2.54])
+  })
+
+  test('returns null when neither marker nor images provide a valid location', () => {
+    expect(resolveEffectiveDraftPublishLocation(null, [
+      { latitude: null, longitude: null },
+      { latitude: 0, longitude: 0 },
+    ])).toBeNull()
   })
 })
