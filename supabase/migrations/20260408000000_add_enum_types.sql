@@ -104,6 +104,23 @@ FROM pg_policies
 WHERE schemaname = 'public'
   AND tablename = 'images';
 
+CREATE TEMP TABLE IF NOT EXISTS tmp_storage_object_policies (
+  policyname TEXT PRIMARY KEY,
+  permissive TEXT,
+  roles TEXT[],
+  cmd TEXT,
+  qual TEXT,
+  with_check TEXT
+) ON COMMIT DROP;
+
+TRUNCATE tmp_storage_object_policies;
+
+INSERT INTO tmp_storage_object_policies (policyname, permissive, roles, cmd, qual, with_check)
+SELECT policyname, permissive, roles, cmd, qual, with_check
+FROM pg_policies
+WHERE schemaname = 'storage'
+  AND tablename = 'objects';
+
 DO $$
 DECLARE
   policy_record RECORD;
@@ -115,6 +132,20 @@ BEGIN
       AND tablename = 'images'
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I ON public.images', policy_record.policyname);
+  END LOOP;
+END $$;
+
+DO $$
+DECLARE
+  policy_record RECORD;
+BEGIN
+  FOR policy_record IN
+    SELECT policyname
+    FROM pg_policies
+    WHERE schemaname = 'storage'
+      AND tablename = 'objects'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', policy_record.policyname);
   END LOOP;
 END $$;
 
@@ -183,6 +214,44 @@ BEGIN
 
     policy_sql := format(
       'CREATE POLICY %I ON public.images %s FOR %s TO %s',
+      policy_record.policyname,
+      CASE WHEN policy_record.permissive = 'PERMISSIVE' THEN 'AS PERMISSIVE' ELSE 'AS RESTRICTIVE' END,
+      policy_record.cmd,
+      role_list
+    );
+
+    IF policy_record.qual IS NOT NULL THEN
+      policy_sql := policy_sql || format(' USING (%s)', policy_record.qual);
+    END IF;
+
+    IF policy_record.with_check IS NOT NULL THEN
+      policy_sql := policy_sql || format(' WITH CHECK (%s)', policy_record.with_check);
+    END IF;
+
+    EXECUTE policy_sql;
+  END LOOP;
+END $$;
+
+DO $$
+DECLARE
+  policy_record RECORD;
+  role_list TEXT;
+  policy_sql TEXT;
+BEGIN
+  FOR policy_record IN
+    SELECT *
+    FROM tmp_storage_object_policies
+    ORDER BY policyname
+  LOOP
+    SELECT CASE
+      WHEN policy_record.roles = ARRAY['public'] THEN 'PUBLIC'
+      ELSE string_agg(quote_ident(role_name), ', ')
+    END
+    INTO role_list
+    FROM unnest(policy_record.roles) AS role_name;
+
+    policy_sql := format(
+      'CREATE POLICY %I ON storage.objects %s FOR %s TO %s',
       policy_record.policyname,
       CASE WHEN policy_record.permissive = 'PERMISSIVE' THEN 'AS PERMISSIVE' ELSE 'AS RESTRICTIVE' END,
       policy_record.cmd,
