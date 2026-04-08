@@ -282,64 +282,91 @@ BEGIN
 END $$;
 
 -- Climb
+ALTER TABLE climbs ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE climbs ALTER COLUMN status TYPE climb_status USING status::climb_status;
+ALTER TABLE climbs ALTER COLUMN status SET DEFAULT 'pending'::climb_status;
 ALTER TABLE climbs ALTER COLUMN route_type TYPE climb_route_type USING route_type::climb_route_type;
 
 -- Community posts
+ALTER TABLE community_posts ALTER COLUMN type DROP DEFAULT;
 ALTER TABLE community_posts ALTER COLUMN type TYPE community_post_type USING type::community_post_type;
 
 -- Community RSVPs
+ALTER TABLE community_post_rsvps ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE community_post_rsvps ALTER COLUMN status TYPE rsvp_status USING status::rsvp_status;
 
 -- Climb flags
+ALTER TABLE climb_flags ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE climb_flags ALTER COLUMN status TYPE flag_status USING status::flag_status;
+ALTER TABLE climb_flags ALTER COLUMN action_taken DROP DEFAULT;
 ALTER TABLE climb_flags ALTER COLUMN action_taken TYPE flag_action USING action_taken::flag_action;
 
 -- Climb corrections
+ALTER TABLE climb_corrections ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE climb_corrections ALTER COLUMN status TYPE correction_status USING status::correction_status;
 
 -- Correction votes
+ALTER TABLE correction_votes ALTER COLUMN vote_type DROP DEFAULT;
 ALTER TABLE correction_votes ALTER COLUMN vote_type TYPE vote_type USING vote_type::vote_type;
 
 -- Crag reports
+ALTER TABLE crag_reports ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE crag_reports ALTER COLUMN status TYPE crag_report_status USING status::crag_report_status;
 
 -- Media jobs
+ALTER TABLE media_jobs ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE media_jobs ALTER COLUMN status TYPE media_job_status USING status::media_job_status;
 
 -- Gym routes
+ALTER TABLE gym_routes ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE gym_routes ALTER COLUMN status TYPE gym_route_status USING status::gym_route_status;
+ALTER TABLE gym_routes ALTER COLUMN discipline DROP DEFAULT;
 ALTER TABLE gym_routes ALTER COLUMN discipline TYPE gym_route_discipline USING discipline::gym_route_discipline;
 
 -- Gym memberships
+ALTER TABLE gym_memberships ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE gym_memberships ALTER COLUMN status TYPE gym_membership_status USING status::gym_membership_status;
+ALTER TABLE gym_memberships ALTER COLUMN role DROP DEFAULT;
 ALTER TABLE gym_memberships ALTER COLUMN role TYPE gym_membership_role USING role::gym_membership_role;
 
 -- Gym owner applications
+ALTER TABLE gym_owner_applications ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE gym_owner_applications ALTER COLUMN status TYPE gym_application_status USING status::gym_application_status;
 
 -- Places
+ALTER TABLE places ALTER COLUMN type DROP DEFAULT;
 ALTER TABLE places ALTER COLUMN type TYPE place_type USING type::place_type;
 
 -- Location tags
+ALTER TABLE location_tags ALTER COLUMN kind DROP DEFAULT;
 ALTER TABLE location_tags ALTER COLUMN kind TYPE location_tag_kind USING kind::location_tag_kind;
 
 -- Profiles
+ALTER TABLE profiles ALTER COLUMN gender DROP DEFAULT;
 ALTER TABLE profiles ALTER COLUMN gender TYPE profile_gender USING gender::profile_gender;
+ALTER TABLE profiles ALTER COLUMN units DROP DEFAULT;
 ALTER TABLE profiles ALTER COLUMN units TYPE measurement_units USING units::measurement_units;
+ALTER TABLE profiles ALTER COLUMN theme_preference DROP DEFAULT;
 ALTER TABLE profiles ALTER COLUMN theme_preference TYPE theme_preference USING theme_preference::theme_preference;
+ALTER TABLE profiles ALTER COLUMN boulder_system DROP DEFAULT;
 ALTER TABLE profiles ALTER COLUMN boulder_system TYPE grade_system USING boulder_system::grade_system;
+ALTER TABLE profiles ALTER COLUMN route_system DROP DEFAULT;
 ALTER TABLE profiles ALTER COLUMN route_system TYPE grade_system USING route_system::grade_system;
-ALTER TABLE profiles ALTER COLUMN trad_system TYPE grade_system USING trad_system::grade_system;
-ALTER TABLE profiles ALTER COLUMN preferred_grade_system TYPE grade_system USING preferred_grade_system::grade_system;
+ALTER TABLE profiles ALTER COLUMN trad_system DROP DEFAULT;
+ALTER TABLE profiles ALTER COLUMN trad_system TYPE grade_system USING trad_system::trad_system;
+ALTER TABLE profiles ALTER COLUMN preferred_grade_system DROP DEFAULT;
+ALTER TABLE profiles ALTER COLUMN preferred_grade_system TYPE grade_system USING preferred_grade_system::preferred_grade_system;
 
 -- User climbs
+ALTER TABLE user_climbs ALTER COLUMN style DROP DEFAULT;
 ALTER TABLE user_climbs ALTER COLUMN style TYPE user_climb_style USING style::user_climb_style;
 
 -- Community place follows
+ALTER TABLE community_place_follows ALTER COLUMN notification_level DROP DEFAULT;
 ALTER TABLE community_place_follows ALTER COLUMN notification_level TYPE notification_level USING notification_level::notification_level;
 
 -- Crags
+ALTER TABLE crags ALTER COLUMN type DROP DEFAULT;
 ALTER TABLE crags ALTER COLUMN type TYPE crag_type USING type::crag_type;
 
 -- Climb
