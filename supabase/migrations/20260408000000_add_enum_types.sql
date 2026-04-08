@@ -100,7 +100,9 @@ ALTER TABLE images ALTER COLUMN visibility SET DEFAULT 'private'::image_visibili
 ALTER TABLE images ALTER COLUMN processing_status DROP DEFAULT;
 ALTER TABLE images ALTER COLUMN processing_status TYPE image_processing_status USING processing_status::image_processing_status;
 ALTER TABLE images ALTER COLUMN processing_status SET DEFAULT 'pending'::image_processing_status;
+ALTER TABLE images ALTER COLUMN moderation_status DROP DEFAULT;
 ALTER TABLE images ALTER COLUMN moderation_status TYPE image_moderation_status USING moderation_status::image_moderation_status;
+ALTER TABLE images ALTER COLUMN moderation_status SET DEFAULT 'pending'::image_moderation_status;
 
 CREATE INDEX IF NOT EXISTS idx_images_parent_image_id
   ON public.images(parent_image_id);
