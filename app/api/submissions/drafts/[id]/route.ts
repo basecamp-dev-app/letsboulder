@@ -18,7 +18,7 @@ export async function PATCH(
 ) {
   const middlewareResult = await withApiMiddleware(request, {
     unauthorizedMessage: 'Authentication required',
-    rateLimitKey: 'authenticatedWrite',
+    rateLimitKey: 'draftSave',
   })
   if (!middlewareResult.ok) return middlewareResult.response
 

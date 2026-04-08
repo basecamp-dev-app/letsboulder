@@ -16,6 +16,8 @@ export const RATE_LIMIT_TIERS: Record<string, RateLimitTier> = {
   geoDetect: { tokens: 5, windowMs: 60_000, window: '60 s', prefix: 'rl:api:geo', fallbackMode: 'fail-open' },
   clickSink: { tokens: 10, windowMs: 60_000, window: '60 s', prefix: 'rl:api:clicks', fallbackMode: 'fail-open' },
   authenticatedWrite: { tokens: 50, windowMs: 60 * 60 * 1000, window: '60 m', prefix: 'rl:api:write', fallbackMode: 'local-bucket' },
+  draftSave: { tokens: 200, windowMs: 60 * 60 * 1000, window: '60 m', prefix: 'rl:api:draft-save', fallbackMode: 'local-bucket' },
+  draftPublish: { tokens: 20, windowMs: 60 * 60 * 1000, window: '60 m', prefix: 'rl:api:draft-publish', fallbackMode: 'local-bucket' },
   publicSearch: { tokens: 100, windowMs: 60_000, window: '60 s', prefix: 'rl:api:search', fallbackMode: 'local-bucket' },
   sensitive: { tokens: 10, windowMs: 60 * 60 * 1000, window: '60 m', prefix: 'rl:api:sensitive', fallbackMode: 'local-bucket' },
   strict: { tokens: 5, windowMs: 60_000, window: '60 s', prefix: 'rl:api:strict', fallbackMode: 'local-bucket' },

@@ -8,7 +8,7 @@ export async function POST(
 ) {
   const middlewareResult = await withApiMiddleware(request, {
     unauthorizedMessage: 'Authentication required',
-    rateLimitKey: 'authenticatedWrite',
+    rateLimitKey: 'draftPublish',
   })
   if (!middlewareResult.ok) return middlewareResult.response
 
