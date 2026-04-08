@@ -21,6 +21,7 @@ interface CragPageClientProps {
   initialCragCenter?: [number, number] | null
   initialPayloadLoadedAt?: number
   communityPlaceSlug?: string | null
+  initialSelectedImageId?: string | null
 }
 
 export default function CragPageClient({
@@ -35,6 +36,7 @@ export default function CragPageClient({
   initialCragCenter = null,
   initialPayloadLoadedAt,
   communityPlaceSlug,
+  initialSelectedImageId = null,
 }: CragPageClientProps) {
   const {
     crag,
@@ -77,6 +79,7 @@ export default function CragPageClient({
     cragCenter,
     routeHrefBase,
     routesLoadState,
+    initialSelectedImageId,
   })
 
   const actions = useCragPageActions({

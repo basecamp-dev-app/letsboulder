@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { formatCragRoutes, dedupeCragRoutes } from '@/features/crags/lib/crag-page-domain'
+import { getSelectedImageIds } from '@/features/crags/lib/crag-route-targets'
 import type { CragRouteIntelligenceRow } from '@/features/crags/lib/crag-page-domain'
 import type { CragRoute } from '@/features/crags/lib/crag-page-types'
 
@@ -153,6 +154,30 @@ describe('crag page domain', () => {
       const deduped = dedupeCragRoutes(routes, effectiveClimbIdByClimbId)
 
       expect(deduped).toHaveLength(2)
+    })
+  })
+
+  describe('getSelectedImageIds', () => {
+    it('returns all images that share the same normalized gps location', () => {
+      const selectedImageIds = getSelectedImageIds('image-2', {
+        clusterIdByImageId: new Map([
+          ['image-1', '51.000000:0.100000'],
+          ['image-2', '51.000000:0.100000'],
+          ['image-3', '51.000100:0.100200'],
+        ]),
+        clusters: [
+          {
+            id: '51.000000:0.100000',
+            images: [{ id: 'image-1' }, { id: 'image-2' }],
+          },
+          {
+            id: '51.000100:0.100200',
+            images: [{ id: 'image-3' }],
+          },
+        ],
+      })
+
+      expect(selectedImageIds).toEqual(new Set(['image-1', 'image-2']))
     })
   })
 })
