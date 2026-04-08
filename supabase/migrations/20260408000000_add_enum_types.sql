@@ -87,6 +87,37 @@ BEGIN
   END LOOP;
 END $$;
 
+CREATE TEMP TABLE IF NOT EXISTS tmp_image_policies (
+  policyname TEXT PRIMARY KEY,
+  permissive TEXT,
+  roles TEXT[],
+  cmd TEXT,
+  qual TEXT,
+  with_check TEXT
+) ON COMMIT DROP;
+
+TRUNCATE tmp_image_policies;
+
+INSERT INTO tmp_image_policies (policyname, permissive, roles, cmd, qual, with_check)
+SELECT policyname, permissive, roles, cmd, qual, with_check
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename = 'images';
+
+DO $$
+DECLARE
+  policy_record RECORD;
+BEGIN
+  FOR policy_record IN
+    SELECT policyname
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'images'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.images', policy_record.policyname);
+  END LOOP;
+END $$;
+
 ALTER TABLE images DROP CONSTRAINT IF EXISTS images_status_check;
 ALTER TABLE images DROP CONSTRAINT IF EXISTS images_visibility_check;
 ALTER TABLE images DROP CONSTRAINT IF EXISTS images_processing_status_check;
@@ -131,6 +162,44 @@ CREATE TRIGGER trigger_crag_counts_images
   AFTER INSERT OR DELETE OR UPDATE OF status ON public.images
   FOR EACH ROW
   EXECUTE FUNCTION public.trigger_recompute_crag_counts_images();
+
+DO $$
+DECLARE
+  policy_record RECORD;
+  role_list TEXT;
+  policy_sql TEXT;
+BEGIN
+  FOR policy_record IN
+    SELECT *
+    FROM tmp_image_policies
+    ORDER BY policyname
+  LOOP
+    SELECT CASE
+      WHEN policy_record.roles = ARRAY['public'] THEN 'PUBLIC'
+      ELSE string_agg(quote_ident(role_name), ', ')
+    END
+    INTO role_list
+    FROM unnest(policy_record.roles) AS role_name;
+
+    policy_sql := format(
+      'CREATE POLICY %I ON public.images %s FOR %s TO %s',
+      policy_record.policyname,
+      CASE WHEN policy_record.permissive = 'PERMISSIVE' THEN 'AS PERMISSIVE' ELSE 'AS RESTRICTIVE' END,
+      policy_record.cmd,
+      role_list
+    );
+
+    IF policy_record.qual IS NOT NULL THEN
+      policy_sql := policy_sql || format(' USING (%s)', policy_record.qual);
+    END IF;
+
+    IF policy_record.with_check IS NOT NULL THEN
+      policy_sql := policy_sql || format(' WITH CHECK (%s)', policy_record.with_check);
+    END IF;
+
+    EXECUTE policy_sql;
+  END LOOP;
+END $$;
 
 -- Climb
 ALTER TABLE climbs ALTER COLUMN status TYPE climb_status USING status::climb_status;
