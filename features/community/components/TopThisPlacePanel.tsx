@@ -7,9 +7,11 @@ import { communityKeys, fetchRecentSends, type RecentSendEntry } from '@/feature
 
 interface TopThisPlacePanelProps {
   slug: string
+  placeType: 'crag' | 'gym'
+  embedded?: boolean
 }
 
-export default function TopThisPlacePanel({ slug }: TopThisPlacePanelProps) {
+export default function TopThisPlacePanel({ slug, placeType, embedded = false }: TopThisPlacePanelProps) {
   const { data, isLoading, isError } = useQuery({
     queryKey: communityKeys.recentSends(slug),
     queryFn: () => fetchRecentSends(slug, 10),
@@ -17,10 +19,11 @@ export default function TopThisPlacePanel({ slug }: TopThisPlacePanelProps) {
   })
 
   const entries: RecentSendEntry[] = data?.recent_sends ?? []
+  const placeLabel = placeType === 'gym' ? 'gym' : 'crag'
 
   return (
-    <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent sends (60 days)</h2>
+    <section className={embedded ? '' : 'mt-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900'}>
+      {!embedded ? <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent {placeLabel} sends (60 days)</h2> : null}
 
       {isLoading ? (
         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading recent sends...</p>
@@ -31,7 +34,7 @@ export default function TopThisPlacePanel({ slug }: TopThisPlacePanelProps) {
       ) : null}
 
       {!isLoading && !isError && entries.length === 0 ? (
-        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No sends logged here in the last 60 days.</p>
+        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No sends logged at this {placeLabel} in the last 60 days.</p>
       ) : null}
 
       {!isLoading && !isError && entries.length > 0 ? (
