@@ -59,12 +59,63 @@ CREATE TYPE crag_type AS ENUM ('crag', 'boulder', 'sport', 'trad', 'mixed');
 -- Images
 DROP TRIGGER IF EXISTS trigger_crag_counts_images ON public.images;
 
+DO $$
+DECLARE
+  index_record RECORD;
+BEGIN
+  FOR index_record IN
+    SELECT i.indexname
+    FROM pg_indexes i
+    JOIN pg_class c ON c.relname = i.tablename
+    JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = i.schemaname
+    JOIN pg_index idx ON idx.indexrelid = (
+      SELECT c2.oid
+      FROM pg_class c2
+      JOIN pg_namespace n2 ON n2.oid = c2.relnamespace
+      WHERE n2.nspname = i.schemaname AND c2.relname = i.indexname
+    )
+    WHERE i.schemaname = 'public'
+      AND i.tablename = 'images'
+      AND NOT idx.indisprimary
+      AND NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint con
+        WHERE con.conindid = idx.indexrelid
+      )
+  LOOP
+    EXECUTE format('DROP INDEX IF EXISTS %I.%I', 'public', index_record.indexname);
+  END LOOP;
+END $$;
+
 ALTER TABLE images ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE images ALTER COLUMN status TYPE image_status USING status::image_status;
 ALTER TABLE images ALTER COLUMN status SET DEFAULT 'pending'::image_status;
 ALTER TABLE images ALTER COLUMN visibility TYPE image_visibility USING visibility::image_visibility;
 ALTER TABLE images ALTER COLUMN processing_status TYPE image_processing_status USING processing_status::image_processing_status;
 ALTER TABLE images ALTER COLUMN moderation_status TYPE image_moderation_status USING moderation_status::image_moderation_status;
+
+CREATE INDEX IF NOT EXISTS idx_images_parent_image_id
+  ON public.images(parent_image_id);
+
+CREATE INDEX IF NOT EXISTS idx_images_is_primary
+  ON public.images(is_primary);
+
+CREATE INDEX IF NOT EXISTS idx_images_is_anonymous_submission
+  ON public.images(is_anonymous_submission);
+
+CREATE INDEX IF NOT EXISTS idx_images_original_location
+  ON public.images(original_bucket, original_key);
+
+CREATE INDEX IF NOT EXISTS idx_images_processing_status
+  ON public.images(processing_status, visibility);
+
+CREATE INDEX IF NOT EXISTS images_submission_id_idx
+  ON public.images(submission_id)
+  WHERE submission_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS images_submission_id_face_order_idx
+  ON public.images(submission_id, face_order)
+  WHERE submission_id IS NOT NULL;
 
 CREATE TRIGGER trigger_crag_counts_images
   AFTER INSERT OR DELETE OR UPDATE OF status ON public.images
