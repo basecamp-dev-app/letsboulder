@@ -66,6 +66,21 @@ function shouldRequireCsrf(pathname: string, method: string): boolean {
   return true
 }
 
+function isTrustedServerActionRequest(request: NextRequest): boolean {
+  if (!request.headers.get('next-action')) return false
+
+  const origin = request.headers.get('origin')
+  const host = request.headers.get('host')
+  if (!origin || !host) return false
+
+  try {
+    const originUrl = new URL(origin)
+    return originUrl.host === host
+  } catch {
+    return false
+  }
+}
+
 export default async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
   requestHeaders.delete('x-internal-user-id')
@@ -83,7 +98,7 @@ export default async function proxy(request: NextRequest) {
   }
 
   if (shouldRequireCsrf(pathname, request.method)) {
-    const isValid = await validateCsrfToken(request)
+    const isValid = isTrustedServerActionRequest(request) || await validateCsrfToken(request)
     if (!isValid) {
       return NextResponse.json({ error: 'Invalid or missing CSRF token' }, { status: 403 })
     }
