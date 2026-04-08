@@ -143,6 +143,15 @@ export default function LightweightCragMap({
   }, [draftPins, pins, publishedPins])
   const normalizedPins = useMemo(() => normalizePins(resolvedPins, activePinId), [activePinId, resolvedPins])
 
+  const maxBounds = useMemo<import('leaflet').LatLngBoundsExpression | undefined>(() => {
+    if (normalizedPins.length === 0 || !leafletLib) return undefined
+    const bounds = leafletLib.latLngBounds(
+      normalizedPins.map((pin) => [pin.latitude, pin.longitude] as [number, number])
+    )
+    const padded = bounds.pad(0.15)
+    return padded
+  }, [normalizedPins, leafletLib])
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     void import('leaflet').then((leaflet) => {
@@ -182,7 +191,7 @@ export default function LightweightCragMap({
       const bounds = leafletLib.latLngBounds(normalizedPins.map((pin) => [pin.latitude, pin.longitude] as [number, number]))
       map.fitBounds(bounds, { padding: [28, 28], maxZoom: 16, animate: false })
       const fittedZoom = map.getZoom()
-      setMinAllowedZoom(Math.max(2, fittedZoom - 1))
+      setMinAllowedZoom(Math.min(Math.max(13, fittedZoom - 1), 15))
     })
 
     return () => {
@@ -222,8 +231,9 @@ export default function LightweightCragMap({
             ref={mapRef as never}
             center={center}
             zoom={15}
-            minZoom={minAllowedZoom ?? undefined}
+            minZoom={Math.max(minAllowedZoom ?? 13, 13)}
             maxZoom={19}
+            maxBounds={maxBounds}
             style={{ height: '100%', width: '100%' }}
             preferCanvas={true}
             scrollWheelZoom={true}
