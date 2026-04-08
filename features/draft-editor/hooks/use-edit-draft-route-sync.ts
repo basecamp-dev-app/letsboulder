@@ -14,6 +14,7 @@ interface UseEditDraftRouteSyncParams {
   existingRouteLines: RouteLine[]
   setRouteStoreRoutes: (routes: RouteLine[]) => void
   setRoutesByImageId: React.Dispatch<React.SetStateAction<Record<string, DraftRoute[]>>>
+  markRoutesDirty: (imageIds: string[]) => void
 }
 
 export function useEditDraftRouteSync({
@@ -23,6 +24,7 @@ export function useEditDraftRouteSync({
   existingRouteLines,
   setRouteStoreRoutes,
   setRoutesByImageId,
+  markRoutesDirty,
 }: UseEditDraftRouteSyncParams) {
   const lastSeededRouteImageIdRef = useRef<string | null>(null)
   const skipRouteStoreSyncRef = useRef<string | null>(null)
@@ -58,10 +60,11 @@ export function useEditDraftRouteSync({
         [activeDraftImageId]: mapped,
       }
 
+      markRoutesDirty([activeDraftImageId])
       scheduleDraftPersist()
       return nextRoutesByImageId
     })
-  }, [activeDraftImageId, routeType, scheduleDraftPersist, setRoutesByImageId])
+  }, [activeDraftImageId, markRoutesDirty, routeType, scheduleDraftPersist, setRoutesByImageId])
 
   const handleCanvasRoutesUpdate = useCallback((routes: RouteLine[]) => {
     setRouteStoreRoutes(routes)
