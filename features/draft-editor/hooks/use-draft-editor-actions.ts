@@ -22,6 +22,7 @@ interface UseDraftEditorActionsParams {
   conflict: { pendingChanges: unknown } | null
   saveDraft: (options?: { overrideCragId?: string }) => Promise<boolean>
   persistMetadataImmediately: (mutator: () => void) => void
+  markMetadataDirty: () => void
   focusDrawingArea: (behavior?: ScrollBehavior) => void
   addToast: (message: string, tone: 'success' | 'error') => void
   setError: (value: string | null) => void
@@ -63,6 +64,7 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
     conflict,
     saveDraft,
     persistMetadataImmediately,
+    markMetadataDirty,
     focusDrawingArea,
     addToast,
     setError,
@@ -109,8 +111,6 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
     setSwitchingImageId(imageId)
 
     try {
-      const saved = await saveDraft()
-      if (!saved) return
       setActiveImageId(imageId)
       if (targetImage?.sourceKind === 'crag-image' && cragId) {
         setCanvasSource({ kind: 'crag-image', cragImageId: imageId, cragId })
@@ -124,7 +124,7 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
       switchingImageLockRef.current = false
       setSwitchingImageId(null)
     }
-  }, [activeImageId, cragId, focusDrawingArea, quickSwitcherImages, saveDraft, setActiveImageId, setCanvasSource, setSwitchingImageId, switchingImageLockRef])
+  }, [activeImageId, cragId, focusDrawingArea, quickSwitcherImages, setActiveImageId, setCanvasSource, setSwitchingImageId, switchingImageLockRef])
 
   const handleReorderDraftImages = useCallback(async (imageIds: string[]) => {
     if (!draft || !draftUpdatedAt) return
@@ -210,8 +210,8 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
     setCragCanvasImages([])
     setShowCragSelector(false)
     setSuccess('Crag selected for this draft.')
-    void saveDraft({ overrideCragId: crag.id })
-  }, [setCragId, setSelectedCrag, setCragCanvasImages, setShowCragSelector, setSuccess, saveDraft])
+    markMetadataDirty()
+  }, [markMetadataDirty, setCragId, setSelectedCrag, setCragCanvasImages, setShowCragSelector, setSuccess])
 
   const onCreateCrag = useCallback((crag: { id: string; name: string; latitude: number | null; longitude: number | null }) => {
     setCragId(crag.id)
@@ -220,8 +220,8 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
     setCanvasSource(null)
     setSuccess(`Crag "${crag.name}" created. Upload up to 20 photos and the first ready image can be used as your canvas.`)
     setShowCragSelector(false)
-    void saveDraft({ overrideCragId: crag.id })
-  }, [setCragId, setSelectedCrag, setCragCanvasImages, setCanvasSource, setSuccess, setShowCragSelector, saveDraft])
+    markMetadataDirty()
+  }, [markMetadataDirty, setCragId, setSelectedCrag, setCragCanvasImages, setCanvasSource, setSuccess, setShowCragSelector])
 
   const onLocationModeChange = useCallback((mode: 'shared' | 'custom') => {
     if (!activeDraftImageId) return
@@ -254,8 +254,8 @@ export function useDraftEditorActions(params: UseDraftEditorActionsParams) {
       setMapOpen(true)
       return
     }
-    void saveDraft().then(() => setMapOpen(false))
-  }, [setMapOpen, saveDraft])
+    setMapOpen(false)
+  }, [setMapOpen])
 
   const onCustomGpsChange = useCallback((imageId: string, gps: { latitude: number | null; longitude: number | null }) => {
     setCustomGpsByImageId((prev) => ({ ...prev, [imageId]: gps }))

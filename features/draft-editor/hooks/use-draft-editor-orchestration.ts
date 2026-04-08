@@ -292,6 +292,8 @@ export function useDraftEditorOrchestration({
     publishingDraft,
     publishAttempted,
     publishValidationMessage,
+    markMetadataDirty,
+    markRoutesDirty,
     saveDraft,
     handleDeleteDraft,
     persistMetadataImmediately,
@@ -356,6 +358,7 @@ export function useDraftEditorOrchestration({
     existingRouteLines,
     setRouteStoreRoutes,
     setRoutesByImageId,
+    markRoutesDirty,
   })
 
   const focusDrawingArea = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -391,6 +394,7 @@ export function useDraftEditorOrchestration({
     conflict,
     saveDraft,
     persistMetadataImmediately,
+    markMetadataDirty,
     focusDrawingArea,
     addToast,
     setError,

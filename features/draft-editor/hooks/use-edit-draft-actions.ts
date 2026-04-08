@@ -90,6 +90,16 @@ export function useEditDraftActions({
   const [publishingDraft, setPublishingDraft] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
   const saveInFlightRef = useRef(false)
+  const dirtyRoutesRef = useRef<Set<string>>(new Set())
+  const hasUnsavedMetadataRef = useRef(false)
+
+  const markRoutesDirty = useCallback((imageIds: string[]) => {
+    for (const imageId of imageIds) dirtyRoutesRef.current.add(imageId)
+  }, [])
+
+  const markMetadataDirty = useCallback(() => {
+    hasUnsavedMetadataRef.current = true
+  }, [])
 
   const syncDraftRoutes = useCallback(async (resolvedRoutesByImageId: Record<string, DraftRoute[]>) => {
     if (!draft?.id) {
@@ -97,21 +107,25 @@ export function useEditDraftActions({
     }
 
     const draftImageIds = new Set((draft.images || []).map((image) => image.id))
+    const dirtyImageIds = [...draftImageIds].filter((draftImageId) => dirtyRoutesRef.current.has(draftImageId))
+    if (dirtyImageIds.length === 0) return [] as string[]
 
-    await Promise.all(
-      [...draftImageIds].map(async (draftImageId) => {
-        const routes = resolvedRoutesByImageId[draftImageId] || []
-        const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/routes`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ draftImageId, routes }),
-        })
-        const payload = await response.json().catch(() => ({ error: 'Failed to sync draft routes' })) as { error?: string }
-        if (!response.ok) {
-          throw new Error(payload.error || 'Failed to sync draft routes')
-        }
-      })
-    )
+    const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/routes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        images: dirtyImageIds.map((draftImageId) => ({
+          draftImageId,
+          routes: resolvedRoutesByImageId[draftImageId] || [],
+        })),
+      }),
+    })
+    const payload = await response.json().catch(() => ({ error: 'Failed to sync draft routes' })) as { error?: string }
+    if (!response.ok) {
+      throw new Error(payload.error || 'Failed to sync draft routes')
+    }
+
+    return dirtyImageIds
   }, [draft])
 
   const getImagesMissingRoutes = useCallback((resolvedRoutesByImageId: Record<string, DraftRoute[]>) => {
@@ -203,6 +217,7 @@ export function useEditDraftActions({
     const resolvedCragId = options?.overrideCragId ?? cragId
     if (!draft || !draftUpdatedAt) return false
     if (saveInFlightRef.current) return false
+    if (dirtyRoutesRef.current.size === 0 && !hasUnsavedMetadataRef.current && !options?.overrideCragId) return true
 
     saveInFlightRef.current = true
     setSavingDraft(true)
@@ -210,7 +225,7 @@ export function useEditDraftActions({
     setSuccess(null)
 
     try {
-      await syncDraftRoutes(resolvedRoutesByImageId)
+      const syncedImageIds = await syncDraftRoutes(resolvedRoutesByImageId)
       const { savePayload, fullV2Metadata } = buildSavePayload(resolvedRoutesByImageId, resolvedCragId)
       let expectedUpdatedAt = draftUpdatedAt
       let payload: {
@@ -272,6 +287,8 @@ export function useEditDraftActions({
         metadata: { ...fullV2Metadata },
       } : prev)
       setDraftUpdatedAt(payload.draft?.updated_at || new Date().toISOString())
+      for (const imageId of syncedImageIds) dirtyRoutesRef.current.delete(imageId)
+      hasUnsavedMetadataRef.current = false
       setConflict(null)
       setSuccess('Draft saved. Not published to the map.')
       return true
@@ -303,8 +320,8 @@ export function useEditDraftActions({
 
   const persistMetadataImmediately = useCallback((applyChange: () => void) => {
     applyChange()
-    void saveDraft()
-  }, [saveDraft])
+    markMetadataDirty()
+  }, [markMetadataDirty])
 
   const handleManualSave = useCallback(() => {
     void saveDraft()
@@ -398,6 +415,8 @@ export function useEditDraftActions({
     publishingDraft,
     publishAttempted,
     publishValidationMessage,
+    markMetadataDirty,
+    markRoutesDirty,
     saveDraft,
     handleDeleteDraft,
     persistMetadataImmediately,

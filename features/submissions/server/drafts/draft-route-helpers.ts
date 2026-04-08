@@ -28,6 +28,11 @@ interface DraftRoutePayload {
   imageHeight?: number | null
 }
 
+interface DraftRouteBatchInput {
+  draftImageId: string
+  routes: DraftRoutePayload[]
+}
+
 export function normalizeCreateImages(value: unknown): DraftCreateImageInput[] | null {
   if (value == null) return []
   if (!Array.isArray(value)) return null
@@ -102,6 +107,22 @@ export function normalizeDraftRoutePayload(value: unknown): DraftRoutePayload[] 
   }
 
   return routes
+}
+
+export function normalizeDraftRouteBatchPayload(value: unknown): DraftRouteBatchInput[] | null {
+  if (!Array.isArray(value)) return null
+
+  const batches: DraftRouteBatchInput[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') return null
+    const candidate = item as { draftImageId?: unknown; routes?: unknown }
+    if (typeof candidate.draftImageId !== 'string' || !candidate.draftImageId) return null
+    const routes = normalizeDraftRoutePayload(candidate.routes)
+    if (!routes) return null
+    batches.push({ draftImageId: candidate.draftImageId, routes })
+  }
+
+  return batches
 }
 
 export async function assertDraftReadAccess(
