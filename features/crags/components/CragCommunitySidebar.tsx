@@ -12,10 +12,11 @@ const TopThisPlacePanel = dynamic(() => import('@/features/community/components/
 const PlaceRankingsPanel = dynamic(() => import('@/features/community/components/PlaceRankingsPanel'))
 
 interface CragCommunitySidebarProps {
+  cragId: string
   communityPlace?: CommunityPlaceInfo | null
 }
 
-export default function CragCommunitySidebar({ communityPlace }: CragCommunitySidebarProps) {
+export default function CragCommunitySidebar({ cragId, communityPlace }: CragCommunitySidebarProps) {
   const placeLabel = communityPlace?.type === 'gym' ? 'Gym' : 'Crag'
 
   return (
@@ -26,7 +27,6 @@ export default function CragCommunitySidebar({ communityPlace }: CragCommunitySi
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{placeLabel} community</h2>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Last 60 days</p>
               </div>
             </div>
             <Tabs.Root defaultValue="recent" className="mt-4">
@@ -48,7 +48,7 @@ export default function CragCommunitySidebar({ communityPlace }: CragCommunitySi
                 <TopThisPlacePanel slug={communityPlace.slug} placeType={communityPlace.type} embedded />
               </Tabs.Content>
               <Tabs.Content value="rankings" className="mt-4">
-                <PlaceRankingsPanel slug={communityPlace.slug} placeType={communityPlace.type} embedded />
+                <PlaceRankingsPanel slug={communityPlace.slug} cragId={cragId} placeType={communityPlace.type} embedded />
               </Tabs.Content>
             </Tabs.Root>
           </div>

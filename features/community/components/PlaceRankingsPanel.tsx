@@ -6,24 +6,40 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useGradeSystem } from '@/lib/grades/preferences'
 import { formatGradeForDisplay } from '@/lib/grade-display'
-import { communityKeys, fetchRankings } from '@/features/community/lib/queries'
+import { communityKeys, fetchCragRankings, fetchRankings } from '@/features/community/lib/queries'
 
 type RankingSort = 'grade' | 'tops'
 
 interface PlaceRankingsPanelProps {
-  slug: string
+  slug?: string
+  cragId?: string
   placeType: 'crag' | 'gym'
   embedded?: boolean
 }
 
-export default function PlaceRankingsPanel({ slug, placeType, embedded = false }: PlaceRankingsPanelProps) {
+export default function PlaceRankingsPanel({ slug, cragId, placeType, embedded = false }: PlaceRankingsPanelProps) {
   const gradeSystem = useGradeSystem()
   const [sortBy, setSortBy] = useState<RankingSort>('tops')
   const [page, setPage] = useState(1)
+  const rankingScope = placeType === 'crag' ? `crag:${cragId || 'missing'}` : `place:${slug || 'missing'}`
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: communityKeys.rankings(slug, sortBy, page),
-    queryFn: () => fetchRankings(slug, sortBy, page, 20),
+    queryKey: communityKeys.rankings(rankingScope, sortBy, page),
+    queryFn: () => {
+      if (placeType === 'crag') {
+        if (!cragId) {
+          throw new Error('Missing crag id for rankings')
+        }
+
+        return fetchCragRankings(cragId, sortBy, page, 20)
+      }
+
+      if (!slug) {
+        throw new Error('Missing place slug for rankings')
+      }
+
+      return fetchRankings(slug, sortBy, page, 20)
+    },
     meta: { persist: true },
   })
 
@@ -78,7 +94,7 @@ export default function PlaceRankingsPanel({ slug, placeType, embedded = false }
       ) : null}
 
       {!isLoading && !isError && entries.length === 0 ? (
-        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No public rankings for this place yet.</p>
+        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No public rankings for this {placeType} yet.</p>
       ) : null}
 
       {!isLoading && !isError && fallbackUsed ? (

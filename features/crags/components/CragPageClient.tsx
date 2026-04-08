@@ -119,6 +119,7 @@ export default function CragPageClient({
 
       <CragRouteSection
         crag={crag}
+        cragId={id}
         filteredRoutes={filters.filteredRoutes}
         routesLoadState={routesLoadState}
         highlightedRouteIds={filters.highlightedRouteIds}
