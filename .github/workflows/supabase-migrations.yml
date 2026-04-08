@@ -31,6 +31,9 @@ jobs:
       - name: Detect migration count
         id: migration_count
         shell: bash
+        env:
+          THRESHOLD: '75'
+          SQUASH_THRESHOLD: '150'
         run: |
           # Check for test migrations
           if ls supabase/migrations/*test*.sql supabase/migrations/*_test.sql 2>/dev/null | grep -q .; then
@@ -55,11 +58,15 @@ jobs:
 
       - name: Migration count warning
         if: steps.migration_count.outputs.migration_count_exceeded == 'true'
+        env:
+          THRESHOLD: '75'
         run: |
           echo "::warning::Migration count (${{ steps.migration_count.outputs.count }}) exceeds $THRESHOLD. Consider squashing migrations to reduce operational risk."
 
       - name: Migration squash required
         if: steps.migration_count.outputs.migration_count_exceeded == 'squash_threshold_reached'
+        env:
+          SQUASH_THRESHOLD: '150'
         run: |
           echo "::error::Migration count (${{ steps.migration_count.outputs.count }}) exceeds $SQUASH_THRESHOLD. Squashing is required before merge."
           exit 1
