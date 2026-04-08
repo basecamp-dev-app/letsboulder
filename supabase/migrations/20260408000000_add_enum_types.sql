@@ -282,10 +282,66 @@ BEGIN
 END $$;
 
 -- Climb
+-- First, drop any policies that reference the status column before altering
+DO $$
+DECLARE
+  policy_record RECORD;
+BEGIN
+  FOR policy_record IN
+    SELECT policyname
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'climbs'
+      AND qual LIKE '%status%'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.climbs', policy_record.policyname);
+  END LOOP;
+END $$;
+
 ALTER TABLE climbs ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE climbs ALTER COLUMN status TYPE climb_status USING status::climb_status;
 ALTER TABLE climbs ALTER COLUMN status SET DEFAULT 'pending'::climb_status;
 ALTER TABLE climbs ALTER COLUMN route_type TYPE climb_route_type USING route_type::climb_route_type;
+
+-- Re-create climb policies with enum casts
+DO $$
+DECLARE
+  policy_record RECORD;
+  role_list TEXT;
+  policy_sql TEXT;
+BEGIN
+  FOR policy_record IN
+    SELECT policyname, permissive, roles, cmd, qual, with_check
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'climbs'
+  LOOP
+    SELECT CASE
+      WHEN policy_record.roles = ARRAY['public'] THEN 'PUBLIC'
+      ELSE string_agg(quote_ident(role_name), ', ')
+    END
+    INTO role_list
+    FROM unnest(policy_record.roles) AS role_name;
+
+    policy_sql := format(
+      'CREATE POLICY %I ON public.climbs %s FOR %s TO %s',
+      policy_record.policyname,
+      CASE WHEN policy_record.permissive = 'PERMISSIVE' THEN 'AS PERMISSIVE' ELSE 'AS RESTRICTIVE' END,
+      policy_record.cmd,
+      role_list
+    );
+
+    IF policy_record.qual IS NOT NULL THEN
+      policy_sql := policy_sql || format(' USING (%s)', replace(policy_record.qual, '''pending''::text', '''pending''::climb_status'));
+    END IF;
+
+    IF policy_record.with_check IS NOT NULL THEN
+      policy_sql := policy_sql || format(' WITH CHECK (%s)', replace(policy_record.with_check, '''pending''::text', '''pending''::climb_status'));
+    END IF;
+
+    EXECUTE policy_sql;
+  END LOOP;
+END $$;
 
 -- Community posts
 ALTER TABLE community_posts ALTER COLUMN type DROP DEFAULT;
