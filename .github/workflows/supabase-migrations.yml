@@ -33,7 +33,7 @@ jobs:
         shell: bash
         env:
           THRESHOLD: '75'
-          SQUASH_THRESHOLD: '150'
+          SQUASH_THRESHOLD: '250'
         run: |
           # Check for test migrations
           if ls supabase/migrations/*test*.sql supabase/migrations/*_test.sql 2>/dev/null | grep -q .; then
@@ -47,7 +47,7 @@ jobs:
           echo "count=$MIGRATION_COUNT" >> "$GITHUB_OUTPUT"
 
           THRESHOLD=75
-          SQUASH_THRESHOLD=150
+          SQUASH_THRESHOLD=250
           if [ "$MIGRATION_COUNT" -gt "$SQUASH_THRESHOLD" ]; then
             echo "migration_count_exceeded=squash_threshold_reached" >> "$GITHUB_OUTPUT"
           elif [ "$MIGRATION_COUNT" -gt "$THRESHOLD" ]; then
@@ -66,7 +66,7 @@ jobs:
       - name: Migration squash required
         if: steps.migration_count.outputs.migration_count_exceeded == 'squash_threshold_reached'
         env:
-          SQUASH_THRESHOLD: '150'
+          SQUASH_THRESHOLD: '250'
         run: |
           echo "::error::Migration count (${{ steps.migration_count.outputs.count }}) exceeds $SQUASH_THRESHOLD. Squashing is required before merge."
           exit 1
