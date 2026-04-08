@@ -78,6 +78,9 @@ jobs:
 
       - name: Preview migrations
         run: timeout 15m supabase db push --linked --include-all --dry-run --debug
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
 
   migrate-dev:
     name: Dry run Supabase migrations (Development)
@@ -140,3 +143,6 @@ jobs:
 
       - name: Preview migrations
         run: timeout 15m supabase db push --linked --include-all --dry-run --debug
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DEV_PROJECT_REF: ${{ secrets.SUPABASE_DEV_PROJECT_REF }}
