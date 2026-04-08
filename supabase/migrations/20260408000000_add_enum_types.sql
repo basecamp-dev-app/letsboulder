@@ -304,6 +304,10 @@ DROP TRIGGER IF EXISTS trigger_crag_counts_climbs ON climbs;
 ALTER TABLE climbs ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE climbs ALTER COLUMN status TYPE climb_status USING status::climb_status;
 ALTER TABLE climbs ALTER COLUMN status SET DEFAULT 'pending'::climb_status;
+
+-- Fix inconsistent route_type values before converting to enum
+UPDATE climbs SET route_type = 'boulder' WHERE route_type = 'bouldering';
+
 ALTER TABLE climbs ALTER COLUMN route_type TYPE climb_route_type USING route_type::climb_route_type;
 
 -- Recreate climb triggers after type change
