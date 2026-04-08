@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, type MutableRefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, type MutableRefObject } from 'react'
 import { formatCoordinate } from '@/features/submissions/lib/location-metadata'
 import { csrfFetch } from '@/hooks/useCsrf'
 import type { DraftLocationSearchResponse, DraftPayload, DraftRoute, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
@@ -194,6 +194,8 @@ export function useEditDraftLocationSync({
     return null
   }, [mergedManageImages, selectedCrag])
 
+  const appliedNearbyCragIdRef = useRef<string | null>(null)
+
   useEffect(() => {
     if (!draft) return
     hasHydratedLocationRef.current = true
@@ -262,12 +264,13 @@ export function useEditDraftLocationSync({
         setRouteType(nextRouteType)
       }
       if (!cragId && nearbyCragId && result.ok) {
+        appliedNearbyCragIdRef.current = nearbyCragId
         setCragId(nearbyCragId)
-        setSelectedCrag((current) => current || {
+        setSelectedCrag({
           id: nearbyCragId,
           name: nearbyCragName || 'Suggested crag',
-          latitude: latitudeValue ?? 0,
-          longitude: longitudeValue ?? 0,
+          latitude: latitudeValue,
+          longitude: longitudeValue,
         })
       }
     }, 400)
@@ -281,6 +284,7 @@ export function useEditDraftLocationSync({
   useEffect(() => {
     if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) return
     if (cragId || !nearbyCragId) return
+    if (appliedNearbyCragIdRef.current === nearbyCragId) return
 
     const latitudeValue = effectiveMarkerPosition[0]
     const longitudeValue = effectiveMarkerPosition[1]
@@ -297,8 +301,9 @@ export function useEditDraftLocationSync({
 
       if (!result.ok) return
 
+      appliedNearbyCragIdRef.current = nearbyCragId
       setCragId(nearbyCragId)
-      setSelectedCrag((current) => current || {
+      setSelectedCrag({
         id: nearbyCragId,
         name: nearbyCragName || 'Suggested crag',
         latitude: latitudeValue,
@@ -311,7 +316,7 @@ export function useEditDraftLocationSync({
     }, 200)
 
     return () => window.clearTimeout(timer)
-  }, [cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, setCragId, setRouteType, setSelectedCrag, uploadAutoAssignToken])
+  }, [appliedNearbyCragIdRef, cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, setCragId, setRouteType, setSelectedCrag, uploadAutoAssignToken])
 
   const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
     if (activeDraftImageId && activeImageLocationMode === 'custom') {

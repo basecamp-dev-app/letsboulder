@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { coordinateKey } from '@/lib/face-directions'
 import { buildMapPins, resolveLocationMode } from '@/features/submissions/lib/editor-image-state'
 import { buildHighResCanvasUrl } from '@/features/route-editor/route-editor-utils'
-import { buildDraftRouteLines, isValidLocationCoordinate, type DraftRoute, type ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
+import { buildDraftRouteLines, isValidLocationCoordinate, resolveEffectiveDraftPublishLocation, type DraftRoute, type ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
 import type { ImageSelection } from '@/features/submissions/lib/submission-types'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 
@@ -133,12 +133,10 @@ export function useDraftEditorDerivedState(params: UseDraftEditorDerivedStatePar
   }, [publishedCragPins, quickSwitcherImages])
 
   const effectiveMarkerPosition = pendingActiveImageCustomPosition || markerPosition
-  const effectivePublishLocation = useMemo<[number, number] | null>(() => {
-    if (effectiveMarkerPosition) return effectiveMarkerPosition
-    const fallbackImage = mergedManageImages.find((image) => isValidLocationCoordinate(image.latitude, image.longitude)) || null
-    if (!fallbackImage) return null
-    return [fallbackImage.latitude as number, fallbackImage.longitude as number]
-  }, [effectiveMarkerPosition, mergedManageImages])
+  const effectivePublishLocation = useMemo<[number, number] | null>(
+    () => resolveEffectiveDraftPublishLocation(effectiveMarkerPosition, mergedManageImages),
+    [effectiveMarkerPosition, mergedManageImages]
+  )
 
   return {
     activeImageTab,

@@ -154,11 +154,19 @@ export function isValidLocationCoordinate(latitude: number | null | undefined, l
 export function parseDraftMarkerPosition(latitude: string, longitude: string): [number, number] | null {
   const parsedLatitude = Number(latitude)
   const parsedLongitude = Number(longitude)
-  if (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude)) return null
-  if (parsedLatitude < -90 || parsedLatitude > 90) return null
-  if (parsedLongitude < -180 || parsedLongitude > 180) return null
-  if (parsedLatitude === 0 && parsedLongitude === 0) return null
-  return [parsedLatitude, parsedLongitude]
+  return hasValidLocationCoordinate(parsedLatitude, parsedLongitude) ? [parsedLatitude, parsedLongitude] : null
+}
+
+export function resolveEffectiveDraftPublishLocation(
+  markerPosition: [number, number] | null,
+  images: Array<Pick<ManageImageTab, 'latitude' | 'longitude'>>,
+): [number, number] | null {
+  if (markerPosition) return markerPosition
+
+  const fallbackImage = images.find((image) => isValidLocationCoordinate(image.latitude, image.longitude)) || null
+  if (!fallbackImage) return null
+
+  return [fallbackImage.latitude as number, fallbackImage.longitude as number]
 }
 
 export function buildDraftRouteLines(
