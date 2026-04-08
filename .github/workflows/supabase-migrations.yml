@@ -14,13 +14,19 @@ jobs:
   migrate-prod:
     name: Apply Supabase migrations (Production)
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     environment: Production
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.workflow_run.head_sha }}
+
+      - name: Install migration tooling
+        run: |
+          if ! command -v jq >/dev/null 2>&1 || ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq postgresql-client
+          fi
 
       - name: Detect migration count
         id: migration_count
@@ -92,10 +98,10 @@ jobs:
         shell: bash
         run: |
           cd supabase/migrations
-          
+
           # Get applied versions as array
           APPLIED_STR="${{ steps.applied.outputs.applied }}"
-          
+
           # Build associative array
           declare -A applied_map
           if [ -n "$APPLIED_STR" ]; then
@@ -104,7 +110,7 @@ jobs:
               [ -n "$v" ] && applied_map["$v"]=1
             done
           fi
-          
+
           # Find pending
           PENDING=""
           for f in *.sql; do
@@ -114,24 +120,24 @@ jobs:
               echo "Will apply: $f"
             fi
           done
-          
+
           echo "pending=$PENDING" >> "$GITHUB_OUTPUT"
 
       - name: Apply migrations
         shell: bash
         run: |
           cd supabase/migrations
-          
+
           PENDING="${{ steps.pending.outputs.pending }}"
-          
+
           if [ -z "$PENDING" ]; then
             echo "No pending migrations - already up to date"
             exit 0
           fi
-          
+
           DB_URL="${{ steps.db_url.outputs.connection_string }}"
           FAILED=""
-          
+
           for f in $PENDING; do
             echo "Applying: $f"
             if psql "$DB_URL" -f "$f" 2>&1; then
@@ -143,24 +149,30 @@ jobs:
               echo "::error::Failed: $f"
             fi
           done
-          
+
           if [ -n "$FAILED" ]; then
             echo "::error::Failed migrations:$FAILED"
             exit 0
           fi
-          
+
           echo "All migrations applied successfully"
 
   migrate-dev:
     name: Apply Supabase migrations (Development)
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     environment: Development
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || github.event.workflow_run.head_sha }}
+
+      - name: Install migration tooling
+        run: |
+          if ! command -v jq >/dev/null 2>&1 || ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq postgresql-client
+          fi
 
       - name: Detect migration count
         id: migration_count
@@ -232,9 +244,9 @@ jobs:
         shell: bash
         run: |
           cd supabase/migrations
-          
+
           APPLIED_STR="${{ steps.applied.outputs.applied }}"
-          
+
           declare -A applied_map
           if [ -n "$APPLIED_STR" ]; then
             IFS=',' read -ra VERSIONS <<< "$APPLIED_STR"
@@ -242,7 +254,7 @@ jobs:
               [ -n "$v" ] && applied_map["$v"]=1
             done
           fi
-          
+
           PENDING=""
           for f in *.sql; do
             version="${f%%_*}"
@@ -251,24 +263,24 @@ jobs:
               echo "Will apply: $f"
             fi
           done
-          
+
           echo "pending=$PENDING" >> "$GITHUB_OUTPUT"
 
       - name: Apply migrations
         shell: bash
         run: |
           cd supabase/migrations
-          
+
           PENDING="${{ steps.pending.outputs.pending }}"
-          
+
           if [ -z "$PENDING" ]; then
             echo "No pending migrations - already up to date"
             exit 0
           fi
-          
+
           DB_URL="${{ steps.db_url.outputs.connection_string }}"
           FAILED=""
-          
+
           for f in $PENDING; do
             echo "Applying: $f"
             if psql "$DB_URL" -f "$f" 2>&1; then
@@ -280,10 +292,10 @@ jobs:
               echo "::error::Failed: $f"
             fi
           done
-          
+
           if [ -n "$FAILED" ]; then
             echo "::error::Failed migrations:$FAILED"
             exit 0
           fi
-          
+
           echo "All migrations applied successfully"
