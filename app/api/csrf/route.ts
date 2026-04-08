@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { setCsrfCookie } from '@/lib/csrf'
+import { generateCsrfToken } from '@/lib/csrf'
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 
 export async function GET(request: NextRequest) {
@@ -12,9 +12,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const response = NextResponse.json({ token: '' })
-  await setCsrfCookie(request, response)
+  const token = await generateCsrfToken(user.id)
+  const response = NextResponse.json({ token })
 
-  const token = response.cookies.get('csrf_token')?.value ?? ''
-  return NextResponse.json({ token })
+  response.cookies.set('csrf_token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 60 * 60 * 2,
+    path: '/',
+  })
+
+  return response
 }
