@@ -210,11 +210,11 @@ BEGIN
     END IF;
 
     SELECT CASE
-      WHEN policy_record.roles = ARRAY['public'] THEN 'PUBLIC'
+      WHEN policy_record.roles::text[] = ARRAY['public'] THEN 'PUBLIC'
       ELSE string_agg(quote_ident(role_name), ', ')
     END
     INTO role_list
-    FROM unnest(policy_record.roles) AS role_name;
+    FROM unnest(policy_record.roles::text[]) AS role_name;
 
     policy_sql := format(
       'CREATE POLICY %I ON public.images %s FOR %s TO %s',
@@ -255,11 +255,11 @@ BEGIN
     END IF;
 
     SELECT CASE
-      WHEN policy_record.roles = ARRAY['public'] THEN 'PUBLIC'
+      WHEN policy_record.roles::text[] = ARRAY['public'] THEN 'PUBLIC'
       ELSE string_agg(quote_ident(role_name), ', ')
     END
     INTO role_list
-    FROM unnest(policy_record.roles) AS role_name;
+    FROM unnest(policy_record.roles::text[]) AS role_name;
 
     policy_sql := format(
       'CREATE POLICY %I ON storage.objects %s FOR %s TO %s',
@@ -333,11 +333,11 @@ BEGIN
       AND tablename = 'climbs'
   LOOP
     SELECT CASE
-      WHEN policy_record.roles = ARRAY['public'] THEN 'PUBLIC'
+      WHEN policy_record.roles::text[] = ARRAY['public'] THEN 'PUBLIC'
       ELSE string_agg(quote_ident(role_name), ', ')
     END
     INTO role_list
-    FROM unnest(policy_record.roles) AS role_name;
+    FROM unnest(policy_record.roles::text[]) AS role_name;
 
     policy_sql := format(
       'CREATE POLICY %I ON public.climbs %s FOR %s TO %s',
