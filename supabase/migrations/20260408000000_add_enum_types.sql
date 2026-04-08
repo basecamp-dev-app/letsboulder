@@ -282,7 +282,7 @@ BEGIN
 END $$;
 
 -- Climb
--- First, drop any policies that reference the status column before altering
+-- First, drop any policies and triggers that reference the status column before altering
 DO $$
 DECLARE
   policy_record RECORD;
@@ -298,10 +298,22 @@ BEGIN
   END LOOP;
 END $$;
 
+DROP TRIGGER IF EXISTS climbs_sync_crag_type_after_write ON climbs;
+DROP TRIGGER IF EXISTS trigger_crag_counts_climbs ON climbs;
+
 ALTER TABLE climbs ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE climbs ALTER COLUMN status TYPE climb_status USING status::climb_status;
 ALTER TABLE climbs ALTER COLUMN status SET DEFAULT 'pending'::climb_status;
 ALTER TABLE climbs ALTER COLUMN route_type TYPE climb_route_type USING route_type::climb_route_type;
+
+-- Recreate climb triggers after type change
+CREATE OR REPLACE TRIGGER climbs_sync_crag_type_after_write
+  AFTER INSERT OR DELETE OR UPDATE OF route_type, crag_id, status, deleted_at ON climbs
+  FOR EACH ROW EXECUTE FUNCTION public.sync_crag_type_from_climbs();
+
+CREATE OR REPLACE TRIGGER trigger_crag_counts_climbs
+  AFTER INSERT OR DELETE OR UPDATE OF status ON climbs
+  FOR EACH ROW EXECUTE FUNCTION public.trigger_recompute_crag_counts_climbs();
 
 -- Re-create climb policies with enum casts
 DO $$
