@@ -4,10 +4,29 @@ import { createRateLimitResponse, RATE_LIMITS, rateLimit } from '@/lib/rate-limi
 import { getServerClientFromRequest } from '@/lib/supabase-server'
 import { validateCsrfToken, setCsrfCookie } from './csrf'
 
+function isTrustedServerActionRequest(request: NextRequest): boolean {
+  if (!request.headers.get('next-action')) return false
+
+  const origin = request.headers.get('origin')
+  const host = request.headers.get('host')
+  if (!origin || !host) return false
+
+  try {
+    const originUrl = new URL(origin)
+    return originUrl.host === host
+  } catch {
+    return false
+  }
+}
+
 export async function withCsrfProtection(
   request: NextRequest,
   response?: NextResponse
 ): Promise<{ valid: boolean; response?: NextResponse }> {
+  if (isTrustedServerActionRequest(request)) {
+    return response ? { valid: true, response } : { valid: true }
+  }
+
   const validationResult = await validateCsrfToken(request)
   
   if (!validationResult) {
