@@ -1,7 +1,7 @@
 export const communityKeys = {
   all: ['community'] as const,
-  rankings: (slug: string, sort: string, page: number) =>
-    [...communityKeys.all, 'rankings', slug, sort, page] as const,
+  rankings: (scope: string, sort: string, page: number) =>
+    [...communityKeys.all, 'rankings', scope, sort, page] as const,
   recentSends: (slug: string) =>
     [...communityKeys.all, 'recent-sends', slug] as const,
   engagement: (postId: string) =>
@@ -45,6 +45,21 @@ export async function fetchRankings(
   )
   if (!response.ok) {
     throw new Error(`Failed to fetch rankings: ${response.status}`)
+  }
+  return response.json()
+}
+
+export async function fetchCragRankings(
+  cragId: string,
+  sort: 'grade' | 'tops',
+  page: number,
+  limit = 20
+): Promise<{ leaderboard: PlaceRankingEntry[]; window: '60d' | 'all-time'; fallback_used: boolean; pagination: PlaceRankingPagination }> {
+  const response = await fetch(
+    `/api/crags/${cragId}/rankings?sort=${sort}&page=${page}&limit=${limit}`
+  )
+  if (!response.ok) {
+    throw new Error(`Failed to fetch crag rankings: ${response.status}`)
   }
   return response.json()
 }

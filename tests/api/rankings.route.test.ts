@@ -10,6 +10,7 @@ vi.mock('@/lib/supabase-server', () => ({
 }))
 
 import { GET as getGlobalRankings } from '@/app/api/rankings/route'
+import { GET as getCragRankings } from '@/app/api/crags/[id]/rankings/route'
 import { GET as getPlaceRankings } from '@/app/api/community/places/[slug]/rankings/route'
 
 type RpcResponse = {
@@ -207,6 +208,79 @@ describe('GET /api/community/places/[slug]/rankings', () => {
       expect.objectContaining({
         p_place_id: 'place-1',
         p_sort: 'grade',
+        p_page: 1,
+        p_limit: 20,
+        p_window_start: null,
+      })
+    )
+    expect(json.window).toBe('all-time')
+    expect(json.fallback_used).toBe(true)
+    expect(json.pagination).toEqual({
+      page: 1,
+      limit: 20,
+      total_users: 1,
+      total_pages: 1,
+    })
+  })
+})
+
+describe('GET /api/crags/[id]/rankings', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  test('falls back to all-time when 60 day window is empty', async () => {
+    const supabase = makeRpcClient(async (fnName, args) => {
+      if (fnName !== 'get_crag_rankings_leaderboard') {
+        throw new Error(`Unexpected RPC: ${fnName}`)
+      }
+
+      if (args.p_window_start) {
+        return { data: [], error: null }
+      }
+
+      return {
+        data: [
+          {
+            rank: 1,
+            user_id: 'user-2',
+            username: 'Crag Crusher',
+            avatar_url: null,
+            avg_grade: '7A+',
+            climb_count: 7,
+            total_users: 1,
+          },
+        ],
+        error: null,
+      }
+    })
+
+    getServerClientFromRequest.mockReturnValue(supabase)
+
+    const response = await getCragRankings(
+      new NextRequest('http://localhost:3000/api/crags/crag-1/rankings?sort=tops&page=1&limit=20'),
+      { params: Promise.resolve({ id: 'crag-1' }) }
+    )
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      1,
+      'get_crag_rankings_leaderboard',
+      expect.objectContaining({
+        p_crag_id: 'crag-1',
+        p_sort: 'tops',
+        p_page: 1,
+        p_limit: 20,
+        p_window_start: expect.any(String),
+      })
+    )
+    expect(supabase.rpc).toHaveBeenNthCalledWith(
+      2,
+      'get_crag_rankings_leaderboard',
+      expect.objectContaining({
+        p_crag_id: 'crag-1',
+        p_sort: 'tops',
         p_page: 1,
         p_limit: 20,
         p_window_start: null,

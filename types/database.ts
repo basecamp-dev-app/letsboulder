@@ -2635,6 +2635,24 @@ export type Database = {
           username: string
         }[]
       }
+      get_crag_rankings_leaderboard: {
+        Args: {
+          p_crag_id: string
+          p_limit?: number
+          p_page?: number
+          p_sort?: string
+          p_window_start?: string | null
+        }
+        Returns: {
+          avatar_url: string | null
+          avg_grade: string
+          climb_count: number
+          rank: number
+          total_users: number
+          user_id: string
+          username: string
+        }[]
+      }
       get_rankings_leaderboard: {
         Args: {
           p_gender?: string | null

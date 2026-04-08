@@ -16,6 +16,7 @@ import type { OfflineJobProgressEvent } from '@/lib/offline/sw-messages'
 import type { getCragOfflinePreview } from '@/lib/offline/packs'
 
 interface CragRouteSectionProps {
+  cragId: string
   crag: CragPageCrag
   filteredRoutes: CragRoute[]
   routesLoadState: 'idle' | 'loading' | 'loaded' | 'error'
@@ -84,6 +85,7 @@ interface CragRouteSectionProps {
 }
 
 const CragRouteSection = React.memo(function CragRouteSection({
+  cragId,
   crag,
   filteredRoutes,
   routesLoadState,
@@ -196,7 +198,7 @@ const CragRouteSection = React.memo(function CragRouteSection({
         </div>
       </section>
 
-      <CragCommunitySidebar communityPlace={communityPlace} />
+      <CragCommunitySidebar cragId={cragId} communityPlace={communityPlace} />
 
       <CragSearchDialog
         open={searchModalOpen}
