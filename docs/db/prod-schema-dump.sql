@@ -7433,7 +7433,7 @@ CREATE POLICY "Public create gym owner applications" ON "public"."gym_owner_appl
 
 
 
-CREATE POLICY "Public read approved images" ON "public"."images" FOR SELECT USING ((COALESCE("moderation_status", 'pending'::"text") = 'approved'::"text"));
+CREATE POLICY "Public read approved images" ON "public"."images" FOR SELECT USING ((COALESCE("moderation_status", 'pending'::"public"."image_moderation_status") = 'approved'::"public"."image_moderation_status"));
 
 
 
@@ -11102,7 +11102,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
-
 
 
 

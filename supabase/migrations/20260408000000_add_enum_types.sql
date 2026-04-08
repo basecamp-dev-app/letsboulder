@@ -205,6 +205,10 @@ BEGIN
     FROM tmp_image_policies
     ORDER BY policyname
   LOOP
+    IF policy_record.policyname = 'Public read approved images' THEN
+      policy_record.qual := '(COALESCE(moderation_status, ''pending''::image_moderation_status) = ''approved''::image_moderation_status)';
+    END IF;
+
     SELECT CASE
       WHEN policy_record.roles = ARRAY['public'] THEN 'PUBLIC'
       ELSE string_agg(quote_ident(role_name), ', ')
