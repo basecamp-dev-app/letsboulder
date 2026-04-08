@@ -18,7 +18,6 @@ function getSupabaseStorageRemotePattern(): URL | null {
   if (!raw) return null
 
   try {
-    const url = new URL(raw)
     return new URL(`/storage/v1/object/public/**`, raw)
   } catch {
     return null
@@ -74,7 +73,7 @@ const nextConfig: NextConfig = {
           {
             key: 'Content-Security-Policy',
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://sentry.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co https://*.cloudflarestorage.com https://media-letsboulder.pages.dev https://server.arcgisonline.com https://static.letsboulder.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; frame-ancestors 'none';",
+              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://sentry.io; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co https://*.cloudflarestorage.com https://media-letsboulder.pages.dev https://server.arcgisonline.com https://static.letsboulder.com https://lh3.googleusercontent.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; frame-ancestors 'none';",
           },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
@@ -100,6 +99,11 @@ const nextConfig: NextConfig = {
     ],
     remotePatterns: [
       ...(supabaseStorageRemotePattern ? [supabaseStorageRemotePattern] : []),
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '/**',
+      },
       {
         protocol: 'http',
         hostname: 'localhost',

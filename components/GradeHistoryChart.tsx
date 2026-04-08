@@ -24,8 +24,8 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
   const roundedMax = Math.ceil(maxValue / gradeStep) * gradeStep
 
   return (
-    <div className="w-full h-64 min-h-[200px] md:min-h-[256px]">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="w-full min-w-0 h-64 min-h-[200px] md:min-h-[256px]">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
         <AreaChart
           data={data}
           margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
