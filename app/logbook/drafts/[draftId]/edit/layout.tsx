@@ -1,3 +1,4 @@
+import AppLayout from '@/components/AppLayout'
 import { MediaUploadManagerProvider } from '@/features/media-upload/providers/MediaUploadManagerProvider'
 
 export default function DraftEditorLayout({
@@ -5,5 +6,5 @@ export default function DraftEditorLayout({
 }: {
   children: React.ReactNode
 }) {
-  return <MediaUploadManagerProvider>{children}</MediaUploadManagerProvider>
+  return <AppLayout><MediaUploadManagerProvider>{children}</MediaUploadManagerProvider></AppLayout>
 }
