@@ -154,7 +154,7 @@ export function isValidLocationCoordinate(latitude: number | null | undefined, l
 export function parseDraftMarkerPosition(latitude: string, longitude: string): [number, number] | null {
   const parsedLatitude = Number(latitude)
   const parsedLongitude = Number(longitude)
-  return hasValidLocationCoordinate(parsedLatitude, parsedLongitude) ? [parsedLatitude, parsedLongitude] : null
+  return isValidLocationCoordinate(parsedLatitude, parsedLongitude) ? [parsedLatitude, parsedLongitude] : null
 }
 
 export function resolveEffectiveDraftPublishLocation(
