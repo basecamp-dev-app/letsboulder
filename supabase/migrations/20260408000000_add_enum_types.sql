@@ -87,6 +87,10 @@ BEGIN
   END LOOP;
 END $$;
 
+ALTER TABLE images DROP CONSTRAINT IF EXISTS images_status_check;
+ALTER TABLE images DROP CONSTRAINT IF EXISTS images_visibility_check;
+ALTER TABLE images DROP CONSTRAINT IF EXISTS images_processing_status_check;
+
 ALTER TABLE images ALTER COLUMN status DROP DEFAULT;
 ALTER TABLE images ALTER COLUMN status TYPE image_status USING status::image_status;
 ALTER TABLE images ALTER COLUMN status SET DEFAULT 'pending'::image_status;
@@ -186,12 +190,6 @@ ALTER TABLE community_place_follows ALTER COLUMN notification_level TYPE notific
 
 -- Crags
 ALTER TABLE crags ALTER COLUMN type TYPE crag_type USING type::crag_type;
-
--- Drop old CHECK constraints that were on TEXT columns
--- Images
-ALTER TABLE images DROP CONSTRAINT IF EXISTS images_status_check;
-ALTER TABLE images DROP CONSTRAINT IF EXISTS images_visibility_check;
-ALTER TABLE images DROP CONSTRAINT IF EXISTS images_processing_status_check;
 
 -- Climb
 ALTER TABLE climbs DROP CONSTRAINT IF EXISTS climbs_status_check;
