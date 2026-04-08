@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import CragMapView from '@/features/crags/components/CragMapView'
 import CragRouteSection from '@/features/crags/components/CragRouteSection'
+import type { CommunityPlaceInfo } from '@/features/crags/components/CragCommunitySidebar'
 import { useCragData } from '@/features/crags/hooks/use-crag-data'
 import { useCragPageFilters } from '@/features/crags/hooks/use-crag-page-filters'
 import { useCragPageActions } from '@/features/crags/hooks/use-crag-page-actions'
@@ -20,7 +21,7 @@ interface CragPageClientProps {
   initialRouteNavigationTargetByClimbId?: Record<string, RouteNavigationTarget>
   initialCragCenter?: [number, number] | null
   initialPayloadLoadedAt?: number
-  communityPlaceSlug?: string | null
+  communityPlace?: CommunityPlaceInfo | null
   initialSelectedImageId?: string | null
 }
 
@@ -35,7 +36,7 @@ export default function CragPageClient({
   initialRouteNavigationTargetByClimbId = {},
   initialCragCenter = null,
   initialPayloadLoadedAt,
-  communityPlaceSlug,
+  communityPlace,
   initialSelectedImageId = null,
 }: CragPageClientProps) {
   const {
@@ -187,7 +188,7 @@ export default function CragPageClient({
         onFilterModalOpenChange={filters.setFilterModalOpen}
         onSortModalOpenChange={filters.setSortModalOpen}
         onOfflineDialogOpenChange={actions.setOfflineDialogOpen}
-        communityPlaceSlug={communityPlaceSlug}
+        communityPlace={communityPlace}
       />
     </div>
   )

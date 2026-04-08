@@ -2,7 +2,7 @@
 
 import React, { type MouseEvent } from 'react'
 import CragPageToolbar, { type CragSwitcherOption } from '@/features/crags/components/CragPageToolbar'
-import CragCommunitySidebar from '@/features/crags/components/CragCommunitySidebar'
+import CragCommunitySidebar, { type CommunityPlaceInfo } from '@/features/crags/components/CragCommunitySidebar'
 import CragRouteList from '@/features/crags/components/CragRouteList'
 import CragSearchDialog from '@/features/crags/components/CragSearchDialog'
 import CragFilterDialog from '@/features/crags/components/CragFilterDialog'
@@ -80,7 +80,7 @@ interface CragRouteSectionProps {
   onFilterModalOpenChange: (open: boolean) => void
   onSortModalOpenChange: (open: boolean) => void
   onOfflineDialogOpenChange: (open: boolean) => void
-  communityPlaceSlug: string | null | undefined
+  communityPlace: CommunityPlaceInfo | null | undefined
 }
 
 const CragRouteSection = React.memo(function CragRouteSection({
@@ -148,7 +148,7 @@ const CragRouteSection = React.memo(function CragRouteSection({
   onFilterModalOpenChange,
   onSortModalOpenChange,
   onOfflineDialogOpenChange,
-  communityPlaceSlug,
+  communityPlace,
 }: CragRouteSectionProps) {
   return (
     <div className="relative max-w-5xl mx-auto px-4 py-4 space-y-6">
@@ -196,7 +196,7 @@ const CragRouteSection = React.memo(function CragRouteSection({
         </div>
       </section>
 
-      <CragCommunitySidebar communityPlaceSlug={communityPlaceSlug} />
+      <CragCommunitySidebar communityPlace={communityPlace} />
 
       <CragSearchDialog
         open={searchModalOpen}

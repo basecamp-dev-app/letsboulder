@@ -2,12 +2,31 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
 import CragPageShell from '@/features/crags/components/CragPageShell'
+import type { CommunityPlaceInfo } from '@/features/crags/components/CragCommunitySidebar'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import CragStructuredData from '@/features/crags/components/CragStructuredData'
 import type { BreadcrumbItem, CragPageCrag } from '@/features/crags/lib/crag-page-types'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 export const revalidate = 60
+
+async function getCommunityPlaceById(id: string): Promise<CommunityPlaceInfo | null> {
+  const supabase = getUnauthenticatedClient()
+  const { data } = await supabase
+    .from('places')
+    .select('slug, type')
+    .eq('id', id)
+    .maybeSingle<{ slug: string | null; type: string | null }>()
+
+  if (!data?.slug || (data.type !== 'crag' && data.type !== 'gym')) {
+    return null
+  }
+
+  return {
+    slug: data.slug,
+    type: data.type,
+  }
+}
 
 interface CragSlugParams {
   country: string
@@ -198,6 +217,7 @@ export default async function CragSlugPage({
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
   })
+  const communityPlace = await getCommunityPlaceById(crag.id)
 
   return (
     <>
@@ -218,6 +238,7 @@ export default async function CragSlugPage({
         initialCragCenter={initialRouteData.initialCragCenter}
         initialPayloadLoadedAt={initialRouteData.loadedAt}
         initialSelectedImageId={image || null}
+        communityPlace={communityPlace}
       />
     </>
   )

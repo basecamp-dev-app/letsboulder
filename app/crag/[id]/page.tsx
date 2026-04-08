@@ -1,11 +1,30 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import CragPageShell from '@/features/crags/components/CragPageShell'
+import type { CommunityPlaceInfo } from '@/features/crags/components/CragCommunitySidebar'
 import { loadInitialCragRouteData } from '@/features/crags/server/load-initial-crag-route-data'
 import { getCragById } from '../lib/get-crag-by-id'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
 export const revalidate = 300
+
+async function getCommunityPlaceById(id: string): Promise<CommunityPlaceInfo | null> {
+  const supabase = getUnauthenticatedClient()
+  const { data } = await supabase
+    .from('places')
+    .select('slug, type')
+    .eq('id', id)
+    .maybeSingle<{ slug: string | null; type: string | null }>()
+
+  if (!data?.slug || (data.type !== 'crag' && data.type !== 'gym')) {
+    return null
+  }
+
+  return {
+    slug: data.slug,
+    type: data.type,
+  }
+}
 
 export default async function CragIdPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -36,6 +55,7 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
     latitude: initialCrag.latitude,
     longitude: initialCrag.longitude,
   })
+  const communityPlace = await getCommunityPlaceById(id)
 
   return (
     <CragPageShell
@@ -48,6 +68,7 @@ export default async function CragIdPage({ params }: { params: Promise<{ id: str
       initialDefaultRouteTargetByImageId={initialRouteData.initialDefaultRouteTargetByImageId}
       initialRouteNavigationTargetByClimbId={initialRouteData.initialRouteNavigationTargetByClimbId}
       initialCragCenter={initialRouteData.initialCragCenter}
+      communityPlace={communityPlace}
     />
   )
 }

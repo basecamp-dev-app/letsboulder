@@ -12,9 +12,11 @@ type RankingSort = 'grade' | 'tops'
 
 interface PlaceRankingsPanelProps {
   slug: string
+  placeType: 'crag' | 'gym'
+  embedded?: boolean
 }
 
-export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
+export default function PlaceRankingsPanel({ slug, placeType, embedded = false }: PlaceRankingsPanelProps) {
   const gradeSystem = useGradeSystem()
   const [sortBy, setSortBy] = useState<RankingSort>('tops')
   const [page, setPage] = useState(1)
@@ -29,11 +31,12 @@ export default function PlaceRankingsPanel({ slug }: PlaceRankingsPanelProps) {
   const pagination = data?.pagination ?? null
   const windowMode = data?.window ?? '60d'
   const fallbackUsed = data?.fallback_used ?? false
+  const placeLabel = placeType === 'gym' ? 'Gym' : 'Crag'
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+    <section className={embedded ? '' : 'rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900'}>
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Place rankings ({windowMode === 'all-time' ? 'all time' : '60 days'})</h2>
+        {!embedded ? <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{placeLabel} rankings ({windowMode === 'all-time' ? 'all time' : '60 days'})</h2> : <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{placeLabel} rankings{windowMode === 'all-time' ? ' (all time)' : ''}</p>}
         <div className="flex rounded-lg bg-gray-100 p-0.5 dark:bg-gray-800">
           <button
             type="button"
