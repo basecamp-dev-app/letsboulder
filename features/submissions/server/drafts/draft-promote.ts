@@ -3,7 +3,7 @@ import { serverEnv } from '@/lib/env.server'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
 import { getMediaModerationConfig } from '@/lib/media/config'
-import { isPermissionDeniedError, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
+import { isPermissionDeniedError, normalizeJsonRecord, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
 
 const INTERNAL_MODERATION_SECRET = serverEnv.INTERNAL_MODERATION_SECRET
 
@@ -21,6 +21,57 @@ interface PromoteResult {
 interface DraftRouteRef {
   id: string
   draft_image_id: string
+}
+
+type DraftImagePublishRow = Pick<DraftImageRow, 'id' | 'latitude' | 'longitude' | 'route_data'>
+
+interface DraftRouteSyncPayload {
+  id: string
+  name: string
+  grade: string
+  description: string | null
+  climbType: string
+  points: Array<{ x: number; y: number }>
+  sequenceOrder: number
+  imageWidth: number | null
+  imageHeight: number | null
+}
+
+function normalizeDraftRouteSyncPayload(value: unknown): DraftRouteSyncPayload[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item, index) => {
+    if (!item || typeof item !== 'object') return []
+    const candidate = item as Record<string, unknown>
+    const id = typeof candidate.id === 'string' && candidate.id.length > 0 ? candidate.id : ''
+    const points = Array.isArray(candidate.points)
+      ? candidate.points.flatMap((point) => {
+          if (!point || typeof point !== 'object') return []
+          const parsedPoint = point as Record<string, unknown>
+          return typeof parsedPoint.x === 'number' && typeof parsedPoint.y === 'number'
+            ? [{ x: parsedPoint.x, y: parsedPoint.y }]
+            : []
+        })
+      : []
+
+    if (!id || points.length < 2) return []
+
+    const climbType = typeof candidate.climbType === 'string' && candidate.climbType.length > 0
+      ? candidate.climbType
+      : 'sport'
+
+    return [{
+      id,
+      name: typeof candidate.name === 'string' ? candidate.name : '',
+      grade: typeof candidate.grade === 'string' ? candidate.grade : '',
+      description: typeof candidate.description === 'string' ? candidate.description : null,
+      climbType,
+      points,
+      sequenceOrder: typeof candidate.sequenceOrder === 'number' ? candidate.sequenceOrder : index,
+      imageWidth: typeof candidate.imageWidth === 'number' ? candidate.imageWidth : null,
+      imageHeight: typeof candidate.imageHeight === 'number' ? candidate.imageHeight : null,
+    }]
+  })
 }
 
 export async function promoteDraftToSubmission(input: {
@@ -50,7 +101,7 @@ export async function promoteDraftToSubmission(input: {
 
   const { data: draftImages, error: draftImagesError } = await supabase
     .from('submission_draft_images')
-    .select('id, latitude, longitude')
+    .select('id, latitude, longitude, route_data')
     .eq('draft_id', draftId)
 
   if (draftImagesError) {
@@ -76,10 +127,47 @@ export async function promoteDraftToSubmission(input: {
     return createErrorResponse(draftRoutesError, 'Failed to validate draft routes before publish')
   }
 
-  const draftImageIds = ((draftImages || []) as Array<{ id: string }>).map((image) => image.id)
-  const routeRows = (draftRoutes || []) as DraftRouteRef[]
-  const routeImageIds = new Set(routeRows.map((route) => route.draft_image_id))
-  const imagesMissingRoutes = draftImageIds.filter((imageId) => !routeImageIds.has(imageId))
+  const draftImageRows = (draftImages || []) as DraftImagePublishRow[]
+  const draftImageIds = draftImageRows.map((image) => image.id)
+
+  const resolveImagesMissingRoutes = (routeRefs: DraftRouteRef[]) => {
+    const routeImageIds = new Set(routeRefs.map((route) => route.draft_image_id))
+    return draftImageIds.filter((imageId) => !routeImageIds.has(imageId))
+  }
+
+  let routeRows = (draftRoutes || []) as DraftRouteRef[]
+  let imagesMissingRoutes = resolveImagesMissingRoutes(routeRows)
+
+  if (imagesMissingRoutes.length > 0) {
+    for (const imageId of imagesMissingRoutes) {
+      const imageRow = draftImageRows.find((image) => image.id === imageId) || null
+      const routeData = normalizeJsonRecord(imageRow?.route_data)
+      const completedRoutes = normalizeDraftRouteSyncPayload(routeData?.completedRoutes)
+      if (completedRoutes.length === 0) continue
+
+      const { error } = await supabase.rpc('sync_submission_draft_routes', {
+        p_draft_id: draftId,
+        p_draft_image_id: imageId,
+        p_routes: completedRoutes,
+      })
+
+      if (error) {
+        return createErrorResponse(error, 'Failed to repair draft routes before publish')
+      }
+    }
+
+    const { data: repairedDraftRoutes, error: repairedDraftRoutesError } = await supabase
+      .from('submission_draft_routes')
+      .select('id, draft_image_id')
+      .eq('draft_id', draftId)
+
+    if (repairedDraftRoutesError) {
+      return createErrorResponse(repairedDraftRoutesError, 'Failed to validate repaired draft routes before publish')
+    }
+
+    routeRows = (repairedDraftRoutes || []) as DraftRouteRef[]
+    imagesMissingRoutes = resolveImagesMissingRoutes(routeRows)
+  }
 
   if (imagesMissingRoutes.length > 0) {
     return NextResponse.json({
