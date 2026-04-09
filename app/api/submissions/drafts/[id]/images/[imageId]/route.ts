@@ -137,13 +137,14 @@ export async function DELETE(
     }
 
     const draftImages = (imageRows || []) as DraftImageRow[]
-    if (draftImages.length <= 1) {
-      return NextResponse.json({ error: 'A draft must keep at least one face image' }, { status: 400 })
-    }
-
     const imageToDelete = draftImages.find((image) => image.id === imageId) || null
+
     if (!imageToDelete) {
       return NextResponse.json({ error: 'Draft image not found' }, { status: 404 })
+    }
+
+    if (draftImages.length <= 1) {
+      return NextResponse.json({ error: 'A draft must keep at least one face image' }, { status: 400 })
     }
 
     const { error: deleteImageError } = await supabase
