@@ -29,6 +29,7 @@ import { GET as getLocationSearch } from '@/app/api/locations/search/route'
 import { GET as getPlaceSearch } from '@/app/api/places/search/route'
 import { GET as getPlaceNearby } from '@/app/api/places/nearby/route'
 import { GET as getCragNearby } from '@/app/api/crags/nearby/route'
+import { GET as getCragById } from '@/app/api/crags/search-by-id/route'
 import { GET as getRegionSearch } from '@/app/api/regions/search/route'
 import { rateLimit } from '@/lib/rate-limit'
 
@@ -110,6 +111,20 @@ function createNearbyCragsClient(result: QueryResult) {
     lte: vi.fn(() => builder),
     order: vi.fn(() => builder),
     limit: vi.fn(() => makeThenableResult(result)),
+  }
+
+  return {
+    from: vi.fn((table: string) => {
+      if (table !== 'crags') throw new Error(`Unexpected table ${table}`)
+      return { select: vi.fn(() => builder) }
+    }),
+  }
+}
+
+function createCragByIdClient(result: QueryResult) {
+  const builder = {
+    eq: vi.fn(() => builder),
+    maybeSingle: vi.fn(() => Promise.resolve(result)),
   }
 
   return {
@@ -239,6 +254,38 @@ describe('Search routes', () => {
 
     expect(response.status).toBe(200)
     expect(json[0]).toEqual(expect.objectContaining({ id: 'crag-0', distance: 0 }))
+  })
+
+  test('crag by id returns normalized crag payload', async () => {
+    getServerClientFromRequest.mockReturnValue(createCragByIdClient({
+      data: {
+        id: 'crag-1',
+        name: 'Harrison\'s Rocks',
+        latitude: 51.1,
+        longitude: 0.187,
+        country_code: 'GB',
+        region_name: 'Northern Europe',
+        sub_area: null,
+        rock_type: 'sandstone',
+        type: 'boulder',
+        description: null,
+        access_notes: null,
+        region_id: null,
+        created_at: '2026-04-09T00:00:00.000Z',
+      },
+      error: null,
+    }))
+
+    const response = await getCragById(new NextRequest('http://localhost:3000/api/crags/search-by-id?id=crag-1'))
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json).toEqual(expect.objectContaining({
+      id: 'crag-1',
+      countryCode: 'GB',
+      regionName: 'Northern Europe',
+      subArea: null,
+    }))
   })
 
   test('image search rejects requests without crag_id or image_id', async () => {
