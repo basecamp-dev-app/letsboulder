@@ -178,6 +178,7 @@ export function useDraftEditorOrchestration({
     loadDraft,
     syncUploadedImages,
     registerDraftUpdatedAt,
+    currentUserId,
     queueDraftUploads,
     isQueuePaused,
     subscribeToUploadComplete,

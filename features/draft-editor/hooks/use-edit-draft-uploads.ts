@@ -43,6 +43,7 @@ interface UseEditDraftUploadsParams {
   loadDraft: () => Promise<void>
   syncUploadedImages: () => Promise<void>
   registerDraftUpdatedAt: (draftId: string, updatedAt: string) => void
+  currentUserId: string | null
   queueDraftUploads: (files: File[], draftId: string) => void
   isQueuePaused: (draftId?: string) => boolean
   subscribeToUploadComplete: (callback: UploadCompleteCallback) => () => void
@@ -80,6 +81,7 @@ export function useEditDraftUploads({
   loadDraft,
   syncUploadedImages,
   registerDraftUpdatedAt,
+  currentUserId,
   queueDraftUploads,
   isQueuePaused,
   subscribeToUploadComplete,
@@ -291,61 +293,73 @@ export function useEditDraftUploads({
     setSuccess(null)
 
     try {
-      const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/images/${imageId}?expected_updated_at=${encodeURIComponent(draftUpdatedAt)}`, {
-        method: 'DELETE',
-      })
+      let expectedUpdatedAt = draftUpdatedAt
 
-      const payload = await response.json().catch(() => ({} as DraftDeleteImageResponse & DraftConflictResponse & { error?: string }))
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/images/${imageId}?expected_updated_at=${encodeURIComponent(expectedUpdatedAt)}`, {
+          method: 'DELETE',
+        })
 
-      if (!response.ok) {
-        if (response.status === 409 && payload.code === 'draft_conflict') {
-          setConflict({
-            serverUpdatedAt: payload.current_updated_at,
-            lastEditorName: payload.current_data?.last_updated_by_display_name || 'Another collaborator',
-            pendingChanges: { images: [], metadata: {}, cragId },
-          })
-          return
+        const payload = await response.json().catch(() => ({} as DraftDeleteImageResponse & DraftConflictResponse & { error?: string }))
+
+        if (!response.ok) {
+          if (response.status === 409 && payload.code === 'draft_conflict') {
+            if (payload.current_data?.last_updated_by === currentUserId && attempt === 0) {
+              expectedUpdatedAt = payload.current_updated_at
+              setDraftUpdatedAt(payload.current_updated_at)
+              continue
+            }
+
+            setConflict({
+              serverUpdatedAt: payload.current_updated_at,
+              lastEditorName: payload.current_data?.last_updated_by_display_name || 'Another collaborator',
+              pendingChanges: { images: [], metadata: {}, cragId },
+            })
+            return
+          }
+
+          throw new Error(payload.error || 'Failed to remove image')
         }
 
-        throw new Error(payload.error || 'Failed to remove image')
+        const remainingImages = draft.images
+          .slice()
+          .sort((a, b) => a.display_order - b.display_order)
+          .filter((image) => image.id !== imageId)
+        const fallbackImageId = remainingImages[0]?.id || null
+
+        if (defaultImageId === imageId) {
+          setDefaultImageId(fallbackImageId)
+        }
+
+        if (activeImageId === imageId) {
+          setActiveImageId(defaultImageId && defaultImageId !== imageId ? defaultImageId : fallbackImageId)
+        }
+
+        setOrientationByImageId((prev) => {
+          const next = { ...prev }
+          delete next[imageId]
+          return next
+        })
+        setRoutesByImageId((prev) => {
+          const next = { ...prev }
+          delete next[imageId]
+          return next
+        })
+
+        await loadDraft()
+        if (payload.draft?.updated_at) {
+          setDraftUpdatedAt(payload.draft.updated_at)
+          registerDraftUpdatedAt(draft.id, payload.draft.updated_at)
+        }
+        setSuccess('Image removed from draft')
+        return
       }
-
-      const remainingImages = draft.images
-        .slice()
-        .sort((a, b) => a.display_order - b.display_order)
-        .filter((image) => image.id !== imageId)
-      const fallbackImageId = remainingImages[0]?.id || null
-
-      if (defaultImageId === imageId) {
-        setDefaultImageId(fallbackImageId)
-      }
-
-      if (activeImageId === imageId) {
-        setActiveImageId(defaultImageId && defaultImageId !== imageId ? defaultImageId : fallbackImageId)
-      }
-
-      setOrientationByImageId((prev) => {
-        const next = { ...prev }
-        delete next[imageId]
-        return next
-      })
-      setRoutesByImageId((prev) => {
-        const next = { ...prev }
-        delete next[imageId]
-        return next
-      })
-
-      await loadDraft()
-      if (payload.draft?.updated_at) {
-        setDraftUpdatedAt(payload.draft.updated_at)
-      }
-      setSuccess('Image removed from draft')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove image')
     } finally {
       setRemovingImageId(null)
     }
-  }, [activeImageId, cragId, defaultImageId, draft, draftUpdatedAt, loadDraft, mergedManageImages, pendingDraftUploads, removeUpload, removingImageId, setActiveImageId, setConflict, setDefaultImageId, setDraftUpdatedAt, setError, setOrientationByImageId, setRemovingImageId, setRoutesByImageId, setSuccess])
+  }, [activeImageId, cragId, currentUserId, defaultImageId, draft, draftUpdatedAt, loadDraft, mergedManageImages, pendingDraftUploads, registerDraftUpdatedAt, removeUpload, removingImageId, setActiveImageId, setConflict, setDefaultImageId, setDraftUpdatedAt, setError, setOrientationByImageId, setRemovingImageId, setRoutesByImageId, setSuccess])
 
   return {
     pendingDraftUploads,
