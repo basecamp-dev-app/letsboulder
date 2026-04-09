@@ -93,6 +93,7 @@ export default function EditSubmittedRoutesPage() {
     interactionTool,
     undoLastPoint,
     setInteractionTool,
+    setRoutes,
   } = useRouteStore()
   usePublishedRouteEditorSync({
     activeImageId: editor.activeImageId,
@@ -234,6 +235,7 @@ export default function EditSubmittedRoutesPage() {
       }
 
       editor.setEditedRoutes(reconciledRoutes)
+      setRoutes(reconciledRoutes)
       editor.setInitialEditedRoutes(reconciledRoutes)
 
       editor.setSuccess('Submission changes saved')
@@ -242,7 +244,7 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setSavingAllChanges(false)
     }
-  }, [editor, location, savingAllChanges])
+  }, [editor, location, savingAllChanges, setRoutes])
 
   const handleDeleteRoute = useCallback(async (routeLineId: string, targetRouteLineId?: string) => {
     if (!editor.activeImageId || deletingRoute) return
@@ -273,6 +275,7 @@ export default function EditSubmittedRoutesPage() {
        if (!result.success) throw new Error(result.error || payload?.error || 'Failed to delete route')
         const nextRoutes = removePublishedRoute(editor.editedRoutes, routeLineId)
         editor.setEditedRoutes(nextRoutes)
+        setRoutes(nextRoutes)
         editor.setInitialEditedRoutes(nextRoutes)
         setSelectedRoute(null)
         setActiveRoute(null)
@@ -288,7 +291,7 @@ export default function EditSubmittedRoutesPage() {
     } finally {
       setDeletingRoute(false)
     }
-  }, [deletingRoute, editor, setActiveRoute, setEditorPanelOpen, setSelectedRoute])
+  }, [deletingRoute, editor, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
 
   const deleteDialogCandidates = useMemo(() => deleteTransferCandidates, [deleteTransferCandidates])
 
