@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useRouteStore } from '@/features/route-editor/store'
-import { haveStoredRoutesChanged } from '@/features/submissions/lib/route-store-sync'
+import { serializeStoredRoutes } from '@/features/submissions/lib/route-store-sync'
 import type { RouteLine } from '@/types/domain'
 
 interface UsePublishedRouteEditorSyncParams {
@@ -25,24 +25,38 @@ export function usePublishedRouteEditorSync({
     clearCanvasState,
   } = useRouteStore()
   const lastSeededImageIdRef = useRef<string | null>(null)
+  const lastParentSignatureRef = useRef('')
+  const skipStoreToOwnerSyncRef = useRef(false)
+
+  const parentSignature = JSON.stringify(serializeStoredRoutes(editedRoutes))
+  const storeSignature = JSON.stringify(serializeStoredRoutes(routeStoreRoutes))
 
   useEffect(() => {
     if (!activeImageId) return
-    if (lastSeededImageIdRef.current === activeImageId) return
+    const imageChanged = lastSeededImageIdRef.current !== activeImageId
+    const parentChanged = lastParentSignatureRef.current !== parentSignature
+    if (!imageChanged && !parentChanged) return
 
     lastSeededImageIdRef.current = activeImageId
+    lastParentSignatureRef.current = parentSignature
+    skipStoreToOwnerSyncRef.current = true
     clearCanvasState()
     setRoutes(editedRoutes)
     setSelectedRoute(null)
     setActiveRoute(null)
     setEditorPanelOpen(false)
-  }, [activeImageId, clearCanvasState, editedRoutes, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
+  }, [activeImageId, clearCanvasState, editedRoutes, parentSignature, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
 
   useEffect(() => {
     if (!activeImageId) return
     if (lastSeededImageIdRef.current !== activeImageId) return
-    if (!haveStoredRoutesChanged(routeStoreRoutes, editedRoutes)) return
+    if (skipStoreToOwnerSyncRef.current) {
+      skipStoreToOwnerSyncRef.current = false
+      return
+    }
+    if (storeSignature === parentSignature) return
 
+    lastParentSignatureRef.current = storeSignature
     setEditedRoutes(routeStoreRoutes)
-  }, [activeImageId, editedRoutes, routeStoreRoutes, setEditedRoutes])
+  }, [activeImageId, parentSignature, routeStoreRoutes, setEditedRoutes, storeSignature])
 }

@@ -116,4 +116,19 @@ describe('usePublishedRouteEditorSync', () => {
 
     expect(setEditedRoutes).toHaveBeenLastCalledWith([updatedRoute])
   })
+
+  it('reseeds the store when routes load after mount for the same image', () => {
+    const setEditedRoutes = vi.fn()
+    const loadedRoutes = [createRoute('route-1', 'image-1')]
+
+    mockStore = createMockStore([])
+
+    const { rerender } = render(
+      <TestHarness activeImageId="image-1" editedRoutes={[]} setEditedRoutes={setEditedRoutes} />
+    )
+
+    rerender(<TestHarness activeImageId="image-1" editedRoutes={loadedRoutes} setEditedRoutes={setEditedRoutes} />)
+
+    expect(mockStore.setRoutes).toHaveBeenLastCalledWith(loadedRoutes)
+  })
 })
