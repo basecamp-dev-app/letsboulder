@@ -39,6 +39,7 @@ interface UseEditDraftActionsParams {
   hasPendingUploads: (draftId: string) => boolean
   hasFailedUploads: (draftId: string) => boolean
   hasValidLocation: boolean
+  flushLocationSync: () => Promise<boolean>
   loadDraft: () => Promise<void>
   loadCollaborators: () => Promise<void>
   addToast: (message: string, tone: 'success' | 'error') => void
@@ -76,6 +77,7 @@ export function useEditDraftActions({
   hasPendingUploads,
   hasFailedUploads,
   hasValidLocation,
+  flushLocationSync,
   loadDraft,
   loadCollaborators,
   addToast,
@@ -362,6 +364,11 @@ export function useEditDraftActions({
     setError(null)
 
     try {
+      const locationSynced = await flushLocationSync()
+      if (!locationSynced) {
+        throw new Error('Failed to sync climb location before publishing')
+      }
+
       const saved = await saveDraft()
       if (!saved) return
 
@@ -405,7 +412,7 @@ export function useEditDraftActions({
     } finally {
       setPublishingDraft(false)
     }
-  }, [addToast, cragId, draft, getImagesMissingRoutes, hasValidLocation, isOwner, locationSectionRef, publishRequirementsRef, publishValidationMessage, router, routesByImageId, saveDraft, setActiveImageId, setError, cragSectionRef])
+  }, [addToast, cragId, draft, flushLocationSync, getImagesMissingRoutes, hasValidLocation, isOwner, locationSectionRef, publishRequirementsRef, publishValidationMessage, router, routesByImageId, saveDraft, setActiveImageId, setError, cragSectionRef])
 
   const handleReloadLatestDraft = useCallback(async () => {
     setConflict(null)
