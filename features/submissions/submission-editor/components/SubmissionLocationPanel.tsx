@@ -1,7 +1,8 @@
 'use client'
 
-import { MapPin } from 'lucide-react'
+import { useState } from 'react'
 import AtlasContextCard from '@/features/submissions/components/AtlasContextCard'
+import { CollapsiblePanel } from '@/features/submissions/components/editor/CollapsiblePanel'
 import { LocationSearchBar } from '@/features/submissions/components/editor/LocationSearchBar'
 import type { AtlasAutoSyncResult } from '@/features/submissions/editor/location/use-atlas-auto-sync'
 
@@ -44,13 +45,15 @@ export function SubmissionLocationPanel({
   searchingLocation,
   locationSearchError,
 }: SubmissionLocationPanelProps) {
-  return (
-    <div className="mb-3 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
-      <div className="mb-3 flex items-center gap-2">
-        <MapPin className="h-4 w-4 text-gray-500" />
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Location details</h2>
-      </div>
+  const [open, setOpen] = useState(false)
 
+  return (
+    <CollapsiblePanel
+      title="Location details"
+      subtitle="Crag metadata, image coordinates, and location search."
+      open={open}
+      onToggle={() => setOpen((value) => !value)}
+    >
       <AtlasContextCard result={atlasSync} />
 
       {canEditCragMetadata ? (
@@ -120,6 +123,6 @@ export function SubmissionLocationPanel({
           error={locationSearchError}
         />
       </div>
-    </div>
+    </CollapsiblePanel>
   )
 }
