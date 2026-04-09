@@ -43,12 +43,11 @@ export function usePublishedRouteEditorSync({
   useEffect(() => {
     if (!activeImageId) return
     if (lastSeededImageIdRef.current !== activeImageId) return
-    if (routeStoreRoutes.length !== 0) return
-    if (editedRoutes.length === 0) return
+    if (!haveStoredRoutesChanged(routeStoreRoutes, editedRoutes)) return
 
     skipStoreToOwnerSyncRef.current = true
     setRoutes(editedRoutes)
-  }, [activeImageId, editedRoutes, routeStoreRoutes.length, setRoutes])
+  }, [activeImageId, editedRoutes, routeStoreRoutes, setRoutes])
 
   useEffect(() => {
     if (!activeImageId) return
