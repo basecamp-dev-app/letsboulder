@@ -1,6 +1,7 @@
 'use client'
 
-import React, { type MouseEvent } from 'react'
+import React, { type MouseEvent, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import CragPageToolbar, { type CragSwitcherOption } from '@/features/crags/components/CragPageToolbar'
 import CragCommunitySidebar, { type CommunityPlaceInfo } from '@/features/crags/components/CragCommunitySidebar'
 import CragRouteList from '@/features/crags/components/CragRouteList'
@@ -152,8 +153,31 @@ const CragRouteSection = React.memo(function CragRouteSection({
   onOfflineDialogOpenChange,
   communityPlace,
 }: CragRouteSectionProps) {
+  const [communityOpen, setCommunityOpen] = useState(false)
+
+  const placeLabel = communityPlace?.type === 'gym' ? 'Gym' : 'Crag'
+
   return (
     <div className="relative max-w-5xl mx-auto px-4 py-4 space-y-6">
+      {communityPlace && (
+        <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+          <button
+            type="button"
+            onClick={() => setCommunityOpen(!communityOpen)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            aria-expanded={communityOpen}
+          >
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{placeLabel} community</h2>
+            <ChevronDown className={`h-4 w-4 shrink-0 text-gray-500 transition-transform dark:text-gray-400 ${communityOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {communityOpen && (
+            <div className="border-t border-gray-200 px-4 pb-4 dark:border-gray-800">
+              <CragCommunitySidebar cragId={cragId} communityPlace={communityPlace} />
+            </div>
+          )}
+        </div>
+      )}
+
       <section className="space-y-3">
         <CragPageToolbar
           crag={crag}
@@ -197,8 +221,6 @@ const CragRouteSection = React.memo(function CragRouteSection({
           />
         </div>
       </section>
-
-      <CragCommunitySidebar cragId={cragId} communityPlace={communityPlace} />
 
       <CragSearchDialog
         open={searchModalOpen}
