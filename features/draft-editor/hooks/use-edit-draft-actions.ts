@@ -7,7 +7,7 @@ import { serializeDraftMetadataV2, type OrientationDirection } from '@/features/
 import { normalizeSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
 import { buildRouteCompletionPayload } from '@/features/route-editor/route-editor-utils'
 import type { DraftConflictState } from '@/features/draft-editor/hooks/use-draft-conflict-resolution'
-import type { DraftCanvasSource, DraftConflictResponse, DraftPayload, DraftRoute, DraftSavePayload, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
+import type { DraftCanvasSource, DraftConflictResponse, DraftPayload, DraftPublishErrorResponse, DraftRoute, DraftSavePayload, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
 import type { SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 
 const RATE_LIMIT_ERROR_MESSAGE = 'You are saving too quickly right now. Please wait a moment and try again.'
@@ -379,21 +379,21 @@ export function useEditDraftActions({
       const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/publish`, {
         method: 'POST',
       })
-      const payload = await response.json().catch(() => ({ error: 'Failed to publish draft' })) as {
-        error?: string
-        published?: {
-          defaultImageId?: string
-          imageIds?: string[]
-          routeLineIds?: string[]
-          canonicalPath?: string
-          defaultRouteId?: string | null
-        }
-      }
+      const payload = await response.json().catch(() => ({ error: 'Failed to publish draft' })) as DraftPublishErrorResponse
 
       if (!response.ok || !payload.published?.defaultImageId || !payload.published.canonicalPath) {
         if (response.status === 429) {
           throw new Error(PUBLISH_RATE_LIMIT_ERROR_MESSAGE)
         }
+
+        if (response.status === 409 && Array.isArray(payload.missing_image_ids) && payload.missing_image_ids.length > 0) {
+          const firstMissingImageId = payload.missing_image_ids[0] || null
+          if (firstMissingImageId) {
+            setActiveImageId(firstMissingImageId)
+          }
+          publishRequirementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+
         throw new Error(payload.error || 'Failed to publish draft')
       }
 

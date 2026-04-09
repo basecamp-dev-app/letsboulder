@@ -82,7 +82,10 @@ export async function promoteDraftToSubmission(input: {
   const imagesMissingRoutes = draftImageIds.filter((imageId) => !routeImageIds.has(imageId))
 
   if (imagesMissingRoutes.length > 0) {
-    return NextResponse.json({ error: 'Every image in the submission must have at least one route before publishing. Remove images without routes or add routes to them.' }, { status: 409 })
+    return NextResponse.json({
+      error: 'Every image in the submission must have at least one route before publishing. Remove images without routes or add routes to them.',
+      missing_image_ids: imagesMissingRoutes,
+    }, { status: 409 })
   }
 
   const { data, error } = await supabase.rpc('promote_draft_to_submission', { p_draft_id: draftId })

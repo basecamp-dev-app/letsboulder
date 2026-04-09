@@ -39,6 +39,17 @@ function createDraft(): DraftPayload {
         latitude: null,
         longitude: null,
       },
+      {
+        id: 'image-2',
+        display_order: 1,
+        route_data: {},
+        proxy_url: 'https://example.com/image-2.jpg',
+        readiness_status: 'ready',
+        width: 1200,
+        height: 900,
+        latitude: null,
+        longitude: null,
+      },
     ],
   }
 }
@@ -85,7 +96,7 @@ describe('useEditDraftActions', () => {
         published: {
           defaultImageId: 'image-1',
           canonicalPath: '/test/crag/i/image-1',
-          imageIds: ['image-1'],
+          imageIds: ['image-1', 'image-2'],
           routeLineIds: ['route-line-1'],
         },
       }),
@@ -106,8 +117,8 @@ describe('useEditDraftActions', () => {
         sectorId: null,
         canvasSource: null,
         defaultImageId: 'image-1',
-        manageImages: [createManageImage('image-1')],
-        routesByImageId: { 'image-1': [createRoute()] },
+        manageImages: [createManageImage('image-1'), createManageImage('image-2')],
+        routesByImageId: { 'image-1': [createRoute()], 'image-2': [createRoute()] },
         orientationByImageId: {},
         locationModeByImageId: {},
         customGpsByImageId: {},
@@ -146,7 +157,7 @@ describe('useEditDraftActions', () => {
     expect(flushLocationSync).toHaveBeenCalledTimes(1)
     expect(mockCsrfFetch).toHaveBeenCalledTimes(1)
     expect(flushLocationSync.mock.invocationCallOrder[0]).toBeLessThan(mockCsrfFetch.mock.invocationCallOrder[0])
-    expect(mockPush).toHaveBeenCalledWith('/test/crag/i/image-1?publishedImages=1&publishedRoutes=1')
+    expect(mockPush).toHaveBeenCalledWith('/test/crag/i/image-1?publishedImages=2&publishedRoutes=1')
   })
 
   it('stops publishing when the location flush fails', async () => {
@@ -169,8 +180,8 @@ describe('useEditDraftActions', () => {
         sectorId: null,
         canvasSource: null,
         defaultImageId: 'image-1',
-        manageImages: [createManageImage('image-1')],
-        routesByImageId: { 'image-1': [createRoute()] },
+        manageImages: [createManageImage('image-1'), createManageImage('image-2')],
+        routesByImageId: { 'image-1': [createRoute()], 'image-2': [createRoute()] },
         orientationByImageId: {},
         locationModeByImageId: {},
         customGpsByImageId: {},
@@ -210,4 +221,5 @@ describe('useEditDraftActions', () => {
     expect(mockCsrfFetch).not.toHaveBeenCalled()
     expect(mockPush).not.toHaveBeenCalled()
   })
+
 })

@@ -80,6 +80,18 @@ export interface DraftDeleteImageResponse {
   } | null
 }
 
+export interface DraftPublishErrorResponse {
+  error?: string
+  missing_image_ids?: string[]
+  published?: {
+    defaultImageId?: string
+    imageIds?: string[]
+    routeLineIds?: string[]
+    canonicalPath?: string
+    defaultRouteId?: string | null
+  }
+}
+
 export interface DraftRoute {
   id: string
   name: string
