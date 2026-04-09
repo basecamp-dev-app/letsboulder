@@ -13,7 +13,7 @@ const deleteDraftImageParamsSchema = z.object({
 })
 
 const deleteDraftImageQuerySchema = z.object({
-  expected_updated_at: z.string().datetime(),
+  expected_updated_at: z.string().trim().min(1, 'expected_updated_at is required and must be a valid ISO timestamp'),
 })
 
 interface DraftConflictResponse {
@@ -66,6 +66,15 @@ export async function DELETE(
   if (!queryValidation.success) return queryValidation.response
 
   const { expected_updated_at } = queryValidation.data
+  const expectedUpdatedAtMs = new Date(expected_updated_at).getTime()
+  if (!Number.isFinite(expectedUpdatedAtMs)) {
+    return NextResponse.json({
+      error: 'Invalid request data',
+      fieldErrors: {
+        expected_updated_at: ['Invalid ISO datetime'],
+      },
+    }, { status: 400 })
+  }
 
   const { supabase, userId } = middlewareResult
 
@@ -101,7 +110,6 @@ export async function DELETE(
     }
 
     const currentUpdatedAtMs = new Date(draft.updated_at).getTime()
-    const expectedUpdatedAtMs = new Date(expected_updated_at).getTime()
     if (!Number.isFinite(currentUpdatedAtMs) || currentUpdatedAtMs !== expectedUpdatedAtMs) {
       let lastUpdatedByDisplayName: string | null = null
       if (typeof draft.last_edited_by === 'string' && draft.last_edited_by) {

@@ -306,6 +306,10 @@ export function useEditDraftActions({
 
   const handleDeleteDraft = useCallback(async () => {
     if (!draftId || !isOwner) return
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm('Delete this draft? This cannot be undone.')
+      if (!confirmed) return
+    }
 
     setError(null)
     const response = await csrfFetch(`/api/submissions/drafts/${draftId}`, {
