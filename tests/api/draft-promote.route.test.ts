@@ -177,6 +177,7 @@ describe('promoteDraftToSubmission', () => {
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toEqual({
       error: 'Every image in the submission must have at least one route before publishing. Remove images without routes or add routes to them.',
+      missing_image_ids: ['draft-image-1'],
     })
     expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
   })
