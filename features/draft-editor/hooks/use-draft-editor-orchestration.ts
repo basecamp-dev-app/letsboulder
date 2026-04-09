@@ -234,6 +234,7 @@ export function useDraftEditorOrchestration({
     handleMapClick,
     handleMarkerDragEnd,
     handleSearchLocation,
+    flushLocationSync,
   } = useEditDraftLocationSync({
     draft,
     draftId,
@@ -327,6 +328,7 @@ export function useDraftEditorOrchestration({
     hasPendingUploads,
     hasFailedUploads,
     hasValidLocation,
+    flushLocationSync,
     loadDraft,
     loadCollaborators,
     addToast,
