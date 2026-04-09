@@ -25,14 +25,12 @@ export function usePublishedRouteEditorSync({
     clearCanvasState,
   } = useRouteStore()
   const lastSeededImageIdRef = useRef<string | null>(null)
-  const skipStoreToOwnerSyncRef = useRef(false)
 
   useEffect(() => {
     if (!activeImageId) return
     if (lastSeededImageIdRef.current === activeImageId) return
 
     lastSeededImageIdRef.current = activeImageId
-    skipStoreToOwnerSyncRef.current = true
     clearCanvasState()
     setRoutes(editedRoutes)
     setSelectedRoute(null)
@@ -45,24 +43,6 @@ export function usePublishedRouteEditorSync({
     if (lastSeededImageIdRef.current !== activeImageId) return
     if (!haveStoredRoutesChanged(routeStoreRoutes, editedRoutes)) return
 
-    skipStoreToOwnerSyncRef.current = true
-    setRoutes(editedRoutes)
-  }, [activeImageId, editedRoutes, routeStoreRoutes, setRoutes])
-
-  useEffect(() => {
-    if (!activeImageId) return
-    if (skipStoreToOwnerSyncRef.current) {
-      skipStoreToOwnerSyncRef.current = false
-      return
-    }
-    if (!haveStoredRoutesChanged(routeStoreRoutes, editedRoutes)) return
     setEditedRoutes(routeStoreRoutes)
   }, [activeImageId, editedRoutes, routeStoreRoutes, setEditedRoutes])
-
-  useEffect(() => {
-    if (!activeImageId) return
-    if (!haveStoredRoutesChanged(routeStoreRoutes, editedRoutes)) return
-    skipStoreToOwnerSyncRef.current = true
-    setRoutes(editedRoutes)
-  }, [activeImageId, editedRoutes, routeStoreRoutes, setRoutes])
 }

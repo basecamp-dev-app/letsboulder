@@ -87,4 +87,33 @@ describe('usePublishedRouteEditorSync', () => {
 
     expect(mockStore.setRoutes).toHaveBeenCalledTimes(1)
   })
+
+  it('syncs store edits back to the page state', () => {
+    const setEditedRoutes = vi.fn()
+    const originalRoute = createRoute('route-1', 'image-1')
+    const originalClimb = originalRoute.climb!
+    const updatedRoute: RouteLine = {
+      ...originalRoute,
+      climb: {
+        id: originalClimb.id,
+        name: 'Updated route',
+        grade: originalClimb.grade,
+        status: originalClimb.status,
+        route_type: originalClimb.route_type,
+        description: originalClimb.description,
+      },
+    }
+
+    mockStore = createMockStore([originalRoute])
+
+    const { rerender } = render(
+      <TestHarness activeImageId="image-1" editedRoutes={[originalRoute]} setEditedRoutes={setEditedRoutes} />
+    )
+
+    mockStore = createMockStore([updatedRoute])
+
+    rerender(<TestHarness activeImageId="image-1" editedRoutes={[originalRoute]} setEditedRoutes={setEditedRoutes} />)
+
+    expect(setEditedRoutes).toHaveBeenLastCalledWith([updatedRoute])
+  })
 })
