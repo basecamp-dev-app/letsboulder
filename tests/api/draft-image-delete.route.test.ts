@@ -206,4 +206,30 @@ describe('/api/submissions/drafts/[id]/images/[imageId]', () => {
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({ error: 'A draft must keep at least one face image' })
   })
+
+  test('accepts production-style timestamps with offset and fractional seconds', async () => {
+    const supabase = makeSupabaseForDelete({
+      draft: {
+        ...DRAFT_BASE,
+        updated_at: '2026-04-09T18:17:08.27673+00:00',
+      },
+    })
+    vi.mocked(withApiMiddleware).mockResolvedValue(makeAuthenticatedMiddleware(supabase, 'user-1'))
+    vi.mocked(parseWithSchema)
+      .mockReturnValueOnce({ success: true, data: { id: 'draft-1', imageId: 'image-2' } })
+      .mockReturnValueOnce({ success: true, data: { expected_updated_at: '2026-04-09T18:17:08.27673+00:00' } })
+
+    const response = await DELETE(
+      makeRequest('http://localhost:3000/api/submissions/drafts/draft-1/images/image-2?expected_updated_at=2026-04-09T18:17:08.27673%2B00:00'),
+      makeParams('draft-1', 'image-2')
+    )
+
+    expect(response.status).not.toBe(400)
+    await expect(response.json()).resolves.not.toEqual(expect.objectContaining({
+      error: 'Invalid request data',
+      fieldErrors: {
+        expected_updated_at: ['Invalid ISO datetime'],
+      },
+    }))
+  })
 })
