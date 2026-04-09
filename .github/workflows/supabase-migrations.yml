@@ -7,12 +7,6 @@ on:
     paths:
       - 'supabase/migrations/**'
   workflow_dispatch:
-    inputs:
-      repair_history:
-        description: 'Repair remote migration history before dry run'
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -87,19 +81,6 @@ jobs:
 
       - name: Link Supabase project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-
-      - name: Repair migration history
-        if: ${{ inputs.repair_history }}
-        run: |
-          versions=(supabase/migrations-archive/2026-04-09-pre-baseline-reset/*.sql)
-          versions=("${versions[@]##*/}")
-          versions=("${versions[@]%%_*}")
-          npx supabase migration repair --linked --yes --password "$SUPABASE_DB_PASSWORD" --status reverted "${versions[@]}"
-          npx supabase migration repair --linked --yes --password "$SUPABASE_DB_PASSWORD" --status applied 20260409000000
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
