@@ -56,7 +56,9 @@ export default function CragSelector({
   const [nearbyLoading, setNearbyLoading] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
+  const autoSelectAbortRef = useRef<AbortController | null>(null)
   const searchCacheRef = useRef(new Map<string, { ts: number; data: CragSearchResult[] }>())
+  const lastAutoSelectedKeyRef = useRef<string | null>(null)
   const atlasSync = useAtlasAutoSync(latitude, longitude)
 
   const fetchNearbyCrags = useCallback(async () => {
@@ -82,6 +84,47 @@ export default function CragSelector({
   useEffect(() => {
     fetchNearbyCrags()
   }, [fetchNearbyCrags])
+
+  useEffect(() => {
+    if (selectedCragId) return
+    if (!atlasSync.nearbyCrag?.id) return
+    if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) return
+
+    const autoSelectKey = `${atlasSync.nearbyCrag.id}:${latitude}:${longitude}`
+    if (lastAutoSelectedKeyRef.current === autoSelectKey) return
+
+    const nearbyMatch = nearbyCrags.find((crag) => crag.id === atlasSync.nearbyCrag?.id)
+    if (nearbyMatch) {
+      lastAutoSelectedKeyRef.current = autoSelectKey
+      onSelect(nearbyMatch)
+      return
+    }
+
+    const controller = new AbortController()
+    autoSelectAbortRef.current?.abort()
+    autoSelectAbortRef.current = controller
+
+    async function autoSelectDetectedCrag() {
+      try {
+        const response = await fetch(`/api/crags/search-by-id?id=${atlasSync.nearbyCrag?.id}`, { signal: controller.signal })
+        if (!response.ok) return
+
+        const crag = await response.json() as SubmissionCrag | null
+        if (!crag || controller.signal.aborted) return
+
+        lastAutoSelectedKeyRef.current = autoSelectKey
+        onSelect(crag)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+      }
+    }
+
+    void autoSelectDetectedCrag()
+
+    return () => {
+      controller.abort()
+    }
+  }, [atlasSync.nearbyCrag?.id, latitude, longitude, nearbyCrags, onSelect, selectedCragId])
 
   const searchCrags = useCallback(async (searchQuery: string) => {
     const normalizedQuery = searchQuery.trim().toLowerCase()
@@ -139,6 +182,7 @@ export default function CragSelector({
   useEffect(() => {
     return () => {
       abortRef.current?.abort()
+      autoSelectAbortRef.current?.abort()
     }
   }, [])
 
