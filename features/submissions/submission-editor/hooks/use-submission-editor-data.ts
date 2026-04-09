@@ -9,6 +9,7 @@ import { reorderSubmissionFacesAction } from '@/features/submissions/actions/edi
 import { FACE_DIRECTIONS, type FaceDirection, type ImageSelection, type RouteLine } from '@/features/submissions/lib/submission-types'
 import type { RoutePoint } from '@/types/climbing'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
+import { normalizePoints } from '@/lib/canvasMath'
 import { createClient } from '@/lib/supabase'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 import { haveRouteEdits } from '@/features/submissions/submission-editor/lib/published-route-editor-state'
@@ -39,6 +40,8 @@ interface ImageRouteLineQuery {
 interface EditableImageQuery {
   id: string
   url: string
+  width: number | null
+  height: number | null
   created_by: string | null
   crag_id: string | null
   is_anonymous_submission: boolean | null
@@ -161,7 +164,7 @@ export function useSubmissionEditorData() {
       const user = authData.user
       if (!user) { router.push(`/auth?redirect_to=${encodeURIComponent(buildEditUrl(routeImageId, activeImageId))}`); return }
       setCurrentUserId(user.id)
-      const imageQuery = async (imageId: string) => supabase.from('images').select(`id, url, created_by, crag_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, latitude, longitude, face_directions, crags:crag_id (name, region_name, sub_area), route_lines ( id, points, sequence_order, image_width, image_height, climbs (id, name, grade, status, route_type, description) )`).eq('id', imageId).maybeSingle()
+      const imageQuery = async (imageId: string) => supabase.from('images').select(`id, url, width, height, created_by, crag_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, latitude, longitude, face_directions, crags:crag_id (name, region_name, sub_area), route_lines ( id, points, sequence_order, image_width, image_height, climbs (id, name, grade, status, route_type, description) )`).eq('id', imageId).maybeSingle()
       const firstAttempt = await imageQuery(activeImageId)
       let data = firstAttempt.data
       let imageError = firstAttempt.error
@@ -180,7 +183,15 @@ export function useSubmissionEditorData() {
       const mappedRouteLines = (submission.route_lines || []).map((line) => {
         const climb = pickOne(line.climbs)
         if (!climb) return null
-        const points = parseRoutePoints(line.points)
+        const points = normalizePoints(
+          parseRoutePoints(line.points),
+          {
+            width: typeof submission.width === 'number' ? submission.width : (line.image_width ?? 1600),
+            height: typeof submission.height === 'number' ? submission.height : (line.image_height ?? 1200),
+            naturalWidth: typeof submission.width === 'number' ? submission.width : (line.image_width ?? 1600),
+            naturalHeight: typeof submission.height === 'number' ? submission.height : (line.image_height ?? 1200),
+          }
+        )
         if (points.length < 2) return null
         return { id: line.id, image_id: submission.id, climb_id: climb.id, points, color: 'red', sequence_order: line.sequence_order, created_at: new Date().toISOString(), image_width: typeof line.image_width === 'number' ? line.image_width : undefined, image_height: typeof line.image_height === 'number' ? line.image_height : undefined, climb: { id: climb.id, name: climb.name, grade: climb.grade, status: climb.status, route_type: climb.route_type, description: climb.description } } as RouteLine
       }).filter((line): line is RouteLine => line !== null)
