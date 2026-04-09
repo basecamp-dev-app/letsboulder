@@ -42,6 +42,16 @@ export function usePublishedRouteEditorSync({
 
   useEffect(() => {
     if (!activeImageId) return
+    if (lastSeededImageIdRef.current !== activeImageId) return
+    if (routeStoreRoutes.length !== 0) return
+    if (editedRoutes.length === 0) return
+
+    skipStoreToOwnerSyncRef.current = true
+    setRoutes(editedRoutes)
+  }, [activeImageId, editedRoutes, routeStoreRoutes.length, setRoutes])
+
+  useEffect(() => {
+    if (!activeImageId) return
     if (skipStoreToOwnerSyncRef.current) {
       skipStoreToOwnerSyncRef.current = false
       return
