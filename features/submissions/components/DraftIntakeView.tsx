@@ -253,7 +253,7 @@ export default function DraftIntakeView() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div className="mx-auto max-w-3xl px-4 py-6">
         <div className="mb-4">
-          <Link href="/logbook/submissions" className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200">
+          <Link href="/logbook/submissions" prefetch={false} className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200">
             ← Back to submissions
           </Link>
         </div>

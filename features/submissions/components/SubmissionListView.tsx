@@ -71,6 +71,7 @@ export default function SubmissionListView() {
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Submissions</h1>
           <Link
             href="/submit"
+            prefetch={false}
             className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             New upload
@@ -122,6 +123,7 @@ export default function SubmissionListView() {
                 </p>
                 <Link
                   href="/submit"
+                  prefetch={false}
                   className="inline-flex rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
                 >
                   Start a new upload

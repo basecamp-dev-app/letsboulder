@@ -34,6 +34,7 @@ export function DraftToolbar({
         <div className="flex items-center justify-between gap-3">
           <Link
             href="/logbook"
+            prefetch={false}
             className="text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
           >
             ← Back to logbook
