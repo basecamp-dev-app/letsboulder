@@ -1,7 +1,8 @@
 import type { User } from '@supabase/supabase-js'
 import { getServerClient } from '@/lib/supabase-server'
 import { getGradePoints } from '@/lib/grades'
-import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
+import { createSignedObjectUrls } from '@/lib/media/object-urls'
+import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 import type { Submission } from '@/types/submissions'
 import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
@@ -101,7 +102,7 @@ export interface ServerLogbookSummary {
   profile: LogbookProfile | null
 }
 
-async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerClient>>, userId: string, baseUrl?: string): Promise<Submission[]> {
+async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerClient>>, userId: string): Promise<Submission[]> {
   const { data: draftSubmissions } = await supabase
     .from('submission_drafts')
     .select('id, created_at, updated_at, crags(name), submission_draft_images(id, storage_bucket, storage_path, display_order, processing_status, route_data), submission_draft_routes(id)')
@@ -121,19 +122,12 @@ async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerCl
     .filter((item): item is { bucket: string; path: string } => !!item)
 
   const signedByKey = new Map<string, string>()
-  if (firstDraftImageObjects.length > 0 && baseUrl) {
-    const signedUrlResponse = await fetch(`${baseUrl}/api/uploads/signed-urls/batch`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ objects: firstDraftImageObjects }),
-    })
-
-    if (signedUrlResponse.ok) {
-      const signedData = await signedUrlResponse.json().catch(() => ({} as SignedUrlBatchResponse))
-      for (const item of signedData.results || []) {
-        if (!item?.signedUrl) continue
-        signedByKey.set(getSignedUrlBatchKey(item.bucket, item.path), item.signedUrl)
-      }
+  if (firstDraftImageObjects.length > 0) {
+    const signedResults = await createSignedObjectUrls(firstDraftImageObjects, supabase)
+    for (const item of firstDraftImageObjects) {
+      const signedUrl = signedResults.get(getSignedUrlBatchKey(item.bucket, item.path))
+      if (!signedUrl) continue
+      signedByKey.set(getSignedUrlBatchKey(item.bucket, item.path), signedUrl)
     }
   }
 
@@ -180,19 +174,20 @@ async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerCl
 
 async function fetchServerLogbookLogsAndProfile(userId: string) {
   const supabase = await getServerClient()
+  const timing = startServerTiming('fetchServerLogbookLogsAndProfile')
 
   const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }] = await Promise.all([
-    supabase
+    timeServerStep('fetchServerLogbookLogsAndProfile', 'profile', () => supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade')
       .eq('id', userId)
-      .single(),
-    supabase
+      .single()),
+    timeServerStep('fetchServerLogbookLogsAndProfile', 'recent-logs', () => supabase
       .from('user_climbs')
       .select('id, climb_id, style, created_at, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(INITIAL_LOGBOOK_LOG_LIMIT),
+      .limit(INITIAL_LOGBOOK_LOG_LIMIT)),
   ])
 
   if (profileError && profileError.code !== 'PGRST116') {
@@ -228,10 +223,10 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
   const cragIds = [...new Set(logsWithPoints.map((log) => log.climbs?.crag_id).filter((id): id is string => !!id))]
   const cragMetaById = new Map<string, { country_code: string | null; slug: string | null }>()
   if (cragIds.length > 0) {
-    const { data: cragRows } = await supabase
+    const { data: cragRows } = await timeServerStep('fetchServerLogbookLogsAndProfile', 'crag-meta', () => supabase
       .from('crags')
       .select('id, country_code, slug')
-      .in('id', cragIds)
+      .in('id', cragIds))
     for (const row of (cragRows || []) as Array<{ id: string; country_code: string | null; slug: string | null }>) {
       cragMetaById.set(row.id, { country_code: row.country_code, slug: row.slug })
     }
@@ -245,6 +240,12 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
       ? `/${cragMeta.country_code.toLowerCase()}/${cragMeta.slug}/${climbSlug}`
       : null
     return { ...log, canonical_url: canonicalUrl }
+  })
+
+  timing.end({
+    logs: logsWithUrls.length,
+    hasProfile: !!profileData,
+    crags: cragMetaById.size,
   })
 
   return {
@@ -264,7 +265,7 @@ export async function fetchServerLogbookSummary(user: User): Promise<ServerLogbo
   }
 }
 
-export async function fetchServerLogbookSubmissions(user: User, baseUrl?: string): Promise<Submission[]> {
+export async function fetchServerLogbookSubmissions(user: User): Promise<Submission[]> {
   const supabase = await getServerClient()
 
   const { data: contributionRows, error: contribError } = await supabase
@@ -291,16 +292,16 @@ export async function fetchServerLogbookSubmissions(user: User, baseUrl?: string
       .filter((s) => s.route_lines_count > 0)
   }
 
-  const draftSubmissions = await fetchServerDrafts(supabase, user.id, baseUrl)
+  const draftSubmissions = await fetchServerDrafts(supabase, user.id)
 
   return [...publishedSubmissions, ...draftSubmissions]
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
 }
 
-export async function fetchServerLogbookData(user: User, baseUrl?: string): Promise<OwnLogbookData> {
+export async function fetchServerLogbookData(user: User): Promise<OwnLogbookData> {
   const timing = startServerTiming('fetchServerLogbookData')
   const { logs, profile } = await timeServerStep('fetchServerLogbookData', 'logs-and-profile', () => fetchServerLogbookLogsAndProfile(user.id))
-  const submissions = await timeServerStep('fetchServerLogbookData', 'submissions', () => fetchServerLogbookSubmissions(user, baseUrl))
+  const submissions = await timeServerStep('fetchServerLogbookData', 'submissions', () => fetchServerLogbookSubmissions(user))
 
   timing.end({
     logs: logs.length,
