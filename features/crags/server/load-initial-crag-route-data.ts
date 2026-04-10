@@ -90,6 +90,9 @@ export async function loadInitialCragRouteData(
           supplementary_faces_count: 0,
         }
         imageById.set(hydratedImage.id, hydratedImage)
+        if (!initialImages.some((existingImage) => existingImage.id === hydratedImage.id)) {
+          initialImages.push(hydratedImage)
+        }
       }
 
       const hydratedTargetMaps = await fetchRouteTargetMapsForClimbIds(supabase, initialRoutePreviewClimbIds, imageById)
