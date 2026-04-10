@@ -215,6 +215,8 @@ export default async function CragSlugPage({
         initialDefaultRouteTargetByImageId={initialRouteData.initialDefaultRouteTargetByImageId}
         initialRouteNavigationTargetByClimbId={initialRouteData.initialRouteNavigationTargetByClimbId}
         initialCragCenter={initialRouteData.initialCragCenter}
+        initialRouteTargetsComplete={initialRouteData.initialRouteTargetsComplete}
+        initialImagesComplete={initialRouteData.initialImagesComplete}
         initialPayloadLoadedAt={initialRouteData.loadedAt}
         initialSelectedImageId={image || null}
       />

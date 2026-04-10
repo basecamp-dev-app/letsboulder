@@ -18,6 +18,8 @@ export function useCragData({
   initialDefaultRouteTargetByImageId = {},
   initialRouteNavigationTargetByClimbId = {},
   initialCragCenter = null,
+  initialRouteTargetsComplete = false,
+  initialImagesComplete = false,
   initialPayloadLoadedAt,
 }: UseCragDataParams): UseCragDataResult {
   const [crag, setCrag] = useState(initialCrag)
@@ -41,6 +43,8 @@ export function useCragData({
     initialDefaultRouteTargetByImageId,
     initialRouteNavigationTargetByClimbId,
     initialCragCenter,
+    initialRouteTargetsComplete,
+    initialImagesComplete,
     initialPayloadLoadedAt,
     setCrag,
     setImages,
@@ -66,9 +70,7 @@ export function useCragData({
   useCragRouteTargets({
     routes,
     images,
-    initialRouteImageIdsByClimbId,
-    initialRoutePreviewByClimbId,
-    initialRouteNavigationTargetByClimbId,
+    initialRouteTargetsComplete,
     setRouteImageIdsByClimbId,
     setRoutePreviewByClimbId,
     setRouteNavigationTargetByClimbId,

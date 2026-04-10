@@ -14,6 +14,8 @@ interface CragPageShellProps {
   initialDefaultRouteTargetByImageId: Record<string, ImageRouteTarget>
   initialRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
   initialCragCenter: [number, number] | null
+  initialRouteTargetsComplete?: boolean
+  initialImagesComplete?: boolean
   initialPayloadLoadedAt?: number
   communityPlace?: CommunityPlaceInfo | null
   initialSelectedImageId?: string | null
