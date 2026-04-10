@@ -86,6 +86,8 @@ interface DraftSubmissionRow {
   submission_draft_routes: Array<{ id: string }> | null
 }
 
+const INITIAL_LOGBOOK_LOG_LIMIT = 24
+
 export interface OwnLogbookData {
   user: User | null
   logs: LoggedClimb[]
@@ -187,9 +189,10 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
       .single(),
     supabase
       .from('user_climbs')
-      .select('*, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')
+      .select('id, climb_id, style, created_at, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(INITIAL_LOGBOOK_LOG_LIMIT),
   ])
 
   if (profileError && profileError.code !== 'PGRST116') {
@@ -200,7 +203,7 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
     throw logsError
   }
 
-  const logsWithCrags = ((logsData || []) as RawLogbookRow[]).map((log) => {
+  const logsWithCrags = ((logsData || []) as unknown as RawLogbookRow[]).map((log) => {
     const routeLines = log.climbs?.route_lines
     const cragName = routeLines?.[0]?.images?.crags?.name || 'Unknown crag'
     const imageUrl = routeLines?.[0]?.images?.url
