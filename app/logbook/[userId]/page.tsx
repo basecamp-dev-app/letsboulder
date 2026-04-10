@@ -21,7 +21,7 @@ interface PublicContributionRow {
   is_anonymous_submission: boolean | null
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
-  crags: { name?: string } | Array<{ name?: string }> | null
+  crags: { name?: string; slug?: string | null; country_code?: string | null } | Array<{ name?: string; slug?: string | null; country_code?: string | null }> | null
   route_lines: Array<{ count?: number }> | null
 }
 
@@ -85,7 +85,7 @@ async function getPublicSubmissions(userId: string): Promise<Submission[]> {
 
   const { data, error } = await supabase
     .from('images')
-    .select('id, url, created_at, submission_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name), route_lines(count)')
+    .select('id, url, created_at, submission_id, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name, slug, country_code), route_lines(count)')
     .eq('created_by', userId)
     .eq('is_anonymous_submission', false)
     .eq('moderation_status', 'approved')

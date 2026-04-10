@@ -18,7 +18,10 @@ export function buildCragImageDestination({
   routeHrefBase,
   offlineOnly,
 }: BuildCragImageDestinationOptions) {
-  if (!target) return `/image/${imageId}`
+  if (!target) {
+    if (routeHrefBase) return `${routeHrefBase}/i/${imageId}`
+    return `/image/${imageId}`
+  }
 
   const next = new URLSearchParams()
   next.set('image', target.imageId)
@@ -33,6 +36,10 @@ export function buildCragImageDestination({
 
   if (offlineOnly) {
     return `/climb/${target.climbId}?${next.toString()}`
+  }
+
+  if (routeHrefBase) {
+    return `${routeHrefBase}/i/${imageId}?${next.toString()}`
   }
 
   return `/image/${imageId}?${next.toString()}`

@@ -30,7 +30,7 @@ describe('buildCragImageDestination', () => {
     })).toBe('/mx/el-nuevo-testamento/i/img-uuid?image=d05a1dcc-3380-4f4a-85e0-9f19aada2ecd&route=a2fac2e6-2459-47d6-93ad-741e80f49caa&climb=06dd93bf-66d2-4e3e-a632-586e83b5ff83')
   })
 
-  test('falls back to climb url when slug is unavailable', () => {
+  test('falls back to canonical image-first url when slug is unavailable', () => {
     expect(buildCragImageDestination({
       imageId: 'img-2',
       routeHrefBase: '/pt/cccc',
@@ -41,7 +41,7 @@ describe('buildCragImageDestination', () => {
         climbSlug: null,
         imageId: 'img-2',
       },
-    })).toBe('/image/img-2?image=img-2&route=route-2&climb=climb-2')
+    })).toBe('/pt/cccc/i/img-2?image=img-2&route=route-2&climb=climb-2')
   })
 
   test('falls back to climb url offline when slug is unavailable', () => {
@@ -58,11 +58,11 @@ describe('buildCragImageDestination', () => {
     })).toBe('/climb/climb-2?image=img-2&route=route-2&climb=climb-2')
   })
 
-  test('falls back to image page when no route target exists', () => {
+  test('falls back to canonical image-first page when no route target exists', () => {
     expect(buildCragImageDestination({
       imageId: 'img-3',
       routeHrefBase: '/pt/cccc',
       offlineOnly: false,
-    })).toBe('/image/img-3')
+    })).toBe('/pt/cccc/i/img-3')
   })
 })

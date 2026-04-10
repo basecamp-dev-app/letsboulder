@@ -31,7 +31,7 @@ interface ImageContributionRow {
   is_anonymous_submission: boolean | null
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
-  crags: { name?: string } | Array<{ name?: string }> | null
+  crags: { name?: string; slug?: string | null; country_code?: string | null } | Array<{ name?: string; slug?: string | null; country_code?: string | null }> | null
   route_lines: Array<{ id: string; climb_id: string }> | null
 }
 
@@ -58,7 +58,7 @@ export async function fetchOwnSubmissions(
 
   const { data: contributionRows } = await supabase
     .from('images')
-    .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name), route_lines(id, climb_id)')
+    .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name, slug, country_code), route_lines(id, climb_id)')
     .eq('created_by', userId)
     .or('moderation_status.eq.approved,moderation_status.eq.pending,moderation_status.is.null')
     .order('created_at', { ascending: false })

@@ -277,7 +277,7 @@ export async function fetchServerLogbookSubmissions(user: User): Promise<Submiss
 
   const { data: contributionRows, error: contribError } = await supabase
     .from('images')
-    .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name), route_lines(count)')
+    .select('id, url, created_at, submission_id, moderation_status, is_anonymous_submission, contribution_credit_platform, contribution_credit_handle, crags(name, slug, country_code), route_lines(count)')
     .eq('created_by', user.id)
     .or('moderation_status.eq.approved,moderation_status.eq.pending,moderation_status.is.null')
     .order('created_at', { ascending: false })

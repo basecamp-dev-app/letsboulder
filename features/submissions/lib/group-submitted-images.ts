@@ -9,7 +9,7 @@ interface SubmissionImageRow {
   is_anonymous_submission: boolean | null
   contribution_credit_platform: string | null
   contribution_credit_handle: string | null
-  crags: { name?: string } | Array<{ name?: string }> | null
+  crags: { name?: string; slug?: string | null; country_code?: string | null } | Array<{ name?: string; slug?: string | null; country_code?: string | null }> | null
   route_lines: Array<{ count?: number } | { id: string; climb_id: string }> | null
 }
 
@@ -28,6 +28,8 @@ interface SubmissionGroupAggregate {
   created_at: string
   updated_at: string
   crag_name: string | null
+  country_code: string | null
+  crag_slug: string | null
   route_lines_count: number
   is_anonymous_submission: boolean
   contribution_credit_platform: string | null
@@ -73,6 +75,18 @@ function pickCragName(value: SubmissionImageRow['crags']): string | null {
   if (!value) return null
   if (Array.isArray(value)) return value[0]?.name || null
   return value.name || null
+}
+
+function pickCragSlug(value: SubmissionImageRow['crags']): string | null {
+  if (!value) return null
+  if (Array.isArray(value)) return value[0]?.slug || null
+  return value.slug || null
+}
+
+function pickCountryCode(value: SubmissionImageRow['crags']): string | null {
+  if (!value) return null
+  if (Array.isArray(value)) return value[0]?.country_code || null
+  return value.country_code || null
 }
 
 function pickRouteLinesCount(value: SubmissionImageRow['route_lines']): number {
@@ -129,6 +143,8 @@ export function groupSubmittedImages(
     const existing = grouped.get(groupKey)
     const routeLinesCount = pickRouteLinesCount(row.route_lines)
     const cragName = pickCragName(row.crags)
+    const cragSlug = pickCragSlug(row.crags)
+    const countryCode = pickCountryCode(row.crags)
 
     if (!existing) {
       const canonical = row.submission_id
@@ -144,6 +160,8 @@ export function groupSubmittedImages(
         created_at: row.created_at,
         updated_at: row.created_at,
         crag_name: cragName,
+        country_code: countryCode,
+        crag_slug: cragSlug,
         route_lines_count: routeLinesCount,
         is_anonymous_submission: row.is_anonymous_submission === true,
         contribution_credit_platform: row.contribution_credit_platform || null,
@@ -167,6 +185,12 @@ export function groupSubmittedImages(
     }
     if (!existing.crag_name && cragName) {
       existing.crag_name = cragName
+    }
+    if (!existing.country_code && countryCode) {
+      existing.country_code = countryCode
+    }
+    if (!existing.crag_slug && cragSlug) {
+      existing.crag_slug = cragSlug
     }
     if (row.is_anonymous_submission === true) {
       existing.is_anonymous_submission = true
@@ -196,6 +220,8 @@ export function groupSubmittedImages(
       created_at: group.created_at,
       updated_at: group.updated_at,
       crag_name: group.crag_name,
+      country_code: group.country_code,
+      crag_slug: group.crag_slug,
       route_lines_count: group.route_lines_count,
       is_anonymous_submission: group.is_anonymous_submission,
       contribution_credit_platform: group.contribution_credit_platform,
