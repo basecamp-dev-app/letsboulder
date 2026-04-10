@@ -134,6 +134,11 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
             if (submission.route_line_id) query.set('route', submission.route_line_id)
             if (submission.climb_id) query.set('climb', submission.climb_id)
             const queryString = query.toString()
+            if (submission.country_code && submission.crag_slug) {
+              const canonicalPath = `/${submission.country_code.toLowerCase()}/${submission.crag_slug}/i/${baseImageId}`
+              return queryString ? `${canonicalPath}?${queryString}` : canonicalPath
+            }
+
             return `/image/${baseImageId}${queryString ? `?${queryString}` : ''}`
           })()
         const manageHref = (() => {

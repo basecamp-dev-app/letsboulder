@@ -4,6 +4,8 @@ export interface Submission {
   route_image_id?: string | null
   route_line_id?: string | null
   climb_id?: string | null
+  country_code?: string | null
+  crag_slug?: string | null
   kind: 'submitted' | 'draft'
   status: 'draft' | 'pending_review' | 'published'
   is_optimistic?: boolean

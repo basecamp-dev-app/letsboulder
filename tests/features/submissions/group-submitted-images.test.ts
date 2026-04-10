@@ -13,7 +13,7 @@ describe('groupSubmittedImages', () => {
         is_anonymous_submission: false,
         contribution_credit_platform: null,
         contribution_credit_handle: null,
-        crags: { name: 'Test Crag' },
+        crags: { name: 'Test Crag', slug: 'test-crag', country_code: 'GB' },
         route_lines: [],
       },
       {
@@ -25,7 +25,7 @@ describe('groupSubmittedImages', () => {
         is_anonymous_submission: false,
         contribution_credit_platform: null,
         contribution_credit_handle: null,
-        crags: { name: 'Test Crag' },
+        crags: { name: 'Test Crag', slug: 'test-crag', country_code: 'GB' },
         route_lines: [{ id: 'route-line-1', climb_id: 'climb-1' }],
       },
     ], [])
@@ -36,6 +36,8 @@ describe('groupSubmittedImages', () => {
       route_image_id: 'face-image',
       route_line_id: 'route-line-1',
       climb_id: 'climb-1',
+      country_code: 'GB',
+      crag_slug: 'test-crag',
       route_lines_count: 1,
     })
   })

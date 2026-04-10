@@ -82,8 +82,9 @@ export default function CragSelector({
   }, [latitude, longitude])
 
   useEffect(() => {
+    if (!showNearby) return
     fetchNearbyCrags()
-  }, [fetchNearbyCrags])
+  }, [fetchNearbyCrags, showNearby])
 
   useEffect(() => {
     if (selectedCragId) return
@@ -97,6 +98,11 @@ export default function CragSelector({
     if (nearbyMatch) {
       lastAutoSelectedKeyRef.current = autoSelectKey
       onSelect(nearbyMatch)
+      return
+    }
+
+    if (!showNearby) {
+      setShowNearby(true)
       return
     }
 
@@ -124,7 +130,7 @@ export default function CragSelector({
     return () => {
       controller.abort()
     }
-  }, [atlasSync.nearbyCrag?.id, latitude, longitude, nearbyCrags, onSelect, selectedCragId])
+  }, [atlasSync.nearbyCrag?.id, latitude, longitude, nearbyCrags, onSelect, selectedCragId, showNearby])
 
   const searchCrags = useCallback(async (searchQuery: string) => {
     const normalizedQuery = searchQuery.trim().toLowerCase()

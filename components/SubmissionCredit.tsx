@@ -9,13 +9,15 @@ import { CREDIT_PLATFORM_OPTIONS } from '@/features/submissions/lib/editor-const
 
 interface SubmissionCreditProps {
   imageId: string
+  defaultPlatform?: SubmissionCreditPlatform | null
+  defaultHandle?: string | null
   onCreditSaved?: (platform: string | null, handle: string | null) => void
 }
 
-export default function SubmissionCredit({ imageId, onCreditSaved }: SubmissionCreditProps) {
-  const [platform, setPlatform] = useState<SubmissionCreditPlatform | ''>('')
-  const [handle, setHandle] = useState('')
-  const [isLoading, setIsLoading] = useState(true)
+export default function SubmissionCredit({ imageId, defaultPlatform = null, defaultHandle = null, onCreditSaved }: SubmissionCreditProps) {
+  const [platform, setPlatform] = useState<SubmissionCreditPlatform | ''>(defaultPlatform || '')
+  const [handle, setHandle] = useState(defaultHandle || '')
+  const [isLoading, setIsLoading] = useState(!defaultPlatform && !defaultHandle)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -44,7 +46,7 @@ export default function SubmissionCredit({ imageId, onCreditSaved }: SubmissionC
     }
 
     fetchDefaultCredit()
-  }, [])
+  }, [defaultHandle, defaultPlatform])
 
   const handleSave = async () => {
     if (isSaving) return
