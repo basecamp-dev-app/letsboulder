@@ -3,6 +3,7 @@ import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { getDisplayImageId } from '@/lib/image-identity'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
+import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
 import type { RoutePoint } from '@/types/domain'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
 
@@ -216,7 +217,8 @@ export async function buildImageFirstPayload(args: {
   routeSlug?: string | null
   climbId?: string | null
 }): Promise<{ redirectTo: string | null; payload: ImageFirstPayload | null }> {
-  const image = await getImageByDisplayId(args.imageId)
+  const timing = startServerTiming('buildImageFirstPayload')
+  const image = await timeServerStep('buildImageFirstPayload', 'resolve-image', () => getImageByDisplayId(args.imageId))
   if (!image) return { redirectTo: null, payload: null }
 
   const canonicalPath = `/${image.countryCode}/${image.cragSlug}/i/${image.canonicalId}`
@@ -234,6 +236,7 @@ export async function buildImageFirstPayload(args: {
     || image.countryCode !== args.country.toLowerCase()
     || image.cragSlug !== args.crag
   ) {
+    timing.end({ redirect: true, cragId: image.cragId })
     return {
       redirectTo: `${canonicalPath}${query.toString() ? `?${query.toString()}` : ''}`,
       payload: null,
@@ -241,38 +244,42 @@ export async function buildImageFirstPayload(args: {
   }
 
   const [initialRouteRows, cragImages, cragImageRows] = await Promise.all([
-    getRoutesByImage(image.canonicalId),
+    timeServerStep('buildImageFirstPayload', 'initial-routes', () => getRoutesByImage(image.canonicalId)),
     (async () => {
-      const supabase = await getSupabase()
-      const { data, error } = await supabase
-        .from('images')
-        .select('id, url, width, height, created_at, latitude, longitude')
-        .eq('crag_id', image.cragId)
-        .order('created_at', { ascending: false })
+      return timeServerStep('buildImageFirstPayload', 'crag-images', async () => {
+        const supabase = await getSupabase()
+        const { data, error } = await supabase
+          .from('images')
+          .select('id, url, width, height, created_at, latitude, longitude')
+          .eq('crag_id', image.cragId)
+          .order('created_at', { ascending: false })
 
-      if (error) throw error
-      return (data || []) as Array<{
-        id: string
-        url: string
-        width: number | null
-        height: number | null
-        created_at: string | null
-        latitude: number | null
-        longitude: number | null
-      }>
+        if (error) throw error
+        return (data || []) as Array<{
+          id: string
+          url: string
+          width: number | null
+          height: number | null
+          created_at: string | null
+          latitude: number | null
+          longitude: number | null
+        }>
+      })
     })(),
     (async () => {
-      const supabase = await getSupabase()
-      const { data, error } = await supabase
-        .from('crag_images')
-        .select('id, linked_image_id')
-        .eq('crag_id', image.cragId)
+      return timeServerStep('buildImageFirstPayload', 'crag-image-links', async () => {
+        const supabase = await getSupabase()
+        const { data, error } = await supabase
+          .from('crag_images')
+          .select('id, linked_image_id')
+          .eq('crag_id', image.cragId)
 
-      if (error) return []
-      return (data || []) as Array<{
-        id: string
-        linked_image_id: string | null
-      }>
+        if (error) return []
+        return (data || []) as Array<{
+          id: string
+          linked_image_id: string | null
+        }>
+      })
     })(),
   ])
 
@@ -298,6 +305,10 @@ export async function buildImageFirstPayload(args: {
         orderedStacks: [{ stackId: image.canonicalId, images: [{ displayImageId: image.canonicalId, latitude: null, longitude: null, createdAt: null }] }],
         imageIndexByDisplayImageId: new Map([[image.canonicalId, 0]]),
       }
+  timing.step('stable-spatial-order', {
+    images: spatialNodes.length,
+    orderedImageIds: ordered.orderedImageIds.length,
+  })
   const imageMap: Record<string, { src: string; width: number; height: number }> = {}
   for (const row of cragImages) {
     if (imageMap[row.id]) continue
@@ -408,4 +419,11 @@ export async function buildImageFirstPayload(args: {
       mapPins,
     },
   }
+
+  timing.end({
+    cragId: image?.cragId,
+    initialRoutes: initialRouteRows.length,
+    cragImages: cragImages.length,
+    cragImageLinks: cragImageRows.length,
+  })
 }
