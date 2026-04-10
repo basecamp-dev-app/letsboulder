@@ -110,6 +110,16 @@ export async function loadInitialCragRouteData(
     }
   }
 
+  console.log('[Crag SSR Preview Debug]', {
+    cragId,
+    initialRouteCount: initialRoutes.length,
+    initialRouteIdsSample: initialRoutes.slice(0, 12).map((route) => route.id),
+    initialRoutePreviewCount: Object.keys(initialRoutePreviewByClimbId).length,
+    initialRoutePreviewKeysSample: Object.keys(initialRoutePreviewByClimbId).slice(0, 12),
+    initialRouteImageIdsKeysSample: Object.keys(initialRouteImageIdsByClimbId).slice(0, 12),
+    initialImageCount: initialImages.length,
+  })
+
   const withCoords = images.filter(
     (image): image is ImageRow & { latitude: number; longitude: number } => typeof image.latitude === 'number' && typeof image.longitude === 'number'
   )
