@@ -9,7 +9,6 @@ const EVENT_NAME = 'grade-system-changed'
 const VALID_SYSTEMS: GradeSystem[] = ['v_scale', 'font_scale', 'yds_equivalent', 'french_equivalent', 'british_equivalent']
 
 let gradePreferencesCache: { boulder: GradeSystem; route: GradeSystem; trad: GradeSystem } | null = null
-let gradePreferencesRequest: Promise<{ boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }> | null = null
 
 type GradePreferences = { boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }
 
@@ -51,35 +50,11 @@ async function fetchGradePreferences(): Promise<GradePreferences> {
     gradePreferencesCache = stored
   }
 
-  if (!gradePreferencesRequest) {
-    gradePreferencesRequest = fetch('/api/profile')
-      .then(async (response) => {
-        if (!response.ok) {
-          gradePreferencesCache = getDefaultPreferences()
-          return gradePreferencesCache
-        }
-        const data = await response.json()
-        const prefs = normalizeGradePreferences({
-          boulder: normalizeGradeSystem(data?.boulder_system),
-          route: normalizeGradeSystem(data?.route_system),
-          trad: normalizeGradeSystem(data?.trad_system),
-        })
-        gradePreferencesCache = prefs
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
-        }
-        return prefs
-      })
-      .catch(() => {
-        gradePreferencesCache = getDefaultPreferences()
-        return gradePreferencesCache
-      })
-      .finally(() => {
-        gradePreferencesRequest = null
-      })
+  if (!gradePreferencesCache) {
+    gradePreferencesCache = stored || getDefaultPreferences()
   }
 
-  return gradePreferencesRequest
+  return gradePreferencesCache
 }
 
 function writeGradePreferences(next: GradePreferences) {

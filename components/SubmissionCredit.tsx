@@ -23,6 +23,11 @@ export default function SubmissionCredit({ imageId, defaultPlatform = null, defa
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
+    if (defaultPlatform || defaultHandle) {
+      setIsLoading(false)
+      return
+    }
+
     async function fetchDefaultCredit() {
       try {
         const supabase = createClient()
