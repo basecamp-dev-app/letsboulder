@@ -1,6 +1,7 @@
 'use client'
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import MeasuredChartContainer from '@/components/MeasuredChartContainer'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeSystem } from '@/lib/grades'
 
@@ -33,7 +34,7 @@ export default function CragRouteChartsContent({ gradeDistribution, sendsByGrade
             <p className="text-xs text-stone-500 dark:text-gray-400">How the crag stacks by difficulty.</p>
           </div>
         </div>
-        <div className="h-56 w-full">
+        <MeasuredChartContainer className="h-56 w-full" minHeightClassName="h-56">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={gradeDistribution} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e5e4" />
@@ -59,7 +60,7 @@ export default function CragRouteChartsContent({ gradeDistribution, sendsByGrade
               <Bar dataKey="count" fill="#0f766e" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </MeasuredChartContainer>
       </section>
 
       <section className="rounded-[28px] border border-orange-200 bg-gradient-to-br from-orange-50/80 via-white to-white p-4 shadow-sm dark:border-orange-900/40 dark:bg-gray-900">
@@ -69,7 +70,7 @@ export default function CragRouteChartsContent({ gradeDistribution, sendsByGrade
             <p className="text-xs text-stone-500 dark:text-gray-400">Where the crag sees the most traffic.</p>
           </div>
         </div>
-        <div className="h-56 w-full">
+        <MeasuredChartContainer className="h-56 w-full" minHeightClassName="h-56">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={sendsByGrade} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7e5e4" />
@@ -95,7 +96,7 @@ export default function CragRouteChartsContent({ gradeDistribution, sendsByGrade
               <Bar dataKey="sends" fill="#f97316" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </MeasuredChartContainer>
       </section>
     </div>
   )

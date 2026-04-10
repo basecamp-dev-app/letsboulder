@@ -3,6 +3,7 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { getGradeFromPoints } from '@/lib/grades'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
+import MeasuredChartContainer from '@/components/MeasuredChartContainer'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 
 interface GradeHistoryChartProps {
@@ -24,7 +25,7 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
   const roundedMax = Math.ceil(maxValue / gradeStep) * gradeStep
 
   return (
-    <div className="w-full min-w-0 h-64 min-h-[200px] md:min-h-[256px]">
+    <MeasuredChartContainer className="w-full min-w-0 h-64 min-h-[200px] md:min-h-[256px]" minHeightClassName="h-full min-h-[200px] md:min-h-[256px]">
       <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
         <AreaChart
           data={data}
@@ -100,6 +101,6 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
           />
         </AreaChart>
       </ResponsiveContainer>
-    </div>
+    </MeasuredChartContainer>
   )
 }

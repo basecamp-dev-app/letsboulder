@@ -303,7 +303,6 @@ export default function Header() {
               sizes="80px"
               unoptimized
               className="object-contain dark:hidden"
-              priority
             />
             <Image
               src="/logo-dark.png"
@@ -312,7 +311,6 @@ export default function Header() {
               sizes="80px"
               unoptimized
               className="object-contain hidden dark:block"
-              priority
             />
           </div>
         </Link>
