@@ -1,7 +1,9 @@
 'use client'
 
+import { useQuery } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import * as Tabs from '@radix-ui/react-tabs'
+import { createClient } from '@/lib/supabase'
 
 export interface CommunityPlaceInfo {
   slug: string
@@ -17,6 +19,33 @@ interface CragCommunitySidebarProps {
 }
 
 export default function CragCommunitySidebar({ cragId, communityPlace }: CragCommunitySidebarProps) {
+  const { data: resolvedCommunityPlace } = useQuery({
+    queryKey: ['crag-community-place', cragId],
+    queryFn: async (): Promise<CommunityPlaceInfo | null> => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('places')
+        .select('slug, type')
+        .eq('id', cragId)
+        .maybeSingle<{ slug: string | null; type: string | null }>()
+
+      if (!data?.slug || (data.type !== 'crag' && data.type !== 'gym')) {
+        return null
+      }
+
+      return {
+        slug: data.slug,
+        type: data.type,
+      }
+    },
+    initialData: communityPlace,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  if (!resolvedCommunityPlace) {
+    return null
+  }
+
   return (
     <section className="space-y-4">
       <Tabs.Root defaultValue="recent" className="mt-4">
@@ -35,10 +64,10 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
           </Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content value="recent" className="mt-4">
-          <TopThisPlacePanel slug={communityPlace?.slug ?? ''} placeType={communityPlace?.type ?? 'crag'} embedded />
+          <TopThisPlacePanel slug={resolvedCommunityPlace.slug} placeType={resolvedCommunityPlace.type} embedded />
         </Tabs.Content>
         <Tabs.Content value="rankings" className="mt-4">
-          <PlaceRankingsPanel slug={communityPlace?.slug ?? ''} cragId={cragId} placeType={communityPlace?.type ?? 'crag'} embedded />
+          <PlaceRankingsPanel slug={resolvedCommunityPlace.slug} cragId={cragId} placeType={resolvedCommunityPlace.type} embedded />
         </Tabs.Content>
       </Tabs.Root>
     </section>
