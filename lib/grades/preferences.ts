@@ -100,7 +100,7 @@ export function updateGradePreferences(next: Partial<GradePreferences>) {
 
 export function useGradeSystem() {
   const [prefs, setPrefs] = useState<{ boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }>(() =>
-    gradePreferencesCache || readStoredGradePreferences() || getDefaultPreferences()
+    gradePreferencesCache || getDefaultPreferences()
   )
 
   useEffect(() => {
@@ -140,7 +140,7 @@ export function useGradeSystem() {
 
 export function useGradePreferences() {
   const [prefs, setPrefs] = useState<{ boulder: GradeSystem; route: GradeSystem; trad: GradeSystem }>(() =>
-    gradePreferencesCache || readStoredGradePreferences() || getDefaultPreferences()
+    gradePreferencesCache || getDefaultPreferences()
   )
 
   useEffect(() => {
