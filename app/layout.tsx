@@ -6,6 +6,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 import RootClientUtilities from '@/components/RootClientUtilities'
 import QueryProviders from '@/components/QueryProviders'
+import WebVitalsReporter from '@/components/WebVitalsReporter'
 import '@/lib/env-startup'
 import {
   BRAND_NAME,
@@ -179,6 +180,7 @@ export default function RootLayout({
         </a>
         <QueryProviders>
           {children}
+          <WebVitalsReporter />
           <RootClientUtilities />
           <Analytics />
           <SpeedInsights />

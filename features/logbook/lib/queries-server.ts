@@ -4,6 +4,7 @@ import { getGradePoints } from '@/lib/grades'
 import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 import type { Submission } from '@/types/submissions'
+import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
 
 interface RawLogbookRow {
   id: string
@@ -294,8 +295,15 @@ export async function fetchServerLogbookSubmissions(user: User, baseUrl?: string
 }
 
 export async function fetchServerLogbookData(user: User, baseUrl?: string): Promise<OwnLogbookData> {
-  const { logs, profile } = await fetchServerLogbookLogsAndProfile(user.id)
-  const submissions = await fetchServerLogbookSubmissions(user, baseUrl)
+  const timing = startServerTiming('fetchServerLogbookData')
+  const { logs, profile } = await timeServerStep('fetchServerLogbookData', 'logs-and-profile', () => fetchServerLogbookLogsAndProfile(user.id))
+  const submissions = await timeServerStep('fetchServerLogbookData', 'submissions', () => fetchServerLogbookSubmissions(user, baseUrl))
+
+  timing.end({
+    logs: logs.length,
+    hasProfile: !!profile,
+    submissions: submissions.length,
+  })
 
   return {
     user,
