@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { reportError } from '@/lib/errors'
 import { createClient } from '@/lib/supabase'
@@ -57,10 +57,6 @@ export function useCragOfflineActions({ id }: UseCragOfflineActionsParams): UseC
       setOfflinePreviewLoading(false)
     }
   }, [id])
-
-  useEffect(() => {
-    void refreshCragOfflinePreview()
-  }, [refreshCragOfflinePreview])
 
   const handleOpenOfflineDialog = useCallback(() => {
     setOfflineDialogOpen(true)
