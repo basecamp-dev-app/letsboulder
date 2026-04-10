@@ -188,6 +188,16 @@ export function useCragPageFilters({
 
   const routePreviewDisplayByClimbId = useMemo(() => buildRoutePreviewDisplayByClimbId(routePreviewByClimbId, imageById), [imageById, routePreviewByClimbId])
 
+  console.log('[Crag Client Preview Debug]', {
+    renderedRouteCount: routes.length,
+    renderedRouteIdsSample: routes.slice(0, 12).map((route) => route.id),
+    routePreviewCount: Object.keys(routePreviewByClimbId).length,
+    routePreviewKeysSample: Object.keys(routePreviewByClimbId).slice(0, 12),
+    routePreviewDisplayCount: Object.keys(routePreviewDisplayByClimbId).length,
+    routePreviewDisplayKeysSample: Object.keys(routePreviewDisplayByClimbId).slice(0, 12),
+    imageCount: images.length,
+  })
+
   const routeNavigationDisplayByClimbId = useMemo(() => buildRouteNavigationDisplayByClimbId(routeNavigationTargetByClimbId, imageById), [imageById, routeNavigationTargetByClimbId])
 
   const selectedImageIds = useMemo(() => getSelectedImageIds(selectedImageId, clusteredPins), [clusteredPins, selectedImageId])
