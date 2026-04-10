@@ -27,6 +27,13 @@ interface LogbookStatsSectionProps {
   climbUrlMap?: Map<string, string>
 }
 
+const stableDateFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
 function getClimbUrl(climbId: string, climbUrlMap?: Map<string, string>): string {
   return climbUrlMap?.get(climbId) || `/climb/${climbId}`
 }
@@ -147,7 +154,7 @@ export function LogbookStatsSection({
                     <p className="font-medium text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
                   </Link>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {log.climbs?.crags?.name} • {new Date(log.created_at).toLocaleDateString()}
+                    {log.climbs?.crags?.name} • {stableDateFormatter.format(new Date(log.created_at))}
                   </p>
                 </div>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusStyles[log.style] ?? ''}`}>
