@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
-import { dedupeCragRoutes, formatCragRoutes, getAverageCoordinates, fetchRouteTargetMapsForClimbIds, remapRoutePreviewsByEffectiveClimbId } from '@/features/crags/lib/crag-page-domain'
+import { dedupeCragRoutes, formatCragRoutes, getAverageCoordinates } from '@/features/crags/lib/crag-page-domain'
 import type { ClimbIdentityRow } from '@/features/crags/lib/crag-page-domain'
 import type { InitialCragRouteData } from '@/features/crags/lib/crag-page-types'
 import type { Database } from '@/types/database'
@@ -10,6 +10,11 @@ interface ImageRow {
   url: string
   latitude: number | null
   longitude: number | null
+}
+
+interface RoutePreviewLineRow {
+  climb_id: string
+  image_id: string
 }
 
 const INITIAL_CRAG_IMAGE_LIMIT = 24
@@ -64,12 +69,33 @@ export async function loadInitialCragRouteData(
   const initialRoutePreviewClimbIds = initialRoutes.slice(0, INITIAL_ROUTE_PREVIEW_LIMIT).map((route) => route.id)
   const imageById = new Map(initialImages.map((image) => [image.id, image] as const))
 
-  let initialRoutePreviewByClimbId: InitialCragRouteData['initialRoutePreviewByClimbId'] = {}
-  let initialRouteImageIdsByClimbId: InitialCragRouteData['initialRouteImageIdsByClimbId'] = {}
+  const initialRoutePreviewByClimbId: InitialCragRouteData['initialRoutePreviewByClimbId'] = {}
+  const initialRouteImageIdsByClimbId: InitialCragRouteData['initialRouteImageIdsByClimbId'] = {}
 
   if (initialRoutePreviewClimbIds.length > 0) {
-    const { targetMaps } = await fetchRouteTargetMapsForClimbIds(supabase, initialRoutePreviewClimbIds, imageById)
-    const previewImageIds = Array.from(new Set(Object.values(targetMaps.nextRoutePreviewByClimbId).map((preview) => preview.imageId)))
+    const { data: previewLineData } = await supabase
+      .from('route_lines')
+      .select('climb_id, image_id')
+      .in('climb_id', initialRoutePreviewClimbIds)
+      .order('sequence_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
+
+    const previewLineRows = (previewLineData || []) as RoutePreviewLineRow[]
+    const previewImageIdsByClimbId: Record<string, string[]> = {}
+    const firstPreviewImageIdByClimbId: Record<string, string> = {}
+
+    for (const row of previewLineRows) {
+      const previewImageIds = previewImageIdsByClimbId[row.climb_id] || []
+      if (!previewImageIds.includes(row.image_id)) {
+        previewImageIds.push(row.image_id)
+        previewImageIdsByClimbId[row.climb_id] = previewImageIds
+      }
+      if (!firstPreviewImageIdByClimbId[row.climb_id]) {
+        firstPreviewImageIdByClimbId[row.climb_id] = row.image_id
+      }
+    }
+
+    const previewImageIds = Array.from(new Set(Object.values(firstPreviewImageIdByClimbId)))
     const missingPreviewImageIds = previewImageIds.filter((imageId) => !imageById.has(imageId))
 
     if (missingPreviewImageIds.length > 0) {
@@ -94,31 +120,26 @@ export async function loadInitialCragRouteData(
           initialImages.push(hydratedImage)
         }
       }
+    }
 
-      const hydratedTargetMaps = await fetchRouteTargetMapsForClimbIds(supabase, initialRoutePreviewClimbIds, imageById)
-      initialRoutePreviewByClimbId = remapRoutePreviewsByEffectiveClimbId(
-        hydratedTargetMaps.targetMaps.nextRoutePreviewByClimbId,
-        effectiveClimbIdByClimbId
-      )
-      initialRouteImageIdsByClimbId = hydratedTargetMaps.targetMaps.nextRouteImageIdsByClimbId
-    } else {
-      initialRoutePreviewByClimbId = remapRoutePreviewsByEffectiveClimbId(
-        targetMaps.nextRoutePreviewByClimbId,
-        effectiveClimbIdByClimbId
-      )
-      initialRouteImageIdsByClimbId = targetMaps.nextRouteImageIdsByClimbId
+    for (const routeId of initialRoutePreviewClimbIds) {
+      const previewImageIds = previewImageIdsByClimbId[routeId]
+      if (previewImageIds?.length) {
+        initialRouteImageIdsByClimbId[routeId] = previewImageIds
+      }
+
+      const previewImageId = firstPreviewImageIdByClimbId[routeId]
+      if (!previewImageId) continue
+
+      const previewImage = imageById.get(previewImageId)
+      if (!previewImage) continue
+
+      initialRoutePreviewByClimbId[routeId] = {
+        imageId: previewImage.id,
+        imageUrl: previewImage.url,
+      }
     }
   }
-
-  console.log('[Crag SSR Preview Debug]', {
-    cragId,
-    initialRouteCount: initialRoutes.length,
-    initialRouteIdsSample: initialRoutes.slice(0, 12).map((route) => route.id),
-    initialRoutePreviewCount: Object.keys(initialRoutePreviewByClimbId).length,
-    initialRoutePreviewKeysSample: Object.keys(initialRoutePreviewByClimbId).slice(0, 12),
-    initialRouteImageIdsKeysSample: Object.keys(initialRouteImageIdsByClimbId).slice(0, 12),
-    initialImageCount: initialImages.length,
-  })
 
   const withCoords = images.filter(
     (image): image is ImageRow & { latitude: number; longitude: number } => typeof image.latitude === 'number' && typeof image.longitude === 'number'
