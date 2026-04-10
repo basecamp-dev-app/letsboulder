@@ -90,7 +90,7 @@ export function LogbookStatsSection({
                 <div key={log.id} className="flex items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-gray-500 dark:text-gray-400 w-6">{index + 1}.</span>
-                    <Link href={getClimbUrl(log.climb_id, climbUrlMap)} className="flex items-center gap-3 min-w-0 hover:opacity-90 transition-opacity">
+                    <Link href={getClimbUrl(log.climb_id, climbUrlMap)} prefetch={false} className="flex items-center gap-3 min-w-0 hover:opacity-90 transition-opacity">
                       {log.climbs?.image_url && (
                         <Image
                           src={resolveRouteImageUrl(log.climbs.image_url)}
@@ -130,7 +130,7 @@ export function LogbookStatsSection({
             {recentLogs.map((log) => (
                 <div key={log.id} className="flex items-center gap-2 sm:gap-4 py-3 border-b border-gray-100 dark:border-gray-800 last:border-0">
                   {log.climbs?.image_url && (
-                    <Link href={getClimbUrl(log.climb_id, climbUrlMap)} className="shrink-0">
+                    <Link href={getClimbUrl(log.climb_id, climbUrlMap)} prefetch={false} className="shrink-0">
                     <Image
                       src={resolveRouteImageUrl(log.climbs.image_url)}
                       alt={log.climbs?.name || 'Climb image'}
@@ -143,7 +143,7 @@ export function LogbookStatsSection({
                   </Link>
                 )}
                 <div className="flex-1">
-                  <Link href={getClimbUrl(log.climb_id, climbUrlMap)} className="hover:underline">
+                  <Link href={getClimbUrl(log.climb_id, climbUrlMap)} prefetch={false} className="hover:underline">
                     <p className="font-medium text-gray-900 dark:text-gray-100">{log.climbs?.name}</p>
                   </Link>
                   <p className="text-sm text-gray-500 dark:text-gray-400">

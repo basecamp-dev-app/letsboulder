@@ -201,6 +201,7 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
                 ) : (
                   <Link
                     href={destinationHref}
+                    prefetch={false}
                     className="flex min-w-0 flex-1 items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-sm"
                   >
                     {content}
@@ -213,6 +214,7 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
                       <>
                         <Link
                           href={draftHref}
+                          prefetch={false}
                           className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
                         >
                           Edit draft
@@ -251,6 +253,7 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
                       <div className="flex items-center gap-2">
                         <Link
                           href={manageHref}
+                          prefetch={false}
                           className="text-xs font-medium text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200"
                         >
                           Manage
