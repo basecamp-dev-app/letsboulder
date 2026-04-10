@@ -18,10 +18,8 @@ const ALLOWED_REDIRECT_PATHS = [
 
 const SESSION_REFRESH_PREFIXES = [
   '/settings',
-  '/submit',
   '/admin',
   '/gym-admin',
-  '/logbook',
   '/auth',
 ]
 
