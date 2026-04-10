@@ -26,6 +26,7 @@ export function useCragSwitcher({ initialCrag }: UseCragSwitcherParams): UseCrag
 
     async function loadCragSwitcherOptions() {
       if (!initialCrag) return
+      if (!cragSwitcherOpen && cragSwitcherQuery.trim().length < 2) return
       const sourceCrag = initialCrag
       const fallbackOption: CragSwitcherOption = {
         id: sourceCrag.id,
@@ -89,7 +90,7 @@ export function useCragSwitcher({ initialCrag }: UseCragSwitcherParams): UseCrag
     return () => {
       ignore = true
     }
-  }, [cragSwitcherQuery, initialCrag])
+  }, [cragSwitcherOpen, cragSwitcherQuery, initialCrag])
 
   return {
     cragSwitcherOpen,
