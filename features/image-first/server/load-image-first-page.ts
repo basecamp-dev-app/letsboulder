@@ -389,7 +389,7 @@ export async function buildImageFirstPayload(args: {
       return pins
     }, [])
 
-  return {
+  const result = {
     redirectTo: null,
     payload: {
       heroImage: {
@@ -397,7 +397,7 @@ export async function buildImageFirstPayload(args: {
         src: image.staticUrl,
         width: image.width,
         height: image.height,
-        priority: true,
+        priority: true as const,
       },
       initialRoutes,
       navigationContext: {
@@ -426,4 +426,6 @@ export async function buildImageFirstPayload(args: {
     cragImages: cragImages.length,
     cragImageLinks: cragImageRows.length,
   })
+
+  return result
 }
