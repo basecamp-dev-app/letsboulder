@@ -82,7 +82,7 @@ export function LogbookStatsSection({
           <CardTitle className="text-lg">Grade Pyramid (Past Year)</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <GradePyramid pyramid={stats.gradePyramid} lowestGrade={lowestGrade} />
+          <GradePyramid pyramid={stats.gradePyramid} lowestGrade={lowestGrade} gradeSystem={gradeSystem} />
         </CardContent>
       </Card>
 
