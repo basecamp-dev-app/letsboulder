@@ -27,15 +27,17 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
         .from('places')
         .select('slug, type')
         .eq('id', cragId)
-        .maybeSingle<{ slug: string | null; type: string | null }>()
+        .maybeSingle()
 
-      if (!data?.slug || (data.type !== 'crag' && data.type !== 'gym')) {
+      const place = data as { slug: string | null; type: string | null } | null
+
+      if (!place?.slug || (place.type !== 'crag' && place.type !== 'gym')) {
         return null
       }
 
       return {
-        slug: data.slug,
-        type: data.type,
+        slug: place.slug,
+        type: place.type,
       }
     },
     initialData: communityPlace,
