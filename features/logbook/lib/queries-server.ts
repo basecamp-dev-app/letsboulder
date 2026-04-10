@@ -176,19 +176,26 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
   const supabase = await getServerClient()
   const timing = startServerTiming('fetchServerLogbookLogsAndProfile')
 
-  const [{ data: profileData, error: profileError }, { data: logsData, error: logsError }] = await Promise.all([
-    timeServerStep('fetchServerLogbookLogsAndProfile', 'profile', () => supabase
+  const profileRes = await timeServerStep('fetchServerLogbookLogsAndProfile', 'profile', async () =>
+    supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url, bio, total_climbs, total_points, highest_grade')
       .eq('id', userId)
-      .single()),
-    timeServerStep('fetchServerLogbookLogsAndProfile', 'recent-logs', () => supabase
+      .single()
+  )
+  const profileData = profileRes.data
+  const profileError = profileRes.error
+
+  const logsRes = await timeServerStep('fetchServerLogbookLogsAndProfile', 'recent-logs', async () =>
+    supabase
       .from('user_climbs')
       .select('id, climb_id, style, created_at, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(INITIAL_LOGBOOK_LOG_LIMIT)),
-  ])
+      .limit(INITIAL_LOGBOOK_LOG_LIMIT)
+  )
+  const logsData = logsRes.data
+  const logsError = logsRes.error
 
   if (profileError && profileError.code !== 'PGRST116') {
     throw profileError
@@ -223,10 +230,10 @@ async function fetchServerLogbookLogsAndProfile(userId: string) {
   const cragIds = [...new Set(logsWithPoints.map((log) => log.climbs?.crag_id).filter((id): id is string => !!id))]
   const cragMetaById = new Map<string, { country_code: string | null; slug: string | null }>()
   if (cragIds.length > 0) {
-    const { data: cragRows } = await timeServerStep('fetchServerLogbookLogsAndProfile', 'crag-meta', () => supabase
-      .from('crags')
-      .select('id, country_code, slug')
-      .in('id', cragIds))
+    const cragRes = await timeServerStep('fetchServerLogbookLogsAndProfile', 'crag-meta', async () =>
+      supabase.from('crags').select('id, country_code, slug').in('id', cragIds)
+    )
+    const cragRows = cragRes.data
     for (const row of (cragRows || []) as Array<{ id: string; country_code: string | null; slug: string | null }>) {
       cragMetaById.set(row.id, { country_code: row.country_code, slug: row.slug })
     }
