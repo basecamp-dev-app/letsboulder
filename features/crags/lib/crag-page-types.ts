@@ -80,6 +80,8 @@ export interface InitialCragRouteData {
   initialRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
   initialImages: ImageData[]
   initialCragCenter: [number, number] | null
+  initialRouteTargetsComplete: boolean
+  initialImagesComplete: boolean
   loadedAt: number
 }
 

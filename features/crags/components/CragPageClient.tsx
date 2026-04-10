@@ -20,6 +20,8 @@ interface CragPageClientProps {
   initialDefaultRouteTargetByImageId?: Record<string, ImageRouteTarget>
   initialRouteNavigationTargetByClimbId?: Record<string, RouteNavigationTarget>
   initialCragCenter?: [number, number] | null
+  initialRouteTargetsComplete?: boolean
+  initialImagesComplete?: boolean
   initialPayloadLoadedAt?: number
   communityPlace?: CommunityPlaceInfo | null
   initialSelectedImageId?: string | null
@@ -35,6 +37,8 @@ export default function CragPageClient({
   initialDefaultRouteTargetByImageId = {},
   initialRouteNavigationTargetByClimbId = {},
   initialCragCenter = null,
+  initialRouteTargetsComplete = false,
+  initialImagesComplete = false,
   initialPayloadLoadedAt,
   communityPlace,
   initialSelectedImageId = null,
@@ -59,6 +63,8 @@ export default function CragPageClient({
     initialDefaultRouteTargetByImageId,
     initialRouteNavigationTargetByClimbId,
     initialCragCenter,
+    initialRouteTargetsComplete,
+    initialImagesComplete,
     initialPayloadLoadedAt,
   })
 

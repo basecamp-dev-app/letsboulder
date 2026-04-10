@@ -4,15 +4,13 @@ import { useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase'
 import { cragKeys } from '@/features/crags/lib/crag-queries'
-import { fetchRouteTargetMapsForClimbIds, hasCompleteRouteTargets } from '@/features/crags/lib/crag-page-domain'
+import { fetchRouteTargetMapsForClimbIds } from '@/features/crags/lib/crag-page-domain'
 import type { CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 
 export interface UseCragRouteTargetsParams {
   routes: CragRoute[]
   images: ImageData[]
-  initialRouteImageIdsByClimbId: Record<string, string[]>
-  initialRoutePreviewByClimbId: Record<string, RoutePreview>
-  initialRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
+  initialRouteTargetsComplete: boolean
   setRouteImageIdsByClimbId: (updater: (prev: Record<string, string[]>) => Record<string, string[]>) => void
   setRoutePreviewByClimbId: (updater: (prev: Record<string, RoutePreview>) => Record<string, RoutePreview>) => void
   setRouteNavigationTargetByClimbId: (updater: (prev: Record<string, RouteNavigationTarget>) => Record<string, RouteNavigationTarget>) => void
@@ -21,9 +19,7 @@ export interface UseCragRouteTargetsParams {
 export function useCragRouteTargets({
   routes,
   images,
-  initialRouteImageIdsByClimbId,
-  initialRoutePreviewByClimbId,
-  initialRouteNavigationTargetByClimbId,
+  initialRouteTargetsComplete,
   setRouteImageIdsByClimbId,
   setRoutePreviewByClimbId,
   setRouteNavigationTargetByClimbId,
@@ -33,11 +29,6 @@ export function useCragRouteTargets({
       .sort((a, b) => a.localeCompare(b))
       .join(',')
   }, [routes])
-
-  const hasCompleteInitialRouteTargets = useMemo(
-    () => hasCompleteRouteTargets(routes, initialRouteImageIdsByClimbId, initialRoutePreviewByClimbId, initialRouteNavigationTargetByClimbId),
-    [routes, initialRouteImageIdsByClimbId, initialRoutePreviewByClimbId, initialRouteNavigationTargetByClimbId]
-  )
 
   const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
 
@@ -52,7 +43,7 @@ export function useCragRouteTargets({
       const { targetMaps } = await fetchRouteTargetMapsForClimbIds(supabase, climbIds, imageById)
       return targetMaps
     },
-    enabled: !!climbIdsFingerprint && !hasCompleteInitialRouteTargets && !isOffline,
+    enabled: !!climbIdsFingerprint && !initialRouteTargetsComplete && !isOffline,
     staleTime: 5 * 60 * 1000,
     meta: { persist: true },
   })

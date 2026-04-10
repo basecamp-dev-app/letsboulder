@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, type Dispatch, type SetStateAction } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { cragKeys, fetchCragImages } from '@/features/crags/lib/crag-queries'
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
@@ -31,6 +31,8 @@ export interface UseCragImagesParams {
   initialDefaultRouteTargetByImageId: Record<string, ImageRouteTarget>
   initialRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
   initialCragCenter: [number, number] | null
+  initialRouteTargetsComplete: boolean
+  initialImagesComplete: boolean
   initialPayloadLoadedAt: number | undefined
   setCrag: Dispatch<SetStateAction<CragPageCrag | null>>
   setImages: Dispatch<SetStateAction<ImageData[]>>
@@ -53,6 +55,8 @@ export function useCragImages({
   initialDefaultRouteTargetByImageId,
   initialRouteNavigationTargetByClimbId,
   initialCragCenter,
+  initialRouteTargetsComplete,
+  initialImagesComplete,
   initialPayloadLoadedAt,
   setCrag,
   setImages,
@@ -65,17 +69,11 @@ export function useCragImages({
   setRoutesLoadState,
 }: UseCragImagesParams) {
   const hasInitialRouteData = initialRoutes !== null
+  const hasCompleteInitialImages = Boolean(initialCrag) && initialImagesComplete && initialImages.length > 0
 
-  // eslint-disable-next-line react-hooks/purity -- one-time mount timestamp for cache freshness check
-  const mountTimestamp = useMemo(() => Date.now(), [])
-  const hasFreshInitialPayload = useMemo(() => {
-    if (!initialCrag || initialImages.length === 0 || !initialPayloadLoadedAt) return false
-    return mountTimestamp - initialPayloadLoadedAt <= CRAG_IMAGE_CACHE_TTL_MS
-  }, [initialCrag, initialImages.length, initialPayloadLoadedAt, mountTimestamp])
-
-  // Seed in-memory cache from fresh SSR payload
+  // Seed in-memory cache from SSR payload when images are authoritative.
   useEffect(() => {
-    if (!hasFreshInitialPayload) return
+    if (!hasCompleteInitialImages) return
 
     cragImageCache.set(id, {
       crag: initialCrag!,
@@ -88,14 +86,16 @@ export function useCragImages({
       cachedAt: initialPayloadLoadedAt || Date.now(),
     })
   }, [
-    hasFreshInitialPayload,
+    hasCompleteInitialImages,
     id,
     initialCrag,
     initialCragCenter,
     initialDefaultRouteTargetByImageId,
+    initialImagesComplete,
     initialImages,
     initialPayloadLoadedAt,
     initialRouteImageIdsByClimbId,
+    initialRouteTargetsComplete,
     initialRouteNavigationTargetByClimbId,
     initialRoutePreviewByClimbId,
   ])
@@ -103,8 +103,8 @@ export function useCragImages({
   const { data, isLoading, isFetching } = useQuery({
     queryKey: cragKeys.images(id),
     queryFn: () => fetchCragImages(id, initialCrag),
-    enabled: !hasFreshInitialPayload,
-    initialData: hasFreshInitialPayload
+    enabled: !hasCompleteInitialImages,
+    initialData: hasCompleteInitialImages
       ? {
           crag: initialCrag!,
           images: initialImages,
@@ -115,7 +115,7 @@ export function useCragImages({
           routeNavigationTargetByClimbId: initialRouteNavigationTargetByClimbId,
         }
       : undefined,
-    staleTime: 5 * 60 * 1000,
+    staleTime: CRAG_IMAGE_CACHE_TTL_MS,
     meta: { persist: true },
   })
 
@@ -147,7 +147,7 @@ export function useCragImages({
 
   // Loading state management
   useEffect(() => {
-    if (hasFreshInitialPayload) {
+    if (hasCompleteInitialImages) {
       setLoading(false)
       if (!hasInitialRouteData) {
         setRoutesLoadState('idle')
@@ -164,5 +164,5 @@ export function useCragImages({
     if (!hasInitialRouteData) {
       setRoutesLoadState('idle')
     }
-  }, [hasFreshInitialPayload, hasInitialRouteData, isLoading, isFetching, initialCrag, setLoading, setRoutesLoadState])
+  }, [hasCompleteInitialImages, hasInitialRouteData, isLoading, isFetching, initialCrag, setLoading, setRoutesLoadState])
 }
