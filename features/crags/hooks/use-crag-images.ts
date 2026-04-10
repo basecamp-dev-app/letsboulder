@@ -102,7 +102,14 @@ export function useCragImages({
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: cragKeys.images(id),
-    queryFn: () => fetchCragImages(id, initialCrag),
+    queryFn: () => fetchCragImages(id, initialCrag, {
+      images: initialImages,
+      cragCenter: initialCragCenter,
+      defaultRouteTargetByImageId: initialDefaultRouteTargetByImageId,
+      routeImageIdsByClimbId: initialRouteImageIdsByClimbId,
+      routePreviewByClimbId: initialRoutePreviewByClimbId,
+      routeNavigationTargetByClimbId: initialRouteNavigationTargetByClimbId,
+    }),
     enabled: !hasCompleteInitialImages,
     initialData: hasCompleteInitialImages
       ? {
@@ -126,10 +133,10 @@ export function useCragImages({
     setCrag(data.crag)
     setImages(data.images)
     setCragCenter(data.cragCenter)
-    setDefaultRouteTargetByImageId(data.defaultRouteTargetByImageId)
-    setRouteImageIdsByClimbId(data.routeImageIdsByClimbId)
-    setRoutePreviewByClimbId(data.routePreviewByClimbId)
-    setRouteNavigationTargetByClimbId(data.routeNavigationTargetByClimbId)
+    setDefaultRouteTargetByImageId((prev) => ({ ...prev, ...data.defaultRouteTargetByImageId }))
+    setRouteImageIdsByClimbId((prev) => ({ ...prev, ...data.routeImageIdsByClimbId }))
+    setRoutePreviewByClimbId((prev) => ({ ...prev, ...data.routePreviewByClimbId }))
+    setRouteNavigationTargetByClimbId((prev) => ({ ...prev, ...data.routeNavigationTargetByClimbId }))
     setLoading(false)
 
     // Cache in memory for fast subsequent navigations

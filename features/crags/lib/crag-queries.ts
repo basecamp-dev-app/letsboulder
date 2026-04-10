@@ -29,9 +29,34 @@ export interface CragImagesResult {
   routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
 }
 
+interface InitialCragImagesFallback {
+  images: ImageData[]
+  cragCenter: [number, number] | null
+  defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
+  routeImageIdsByClimbId: Record<string, string[]>
+  routePreviewByClimbId: Record<string, RoutePreview>
+  routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
+}
+
+function buildInitialCragImagesFallback(
+  initialCrag: CragPageCrag,
+  fallback: InitialCragImagesFallback
+): CragImagesResult {
+  return {
+    crag: initialCrag,
+    images: fallback.images,
+    cragCenter: fallback.cragCenter,
+    defaultRouteTargetByImageId: fallback.defaultRouteTargetByImageId,
+    routeImageIdsByClimbId: fallback.routeImageIdsByClimbId,
+    routePreviewByClimbId: fallback.routePreviewByClimbId,
+    routeNavigationTargetByClimbId: fallback.routeNavigationTargetByClimbId,
+  }
+}
+
 export async function fetchCragImages(
   id: string,
-  initialCrag: CragPageCrag | null
+  initialCrag: CragPageCrag | null,
+  initialFallback?: InitialCragImagesFallback
 ): Promise<CragImagesResult> {
   const offlinePayloads = await getStoredCragClimbPayloadsSafely(id)
   const offlineHydrated = offlinePayloads.length > 0 ? hydrateOfflineCragData(offlinePayloads) : null
@@ -99,6 +124,10 @@ export async function fetchCragImages(
   if (imagesError) reportError(new Error('Error fetching images'), { message: 'Error fetching images', extra: imagesError })
   if (supplementaryImageIdsError) reportError(new Error('Error fetching supplementary image IDs'), { message: 'Error fetching supplementary image IDs', extra: supplementaryImageIdsError })
 
+  if ((imagesError || supplementaryImageIdsError) && initialCrag && initialFallback) {
+    return buildInitialCragImagesFallback(initialCrag, initialFallback)
+  }
+
   const supplementaryImageIds = new Set<string>(
     (supplementaryImageIdsData || [])
       .flatMap((row: { linked_image_id: string | null; source_image_id?: string | null }) => [row.linked_image_id, row.source_image_id || null])
@@ -150,6 +179,10 @@ export async function fetchCragImages(
         routePreviewByClimbId: offlineHydrated.routePreviewByClimbId,
         routeNavigationTargetByClimbId: offlineHydrated.routeNavigationTargetByClimbId,
       }
+    }
+
+    if (initialCrag && initialFallback) {
+      return buildInitialCragImagesFallback(initialCrag, initialFallback)
     }
   }
 
