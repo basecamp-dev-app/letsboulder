@@ -9,12 +9,6 @@ import type { RoutesLoadState } from '@/features/crags/hooks/use-crag-routes'
 
 const CRAG_IMAGE_CACHE_TTL_MS = 5 * 60 * 1000
 const cragImageCache = new Map<string, CachedCragImageData>()
-const CRAG_DEBUG_ROUTE_IDS = new Set([
-  '8f450e11-55f7-40dd-b04b-e48d0061fd7b',
-  '84d00fe1-44a6-48b5-b7e2-ef3205957df1',
-  'e03dde44-6aef-454a-b4b1-e8237c040407',
-  '1969f064-41d8-4150-b469-d09cbea993bc',
-])
 
 interface CachedCragImageData {
   crag: CragPageCrag
@@ -135,19 +129,6 @@ export function useCragImages({
   // Sync React Query result to parent state
   useEffect(() => {
     if (!data) return
-
-    const imageIds = new Set(data.images.map((image) => image.id))
-    for (const [routeId, preview] of Object.entries(data.routePreviewByClimbId)) {
-      if (!CRAG_DEBUG_ROUTE_IDS.has(routeId)) continue
-      console.log('[Crag Image State Debug]', {
-        routeId,
-        preview,
-        previewImagePresentInDataImages: imageIds.has(preview.imageId),
-        totalImages: data.images.length,
-        routeImageIds: data.routeImageIdsByClimbId[routeId] || [],
-        hasNavigationTarget: Boolean(data.routeNavigationTargetByClimbId[routeId]),
-      })
-    }
 
     setCrag(data.crag)
     setImages(data.images)
