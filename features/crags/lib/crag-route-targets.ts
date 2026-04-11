@@ -27,6 +27,13 @@ export interface RouteTargetFetchResult {
   effectiveClimbIdByClimbId: Record<string, string>
 }
 
+const CRAG_DEBUG_ROUTE_IDS = new Set([
+  '8f450e11-55f7-40dd-b04b-e48d0061fd7b',
+  '84d00fe1-44a6-48b5-b7e2-ef3205957df1',
+  'e03dde44-6aef-454a-b4b1-e8237c040407',
+  '1969f064-41d8-4150-b469-d09cbea993bc',
+])
+
 export function buildRoutePreviewDisplayByClimbId(
   routePreviewByClimbId: Record<string, RoutePreview>,
   imageById: Map<string, ImageData>
@@ -369,13 +376,39 @@ export async function fetchRouteTargetMapsForClimbIds(
     throw routeTargetsError
   }
 
+  const targetMaps = buildRouteTargetMaps(
+    (routeTargetsData || []) as RouteLineTargetRow[],
+    effectiveClimbIdByClimbId,
+    imageById,
+    selectableImageIdByImageId
+  )
+
+  console.log('[Crag Route Targets Debug]', {
+    requestedClimbIds: climbIds.length,
+    climbIdentityRows: (climbIdentityData || []).length,
+    routeLineClimbIds: routeLineClimbIds.length,
+    routeTargetRows: (routeTargetsData || []).length,
+    mappedRouteImageIds: Object.keys(targetMaps.nextRouteImageIdsByClimbId).length,
+    mappedRoutePreviews: Object.keys(targetMaps.nextRoutePreviewByClimbId).length,
+    mappedNavigationTargets: Object.keys(targetMaps.nextRouteNavigationTargetByClimbId).length,
+    debugRoutes: climbIds.filter((climbId) => CRAG_DEBUG_ROUTE_IDS.has(climbId)).map((climbId) => ({
+      climbId,
+      effectiveClimbId: effectiveClimbIdByClimbId[climbId] || climbId,
+      routeLineRows: ((routeTargetsData || []) as RouteLineTargetRow[])
+        .filter((row) => row.climb_id === climbId)
+        .map((row) => ({
+          routeId: row.id,
+          imageId: row.image_id,
+          climbSlug: Array.isArray(row.climbs) ? row.climbs[0]?.slug || null : row.climbs?.slug || null,
+          imageUrl: Array.isArray(row.images) ? row.images[0]?.url || null : row.images?.url || null,
+        })),
+      preview: targetMaps.nextRoutePreviewByClimbId[climbId] || null,
+      navigationTarget: targetMaps.nextRouteNavigationTargetByClimbId[climbId] || null,
+    })),
+  })
+
   return {
-    targetMaps: buildRouteTargetMaps(
-      (routeTargetsData || []) as RouteLineTargetRow[],
-      effectiveClimbIdByClimbId,
-      imageById,
-      selectableImageIdByImageId
-    ),
+    targetMaps,
     effectiveClimbIdByClimbId,
   }
 }
