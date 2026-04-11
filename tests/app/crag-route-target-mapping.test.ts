@@ -5,6 +5,7 @@ type RouteLineTargetRow = {
   image_id: string
   climb_id: string
   climbs: { slug: string | null } | Array<{ slug: string | null }> | null
+  images: { url: string | null } | Array<{ url: string | null }> | null
 }
 
 type ImageRecord = {
@@ -30,11 +31,13 @@ function mapRouteTargetsByEffectiveClimbId(
     const effectiveClimbId = effectiveClimbIdByClimbId[row.climb_id] || row.climb_id
     if (nextRouteNavigationTargetByClimbId[effectiveClimbId]) continue
     const image = imageById.get(row.image_id)
-    if (!image) continue
+    const joinedImage = Array.isArray(row.images) ? row.images[0] : row.images
+    const imageUrl = image?.url || joinedImage?.url || null
+    if (!imageUrl) continue
     const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
     nextRoutePreviewByClimbId[effectiveClimbId] = {
       imageId: row.image_id,
-      imageUrl: image.url,
+      imageUrl,
     }
     nextRouteNavigationTargetByClimbId[effectiveClimbId] = {
       climbId: effectiveClimbId,
@@ -42,7 +45,7 @@ function mapRouteTargetsByEffectiveClimbId(
       climbSlug: climb?.slug || null,
       imageId: row.image_id,
       displayImageId: row.image_id,
-      displayImageUrl: image.url,
+      displayImageUrl: imageUrl,
     }
   }
 
@@ -57,6 +60,7 @@ describe('crag route target mapping', () => {
         image_id: 'image-1',
         climb_id: 'local-climb-1',
         climbs: { slug: 'shared-slug' },
+        images: { url: 'https://example.com/image-1.jpg' },
       },
     ]
 
@@ -83,6 +87,41 @@ describe('crag route target mapping', () => {
       imageId: 'image-1',
       displayImageId: 'image-1',
       displayImageUrl: 'https://example.com/image-1.jpg',
+    })
+  })
+
+  test('builds navigation target from joined image url when image is not loaded', () => {
+    const routeTargetsData: RouteLineTargetRow[] = [
+      {
+        id: 'route-line-2',
+        image_id: 'image-2',
+        climb_id: 'local-climb-2',
+        climbs: { slug: 'hidden-image-slug' },
+        images: { url: 'https://example.com/image-2.jpg' },
+      },
+    ]
+
+    const imageById = new Map<string, ImageRecord>()
+
+    const effectiveClimbIdByClimbId = {
+      'local-climb-2': 'shared-climb-2',
+      'shared-climb-2': 'shared-climb-2',
+    }
+
+    const result = mapRouteTargetsByEffectiveClimbId(routeTargetsData, imageById, effectiveClimbIdByClimbId)
+
+    expect(result.nextRoutePreviewByClimbId['shared-climb-2']).toEqual({
+      imageId: 'image-2',
+      imageUrl: 'https://example.com/image-2.jpg',
+    })
+
+    expect(result.nextRouteNavigationTargetByClimbId['shared-climb-2']).toEqual({
+      climbId: 'shared-climb-2',
+      routeId: 'route-line-2',
+      climbSlug: 'hidden-image-slug',
+      imageId: 'image-2',
+      displayImageId: 'image-2',
+      displayImageUrl: 'https://example.com/image-2.jpg',
     })
   })
 })
