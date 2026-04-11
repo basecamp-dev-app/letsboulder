@@ -220,10 +220,10 @@ export async function fetchCragImages(
     crag: cragData,
     images: previewImages,
     cragCenter,
-    defaultRouteTargetByImageId: {},
-    routeImageIdsByClimbId: {},
-    routePreviewByClimbId: {},
-    routeNavigationTargetByClimbId: {},
+    defaultRouteTargetByImageId: initialFallback?.defaultRouteTargetByImageId || {},
+    routeImageIdsByClimbId: initialFallback?.routeImageIdsByClimbId || {},
+    routePreviewByClimbId: initialFallback?.routePreviewByClimbId || {},
+    routeNavigationTargetByClimbId: initialFallback?.routeNavigationTargetByClimbId || {},
   }
 }
 
