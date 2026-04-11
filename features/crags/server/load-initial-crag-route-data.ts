@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { dedupeCragRoutes, formatCragRoutes, getAverageCoordinates } from '@/features/crags/lib/crag-page-domain'
+import { buildEffectiveClimbLookup } from '@/features/crags/lib/crag-route-targets'
 import type { ClimbIdentityRow } from '@/features/crags/lib/crag-page-domain'
 import type { InitialCragRouteData } from '@/features/crags/lib/crag-page-types'
 import type { Database } from '@/types/database'
@@ -38,6 +39,7 @@ export async function loadInitialCragRouteData(
 
   const climbIds = baseRoutes.map((route) => route.id)
   let effectiveClimbIdByClimbId: Record<string, string> = {}
+  let climbIdsByEffectiveClimbId: Record<string, string[]> = {}
 
   if (climbIds.length > 0) {
     const { data } = await supabase
@@ -46,9 +48,9 @@ export async function loadInitialCragRouteData(
       .in('id', climbIds)
       .order('id', { ascending: true })
 
-    effectiveClimbIdByClimbId = Object.fromEntries(
-      ((data || []) as ClimbIdentityRow[]).map((row) => [row.id, row.shared_climb_id || row.id])
-    )
+    const effectiveClimbLookup = buildEffectiveClimbLookup((data || []) as ClimbIdentityRow[])
+    effectiveClimbIdByClimbId = effectiveClimbLookup.effectiveClimbIdByClimbId
+    climbIdsByEffectiveClimbId = effectiveClimbLookup.climbIdsByEffectiveClimbId
   }
 
   const images = ((imageData || []) as ImageRow[]).map((image) => ({
@@ -73,10 +75,14 @@ export async function loadInitialCragRouteData(
   const initialRouteImageIdsByClimbId: InitialCragRouteData['initialRouteImageIdsByClimbId'] = {}
 
   if (initialRoutePreviewClimbIds.length > 0) {
+    const previewRouteLineClimbIds = Array.from(new Set(
+      initialRoutePreviewClimbIds.flatMap((climbId) => climbIdsByEffectiveClimbId[climbId] || [climbId])
+    ))
+
     const { data: previewLineData } = await supabase
       .from('route_lines')
       .select('climb_id, image_id')
-      .in('climb_id', initialRoutePreviewClimbIds)
+      .in('climb_id', previewRouteLineClimbIds)
       .order('sequence_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
 
@@ -85,13 +91,14 @@ export async function loadInitialCragRouteData(
     const firstPreviewImageIdByClimbId: Record<string, string> = {}
 
     for (const row of previewLineRows) {
-      const previewImageIds = previewImageIdsByClimbId[row.climb_id] || []
+      const effectiveClimbId = effectiveClimbIdByClimbId[row.climb_id] || row.climb_id
+      const previewImageIds = previewImageIdsByClimbId[effectiveClimbId] || []
       if (!previewImageIds.includes(row.image_id)) {
         previewImageIds.push(row.image_id)
-        previewImageIdsByClimbId[row.climb_id] = previewImageIds
+        previewImageIdsByClimbId[effectiveClimbId] = previewImageIds
       }
-      if (!firstPreviewImageIdByClimbId[row.climb_id]) {
-        firstPreviewImageIdByClimbId[row.climb_id] = row.image_id
+      if (!firstPreviewImageIdByClimbId[effectiveClimbId]) {
+        firstPreviewImageIdByClimbId[effectiveClimbId] = row.image_id
       }
     }
 
