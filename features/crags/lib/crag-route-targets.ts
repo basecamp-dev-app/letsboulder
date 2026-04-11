@@ -9,6 +9,7 @@ export interface RouteLineTargetRow {
   image_id: string
   climb_id: string
   climbs: { slug: string | null } | Array<{ slug: string | null }> | null
+  images: { url: string | null } | Array<{ url: string | null }> | null
 }
 
 export interface ClimbIdentityRow {
@@ -307,16 +308,20 @@ export function mapRouteTargetsByEffectiveClimbId(
     if (nextRouteNavigationTargetByClimbId[effectiveClimbId]) continue
     const selectableImageId = selectableImageIdByImageId[row.image_id] || row.image_id
     const image = imageById.get(selectableImageId)
-    if (!image) continue
     const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
-    nextRoutePreviewByClimbId[effectiveClimbId] = { imageId: selectableImageId, imageUrl: image.url }
+    const joinedImage = Array.isArray(row.images) ? row.images[0] : row.images
+    const imageUrl = image?.url || joinedImage?.url || null
+
+    if (!imageUrl) continue
+
+    nextRoutePreviewByClimbId[effectiveClimbId] = { imageId: selectableImageId, imageUrl }
     nextRouteNavigationTargetByClimbId[effectiveClimbId] = {
       climbId: effectiveClimbId,
       routeId: row.id,
       climbSlug: climb?.slug || null,
       imageId: selectableImageId,
       displayImageId: selectableImageId,
-      displayImageUrl: image.url,
+      displayImageUrl: imageUrl,
     }
   }
   return { nextRoutePreviewByClimbId, nextRouteNavigationTargetByClimbId }
@@ -354,7 +359,7 @@ export async function fetchRouteTargetMapsForClimbIds(
 
   const { data: routeTargetsData, error: routeTargetsError } = await supabase
     .from('route_lines')
-    .select('id, image_id, climb_id, climbs(slug)')
+    .select('id, image_id, climb_id, climbs(slug), images(url)')
     .in('climb_id', routeLineClimbIds)
     .order('climb_id', { ascending: true })
     .order('sequence_order', { ascending: true, nullsFirst: false })
