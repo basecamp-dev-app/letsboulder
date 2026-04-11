@@ -11,13 +11,6 @@ import type { ActiveRouteFilterChip, ResolvedRouteDestination } from '@/features
 import type { CragPageCrag, CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 
-const CRAG_DEBUG_ROUTE_IDS = new Set([
-  '8f450e11-55f7-40dd-b04b-e48d0061fd7b',
-  '84d00fe1-44a6-48b5-b7e2-ef3205957df1',
-  'e03dde44-6aef-454a-b4b1-e8237c040407',
-  '1969f064-41d8-4150-b469-d09cbea993bc',
-])
-
 interface ClusteredImageData {
   id: string
   url: string
@@ -299,19 +292,6 @@ export function useCragPageFilters({
     )
     if (!destination.ready) {
       console.warn(`[Router Debug] Route target miss for climb_id: ${route.id}. Falling back to slug.`)
-      if (CRAG_DEBUG_ROUTE_IDS.has(route.id)) {
-        console.log('[Crag Route Destination Debug]', {
-          routeId: route.id,
-          routeSlug: route.slug,
-          preview: routePreviewDisplayByClimbId[route.id] || null,
-          navigationTarget: routeNavigationDisplayByClimbId[route.id] || null,
-          fallbackImageId: routePreviewDisplayByClimbId[route.id]?.imageId || null,
-          fallbackTarget: routePreviewDisplayByClimbId[route.id]
-            ? defaultRouteTargetByImageId[routePreviewDisplayByClimbId[route.id].imageId] || null
-            : null,
-          destination,
-        })
-      }
     }
     return destination
   }, [defaultRouteTargetByImageId, routeHrefBase, routeNavigationDisplayByClimbId, routePreviewDisplayByClimbId])
