@@ -6,6 +6,13 @@ import { cragKeys } from '@/features/crags/lib/crag-queries'
 import type { CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 
+const CRAG_DEBUG_ROUTE_IDS = new Set([
+  '8f450e11-55f7-40dd-b04b-e48d0061fd7b',
+  '84d00fe1-44a6-48b5-b7e2-ef3205957df1',
+  'e03dde44-6aef-454a-b4b1-e8237c040407',
+  '1969f064-41d8-4150-b469-d09cbea993bc',
+])
+
 export interface UseCragRouteTargetsParams {
   routes: CragRoute[]
   initialRouteTargetsComplete: boolean
@@ -49,6 +56,19 @@ export function useCragRouteTargets({
         routePreviewByClimbId: Record<string, RoutePreview>
         routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
       }
+
+      console.log('[Crag Route Targets Client Debug]', {
+        requestedClimbIds: climbIds.length,
+        returnedRouteImageKeys: Object.keys(data.routeImageIdsByClimbId).length,
+        returnedPreviewKeys: Object.keys(data.routePreviewByClimbId).length,
+        returnedNavigationKeys: Object.keys(data.routeNavigationTargetByClimbId).length,
+        debugRoutes: climbIds.filter((climbId) => CRAG_DEBUG_ROUTE_IDS.has(climbId)).map((climbId) => ({
+          climbId,
+          routeImageIds: data.routeImageIdsByClimbId[climbId] || [],
+          preview: data.routePreviewByClimbId[climbId] || null,
+          navigationTarget: data.routeNavigationTargetByClimbId[climbId] || null,
+        })),
+      })
 
       return {
         nextDefaultRouteTargetByImageId: data.defaultRouteTargetByImageId,
