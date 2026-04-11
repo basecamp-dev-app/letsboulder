@@ -2,14 +2,12 @@
 
 import { useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { createClient } from '@/lib/supabase'
 import { cragKeys } from '@/features/crags/lib/crag-queries'
-import { fetchRouteTargetMapsForClimbIds } from '@/features/crags/lib/crag-page-domain'
 import type { CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
+import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 
 export interface UseCragRouteTargetsParams {
   routes: CragRoute[]
-  images: ImageData[]
   initialRouteTargetsComplete: boolean
   setRouteImageIdsByClimbId: (updater: (prev: Record<string, string[]>) => Record<string, string[]>) => void
   setRoutePreviewByClimbId: (updater: (prev: Record<string, RoutePreview>) => Record<string, RoutePreview>) => void
@@ -18,7 +16,6 @@ export interface UseCragRouteTargetsParams {
 
 export function useCragRouteTargets({
   routes,
-  images,
   initialRouteTargetsComplete,
   setRouteImageIdsByClimbId,
   setRoutePreviewByClimbId,
@@ -36,12 +33,29 @@ export function useCragRouteTargets({
     queryKey: cragKeys.routeTargets(climbIdsFingerprint),
     queryFn: async () => {
       if (!climbIdsFingerprint) return null
-      const supabase = createClient()
       const climbIds = climbIdsFingerprint.split(',').filter(Boolean)
       if (climbIds.length === 0) return null
-      const imageById = new Map(images.map((image) => [image.id, image]))
-      const { targetMaps } = await fetchRouteTargetMapsForClimbIds(supabase, climbIds, imageById)
-      return targetMaps
+      const response = await fetch(`/api/crags/route-targets?climbIds=${encodeURIComponent(climbIds.join(','))}`, {
+        method: 'GET',
+        credentials: 'same-origin',
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to fetch route targets: ${response.status}`)
+      }
+
+      const data = await response.json() as {
+        defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
+        routeImageIdsByClimbId: Record<string, string[]>
+        routePreviewByClimbId: Record<string, RoutePreview>
+        routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
+      }
+
+      return {
+        nextDefaultRouteTargetByImageId: data.defaultRouteTargetByImageId,
+        nextRouteImageIdsByClimbId: data.routeImageIdsByClimbId,
+        nextRoutePreviewByClimbId: data.routePreviewByClimbId,
+        nextRouteNavigationTargetByClimbId: data.routeNavigationTargetByClimbId,
+      }
     },
     enabled: !!climbIdsFingerprint && !initialRouteTargetsComplete && !isOffline,
     staleTime: 5 * 60 * 1000,

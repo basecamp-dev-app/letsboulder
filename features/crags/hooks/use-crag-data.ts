@@ -69,7 +69,6 @@ export function useCragData({
 
   useCragRouteTargets({
     routes,
-    images,
     initialRouteTargetsComplete,
     setRouteImageIdsByClimbId,
     setRoutePreviewByClimbId,
