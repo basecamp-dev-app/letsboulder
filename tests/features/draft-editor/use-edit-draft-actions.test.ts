@@ -89,18 +89,28 @@ describe('useEditDraftActions', () => {
     const draft = createDraft()
     let publishDraft: (() => Promise<unknown>) | null = null
 
-    mockCsrfFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        published: {
-          defaultImageId: 'image-1',
-          canonicalPath: '/test/crag/i/image-1',
-          imageIds: ['image-1', 'image-2'],
-          routeLineIds: ['route-line-1'],
-        },
-      }),
-    })
+    mockCsrfFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          draft: {
+            updated_at: '2026-04-12T21:15:00.000Z',
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          published: {
+            defaultImageId: 'image-1',
+            canonicalPath: '/test/crag/i/image-1',
+            imageIds: ['image-1', 'image-2'],
+            routeLineIds: ['route-line-1'],
+          },
+        }),
+      })
 
     function Harness() {
       const result = useEditDraftActions({
@@ -155,7 +165,7 @@ describe('useEditDraftActions', () => {
     })
 
     expect(flushLocationSync).toHaveBeenCalledTimes(1)
-    expect(mockCsrfFetch).toHaveBeenCalledTimes(1)
+    expect(mockCsrfFetch).toHaveBeenCalledTimes(2)
     expect(flushLocationSync.mock.invocationCallOrder[0]).toBeLessThan(mockCsrfFetch.mock.invocationCallOrder[0])
     expect(mockPush).toHaveBeenCalledWith('/test/crag/i/image-1?publishedImages=2&publishedRoutes=1')
   })
@@ -227,18 +237,28 @@ describe('useEditDraftActions', () => {
     const draft = createDraft()
     let publishDraft: (() => Promise<unknown>) | null = null
 
-    mockCsrfFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        published: {
-          defaultImageId: 'image-1',
-          canonicalPath: '/test/crag/i/image-1',
-          imageIds: ['image-1', 'image-2'],
-          routeLineIds: ['route-line-1'],
-        },
-      }),
-    })
+    mockCsrfFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          draft: {
+            updated_at: '2026-04-12T21:15:00.000Z',
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          published: {
+            defaultImageId: 'image-1',
+            canonicalPath: '/test/crag/i/image-1',
+            imageIds: ['image-1', 'image-2'],
+            routeLineIds: ['route-line-1'],
+          },
+        }),
+      })
 
     function Harness() {
       const result = useEditDraftActions({
@@ -293,8 +313,98 @@ describe('useEditDraftActions', () => {
     })
 
     expect(flushLocationSync).toHaveBeenCalledTimes(1)
-    expect(mockCsrfFetch).toHaveBeenCalledTimes(1)
+    expect(mockCsrfFetch).toHaveBeenCalledTimes(2)
     expect(mockPush).toHaveBeenCalledWith('/test/crag/i/image-1?publishedImages=2&publishedRoutes=1')
+  })
+
+  it('forces a draft metadata save before publish even when nothing is marked dirty', async () => {
+    const flushLocationSync = vi.fn().mockResolvedValue({ ok: true })
+    const draft = createDraft()
+    let publishDraft: (() => Promise<unknown>) | null = null
+
+    mockCsrfFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          draft: {
+            updated_at: '2026-04-12T21:15:00.000Z',
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          published: {
+            defaultImageId: 'image-1',
+            canonicalPath: '/test/crag/i/image-1',
+            imageIds: ['image-1', 'image-2'],
+            routeLineIds: ['route-line-1'],
+          },
+        }),
+      })
+
+    function Harness() {
+      const result = useEditDraftActions({
+        draftId: draft.id,
+        draft,
+        draftUpdatedAt: draft.updated_at,
+        currentUserId: 'user-1',
+        isOwner: true,
+        routeType: 'boulder',
+        creditPlatform: 'instagram',
+        creditHandle: '',
+        isAnonymousSubmission: false,
+        cragId: 'crag-1',
+        sectorId: null,
+        canvasSource: null,
+        defaultImageId: 'image-1',
+        manageImages: [createManageImage('image-1'), createManageImage('image-2')],
+        routesByImageId: { 'image-1': [createRoute()], 'image-2': [createRoute()] },
+        orientationByImageId: {},
+        locationModeByImageId: {},
+        customGpsByImageId: {},
+        markerPosition: [51.5, -0.1],
+        publishRequirementsRef: { current: null },
+        cragSectionRef: { current: null },
+        locationSectionRef: { current: null },
+        hasPendingUploads: () => false,
+        hasFailedUploads: () => false,
+        hasValidLocation: true,
+        flushLocationSync,
+        loadDraft: vi.fn().mockResolvedValue(undefined),
+        loadCollaborators: vi.fn().mockResolvedValue(undefined),
+        addToast: vi.fn(),
+        setDraft: vi.fn(),
+        setDraftUpdatedAt: vi.fn(),
+        setError: vi.fn(),
+        setSuccess: vi.fn(),
+        setConflict: vi.fn(),
+        setActiveImageId: vi.fn(),
+      })
+
+      useEffect(() => {
+        publishDraft = result.publishDraft
+      }, [result.publishDraft])
+
+      return null
+    }
+
+    render(createElement(Harness))
+
+    await act(async () => {
+      await publishDraft?.()
+    })
+
+    expect(mockCsrfFetch).toHaveBeenNthCalledWith(1,
+      '/api/submissions/drafts/draft-1',
+      expect.objectContaining({ method: 'PATCH' })
+    )
+    expect(mockCsrfFetch).toHaveBeenNthCalledWith(2,
+      '/api/submissions/drafts/draft-1/publish',
+      expect.objectContaining({ method: 'POST' })
+    )
   })
 
   it('shows a save rate limit error when location sync is rate limited before publish', async () => {
