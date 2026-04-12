@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { serializeDraftMetadataV2, type OrientationDirection } from '@/features/submissions/lib/draft-metadata'
 import { normalizeSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
+import { LOCATION_SYNC_RATE_LIMIT_ERROR_MESSAGE } from '@/features/draft-editor/hooks/use-edit-draft-location-sync'
 import { buildRouteCompletionPayload } from '@/features/route-editor/route-editor-utils'
 import type { DraftConflictState } from '@/features/draft-editor/hooks/use-draft-conflict-resolution'
 import type { DraftCanvasSource, DraftConflictResponse, DraftPayload, DraftPublishErrorResponse, DraftRoute, DraftSavePayload, ManageImageTab } from '@/features/draft-editor/lib/edit-draft-types'
@@ -39,7 +40,7 @@ interface UseEditDraftActionsParams {
   hasPendingUploads: (draftId: string) => boolean
   hasFailedUploads: (draftId: string) => boolean
   hasValidLocation: boolean
-  flushLocationSync: () => Promise<boolean>
+  flushLocationSync: () => Promise<{ ok: true } | { ok: false; reason: 'rate_limited' | 'failed' }>
   loadDraft: () => Promise<void>
   loadCollaborators: () => Promise<void>
   addToast: (message: string, tone: 'success' | 'error') => void
@@ -375,9 +376,11 @@ export function useEditDraftActions({
     setError(null)
 
     try {
-      const locationSynced = await flushLocationSync()
-      if (!locationSynced) {
-        throw new Error('Failed to sync climb location before publishing')
+      const locationSyncResult = await flushLocationSync()
+      if (!locationSyncResult.ok) {
+        throw new Error(locationSyncResult.reason === 'rate_limited'
+          ? LOCATION_SYNC_RATE_LIMIT_ERROR_MESSAGE
+          : 'Failed to sync climb location before publishing')
       }
 
       const saved = await saveDraft()

@@ -85,7 +85,7 @@ describe('useEditDraftActions', () => {
   })
 
   it('flushes draft location before publishing', async () => {
-    const flushLocationSync = vi.fn().mockResolvedValue(true)
+    const flushLocationSync = vi.fn().mockResolvedValue({ ok: true })
     const draft = createDraft()
     let publishDraft: (() => Promise<unknown>) | null = null
 
@@ -161,7 +161,7 @@ describe('useEditDraftActions', () => {
   })
 
   it('stops publishing when the location flush fails', async () => {
-    const flushLocationSync = vi.fn().mockResolvedValue(false)
+    const flushLocationSync = vi.fn().mockResolvedValue({ ok: false, reason: 'failed' })
     const draft = createDraft()
     let publishDraft: (() => Promise<unknown>) | null = null
 
@@ -223,7 +223,7 @@ describe('useEditDraftActions', () => {
   })
 
   it('publishes on first click when location is pending local sync', async () => {
-    const flushLocationSync = vi.fn().mockResolvedValue(true)
+    const flushLocationSync = vi.fn().mockResolvedValue({ ok: true })
     const draft = createDraft()
     let publishDraft: (() => Promise<unknown>) | null = null
 
@@ -295,6 +295,70 @@ describe('useEditDraftActions', () => {
     expect(flushLocationSync).toHaveBeenCalledTimes(1)
     expect(mockCsrfFetch).toHaveBeenCalledTimes(1)
     expect(mockPush).toHaveBeenCalledWith('/test/crag/i/image-1?publishedImages=2&publishedRoutes=1')
+  })
+
+  it('shows a save rate limit error when location sync is rate limited before publish', async () => {
+    const flushLocationSync = vi.fn().mockResolvedValue({ ok: false, reason: 'rate_limited' })
+    const draft = createDraft()
+    const addToast = vi.fn()
+    const setError = vi.fn()
+    let publishDraft: (() => Promise<unknown>) | null = null
+
+    function Harness() {
+      const result = useEditDraftActions({
+        draftId: draft.id,
+        draft,
+        draftUpdatedAt: draft.updated_at,
+        currentUserId: 'user-1',
+        isOwner: true,
+        routeType: 'boulder',
+        creditPlatform: 'instagram',
+        creditHandle: '',
+        isAnonymousSubmission: false,
+        cragId: 'crag-1',
+        sectorId: null,
+        canvasSource: null,
+        defaultImageId: 'image-1',
+        manageImages: [createManageImage('image-1'), createManageImage('image-2')],
+        routesByImageId: { 'image-1': [createRoute()], 'image-2': [createRoute()] },
+        orientationByImageId: {},
+        locationModeByImageId: {},
+        customGpsByImageId: {},
+        markerPosition: [51.5, -0.1],
+        publishRequirementsRef: { current: null },
+        cragSectionRef: { current: null },
+        locationSectionRef: { current: null },
+        hasPendingUploads: () => false,
+        hasFailedUploads: () => false,
+        hasValidLocation: false,
+        flushLocationSync,
+        loadDraft: vi.fn().mockResolvedValue(undefined),
+        loadCollaborators: vi.fn().mockResolvedValue(undefined),
+        addToast,
+        setDraft: vi.fn(),
+        setDraftUpdatedAt: vi.fn(),
+        setError,
+        setSuccess: vi.fn(),
+        setConflict: vi.fn(),
+        setActiveImageId: vi.fn(),
+      })
+
+      useEffect(() => {
+        publishDraft = result.publishDraft
+      }, [result.publishDraft])
+
+      return null
+    }
+
+    render(createElement(Harness))
+
+    await act(async () => {
+      await publishDraft?.()
+    })
+
+    expect(mockCsrfFetch).not.toHaveBeenCalled()
+    expect(setError).toHaveBeenCalledWith('You are saving too quickly right now. Please wait a moment and try again before publishing.')
+    expect(addToast).toHaveBeenCalledWith('You are saving too quickly right now. Please wait a moment and try again before publishing.', 'error')
   })
 
 })

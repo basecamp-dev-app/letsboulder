@@ -58,6 +58,12 @@ interface UseEditDraftLocationSyncParams {
   uploadAutoAssignToken: string | null
 }
 
+export const LOCATION_SYNC_RATE_LIMIT_ERROR_MESSAGE = 'You are saving too quickly right now. Please wait a moment and try again before publishing.'
+
+type LocationSyncResult =
+  | { ok: true }
+  | { ok: false; reason: 'rate_limited' | 'failed' }
+
 export function useEditDraftLocationSync({
   draft,
   draftId,
@@ -151,8 +157,10 @@ export function useEditDraftLocationSync({
     return { ok: false as const, updatedAt: null, status: response.status as number }
   }, [atlasSync.atlas, creditHandle, creditPlatform, draftId, imagesPayload, isAnonymousSubmission, setDraftUpdatedAt])
 
-  const syncLocationNow = useCallback(async () => {
-    if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) return true
+  const syncLocationNow = useCallback(async (): Promise<LocationSyncResult> => {
+    if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) {
+      return { ok: true }
+    }
 
     const latitudeValue = effectiveMarkerPosition[0]
     const longitudeValue = effectiveMarkerPosition[1]
@@ -169,7 +177,7 @@ export function useEditDraftLocationSync({
       cragId: nextCragId,
     })
 
-    if (signature === lastLocationSyncRef.current) return true
+    if (signature === lastLocationSyncRef.current) return { ok: true }
 
     lastLocationSyncRef.current = signature
     const nextRouteType = !hasExplicitRouteType && nearbyCragDominantRouteType ? nearbyCragDominantRouteType : routeType
@@ -183,7 +191,10 @@ export function useEditDraftLocationSync({
 
     if (!result.ok) {
       lastLocationSyncRef.current = null
-      return false
+      if (result.status === 429) {
+        return { ok: false, reason: 'rate_limited' }
+      }
+      return { ok: false, reason: 'failed' }
     }
 
     if (!hasExplicitRouteType && nearbyCragDominantRouteType) {
@@ -200,7 +211,7 @@ export function useEditDraftLocationSync({
       })
     }
 
-    return true
+    return { ok: true }
   }, [atlasSync.atlas, cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, lastLocationSyncRef, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, setCragId, setRouteType, setSelectedCrag])
 
   const averagedRouteImageLocation = useMemo<[number, number] | null>(() => {
