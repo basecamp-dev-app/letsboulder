@@ -216,12 +216,13 @@ export function useEditDraftActions({
     return missingItems.length > 0 ? `Before publishing, ${missingItems.join(', ')}.` : null
   }, [cragId, draftId, getImagesMissingRoutes, hasFailedUploads, hasPendingUploads, hasValidLocation, routesByImageId])
 
-  const saveDraft = useCallback(async (options?: { overrideRoutesByImageId?: Record<string, DraftRoute[]>; overrideCragId?: string | null }) => {
+  const saveDraft = useCallback(async (options?: { overrideRoutesByImageId?: Record<string, DraftRoute[]>; overrideCragId?: string | null; forceMetadataSave?: boolean }) => {
     const resolvedRoutesByImageId = options?.overrideRoutesByImageId ?? routesByImageId
     const resolvedCragId = options?.overrideCragId ?? cragId
+    const forceMetadataSave = options?.forceMetadataSave === true
     if (!draft || !draftUpdatedAt) return false
     if (saveInFlightRef.current) return false
-    if (dirtyRoutesRef.current.size === 0 && !hasUnsavedMetadataRef.current && !options?.overrideCragId) return true
+    if (dirtyRoutesRef.current.size === 0 && !hasUnsavedMetadataRef.current && !options?.overrideCragId && !forceMetadataSave) return true
 
     saveInFlightRef.current = true
     setSavingDraft(true)
@@ -383,7 +384,7 @@ export function useEditDraftActions({
           : 'Failed to sync climb location before publishing')
       }
 
-      const saved = await saveDraft()
+      const saved = await saveDraft({ forceMetadataSave: true })
       if (!saved) return
 
       const response = await csrfFetch(`/api/submissions/drafts/${draft.id}/publish`, {
