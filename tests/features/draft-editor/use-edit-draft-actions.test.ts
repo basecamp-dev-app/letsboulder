@@ -222,4 +222,79 @@ describe('useEditDraftActions', () => {
     expect(mockPush).not.toHaveBeenCalled()
   })
 
+  it('publishes on first click when location is pending local sync', async () => {
+    const flushLocationSync = vi.fn().mockResolvedValue(true)
+    const draft = createDraft()
+    let publishDraft: (() => Promise<unknown>) | null = null
+
+    mockCsrfFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        published: {
+          defaultImageId: 'image-1',
+          canonicalPath: '/test/crag/i/image-1',
+          imageIds: ['image-1', 'image-2'],
+          routeLineIds: ['route-line-1'],
+        },
+      }),
+    })
+
+    function Harness() {
+      const result = useEditDraftActions({
+        draftId: draft.id,
+        draft,
+        draftUpdatedAt: draft.updated_at,
+        currentUserId: 'user-1',
+        isOwner: true,
+        routeType: 'boulder',
+        creditPlatform: 'instagram',
+        creditHandle: '',
+        isAnonymousSubmission: false,
+        cragId: 'crag-1',
+        sectorId: null,
+        canvasSource: null,
+        defaultImageId: 'image-1',
+        manageImages: [createManageImage('image-1'), createManageImage('image-2')],
+        routesByImageId: { 'image-1': [createRoute()], 'image-2': [createRoute()] },
+        orientationByImageId: {},
+        locationModeByImageId: {},
+        customGpsByImageId: {},
+        markerPosition: [51.5, -0.1],
+        publishRequirementsRef: { current: null },
+        cragSectionRef: { current: null },
+        locationSectionRef: { current: null },
+        hasPendingUploads: () => false,
+        hasFailedUploads: () => false,
+        hasValidLocation: false,
+        flushLocationSync,
+        loadDraft: vi.fn().mockResolvedValue(undefined),
+        loadCollaborators: vi.fn().mockResolvedValue(undefined),
+        addToast: vi.fn(),
+        setDraft: vi.fn(),
+        setDraftUpdatedAt: vi.fn(),
+        setError: vi.fn(),
+        setSuccess: vi.fn(),
+        setConflict: vi.fn(),
+        setActiveImageId: vi.fn(),
+      })
+
+      useEffect(() => {
+        publishDraft = result.publishDraft
+      }, [result.publishDraft])
+
+      return null
+    }
+
+    render(createElement(Harness))
+
+    await act(async () => {
+      await publishDraft?.()
+    })
+
+    expect(flushLocationSync).toHaveBeenCalledTimes(1)
+    expect(mockCsrfFetch).toHaveBeenCalledTimes(1)
+    expect(mockPush).toHaveBeenCalledWith('/test/crag/i/image-1?publishedImages=2&publishedRoutes=1')
+  })
+
 })
