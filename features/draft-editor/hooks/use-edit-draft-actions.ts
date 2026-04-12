@@ -337,7 +337,15 @@ export function useEditDraftActions({
   const publishDraft = useCallback(async () => {
     if (!draft || !isOwner) return
 
-    if (publishValidationMessage) {
+    const imagesMissingRoutes = getImagesMissingRoutes(routesByImageId)
+    const hasBlockingPublishRequirements = Boolean(
+      (draftId && hasPendingUploads(draftId))
+      || (draftId && hasFailedUploads(draftId))
+      || !cragId
+      || imagesMissingRoutes.length > 0
+    )
+
+    if (hasBlockingPublishRequirements) {
       setPublishAttempted(true)
       setError(null)
 
@@ -351,7 +359,6 @@ export function useEditDraftActions({
         return
       }
 
-      const imagesMissingRoutes = getImagesMissingRoutes(routesByImageId)
       if (imagesMissingRoutes.length > 0) {
         const firstMissingImage = imagesMissingRoutes[0] || null
         if (firstMissingImage) {
@@ -416,7 +423,7 @@ export function useEditDraftActions({
     } finally {
       setPublishingDraft(false)
     }
-  }, [addToast, cragId, draft, flushLocationSync, getImagesMissingRoutes, hasValidLocation, isOwner, locationSectionRef, publishRequirementsRef, publishValidationMessage, router, routesByImageId, saveDraft, setActiveImageId, setError, cragSectionRef])
+  }, [addToast, cragId, draft, draftId, flushLocationSync, getImagesMissingRoutes, hasFailedUploads, hasPendingUploads, isOwner, locationSectionRef, publishRequirementsRef, router, routesByImageId, saveDraft, setActiveImageId, setError, cragSectionRef])
 
   const handleReloadLatestDraft = useCallback(async () => {
     setConflict(null)
