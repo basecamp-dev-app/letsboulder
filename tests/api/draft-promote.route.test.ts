@@ -350,4 +350,74 @@ describe('promoteDraftToSubmission', () => {
     expect(supabase.rpc).toHaveBeenCalledWith('sync_submission_draft_routes', expect.anything())
     expect(supabase.rpc).toHaveBeenCalledWith('promote_draft_to_submission', { p_draft_id: 'draft-1' })
   })
+
+  test('rejects publish when only image coordinates exist and draft metadata location is missing', async () => {
+    const supabase = makeSupabase()
+
+    supabase.from = vi.fn((table: string) => {
+      if (table === 'submission_drafts') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: {
+                  id: 'draft-1',
+                  user_id: 'user-1',
+                  metadata: {
+                    navigation: { defaultImageId: 'draft-image-1' },
+                    submission: {},
+                  },
+                },
+                error: null,
+              })),
+            })),
+          })),
+        }
+      }
+
+      if (table === 'submission_draft_images') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => makeThenableResult({
+              data: [
+                {
+                  id: 'draft-image-1',
+                  latitude: 49.45,
+                  longitude: -2.55,
+                  route_data: null,
+                },
+              ],
+              error: null,
+            })),
+          })),
+        }
+      }
+
+      if (table === 'submission_draft_routes') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => makeThenableResult({
+              data: [{ id: 'draft-route-1', draft_image_id: 'draft-image-1' }],
+              error: null,
+            })),
+          })),
+        }
+      }
+
+      throw new Error(`Unexpected table: ${table}`)
+    })
+
+    const response = await promoteDraftToSubmission({
+      supabase: supabase as unknown as ReturnType<typeof createServerClient>,
+      request: new Request('http://localhost:3000/api/submissions/drafts/draft-1/promote', { method: 'POST' }),
+      draftId: 'draft-1',
+      userId: 'user-1',
+    })
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Add climb location before publishing this draft',
+    })
+    expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
+  })
 })

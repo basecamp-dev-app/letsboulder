@@ -3,7 +3,7 @@ import { serverEnv } from '@/lib/env.server'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
 import { getMediaModerationConfig } from '@/lib/media/config'
-import { isPermissionDeniedError, normalizeJsonRecord, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
+import { extractDraftLocation, hasValidDraftCoordinate, isPermissionDeniedError, normalizeJsonRecord, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
 
 const INTERNAL_MODERATION_SECRET = serverEnv.INTERNAL_MODERATION_SECRET
 
@@ -108,11 +108,8 @@ export async function promoteDraftToSubmission(input: {
     return createErrorResponse(draftImagesError, 'Failed to validate draft images before publish')
   }
 
-  const { latitude, longitude } = resolveEffectiveDraftPublishLocation(
-    draft.metadata,
-    (draftImages || []) as Array<Pick<DraftImageRow, 'latitude' | 'longitude'>>,
-  )
-  const hasValidLocation = latitude !== null && longitude !== null
+  const draftLocation = extractDraftLocation(draft.metadata)
+  const hasValidLocation = hasValidDraftCoordinate(draftLocation.latitude, draftLocation.longitude)
 
   if (!hasValidLocation) {
     return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
