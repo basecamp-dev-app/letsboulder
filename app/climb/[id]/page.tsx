@@ -13,7 +13,8 @@ export default async function ClimbPage({
 
   try {
     const payload = await buildClimbOfflinePack(id)
-    const climbPath = payload.offline_pack?.canonicalPath || payload.offline_pack?.pageUrl || payload.crag_path || null
+    const fallbackOfflinePath = payload.offline_pack?.canonicalPath || payload.offline_pack?.pageUrl || null
+    const climbPath = payload.crag_path || (fallbackOfflinePath?.startsWith('/climb/') ? null : fallbackOfflinePath)
     const requestedRouteId = resolvedSearchParams.route || null
     const selectedRoute = requestedRouteId
       ? payload.primary_route_lines.find((routeLine) => routeLine.id === requestedRouteId) || null
