@@ -17,7 +17,7 @@ export default function SubmissionManager() {
       const { data: { user } } = await supabase.auth.getUser()
 
       if (!user) {
-        router.push('/auth?redirect_to=/logbook/submissions')
+        router.push('/auth?redirect_to=/logbook')
         return
       }
 

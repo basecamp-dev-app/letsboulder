@@ -11,7 +11,7 @@ vi.mock('@/features/image-first/server/load-image-first-page', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  redirect: redirectMock,
+  permanentRedirect: redirectMock,
   notFound: notFoundMock,
 }))
 

@@ -29,7 +29,7 @@ export function isLogbookRoute(pathname: string): boolean {
 }
 
 export function isSubmitRoute(pathname: string): boolean {
-  return pathname === '/submit' || pathname.startsWith('/submit/') || pathname.startsWith('/logbook/submissions')
+  return pathname === '/submit' || pathname.startsWith('/submit/')
 }
 
 export function isAccountMenuRoute(pathname: string): boolean {

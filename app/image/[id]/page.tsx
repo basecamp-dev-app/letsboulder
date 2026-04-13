@@ -1,4 +1,4 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { getImageByDisplayId } from '@/features/image-first/server/load-image-first-page'
 
 export default async function ImageRedirectPage({
@@ -23,5 +23,5 @@ export default async function ImageRedirectPage({
   if (tab === 'tops' || tab === 'climb') next.set('tab', tab)
 
   const target = `/${resolvedImage.countryCode}/${resolvedImage.cragSlug}/i/${resolvedImage.canonicalId}`
-  redirect(next.toString() ? `${target}?${next.toString()}` : target)
+  permanentRedirect(next.toString() ? `${target}?${next.toString()}` : target)
 }

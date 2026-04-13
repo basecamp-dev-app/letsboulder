@@ -47,7 +47,7 @@ export default function TopThisPlacePanel({ slug, placeType, embedded = false }:
                     {entry.profile.display_name}
                   </Link>
                   <span className="shrink-0 text-gray-500 dark:text-gray-400">sent</span>
-                  <Link href={`/climb/${entry.climb.id}`} className="truncate font-semibold text-gray-900 hover:underline dark:text-gray-100">
+                  <Link href={entry.climb.page_url} className="truncate font-semibold text-gray-900 hover:underline dark:text-gray-100">
                     {entry.climb.name}
                   </Link>
                   <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{entry.climb.grade}</span>

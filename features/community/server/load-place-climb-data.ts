@@ -12,8 +12,19 @@ export interface PlaceClimbRow {
     id: string
     grade: string
     name?: string
+    slug?: string | null
     place_id: string | null
     crag_id: string | null
+    crags:
+      | {
+          slug: string | null
+          country_code: string | null
+        }
+      | Array<{
+          slug: string | null
+          country_code: string | null
+        }>
+      | null
   } | null
 }
 
@@ -32,7 +43,20 @@ export interface EnrichedPlaceClimbRow {
     id: string
     name: string
     grade: string
+    page_url: string
   }
+}
+
+function getCanonicalClimbPath(climb: PlaceClimbRow['climbs']): string {
+  if (!climb) return '/'
+  if (!climb.slug) return `/climb/${climb.id}`
+
+  const crag = getClimbRecord(climb.crags)
+  if (!crag?.slug || !crag.country_code) {
+    return `/climb/${climb.id}`
+  }
+
+  return `/${crag.country_code.toLowerCase()}/${crag.slug}/${climb.slug}`
 }
 
 export async function loadPlaceUserClimbs(
@@ -45,13 +69,13 @@ export async function loadPlaceUserClimbs(
 
   let byPlaceQuery = supabase
     .from('user_climbs')
-    .select('user_id, climb_id, style, created_at, climbs!inner(id, grade, name, place_id, crag_id)')
+    .select('user_id, climb_id, style, created_at, climbs!inner(id, grade, name, slug, place_id, crag_id, crags:crag_id(slug, country_code))')
     .in('style', styles)
     .eq('climbs.place_id', placeId)
 
   let byLegacyCragQuery = supabase
     .from('user_climbs')
-    .select('user_id, climb_id, style, created_at, climbs!inner(id, grade, name, place_id, crag_id)')
+    .select('user_id, climb_id, style, created_at, climbs!inner(id, grade, name, slug, place_id, crag_id, crags:crag_id(slug, country_code))')
     .in('style', styles)
     .eq('climbs.crag_id', placeId)
     .is('climbs.place_id', null)
@@ -119,6 +143,7 @@ export async function enrichPlaceClimbsWithProfiles(
         id: climb.id,
         name: climb.name || '',
         grade: climb.grade,
+        page_url: getCanonicalClimbPath(row.climbs),
       },
     })
   }

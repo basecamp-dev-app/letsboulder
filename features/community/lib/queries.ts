@@ -77,6 +77,7 @@ export interface RecentSendEntry {
     id: string
     name: string
     grade: string
+    page_url: string
   }
   rating: number | null
 }
