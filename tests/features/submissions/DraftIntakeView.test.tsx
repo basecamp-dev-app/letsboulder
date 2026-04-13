@@ -187,6 +187,7 @@ describe('DraftIntakeView', () => {
     })
 
     expect(await screen.findByText('No space left')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('No space left')
     expect(mockAddToast).toHaveBeenCalledWith('No space left', 'error')
   })
 })

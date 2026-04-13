@@ -267,6 +267,17 @@ export default function DraftIntakeView() {
             <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Upload photos</h2>
             <ImagePicker onFilesSelected={handleFilesSelected} disabled={phase === 'creating'} />
 
+            {error ? (
+              <div
+                role="alert"
+                aria-live="assertive"
+                aria-atomic="true"
+                className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"
+              >
+                {error}
+              </div>
+            ) : null}
+
             {phase === 'creating' ? (
               <div className="mt-4 flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 dark:border-gray-800 dark:text-gray-300">
                 <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
@@ -346,11 +357,6 @@ export default function DraftIntakeView() {
           </div>
         )}
 
-        {error ? (
-          <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
-            {error}
-          </div>
-        ) : null}
       </div>
     </div>
   )
