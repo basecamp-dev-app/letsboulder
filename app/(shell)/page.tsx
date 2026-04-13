@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import MapViewport from '@/components/MapViewport'
+import JsonLd from '@/components/JsonLd'
 import { SITE_URL } from '@/lib/site'
 import { fetchMapPins } from '@/lib/supabase-server'
 
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Climbing Map & Topos',
@@ -68,10 +69,7 @@ export default async function Home() {
   return (
     <>
       <MapViewport initialPlacePins={initialPlacePins} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify([siteNavigation, webSite]) }}
-      />
+      <JsonLd data={[siteNavigation, webSite]} />
     </>
   )
 }
