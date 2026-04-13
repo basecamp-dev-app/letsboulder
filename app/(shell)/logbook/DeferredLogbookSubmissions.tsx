@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { LogbookSubmissionsSection } from '@/features/logbook/components/LogbookSubmissionsSection'
 import {
   getOwnerSubmissionCounts,
   getVisibleOwnerSubmissions,
+  normalizeOwnerSubmissionsTab,
   type OwnerSubmissionsTab,
 } from '@/features/logbook/lib/logbook-view'
 import { fetchOwnSubmissions } from '@/features/submissions/lib/fetch-own-submissions'
@@ -35,9 +37,17 @@ export default function DeferredLogbookSubmissions({
   onPublishDraft,
   onDeleteSubmission,
 }: DeferredLogbookSubmissionsProps) {
+  const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions || [])
-  const [ownerSubmissionTab, setOwnerSubmissionTab] = useState<OwnerSubmissionsTab>('all')
+  const [ownerSubmissionTab, setOwnerSubmissionTab] = useState<OwnerSubmissionsTab>(() => normalizeOwnerSubmissionsTab(searchParams.get('tab')))
   const [isLoading, setIsLoading] = useState(!initialSubmissions || initialSubmissions.length === 0)
+
+  useEffect(() => {
+    if (!isOwnProfile) return
+    setOwnerSubmissionTab(normalizeOwnerSubmissionsTab(searchParams.get('tab')))
+  }, [isOwnProfile, searchParams])
 
   useEffect(() => {
     if (initialSubmissions && initialSubmissions.length > 0) {
@@ -75,6 +85,23 @@ export default function DeferredLogbookSubmissions({
   const ownerSubmissionCounts = getOwnerSubmissionCounts(submissions)
   const visibleSubmissions = getVisibleOwnerSubmissions(submissions, ownerSubmissionTab)
 
+  const handleOwnerSubmissionTabChange = (tab: OwnerSubmissionsTab) => {
+    setOwnerSubmissionTab(tab)
+
+    if (!isOwnProfile) return
+
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('section', 'submissions')
+    if (tab === 'all') {
+      params.delete('tab')
+    } else {
+      params.set('tab', tab)
+    }
+
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }
+
   return (
     <LogbookSubmissionsSection
       isOwnProfile={isOwnProfile}
@@ -86,7 +113,7 @@ export default function DeferredLogbookSubmissions({
       deletingDraftId={deletingDraftId}
       publishingDraftId={publishingDraftId}
       deletingSubmissionId={deletingSubmissionId}
-      onOwnerSubmissionTabChange={setOwnerSubmissionTab}
+      onOwnerSubmissionTabChange={handleOwnerSubmissionTabChange}
       onDeleteDraft={onDeleteDraft}
       onPublishDraft={onPublishDraft}
       onDeleteSubmission={onDeleteSubmission}
