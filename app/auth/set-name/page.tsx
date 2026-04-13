@@ -69,8 +69,11 @@ export default function SetNamePage() {
           <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
             What should we call you?
           </h1>
-          <p className="text-center text-gray-600 dark:text-gray-400 mb-6 text-sm">
-            Enter your name to complete your profile
+          <p className="text-center text-gray-600 dark:text-gray-400 text-sm">
+            We use your name on your profile and activity so your logs and verifications stay connected to your account.
+          </p>
+          <p className="text-center text-gray-500 dark:text-gray-400 mb-6 text-sm">
+            This only takes a moment.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -111,7 +114,7 @@ export default function SetNamePage() {
               disabled={loading}
               className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
             >
-              {loading ? 'Saving...' : 'Continue'}
+              {loading ? 'Saving...' : 'Save and continue'}
             </button>
           </form>
         </div>

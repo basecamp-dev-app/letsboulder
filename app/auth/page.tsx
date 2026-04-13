@@ -5,7 +5,7 @@ export default function AuthPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-gray-500">Loading sign-in options...</p>
       </div>
     }>
       <AuthForm />

@@ -81,7 +81,11 @@ const syncOAuthProfile = async (supabase: SupabaseClient, user: User): Promise<b
 function LoadingFallback() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-950">
-      <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-600" />
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-600 mx-auto" />
+        <h1 className="mt-6 text-2xl font-bold text-gray-900 dark:text-gray-100">Signing you in</h1>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Preparing your letsboulder session.</p>
+      </div>
     </div>
   )
 }
@@ -91,6 +95,7 @@ function AuthCallbackContent() {
   const searchParams = useSearchParams()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [loadingStep, setLoadingStep] = useState('Signing you in')
   const attemptCountRef = useRef(0)
 
   const validateRedirect = (path: string | null): string => {
@@ -107,11 +112,18 @@ function AuthCallbackContent() {
     return isAllowed ? path : '/'
   }
 
-  useEffect(() => {
+  const getRedirectLabel = (path: string): string => {
+    if (path === '/logbook' || path.startsWith('/logbook/')) return 'your logbook'
+    if (path === '/submit' || path.startsWith('/submit/')) return 'your submission'
+    if (path === '/settings' || path.startsWith('/settings/')) return 'settings'
+
+    return 'letsboulder'
+  }
+
+  const createSessionChecker = (startTime: number) => {
     const TIMEOUT_MS = 10000
     const RETRY_INTERVAL_MS = 500
     const MAX_RETRIES = 20
-    const startTime = Date.now()
 
     const checkSession = async (): Promise<boolean> => {
       if (Date.now() - startTime > TIMEOUT_MS) {
@@ -148,46 +160,61 @@ function AuthCallbackContent() {
       }
     }
 
+    return checkSession
+  }
+
+  const completeAuth = async () => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    setLoadingStep('Creating your profile')
+
+    if (user) {
+      await syncOAuthProfile(supabase, user)
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name')
+        .eq('id', user.id)
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .limit(1)
+
+      const activeProfile = profile?.[0]
+
+      if (!activeProfile?.first_name) {
+        router.push('/auth/set-name')
+        return
+      }
+
+      csrfFetch('/api/welcome-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          firstName: activeProfile?.first_name || null,
+        }),
+      }).catch((err) => reportError(err, { message: 'Failed to send welcome email' }))
+    }
+
+    const redirectTo = validateRedirect(searchParams.get('redirect_to'))
+    setLoadingStep(`Taking you back to ${getRedirectLabel(redirectTo)}`)
+    setStatus('success')
+    router.push(redirectTo)
+  }
+
+  useEffect(() => {
+    const startTime = Date.now()
+    const checkSession = createSessionChecker(startTime)
+
     const handleAuthCallback = async () => {
       setStatus('loading')
       setErrorMessage(null)
+      setLoadingStep('Signing you in')
 
       const hasSession = await checkSession()
 
       if (hasSession) {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (user) {
-          await syncOAuthProfile(supabase, user)
-
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('first_name')
-            .eq('id', user.id)
-            .order('updated_at', { ascending: false, nullsFirst: false })
-            .limit(1)
-
-          const activeProfile = profile?.[0]
-
-          if (!activeProfile?.first_name) {
-            router.push('/auth/set-name')
-            return
-          }
-
-          csrfFetch('/api/welcome-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: user.email,
-              firstName: activeProfile?.first_name || null,
-            }),
-          }).catch((err) => reportError(err, { message: 'Failed to send welcome email' }))
-        }
-
-        setStatus('success')
-        const redirectTo = validateRedirect(searchParams.get('redirect_to'))
-        router.push(redirectTo)
+        await completeAuth()
       } else {
         setStatus('error')
         const errorType = searchParams.get('error')
@@ -209,84 +236,15 @@ function AuthCallbackContent() {
     attemptCountRef.current = 0
     setStatus('loading')
     setErrorMessage(null)
-
-    const TIMEOUT_MS = 10000
-    const RETRY_INTERVAL_MS = 500
-    const MAX_RETRIES = 20
+    setLoadingStep('Signing you in')
     const startTime = Date.now()
-
-    const checkSession = async (): Promise<boolean> => {
-      if (Date.now() - startTime > TIMEOUT_MS) {
-        return false
-      }
-
-      try {
-        const supabase = createClient()
-        const { data, error } = await supabase.auth.getSession()
-
-        if (error) {
-          return false
-        }
-
-        if (data.session) {
-          return true
-        }
-
-        attemptCountRef.current += 1
-
-        if (attemptCountRef.current < MAX_RETRIES) {
-          await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL_MS))
-          return checkSession()
-        }
-
-        return false
-      } catch {
-        attemptCountRef.current += 1
-        if (attemptCountRef.current < MAX_RETRIES) {
-          await new Promise(resolve => setTimeout(resolve, RETRY_INTERVAL_MS))
-          return checkSession()
-        }
-        return false
-      }
-    }
+    const checkSession = createSessionChecker(startTime)
 
     const retryAuth = async () => {
       const hasSession = await checkSession()
 
       if (hasSession) {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (user) {
-          await syncOAuthProfile(supabase, user)
-
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('first_name')
-            .eq('id', user.id)
-            .order('updated_at', { ascending: false, nullsFirst: false })
-            .limit(1)
-
-          const activeProfile = profile?.[0]
-
-          if (!activeProfile?.first_name) {
-            router.push('/auth/set-name')
-            return
-          }
-
-          csrfFetch('/api/welcome-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: user.email,
-              firstName: activeProfile?.first_name || null,
-            }),
-          }).catch((err) => reportError(err, { message: 'Failed to send welcome email' }))
-        }
-
-        setStatus('success')
-        const redirectTo = validateRedirect(searchParams.get('redirect_to'))
-        router.push(redirectTo)
+        await completeAuth()
       } else {
         setStatus('error')
         setErrorMessage('Unable to establish a session. Please try again or request a new magic link.')
@@ -299,7 +257,17 @@ function AuthCallbackContent() {
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-950">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-600" />
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-600 mx-auto" />
+          <h1 className="mt-6 text-2xl font-bold text-gray-900 dark:text-gray-100">{loadingStep}</h1>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            {loadingStep === 'Creating your profile'
+              ? 'Setting up the details tied to your account.'
+              : loadingStep.startsWith('Taking you back to')
+                ? 'Your sign-in worked. Redirecting now.'
+                : 'Preparing your letsboulder session.'}
+          </p>
+        </div>
       </div>
     )
   }
