@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef, type RefObject, star
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { Bookmark, Crosshair, Loader2, Search, X } from 'lucide-react'
+import { Bookmark, Crosshair, Loader2 } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 import { saveSettingsAction } from '@/features/settings/actions/save-settings'
 import { useMapEvents } from 'react-leaflet'
@@ -45,14 +45,6 @@ interface DefaultLocation {
 
 const WORLD_DEFAULT_VIEW: [number, number] = [20, 0]
 const WORLD_DEFAULT_ZOOM = 2
-const MAP_DISCOVERY_STORAGE_KEY = 'home-map-discovery-dismissed'
-
-interface SearchResult {
-  id: string
-  name: string
-  href: string
-  detail: string | null
-}
 
 function slugifyCragName(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -181,11 +173,6 @@ export default function SatelliteClimbingMap({
   const [saveLocationLoading, setSaveLocationLoading] = useState(false)
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [hasDefaultLocation, setHasDefaultLocation] = useState(false)
-  const [showDiscovery, setShowDiscovery] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [searchError, setSearchError] = useState<string | null>(null)
 
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
     setMapZoom(state.zoom)
@@ -194,10 +181,6 @@ export default function SatelliteClimbingMap({
 
   const markMapInteracted = useCallback(() => {
     setHasUserInteracted(true)
-    setShowDiscovery(false)
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(MAP_DISCOVERY_STORAGE_KEY, '1')
-    }
   }, [])
 
   const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
@@ -325,14 +308,6 @@ export default function SatelliteClimbingMap({
   }, [hasUserInteracted, isClient, mapLoaded])
 
   useEffect(() => {
-    if (!isClient) return
-
-    const discoveryDismissed = window.localStorage.getItem(MAP_DISCOVERY_STORAGE_KEY) === '1'
-    const shouldShow = !discoveryDismissed && (!user || !hasDefaultLocation)
-    setShowDiscovery(shouldShow)
-  }, [hasDefaultLocation, isClient, user])
-
-  useEffect(() => {
     if (!isClient || !mapLoaded || !hasUserInteracted) return
 
     let ignore = false
@@ -387,71 +362,6 @@ export default function SatelliteClimbingMap({
     }
     }, [hasUserInteracted, isClient, mapLoaded])
 
-  useEffect(() => {
-    const trimmed = searchQuery.trim()
-    if (trimmed.length < 2) {
-      setSearchResults([])
-      setSearchStatus('idle')
-      setSearchError(null)
-      return
-    }
-
-    const controller = new AbortController()
-    const timeoutId = window.setTimeout(async () => {
-      setSearchStatus('loading')
-      setSearchError(null)
-
-      try {
-        const response = await fetch(`/api/crags/search?q=${encodeURIComponent(trimmed)}`, {
-          signal: controller.signal,
-        })
-
-        if (!response.ok) {
-          throw new Error('Search unavailable right now')
-        }
-
-        const payload = await response.json() as Array<{
-          id: string
-          name: string
-          countryCode: string | null
-          regionName?: string | null
-          subArea?: string | null
-        }>
-
-        setSearchResults(payload.slice(0, 6).map((item) => ({
-          id: item.id,
-          name: item.name,
-          href: item.countryCode
-            ? `/${item.countryCode.toLowerCase()}/${slugifyCragName(item.name)}`
-            : `/crag/${item.id}`,
-          detail: item.subArea || item.regionName || null,
-        })))
-        setSearchStatus('idle')
-      } catch (error) {
-        if (controller.signal.aborted) return
-        setSearchResults([])
-        setSearchStatus('error')
-        setSearchError(error instanceof Error ? error.message : 'Search unavailable right now')
-      }
-    }, 220)
-
-    return () => {
-      controller.abort()
-      window.clearTimeout(timeoutId)
-    }
-  }, [searchQuery])
-
-  const featuredPlaces = useMemo(() => {
-    return [...placePins]
-      .filter((place) => place.type === 'crag')
-      .sort((a, b) => {
-        const scoreA = (a.route_count || 0) * 3 + (a.image_count || 0)
-        const scoreB = (b.route_count || 0) * 3 + (b.image_count || 0)
-        return scoreB - scoreA
-      })
-      .slice(0, 5)
-  }, [placePins])
-
   const handleLocateMe = useCallback(() => {
     setHasUserInteracted(true)
 
@@ -472,10 +382,6 @@ export default function SatelliteClimbingMap({
             animate: true,
             duration: 0.5,
           })
-        }
-        setShowDiscovery(false)
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(MAP_DISCOVERY_STORAGE_KEY, '1')
         }
       },
       () => setLocationStatus('error'),
@@ -642,145 +548,51 @@ export default function SatelliteClimbingMap({
           )
         })}
       </MapContainer>
-      {showDiscovery && (
-        <div className="absolute left-4 top-4 z-[1200] w-[min(28rem,calc(100vw-2rem))] rounded-[28px] border border-white/15 bg-slate-950/78 p-4 text-white shadow-2xl shadow-black/35 backdrop-blur-md md:left-6 md:top-6 md:p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-lg font-semibold tracking-tight">Find a crag fast</p>
-              <p className="mt-1 text-sm text-white/72">Search, jump near your location, or start with a few strong bets.</p>
-            </div>
-            <button
-              type="button"
-              onClick={markMapInteracted}
-              className="rounded-full border border-white/12 bg-white/6 p-2 text-white/80 transition hover:bg-white/12 hover:text-white"
-              aria-label="Dismiss discovery"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-white/12 bg-white/8 px-3 py-3">
-            <div className="flex items-center gap-2 text-white/65">
-              <Search className="size-4" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search crags"
-                aria-label="Search crags"
-                className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/45"
-              />
-              {searchStatus === 'loading' ? <Loader2 className="size-4 animate-spin" /> : null}
-            </div>
-          </div>
-
-          {searchQuery.trim().length >= 2 && (
-            <div className="mt-3 space-y-2">
-              {searchResults.map((result) => (
-                <button
-                  key={result.id}
-                  type="button"
-                  onClick={() => {
-                    setShowDiscovery(false)
-                    if (typeof window !== 'undefined') {
-                      window.localStorage.setItem(MAP_DISCOVERY_STORAGE_KEY, '1')
-                    }
-                    startTransition(() => {
-                      router.push(result.href)
-                    })
-                  }}
-                  className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-left transition hover:bg-white/10"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-white">{result.name}</p>
-                    {result.detail ? <p className="text-xs text-white/62">{result.detail}</p> : null}
-                  </div>
-                </button>
-              ))}
-              {searchStatus === 'error' && searchError ? (
-                <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                  {searchError}
-                </div>
-              ) : null}
-              {searchStatus === 'idle' && searchResults.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/62">
-                  No matching crags yet.
-                </div>
-              ) : null}
-            </div>
-          )}
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleLocateMe}
-              className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-400/12 px-3 py-2 text-sm font-medium text-cyan-50 transition hover:bg-cyan-400/20"
-            >
-              {locationStatus === 'requesting' ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
-              {locationStatus === 'requesting' ? 'Locating...' : 'Use my location'}
-            </button>
-            {pinLoadState === 'loading' ? (
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-2 text-xs text-white/70">
-                <Loader2 className="size-3.5 animate-spin" />
-                Loading crags...
-              </div>
-            ) : null}
-            {pinLoadState === 'error' ? (
-              <div className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                Couldn&apos;t load map pins. Search still works.
-              </div>
-            ) : null}
-          </div>
-
-          {locationStatus === 'error' ? (
-            <div className="mt-3 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-              Location unavailable. Try search or pick a featured crag.
-            </div>
-          ) : null}
-
-          <div className="mt-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Featured now</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {featuredPlaces.map((place) => (
-                <button
-                  key={place.id}
-                  type="button"
-                  onClick={() => navigateToPlace(router, place)}
-                  className="rounded-full border border-white/10 bg-white/6 px-3 py-2 text-sm text-white/88 transition hover:bg-white/12"
-                >
-                  {place.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <p className="mt-4 text-xs text-white/58">Solid red pins are crags. Numbered pins group nearby areas until you zoom in.</p>
-        </div>
-      )}
-      {!showDiscovery && (
-        <button
-          type="button"
-          onClick={() => setShowDiscovery(true)}
-          className="absolute left-4 top-4 z-[1200] inline-flex items-center gap-2 rounded-full border border-white/12 bg-slate-950/72 px-3 py-2 text-sm text-white shadow-lg backdrop-blur-md transition hover:bg-slate-950/82 md:left-6 md:top-6"
-        >
-          <Search className="size-4" />
-          Search or jump to a crag
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={handleLocateMe}
+        className="absolute left-4 top-4 z-[1200] inline-flex items-center gap-2 rounded-full border border-white/12 bg-slate-950/72 px-3 py-2 text-sm text-white shadow-lg backdrop-blur-md transition hover:bg-slate-950/82 md:left-6 md:top-6"
+      >
+        {locationStatus === 'requesting' ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
+        {locationStatus === 'requesting' ? 'Locating...' : 'Use my location'}
+      </button>
       <button
         onClick={handleSaveAsDefault}
         disabled={saveLocationLoading}
-        className="absolute left-4 top-[132px] z-[1100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-xs shadow-md flex items-center gap-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 md:top-[84px]"
+        className="absolute left-4 top-[60px] z-[1100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-xs shadow-md flex items-center gap-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 md:left-6 md:top-[72px]"
       >
         <Bookmark className="w-3.5 h-3.5" />
         {saveLocationLoading ? 'Saving...' : 'Save view'}
       </button>
 
-      {locationStatus === 'requesting' && (
-        <div className="absolute top-4 right-20 z-[1000] bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm">
-          Requesting location...
-        </div>
-      )}
+      <div className="pointer-events-none absolute bottom-6 left-4 z-[1000] space-y-2 md:left-6">
+        {!hasDefaultLocation && pinLoadState === 'ready' && (
+          <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
+            Showing world view. Use the header search or jump near you.
+          </div>
+        )}
+        {pinLoadState === 'loading' && (
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
+            <Loader2 className="size-3.5 animate-spin" />
+            Loading crags...
+          </div>
+        )}
+        {pinLoadState === 'error' && (
+          <div className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 shadow-lg backdrop-blur-md">
+            Couldn&apos;t load map pins. Header search still works.
+          </div>
+        )}
+        {locationStatus === 'error' && (
+          <div className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 shadow-lg backdrop-blur-md">
+            Location unavailable. Search or move the map manually.
+          </div>
+        )}
+        {pinLoadState === 'ready' && (
+          <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/58 shadow-lg backdrop-blur-md">
+            Solid red pins are crags. Numbered pins expand as you zoom in.
+          </div>
+        )}
+      </div>
 
       {toast && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[1100] px-4 py-2 bg-green-600 text-white rounded-lg shadow-lg text-sm font-medium">
