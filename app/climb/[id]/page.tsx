@@ -156,7 +156,7 @@ export default async function ClimbPage({
     })
     permanentRedirect(fallbackRedirect)
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith('redirect:')) {
+    if (error instanceof Error && (error.message.startsWith('redirect:') || error.message === 'NEXT_REDIRECT')) {
       throw error
     }
     console.log('[Climb Redirect] failed', {
