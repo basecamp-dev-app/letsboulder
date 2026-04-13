@@ -102,7 +102,7 @@ export default function AuthForm() {
     if (error) {
       setError(error.message)
     } else {
-      setSuccess('Check your email for a magic link!')
+      setSuccess('Check your email for a magic link. It will sign you in and bring you back here.')
     }
     setLoading(false)
   }
@@ -114,6 +114,9 @@ export default function AuthForm() {
           <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
             Welcome to letsboulder
           </h1>
+          <p className="text-center text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Sign in to save your sends, verify climbs, and keep your progress synced.
+          </p>
           
           {(climbId || redirectTo) && (
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4 text-center">
@@ -122,6 +125,17 @@ export default function AuthForm() {
               </p>
             </div>
           )}
+
+          <div className="bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-4">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+              Signing in helps you:
+            </p>
+            <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+              <li>Build your logbook across sessions</li>
+              <li>Verify climbs and vote on details</li>
+              <li>Keep your profile and activity connected to your account</li>
+            </ul>
+          </div>
 
           {isEmbeddedBrowser && (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4 text-center">
