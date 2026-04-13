@@ -320,10 +320,12 @@ export default function Header() {
   const groupedSearchResults = useMemo<SearchResultGroup[]>(() => {
     const crags = searchResults.filter((result) => result.type === 'crag')
     const climbs = searchResults.filter((result) => result.type === 'climb')
-    return [
+    const groups: SearchResultGroup[] = [
       { key: 'crags', label: 'Crags', items: crags },
       { key: 'climbs', label: 'Climbs', items: climbs }
-    ].filter((group) => group.items.length > 0)
+    ]
+
+    return groups.filter((group) => group.items.length > 0)
   }, [searchResults])
 
   return (

@@ -63,11 +63,12 @@ export function useCragSwitcher({ initialCrag }: UseCragSwitcherParams): UseCrag
       if (typeof sourceCrag.latitude === 'number' && typeof sourceCrag.longitude === 'number') {
         try {
           const response = await fetch(`/api/crags/nearby?lat=${sourceCrag.latitude}&lng=${sourceCrag.longitude}`)
-          const payload = await response.json() as Array<{ id: string; name: string; regionName?: string | null; subArea?: string | null; countryCode?: string | null }>
+          const payload = await response.json() as Array<{ id: string; name: string; slug?: string | null; regionName?: string | null; subArea?: string | null; countryCode?: string | null }>
           if (ignore) return
           const next = payload.map((item) => ({
             id: item.id,
             name: item.name,
+            slug: item.slug || null,
             regionName: item.regionName || null,
             subArea: item.subArea || null,
             countryCode: item.countryCode || null,
