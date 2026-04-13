@@ -1,6 +1,5 @@
 import { notFound, permanentRedirect } from 'next/navigation'
-import type { ImageData } from '@/features/crags/lib/crag-page-types'
-import { fetchRouteTargetMapsForClimbIds } from '@/features/crags/lib/crag-route-targets'
+import { getDisplayImageId } from '@/lib/image-identity'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { buildClimbOfflinePack } from '@/lib/offline/build-climb-pack'
 
@@ -8,7 +7,7 @@ async function getCanonicalClimbRedirect(id: string) {
   const supabase = getUnauthenticatedClient()
   const { data: climb, error: climbError } = await supabase
     .from('climbs')
-    .select('id, crag_id, crags(country_code, slug)')
+    .select('id, shared_climb_id, crag_id, crags(country_code, slug)')
     .eq('id', id)
     .maybeSingle()
 
@@ -21,41 +20,56 @@ async function getCanonicalClimbRedirect(id: string) {
     return null
   }
 
-  const { data: imageRows, error: imageError } = await supabase
-    .from('images')
-    .select('id, url, latitude, longitude')
-    .eq('crag_id', climb.crag_id)
+  const effectiveClimbId = climb.shared_climb_id || climb.id
+  const { data: aliasRows, error: aliasError } = await supabase
+    .from('climbs')
+    .select('id')
+    .or(`id.eq.${effectiveClimbId},shared_climb_id.eq.${effectiveClimbId}`)
 
-  if (imageError) {
-    throw imageError
+  if (aliasError) {
+    throw aliasError
   }
 
-  const imageById = new Map((imageRows || []).map((image) => [image.id, {
-    id: image.id,
-    url: image.url,
-    latitude: image.latitude,
-    longitude: image.longitude,
-    route_lines_count: 0,
-    is_verified: false,
-    verification_count: 0,
-    supplementary_faces_count: 0,
-  } satisfies ImageData]))
-
-  const { targetMaps, effectiveClimbIdByClimbId } = await fetchRouteTargetMapsForClimbIds(supabase, [id], imageById)
-  const effectiveClimbId = effectiveClimbIdByClimbId[id] || id
-  const target = targetMaps.nextRouteNavigationTargetByClimbId[effectiveClimbId]
-
-  if (!target?.displayImageId || !target?.routeId) {
+  const climbIds = Array.from(new Set((aliasRows || []).map((row) => row.id).filter(Boolean)))
+  if (climbIds.length === 0) {
     return null
   }
 
+  const { data: routeRows, error: routeError } = await supabase
+    .from('route_lines')
+    .select('id, image_id, climb_id')
+    .in('climb_id', climbIds)
+    .order('sequence_order', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true })
+
+  if (routeError) {
+    throw routeError
+  }
+
+  const route = (routeRows || [])[0]
+  if (!route?.id || !route.image_id) {
+    return null
+  }
+
+  const { data: cragImageRows, error: cragImageError } = await supabase
+    .from('crag_images')
+    .select('id, linked_image_id')
+    .eq('crag_id', climb.crag_id)
+    .eq('linked_image_id', route.image_id)
+    .order('created_at', { ascending: false })
+
+  if (cragImageError) {
+    throw cragImageError
+  }
+
   const routeHrefBase = `/${crag.country_code.toLowerCase()}/${crag.slug}`
+  const displayImageId = getDisplayImageId((cragImageRows || [])[0]) || route.image_id
   const query = new URLSearchParams()
-  query.set('image', target.displayImageId)
-  query.set('route', target.routeId)
+  query.set('image', displayImageId)
+  query.set('route', route.id)
   query.set('climb', effectiveClimbId)
 
-  return `${routeHrefBase}/i/${target.displayImageId}?${query.toString()}`
+  return `${routeHrefBase}/i/${displayImageId}?${query.toString()}`
 }
 
 export default async function ClimbPage({
