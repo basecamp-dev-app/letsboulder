@@ -351,8 +351,14 @@ describe('promoteDraftToSubmission', () => {
     expect(supabase.rpc).toHaveBeenCalledWith('promote_draft_to_submission', { p_draft_id: 'draft-1' })
   })
 
-  test('rejects publish when only image coordinates exist and draft metadata location is missing', async () => {
+  test('repairs draft metadata from image coordinates before publish when metadata location is missing', async () => {
     const supabase = makeSupabase()
+    const originalFrom = supabase.from
+    const updateMock = vi.fn(() => ({
+      eq: vi.fn(() => ({
+        eq: vi.fn(async () => ({ data: null, error: null })),
+      })),
+    }))
 
     supabase.from = vi.fn((table: string) => {
       if (table === 'submission_drafts') {
@@ -372,6 +378,7 @@ describe('promoteDraftToSubmission', () => {
               })),
             })),
           })),
+          update: updateMock,
         }
       }
 
@@ -404,7 +411,7 @@ describe('promoteDraftToSubmission', () => {
         }
       }
 
-      throw new Error(`Unexpected table: ${table}`)
+      return originalFrom(table)
     })
 
     const response = await promoteDraftToSubmission({
@@ -414,10 +421,13 @@ describe('promoteDraftToSubmission', () => {
       userId: 'user-1',
     })
 
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Add climb location before publishing this draft',
+    expect(response.status).toBe(200)
+    expect(updateMock).toHaveBeenCalledWith({
+      metadata: {
+        navigation: { defaultImageId: 'draft-image-1' },
+        submission: { location: { latitude: 49.45, longitude: -2.55 } },
+      },
     })
-    expect(supabase.rpc).not.toHaveBeenCalledWith('promote_draft_to_submission', expect.anything())
+    expect(supabase.rpc).toHaveBeenCalledWith('promote_draft_to_submission', { p_draft_id: 'draft-1' })
   })
 })

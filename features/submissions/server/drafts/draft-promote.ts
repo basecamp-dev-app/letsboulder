@@ -3,7 +3,7 @@ import { serverEnv } from '@/lib/env.server'
 import { createErrorResponse, reportError } from '@/lib/errors'
 import { notifyNewSubmission } from '@/lib/discord'
 import { getMediaModerationConfig } from '@/lib/media/config'
-import { extractDraftLocation, hasValidDraftCoordinate, isPermissionDeniedError, normalizeJsonRecord, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
+import { extractDraftLocation, hasValidDraftCoordinate, isPermissionDeniedError, normalizeJsonRecord, resolveEffectiveDraftPublishLocation, type DraftImageRow } from '@/features/submissions/server/drafts/draft-route-shared'
 
 const INTERNAL_MODERATION_SECRET = serverEnv.INTERNAL_MODERATION_SECRET
 
@@ -108,11 +108,43 @@ export async function promoteDraftToSubmission(input: {
     return createErrorResponse(draftImagesError, 'Failed to validate draft images before publish')
   }
 
+  const draftImageRows = (draftImages || []) as DraftImagePublishRow[]
   const draftLocation = extractDraftLocation(draft.metadata)
-  const hasValidLocation = hasValidDraftCoordinate(draftLocation.latitude, draftLocation.longitude)
+  const effectiveDraftLocation = resolveEffectiveDraftPublishLocation(draft.metadata, draftImageRows)
+  const hasValidLocation = hasValidDraftCoordinate(effectiveDraftLocation.latitude, effectiveDraftLocation.longitude)
 
   if (!hasValidLocation) {
     return NextResponse.json({ error: 'Add climb location before publishing this draft' }, { status: 400 })
+  }
+
+  if (!hasValidDraftCoordinate(draftLocation.latitude, draftLocation.longitude)) {
+    const draftMetadata = draft.metadata && typeof draft.metadata === 'object' && !Array.isArray(draft.metadata)
+      ? draft.metadata as Record<string, unknown>
+      : {}
+    const existingSubmission = draftMetadata.submission && typeof draftMetadata.submission === 'object' && !Array.isArray(draftMetadata.submission)
+      ? draftMetadata.submission as Record<string, unknown>
+      : {}
+
+    const { error: repairDraftLocationError } = await supabase
+      .from('submission_drafts')
+      .update({
+        metadata: {
+          ...draftMetadata,
+          submission: {
+            ...existingSubmission,
+            location: {
+              latitude: effectiveDraftLocation.latitude,
+              longitude: effectiveDraftLocation.longitude,
+            },
+          },
+        },
+      })
+      .eq('id', draftId)
+      .eq('user_id', userId)
+
+    if (repairDraftLocationError) {
+      return createErrorResponse(repairDraftLocationError, 'Failed to repair draft location before publish')
+    }
   }
 
   const { data: draftRoutes, error: draftRoutesError } = await supabase
@@ -124,7 +156,6 @@ export async function promoteDraftToSubmission(input: {
     return createErrorResponse(draftRoutesError, 'Failed to validate draft routes before publish')
   }
 
-  const draftImageRows = (draftImages || []) as DraftImagePublishRow[]
   const draftImageIds = draftImageRows.map((image) => image.id)
 
   const resolveImagesMissingRoutes = (routeRefs: DraftRouteRef[]) => {
