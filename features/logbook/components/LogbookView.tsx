@@ -4,7 +4,7 @@ import { startTransition, useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { useGradeSystem } from '@/lib/grades/preferences'
 import { EmptyLogbook, LogEntrySkeleton } from '@/features/logbook/components/LogbookStates'
@@ -57,6 +57,7 @@ export default function LogbookView({
 }: LogbookViewProps) {
   const gradeSystem = useGradeSystem()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const [logs, setLogs] = useState<LogbookClimb[]>(initialLogs)
   const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions)
@@ -70,6 +71,16 @@ export default function LogbookView({
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!isMounted) return
+    if (searchParams.get('section') !== 'submissions') return
+
+    const element = document.getElementById('submissions')
+    if (!element) return
+
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [isMounted, searchParams])
 
   const stats = useMemo(() => getLogbookStats(logs), [logs])
   const lowestGrade = getLogbookLowestGrade(stats)
@@ -212,10 +223,6 @@ export default function LogbookView({
         : 0
       addToast(`Success! Created ${routeCount} route${routeCount === 1 ? '' : 's'} across ${imageCount} face${imageCount === 1 ? '' : 's'}.`, 'success')
       if (imageId) {
-        const query = new URLSearchParams({
-          publishedFaces: String(imageCount),
-          publishedRoutes: String(routeCount),
-        })
         startTransition(() => {
           router.push(`/submit?draft=${draftId}&publishedFaces=${imageCount}&publishedRoutes=${routeCount}`)
         })

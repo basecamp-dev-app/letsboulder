@@ -43,7 +43,7 @@ export function LogbookSubmissionsSection({
   onDeleteSubmission,
 }: LogbookSubmissionsSectionProps) {
   return (
-    <Card className="m-0 border-x-0 border-t-0 rounded-none">
+    <Card id="submissions" className="m-0 border-x-0 border-t-0 rounded-none scroll-mt-24">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-lg">{isOwnProfile ? 'Your submissions' : 'Contributions'}</CardTitle>

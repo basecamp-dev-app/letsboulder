@@ -111,6 +111,11 @@ export function getOwnerSubmissionEmptyMessage(tab: OwnerSubmissionsTab): string
   return 'No submissions yet.'
 }
 
+export function normalizeOwnerSubmissionsTab(value: string | null | undefined): OwnerSubmissionsTab {
+  if (value === 'drafts' || value === 'published' || value === 'pending-review') return value
+  return 'all'
+}
+
 export function replaceOwnLogbookLogs(current: OwnLogbookData, nextLogs: LogbookClimb[]): OwnLogbookData {
   return {
     ...current,
