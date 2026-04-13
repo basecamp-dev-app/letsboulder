@@ -13,6 +13,8 @@ export const revalidate = 60
 import type { Submission } from '@/types/submissions'
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 
+const PUBLIC_LOGBOOK_PAGE_SIZE = 50
+
 type PublicProfileRow = Pick<Database['public']['Tables']['profiles']['Row'], 'is_public'> & LogbookProfile
 
 interface PublicContributionRow {
@@ -52,17 +54,27 @@ const getProfile = cache(async function getProfile(userId: string): Promise<Publ
   return data as PublicProfileRow
 })
 
-async function getPublicLogs(userId: string): Promise<LogbookClimb[]> {
+async function getPublicLogs(
+  userId: string,
+  cursor?: string
+): Promise<{ logs: LogbookClimb[]; nextCursor: string | null }> {
   const supabase = await getServerClient()
 
-  const { data: logsData, error: logsError } = await supabase
+  let query = supabase
     .from('user_climbs')
     .select('*, climbs(id, name, grade, route_lines(images(url, crags(name))))')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
+    .limit(PUBLIC_LOGBOOK_PAGE_SIZE)
+
+  if (cursor) {
+    query = query.lt('created_at', cursor)
+  }
+
+  const { data: logsData, error: logsError } = await query
 
   if (logsError || !logsData) {
-    return []
+    return { logs: [], nextCursor: null }
   }
 
   const logsWithCrags = logsData.map((log) => {
@@ -79,7 +91,11 @@ async function getPublicLogs(userId: string): Promise<LogbookClimb[]> {
     }
   }) as LogbookClimb[]
 
-  return logsWithCrags
+  const nextCursor = logsWithCrags.length > 0 
+    ? logsWithCrags[logsWithCrags.length - 1].created_at 
+    : null
+
+  return { logs: logsWithCrags, nextCursor }
 }
 
 async function getPublicSubmissions(userId: string): Promise<Submission[]> {
@@ -208,7 +224,7 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
     return <PrivateProfileCard username={profile.username} />
   }
 
-  const [logs, submissions] = await Promise.all([
+  const [logsResult, submissions] = await Promise.all([
     getPublicLogs(userId),
     getPublicSubmissions(userId),
   ])
@@ -219,7 +235,8 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
       <LogbookView
         userId={userId}
         isOwnProfile={false}
-        initialLogs={logs}
+        initialLogs={logsResult.logs}
+        initialLogsNextCursor={logsResult.nextCursor}
         profile={profile}
         initialSubmissions={submissions}
       />
