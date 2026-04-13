@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 export default function SetNamePage() {
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
+  const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -26,12 +25,8 @@ export default function SetNamePage() {
     e.preventDefault()
     setError(null)
 
-    if (!firstName.trim()) {
-      setError('Please enter your first name')
-      return
-    }
-    if (!lastName.trim()) {
-      setError('Please enter your last name')
+    if (!displayName.trim()) {
+      setError('Please enter the name you want shown on letsboulder')
       return
     }
 
@@ -50,8 +45,7 @@ export default function SetNamePage() {
       .from('profiles')
       .upsert({
         id: user.id,
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
+        display_name: displayName.trim(),
       })
 
     if (upsertError) {
@@ -66,41 +60,35 @@ export default function SetNamePage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
       <div className="w-full max-w-md">
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8">
+          <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
+            Step 2 of 2
+          </p>
           <h1 className="text-2xl font-bold text-center mb-2 text-gray-900 dark:text-gray-100">
             What should we call you?
           </h1>
           <p className="text-center text-gray-600 dark:text-gray-400 text-sm">
-            We use your name on your profile and activity so your logs and verifications stay connected to your account.
+            One last thing before you continue. This is the name other climbers will see on your profile, activity, and verifications.
           </p>
           <p className="text-center text-gray-500 dark:text-gray-400 mb-6 text-sm">
-            This only takes a moment.
+            You can change it later in your profile settings.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                First Name
+                Display Name
               </label>
               <input
                 type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="John"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Alex, A. Rivera, StoneFox"
+                autoFocus
                 className="w-full px-4 py-3 text-lg border-2 rounded-lg focus:outline-none transition-colors bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:border-gray-500"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Last Name
-              </label>
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Doe"
-                className="w-full px-4 py-3 text-lg border-2 rounded-lg focus:outline-none transition-colors bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:border-gray-500"
-              />
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Use your real name, initials, or a nickname you want attached to your climbing activity.
+              </p>
             </div>
 
             {error && (
