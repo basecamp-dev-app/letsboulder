@@ -14,6 +14,19 @@ test.describe('Auth Guards', () => {
     await context.close()
   })
 
+  test('@smoke unauthenticated context is redirected from /settings to auth', async ({ browser }) => {
+    const context = await browser.newContext({
+      storageState: { cookies: [], origins: [] },
+    })
+    const page = await context.newPage()
+
+    await page.goto('/settings')
+
+    await expect(page).toHaveURL(/\/auth\?redirect_to=(%2Fsettings|\/settings)/)
+
+    await context.close()
+  })
+
   test('@smoke unauthenticated request to /api/routes/submit is rejected', async ({ browser }) => {
     const context = await browser.newContext({
       storageState: { cookies: [], origins: [] },
