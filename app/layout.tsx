@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
-import { SpeedInsights } from '@vercel/speed-insights/next'
+import VercelAnalytics from '@/components/VercelAnalytics'
 import './globals.css'
 import RootClientUtilities from '@/components/RootClientUtilities'
 import QueryProviders from '@/components/QueryProviders'
@@ -182,8 +181,7 @@ export default function RootLayout({
           {children}
           <WebVitalsReporter />
           <RootClientUtilities />
-          <Analytics />
-          <SpeedInsights />
+          <VercelAnalytics />
         </QueryProviders>
       </body>
     </html>
