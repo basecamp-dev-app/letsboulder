@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
-import { MOBILE_MORE_MENU_ITEMS } from '@/lib/nav-items'
+import { ACCOUNT_NAV_ITEMS, MOBILE_ACCOUNT_MENU_ITEMS } from '@/lib/nav-items'
 import { suppressOverlayCleanup, useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { csrfFetch } from '@/lib/csrf-client'
 import { useLazyAuthUser } from '@/components/use-lazy-auth-user'
@@ -97,51 +97,77 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
           <DialogTitle>Navigation menu</DialogTitle>
         </VisuallyHidden>
         <VisuallyHidden>
-          <DialogDescription>Navigate to key areas of letsboulder and access sign in options.</DialogDescription>
+          <DialogDescription>Access your account, settings, and other letsboulder destinations.</DialogDescription>
         </VisuallyHidden>
         <div className="w-12 h-1 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-4" aria-hidden="true" />
-        <nav className="space-y-1" aria-label="Mobile navigation">
-          {MOBILE_MORE_MENU_ITEMS.map((item) => (
-            <button
-              key={item.href}
-              type="button"
-              onClick={() => handleNavigation(item.href)}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-colors ${
-                pathname === item.href
-                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-              }`}
-            >
-              <span className={pathname === item.href ? 'text-gray-900 dark:text-white' : 'text-gray-500'}>
-                {NAV_ITEM_ICONS[item.label]}
-              </span>
-              <span className="font-medium">{item.label}</span>
-            </button>
-          ))}
+        <nav className="space-y-4" aria-label="Account menu">
+          <div className="space-y-1">
+            <p className="px-4 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Account</p>
+            {ACCOUNT_NAV_ITEMS.map((item) => (
+              <button
+                key={item.href}
+                type="button"
+                onClick={() => handleNavigation(item.href)}
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-colors ${
+                  pathname === item.href
+                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+              >
+                <span className={pathname === item.href ? 'text-gray-900 dark:text-white' : 'text-gray-500'}>
+                  {NAV_ITEM_ICONS[item.label]}
+                </span>
+                <span className="font-medium">{item.label}</span>
+              </button>
+            ))}
+          </div>
 
-          {user ? (
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            >
-              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              <span className="font-medium">Logout</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSignIn}
-              className="w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            >
-              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-              </svg>
-              <span className="font-medium">Login</span>
-            </button>
-          )}
+          <div className="space-y-1">
+            <p className="px-4 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Explore</p>
+            {MOBILE_ACCOUNT_MENU_ITEMS.filter((item) => !ACCOUNT_NAV_ITEMS.some((accountItem) => accountItem.href === item.href)).map((item) => (
+              <button
+                key={item.href}
+                type="button"
+                onClick={() => handleNavigation(item.href)}
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-colors ${
+                  pathname === item.href
+                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+              >
+                <span className={pathname === item.href ? 'text-gray-900 dark:text-white' : 'text-gray-500'}>
+                  {NAV_ITEM_ICONS[item.label]}
+                </span>
+                <span className="font-medium">{item.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="border-t border-gray-200 pt-3 dark:border-gray-800">
+            {user ? (
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="font-medium">Logout</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSignIn}
+                className="w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+                <span className="font-medium">Login</span>
+              </button>
+            )}
+          </div>
         </nav>
       </DialogContent>
     </Dialog>
