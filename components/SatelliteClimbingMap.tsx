@@ -46,10 +46,6 @@ interface DefaultLocation {
 const WORLD_DEFAULT_VIEW: [number, number] = [20, 0]
 const WORLD_DEFAULT_ZOOM = 2
 
-function slugifyCragName(name: string) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-}
-
 function buildPlaceHref(place: Pick<PlacePin, 'id' | 'slug' | 'country_code' | 'type' | 'name'>) {
   if (place.type === 'gym' && place.slug) {
     return `/gyms/${place.slug}`
@@ -59,8 +55,8 @@ function buildPlaceHref(place: Pick<PlacePin, 'id' | 'slug' | 'country_code' | '
     return `/${place.country_code.toLowerCase()}/${place.slug}`
   }
 
-  if (place.type === 'crag' && place.country_code) {
-    return `/${place.country_code.toLowerCase()}/${slugifyCragName(place.name)}`
+  if (place.type === 'crag') {
+    return `/crag/${place.id}`
   }
 
   return `/crag/${place.id}`

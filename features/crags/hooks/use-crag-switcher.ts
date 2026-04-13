@@ -31,6 +31,7 @@ export function useCragSwitcher({ initialCrag }: UseCragSwitcherParams): UseCrag
       const fallbackOption: CragSwitcherOption = {
         id: sourceCrag.id,
         name: sourceCrag.name,
+        slug: sourceCrag.slug,
         regionName: sourceCrag.region_name || sourceCrag.climbing_areas?.name || null,
         subArea: sourceCrag.sub_area || null,
         countryCode: sourceCrag.country_code || null,
@@ -39,11 +40,12 @@ export function useCragSwitcher({ initialCrag }: UseCragSwitcherParams): UseCrag
       if (cragSwitcherQuery.trim().length >= 2) {
         try {
           const response = await fetch(`/api/crags/search?q=${encodeURIComponent(cragSwitcherQuery.trim())}`)
-          const payload = await response.json() as Array<{ id: string; name: string; regionName?: string | null; subArea?: string | null; countryCode?: string | null }>
+          const payload = await response.json() as Array<{ id: string; name: string; slug?: string | null; regionName?: string | null; subArea?: string | null; countryCode?: string | null }>
           if (ignore) return
           const next = payload.map((item) => ({
             id: item.id,
             name: item.name,
+            slug: item.slug || null,
             regionName: item.regionName || null,
             subArea: item.subArea || null,
             countryCode: item.countryCode || null,

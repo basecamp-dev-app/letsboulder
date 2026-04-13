@@ -6,6 +6,7 @@ interface CragSearchRow {
   name: string
   latitude: number | null
   longitude: number | null
+  slug: string | null
   country_code: string | null
   region_name: string | null
   sub_area: string | null
@@ -30,6 +31,7 @@ export interface SearchCragsResponseRow {
   name: string
   latitude: number | null
   longitude: number | null
+  slug: string | null
   countryCode: string | null
   countryName: string | null
   regionName: string | null
@@ -43,7 +45,7 @@ export async function searchCrags({ supabase, query, latitude, longitude }: Sear
 
   let nameSelect = supabase
     .from('crags')
-    .select('id,name,latitude,longitude,country_code,region_name,sub_area,rock_type')
+    .select('id,name,latitude,longitude,slug,country_code,region_name,sub_area,rock_type')
 
   if (hasLocation) {
     const latRange = 0.1
@@ -76,7 +78,7 @@ export async function searchCrags({ supabase, query, latitude, longitude }: Sear
   try {
     const { data: tagRows, error: tagError } = await supabase
       .from('crag_location_tags')
-      .select('crag_id, crags!inner(id,name,latitude,longitude,country_code,region_name,sub_area,rock_type), location_tags!inner(name,kind)')
+      .select('crag_id, crags!inner(id,name,latitude,longitude,slug,country_code,region_name,sub_area,rock_type), location_tags!inner(name,kind)')
       .eq('location_tags.kind', 'region')
       .ilike('location_tags.name', `%${query}%`)
       .limit(80)
@@ -151,6 +153,7 @@ export async function searchCrags({ supabase, query, latitude, longitude }: Sear
       name: row.name,
       latitude: row.latitude,
       longitude: row.longitude,
+      slug: row.slug,
       countryCode: row.country_code,
       countryName: getCountryName(row.country_code),
       regionName: row.region_name,

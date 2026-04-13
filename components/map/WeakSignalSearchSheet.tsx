@@ -16,18 +16,15 @@ interface SearchResult {
 interface RemoteCragResult {
   id: string
   name: string
+  slug: string | null
   countryCode: string | null
   regionName?: string | null
   subArea?: string | null
 }
 
-function slugifyCragName(name: string) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-}
-
-function buildCragHref(input: { id: string; name: string; countryCode: string | null }) {
-  if (input.countryCode) {
-    return `/${input.countryCode.toLowerCase()}/${slugifyCragName(input.name)}`
+function buildCragHref(input: { id: string; slug: string | null; countryCode: string | null }) {
+  if (input.slug && input.countryCode) {
+    return `/${input.countryCode.toLowerCase()}/${input.slug}`
   }
   return `/crag/${input.id}`
 }
@@ -103,7 +100,7 @@ export default function WeakSignalSearchSheet() {
         setRemoteResults(payload.map((item) => ({
           id: `live:${item.id}`,
           name: item.name,
-          href: buildCragHref({ id: item.id, name: item.name, countryCode: item.countryCode }),
+          href: buildCragHref({ id: item.id, slug: item.slug, countryCode: item.countryCode }),
           source: 'live',
           detail: item.subArea || item.regionName || null,
         })))
