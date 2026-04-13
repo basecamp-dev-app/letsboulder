@@ -91,6 +91,8 @@ export interface ClimbOfflinePackManifest {
   version: string
   manifestUrl: string
   pageUrl: string
+  offlineLaunchUrl?: string
+  imageFirstUrl?: string | null
   mediaUrls: string[]
   mediaCount: number
   estimatedBytes: number
@@ -116,6 +118,8 @@ export interface OfflineTileManifest {
   maxZoom: number
   tileCount: number
   tileUrls: string[]
+  imageryTileUrls?: string[]
+  labelsTileUrls?: string[]
 }
 
 export interface CragOfflinePackClimbSummary {
@@ -136,6 +140,7 @@ export interface CragOfflinePackManifest {
   cragId: string
   cragName: string
   canonicalPath: string
+  offlineLaunchUrl?: string
   manifestUrl: string
   cragVersionHash: string
   estimatedBytes: number

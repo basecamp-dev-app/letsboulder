@@ -25,7 +25,7 @@ function handleMessageEvent(event) {
         const pack = message.payload || {}
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []
         const tileUrls = Array.isArray(pack.tileUrls) ? pack.tileUrls : []
-        const packUrls = [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
+        const packUrls = [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.offlineLaunchUrl, pack.imageFirstUrl, pack.manifestUrl].filter(Boolean)
         await cacheUrls(PACK_CACHE, packUrls)
         await cachePageAssets(packUrls)
         const mediaFailures = await cacheUrls(MEDIA_CACHE, mediaUrls, { strict: false })
@@ -46,7 +46,7 @@ function handleMessageEvent(event) {
         const pack = message.payload || {}
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []
         const tileUrls = Array.isArray(pack.tileUrls) ? pack.tileUrls : []
-        const packUrls = [`/climb/${pack.climbId}`, pack.pageUrl, pack.manifestUrl].filter(Boolean)
+        const packUrls = [`/climb/${pack.climbId}`, pack.pageUrl, pack.offlineLaunchUrl, pack.imageFirstUrl, pack.manifestUrl].filter(Boolean)
         await removeUrls(PACK_CACHE, packUrls)
         await removeUrls(MEDIA_CACHE, mediaUrls)
         await removeUrls(TILE_CACHE, tileUrls)
@@ -82,8 +82,9 @@ function handleMessageEvent(event) {
         failedTileUrls.push(...rootTileFailures.map((failure) => failure.url))
 
         for (const climb of climbs) {
-          await cacheUrls(PACK_CACHE, [`/climb/${climb.climbId}`, climb.pageUrl, climb.manifestUrl].filter(Boolean))
-          await cachePageAssets([`/climb/${climb.climbId}`, climb.pageUrl])
+          const climbPackUrls = [`/climb/${climb.climbId}`, climb.pageUrl, climb.offlineLaunchUrl, climb.imageFirstUrl, climb.manifestUrl].filter(Boolean)
+          await cacheUrls(PACK_CACHE, climbPackUrls)
+          await cachePageAssets([`/climb/${climb.climbId}`, climb.pageUrl, climb.offlineLaunchUrl, climb.imageFirstUrl].filter(Boolean))
           const climbTileFailures = await cacheUrls(TILE_CACHE, Array.isArray(climb.tileUrls) ? climb.tileUrls : [], {
             concurrency: 4,
             strict: false,
@@ -152,7 +153,7 @@ function handleMessageEvent(event) {
         await removeUrls(PACK_CACHE, [payload.canonicalPath, payload.fallbackPath, payload.manifestUrl].filter(Boolean))
         await removeUrls(TILE_CACHE, tileUrls)
         for (const climb of climbs) {
-          await removeUrls(PACK_CACHE, [`/climb/${climb.climbId}`, climb.pageUrl, climb.manifestUrl].filter(Boolean))
+          await removeUrls(PACK_CACHE, [`/climb/${climb.climbId}`, climb.pageUrl, climb.offlineLaunchUrl, climb.imageFirstUrl, climb.manifestUrl].filter(Boolean))
           await removeUrls(MEDIA_CACHE, Array.isArray(climb.mediaUrls) ? climb.mediaUrls : [])
           await removeUrls(TILE_CACHE, Array.isArray(climb.tileUrls) ? climb.tileUrls : [])
         }

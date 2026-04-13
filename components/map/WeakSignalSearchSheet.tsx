@@ -47,7 +47,7 @@ export default function WeakSignalSearchSheet() {
         const cragResults: SearchResult[] = launch.crags.map((crag) => ({
           id: `crag:${crag.cragId}`,
           name: crag.manifest.cragName,
-          href: `/crag/${crag.cragId}`,
+          href: crag.manifest.offlineLaunchUrl || crag.manifest.canonicalPath || `/crag/${crag.cragId}`,
           source: 'downloaded',
           detail: `${crag.manifest.climbCount} saved climb${crag.manifest.climbCount === 1 ? '' : 's'}`,
         }))
@@ -57,7 +57,7 @@ export default function WeakSignalSearchSheet() {
           .map((climb) => ({
             id: `climb:${climb.climbId}`,
             name: climb.manifest.climbName,
-            href: `/climb/${climb.climbId}`,
+            href: climb.manifest.offlineLaunchUrl || climb.manifest.canonicalPath || climb.manifest.pageUrl || `/climb/${climb.climbId}`,
             source: 'downloaded',
             detail: 'Saved directly on this device',
           }))

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { getMapBaseLayerConfig } from '@/lib/map/base-layer'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -62,6 +63,7 @@ export default function OfflineCragMapSnippet({ pins, highlightedPinId = null, o
     const longitude = pins.reduce((sum, pin) => sum + pin.longitude, 0) / pins.length
     return [latitude, longitude]
   }, [pins])
+  const baseLayer = useMemo(() => getMapBaseLayerConfig({ offline: true }), [])
 
   useEffect(() => {
     if (!mapRef.current || pins.length === 0 || !L) return
@@ -88,10 +90,11 @@ export default function OfflineCragMapSnippet({ pins, highlightedPinId = null, o
           whenReady={() => setMapReady(true)}
         >
           <TileLayer
-            url="/api/offline-tiles/{z}/{x}/{y}"
-            attribution='Tiles © Esri'
+            url={baseLayer.imageryUrl}
+            attribution={baseLayer.imageryAttribution}
             maxZoom={17}
           />
+          {baseLayer.labelsUrl ? <TileLayer url={baseLayer.labelsUrl} attribution={baseLayer.labelsAttribution || undefined} maxZoom={17} /> : null}
           {pins.map((pin, index) => (
             <Marker
               key={pin.id}

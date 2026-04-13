@@ -11,11 +11,11 @@ import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { reportError } from '@/lib/errors'
 
 function getOfflineClimbLaunchHref(climb: StoredClimbManifest) {
-  return `/climb/${climb.climbId}`
+  return climb.manifest.offlineLaunchUrl || climb.manifest.canonicalPath || climb.manifest.pageUrl || `/climb/${climb.climbId}`
 }
 
 function getOfflineCragLaunchHref(crag: StoredCragManifest) {
-  return `/crag/${crag.cragId}`
+  return crag.manifest.offlineLaunchUrl || crag.manifest.canonicalPath || `/crag/${crag.cragId}`
 }
 
 interface OfflineLibraryState {
@@ -56,10 +56,13 @@ export default function OfflineLibraryClient() {
   const [error, setError] = useState<string | null>(null)
 
   const reason = searchParams.get('reason')
+  const requestedPath = searchParams.get('from')
   const reasonMessage = reason === 'weak-signal'
     ? 'Optimizing for offline use due to weak signal.'
     : reason === 'offline'
       ? 'You are offline. Open saved downloads stored on this device.'
+      : reason === 'offline-miss'
+        ? `That page is not saved for offline use yet${requestedPath ? `: ${requestedPath}` : '.'}`
       : null
 
   useEffect(() => {

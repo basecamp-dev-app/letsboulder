@@ -4,8 +4,10 @@ import { getDisplayImageId } from '@/lib/image-identity'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
+import { getStoredClimbManifest, getStoredClimbManifestByImageId } from '@/lib/offline/storage'
 import type { RoutePoint } from '@/types/domain'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
+import type { ClimbPackResponse } from '@/features/climb/lib/queries'
 
 interface CragRow {
   id: string
@@ -208,6 +210,167 @@ export async function getRoutesByImage(displayImageId: string) {
   return (data || []) as RouteLineRow[]
 }
 
+function buildOfflineImageFirstPayload(
+  payload: ClimbPackResponse,
+  args: {
+    country: string
+    crag: string
+    imageId: string
+    selectedImageId?: string | null
+    routeId?: string | null
+    routeSlug?: string | null
+    climbId?: string | null
+  }
+): { redirectTo: string | null; payload: ImageFirstPayload | null } {
+  const heroFace = payload.faces.find((face) => {
+    const displayId = face.display_image_id || face.image_id || face.id
+    return displayId === args.imageId || face.image_id === args.imageId || face.id === args.imageId
+  }) || payload.faces[0] || null
+
+  const heroDisplayImageId = heroFace?.display_image_id || heroFace?.image_id || payload.primary_image?.display_image_id || payload.primary_image?.id || null
+  const heroSrc = resolveRouteImageUrl(heroFace?.url || payload.primary_image?.url)
+
+  if (!heroDisplayImageId || !heroSrc) {
+    return { redirectTo: null, payload: null }
+  }
+
+  const offlinePath = payload.offline_pack.offlineLaunchUrl || payload.offline_pack.canonicalPath || payload.offline_pack.pageUrl
+  const pathParts = offlinePath.split('/').filter(Boolean)
+  const countryCode = pathParts[0]?.toLowerCase() || args.country.toLowerCase()
+  const cragSlug = pathParts[1] || args.crag
+  const canonicalPath = `/${countryCode}/${cragSlug}/i/${heroDisplayImageId}`
+  const query = new URLSearchParams()
+  if (args.selectedImageId) query.set('image', args.selectedImageId)
+  if (args.routeSlug) query.set('route', args.routeSlug)
+  else if (args.routeId) query.set('route', args.routeId)
+  if (args.climbId) query.set('climb', args.climbId)
+
+  if (countryCode !== args.country.toLowerCase() || cragSlug !== args.crag || heroDisplayImageId !== args.imageId) {
+    return {
+      redirectTo: `${canonicalPath}${query.toString() ? `?${query.toString()}` : ''}`,
+      payload: null,
+    }
+  }
+
+  const imageMap: Record<string, { src: string; width: number; height: number }> = {}
+  const linkedImageIdByDisplayId: Record<string, string> = {}
+  const orderedImageIds: string[] = []
+  const initialRoutes: ImageFirstRouteLine[] = []
+
+  for (const face of payload.faces) {
+    const displayImageId = face.display_image_id || face.image_id || face.id
+    const linkedImageId = face.image_id || displayImageId
+    if (!imageMap[displayImageId]) {
+      imageMap[displayImageId] = {
+        src: resolveRouteImageUrl(face.url),
+        width: face.metadata?.width ?? payload.primary_image?.width ?? 1600,
+        height: face.metadata?.height ?? payload.primary_image?.height ?? 1200,
+      }
+      orderedImageIds.push(displayImageId)
+    }
+    linkedImageIdByDisplayId[displayImageId] = linkedImageId
+
+    for (const route of face.routes || []) {
+      initialRoutes.push({
+        routeId: route.id,
+        climbId: route.climb_id,
+        imageId: displayImageId,
+        climbSlug: payload.climb?.id === route.climb_id ? pathParts[2] || null : null,
+        climbName: route.name || payload.climb?.name || 'Unnamed route',
+        climbGrade: route.grade || payload.climb?.grade || null,
+        climbDescription: route.description || payload.climb?.description || null,
+        climbRouteType: route.route_type || payload.climb?.route_type || null,
+        climbAverageStars: null,
+        climbStarVotes: null,
+        pathData: route.points,
+        color: route.color || '#ef4444',
+        isPrimary: displayImageId === heroDisplayImageId,
+      })
+    }
+  }
+
+  if (payload.primary_route_lines.length > 0 && initialRoutes.length === 0) {
+    for (const route of payload.primary_route_lines) {
+      initialRoutes.push({
+        routeId: route.id,
+        climbId: route.climb_id,
+        imageId: heroDisplayImageId,
+        climbSlug: pathParts[2] || null,
+        climbName: route.climb?.name || payload.climb?.name || 'Unnamed route',
+        climbGrade: route.climb?.grade || payload.climb?.grade || null,
+        climbDescription: route.climb?.description || payload.climb?.description || null,
+        climbRouteType: route.climb?.route_type || payload.climb?.route_type || null,
+        climbAverageStars: null,
+        climbStarVotes: null,
+        pathData: route.points,
+        color: route.color || '#ef4444',
+        isPrimary: true,
+      })
+    }
+  }
+
+  const routeById = new Map(initialRoutes.map((route) => [route.routeId, route] as const))
+  const routeBySlug = new Map(initialRoutes.filter((route) => route.climbSlug).map((route) => [route.climbSlug as string, route] as const))
+  const resolvedRoute = args.routeId && routeById.has(args.routeId)
+    ? routeById.get(args.routeId) || null
+    : args.routeSlug && routeBySlug.has(args.routeSlug)
+      ? routeBySlug.get(args.routeSlug) || null
+      : null
+
+  const spatialNodes = payload.faces.map((face) => ({
+    displayImageId: face.display_image_id || face.image_id || face.id,
+    latitude: payload.primary_image?.latitude ?? null,
+    longitude: payload.primary_image?.longitude ?? null,
+    createdAt: null,
+  }))
+  const ordered = orderedImageIds.length > 0
+    ? getStableSpatialOrder(spatialNodes)
+    : {
+        orderedImageIds: [heroDisplayImageId],
+        orderedStacks: [{ stackId: heroDisplayImageId, images: [{ displayImageId: heroDisplayImageId, latitude: null, longitude: null, createdAt: null }] }],
+        imageIndexByDisplayImageId: new Map([[heroDisplayImageId, 0]]),
+      }
+
+  return {
+    redirectTo: null,
+    payload: {
+      heroImage: {
+        displayImageId: heroDisplayImageId,
+        src: heroSrc,
+        width: imageMap[heroDisplayImageId]?.width || payload.primary_image?.width || 1600,
+        height: imageMap[heroDisplayImageId]?.height || payload.primary_image?.height || 1200,
+        priority: true,
+      },
+      initialRoutes,
+      navigationContext: {
+        orderedImageIds: ordered.orderedImageIds,
+        startIndex: ordered.imageIndexByDisplayImageId.get(heroDisplayImageId) ?? 0,
+        imageMap,
+        linkedImageIdByDisplayId,
+        stacks: ordered.orderedStacks.map((stack) => ({
+          stackId: stack.stackId,
+          imageIds: stack.images.map((imageNode) => imageNode.displayImageId),
+        })),
+        sectorMarkers: {},
+      },
+      initialClimbId: args.climbId || payload.climb?.id || resolvedRoute?.climbId || null,
+      initialRouteId: resolvedRoute?.routeId || args.routeId || payload.primary_route_lines[0]?.id || null,
+      initialRouteSlug: args.routeSlug || resolvedRoute?.climbSlug || pathParts[2] || null,
+      cragSlug,
+      countryCode,
+      mapPins: typeof payload.primary_image?.latitude === 'number' && typeof payload.primary_image?.longitude === 'number'
+        ? [{
+            imageId: heroDisplayImageId,
+            latitude: payload.primary_image.latitude,
+            longitude: payload.primary_image.longitude,
+            activeImageIds: ordered.orderedImageIds,
+            routeSlug: args.routeSlug || resolvedRoute?.climbSlug || pathParts[2] || null,
+          }]
+        : [],
+    },
+  }
+}
+
 export async function buildImageFirstPayload(args: {
   country: string
   crag: string
@@ -217,6 +380,15 @@ export async function buildImageFirstPayload(args: {
   routeSlug?: string | null
   climbId?: string | null
 }): Promise<{ redirectTo: string | null; payload: ImageFirstPayload | null }> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    const stored = args.climbId
+      ? await getStoredClimbManifest(args.climbId)
+      : await getStoredClimbManifestByImageId(args.imageId)
+    if (stored?.payload) {
+      return buildOfflineImageFirstPayload(stored.payload, args)
+    }
+  }
+
   const timing = startServerTiming('buildImageFirstPayload')
   const image = await timeServerStep('buildImageFirstPayload', 'resolve-image', () => getImageByDisplayId(args.imageId))
   if (!image) return { redirectTo: null, payload: null }

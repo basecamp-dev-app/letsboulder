@@ -210,3 +210,27 @@ export async function getStoredCragClimbPayloads(cragId: string): Promise<ClimbP
     .filter((entry) => entry.ownerPackIds.includes(storedCrag.manifest.packId) && entry.payload)
     .map((entry) => entry.payload as ClimbPackResponse)
 }
+
+export async function getStoredClimbManifestByImageId(imageId: string): Promise<StoredClimbManifest | null> {
+  await ensureOfflineStorageReady()
+  const manifests = await readMap<StoredClimbManifest>(CLIMB_MANIFESTS_KEY)
+
+  for (const entry of Object.values(manifests)) {
+    const payload = entry.payload
+    if (!payload) continue
+
+    if (payload.primary_image?.id === imageId || payload.primary_image?.display_image_id === imageId) {
+      return entry
+    }
+
+    const matchesFace = payload.faces.some((face) => {
+      return face.id === imageId || face.image_id === imageId || face.display_image_id === imageId
+    })
+
+    if (matchesFace) {
+      return entry
+    }
+  }
+
+  return null
+}

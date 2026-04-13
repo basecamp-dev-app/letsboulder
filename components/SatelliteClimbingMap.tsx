@@ -10,6 +10,7 @@ import { saveSettingsAction } from '@/features/settings/actions/save-settings'
 import { useMapEvents } from 'react-leaflet'
 import { runWhenIdle } from '@/lib/run-when-idle'
 import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult, type PinFeature, type PlacePin } from '@/lib/map/place-pins'
+import { getMapBaseLayerConfig } from '@/lib/map/base-layer'
 import { reportError } from '@/lib/errors'
 
 import 'leaflet/dist/leaflet.css'
@@ -169,6 +170,7 @@ export default function SatelliteClimbingMap({
   const [saveLocationLoading, setSaveLocationLoading] = useState(false)
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [hasDefaultLocation, setHasDefaultLocation] = useState(false)
+  const [isOffline, setIsOffline] = useState(false)
 
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
     setMapZoom(state.zoom)
@@ -180,6 +182,21 @@ export default function SatelliteClimbingMap({
   }, [])
 
   const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
+  const baseLayer = useMemo(() => getMapBaseLayerConfig({ offline: isOffline }), [isOffline])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const updateOnlineStatus = () => setIsOffline(window.navigator.onLine === false)
+    updateOnlineStatus()
+    window.addEventListener('online', updateOnlineStatus)
+    window.addEventListener('offline', updateOnlineStatus)
+
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus)
+      window.removeEventListener('offline', updateOnlineStatus)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -467,15 +484,17 @@ export default function SatelliteClimbingMap({
         <MapStateWatcher onStateChange={handleMapStateChange} />
         <MapInteractionWatcher onInteract={markMapInteracted} />
         <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          attribution='Imagery © Esri'
+          url={baseLayer.imageryUrl}
+          attribution={baseLayer.imageryAttribution}
           maxZoom={19}
         />
-        <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-          attribution='Labels © Esri'
-          maxZoom={19}
-        />
+        {baseLayer.labelsUrl ? (
+          <TileLayer
+            url={baseLayer.labelsUrl}
+            attribution={baseLayer.labelsAttribution || undefined}
+            maxZoom={19}
+          />
+        ) : null}
 
         {userLocation && leaflet && (
           <Marker
