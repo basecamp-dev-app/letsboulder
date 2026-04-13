@@ -33,6 +33,7 @@ interface CragRouteSectionProps {
   selectedImageId: string | null
   selectedRouteCount: number
   routesCount: number
+  onRetryRoutes: () => void
   routeSort: 'sends' | 'rating' | 'grade' | 'name'
   searchQuery: string
   searchModalOpen: boolean
@@ -102,6 +103,7 @@ const CragRouteSection = React.memo(function CragRouteSection({
   selectedImageId,
   selectedRouteCount,
   routesCount,
+  onRetryRoutes,
   routeSort,
   searchQuery,
   searchModalOpen,
@@ -220,6 +222,10 @@ const CragRouteSection = React.memo(function CragRouteSection({
             routePreviewDisplayByClimbId={routePreviewDisplayByClimbId}
             pinNumberByImageId={pinNumberByImageId}
             gradeSystem={gradeSystem}
+            routesCount={routesCount}
+            hasActiveRouteFilters={hasActiveRouteFilters}
+            onClearRouteFilters={onClearRouteFilters}
+            onRetryRoutes={onRetryRoutes}
             onPendingRouteNavigation={onPendingRouteNavigation}
             getRouteDestination={getRouteDestination}
           />

@@ -52,6 +52,7 @@ export default function CragPageClient({
     routeNavigationTargetByClimbId,
     defaultRouteTargetByImageId,
     routesLoadState,
+    retryRoutes,
     cragCenter,
   } = useCragData({
     id,
@@ -140,6 +141,7 @@ export default function CragPageClient({
         selectedImageId={filters.selectedImageId}
         selectedRouteCount={filters.selectedRouteCount}
         routesCount={routes.length}
+        onRetryRoutes={() => void retryRoutes()}
         routeSort={filters.routeSort}
         searchQuery={filters.searchQuery}
         searchModalOpen={filters.searchModalOpen}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { cragKeys, fetchCragRoutes } from '@/features/crags/lib/crag-queries'
 import { remapRouteNavigationTargetsByEffectiveClimbId, remapRoutePreviewsByEffectiveClimbId } from '@/features/crags/lib/crag-page-domain'
@@ -35,7 +35,7 @@ export function useCragRoutes({
     setRoutesLoadState('loaded')
   }, [hasInitialRouteData, routesLoadState, setRoutesLoadState])
 
-  const { data, isLoading, isError, isFetching } = useQuery({
+  const query = useQuery({
     queryKey: cragKeys.routes(id),
     queryFn: () => fetchCragRoutes(id),
     enabled: !hasInitialRouteData && routesLoadState === 'idle',
@@ -43,22 +43,34 @@ export function useCragRoutes({
     meta: { persist: true },
   })
 
+  const { data, isLoading, isError, isFetching } = query
+
+  const nextLoadState = useMemo<RoutesLoadState | null>(() => {
+    if (hasInitialRouteData) return null
+    if (isError) return 'error'
+    if (isLoading || isFetching) return 'loading'
+    if (data) return 'loaded'
+    return null
+  }, [data, hasInitialRouteData, isError, isFetching, isLoading])
+
   useEffect(() => {
-    if (!data) return
-    if (hasInitialRouteData) return
+    if (!data || hasInitialRouteData) return
 
     const effectiveClimbIdByClimbId = data.effectiveClimbIdByClimbId
     setRoutes(data.routes)
     setRoutePreviewByClimbId((prev) => remapRoutePreviewsByEffectiveClimbId(prev, effectiveClimbIdByClimbId))
     setRouteNavigationTargetByClimbId((prev) => remapRouteNavigationTargetsByEffectiveClimbId(prev, effectiveClimbIdByClimbId))
 
-    if (isError) {
-      setRoutesLoadState('error')
-    } else if (!isFetching && !isLoading) {
-      setRoutesLoadState('loaded')
-    } else if (isLoading || isFetching) {
-      setRoutesLoadState('loading')
-    }
-  }, [data, isError, isFetching, isLoading, hasInitialRouteData, setRoutes, setRoutesLoadState, setRoutePreviewByClimbId, setRouteNavigationTargetByClimbId])
+  }, [data, hasInitialRouteData, setRoutes, setRoutePreviewByClimbId, setRouteNavigationTargetByClimbId])
+
+  useEffect(() => {
+    if (!nextLoadState) return
+
+    setRoutesLoadState(nextLoadState)
+  }, [nextLoadState, setRoutesLoadState])
+
+  return {
+    retryRoutes: query.refetch,
+  }
 
 }

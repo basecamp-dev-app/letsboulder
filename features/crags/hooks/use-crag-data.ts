@@ -57,7 +57,7 @@ export function useCragData({
     setRoutesLoadState,
   })
 
-  useCragRoutes({
+  const { retryRoutes } = useCragRoutes({
     id,
     initialRoutes,
     routesLoadState,
@@ -84,6 +84,7 @@ export function useCragData({
     routeNavigationTargetByClimbId,
     defaultRouteTargetByImageId,
     routesLoadState,
+    retryRoutes,
     loading,
     cragCenter,
   }
