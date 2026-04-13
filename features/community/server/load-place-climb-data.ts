@@ -51,7 +51,7 @@ function getCanonicalClimbPath(climb: PlaceClimbRow['climbs']): string {
   if (!climb) return '/'
   if (!climb.slug) return `/climb/${climb.id}`
 
-  const crag = getClimbRecord(climb.crags)
+  const crag = Array.isArray(climb.crags) ? climb.crags[0] || null : climb.crags
   if (!crag?.slug || !crag.country_code) {
     return `/climb/${climb.id}`
   }
