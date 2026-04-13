@@ -399,6 +399,10 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
     longitude: primaryImageGeo?.longitude ?? null,
   })
   const tileManifest = primaryPin ? buildTileManifestForPins([primaryPin]) : null
+  const primaryDisplayImageId = getDisplayImageId({ linked_image_id: primaryImage.id }) || primaryImage.id
+  const imageFirstUrl = canonical.cragPath
+    ? `${canonical.cragPath}/i/${primaryDisplayImageId}?climb=${climbId}`
+    : null
   const version = hashValue({
     climb: context.climb,
     canonicalPath: canonical.climbPath,
@@ -450,6 +454,8 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
       manifestUrl: `/api/offline-packs/climbs/${climbId}`,
       pageUrl: canonical.climbPath,
       canonicalPath: canonical.climbPath,
+      imageFirstUrl,
+      offlineLaunchUrl: imageFirstUrl || canonical.climbPath,
       mediaUrls,
       mediaCount: mediaUrls.length,
       estimatedBytes,

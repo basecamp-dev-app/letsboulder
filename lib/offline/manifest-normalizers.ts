@@ -31,6 +31,7 @@ export function getClimbPackManifest(packOrPayload: ClimbOfflinePackManifest | {
 export function normalizeClimbManifest(manifest: ClimbOfflinePackManifest): ClimbOfflinePackManifest {
   return {
     ...manifest,
+    offlineLaunchUrl: manifest.offlineLaunchUrl || manifest.imageFirstUrl || manifest.canonicalPath || manifest.pageUrl,
     coverImageUrl: resolveRouteImageUrl(manifest.coverImageUrl),
     primaryPin: manifest.primaryPin
       ? {
@@ -44,6 +45,7 @@ export function normalizeClimbManifest(manifest: ClimbOfflinePackManifest): Clim
 export function normalizeCragManifest(manifest: CragOfflinePackManifest): CragOfflinePackManifest {
   return {
     ...manifest,
+    offlineLaunchUrl: manifest.offlineLaunchUrl || manifest.canonicalPath,
     climbs: manifest.climbs.map((climb) => ({
       ...climb,
       coverImageUrl: resolveRouteImageUrl(climb.coverImageUrl),

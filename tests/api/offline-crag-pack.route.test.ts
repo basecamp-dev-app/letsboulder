@@ -79,16 +79,25 @@ describe('Offline crag pack route', () => {
       offline_pack: {
         climbName: 'Visible Climb',
         canonicalPath: '/gb/crag-one/visible-climb',
+        offlineLaunchUrl: '/gb/crag-one/i/image-1?climb=climb-1',
         pageUrl: '/gb/crag-one/visible-climb',
         manifestUrl: '/api/offline-packs/climbs/climb-1',
         version: 'version-1',
         estimatedBytes: 123,
         mediaCount: 1,
         coverImageUrl: 'https://example.com/image.jpg',
-        primaryPin: null,
+        primaryPin: {
+          climbId: 'climb-1',
+          climbName: 'Visible Climb',
+          canonicalPath: '/gb/crag-one/i/image-1?climb=climb-1',
+          coverImageUrl: 'https://example.com/image.jpg',
+          latitude: 49.1,
+          longitude: -2.2,
+        },
         mediaUrls: ['https://example.com/image.jpg'],
       },
       primary_image: {
+        id: 'image-1',
         url: 'https://example.com/image.jpg',
         width: 1000,
         height: 800,
@@ -107,6 +116,7 @@ describe('Offline crag pack route', () => {
     expect(json.climbCount).toBe(1)
     expect(json.climbs).toHaveLength(1)
     expect(json.climbs[0].climbId).toBe('climb-1')
+    expect(json.offlineLaunchUrl).toBe('/gb/crag-one/i/image-1?climb=climb-1')
     expect(climbsQuery.statusFilter.order).toHaveBeenCalledOnce()
     expect(mockBuildClimbOfflinePack).toHaveBeenCalledWith('climb-1')
   })

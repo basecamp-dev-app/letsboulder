@@ -4,6 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
+import { getMapBaseLayerConfig } from '@/lib/map/base-layer'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -124,14 +125,15 @@ export default function LightweightCragMap({
   initialCenter = null,
   onPinSelect,
   className,
-  tileUrl = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  attribution = 'Tiles © Esri',
+  tileUrl,
+  attribution,
   heightClassName = 'min-h-[260px] md:min-h-[320px]',
 }: LightweightCragMapProps) {
   const mapRef = useRef<import('leaflet').Map | null>(null)
   const [mapReady, setMapReady] = useState(false)
   const [leafletLib, setLeafletLib] = useState<typeof import('leaflet') | null>(null)
   const [minAllowedZoom, setMinAllowedZoom] = useState<number | null>(null)
+  const [isOffline, setIsOffline] = useState(false)
   const resolvedPins = useMemo(() => {
     if (draftPins || publishedPins) {
       return [
@@ -142,6 +144,19 @@ export default function LightweightCragMap({
     return pins
   }, [draftPins, pins, publishedPins])
   const normalizedPins = useMemo(() => normalizePins(resolvedPins, activePinId), [activePinId, resolvedPins])
+  const baseLayer = useMemo(() => {
+    if (tileUrl) {
+      return {
+        imageryUrl: tileUrl,
+        imageryAttribution: attribution || 'Tiles',
+        labelsUrl: null,
+        labelsAttribution: null,
+        mode: 'satellite' as const,
+      }
+    }
+
+    return getMapBaseLayerConfig({ offline: isOffline })
+  }, [attribution, isOffline, tileUrl])
 
   const maxBounds = useMemo<import('leaflet').LatLngBoundsExpression | undefined>(() => {
     if (normalizedPins.length === 0 || !leafletLib) return undefined
@@ -157,6 +172,20 @@ export default function LightweightCragMap({
     void import('leaflet').then((leaflet) => {
       setLeafletLib(leaflet as typeof import('leaflet'))
     })
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const updateOnlineStatus = () => setIsOffline(window.navigator.onLine === false)
+    updateOnlineStatus()
+    window.addEventListener('online', updateOnlineStatus)
+    window.addEventListener('offline', updateOnlineStatus)
+
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus)
+      window.removeEventListener('offline', updateOnlineStatus)
+    }
   }, [])
 
   const center = useMemo<[number, number]>(() => {
@@ -242,7 +271,8 @@ export default function LightweightCragMap({
             zoomControl={false}
             whenReady={() => setMapReady(true)}
           >
-            <TileLayer url={tileUrl} attribution={attribution} maxZoom={19} />
+            <TileLayer url={baseLayer.imageryUrl} attribution={baseLayer.imageryAttribution} maxZoom={19} />
+            {baseLayer.labelsUrl ? <TileLayer url={baseLayer.labelsUrl} attribution={baseLayer.labelsAttribution || undefined} maxZoom={19} /> : null}
             <ZoomControl position="topright" />
             {mapReady ? normalizedPins.map((pin, index) => (
               <MapPinMarker

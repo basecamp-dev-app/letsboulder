@@ -11,6 +11,14 @@ function broadcastProgress(payload) {
   channel.close()
 }
 
+function buildOfflineFallbackRequest(request) {
+  const url = new URL(request.url)
+  const fallbackUrl = new URL(OFFLINE_LIBRARY_URL, self.location.origin)
+  fallbackUrl.searchParams.set('reason', 'offline-miss')
+  fallbackUrl.searchParams.set('from', `${url.pathname}${url.search}`)
+  return toSameOriginRequest(fallbackUrl.pathname + fallbackUrl.search)
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     await installShell()
@@ -133,7 +141,10 @@ self.addEventListener('fetch', (event) => {
         const fallbackCached = await matchCachedRequest(cache, request)
         if (fallbackCached) return fallbackCached
 
-        throw error
+        const offlineFallback = await matchCachedRequest(cache, buildOfflineFallbackRequest(request))
+        if (offlineFallback) return offlineFallback
+
+        return Response.redirect(buildOfflineFallbackRequest(request).url, 302)
       }
     })())
     return
@@ -153,7 +164,10 @@ self.addEventListener('fetch', (event) => {
         const fallbackCached = await matchCachedRequest(cache, request)
         if (fallbackCached) return fallbackCached
 
-        throw error
+        const offlineFallback = await matchCachedRequest(cache, buildOfflineFallbackRequest(request))
+        if (offlineFallback) return offlineFallback
+
+        return Response.redirect(buildOfflineFallbackRequest(request).url, 302)
       }
     })())
     return

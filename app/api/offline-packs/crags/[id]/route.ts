@@ -139,6 +139,7 @@ export async function GET(
       cragId: crag.id,
       cragName: crag.name,
       canonicalPath,
+      offlineLaunchUrl: climbSummaries[0]?.primaryPin?.canonicalPath || canonicalPath,
       manifestUrl: `/api/offline-packs/crags/${crag.id}`,
       cragVersionHash,
       estimatedBytes,
