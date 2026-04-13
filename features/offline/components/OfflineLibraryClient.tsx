@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 
@@ -94,10 +95,6 @@ export default function OfflineLibraryClient() {
     return grouped
   }, [state.climbs, state.crags])
 
-  const openOfflineHref = (href: string) => {
-    window.location.assign(href)
-  }
-
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef2f7_100%)] px-4 py-10 text-gray-900 dark:bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.15),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#111827_100%)] dark:text-gray-100">
       <div className="mx-auto max-w-5xl">
@@ -172,7 +169,7 @@ export default function OfflineLibraryClient() {
                   const launchHref = getOfflineCragLaunchHref(crag)
                   return (
                     <article key={crag.cragId} className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                      <button type="button" onClick={() => openOfflineHref(launchHref)} className="block w-full text-left">
+                      <Link href={launchHref} className="block w-full text-left" aria-label={`Open saved crag ${crag.manifest.cragName}`}>
                         <div className="relative aspect-[16/8] bg-gray-200 dark:bg-gray-800">
                           {coverImageUrl ? (
                             <Image src={coverImageUrl} alt={`${crag.manifest.cragName} cover`} fill className="object-cover" sizes="(max-width: 1024px) 100vw, 50vw" unoptimized />
@@ -184,15 +181,15 @@ export default function OfflineLibraryClient() {
                             <p className="mt-1 text-xs text-white/80">{childClimbs.length} saved climb{childClimbs.length === 1 ? '' : 's'} · {formatBytes(crag.manifest.estimatedBytes)}</p>
                           </div>
                         </div>
-                      </button>
+                      </Link>
 
                       <div className="space-y-3 p-4">
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                           {childClimbs.map((climb) => (
-                            <button
+                            <Link
                               key={climb.climbId}
-                              type="button"
-                              onClick={() => openOfflineHref(getOfflineClimbLaunchHref(climb))}
+                              href={getOfflineClimbLaunchHref(climb)}
+                              aria-label={`Open saved climb ${climb.manifest.climbName}`}
                               className="group overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 text-left transition hover:border-gray-300 hover:bg-white dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700 dark:hover:bg-gray-900"
                             >
                               <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
@@ -203,7 +200,7 @@ export default function OfflineLibraryClient() {
                               <div className="p-3">
                                 <p className="line-clamp-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{climb.manifest.climbName}</p>
                               </div>
-                            </button>
+                            </Link>
                           ))}
                         </div>
                       </div>
@@ -223,10 +220,10 @@ export default function OfflineLibraryClient() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {standaloneClimbs.map((climb) => {
                   return (
-                    <button
+                    <Link
                       key={climb.climbId}
-                      type="button"
-                      onClick={() => openOfflineHref(getOfflineClimbLaunchHref(climb))}
+                      href={getOfflineClimbLaunchHref(climb)}
+                      aria-label={`Open saved climb ${climb.manifest.climbName}`}
                       className="group overflow-hidden rounded-3xl border border-gray-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700"
                     >
                       <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800">
@@ -239,7 +236,7 @@ export default function OfflineLibraryClient() {
                         <p className="text-sm text-gray-500 dark:text-gray-400">{climb.manifest.mediaCount} photo{climb.manifest.mediaCount === 1 ? '' : 's'} · {formatBytes(climb.manifest.estimatedBytes)}</p>
                         <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{climb.ownerPackIds.length > 1 ? 'Shared across packs' : 'Saved directly'}</p>
                       </div>
-                    </button>
+                    </Link>
                   )
                 })}
               </div>

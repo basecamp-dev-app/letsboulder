@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useEffect, useId, useState, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useId, useState, useRef, useCallback, useMemo, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createClient } from '@/lib/supabase'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -48,8 +48,10 @@ interface ClimbSearchRow {
 
 export default function Header() {
   const headerRef = useRef<HTMLElement>(null)
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
   const { user, load: loadAuthUser } = useLazyAuthUser()
   const searchListboxId = useId()
+  const moreMenuId = useId()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
@@ -99,6 +101,19 @@ export default function Header() {
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (!showMoreDropdown) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setShowMoreDropdown(false)
+      moreButtonRef.current?.focus()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [showMoreDropdown])
 
   const searchClimbsAndCrags = useCallback(async (query: string) => {
     const trimmedQuery = query.trim()
@@ -257,6 +272,16 @@ export default function Header() {
       void loadAuthUser()
     }
     setShowMoreDropdown(!showMoreDropdown)
+  }
+
+  const handleMoreButtonKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowDown') return
+
+    event.preventDefault()
+    if (!showMoreDropdown) {
+      void loadAuthUser()
+      setShowMoreDropdown(true)
+    }
   }
 
   const renderMoreMenuSection = (label: string, items: Array<{ label: string; href: string }>) => {
@@ -457,20 +482,28 @@ export default function Header() {
           </Link>
           <div ref={moreRef} className="relative hidden md:block">
             <button
+              ref={moreButtonRef}
+              type="button"
               onClick={handleMoreMenuToggle}
+              onKeyDown={handleMoreButtonKeyDown}
               className="flex items-center px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label="More navigation"
+              aria-haspopup="menu"
+              aria-expanded={showMoreDropdown}
+              aria-controls={showMoreDropdown ? moreMenuId : undefined}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
               {showMoreDropdown && (
-                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-40 z-[4000]">
+                <div id={moreMenuId} role="menu" aria-label="More navigation" className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 min-w-40 z-[4000]">
                   {DESKTOP_MORE_MENU_SECTIONS.map((section) => renderMoreMenuSection(section.label, section.items))}
                 <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                 {user ? (
                   <button
+                    type="button"
+                    role="menuitem"
                     onClick={() => {
                       setShowMoreDropdown(false)
                       handleLogout()
@@ -483,6 +516,7 @@ export default function Header() {
                   <Link
                     href="/auth"
                     onClick={() => setShowMoreDropdown(false)}
+                    role="menuitem"
                     className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
                   >
                     Login
