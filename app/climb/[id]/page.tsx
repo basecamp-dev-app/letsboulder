@@ -1,4 +1,4 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { buildClimbOfflinePack } from '@/lib/offline/build-climb-pack'
 
 export default async function ClimbPage({
@@ -43,7 +43,7 @@ export default async function ClimbPage({
       query.set('route', routeId)
     }
 
-    redirect(`${climbPath}/i/${displayImageId}?${query.toString()}`)
+    permanentRedirect(`${climbPath}/i/${displayImageId}?${query.toString()}`)
   } catch {
     notFound()
   }

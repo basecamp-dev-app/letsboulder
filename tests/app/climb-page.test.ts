@@ -11,7 +11,7 @@ vi.mock('@/lib/offline/build-climb-pack', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  redirect: redirectMock,
+  permanentRedirect: redirectMock,
   notFound: notFoundMock,
 }))
 

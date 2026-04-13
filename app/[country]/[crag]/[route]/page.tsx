@@ -1,7 +1,5 @@
 import type { Metadata } from 'next'
-import { notFound, redirect } from 'next/navigation'
-import { SITE_URL } from '@/lib/site'
-import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { RouteLineWithImageSchema, type RouteLineWithImage } from '@/lib/supabase-result-schemas'
 
@@ -133,13 +131,16 @@ export async function generateMetadata({ params }: { params: Promise<RouteParams
 
   if (!climb) return { title: 'Route Not Found' }
 
+  const canonicalImageId = bestImage?.image_id || null
   const routeName = (climb.name || '').trim() || 'Route'
   const grade = climb.grade
   const title = `${routeName} (${grade}) | ${crag.name} Bouldering`
   const description = climb.description
     ? climb.description
     : `Topo, beta, and ascents for ${routeName} (${grade}) at ${crag.name}.`
-  const canonicalPath = `/${country.toLowerCase()}/${cragSlug}/${routeSlug}`
+  const canonicalPath = canonicalImageId
+    ? `/${country.toLowerCase()}/${cragSlug}/i/${canonicalImageId}?route=${encodeURIComponent(routeSlug)}`
+    : `/${country.toLowerCase()}/${cragSlug}/${routeSlug}`
   const imageUrl = bestImage?.images?.url ? resolveRouteImageUrl(bestImage.images.url) : '/og.png'
 
   return {
@@ -187,46 +188,5 @@ export default async function RoutePage({ params }: { params: Promise<RouteParam
   if (!climb) notFound()
   if (!best?.image_id) notFound()
 
-  const routeName = (climb.name || '').trim() || 'Route'
-  const grade = climb.grade
-  const canonicalPath = `/${country.toLowerCase()}/${cragSlug}/${routeSlug}`
-  const breadcrumbItems = [
-    { label: 'Home', href: '/' },
-    { label: countryCode },
-    { label: crag.name, href: `/${country.toLowerCase()}/${cragSlug}` },
-    { label: routeName },
-  ]
-  const routeGeo = typeof (climb.latitude ?? crag.latitude) === 'number' && typeof (climb.longitude ?? crag.longitude) === 'number'
-    ? {
-        '@type': 'GeoCoordinates',
-        latitude: climb.latitude ?? crag.latitude,
-        longitude: climb.longitude ?? crag.longitude,
-      }
-    : undefined
-  const routeSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'Article',
-    headline: `${routeName} (${grade})`,
-    description: climb.description || `Topo and beta for ${routeName} at ${crag.name}.`,
-    mainEntityOfPage: `${SITE_URL}${canonicalPath}`,
-    url: `${SITE_URL}${canonicalPath}`,
-    image: best?.images?.url ? [resolveRouteImageUrl(best.images.url)] : undefined,
-    about: {
-      '@type': 'Place',
-      name: crag.name,
-      geo: routeGeo,
-    },
-    breadcrumb: {
-      '@type': 'BreadcrumbList',
-      itemListElement: breadcrumbItems.map((item, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        name: item.label,
-        item: item.href ? `${SITE_URL}${item.href}` : `${SITE_URL}${canonicalPath}`,
-      })),
-    },
-  }
-
-  void routeSchema
-  redirect(`/${country.toLowerCase()}/${cragSlug}/i/${best.image_id}?route=${encodeURIComponent(routeSlug)}`)
+  permanentRedirect(`/${country.toLowerCase()}/${cragSlug}/i/${best.image_id}?route=${encodeURIComponent(routeSlug)}`)
 }
