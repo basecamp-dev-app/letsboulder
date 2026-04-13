@@ -34,6 +34,23 @@ test.describe('Accessibility', () => {
     }
   })
 
+  test('@full desktop more menu exposes menu button semantics', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.goto('/')
+
+    const trigger = page.getByRole('button', { name: /more navigation/i })
+    await expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+
+    await trigger.click()
+
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.getByRole('menu', { name: /more navigation/i })).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
+
   test('@full auth page has proper heading structure', async ({ page }) => {
     await page.goto('/auth')
     

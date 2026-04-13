@@ -108,7 +108,7 @@ const CragRouteList = React.memo(function CragRouteList({
           </div>
         </div>
       ) : (
-        <div className="divide-y divide-stone-100 dark:divide-gray-800">
+        <div role="list" aria-label="Crag routes" className="divide-y divide-stone-100 dark:divide-gray-800">
           {filteredRoutes.map((route) => {
             const destination = getRouteDestination(route)
             const className = `flex items-center gap-3 px-4 py-3 transition hover:bg-stone-50 dark:hover:bg-gray-800/50 ${highlightedRouteIds.has(route.id) ? 'bg-teal-50/80 ring-1 ring-inset ring-teal-200 dark:bg-teal-950/20 dark:ring-teal-900' : ''}`
@@ -145,14 +145,14 @@ const CragRouteList = React.memo(function CragRouteList({
 
             if (!destination.ready) {
               return (
-                <button key={route.id} type="button" onClick={(event) => onPendingRouteNavigation(event, route)} className={`${className} w-full text-left`}>
+                <button key={route.id} type="button" aria-label={`Open route ${route.name}`} onClick={(event) => onPendingRouteNavigation(event, route)} className={`${className} w-full text-left`}>
                   {content}
                 </button>
               )
             }
 
             return (
-              <a key={route.id} href={destination.href} className={className}>
+              <a key={route.id} aria-label={`Open route ${route.name}`} aria-current={highlightedRouteIds.has(route.id) ? 'page' : undefined} href={destination.href} className={className}>
                 {content}
               </a>
             )

@@ -38,6 +38,7 @@ const CragSearchDialog = React.memo(function CragSearchDialog({
         <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3 dark:border-gray-800">
           <DialogClose asChild>
             <Button type="button" variant="outline" size="icon" className="rounded-full border-stone-200 text-stone-600 shadow-none hover:bg-stone-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+              <span className="sr-only">Close route search</span>
               <X className="size-4" />
             </Button>
           </DialogClose>
@@ -49,7 +50,7 @@ const CragSearchDialog = React.memo(function CragSearchDialog({
           <div className="mt-4 space-y-4">
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Routes</p>
-              <div className="space-y-2">
+              <div role="list" aria-label="Matching routes" className="space-y-2">
                 {searchQuery.trim().length === 0 ? <p className="text-sm text-stone-500 dark:text-gray-400">Search routes in this crag by name, grade, or type.</p> : searchModalResults.length === 0 ? <p className="text-sm text-stone-500 dark:text-gray-400">No routes matched &quot;{searchQuery.trim()}&quot; in this crag.</p> : searchModalResults.map((route) => {
                   const destination = getRouteDestination(route)
                   const content = (
