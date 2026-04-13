@@ -24,10 +24,10 @@ interface SettingsContentProps {
 const CONFIRMATION_TEXT = 'delete my account'
 
 const TABS: SettingsTab[] = [
-  { id: 'profile', label: 'Profile' },
-  { id: 'units', label: 'Units' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'privacy', label: 'Privacy' },
+  { id: 'profile', label: 'Profile', summary: 'Update your public details, physical stats, and default contribution credit.' },
+  { id: 'units', label: 'Units', summary: 'Choose measurement units and how grades are displayed across climb types.' },
+  { id: 'appearance', label: 'Appearance', summary: 'Set the app theme for light, dark, or system-based viewing.' },
+  { id: 'privacy', label: 'Privacy', summary: 'Manage profile visibility and account deletion settings.' },
 ]
 
 const BOULDER_GRADE_OPTIONS: GradeOption[] = [
@@ -98,6 +98,7 @@ export default function SettingsContent({ user }: SettingsContentProps) {
   }, [addToast, setToast, toast])
 
   const [activeTab, setActiveTab] = useState('profile')
+  const activeTabConfig = TABS.find((tab) => tab.id === activeTab) ?? TABS[0]
 
   if (loading) {
     return (
@@ -155,6 +156,11 @@ export default function SettingsContent({ user }: SettingsContentProps) {
           <SettingsTabs activeTab={activeTab} tabs={TABS} onTabChange={setActiveTab} />
 
           <div className="p-6">
+            <div className="mb-6 max-w-2xl">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{activeTabConfig.label}</h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{activeTabConfig.summary}</p>
+            </div>
+
             {activeTab === 'profile' && (
               <ProfileSettingsSection formData={formData} units={units} onFieldChange={handleFormChange} />
             )}

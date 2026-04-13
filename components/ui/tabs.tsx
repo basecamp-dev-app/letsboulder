@@ -13,7 +13,10 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
-      className={cn('flex -mb-px overflow-x-auto border-b border-gray-200 dark:border-gray-700', className)}
+      className={cn(
+        'flex gap-2 overflow-x-auto border-b border-gray-200 px-4 py-3 scrollbar-none sm:px-6 dark:border-gray-700',
+        className
+      )}
       {...props}
     />
   )
@@ -21,14 +24,14 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
 
 function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   return (
-    <TabsPrimitive.Trigger
-      data-slot="tabs-trigger"
-      className={cn(
-        'border-b-2 border-transparent px-6 py-4 text-sm font-medium whitespace-nowrap text-gray-500 transition-colors outline-none hover:text-gray-700 hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:border-gray-600 data-[state=active]:border-gray-900 data-[state=active]:text-gray-900 dark:data-[state=active]:border-gray-100 dark:data-[state=active]:text-white',
-        className
-      )}
-      {...props}
-    />
+      <TabsPrimitive.Trigger
+        data-slot="tabs-trigger"
+        className={cn(
+          'inline-flex min-h-11 items-center rounded-full border border-transparent px-4 py-2.5 text-sm font-medium whitespace-nowrap text-gray-500 transition-[color,background-color,border-color,box-shadow] outline-none hover:border-gray-200 hover:bg-gray-100 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200 data-[state=active]:border-gray-900 data-[state=active]:bg-gray-900 data-[state=active]:text-white data-[state=active]:shadow-sm dark:data-[state=active]:border-gray-100 dark:data-[state=active]:bg-gray-100 dark:data-[state=active]:text-gray-950',
+          className
+        )}
+        {...props}
+      />
   )
 }
 
