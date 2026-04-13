@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { VisuallyHidden } from '@/components/ui/visually-hidden'
-import { ACCOUNT_NAV_ITEMS, MOBILE_ACCOUNT_MENU_ITEMS } from '@/lib/nav-items'
+import { MOBILE_NAV_SECTIONS } from '@/lib/nav-items'
 import { suppressOverlayCleanup, useOverlayHistory } from '@/hooks/useOverlayHistory'
 import { csrfFetch } from '@/lib/csrf-client'
 import { useLazyAuthUser } from '@/components/use-lazy-auth-user'
@@ -86,6 +86,33 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
     router.replace('/auth')
   }
 
+  const renderNavSection = (title: string, items: Array<{ label: string; href: string }>) => {
+    if (items.length === 0) return null
+
+    return (
+      <div className="space-y-1">
+        <p className="px-4 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">{title}</p>
+        {items.map((item) => (
+          <button
+            key={item.href}
+            type="button"
+            onClick={() => handleNavigation(item.href)}
+            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-colors ${
+              pathname === item.href
+                ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+            }`}
+          >
+            <span className={pathname === item.href ? 'text-gray-900 dark:text-white' : 'text-gray-500'}>
+              {NAV_ITEM_ICONS[item.label]}
+            </span>
+            <span className="font-medium">{item.label}</span>
+          </button>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
@@ -97,51 +124,11 @@ export default function MobileNavSheet({ isOpen, onClose }: MobileNavSheetProps)
           <DialogTitle>Navigation menu</DialogTitle>
         </VisuallyHidden>
         <VisuallyHidden>
-          <DialogDescription>Access your account, settings, and other letsboulder destinations.</DialogDescription>
+          <DialogDescription>Access letsboulder destinations, track your climbs, and manage your account.</DialogDescription>
         </VisuallyHidden>
         <div className="w-12 h-1 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-4" aria-hidden="true" />
-        <nav className="space-y-4" aria-label="Account menu">
-          <div className="space-y-1">
-            <p className="px-4 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Account</p>
-            {ACCOUNT_NAV_ITEMS.map((item) => (
-              <button
-                key={item.href}
-                type="button"
-                onClick={() => handleNavigation(item.href)}
-                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-colors ${
-                  pathname === item.href
-                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                }`}
-              >
-                <span className={pathname === item.href ? 'text-gray-900 dark:text-white' : 'text-gray-500'}>
-                  {NAV_ITEM_ICONS[item.label]}
-                </span>
-                <span className="font-medium">{item.label}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-1">
-            <p className="px-4 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Explore</p>
-            {MOBILE_ACCOUNT_MENU_ITEMS.filter((item) => !ACCOUNT_NAV_ITEMS.some((accountItem) => accountItem.href === item.href)).map((item) => (
-              <button
-                key={item.href}
-                type="button"
-                onClick={() => handleNavigation(item.href)}
-                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg text-left transition-colors ${
-                  pathname === item.href
-                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                }`}
-              >
-                <span className={pathname === item.href ? 'text-gray-900 dark:text-white' : 'text-gray-500'}>
-                  {NAV_ITEM_ICONS[item.label]}
-                </span>
-                <span className="font-medium">{item.label}</span>
-              </button>
-            ))}
-          </div>
+        <nav className="space-y-4" aria-label="Primary navigation">
+          {MOBILE_NAV_SECTIONS.map((section) => renderNavSection(section.label, section.items))}
 
           <div className="border-t border-gray-200 pt-3 dark:border-gray-800">
             {user ? (

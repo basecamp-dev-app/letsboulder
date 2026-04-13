@@ -15,6 +15,7 @@ export interface SettingsProfileFormData {
 export interface SettingsTab {
   id: string
   label: string
+  summary: string
 }
 
 export interface GradeOption {
