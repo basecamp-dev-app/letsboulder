@@ -21,6 +21,12 @@ interface SearchResult {
   longitude?: number
 }
 
+interface SearchResultGroup {
+  key: 'crags' | 'climbs'
+  label: string
+  items: SearchResult[]
+}
+
 interface CragData {
   id: string
   name: string
@@ -311,6 +317,15 @@ export default function Header() {
     }
   }
 
+  const groupedSearchResults = useMemo<SearchResultGroup[]>(() => {
+    const crags = searchResults.filter((result) => result.type === 'crag')
+    const climbs = searchResults.filter((result) => result.type === 'climb')
+    return [
+      { key: 'crags', label: 'Crags', items: crags },
+      { key: 'climbs', label: 'Climbs', items: climbs }
+    ].filter((group) => group.items.length > 0)
+  }, [searchResults])
+
   return (
     <header ref={headerRef} className="relative z-[50] bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none block">
       <div className="container mx-auto px-4 py-2 flex justify-between items-center gap-4">
@@ -338,8 +353,8 @@ export default function Header() {
         <div ref={searchRef} className="relative flex-1 max-w-md">
           <input
             type="text"
-            placeholder="Search crags or climbs..."
-            aria-label="Search crags or climbs"
+            placeholder="Search all crags and climbs"
+            aria-label="Search all crags and climbs"
             value={searchQuery}
             onChange={handleSearchChange}
             onKeyDown={handleSearchKeyDown}
@@ -367,28 +382,55 @@ export default function Header() {
               aria-label="Search results"
               className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-[60vh] overflow-y-auto z-[1200] md:z-50"
             >
-              {searchResults.map((result, index) => (
-                <button
-                  key={`${result.type}-${result.id}`}
-                  id={`${searchListboxId}-${result.type}-${result.id}`}
-                  onClick={() => handleResultClick(result)}
-                  onMouseEnter={() => setActiveSearchIndex(index)}
-                  role="option"
-                  aria-selected={activeSearchIndex === index}
-                  className={`w-full px-4 py-3 text-left border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${
-                    activeSearchIndex === index
-                      ? 'bg-gray-50 dark:bg-gray-800'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{result.name}</p>
-                    {result.type === 'climb' && result.crag_name && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">at {result.crag_name}</p>
-                    )}
-                  </div>
-                </button>
+              {groupedSearchResults.map((group) => (
+                <div key={group.key}>
+                  <p className="px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">{group.label}</p>
+                  {group.items.map((result) => {
+                    const index = searchResults.findIndex((item) => item.type === result.type && item.id === result.id)
+
+                    return (
+                      <button
+                        key={`${result.type}-${result.id}`}
+                        id={`${searchListboxId}-${result.type}-${result.id}`}
+                        onClick={() => handleResultClick(result)}
+                        onMouseEnter={() => setActiveSearchIndex(index)}
+                        role="option"
+                        aria-selected={activeSearchIndex === index}
+                        className={`w-full px-4 py-3 text-left border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${
+                          activeSearchIndex === index
+                            ? 'bg-gray-50 dark:bg-gray-800'
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-gray-100">{result.name}</p>
+                          {result.type === 'climb' && result.crag_name ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">at {result.crag_name}</p>
+                          ) : result.type === 'crag' ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{result.country_code ? `Open crag in ${result.country_code.toUpperCase()}` : 'Open crag page'}</p>
+                          ) : null}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               ))}
+            </div>
+          )}
+          {showSearchDropdown && searchQuery.trim().length > 0 && searchQuery.trim().length < 2 && !isSearching && (
+            <div
+              role="status"
+              className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center text-gray-500 dark:text-gray-400 z-[1200] md:z-50"
+            >
+              Type at least 2 characters to search all crags and climbs.
+            </div>
+          )}
+          {showSearchDropdown && searchQuery.trim().length >= 2 && isSearching && (
+            <div
+              role="status"
+              className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center text-gray-500 dark:text-gray-400 z-[1200] md:z-50"
+            >
+              Searching crags and climbs...
             </div>
           )}
           {showSearchDropdown && searchQuery.length >= 2 && searchResults.length === 0 && !isSearching && (
@@ -396,7 +438,7 @@ export default function Header() {
                 role="status"
                 className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-4 text-center text-gray-500 dark:text-gray-400 z-[1200] md:z-50"
               >
-                No results found
+                No crags or climbs matched &quot;{searchQuery.trim()}&quot;.
               </div>
             )}
         </div>
