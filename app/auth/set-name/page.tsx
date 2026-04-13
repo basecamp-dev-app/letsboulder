@@ -1,8 +1,12 @@
 'use client'
 
+import type React from 'react'
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { createClient } from '@/lib/supabase'
 
 export default function SetNamePage() {
   const [displayName, setDisplayName] = useState('')
@@ -59,7 +63,7 @@ export default function SetNamePage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
       <div className="w-full max-w-md">
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8">
+        <div className="rounded-2xl border border-border/80 bg-card p-8 shadow-lg">
           <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
             Step 2 of 2
           </p>
@@ -75,35 +79,36 @@ export default function SetNamePage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="mb-1 block text-sm font-medium text-foreground">
                 Display Name
               </label>
-              <input
+              <Input
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Alex, A. Rivera, StoneFox"
                 autoFocus
-                className="w-full px-4 py-3 text-lg border-2 rounded-lg focus:outline-none transition-colors bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 focus:border-gray-500"
+                aria-invalid={Boolean(error) && !displayName.trim()}
+                className="h-12 rounded-xl border-2 border-border bg-background px-4 text-base md:text-base"
               />
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-2 text-xs text-muted-foreground">
                 Use your real name, initials, or a nickname you want attached to your climbing activity.
               </p>
             </div>
 
             {error && (
-              <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
                 {error}
               </div>
             )}
 
-            <button
+            <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-gray-800 dark:bg-gray-700 text-white dark:text-gray-100 py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+              className="h-12 w-full rounded-xl"
             >
               {loading ? 'Saving...' : 'Save and continue'}
-            </button>
+            </Button>
           </form>
         </div>
       </div>

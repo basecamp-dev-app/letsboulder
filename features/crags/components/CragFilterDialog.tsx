@@ -51,7 +51,11 @@ const CragFilterDialog = React.memo(function CragFilterDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className="max-w-2xl rounded-[28px] border-stone-200 bg-white p-0 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3 dark:border-gray-800">
-          <DialogClose className="rounded-full border border-stone-200 p-2 text-stone-600 dark:border-gray-700 dark:text-gray-300"><X className="size-4" /></DialogClose>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" size="icon" className="rounded-full border-stone-200 text-stone-600 shadow-none hover:bg-stone-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+              <X className="size-4" />
+            </Button>
+          </DialogClose>
           <DialogTitle className="text-base">Filter climbs</DialogTitle>
           <div className="size-9" />
         </div>
@@ -87,9 +91,9 @@ const CragFilterDialog = React.memo(function CragFilterDialog({
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Climb type</p>
             <div className="flex flex-wrap gap-2">
               {routeTypeChips.map((routeType) => (
-                <button key={routeType} type="button" onClick={() => onToggleRouteType(routeType)} className={`rounded-full border px-3 py-1 text-xs font-medium ${selectedRouteTypes.includes(routeType) ? 'border-orange-600 bg-orange-600 text-white' : 'border-stone-300 bg-white text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>
+                <Button key={routeType} type="button" variant={selectedRouteTypes.includes(routeType) ? 'default' : 'outline'} onClick={() => onToggleRouteType(routeType)} className={`h-8 rounded-full px-3 text-xs font-medium ${selectedRouteTypes.includes(routeType) ? 'border-orange-600 bg-orange-600 text-white hover:bg-orange-500' : 'border-stone-300 bg-white text-stone-700 shadow-none hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
                   {formatRouteTypeLabel(routeType)}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -98,9 +102,9 @@ const CragFilterDialog = React.memo(function CragFilterDialog({
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Face direction</p>
             <div className="flex flex-wrap gap-2">
               {availableDirections.map((direction) => (
-                <button key={direction} type="button" onClick={() => onToggleDirection(direction)} className={`rounded-full border px-3 py-1 text-xs font-medium ${selectedDirections.includes(direction) ? 'border-stone-900 bg-stone-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900' : 'border-stone-300 bg-white text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'}`}>
+                <Button key={direction} type="button" variant={selectedDirections.includes(direction) ? 'default' : 'outline'} onClick={() => onToggleDirection(direction)} className={`h-8 rounded-full px-3 text-xs font-medium ${selectedDirections.includes(direction) ? 'border-stone-900 bg-stone-900 text-white hover:bg-stone-800 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200' : 'border-stone-300 bg-white text-stone-700 shadow-none hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'}`}>
                   {direction}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
