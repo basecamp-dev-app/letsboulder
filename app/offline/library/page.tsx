@@ -17,15 +17,21 @@ function OfflineLibraryLoadingFallback() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef2f7_100%)] px-4 py-10 text-gray-900 dark:bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.15),_transparent_28%),linear-gradient(180deg,_#020617_0%,_#111827_100%)] dark:text-gray-100">
       <div className="mx-auto max-w-5xl">
         <div className="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-xl shadow-emerald-950/5 backdrop-blur dark:border-white/10 dark:bg-gray-950/80 dark:shadow-black/30">
+          <div className="mb-4 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
+            <span>Offline</span>
+            <span>/</span>
+            <span className="text-gray-700 dark:text-gray-200">Saved downloads</span>
+          </div>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 dark:text-emerald-300">Offline</p>
               <Skeleton className="mt-3 h-9 w-52" />
               <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">Loading saved offline packs from this device...</p>
+              <Skeleton className="mt-3 h-4 w-full max-w-2xl" />
             </div>
             <div className="flex gap-3">
-              <Skeleton className="h-10 w-20 rounded-lg" />
-              <Skeleton className="h-10 w-24 rounded-lg" />
+              <Skeleton className="h-10 w-20 rounded-xl" />
+              <Skeleton className="h-10 w-28 rounded-xl" />
             </div>
           </div>
 
