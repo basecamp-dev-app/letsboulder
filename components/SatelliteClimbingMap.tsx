@@ -568,7 +568,7 @@ export default function SatelliteClimbingMap({
       <div className="pointer-events-none absolute bottom-6 left-4 z-[1000] space-y-2 md:left-6">
         {!hasDefaultLocation && pinLoadState === 'ready' && (
           <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
-            Showing world view. Use the header search or jump near you.
+            Showing world view.
           </div>
         )}
         {pinLoadState === 'loading' && (
@@ -585,11 +585,6 @@ export default function SatelliteClimbingMap({
         {locationStatus === 'error' && (
           <div className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 shadow-lg backdrop-blur-md">
             Location unavailable. Search or move the map manually.
-          </div>
-        )}
-        {pinLoadState === 'ready' && (
-          <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/58 shadow-lg backdrop-blur-md">
-            Solid red pins are crags. Numbered pins expand as you zoom in.
           </div>
         )}
       </div>
