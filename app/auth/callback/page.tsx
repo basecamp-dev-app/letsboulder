@@ -174,14 +174,15 @@ function AuthCallbackContent() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('first_name')
+        .select('first_name, display_name')
         .eq('id', user.id)
         .order('updated_at', { ascending: false, nullsFirst: false })
         .limit(1)
 
       const activeProfile = profile?.[0]
+      const hasPublicName = Boolean(activeProfile?.display_name?.trim() || activeProfile?.first_name?.trim())
 
-      if (!activeProfile?.first_name) {
+      if (!hasPublicName) {
         router.push('/auth/set-name')
         return
       }

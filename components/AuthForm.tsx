@@ -25,7 +25,7 @@ export default function AuthForm() {
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [showEmailSignIn, setShowEmailSignIn] = useState(false)
+  const [authMethod, setAuthMethod] = useState<'social' | 'email'>('social')
   const [isEmbeddedBrowser] = useState(() => {
     if (typeof window === 'undefined') return false
 
@@ -145,7 +145,40 @@ export default function AuthForm() {
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800/60">
+            <div className="grid grid-cols-2 gap-1">
+              <button
+                type="button"
+                onClick={() => setAuthMethod('social')}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  authMethod === 'social'
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
+                }`}
+              >
+                Social
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMethod('email')}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  authMethod === 'email'
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
+                }`}
+              >
+                Email
+              </button>
+            </div>
+            <p className="px-3 pt-3 text-center text-xs text-gray-500 dark:text-gray-400">
+              {authMethod === 'social'
+                ? 'Fastest setup: continue with Google or Discord.'
+                : 'No password needed: we will email you a magic link.'}
+            </p>
+          </div>
+
+          {authMethod === 'social' ? (
+            <div className="space-y-4">
               <button
                 onClick={handleGoogleSignIn}
                 disabled={loadingProvider !== null || isEmbeddedBrowser}
@@ -174,26 +207,13 @@ export default function AuthForm() {
                 </svg>
                 {loadingProvider === 'discord' ? 'Signing in...' : 'Continue with Discord'}
               </button>
-            </div>
 
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+              {error && (
+                <div className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
+                  {error}
+                </div>
+              )}
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400">
-                or
-              </span>
-            </div>
-          </div>
-
-          {!showEmailSignIn ? (
-            <button
-              onClick={() => setShowEmailSignIn(true)}
-              className="w-full text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors text-sm"
-            >
-              Sign in with email instead
-            </button>
           ) : (
             <div className="space-y-4">
               <p className="text-gray-600 dark:text-gray-400 text-center mb-4 text-sm">
@@ -241,13 +261,6 @@ export default function AuthForm() {
                   </div>
                 )}
               </form>
-
-              <button
-                onClick={() => setShowEmailSignIn(false)}
-                className="w-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors text-sm mt-4"
-              >
-                ← Back to Google sign in/up
-              </button>
             </div>
           )}
 
