@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { isAccountMenuRoute, isLogbookRoute, isSubmitRoute } from '@/lib/nav-items'
+import { isLogbookRoute, isNavigationMenuRoute, isSubmitRoute } from '@/lib/nav-items'
 import { SUPPORT_URL } from '@/lib/site'
 import MobileNavSheet from './MobileNavSheet'
 
@@ -70,13 +70,13 @@ export default function Footer() {
             onClick={() => setIsNavSheetOpen(true)}
             aria-haspopup="dialog"
             aria-expanded={isNavSheetOpen}
-            aria-label="Open account menu"
-            className={`flex flex-col items-center p-2 ${isAccountMenuRoute(pathname) ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+            aria-label="Open navigation menu"
+            className={`flex flex-col items-center p-2 ${isNavigationMenuRoute(pathname) ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 12a3 3 0 100-6 3 3 0 000 6zm0 2c-4.418 0-8 1.79-8 4v1h16v-1c0-2.21-3.582-4-8-4z" />
             </svg>
-            <span className="text-[10px] mt-0.5" aria-hidden="true">Account</span>
+            <span className="text-[10px] mt-0.5" aria-hidden="true">Menu</span>
           </button>
         </nav>
       </footer>
