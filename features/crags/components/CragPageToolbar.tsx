@@ -5,6 +5,7 @@ import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 export interface CragSwitcherOption {
   id: string
   name: string
+  slug: string | null
   regionName: string | null
   subArea: string | null
   countryCode: string | null
@@ -33,9 +34,9 @@ interface CragPageToolbarProps {
 }
 
 function getCragSwitcherHref(option: CragSwitcherOption) {
-  if (!option.countryCode) return `/crag/${option.id}`
+  if (!option.slug || !option.countryCode) return `/crag/${option.id}`
 
-  return `/${option.countryCode.toLowerCase()}/${option.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`
+  return `/${option.countryCode.toLowerCase()}/${option.slug}`
 }
 
 export default function CragPageToolbar({

@@ -191,12 +191,12 @@ describe('Search routes', () => {
   test('crag search merges tag matches and normalizes country names', async () => {
     getServerClientFromRequest.mockReturnValue(createCragsClient(
       [
-        { id: 'crag-2', name: 'Needles', latitude: 49.2, longitude: -2.1, country_code: 'gb', region_name: 'Jersey', sub_area: 'North', rock_type: 'granite' },
+        { id: 'crag-2', name: 'Needles', latitude: 49.2, longitude: -2.1, slug: 'needles', country_code: 'gb', region_name: 'Jersey', sub_area: 'North', rock_type: 'granite' },
       ],
       [
         {
           crag_id: 'crag-1',
-          crags: { id: 'crag-1', name: 'Magic Wood', latitude: 49.21, longitude: -2.11, country_code: 'ch', region_name: 'Graubunden', sub_area: null, rock_type: 'gneiss' },
+          crags: { id: 'crag-1', name: 'Magic Wood', latitude: 49.21, longitude: -2.11, slug: 'magic-wood', country_code: 'ch', region_name: 'Graubunden', sub_area: null, rock_type: 'gneiss' },
         },
       ]
     ))
@@ -208,6 +208,7 @@ describe('Search routes', () => {
     expect(json[0]).toEqual(expect.objectContaining({
       id: 'crag-1',
       name: 'Magic Wood',
+      slug: 'magic-wood',
       countryCode: 'ch',
       countryName: 'Switzerland',
     }))
@@ -216,7 +217,7 @@ describe('Search routes', () => {
 
   test('crag search keeps zero coordinates when computing distance', async () => {
     getServerClientFromRequest.mockReturnValue(createCragsClient([
-      { id: 'crag-0', name: 'Meridian Boulder', latitude: 0, longitude: 0, country_code: 'gb', region_name: 'Greenwich', sub_area: null, rock_type: 'sandstone' },
+      { id: 'crag-0', name: 'Meridian Boulder', latitude: 0, longitude: 0, slug: 'meridian-boulder', country_code: 'gb', region_name: 'Greenwich', sub_area: null, rock_type: 'sandstone' },
     ]))
 
     const response = await getCragSearch(new NextRequest('http://localhost:3000/api/crags/search?q=me&lat=0&lng=0'))
