@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import MapViewport from '@/components/MapViewport'
+import JsonLd from '@/components/JsonLd'
 import { fetchMapPins } from '@/lib/supabase-server'
 
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Rock Climbing Map',
@@ -38,10 +39,7 @@ export default async function RockClimbingMapPage() {
   return (
     <>
       <MapViewport initialPlacePins={initialPlacePins} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
-      />
+      <JsonLd data={webPageSchema} />
 
       <section className="relative z-10 mt-[100vh] border-t border-gray-200 bg-white/95 px-4 py-8 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/95">
         <div className="mx-auto max-w-5xl">
