@@ -8,6 +8,8 @@ import { Lock, ArrowLeft } from 'lucide-react'
 import ProfileViewTracker from './components/ProfileViewTracker'
 import type { LogbookClimb, LogbookProfile } from '@/features/logbook/lib/logbook-view'
 import type { Database } from '@/types/database'
+
+export const revalidate = 60
 import type { Submission } from '@/types/submissions'
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 

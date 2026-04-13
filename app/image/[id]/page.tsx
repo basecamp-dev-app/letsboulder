@@ -1,6 +1,8 @@
 import { notFound, permanentRedirect } from 'next/navigation'
 import { getImageByDisplayId } from '@/features/image-first/server/load-image-first-page'
 
+export const dynamic = 'force-dynamic'
+
 export default async function ImageRedirectPage({
   params,
   searchParams,

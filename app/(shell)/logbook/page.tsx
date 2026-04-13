@@ -4,6 +4,8 @@ import { fetchServerLogbookData } from '@/features/logbook/lib/queries-server'
 import { reportError } from '@/lib/errors'
 import LogbookClient from './LogbookClient'
 
+export const dynamic = 'force-dynamic'
+
 export default async function LogbookPage() {
   const supabase = await getServerClient()
   const { data: { user } } = await supabase.auth.getUser()

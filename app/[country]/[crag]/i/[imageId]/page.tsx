@@ -2,6 +2,8 @@ import { notFound, permanentRedirect } from 'next/navigation'
 import ImageFirstClientLoader from '@/features/image-first/components/ImageFirstClientLoader'
 import { buildImageFirstPayload } from '@/features/image-first/server/load-image-first-page'
 
+export const dynamic = 'force-dynamic'
+
 interface ImagePageParams {
   country: string
   crag: string

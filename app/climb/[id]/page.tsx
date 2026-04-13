@@ -3,6 +3,8 @@ import { getDisplayImageId } from '@/lib/image-identity'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 import { buildClimbOfflinePack } from '@/lib/offline/build-climb-pack'
 
+export const dynamic = 'force-dynamic'
+
 async function getCanonicalClimbRedirect(id: string) {
   const supabase = getUnauthenticatedClient()
   const { data: climb, error: climbError } = await supabase

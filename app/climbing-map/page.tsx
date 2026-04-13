@@ -3,6 +3,8 @@ import Link from 'next/link'
 import MapViewport from '@/components/MapViewport'
 import { fetchMapPins } from '@/lib/supabase-server'
 
+export const revalidate = 60
+
 export const metadata: Metadata = {
   title: 'Climbing Map',
   description: 'Use this climbing map to explore crags from Guernsey to Skye, view route lines, and open photo topos for local climbs.',

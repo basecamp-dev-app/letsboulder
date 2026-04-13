@@ -3,6 +3,8 @@ import Link from 'next/link'
 import MapViewport from '@/components/MapViewport'
 import { fetchMapPins } from '@/lib/supabase-server'
 
+export const revalidate = 60
+
 export const metadata: Metadata = {
   title: 'Guernsey Bouldering Map',
   description: 'Discover Guernsey bouldering on an interactive map with local crags, photo topos, and route beta from the climbing community.',
