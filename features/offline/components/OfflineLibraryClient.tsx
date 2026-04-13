@@ -3,6 +3,8 @@
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+
+import { Button } from '@/components/ui/button'
 import type { StoredClimbManifest, StoredCragManifest } from '@/lib/offline/storage'
 import { listOfflinePacksForLaunch } from '@/lib/offline/packs'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
@@ -107,20 +109,22 @@ export default function OfflineLibraryClient() {
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{status}</p>
             </div>
             <div className="flex gap-3">
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => window.location.assign('/offline')}
-                className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                className="rounded-xl border-gray-300 bg-white/80 text-gray-700 shadow-none hover:bg-white dark:border-gray-700 dark:bg-gray-950/70 dark:text-gray-200 dark:hover:bg-gray-900"
               >
                 Back
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => window.location.assign('/')}
-                className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                className="rounded-xl border-gray-300 bg-white/80 text-gray-700 shadow-none hover:bg-white dark:border-gray-700 dark:bg-gray-950/70 dark:text-gray-200 dark:hover:bg-gray-900"
               >
                 Open map
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -148,7 +152,10 @@ export default function OfflineLibraryClient() {
 
           {!error && state.crags.length === 0 && standaloneClimbs.length === 0 ? (
             <div className="mt-8 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-5 py-6 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900/70 dark:text-gray-300">
-              No saved offline packs found on this device yet.
+              <p>No saved offline packs found on this device yet.</p>
+              <Button type="button" variant="outline" className="mt-4 rounded-xl" onClick={() => window.location.assign('/offline')}>
+                Browse offline options
+              </Button>
             </div>
           ) : null}
 

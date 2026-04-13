@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { ChevronRight, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import type { GradeSystem } from '@/lib/grades'
 import { Input } from '@/components/ui/input'
@@ -35,7 +36,11 @@ const CragSearchDialog = React.memo(function CragSearchDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className="max-w-2xl rounded-[28px] border-stone-200 bg-white p-0 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3 dark:border-gray-800">
-          <DialogClose className="rounded-full border border-stone-200 p-2 text-stone-600 dark:border-gray-700 dark:text-gray-300"><X className="size-4" /></DialogClose>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" size="icon" className="rounded-full border-stone-200 text-stone-600 shadow-none hover:bg-stone-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+              <X className="size-4" />
+            </Button>
+          </DialogClose>
           <DialogTitle className="text-base">Search routes</DialogTitle>
           <div className="size-9" />
         </div>
@@ -56,9 +61,9 @@ const CragSearchDialog = React.memo(function CragSearchDialog({
 
                   if (!destination.ready) {
                     return (
-                      <button key={route.id} type="button" onClick={(event) => onPendingRouteNavigation(event, route)} className="flex w-full items-center justify-between rounded-xl border border-stone-200 px-3 py-2 text-left text-sm hover:bg-stone-50 dark:border-gray-700 dark:hover:bg-gray-800">
+                      <Button key={route.id} type="button" variant="outline" onClick={(event) => onPendingRouteNavigation(event, route)} className="h-auto w-full justify-between rounded-xl border-stone-200 px-3 py-2 text-left text-sm font-normal text-inherit shadow-none hover:bg-stone-50 dark:border-gray-700 dark:hover:bg-gray-800">
                         {content}
-                      </button>
+                      </Button>
                     )
                   }
 
