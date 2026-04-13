@@ -27,6 +27,7 @@ export interface UseCragDataResult {
   routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
   defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
   routesLoadState: 'idle' | 'loading' | 'loaded' | 'error'
+  retryRoutes: () => Promise<unknown>
   loading: boolean
   cragCenter: [number, number] | null
 }
@@ -40,6 +41,7 @@ export interface CragDataState {
   routeNavigationTargetByClimbId: Record<string, RouteNavigationTarget>
   defaultRouteTargetByImageId: Record<string, ImageRouteTarget>
   routesLoadState: 'idle' | 'loading' | 'loaded' | 'error'
+  retryRoutes: () => Promise<unknown>
   loading: boolean
   cragCenter: [number, number] | null
 }
