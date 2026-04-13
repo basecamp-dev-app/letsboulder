@@ -1,5 +1,15 @@
 # Offline / PWA Architecture
 
+## Current Contract
+
+- Offline uses the same canonical app routes where possible.
+- Saved packs now prefer deterministic launch URLs via manifest fields such as `offlineLaunchUrl` and `imageFirstUrl`.
+- Saved climbs prefer image-first topo routes.
+- Saved crags prefer a saved child climb topo/image route when available, otherwise the canonical crag page.
+- `/offline` is now a dispatcher route. It redirects to `/` when online and `/offline/library?reason=offline` when offline.
+- Uncached offline navigations now recover to `/offline/library?reason=offline-miss&from=<requested-path>` instead of failing hard.
+- The map stack now supports a degraded offline basemap path using app-owned offline tile routes for imagery and labels.
+
 ## Service Worker — `public/sw.js`
 
 ### Cache Layers
@@ -17,9 +27,9 @@
 
 | Message | Action |
 |---|---|
-| `SAVE_CLIMB_PACK` | Caches climb page, media, and tiles |
+| `SAVE_CLIMB_PACK` | Caches climb page, image-first launch page, media, and tiles |
 | `REMOVE_CLIMB_PACK` | Removes climb from caches |
-| `SAVE_CRAG_PACK` | Caches crag + all child climb pages, media, and tiles (with progress broadcast) |
+| `SAVE_CRAG_PACK` | Caches saved crag launch page + all child climb launch pages, media, and tiles (with progress broadcast) |
 | `REMOVE_CRAG_PACK` | Removes crag + orphaned climbs from caches |
 | `SKIP_WAITING` | Activates new SW immediately |
 
@@ -29,9 +39,15 @@
 |---|---|
 | Shell routes | Network-first, shell cache fallback |
 | Media | Cache-first, network fallback (504 if offline and uncached) |
-| Tiles | Cache-first, network fallback (504 if offline and uncached) |
+| Tiles | Cache-first, offline tile cache fallback via `/api/offline-tiles/{layer}/{z}/{x}/{y}` |
 | Climb/crag pages | Network-first, pack cache fallback |
 | Route assets | Cache-first, network fallback |
+
+### Offline Navigation Recovery
+
+- Saved canonical routes are cached explicitly during pack install.
+- If a climb/crag route is requested offline and the exact document is not cached, the service worker redirects to `/offline/library?reason=offline-miss&from=<requested-path>`.
+- This prevents dead-end offline navigation failures.
 
 ## Pack System — `lib/offline/packs.ts`
 
@@ -42,11 +58,23 @@
 - `getCragOfflinePreview(cragId)` — preview bytes, changed climbs, up-to-date status
 - `OFFLINE_PACK_BUDGET_BYTES = 250 * 1024 * 1024` — 250 MB budget
 
+### Manifest Fields Used for Launch
+
+- `offlineLaunchUrl` — preferred saved launch URL for offline entry
+- `imageFirstUrl` — explicit image-first topo route for saved climbs
+- `canonicalPath` / `pageUrl` — fallback route metadata
+
 ## Storage — `lib/offline/storage.ts`
 
 IndexedDB stores pack records, climb manifests, and crag manifests.
 
 Tracked fields: `packId`, `type`, `entityId`, `versionHash`, `estimatedBytes`, `mediaCount`, `tileCount`.
+
+Additional lookup helpers are now used for offline image-first rendering:
+
+- `getStoredClimbManifest(climbId)`
+- `getStoredClimbManifestByImageId(imageId)`
+- `getStoredCragClimbPayloads(cragId)`
 
 ## SW Messages Client — `lib/offline/sw-messages.ts`
 
@@ -61,8 +89,17 @@ TanStack React Query persisted to IndexedDB via `@tanstack/react-query-persist-c
 
 | Route | Purpose |
 |---|---|
-| `/offline` | Launcher page, shows saved packs |
-| `/offline/library` | Detailed pack management |
+| `/offline` | Online/offline dispatcher route |
+| `/offline/library` | Saved pack library and offline recovery surface |
+
+## Offline Map Basemap
+
+- Online maps still prefer satellite imagery + boundaries/place labels.
+- Offline/degraded maps now resolve to app-owned tile routes:
+  - `/api/offline-tiles/imagery/{z}/{x}/{y}`
+  - `/api/offline-tiles/labels/{z}/{x}/{y}`
+- The current implementation is cache-backed and app-owned, but still proxy-fetches upstream tile providers on cache miss.
+- Tile manifests now include layered tile URL sets for both imagery and labels.
 
 ## Key Files
 
@@ -71,7 +108,8 @@ TanStack React Query persisted to IndexedDB via `@tanstack/react-query-persist-c
 | `public/sw.js` | 538 | Service worker |
 | `lib/offline/packs.ts` | 495 | Pack management |
 | `lib/offline/storage.ts` | — | IndexedDB storage |
-| `lib/offline/tiles.ts` | — | Tile URL building |
+| `lib/offline/tiles.ts` | — | Layered offline tile manifest building |
+| `lib/map/base-layer.ts` | — | Shared online/offline basemap resolver |
 | `lib/offline/sw-messages.ts` | — | SW communication |
 | `lib/query-persistence.ts` | — | React Query persistence |
 | `app/offline/page.tsx` | — | Offline launcher |

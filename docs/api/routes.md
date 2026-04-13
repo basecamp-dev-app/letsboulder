@@ -120,9 +120,17 @@ User notifications. Requires authentication. Uses CSRF protection.
 
 Offline pack manifests for climbs and crags. Read operations are public; pack generation may require authentication. No CSRF protection.
 
+- `offline-packs/climbs/[id]` — build climb offline manifest, including `offlineLaunchUrl`, `imageFirstUrl`, media URLs, and tile manifest
+- `offline-packs/crags/[id]` — build crag offline manifest, including preferred crag launch URL plus child climb summaries
+
 ### offline-tiles
 
 Offline map tile serving. No authentication or CSRF protection. Public tile data.
+
+- `offline-tiles/[layer]/[z]/[x]/[y]` — layered offline tile proxy for saved map coverage
+- Supported `layer` values:
+  - `imagery`
+  - `labels`
 
 ### places
 

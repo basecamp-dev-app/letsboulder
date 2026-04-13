@@ -286,7 +286,8 @@ await removeCragOffline(cragId)
 ### Key Files
 - `lib/offline/packs.ts` — pack management (save, remove, preview, budget)
 - `lib/offline/storage.ts` — IndexedDB storage for pack records and manifests
-- `lib/offline/tiles.ts` — tile URL building
+- `lib/offline/tiles.ts` — layered tile manifest building for saved map coverage
+- `lib/map/base-layer.ts` — shared resolver for online satellite vs offline degraded basemap
 - `lib/offline/sw-messages.ts` — service worker communication via BroadcastChannel
 - `public/sw.js` — service worker with 6 cache layers
 - `lib/query-persistence.ts` — React Query IndexedDB persistence (12h max age)
@@ -306,10 +307,11 @@ await removeCragOffline(cragId)
 - **Media URL consistency:** Persist and render saved media with the same proxied `/api/media/...` URLs. If the UI renders proxied media but the pack cached raw Supabase URLs, offline thumbnails will 504.
 - **Network-first vs Cache-first:** Routes and unsaved pages stay network-first; saved media is cache-first; downloaded tiles are cache-only/best-effort.
 - **Offline scope:** Keep offline support limited to saved `crag -> climb` flows. Use full document navigations for offline entry/open/back actions instead of relying on App Router client transitions.
-- **Offline launcher:** Keep `/offline` as a simple chooser page, hydrate saved packs in `/offline/library`, and fall back to `/offline/library` for uncached offline navigations.
+- **Offline launcher:** Keep `/offline` as a dispatcher, hydrate saved packs in `/offline/library`, and fall back to `/offline/library?reason=offline-miss` for uncached offline navigations.
 - **Critical vs optional cache:** Saved crag/climb documents, route assets, face images, and route-line payloads are required for a successful pack. Crag map tiles are optional and should warn rather than fail the pack.
 - **Storage failures:** Handle `QuotaExceededError` and partial tile/media failures with a clear warning so the saved pack remains usable for core image/route navigation.
-- **OSM Compliance:** Browser fetch cannot reliably override `User-Agent`; handle provider compliance server-side and consider a self-hosted tile server for production scale
+- **Degraded basemap:** Offline/degraded maps should keep the same UI but swap the base layer to app-owned offline tile routes (`imagery` + `labels`) instead of assuming satellite imagery is always available.
+- **OSM Compliance:** Browser fetch cannot reliably override `User-Agent`; handle provider compliance server-side and consider a self-hosted tile server or packaged basemap for production scale
 
 ---
 
