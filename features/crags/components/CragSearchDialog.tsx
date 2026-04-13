@@ -36,16 +36,16 @@ const CragSearchDialog = React.memo(function CragSearchDialog({
       <DialogContent showCloseButton={false} className="max-w-2xl rounded-[28px] border-stone-200 bg-white p-0 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex items-center justify-between border-b border-stone-200 px-4 py-3 dark:border-gray-800">
           <DialogClose className="rounded-full border border-stone-200 p-2 text-stone-600 dark:border-gray-700 dark:text-gray-300"><X className="size-4" /></DialogClose>
-          <DialogTitle className="text-base">Search climbs, areas, subareas</DialogTitle>
+          <DialogTitle className="text-base">Search routes</DialogTitle>
           <div className="size-9" />
         </div>
         <div className="p-4">
-          <Input value={searchQuery} onChange={(event) => onSearchQueryChange(event.target.value)} placeholder="Search climbs here" className="border-stone-300 bg-white dark:border-gray-700 dark:bg-gray-800" />
+          <Input value={searchQuery} onChange={(event) => onSearchQueryChange(event.target.value)} placeholder="Search routes by name, grade, or type" className="border-stone-300 bg-white dark:border-gray-700 dark:bg-gray-800" />
           <div className="mt-4 space-y-4">
             <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Climbs</p>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Routes</p>
               <div className="space-y-2">
-                {searchModalResults.length === 0 ? <p className="text-sm text-stone-500 dark:text-gray-400">No climbs match yet.</p> : searchModalResults.map((route) => {
+                {searchQuery.trim().length === 0 ? <p className="text-sm text-stone-500 dark:text-gray-400">Search routes in this crag by name, grade, or type.</p> : searchModalResults.length === 0 ? <p className="text-sm text-stone-500 dark:text-gray-400">No routes matched &quot;{searchQuery.trim()}&quot; in this crag.</p> : searchModalResults.map((route) => {
                   const destination = getRouteDestination(route)
                   const content = (
                     <>
@@ -71,8 +71,8 @@ const CragSearchDialog = React.memo(function CragSearchDialog({
               </div>
             </div>
             <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Area</p>
-              <p className="rounded-xl border border-stone-200 px-3 py-2 text-sm text-stone-700 dark:border-gray-700 dark:text-gray-300">{routeLocationLabel}</p>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">Scope</p>
+              <p className="rounded-xl border border-stone-200 px-3 py-2 text-sm text-stone-700 dark:border-gray-700 dark:text-gray-300">Searching within {routeLocationLabel}.</p>
             </div>
           </div>
         </div>
