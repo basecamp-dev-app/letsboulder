@@ -6,7 +6,7 @@ import { getCragById } from '../lib/get-crag-by-id'
 import type { CragPageCrag } from '@/features/crags/lib/crag-page-types'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
 
-export const revalidate = 300
+export const revalidate = 60
 
 async function getCommunityPlaceById(id: string): Promise<CommunityPlaceInfo | null> {
   const supabase = getUnauthenticatedClient()
