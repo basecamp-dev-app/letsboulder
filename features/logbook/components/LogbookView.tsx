@@ -25,6 +25,7 @@ import { createClient } from '@/lib/supabase'
 import { csrfFetch } from '@/hooks/useCsrf'
 import { fetchOwnSubmissions } from '@/features/submissions/lib/fetch-own-submissions'
 import { deleteLogAction } from '@/features/logbook/actions/delete-log'
+import { loadMorePublicLogsAction } from '@/features/logbook/actions/load-more-public-logs'
 import {
   deletePublishedSubmissionAction,
   deleteSubmissionDraftAction,
@@ -42,6 +43,7 @@ interface LogbookViewProps {
   userId: string
   isOwnProfile: boolean
   initialLogs?: LogbookClimb[]
+  initialLogsNextCursor?: string | null
   profile?: LogbookProfile
   initialSubmissions?: Submission[]
 }
@@ -52,6 +54,7 @@ export default function LogbookView({
   userId,
   isOwnProfile,
   initialLogs = [],
+  initialLogsNextCursor,
   profile,
   initialSubmissions = [],
 }: LogbookViewProps) {
@@ -60,6 +63,8 @@ export default function LogbookView({
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
   const [logs, setLogs] = useState<LogbookClimb[]>(initialLogs)
+  const [logsCursor, setLogsCursor] = useState<string | null>(initialLogsNextCursor ?? null)
+  const [loadingMoreLogs, setLoadingMoreLogs] = useState(false)
   const [submissions, setSubmissions] = useState<Submission[]>(initialSubmissions)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null)
@@ -235,6 +240,24 @@ export default function LogbookView({
     }
   }
 
+  const handleLoadMoreLogs = async () => {
+    if (!logsCursor || loadingMoreLogs) return
+    setLoadingMoreLogs(true)
+    try {
+      const result = await loadMorePublicLogsAction(userId, logsCursor)
+      if (result.success && result.logs.length > 0) {
+        setLogs((prev) => [...prev, ...result.logs])
+        setLogsCursor(result.nextCursor)
+      } else {
+        setLogsCursor(null)
+      }
+    } catch {
+      addToast('Failed to load more climbs', 'error')
+    } finally {
+      setLoadingMoreLogs(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
       {isMounted ? <ToastContainer toasts={toasts} onRemove={removeToast} /> : null}
@@ -321,6 +344,18 @@ export default function LogbookView({
           climbUrlMap={climbUrlMap}
         />
       ) : null}
+
+      {!isOwnProfile && logsCursor && (
+        <div className="px-4 py-6 text-center">
+          <button
+            onClick={handleLoadMoreLogs}
+            disabled={loadingMoreLogs}
+            className="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-full hover:bg-gray-200 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+          >
+            {loadingMoreLogs ? 'Loading...' : 'Load more climbs'}
+          </button>
+        </div>
+      )}
 
       {isHydratingSubmissions && submissions.length === 0 ? <LogEntrySkeleton count={3} /> : null}
 
