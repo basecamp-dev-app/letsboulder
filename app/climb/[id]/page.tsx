@@ -12,11 +12,13 @@ async function getCanonicalClimbRedirect(id: string) {
     .maybeSingle()
 
   if (climbError) {
+    console.log('[Climb Redirect] climb lookup failed', { id, error: climbError })
     throw climbError
   }
 
   const crag = Array.isArray(climb?.crags) ? climb.crags[0] : climb?.crags
   if (!climb?.crag_id || !crag?.country_code || !crag?.slug) {
+    console.log('[Climb Redirect] missing crag path inputs', { id, climbId: climb?.id || null, cragId: climb?.crag_id || null, crag: crag || null })
     return null
   }
 
@@ -27,11 +29,13 @@ async function getCanonicalClimbRedirect(id: string) {
     .or(`id.eq.${effectiveClimbId},shared_climb_id.eq.${effectiveClimbId}`)
 
   if (aliasError) {
+    console.log('[Climb Redirect] alias lookup failed', { id, effectiveClimbId, error: aliasError })
     throw aliasError
   }
 
   const climbIds = Array.from(new Set((aliasRows || []).map((row) => row.id).filter(Boolean)))
   if (climbIds.length === 0) {
+    console.log('[Climb Redirect] no alias climb ids found', { id, effectiveClimbId })
     return null
   }
 
@@ -43,11 +47,13 @@ async function getCanonicalClimbRedirect(id: string) {
     .order('created_at', { ascending: true })
 
   if (routeError) {
+    console.log('[Climb Redirect] route lookup failed', { id, climbIds, error: routeError })
     throw routeError
   }
 
   const route = (routeRows || [])[0]
   if (!route?.id || !route.image_id) {
+    console.log('[Climb Redirect] no route target found', { id, effectiveClimbId, climbIds, routeCount: routeRows?.length || 0 })
     return null
   }
 
@@ -59,6 +65,7 @@ async function getCanonicalClimbRedirect(id: string) {
     .order('created_at', { ascending: false })
 
   if (cragImageError) {
+    console.log('[Climb Redirect] crag image lookup failed', { id, cragId: climb.crag_id, routeImageId: route.image_id, error: cragImageError })
     throw cragImageError
   }
 
@@ -69,7 +76,18 @@ async function getCanonicalClimbRedirect(id: string) {
   query.set('route', route.id)
   query.set('climb', effectiveClimbId)
 
-  return `${routeHrefBase}/i/${displayImageId}?${query.toString()}`
+  const redirectUrl = `${routeHrefBase}/i/${displayImageId}?${query.toString()}`
+  console.log('[Climb Redirect] canonical redirect resolved', {
+    id,
+    effectiveClimbId,
+    climbIds,
+    routeId: route.id,
+    routeImageId: route.image_id,
+    displayImageId,
+    cragImageCount: cragImageRows?.length || 0,
+    redirectUrl,
+  })
+  return redirectUrl
 }
 
 export default async function ClimbPage({
@@ -85,6 +103,7 @@ export default async function ClimbPage({
   try {
     const canonicalRedirect = await getCanonicalClimbRedirect(id)
     if (canonicalRedirect) {
+      console.log('[Climb Redirect] redirecting to canonical target', { id, canonicalRedirect })
       permanentRedirect(canonicalRedirect)
     }
 
@@ -110,6 +129,14 @@ export default async function ClimbPage({
     const routeId = selectedRoute?.id || payload.primary_route_lines[0]?.id || null
 
     if (!climbPath || !displayImageId) {
+      console.log('[Climb Redirect] fallback missing redirect inputs', {
+        id,
+        climbPath,
+        displayImageId,
+        routeId,
+        primaryRouteCount: payload.primary_route_lines.length,
+        faceCount: payload.faces.length,
+      })
       notFound()
     }
 
@@ -120,11 +147,22 @@ export default async function ClimbPage({
       query.set('route', routeId)
     }
 
-    permanentRedirect(`${climbPath}/i/${displayImageId}?${query.toString()}`)
+    const fallbackRedirect = `${climbPath}/i/${displayImageId}?${query.toString()}`
+    console.log('[Climb Redirect] redirecting via fallback path', {
+      id,
+      fallbackRedirect,
+      routeId,
+      displayImageId,
+    })
+    permanentRedirect(fallbackRedirect)
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('redirect:')) {
       throw error
     }
+    console.log('[Climb Redirect] failed', {
+      id,
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+    })
     notFound()
   }
 }
