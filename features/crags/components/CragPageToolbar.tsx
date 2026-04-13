@@ -59,9 +59,11 @@ export default function CragPageToolbar({
   onOpenSortModal,
   onClearRouteFilters,
 }: CragPageToolbarProps) {
+  const actionButtonClassName = 'inline-flex items-center gap-2 rounded-full border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-100 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+
   return (
     <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 max-w-sm">
           <button type="button" onClick={onToggleCragSwitcher} className="flex w-full items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-left text-sm text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
             <span className="truncate font-medium">{crag.name}</span>
@@ -84,24 +86,28 @@ export default function CragPageToolbar({
             </div>
           ) : null}
         </div>
-        <button type="button" onClick={onOpenOfflineDialog} disabled={!canDownloadCrag} className="rounded-full border border-stone-200 bg-white p-2.5 text-stone-700 shadow-sm transition hover:bg-stone-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
+        <button type="button" onClick={onOpenOfflineDialog} disabled={!canDownloadCrag} aria-label="Download offline" title="Download offline" className={`${actionButtonClassName} bg-white shadow-sm dark:bg-gray-900`}>
           {offlineDialogLoading || offlinePreviewLoading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+          <span>Offline</span>
         </button>
-        <button type="button" onClick={onOpenSearchModal} className="rounded-full border border-stone-200 bg-stone-50 p-2 text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+        <button type="button" onClick={onOpenSearchModal} aria-label="Search routes" title="Search routes" className={actionButtonClassName}>
           <Search className="size-4" />
+          <span>Search</span>
         </button>
-        <button type="button" onClick={onOpenFilterModal} className="rounded-full border border-stone-200 bg-stone-50 p-2 text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+        <button type="button" onClick={onOpenFilterModal} aria-label="Filter routes" title="Filter routes" className={actionButtonClassName}>
           <Filter className="size-4" />
+          <span>Filter</span>
         </button>
-        <button type="button" onClick={onOpenSortModal} className="rounded-full border border-stone-200 bg-stone-50 p-2 text-stone-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+        <button type="button" onClick={onOpenSortModal} aria-label="Sort routes" title="Sort routes" className={actionButtonClassName}>
           <ArrowUpDown className="size-4" />
+          <span>Sort</span>
         </button>
         {hasActiveRouteFilters ? (
           <button type="button" onClick={onClearRouteFilters} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm transition hover:bg-stone-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">
             Clear filters
           </button>
         ) : null}
-        <div className="ml-auto text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400">
+        <div className="ml-auto text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-gray-400 max-sm:w-full max-sm:ml-0">
           {selectedImageId ? `${selectedRouteCount} / ${routesCount} selected` : ''}
           {selectedImageId ? ' · ' : ''}
           {routesCount} routes
