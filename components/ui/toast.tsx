@@ -23,11 +23,18 @@ export function Toast({ message, type = 'info', onClose }: ToastProps) {
     error: 'bg-red-50 text-red-900 border-red-200 dark:bg-red-900/20 dark:text-red-100 dark:border-red-800',
     info: 'bg-gray-50 text-gray-900 border-gray-200 dark:bg-gray-800/50 dark:text-gray-100 dark:border-gray-700',
   }
+  const announcementProps = type === 'error'
+    ? { role: 'alert' as const, 'aria-live': 'assertive' as const }
+    : { role: 'status' as const, 'aria-live': 'polite' as const }
 
   return (
-    <div className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-3 shadow-lg ${styles[type]} animate-in slide-in-from-top-2`}>
+    <div
+      aria-atomic="true"
+      className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-3 shadow-lg ${styles[type]} animate-in slide-in-from-top-2`}
+      {...announcementProps}
+    >
       <span className="text-sm font-medium">{message}</span>
-      <button onClick={onClose} className="rounded p-1 hover:bg-black/5 dark:hover:bg-white/10">
+      <button aria-label="Dismiss notification" onClick={onClose} className="rounded p-1 hover:bg-black/5 dark:hover:bg-white/10">
         <X className="h-4 w-4" />
       </button>
     </div>
