@@ -22,9 +22,9 @@ describe('app/climb/[id]/page', () => {
     notFoundMock.mockClear()
   })
 
-  test('redirects using offline pack canonical path fallback', async () => {
+  test('redirects using crag path instead of climb canonical path', async () => {
     buildClimbOfflinePackMock.mockResolvedValue({
-      crag_path: null,
+      crag_path: '/mx/el-nuevo-testamento',
       primary_route_lines: [],
       faces: [],
       primary_image: {
@@ -32,7 +32,7 @@ describe('app/climb/[id]/page', () => {
         display_image_id: 'image-1-display',
       },
       offline_pack: {
-        canonicalPath: '/mx/el-nuevo-testamento',
+        canonicalPath: '/climb/06dd93bf-66d2-4e3e-a632-586e83b5ff83',
         pageUrl: '/climb/06dd93bf-66d2-4e3e-a632-586e83b5ff83',
       },
     })
