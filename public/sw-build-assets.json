@@ -1,5 +1,5 @@
 {
-  "version": "d94ffce2dd61",
+  "version": "af32d871f17d",
   "assets": [
     "/_next/static/chunks/0-.9nrht1wdmz.js",
     "/_next/static/chunks/0-9hsemvn923w.js",
@@ -116,9 +116,6 @@
     "/_next/static/chunks/turbopack-0hazukv1r28qh.js",
     "/_next/static/chunks/turbopack-0n8~7gxo_0x94.js",
     "/_next/static/chunks/turbopack-worker-0g5kymvzkx-yr.js",
-    "/_next/static/i0x-YC5JbwauZriLfhhQ6/_buildManifest.js",
-    "/_next/static/i0x-YC5JbwauZriLfhhQ6/_clientMiddlewareManifest.js",
-    "/_next/static/i0x-YC5JbwauZriLfhhQ6/_ssgManifest.js",
     "/_next/static/media/4fa387ec64143e14-s.0q3udbd2bu5yp.woff2",
     "/_next/static/media/7178b3e590c64307-s.11.cyxs5p-0z~.woff2",
     "/_next/static/media/797e433ab948586e-s.p.0.q-h669a_dqa.woff2",
@@ -128,6 +125,9 @@
     "/_next/static/media/heic.worker.02_jz563vvbcu.ts",
     "/_next/static/media/layers-2x.0olxl6i2vnf_c.png",
     "/_next/static/media/layers.1220hx8ja1.sy.png",
-    "/_next/static/media/marker-icon.0i9~u_difxrfa.png"
+    "/_next/static/media/marker-icon.0i9~u_difxrfa.png",
+    "/_next/static/vRzql6WHXRDsSlgJklL4-/_buildManifest.js",
+    "/_next/static/vRzql6WHXRDsSlgJklL4-/_clientMiddlewareManifest.js",
+    "/_next/static/vRzql6WHXRDsSlgJklL4-/_ssgManifest.js"
   ]
 }
