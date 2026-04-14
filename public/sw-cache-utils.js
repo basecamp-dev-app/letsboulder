@@ -56,6 +56,42 @@ function toStaticAssetUrl(assetPath) {
   return null
 }
 
+async function collectSharedBuildAssetRequests() {
+  const manifest = await collectJson(SW_BUILD_ASSET_MANIFEST_URL)
+  if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.assets)) {
+    return []
+  }
+
+  return manifest.assets
+    .filter((assetUrl) => typeof assetUrl === 'string' && assetUrl.startsWith('/_next/static/'))
+    .map((assetUrl) => toSameOriginRequest(assetUrl))
+}
+
+async function getSharedBuildManifest() {
+  const manifest = await collectJson(SW_BUILD_ASSET_MANIFEST_URL)
+  if (!manifest || typeof manifest !== 'object' || !Array.isArray(manifest.assets)) {
+    return null
+  }
+
+  return {
+    version: typeof manifest.version === 'string' && manifest.version ? manifest.version : 'unknown',
+    assets: manifest.assets.filter((assetUrl) => typeof assetUrl === 'string' && assetUrl.startsWith('/_next/static/')),
+  }
+}
+
+async function getBuildAssetCacheName() {
+  const manifest = await getSharedBuildManifest()
+  return manifest ? `${BUILD_ASSET_CACHE_PREFIX}-${manifest.version}` : `${BUILD_ASSET_CACHE_PREFIX}-unknown`
+}
+
+async function purgeStaleBuildAssetCaches() {
+  const activeBuildAssetCacheName = await getBuildAssetCacheName()
+  const cacheNames = await caches.keys()
+  await Promise.all(cacheNames
+    .filter((cacheName) => cacheName.startsWith(`${BUILD_ASSET_CACHE_PREFIX}-`) && cacheName !== activeBuildAssetCacheName)
+    .map((cacheName) => caches.delete(cacheName)))
+}
+
 async function collectJson(url, options = {}) {
   const {
     required = false,
@@ -213,12 +249,22 @@ async function collectPageAssetRequests(pageUrls) {
 }
 
 async function installShell() {
+  const buildAssetCacheName = await getBuildAssetCacheName()
   const shellRequests = SHELL_ROUTES.map((url) => toSameOriginRequest(url))
-  const [shellAssetRequests, buildManifestAssetRequests] = await Promise.all([
+  const [shellAssetRequests, buildManifestAssetRequests, sharedBuildAssetRequests] = await Promise.all([
     collectShellAssetRequests(),
     collectBuildManifestAssetRequests(),
+    collectSharedBuildAssetRequests(),
   ])
   await cacheRequests(SHELL_CACHE, [...shellRequests, ...shellAssetRequests, ...buildManifestAssetRequests])
+  await cacheRequests(buildAssetCacheName, sharedBuildAssetRequests)
+}
+
+async function ensureSharedBuildAssetsCached() {
+  const buildAssetCacheName = await getBuildAssetCacheName()
+  const requests = await collectSharedBuildAssetRequests()
+  if (requests.length === 0) return
+  await cacheUrls(buildAssetCacheName, requests.map((request) => request.url))
 }
 
 async function cachePageAssets(pageUrls) {
@@ -229,9 +275,10 @@ async function cachePageAssets(pageUrls) {
 
 async function cacheRequiredPageAssets(pageUrls) {
   const requests = new Map()
-  const [buildManifestRequests, reactLoadableRequests] = await Promise.all([
+  const [buildManifestRequests, reactLoadableRequests, sharedBuildAssetRequests] = await Promise.all([
     collectBuildManifestAssetRequests(),
     collectReactLoadableAssetRequests(pageUrls),
+    collectSharedBuildAssetRequests(),
   ])
 
   for (const pageUrl of pageUrls) {
@@ -248,6 +295,8 @@ async function cacheRequiredPageAssets(pageUrls) {
   for (const request of reactLoadableRequests) {
     requests.set(request.url, request)
   }
+
+  await cacheUrls(await getBuildAssetCacheName(), sharedBuildAssetRequests.map((request) => request.url))
 
   if (requests.size === 0) {
     throw new Error('Failed to discover required offline route assets')
@@ -310,4 +359,8 @@ if (typeof globalThis !== 'undefined') {
   globalThis.collectAssetRequestsFromPage = collectAssetRequestsFromPage
   globalThis.collectShellAssetRequests = collectShellAssetRequests
   globalThis.cacheRequiredPageAssets = cacheRequiredPageAssets
+  globalThis.collectSharedBuildAssetRequests = collectSharedBuildAssetRequests
+  globalThis.ensureSharedBuildAssetsCached = ensureSharedBuildAssetsCached
+  globalThis.getBuildAssetCacheName = getBuildAssetCacheName
+  globalThis.purgeStaleBuildAssetCaches = purgeStaleBuildAssetCaches
 }

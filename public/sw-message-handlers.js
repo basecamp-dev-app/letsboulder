@@ -26,6 +26,7 @@ function handleMessageEvent(event) {
         const mediaUrls = Array.isArray(pack.mediaUrls) ? pack.mediaUrls : []
         const tileUrls = Array.isArray(pack.tileUrls) ? pack.tileUrls : []
         const packUrls = [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, `/climb/${pack.climbId}`, pack.pageUrl, pack.offlineLaunchUrl, pack.imageFirstUrl, pack.manifestUrl].filter(Boolean)
+        await ensureSharedBuildAssetsCached()
         await cacheUrls(PACK_CACHE, packUrls)
         await cachePageAssets(packUrls)
         const mediaFailures = await cacheUrls(MEDIA_CACHE, mediaUrls, { strict: false })
@@ -74,6 +75,7 @@ function handleMessageEvent(event) {
           totalBytes,
         })
 
+        await ensureSharedBuildAssetsCached()
         await cacheUrls(PACK_CACHE, [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, ...cragEntryUrls])
         await cacheRequiredPageAssets([OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, payload.canonicalPath, payload.fallbackPath].filter(Boolean))
 

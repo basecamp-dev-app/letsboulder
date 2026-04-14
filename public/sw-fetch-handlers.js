@@ -35,7 +35,8 @@ async function handleRouteAssetFetch(request) {
   try {
     const response = await fetch(request)
     if (response.ok) {
-      const routeAssetCache = await caches.open(ROUTE_ASSET_CACHE)
+      const targetCacheName = request.url.includes('/_next/static/') ? await getBuildAssetCacheName() : ROUTE_ASSET_CACHE
+      const routeAssetCache = await caches.open(targetCacheName)
       await routeAssetCache.put(request, response.clone())
     }
     return response
@@ -44,4 +45,9 @@ async function handleRouteAssetFetch(request) {
     if (fallback) return fallback
     return new Response('', { status: 503, statusText: 'Offline route asset unavailable' })
   }
+}
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.handleShellFetch = handleShellFetch
+  globalThis.handleRouteAssetFetch = handleRouteAssetFetch
 }

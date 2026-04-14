@@ -22,8 +22,9 @@ vi.stubGlobal('Request', class extends Request {
 })
 
 vi.stubGlobal('Response', Response)
+vi.stubGlobal('SW_BUILD_ASSET_MANIFEST_URL', '/sw-build-assets.json')
 vi.stubGlobal('caches', {
-  keys: vi.fn(async () => ['offline-shell-v3', 'offline-route-assets-v2', 'stale-cache']),
+  keys: vi.fn(async () => ['offline-shell-v3', 'offline-route-assets-v2', 'offline-build-assets-old', 'offline-build-assets-new', 'stale-cache']),
   delete: vi.fn(async () => true),
   open: vi.fn(async () => ({
     keys: vi.fn(async () => [
@@ -37,12 +38,16 @@ vi.stubGlobal('caches', {
 vi.stubGlobal('fetch', vi.fn())
 vi.stubGlobal('importScripts', vi.fn())
 vi.stubGlobal('ACTIVE_CACHES', ['offline-shell-v3', 'offline-route-assets-v2'])
+vi.stubGlobal('BUILD_ASSET_CACHE_PREFIX', 'offline-build-assets')
 vi.stubGlobal('handleMessageEvent', vi.fn())
 vi.stubGlobal('handleShellFetch', vi.fn())
 vi.stubGlobal('handleRouteAssetFetch', vi.fn())
 vi.stubGlobal('matchCachedRequest', vi.fn())
 vi.stubGlobal('installShell', vi.fn(async () => undefined))
+vi.stubGlobal('purgeStaleBuildAssetCaches', vi.fn(async () => undefined))
 vi.stubGlobal('toSameOriginRequest', (url: string) => new Request(url.startsWith('/') ? `https://letsboulder.com${url}` : url))
+
+vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ version: 'new', assets: [] }), { status: 200 }))
 
 describe('service worker activate', () => {
   beforeEach(() => {
@@ -73,6 +78,8 @@ describe('service worker activate', () => {
     expect(caches.delete).toHaveBeenCalledWith('stale-cache')
     expect(caches.delete).not.toHaveBeenCalledWith('offline-shell-v3')
     expect(caches.delete).not.toHaveBeenCalledWith('offline-route-assets-v2')
+    expect(caches.delete).toHaveBeenCalledWith('offline-build-assets-old')
+    expect(caches.delete).not.toHaveBeenCalledWith('offline-build-assets-new')
     expect(caches.open).not.toHaveBeenCalled()
   })
 })
