@@ -3,7 +3,7 @@ export interface MapBaseLayerConfig {
   imageryAttribution: string
   labelsUrl: string | null
   labelsAttribution: string | null
-  mode: 'satellite' | 'offline-fallback'
+  mode: 'satellite' | 'offline-pins-only'
 }
 
 const ESRI_WORLD_IMAGERY = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
@@ -11,11 +11,11 @@ const ESRI_WORLD_BOUNDARIES = 'https://server.arcgisonline.com/ArcGIS/rest/servi
 export function getMapBaseLayerConfig(options?: { offline?: boolean }): MapBaseLayerConfig {
   if (options?.offline) {
     return {
-      imageryUrl: '/api/offline-tiles/imagery/{z}/{x}/{y}',
-      imageryAttribution: 'Offline imagery tiles',
-      labelsUrl: '/api/offline-tiles/labels/{z}/{x}/{y}',
-      labelsAttribution: 'Offline labels tiles',
-      mode: 'offline-fallback',
+      imageryUrl: '',
+      imageryAttribution: '',
+      labelsUrl: null,
+      labelsAttribution: null,
+      mode: 'offline-pins-only',
     }
   }
 
