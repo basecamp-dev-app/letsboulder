@@ -39,4 +39,21 @@ describe('sw-cache-utils', () => {
     expect(fetchMock.mock.calls[1]?.[0]).toBeInstanceOf(Request)
     expect(fetchMock.mock.calls[2]?.[0]).toBeInstanceOf(Request)
   })
+
+  test('collectShellAssetRequests includes theme-init and preloaded font assets', async () => {
+    fetchMock.mockResolvedValue(new Response(`
+      <script src="/theme-init.js"></script>
+      <link rel="preload" href="/_next/static/media/font.woff2" as="font" type="font/woff2" crossorigin>
+      <script src="/_next/static/chunks/app.js"></script>
+    `, { status: 200 }))
+
+    await import('../../public/sw-cache-utils.js')
+
+    const requests = await globalThis.collectShellAssetRequests()
+    const urls = requests.map((request) => new URL(request.url).pathname)
+
+    expect(urls).toContain('/theme-init.js')
+    expect(urls).toContain('/_next/static/media/font.woff2')
+    expect(urls).toContain('/_next/static/chunks/app.js')
+  })
 })

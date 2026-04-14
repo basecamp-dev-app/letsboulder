@@ -33,16 +33,7 @@ async function collectAssetRequestsFromPage(pageUrl, options = {}) {
     }
 
     const html = await response.text()
-    const requests = new Map()
-    const assetMatches = html.matchAll(/(?:href|src)="(\/_next\/(?:static\/[^"]+\.(?:css|js)|image\?[^\"]+))"/g)
-
-    for (const match of assetMatches) {
-      const assetUrl = match[1]
-      if (!assetUrl) continue
-      requests.set(assetUrl, toSameOriginRequest(assetUrl))
-    }
-
-    return Array.from(requests.values())
+    return extractAssetRequests(html)
   } catch (error) {
     if (required) {
       throw error instanceof Error ? error : new Error(`Failed to discover offline page assets for ${pageUrl}`)
@@ -61,12 +52,8 @@ async function collectShellAssetRequests() {
       if (!response.ok) continue
 
       const html = await response.text()
-      const assetMatches = html.matchAll(/(?:href|src)="(\/_next\/static\/[^\"]+\.(?:css|js))"/g)
-
-      for (const match of assetMatches) {
-        const assetUrl = match[1]
-        if (!assetUrl) continue
-        requests.set(assetUrl, toSameOriginRequest(assetUrl))
+      for (const request of extractAssetRequests(html)) {
+        requests.set(request.url, request)
       }
     } catch {
       // Ignore transient HTML fetch failures during install.

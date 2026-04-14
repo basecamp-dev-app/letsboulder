@@ -75,8 +75,8 @@ self.addEventListener('fetch', (event) => {
   const isCragPage = request.mode === 'navigate' && (url.pathname.startsWith('/crag/') || /^\/[a-z]{2}\//.test(url.pathname))
   const isManifestRequest = url.pathname === MANIFEST_URL
   const isStaticBuildAsset = url.pathname.startsWith('/_next/static/')
-  const isShellAsset = url.pathname === LOGO_URL
-  const isRouteAsset = isStaticBuildAsset || url.pathname === LOGO_LIGHT_URL || url.pathname === LOGO_DARK_URL || url.pathname === LOGO_URL
+  const isShellAsset = url.pathname === LOGO_URL || url.pathname === LOGO_LIGHT_URL || url.pathname === LOGO_DARK_URL || url.pathname === THEME_INIT_URL
+  const isRouteAsset = isStaticBuildAsset || isShellAsset
 
   if (isMediaRequest) {
     event.respondWith((async () => {
