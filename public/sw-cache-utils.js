@@ -49,6 +49,95 @@ async function collectBuildManifestAssetRequests() {
   }
 }
 
+function toStaticAssetUrl(assetPath) {
+  if (typeof assetPath !== 'string') return null
+  if (assetPath.startsWith('/_next/')) return assetPath
+  if (assetPath.startsWith('static/')) return `/_next/${assetPath}`
+  return null
+}
+
+async function collectJson(url, options = {}) {
+  const {
+    required = false,
+  } = options
+
+  try {
+    const response = await fetch(toSameOriginRequest(url))
+    if (!response.ok) {
+      if (required) {
+        throw new Error(`Failed to fetch offline manifest ${url}`)
+      }
+      return null
+    }
+
+    return await response.json()
+  } catch (error) {
+    if (required) {
+      throw error instanceof Error ? error : new Error(`Failed to fetch offline manifest ${url}`)
+    }
+    return null
+  }
+}
+
+function normalizePageUrlToRoutePath(pageUrl) {
+  if (!pageUrl || pageUrl.startsWith('/api/')) return null
+
+  const pathname = pageUrl.split('?')[0] || pageUrl
+  if (pathname === HOME_URL || pathname === OFFLINE_LAUNCH_URL || pathname === OFFLINE_LIBRARY_URL) {
+    return pathname
+  }
+
+  if (pathname.startsWith('/climb/')) return '/climb/[id]'
+
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length === 2 && /^[a-z]{2}$/i.test(segments[0] || '')) {
+    return '/[country]/[crag]'
+  }
+
+  return null
+}
+
+function getReactLoadableManifestUrlForRoute(routePath) {
+  switch (routePath) {
+    case '/':
+      return '/_next/server/app/(shell)/page/react-loadable-manifest.json'
+    case '/offline':
+      return '/_next/server/app/offline/page/react-loadable-manifest.json'
+    case '/offline/library':
+      return '/_next/server/app/offline/library/page/react-loadable-manifest.json'
+    case '/climb/[id]':
+      return '/_next/server/app/climb/[id]/page/react-loadable-manifest.json'
+    case '/[country]/[crag]':
+      return '/_next/server/app/[country]/[crag]/page/react-loadable-manifest.json'
+    default:
+      return null
+  }
+}
+
+async function collectReactLoadableAssetRequests(pageUrls) {
+  const requests = new Map()
+  const routePaths = new Set(pageUrls.map((pageUrl) => normalizePageUrlToRoutePath(pageUrl)).filter(Boolean))
+
+  for (const routePath of routePaths) {
+    const manifestUrl = getReactLoadableManifestUrlForRoute(routePath)
+    if (!manifestUrl) continue
+
+    const manifest = await collectJson(manifestUrl)
+    if (!manifest || typeof manifest !== 'object') continue
+
+    for (const entry of Object.values(manifest)) {
+      if (!entry || typeof entry !== 'object' || !Array.isArray(entry.files)) continue
+      for (const file of entry.files) {
+        const assetUrl = toStaticAssetUrl(file)
+        if (!assetUrl) continue
+        requests.set(assetUrl, toSameOriginRequest(assetUrl))
+      }
+    }
+  }
+
+  return Array.from(requests.values())
+}
+
 async function cacheRequests(cacheName, requests) {
   const cache = await caches.open(cacheName)
   await Promise.all(requests.map(async (request) => {
@@ -140,7 +229,10 @@ async function cachePageAssets(pageUrls) {
 
 async function cacheRequiredPageAssets(pageUrls) {
   const requests = new Map()
-  const buildManifestRequests = await collectBuildManifestAssetRequests()
+  const [buildManifestRequests, reactLoadableRequests] = await Promise.all([
+    collectBuildManifestAssetRequests(),
+    collectReactLoadableAssetRequests(pageUrls),
+  ])
 
   for (const pageUrl of pageUrls) {
     const pageRequests = await collectAssetRequestsFromPage(pageUrl, { required: true })
@@ -150,6 +242,10 @@ async function cacheRequiredPageAssets(pageUrls) {
   }
 
   for (const request of buildManifestRequests) {
+    requests.set(request.url, request)
+  }
+
+  for (const request of reactLoadableRequests) {
     requests.set(request.url, request)
   }
 
@@ -208,4 +304,10 @@ async function cacheUrls(cacheName, urls, options = {}) {
 async function removeUrls(cacheName, urls) {
   const cache = await caches.open(cacheName)
   await Promise.all(urls.map((url) => cache.delete(toSameOriginRequest(url))))
+}
+
+if (typeof globalThis !== 'undefined') {
+  globalThis.collectAssetRequestsFromPage = collectAssetRequestsFromPage
+  globalThis.collectShellAssetRequests = collectShellAssetRequests
+  globalThis.cacheRequiredPageAssets = cacheRequiredPageAssets
 }
