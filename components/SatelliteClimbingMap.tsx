@@ -183,6 +183,7 @@ export default function SatelliteClimbingMap({
 
   const pinFeatures = useMemo<PinFeature[]>(() => buildPinFeatures(placePins), [placePins])
   const baseLayer = useMemo(() => getMapBaseLayerConfig({ offline: isOffline }), [isOffline])
+  const isPinsOnlyOfflineMode = baseLayer.mode === 'offline-pins-only'
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -454,15 +455,29 @@ export default function SatelliteClimbingMap({
   useEffect(() => {
       if (!mapRef.current || !mapLoaded) return
 
+      if (isPinsOnlyOfflineMode && pinFeatures.length > 0) {
+        const bounds = pinFeatures.map((feature) => {
+          const [longitude, latitude] = feature.geometry.coordinates
+          return [latitude, longitude] as [number, number]
+        })
+
+        mapRef.current.fitBounds(bounds, {
+          padding: [32, 32],
+          maxZoom: 12,
+        })
+        return
+      }
+
       if (defaultLocation) {
         mapRef.current.setView([defaultLocation.lat, defaultLocation.lng], defaultLocation.zoom)
       } else {
         mapRef.current.setView(WORLD_DEFAULT_VIEW, WORLD_DEFAULT_ZOOM)
       }
-    }, [mapLoaded, defaultLocation])
+    }, [mapLoaded, defaultLocation, isPinsOnlyOfflineMode, pinFeatures])
 
   return (
     <div className="h-screen w-full relative">
+      {isPinsOnlyOfflineMode ? <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(71,85,105,0.32),_transparent_48%),linear-gradient(180deg,_#020617_0%,_#0f172a_100%)]" /> : null}
       <MapContainer
         ref={mapRef as RefObject<L.Map>}
         center={WORLD_DEFAULT_VIEW}
@@ -483,12 +498,12 @@ export default function SatelliteClimbingMap({
         <DefaultLocationWatcher defaultLocation={defaultLocation} mapRef={mapRef} />
         <MapStateWatcher onStateChange={handleMapStateChange} />
         <MapInteractionWatcher onInteract={markMapInteracted} />
-        <TileLayer
+        {!isPinsOnlyOfflineMode ? <TileLayer
           url={baseLayer.imageryUrl}
           attribution={baseLayer.imageryAttribution}
           maxZoom={19}
-        />
-        {baseLayer.labelsUrl ? (
+        /> : null}
+        {!isPinsOnlyOfflineMode && baseLayer.labelsUrl ? (
           <TileLayer
             url={baseLayer.labelsUrl}
             attribution={baseLayer.labelsAttribution || undefined}
@@ -583,7 +598,7 @@ export default function SatelliteClimbingMap({
       <div className="pointer-events-none absolute bottom-6 left-4 z-[1000] space-y-2 md:left-6">
         {!hasDefaultLocation && pinLoadState === 'ready' && (
           <div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-white/75 shadow-lg backdrop-blur-md">
-            Showing world view.
+            {isPinsOnlyOfflineMode ? 'Offline: showing saved pins only.' : 'Showing world view.'}
           </div>
         )}
         {pinLoadState === 'loading' && (
