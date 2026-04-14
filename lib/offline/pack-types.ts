@@ -20,7 +20,6 @@ export interface CragOfflinePreview {
   changedClimbs: number
   deltaBytes: number
   totalBytes: number
-  tileCount: number
   usageBytes: number
   budgetBytes: number
   isUpToDate: boolean

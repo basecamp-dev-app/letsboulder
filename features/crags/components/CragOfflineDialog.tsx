@@ -42,7 +42,7 @@ export default function CragOfflineDialog({
         <DialogHeader>
           <DialogTitle>{offlinePreview?.existingPack ? 'Update offline crag pack' : 'Download crag offline'}</DialogTitle>
           <DialogDescription className="text-gray-500 dark:text-gray-400">
-            Save this crag and its climb topos for offline viewing. Individually saved climbs stay pinned if you remove the crag pack later.
+            Save this crag and its climb topos for offline viewing. Downloads include saved route pages, route assets, and images. Individually saved climbs stay pinned if you remove the crag pack later.
           </DialogDescription>
         </DialogHeader>
 
@@ -68,10 +68,6 @@ export default function CragOfflineDialog({
                 <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePreview.totalBytes)}</span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-4">
-                <span className="text-gray-500 dark:text-gray-400">Cached tiles</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{offlinePreview.tileCount}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-4">
                 <span className="text-gray-500 dark:text-gray-400">Delta size</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(offlinePreview.deltaBytes)}</span>
               </div>
@@ -91,7 +87,7 @@ export default function CragOfflineDialog({
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
                 <p className="font-medium">{offlineProgress.completedClimbs} / {offlineProgress.totalClimbs} climbs synced</p>
                 <p className="mt-1 text-sm">{formatBytes(offlineProgress.completedBytes)} / {formatBytes(offlineProgress.totalBytes)} cached</p>
-                <p className="mt-1 text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{offlineProgress.phase}{offlineProgress.currentClimbName ? ` · ${offlineProgress.currentClimbName}` : ''}{offlinePreview.tileCount > 0 ? ` · ${offlinePreview.tileCount} tiles` : ''}</p>
+                <p className="mt-1 text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{offlineProgress.phase}{offlineProgress.currentClimbName ? ` · ${offlineProgress.currentClimbName}` : ''}</p>
               </div>
             )}
 
