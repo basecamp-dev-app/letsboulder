@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { hasCompleteRouteTargets } from '@/features/crags/lib/crag-route-targets'
 
 type RouteLineTargetRow = {
   id: string
@@ -123,5 +124,41 @@ describe('crag route target mapping', () => {
       displayImageId: 'image-2',
       displayImageUrl: 'https://example.com/image-2.jpg',
     })
+  })
+
+  test('marks route targets complete when every route has image ids, preview, and navigation target', () => {
+    const routes = [
+      {
+        id: 'shared-climb-1',
+        name: 'Route One',
+        grade: '6A',
+        slug: 'route-one',
+        routeType: null,
+        directions: [],
+        hasTopo: true,
+        topoImageCount: 1,
+        ratingAvg: null,
+        ratingCount: 0,
+        weightedRating: null,
+        sendCount: 0,
+        recentSendCount60d: 0,
+      },
+    ]
+
+    expect(hasCompleteRouteTargets(
+      routes,
+      { 'shared-climb-1': ['image-1'] },
+      { 'shared-climb-1': { imageId: 'image-1', imageUrl: 'https://example.com/image-1.jpg' } },
+      {
+        'shared-climb-1': {
+          climbId: 'shared-climb-1',
+          routeId: 'route-line-1',
+          climbSlug: 'route-one',
+          imageId: 'image-1',
+          displayImageId: 'image-1',
+          displayImageUrl: 'https://example.com/image-1.jpg',
+        },
+      }
+    )).toBe(true)
   })
 })

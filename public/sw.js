@@ -35,14 +35,6 @@ self.addEventListener('activate', (event) => {
     const cacheNames = await caches.keys()
     await Promise.all(cacheNames.filter((cacheName) => !ACTIVE_CACHES.includes(cacheName)).map((cacheName) => caches.delete(cacheName)))
 
-    const shellCache = await caches.open(SHELL_CACHE)
-    const shellKeys = await shellCache.keys()
-    await Promise.all(shellKeys.filter((key) => key.url.includes('/_next/static/')).map((key) => shellCache.delete(key)))
-
-    const routeAssetCache = await caches.open(ROUTE_ASSET_CACHE)
-    const routeAssetKeys = await routeAssetCache.keys()
-    await Promise.all(routeAssetKeys.map((key) => routeAssetCache.delete(key)))
-
     await self.clients.claim()
   })())
 })

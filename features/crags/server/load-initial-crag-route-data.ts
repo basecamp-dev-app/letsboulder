@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getAdminClientWithAudit } from '@/lib/supabase-server'
 import { dedupeCragRoutes, formatCragRoutes, getAverageCoordinates } from '@/features/crags/lib/crag-page-domain'
-import { buildEffectiveClimbLookup } from '@/features/crags/lib/crag-route-targets'
+import { buildEffectiveClimbLookup, buildRouteTargetMaps, hasCompleteRouteTargets } from '@/features/crags/lib/crag-route-targets'
 import type { ClimbIdentityRow } from '@/features/crags/lib/crag-page-domain'
 import type { InitialCragRouteData } from '@/features/crags/lib/crag-page-types'
 import type { Database } from '@/types/database'
@@ -15,8 +15,11 @@ interface ImageRow {
 }
 
 interface RoutePreviewLineRow {
+  id: string
   climb_id: string
   image_id: string
+  climbs: { slug: string | null } | Array<{ slug: string | null }> | null
+  images: { url: string | null } | Array<{ url: string | null }> | null
 }
 
 const INITIAL_CRAG_IMAGE_LIMIT = 24
@@ -74,6 +77,8 @@ export async function loadInitialCragRouteData(
 
   const initialRoutePreviewByClimbId: InitialCragRouteData['initialRoutePreviewByClimbId'] = {}
   const initialRouteImageIdsByClimbId: InitialCragRouteData['initialRouteImageIdsByClimbId'] = {}
+  let initialDefaultRouteTargetByImageId: InitialCragRouteData['initialDefaultRouteTargetByImageId'] = {}
+  let initialRouteNavigationTargetByClimbId: InitialCragRouteData['initialRouteNavigationTargetByClimbId'] = {}
 
   if (initialRoutePreviewClimbIds.length > 0) {
     const previewSupabase = getAdminClientWithAudit('loadInitialCragRouteData preview seed')
@@ -83,7 +88,7 @@ export async function loadInitialCragRouteData(
 
     const { data: previewLineData } = await previewSupabase
       .from('route_lines')
-      .select('climb_id, image_id')
+      .select('id, climb_id, image_id, climbs(slug), images(url)')
       .in('climb_id', previewRouteLineClimbIds)
       .order('sequence_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
@@ -148,6 +153,15 @@ export async function loadInitialCragRouteData(
         imageUrl: previewImage.url,
       }
     }
+
+    const targetMaps = buildRouteTargetMaps(
+      previewLineRows,
+      effectiveClimbIdByClimbId,
+      imageById
+    )
+
+    initialDefaultRouteTargetByImageId = targetMaps.nextDefaultRouteTargetByImageId
+    initialRouteNavigationTargetByClimbId = targetMaps.nextRouteNavigationTargetByClimbId
   }
 
   const withCoords = images.filter(
@@ -161,11 +175,16 @@ export async function loadInitialCragRouteData(
     initialRoutes,
     initialRouteImageIdsByClimbId,
     initialRoutePreviewByClimbId,
-    initialDefaultRouteTargetByImageId: {},
-    initialRouteNavigationTargetByClimbId: {},
+    initialDefaultRouteTargetByImageId,
+    initialRouteNavigationTargetByClimbId,
     initialImages,
     initialCragCenter,
-    initialRouteTargetsComplete: false,
+    initialRouteTargetsComplete: hasCompleteRouteTargets(
+      initialRoutes,
+      initialRouteImageIdsByClimbId,
+      initialRoutePreviewByClimbId,
+      initialRouteNavigationTargetByClimbId
+    ),
     initialImagesComplete: false,
     loadedAt: Date.now(),
   }
