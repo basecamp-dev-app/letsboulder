@@ -4,7 +4,6 @@ import { createErrorResponse } from '@/lib/errors'
 import { rateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { parsePagination } from '@/lib/pagination'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
-import { listFlags, requireAdminFromSupabase } from '@/features/admin/server'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -14,6 +13,11 @@ export async function GET(request: NextRequest) {
   const supabase = getServerClientFromRequest(request)
 
   try {
+    const {
+      listFlags,
+      requireAdminFromSupabase,
+    } = await import('@/features/admin/server')
+
     const { userId } = await resolveUserIdWithFallback(request, supabase)
 
     if (!userId) {
