@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --turbopack",
-    "build": "NEXT_TELEMETRY_DISABLED=1 next build --turbopack",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build --turbopack && node scripts/generate-sw-build-assets-manifest.js",
     "analyze": "ANALYZE=true next build --webpack",
     "media-backfill": "node scripts/media/backfill-images.mjs",
     "start": "NEXT_TELEMETRY_DISABLED=1 next start",

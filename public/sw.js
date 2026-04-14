@@ -33,7 +33,8 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const cacheNames = await caches.keys()
-    await Promise.all(cacheNames.filter((cacheName) => !ACTIVE_CACHES.includes(cacheName)).map((cacheName) => caches.delete(cacheName)))
+    await Promise.all(cacheNames.filter((cacheName) => !ACTIVE_CACHES.includes(cacheName) && !cacheName.startsWith(`${BUILD_ASSET_CACHE_PREFIX}-`)).map((cacheName) => caches.delete(cacheName)))
+    await purgeStaleBuildAssetCaches()
 
     await self.clients.claim()
   })())
