@@ -56,4 +56,19 @@ describe('sw-cache-utils', () => {
     expect(urls).toContain('/_next/static/media/font.woff2')
     expect(urls).toContain('/_next/static/chunks/app.js')
   })
+
+  test('collectAssetRequestsFromPage uses the shared asset extractor', async () => {
+    fetchMock.mockResolvedValue(new Response(`
+      <script src="/theme-init.js"></script>
+      <link rel="preload" href="/_next/static/media/font.woff2" as="font" type="font/woff2" crossorigin>
+    `, { status: 200 }))
+
+    await import('../../public/sw-cache-utils.js')
+
+    const requests = await globalThis.collectAssetRequestsFromPage('/ch/murgtal-2')
+    const urls = requests.map((request) => new URL(request.url).pathname)
+
+    expect(urls).toContain('/theme-init.js')
+    expect(urls).toContain('/_next/static/media/font.woff2')
+  })
 })

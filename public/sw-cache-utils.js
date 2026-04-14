@@ -2,6 +2,19 @@ function toSameOriginRequest(url) {
   return new Request(url, { credentials: 'same-origin' })
 }
 
+function extractAssetRequests(html) {
+  const requests = new Map()
+  const assetMatches = html.matchAll(/(?:href|src)="(\/(?:_next\/(?:static\/[^"?]+\.(?:css|js|woff2?|ttf|otf|eot)|static\/media\/[^"?]+|image\?[^\"]+)|theme-init\.js))"/g)
+
+  for (const match of assetMatches) {
+    const assetUrl = match[1]
+    if (!assetUrl) continue
+    requests.set(assetUrl, toSameOriginRequest(assetUrl))
+  }
+
+  return Array.from(requests.values())
+}
+
 async function cacheRequests(cacheName, requests) {
   const cache = await caches.open(cacheName)
   await Promise.all(requests.map(async (request) => {
