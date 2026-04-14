@@ -128,8 +128,8 @@ describe('Offline climb pack route', () => {
 
     expect(response.status).toBe(200)
     expect(json.climb.id).toBe('climb-1')
-    expect(json.offline_pack.imageFirstUrl).toBe('/gb/crag-one/i/image-1?climb=climb-1')
-    expect(json.offline_pack.offlineLaunchUrl).toBe('/gb/crag-one/i/image-1?climb=climb-1')
+    expect(json.offline_pack.imageFirstUrl).toBe('/gb/crag-one/i/image-1?image=image-1&climb=climb-1')
+    expect(json.offline_pack.offlineLaunchUrl).toBe('/gb/crag-one/i/image-1?image=image-1&climb=climb-1')
   })
 
   test('returns 404 for non-visible climbs', async () => {

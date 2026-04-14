@@ -42,6 +42,6 @@ async function handleRouteAssetFetch(request) {
   } catch {
     const fallback = await matchRouteAssetRequest(request)
     if (fallback) return fallback
-    return Response.error()
+    return new Response('', { status: 503, statusText: 'Offline route asset unavailable' })
   }
 }

@@ -8,6 +8,23 @@ import { reportError } from '@/lib/errors'
 import { buildPrimaryPin, buildPrimaryFallbackFace, decorateMedia, getOfflinePackClient, getFaceIdentityKey, hashValue, isPublicOfflineClimbVisible, mergeFaces, resolveCanonicalPaths } from '@/lib/offline/build-climb-pack-helpers'
 import type { CompleteSummaryFace, CompleteSummaryPayload, CragRow, FullContextPayload, LegacyClimbRow, ProfileRow, RouteFaceQueryRow, RouteFaceRow } from '@/lib/offline/build-climb-pack-types'
 
+function buildOfflineImageFirstUrl(input: {
+  cragPath: string | null
+  climbId: string
+  displayImageId: string | null
+  routeId: string | null
+}) {
+  if (!input.cragPath || !input.displayImageId) return null
+
+  const query = new URLSearchParams()
+  query.set('image', input.displayImageId)
+  if (input.routeId) {
+    query.set('route', input.routeId)
+  }
+  query.set('climb', input.climbId)
+  return `${input.cragPath}/i/${input.displayImageId}?${query.toString()}`
+}
+
 export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackResponse> {
   const supabase = getOfflinePackClient()
   const isVisible = await isPublicOfflineClimbVisible(supabase, climbId)
@@ -400,9 +417,12 @@ export async function buildClimbOfflinePack(climbId: string): Promise<ClimbPackR
   })
   const tileManifest = primaryPin ? buildTileManifestForPins([primaryPin]) : null
   const primaryDisplayImageId = getDisplayImageId({ linked_image_id: primaryImage.id }) || primaryImage.id
-  const imageFirstUrl = canonical.cragPath
-    ? `${canonical.cragPath}/i/${primaryDisplayImageId}?climb=${climbId}`
-    : null
+  const imageFirstUrl = buildOfflineImageFirstUrl({
+    cragPath: canonical.cragPath,
+    climbId,
+    displayImageId: primaryDisplayImageId,
+    routeId: context.primary_route_lines[0]?.id || null,
+  })
   const version = hashValue({
     climb: context.climb,
     canonicalPath: canonical.climbPath,

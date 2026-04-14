@@ -1,5 +1,6 @@
 import { del, get, set } from 'idb-keyval'
 import type { ClimbOfflinePackManifest, ClimbPackResponse, CragOfflinePackManifest } from '@/features/climb/lib/queries'
+import type { PlacePin } from '@/lib/map/place-pins'
 
 const LEGACY_CLIMB_PACKS_KEY = 'offline-climb-packs'
 const PACK_RECORDS_KEY = 'offline-pack-records'
@@ -233,4 +234,48 @@ export async function getStoredClimbManifestByImageId(imageId: string): Promise<
   }
 
   return null
+}
+
+export async function listStoredOfflineMapPins(): Promise<PlacePin[]> {
+  await ensureOfflineStorageReady()
+  const [crags, climbs] = await Promise.all([
+    readMap<StoredCragManifest>(CRAG_MANIFESTS_KEY),
+    readMap<StoredClimbManifest>(CLIMB_MANIFESTS_KEY),
+  ])
+
+  const pinMap = new Map<string, PlacePin>()
+
+  for (const crag of Object.values(crags)) {
+    for (const pin of crag.manifest.savedPins || []) {
+      pinMap.set(`crag:${pin.climbId}`, {
+        id: pin.climbId,
+        name: pin.climbName,
+        type: 'crag',
+        latitude: pin.latitude,
+        longitude: pin.longitude,
+        slug: null,
+        country_code: null,
+        image_count: null,
+        route_count: null,
+      })
+    }
+  }
+
+  for (const climb of Object.values(climbs)) {
+    const pin = climb.manifest.primaryPin
+    if (!pin) continue
+    pinMap.set(`climb:${pin.climbId}`, {
+      id: pin.climbId,
+      name: pin.climbName,
+      type: 'crag',
+      latitude: pin.latitude,
+      longitude: pin.longitude,
+      slug: null,
+      country_code: null,
+      image_count: null,
+      route_count: null,
+    })
+  }
+
+  return Array.from(pinMap.values())
 }
