@@ -15,6 +15,40 @@ function extractAssetRequests(html) {
   return Array.from(requests.values())
 }
 
+async function collectBuildManifestAssetRequests() {
+  try {
+    const response = await fetch(toSameOriginRequest(BUILD_MANIFEST_URL))
+    if (!response.ok) return []
+
+    const manifest = await response.json()
+    const urls = new Set()
+
+    const addAsset = (assetUrl) => {
+      if (typeof assetUrl !== 'string') return
+      if (!assetUrl.startsWith('/_next/')) return
+      urls.add(assetUrl)
+    }
+
+    const addAssets = (value) => {
+      if (Array.isArray(value)) {
+        for (const assetUrl of value) addAsset(assetUrl)
+        return
+      }
+
+      if (value && typeof value === 'object') {
+        for (const nested of Object.values(value)) {
+          addAssets(nested)
+        }
+      }
+    }
+
+    addAssets(manifest)
+    return Array.from(urls, (assetUrl) => toSameOriginRequest(assetUrl))
+  } catch {
+    return []
+  }
+}
+
 async function cacheRequests(cacheName, requests) {
   const cache = await caches.open(cacheName)
   await Promise.all(requests.map(async (request) => {
@@ -91,8 +125,11 @@ async function collectPageAssetRequests(pageUrls) {
 
 async function installShell() {
   const shellRequests = SHELL_ROUTES.map((url) => toSameOriginRequest(url))
-  const shellAssetRequests = await collectShellAssetRequests()
-  await cacheRequests(SHELL_CACHE, [...shellRequests, ...shellAssetRequests])
+  const [shellAssetRequests, buildManifestAssetRequests] = await Promise.all([
+    collectShellAssetRequests(),
+    collectBuildManifestAssetRequests(),
+  ])
+  await cacheRequests(SHELL_CACHE, [...shellRequests, ...shellAssetRequests, ...buildManifestAssetRequests])
 }
 
 async function cachePageAssets(pageUrls) {
@@ -103,12 +140,17 @@ async function cachePageAssets(pageUrls) {
 
 async function cacheRequiredPageAssets(pageUrls) {
   const requests = new Map()
+  const buildManifestRequests = await collectBuildManifestAssetRequests()
 
   for (const pageUrl of pageUrls) {
     const pageRequests = await collectAssetRequestsFromPage(pageUrl, { required: true })
     for (const request of pageRequests) {
       requests.set(request.url, request)
     }
+  }
+
+  for (const request of buildManifestRequests) {
+    requests.set(request.url, request)
   }
 
   if (requests.size === 0) {

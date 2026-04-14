@@ -71,4 +71,38 @@ describe('sw-cache-utils', () => {
     expect(urls).toContain('/theme-init.js')
     expect(urls).toContain('/_next/static/media/font.woff2')
   })
+
+  test('cacheRequiredPageAssets includes build manifest chunks', async () => {
+    const cachePut = vi.fn()
+    const cacheMatch = vi.fn().mockResolvedValue(undefined)
+    const open = vi.fn(async () => ({ match: cacheMatch, put: cachePut }))
+    vi.stubGlobal('caches', { open })
+
+    fetchMock
+      .mockResolvedValueOnce(new Response('<script src="/_next/static/chunks/page.js"></script>', { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        rootMainFiles: ['/_next/static/chunks/root.js'],
+        pages: {
+          '/': ['/_next/static/chunks/home.js'],
+          '/[country]/[crag]': ['/_next/static/chunks/crag.js'],
+        },
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response('page', { status: 200 }))
+      .mockResolvedValueOnce(new Response('root', { status: 200 }))
+      .mockResolvedValueOnce(new Response('home', { status: 200 }))
+      .mockResolvedValueOnce(new Response('crag', { status: 200 }))
+
+    await import('../../public/sw-cache-utils.js')
+
+    await globalThis.cacheRequiredPageAssets(['/ch/murgtal-2'])
+
+    const requestedPaths = fetchMock.mock.calls
+      .map((call) => call[0])
+      .filter((value) => value instanceof Request)
+      .map((request) => new URL(request.url).pathname)
+
+    expect(requestedPaths).toContain('/_next/build-manifest.json')
+    expect(requestedPaths).toContain('/_next/static/chunks/root.js')
+    expect(requestedPaths).toContain('/_next/static/chunks/crag.js')
+  })
 })
