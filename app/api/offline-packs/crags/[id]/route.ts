@@ -3,7 +3,6 @@ import pLimit from 'p-limit'
 import { NextRequest, NextResponse } from 'next/server'
 import { buildClimbOfflinePack } from '@/lib/offline/build-climb-pack'
 import type { CragOfflinePackManifest, OfflineMapPin } from '@/features/climb/lib/queries'
-import { buildTileManifestForPins } from '@/lib/offline/tiles'
 import { estimateCompressedImageBytes } from '@/lib/media-proxy'
 import { reportError } from '@/lib/errors'
 import { PUBLIC_OFFLINE_CLIMB_STATUSES, getOfflinePackClient } from '@/lib/offline/build-climb-pack-helpers'
@@ -120,17 +119,10 @@ export async function GET(
     const savedPins = climbSummaries
       .map((climb) => climb.primaryPin)
       .filter((pin): pin is OfflineMapPin => pin !== null)
-    let tileManifest: CragOfflinePackManifest['tileManifest'] = null
-    try {
-      tileManifest = buildTileManifestForPins(savedPins)
-    } catch (tileError) {
-      reportError(tileError, { message: 'Failed to build crag offline tile manifest', extra: { cragId } })
-    }
     const cragVersionHash = hashParts({
       crag: { id: crag.id, name: crag.name, canonicalPath },
       climbs: climbSummaries.map((climb) => ({ climbId: climb.climbId, versionHash: climb.versionHash })),
       savedPins,
-      tileCount: tileManifest?.tileCount || 0,
     })
 
     const payload: CragOfflinePackManifest = {
@@ -157,7 +149,6 @@ export async function GET(
         primaryPin: climb.primaryPin,
       })),
       savedPins,
-      tileManifest,
       removedClimbIds: [],
       failedClimbIds: failedClimbIds.map((item) => item.climbId),
       warning: failedClimbIds.length > 0

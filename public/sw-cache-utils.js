@@ -16,6 +16,41 @@ async function cacheRequests(cacheName, requests) {
   }))
 }
 
+async function collectAssetRequestsFromPage(pageUrl, options = {}) {
+  if (!pageUrl || pageUrl.startsWith('/api/')) return []
+
+  const {
+    required = false,
+  } = options
+
+  try {
+    const response = await fetch(toSameOriginRequest(pageUrl))
+    if (!response.ok) {
+      if (required) {
+        throw new Error(`Failed to fetch offline page ${pageUrl}`)
+      }
+      return []
+    }
+
+    const html = await response.text()
+    const requests = new Map()
+    const assetMatches = html.matchAll(/(?:href|src)="(\/_next\/(?:static\/[^"]+\.(?:css|js)|image\?[^\"]+))"/g)
+
+    for (const match of assetMatches) {
+      const assetUrl = match[1]
+      if (!assetUrl) continue
+      requests.set(assetUrl, toSameOriginRequest(assetUrl))
+    }
+
+    return Array.from(requests.values())
+  } catch (error) {
+    if (required) {
+      throw error instanceof Error ? error : new Error(`Failed to discover offline page assets for ${pageUrl}`)
+    }
+    return []
+  }
+}
+
 async function collectShellAssetRequests() {
   const requests = new Map()
   const shellPages = [HOME_URL, OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL]
@@ -45,22 +80,9 @@ async function collectPageAssetRequests(pageUrls) {
   const requests = new Map()
 
   for (const pageUrl of pageUrls) {
-    if (!pageUrl || pageUrl.startsWith('/api/')) continue
-
-    try {
-      const response = await fetch(toSameOriginRequest(pageUrl))
-      if (!response.ok) continue
-
-      const html = await response.text()
-      const assetMatches = html.matchAll(/(?:href|src)="(\/_next\/(?:static\/[^"]+\.(?:css|js)|image\?[^\"]+))"/g)
-
-      for (const match of assetMatches) {
-        const assetUrl = match[1]
-        if (!assetUrl) continue
-        requests.set(assetUrl, toSameOriginRequest(assetUrl))
-      }
-    } catch {
-      // Ignore transient page asset discovery failures.
+    const pageRequests = await collectAssetRequestsFromPage(pageUrl)
+    for (const request of pageRequests) {
+      requests.set(request.url, request)
     }
   }
 
@@ -77,6 +99,23 @@ async function cachePageAssets(pageUrls) {
   const assetRequests = await collectPageAssetRequests(pageUrls)
   if (assetRequests.length === 0) return
   await cacheRequests(ROUTE_ASSET_CACHE, assetRequests)
+}
+
+async function cacheRequiredPageAssets(pageUrls) {
+  const requests = new Map()
+
+  for (const pageUrl of pageUrls) {
+    const pageRequests = await collectAssetRequestsFromPage(pageUrl, { required: true })
+    for (const request of pageRequests) {
+      requests.set(request.url, request)
+    }
+  }
+
+  if (requests.size === 0) {
+    throw new Error('Failed to discover required offline route assets')
+  }
+
+  await cacheUrls(ROUTE_ASSET_CACHE, Array.from(requests.keys()))
 }
 
 async function cacheUrls(cacheName, urls, options = {}) {

@@ -117,6 +117,7 @@ describe('Offline crag pack route', () => {
     expect(json.climbs).toHaveLength(1)
     expect(json.climbs[0].climbId).toBe('climb-1')
     expect(json.offlineLaunchUrl).toBe('/gb/crag-one/i/image-1?climb=climb-1')
+    expect(json.tileManifest).toBeUndefined()
     expect(climbsQuery.statusFilter.order).toHaveBeenCalledOnce()
     expect(mockBuildClimbOfflinePack).toHaveBeenCalledWith('climb-1')
   })

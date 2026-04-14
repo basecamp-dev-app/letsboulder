@@ -9,7 +9,6 @@ interface ServiceWorkerResponse {
   ok: boolean
   error?: string
   warning?: string
-  failedTileUrls?: string[]
 }
 
 export interface OfflineJobProgressEvent {

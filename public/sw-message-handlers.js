@@ -57,13 +57,11 @@ function handleMessageEvent(event) {
       if (message.type === 'SAVE_CRAG_PACK') {
         const payload = message.payload || {}
         const climbs = Array.isArray(payload.climbs) ? payload.climbs : []
-        const tileUrls = Array.isArray(payload.tileUrls) ? payload.tileUrls : []
         const cragEntryUrls = [payload.canonicalPath, payload.fallbackPath, payload.manifestUrl].filter(Boolean)
         const totalClimbs = climbs.length
         const totalBytes = Number(payload.totalBytes || 0)
         let completedClimbs = 0
         let completedBytes = 0
-        const failedTileUrls = []
         const failedMediaUrls = []
 
         broadcastProgress({
@@ -77,19 +75,12 @@ function handleMessageEvent(event) {
         })
 
         await cacheUrls(PACK_CACHE, [OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, ...cragEntryUrls])
-        await cachePageAssets([OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, ...cragEntryUrls])
-        const rootTileFailures = await cacheUrls(TILE_CACHE, tileUrls, { concurrency: 4, strict: false })
-        failedTileUrls.push(...rootTileFailures.map((failure) => failure.url))
+        await cacheRequiredPageAssets([OFFLINE_LAUNCH_URL, OFFLINE_LIBRARY_URL, HOME_URL, payload.canonicalPath, payload.fallbackPath].filter(Boolean))
 
         for (const climb of climbs) {
           const climbPackUrls = [`/climb/${climb.climbId}`, climb.pageUrl, climb.offlineLaunchUrl, climb.imageFirstUrl, climb.manifestUrl].filter(Boolean)
           await cacheUrls(PACK_CACHE, climbPackUrls)
-          await cachePageAssets([`/climb/${climb.climbId}`, climb.pageUrl, climb.offlineLaunchUrl, climb.imageFirstUrl].filter(Boolean))
-          const climbTileFailures = await cacheUrls(TILE_CACHE, Array.isArray(climb.tileUrls) ? climb.tileUrls : [], {
-            concurrency: 4,
-            strict: false,
-          })
-          failedTileUrls.push(...climbTileFailures.map((failure) => failure.url))
+          await cacheRequiredPageAssets([`/climb/${climb.climbId}`, climb.pageUrl, climb.offlineLaunchUrl, climb.imageFirstUrl].filter(Boolean))
 
           broadcastProgress({
             type: 'OFFLINE_JOB_PROGRESS',
@@ -136,12 +127,10 @@ function handleMessageEvent(event) {
 
         const warningParts = []
         if (failedMediaUrls.length > 0) warningParts.push('some media')
-        if (failedTileUrls.length > 0) warningParts.push('some map tiles')
         respond({
           ok: true,
           warning: warningParts.length > 0 ? `Saved offline content, but ${warningParts.join(' and ')} could not be cached.` : undefined,
           failedMediaUrls,
-          failedTileUrls,
         })
         return
       }
@@ -149,13 +138,10 @@ function handleMessageEvent(event) {
       if (message.type === 'REMOVE_CRAG_PACK') {
         const payload = message.payload || {}
         const climbs = Array.isArray(payload.climbs) ? payload.climbs : []
-        const tileUrls = Array.isArray(payload.tileUrls) ? payload.tileUrls : []
         await removeUrls(PACK_CACHE, [payload.canonicalPath, payload.fallbackPath, payload.manifestUrl].filter(Boolean))
-        await removeUrls(TILE_CACHE, tileUrls)
         for (const climb of climbs) {
           await removeUrls(PACK_CACHE, [`/climb/${climb.climbId}`, climb.pageUrl, climb.offlineLaunchUrl, climb.imageFirstUrl, climb.manifestUrl].filter(Boolean))
           await removeUrls(MEDIA_CACHE, Array.isArray(climb.mediaUrls) ? climb.mediaUrls : [])
-          await removeUrls(TILE_CACHE, Array.isArray(climb.tileUrls) ? climb.tileUrls : [])
         }
         respond({ ok: true })
         return
