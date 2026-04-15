@@ -31,6 +31,12 @@ interface ClusterMarkerPin {
   clusterId: number
 }
 
+interface ClusterClickTarget {
+  clusterId: number
+  latitude: number
+  longitude: number
+}
+
 type RenderedMapItem =
   | { kind: 'cluster'; cluster: ClusterMarkerPin }
   | { kind: 'pin'; pin: LightweightCragMapPin }
@@ -141,7 +147,7 @@ const MapPinMarker = memo(function MapPinMarker({
 interface ClusterMarkerProps {
   cluster: ClusterMarkerPin
   leafletLib: typeof import('leaflet')
-  onSelect: (clusterId: number) => void
+  onSelect: (target: ClusterClickTarget) => void
 }
 
 const ClusterMarker = memo(function ClusterMarker({ cluster, leafletLib, onSelect }: ClusterMarkerProps) {
@@ -155,7 +161,7 @@ const ClusterMarker = memo(function ClusterMarker({ cluster, leafletLib, onSelec
         iconSize: [36, 36],
         iconAnchor: [18, 18],
       })}
-      eventHandlers={{ click: () => onSelect(cluster.clusterId) }}
+      eventHandlers={{ click: () => onSelect(cluster) }}
     />
   )
 })
@@ -309,10 +315,10 @@ export default function LightweightCragMap({
     return [latitude, longitude]
   }, [initialCenter, resolvedPins])
 
-  const handleClusterSelect = useCallback((clusterId: number) => {
+  const handleClusterSelect = useCallback((target: ClusterClickTarget) => {
     if (!clusterIndex || !mapRef.current) return
-    const expansionZoom = Math.min(clusterIndex.getClusterExpansionZoom(clusterId), 17)
-    mapRef.current.setView(mapRef.current.getCenter(), expansionZoom, { animate: true })
+    const expansionZoom = Math.min(clusterIndex.getClusterExpansionZoom(target.clusterId), 17)
+    mapRef.current.setView([target.latitude, target.longitude], expansionZoom, { animate: true })
   }, [clusterIndex])
 
   useEffect(() => {
