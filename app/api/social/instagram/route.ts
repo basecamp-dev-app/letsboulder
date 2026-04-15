@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   const imageId = searchParams.get('image')
   const routeIdentifier = searchParams.get('route')
 
-  if (!country || !crag || !imageId || !routeIdentifier) {
+  if (!country || !crag || !imageId) {
     return Response.json({ error: 'Missing required query params' }, { status: 400 })
   }
 
@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
     imageBuffer,
     naturalWidth: postData.naturalWidth,
     naturalHeight: postData.naturalHeight,
-    routes: postData.routes,
   })
 
   const filename = `${crag}-instagram-post.png`
