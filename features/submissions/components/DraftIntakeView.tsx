@@ -13,11 +13,14 @@ import { csrfFetch } from '@/hooks/useCsrf'
 import { useDraftUploadManager } from '@/features/media-upload/hooks/use-draft-upload-manager'
 import { type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
+import { getDraftSignedUrlCacheKey, loadDraftSignedUrls } from '@/lib/media/draft-signed-urls'
 
 interface DraftImageRecord {
   id: string
   display_order: number
-  proxy_url: string | null
+  storage_bucket: string | null
+  storage_path: string | null
+  signed_url?: string | null
 }
 
 interface DraftThumbnailResponse {
@@ -78,7 +81,7 @@ export default function DraftIntakeView() {
     ...draftImages.map((image, index) => ({
       id: image.id,
       imageId: image.id,
-      previewUrl: image.proxy_url || '',
+      previewUrl: image.signed_url || '',
       label: String(index + 1),
       status: 'attached' as const,
     })),
@@ -91,7 +94,22 @@ export default function DraftIntakeView() {
       throw new Error(payload.error || 'Failed to load draft photos')
     }
 
-    setDraftImages((payload.draft.images || []).slice().sort((a: DraftImageRecord, b: DraftImageRecord) => a.display_order - b.display_order))
+    const nextImages = (payload.draft.images || []).slice().sort((a: DraftImageRecord, b: DraftImageRecord) => a.display_order - b.display_order)
+    const signedByKey = await loadDraftSignedUrls(
+      nextImages
+        .filter((image: DraftImageRecord) => image.storage_bucket && image.storage_path)
+        .map((image: DraftImageRecord) => ({
+          bucket: image.storage_bucket as string,
+          path: image.storage_path as string,
+        }))
+    )
+
+    setDraftImages(nextImages.map((image: DraftImageRecord) => ({
+      ...image,
+      signed_url: image.storage_bucket && image.storage_path
+        ? (signedByKey.get(getDraftSignedUrlCacheKey(image.storage_bucket, image.storage_path)) || null)
+        : null,
+    })))
     draftUpdatedAtRef.current = payload.draft.updated_at
     registerDraftUpdatedAt(payload.draft.id, payload.draft.updated_at)
   }, [registerDraftUpdatedAt])

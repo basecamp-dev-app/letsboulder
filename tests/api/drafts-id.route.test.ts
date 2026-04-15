@@ -317,7 +317,8 @@ describe('/api/submissions/drafts/[id]', () => {
       expect(json.draft.id).toBe('draft-1')
       expect(json.isOwner).toBe(true)
       expect(json.draft.images).toHaveLength(1)
-      expect(json.draft.images[0].proxy_url).toContain('/api/media/private')
+      expect(json.draft.images[0].storage_bucket).toBeTruthy()
+      expect(json.draft.images[0].storage_path).toBeTruthy()
       expect(json.draft.images[0].readiness_status).toBe('ready')
     })
 

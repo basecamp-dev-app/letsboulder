@@ -38,6 +38,11 @@ vi.mock('@/hooks/useCsrf', () => ({
   csrfFetch: (...args: Parameters<typeof mockCsrfFetch>) => mockCsrfFetch(...args),
 }))
 
+vi.mock('@/lib/media/draft-signed-urls', () => ({
+  getDraftSignedUrlCacheKey: (bucket: string, path: string) => `${bucket}:${path}`,
+  loadDraftSignedUrls: vi.fn(async () => new Map([['private-bucket:images/originals/upload-1/route.jpg', 'https://example.com/route.jpg']])),
+}))
+
 vi.mock('@/features/media-upload/hooks/use-draft-upload-manager', () => ({
   useDraftUploadManager: () => ({
     queueDraftUploads: mockQueueDraftUploads,
@@ -88,7 +93,7 @@ describe('DraftIntakeView', () => {
         draft: {
           id: 'draft-1',
           updated_at: '2026-04-04T01:00:00.000Z',
-          images: [{ id: 'image-1', display_order: 0, proxy_url: 'https://example.com/route.jpg' }],
+          images: [{ id: 'image-1', display_order: 0, storage_bucket: 'private-bucket', storage_path: 'images/originals/upload-1/route.jpg' }],
         },
       }),
     })

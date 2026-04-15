@@ -19,6 +19,8 @@ export interface Submission {
   contribution_credit_handle: string | null
   image_ids?: string[]
   image_count?: number
+  draft_preview_bucket?: string | null
+  draft_preview_path?: string | null
 }
 
 export interface DraftImageRef {

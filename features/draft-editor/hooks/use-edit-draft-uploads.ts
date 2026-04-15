@@ -157,7 +157,7 @@ export function useEditDraftUploads({
         sourceKind: 'draft-image',
         index: manageImages.length,
         label: 'Image (syncing...)',
-        signedUrl: upload.previewUrl || `/api/media/private?draftId=${draftId}&path=${encodeURIComponent(upload.uploadedPath || '')}`,
+        signedUrl: upload.previewUrl,
         latitude: upload.gpsData?.latitude ?? null,
         longitude: upload.gpsData?.longitude ?? null,
         status: undefined,

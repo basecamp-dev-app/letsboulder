@@ -5,6 +5,7 @@ import { normalizeDraftMetadata, readDraftRouteType, type OrientationDirection }
 import { normalizeSubmissionCreditPlatform, type SubmissionCreditPlatform } from '@/features/submissions/lib/submission-credit'
 import { parseSerializedRouteData } from '@/features/route-editor/route-editor-utils'
 import { uploadDebug } from '@/lib/media/upload-debug'
+import { getDraftSignedUrlCacheKey, loadDraftSignedUrls } from '@/lib/media/draft-signed-urls'
 import type {
   CanvasSourceMetadata,
   CragImagePayload,
@@ -124,12 +125,23 @@ export function useEditDraftData({
         nextRoutesByImageId[image.id] = parseSerializedRouteData(image.route_data, image.width || 1200, image.height || 1200)
       })
 
+      const signedUrlMap = await loadDraftSignedUrls(
+        sortedImages
+          .filter((image) => image.storage_bucket && image.storage_path)
+          .map((image) => ({
+            bucket: image.storage_bucket as string,
+            path: image.storage_path as string,
+          }))
+      )
+
       const nextManageImages = sortedImages.map<ManageImageTab>((image, index) => ({
         imageId: image.id,
         sourceKind: 'draft-image',
         index,
         label: buildManageImageLabel(index, image.id, nextDefaultImageId, nextOrientationByImageId[image.id]),
-        signedUrl: image.proxy_url || '',
+        signedUrl: image.storage_bucket && image.storage_path
+          ? (signedUrlMap.get(getDraftSignedUrlCacheKey(image.storage_bucket, image.storage_path)) || '')
+          : '',
         latitude: typeof image.latitude === 'number' ? image.latitude : null,
         longitude: typeof image.longitude === 'number' ? image.longitude : null,
         locationMode: nextLocationModeByImageId[image.id] || 'shared',
