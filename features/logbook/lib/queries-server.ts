@@ -1,8 +1,7 @@
 import type { User } from '@supabase/supabase-js'
 import { getServerClient } from '@/lib/supabase-server'
 import { getGradePoints } from '@/lib/grades'
-import { createSignedObjectUrls } from '@/lib/media/object-urls'
-import { getSignedUrlBatchKey } from '@/lib/signed-url-batch'
+import { selectPreferredDraftPreviewImage, type DraftPreviewImageRef } from '@/features/submissions/lib/draft-preview'
 import { groupSubmittedImages } from '@/features/submissions/lib/group-submitted-images'
 import type { Submission } from '@/types/submissions'
 import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
@@ -112,24 +111,6 @@ async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerCl
     .limit(24)
 
   const draftRows = (draftSubmissions || []) as DraftSubmissionRow[]
-  const firstDraftImageObjects = draftRows
-    .map((draft) => {
-      const draftImages = (draft.submission_draft_images || []).slice().sort((a, b) => a.display_order - b.display_order)
-      const preferredImage = draftImages.find((image) => image.processing_status === 'ready') || draftImages[0]
-      if (!preferredImage?.storage_bucket || !preferredImage?.storage_path) return null
-      return { bucket: preferredImage.storage_bucket, path: preferredImage.storage_path }
-    })
-    .filter((item): item is { bucket: string; path: string } => !!item)
-
-  const signedByKey = new Map<string, string>()
-  if (firstDraftImageObjects.length > 0) {
-    const signedResults = await createSignedObjectUrls(firstDraftImageObjects, supabase)
-    for (const item of firstDraftImageObjects) {
-      const signedUrl = signedResults.get(getSignedUrlBatchKey(item.bucket, item.path))
-      if (!signedUrl) continue
-      signedByKey.set(getSignedUrlBatchKey(item.bucket, item.path), signedUrl)
-    }
-  }
 
   return draftRows.map((draft) => {
     const cragRelation = draft.crags
@@ -137,11 +118,8 @@ async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerCl
       ? (cragRelation[0]?.name || null)
       : (cragRelation?.name || null)
 
-    const draftImages = (draft.submission_draft_images || []).slice().sort((a, b) => a.display_order - b.display_order)
-    const preferredImage = draftImages.find((image) => image.processing_status === 'ready') || draftImages[0]
-    const previewUrl = preferredImage?.storage_bucket && preferredImage?.storage_path
-      ? (signedByKey.get(getSignedUrlBatchKey(preferredImage.storage_bucket, preferredImage.storage_path)) || '')
-      : ''
+    const draftImages = (draft.submission_draft_images || []) as DraftPreviewImageRef[]
+    const preferredImage = selectPreferredDraftPreviewImage(draftImages)
 
     const routeCountFromRows = Array.isArray(draft.submission_draft_routes) ? draft.submission_draft_routes.length : 0
     const routeCountFromLegacy = draftImages.reduce((count, image) => {
@@ -160,7 +138,7 @@ async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerCl
       kind: 'draft' as const,
       status: 'draft' as const,
       is_anonymous_submission: false,
-      url: previewUrl,
+      url: '',
       created_at: draft.created_at,
       updated_at: draft.updated_at,
       crag_name: cragName,
