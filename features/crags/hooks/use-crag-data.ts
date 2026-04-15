@@ -68,8 +68,10 @@ export function useCragData({
   })
 
   useCragRouteTargets({
+    cragId: id,
     routes,
     initialRouteTargetsComplete,
+    setDefaultRouteTargetByImageId,
     setRouteImageIdsByClimbId,
     setRoutePreviewByClimbId,
     setRouteNavigationTargetByClimbId,

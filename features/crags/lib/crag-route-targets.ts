@@ -27,6 +27,17 @@ export interface RouteTargetFetchResult {
   effectiveClimbIdByClimbId: Record<string, string>
 }
 
+export interface CragRouteTargetPageRow {
+  effective_climb_id: string
+  climb_slug: string | null
+  preview_image_id: string | null
+  preview_image_url: string | null
+  navigation_route_id: string | null
+  navigation_image_id: string | null
+  navigation_image_url: string | null
+  route_image_ids: string[] | null
+}
+
 export function buildRoutePreviewDisplayByClimbId(
   routePreviewByClimbId: Record<string, RoutePreview>,
   imageById: Map<string, ImageData>
@@ -380,4 +391,73 @@ export async function fetchRouteTargetMapsForClimbIds(
     targetMaps,
     effectiveClimbIdByClimbId,
   }
+}
+
+export function buildRouteTargetMapsFromPageRows(pageRows: CragRouteTargetPageRow[]) {
+  const nextDefaultRouteTargetByImageId: Record<string, ImageRouteTarget> = {}
+  const nextRouteImageIdsByClimbId: Record<string, string[]> = {}
+  const nextRoutePreviewByClimbId: Record<string, RoutePreview> = {}
+  const nextRouteNavigationTargetByClimbId: Record<string, RouteNavigationTarget> = {}
+
+  for (const row of pageRows) {
+    const climbId = row.effective_climb_id
+    const routeImageIds = Array.isArray(row.route_image_ids)
+      ? row.route_image_ids.filter((imageId): imageId is string => Boolean(imageId))
+      : []
+
+    if (routeImageIds.length > 0) {
+      nextRouteImageIdsByClimbId[climbId] = routeImageIds
+    }
+
+    if (row.preview_image_id && row.preview_image_url) {
+      nextRoutePreviewByClimbId[climbId] = {
+        imageId: row.preview_image_id,
+        imageUrl: row.preview_image_url,
+      }
+    }
+
+    if (row.navigation_route_id && row.navigation_image_id && row.navigation_image_url) {
+      nextRouteNavigationTargetByClimbId[climbId] = {
+        climbId,
+        routeId: row.navigation_route_id,
+        climbSlug: row.climb_slug,
+        imageId: row.navigation_image_id,
+        displayImageId: row.navigation_image_id,
+        displayImageUrl: row.navigation_image_url,
+      }
+
+      if (!nextDefaultRouteTargetByImageId[row.navigation_image_id]) {
+        nextDefaultRouteTargetByImageId[row.navigation_image_id] = {
+          climbId,
+          routeId: row.navigation_route_id,
+          climbSlug: row.climb_slug,
+          imageId: row.navigation_image_id,
+        }
+      }
+    }
+  }
+
+  return {
+    nextDefaultRouteTargetByImageId,
+    nextRouteImageIdsByClimbId,
+    nextRoutePreviewByClimbId,
+    nextRouteNavigationTargetByClimbId,
+  }
+}
+
+export async function fetchCragRouteTargetPage(
+  supabase: SupabaseClient<Database>,
+  cragId: string,
+  limit: number,
+  offset: number
+) {
+  const { data, error } = await supabase.rpc('get_crag_route_targets_page', {
+    p_crag_id: cragId,
+    p_limit: limit,
+    p_offset: offset,
+  })
+
+  if (error) throw error
+
+  return buildRouteTargetMapsFromPageRows((data || []) as CragRouteTargetPageRow[])
 }

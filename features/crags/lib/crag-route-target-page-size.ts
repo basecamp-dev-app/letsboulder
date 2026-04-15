@@ -1,0 +1,1 @@
+export const CRAG_ROUTE_TARGETS_PAGE_SIZE = 50
