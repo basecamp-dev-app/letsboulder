@@ -500,14 +500,17 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   }, [router])
 
   const handleDownloadInstagramPost = useCallback(async () => {
-    if (!isAdmin || !activeImageId || !activeRouteId || downloadingPost) return
+    if (!isAdmin || !activeImageId || downloadingPost) return
 
     const params = new URLSearchParams({
       country: countryCode,
       crag: cragSlug,
       image: activeImageId,
-      route: activeRouteId,
     })
+
+    if (activeRouteId) {
+      params.set('route', activeRouteId)
+    }
 
     setDownloadingPost(true)
     try {
@@ -543,7 +546,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
           <button
             type="button"
             onClick={handleDownloadInstagramPost}
-            disabled={!activeImageId || !activeRouteId || downloadingPost}
+            disabled={!activeImageId || downloadingPost}
             className="absolute top-4 right-4 z-10 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white backdrop-blur disabled:opacity-30"
           >
             {downloadingPost ? 'Downloading...' : 'Download Post'}

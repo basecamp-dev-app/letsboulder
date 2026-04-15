@@ -51,7 +51,7 @@ describe('GET /api/social/instagram', () => {
     resolveUserIdWithFallback.mockResolvedValue({ userId: null, authError: null })
 
     const { GET } = await import('@/app/api/social/instagram/route')
-    const request = new NextRequest('https://letsboulder.com/api/social/instagram?country=gb&crag=harrisons-rocks&image=image-1&route=route-1')
+    const request = new NextRequest('https://letsboulder.com/api/social/instagram?country=gb&crag=harrisons-rocks&image=image-1')
     const response = await GET(request)
 
     expect(response.status).toBe(401)
@@ -63,7 +63,7 @@ describe('GET /api/social/instagram', () => {
     requireAdminFromSupabase.mockResolvedValue(Response.json({ error: 'Admin access required' }, { status: 403 }))
 
     const { GET } = await import('@/app/api/social/instagram/route')
-    const request = new NextRequest('https://letsboulder.com/api/social/instagram?country=gb&crag=harrisons-rocks&image=image-1&route=route-1')
+    const request = new NextRequest('https://letsboulder.com/api/social/instagram?country=gb&crag=harrisons-rocks&image=image-1')
     const response = await GET(request)
 
     expect(response.status).toBe(403)

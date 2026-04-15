@@ -1,9 +1,5 @@
-import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
-import { normalizePoints } from '@/lib/canvasMath'
 import { getUnauthenticatedClient } from '@/lib/supabase-server'
-import { BROWSE_ROUTE_COLOR, SELECTED_ROUTE_COLOR } from '@/lib/route-renderer'
-import { getImageByDisplayId, getRoutesByImage } from '@/features/image-first/server/load-image-first-page'
-import type { RoutePoint } from '@/types/domain'
+import { getImageByDisplayId } from '@/features/image-first/server/load-image-first-page'
 
 interface CragLocationRow {
   id: string
@@ -17,58 +13,16 @@ export interface InstagramPostData {
   imageUrl: string
   naturalWidth: number
   naturalHeight: number
-  routes: Array<{
-    routeId: string
-    routePoints: RoutePoint[]
-    strokeColor: string
-    isSelected: boolean
-  }>
-}
-
-function normalizeRoutePoints(points: RoutePoint[], width: number, height: number): RoutePoint[] {
-  return normalizePoints(points, {
-    width,
-    height,
-    naturalWidth: width,
-    naturalHeight: height,
-  })
-}
-
-function matchesRouteIdentifier(routeIdentifier: string, route: { id: string; climb_id: string; climbs: { slug: string | null } | Array<{ slug: string | null }> | null }) {
-  const climb = Array.isArray(route.climbs) ? route.climbs[0] : route.climbs
-  return route.id === routeIdentifier || route.climb_id === routeIdentifier || climb?.slug === routeIdentifier
 }
 
 export async function loadInstagramPostData(args: {
   country: string
   crag: string
   imageId: string
-  routeIdentifier: string
+  routeIdentifier?: string | null
 }): Promise<InstagramPostData | null> {
   const image = await getImageByDisplayId(args.imageId)
   if (!image) return null
-
-  const routes = await getRoutesByImage(args.imageId)
-  const selectedRoute = routes.find((route) => matchesRouteIdentifier(args.routeIdentifier, route))
-  if (!selectedRoute) return null
-
-  const normalizedRoutes = routes
-    .map((route) => {
-      const rawPoints = parseRoutePoints(route.points)
-      const normalizedPoints = normalizeRoutePoints(rawPoints, image.width, image.height)
-      if (normalizedPoints.length < 2) return null
-
-      const isSelected = route.id === selectedRoute.id
-      return {
-        routeId: route.id,
-        routePoints: normalizedPoints,
-        strokeColor: isSelected ? SELECTED_ROUTE_COLOR : BROWSE_ROUTE_COLOR,
-        isSelected,
-      }
-    })
-    .filter((route): route is NonNullable<typeof route> => route !== null)
-
-  if (normalizedRoutes.length === 0) return null
 
   const supabase = getUnauthenticatedClient()
   const { data: cragRow, error } = await supabase
@@ -86,6 +40,5 @@ export async function loadInstagramPostData(args: {
     imageUrl: image.staticUrl,
     naturalWidth: image.width,
     naturalHeight: image.height,
-    routes: normalizedRoutes,
   }
 }
