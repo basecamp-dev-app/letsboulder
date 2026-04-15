@@ -75,7 +75,7 @@ export async function fetchOwnSubmissions(
       ? (cragRelation[0]?.name || null)
       : (cragRelation?.name || null)
 
-    const draftImages = (draft.submission_draft_images || []) as DraftImagePreviewRef[]
+    const draftImages = (draft.submission_draft_images || []) as DraftPreviewImageRef[]
     const preferredImage = selectPreferredDraftPreviewImage(draftImages)
 
     const routeCountFromRows = Array.isArray(draft.submission_draft_routes) ? draft.submission_draft_routes.length : 0
