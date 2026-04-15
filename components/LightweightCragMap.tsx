@@ -1,10 +1,12 @@
 'use client'
 
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { useMapEvents } from 'react-leaflet'
 import { uploadDebug } from '@/lib/media/upload-debug'
 import type { LightweightCragMapPin } from '@/lib/lightweight-crag-map-types'
 import { getMapBaseLayerConfig } from '@/lib/map/base-layer'
+import { buildPinFeatures, isClusterFeature, type ClusterIndex, type ClusterResult } from '@/lib/map/place-pins'
 
 import 'leaflet/dist/leaflet.css'
 
@@ -12,6 +14,26 @@ const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.Map
 const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false })
 const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false })
 const ZoomControl = dynamic(() => import('react-leaflet').then((mod) => mod.ZoomControl), { ssr: false })
+
+interface MapBounds {
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
+interface ClusterMarkerPin {
+  id: string
+  latitude: number
+  longitude: number
+  label: string
+  pointCount: number
+  clusterId: number
+}
+
+type RenderedMapItem =
+  | { kind: 'cluster'; cluster: ClusterMarkerPin }
+  | { kind: 'pin'; pin: LightweightCragMapPin }
 
 function pinVisualStyles(active: boolean) {
   return {
@@ -26,6 +48,50 @@ function pinVisualStyles(active: boolean) {
 function isPinActive(pin: LightweightCragMapPin, activePinId: string | null) {
   if (!activePinId) return false
   return pin.id === activePinId || pin.activeImageIds?.includes(activePinId) === true
+}
+
+function MapStateWatcher({ onStateChange }: { onStateChange: (state: { zoom: number; bounds: MapBounds }) => void }) {
+  const map = useMapEvents({
+    moveend: () => {
+      const bounds = map.getBounds()
+      onStateChange({
+        zoom: map.getZoom(),
+        bounds: {
+          north: bounds.getNorth(),
+          south: bounds.getSouth(),
+          east: bounds.getEast(),
+          west: bounds.getWest(),
+        },
+      })
+    },
+    zoomend: () => {
+      const bounds = map.getBounds()
+      onStateChange({
+        zoom: map.getZoom(),
+        bounds: {
+          north: bounds.getNorth(),
+          south: bounds.getSouth(),
+          east: bounds.getEast(),
+          west: bounds.getWest(),
+        },
+      })
+    },
+  })
+
+  useEffect(() => {
+    const bounds = map.getBounds()
+    onStateChange({
+      zoom: map.getZoom(),
+      bounds: {
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest(),
+      },
+    })
+  }, [map, onStateChange])
+
+  return null
 }
 
 interface MapPinMarkerProps {
@@ -48,11 +114,12 @@ const MapPinMarker = memo(function MapPinMarker({
   }, [pin.id, active])
 
   const visual = pinVisualStyles(active)
+
   return (
     <Marker
       position={[pin.latitude, pin.longitude]}
       zIndexOffset={active ? 600 : 200}
-      icon={leafletLib?.divIcon({
+      icon={leafletLib.divIcon({
         className: 'lightweight-crag-map-pin',
         html: `<div style="width:${visual.size}px;height:${visual.size}px;background:${visual.background};border-radius:9999px;display:flex;align-items:center;justify-content:center;color:white;font-size:${visual.fontSize}px;font-weight:700;border:2px solid ${visual.border};box-shadow:${visual.shadow};">${pin.label || index + 1}</div>`,
         iconSize: [visual.size, visual.size],
@@ -71,6 +138,28 @@ const MapPinMarker = memo(function MapPinMarker({
     && prev.onPinSelect === next.onPinSelect
 })
 
+interface ClusterMarkerProps {
+  cluster: ClusterMarkerPin
+  leafletLib: typeof import('leaflet')
+  onSelect: (clusterId: number) => void
+}
+
+const ClusterMarker = memo(function ClusterMarker({ cluster, leafletLib, onSelect }: ClusterMarkerProps) {
+  return (
+    <Marker
+      position={[cluster.latitude, cluster.longitude]}
+      zIndexOffset={500}
+      icon={leafletLib.divIcon({
+        className: 'lightweight-crag-map-cluster-wrapper',
+        html: `<div class="lightweight-crag-map-cluster-pin">${cluster.pointCount}</div>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      })}
+      eventHandlers={{ click: () => onSelect(cluster.clusterId) }}
+    />
+  )
+})
+
 interface LightweightCragMapProps {
   pins?: LightweightCragMapPin[]
   draftPins?: LightweightCragMapPin[]
@@ -82,39 +171,6 @@ interface LightweightCragMapProps {
   tileUrl?: string
   attribution?: string
   heightClassName?: string
-}
-
-function normalizeCoordinateKey(latitude: number, longitude: number): string {
-  return `${latitude.toFixed(6)}:${longitude.toFixed(6)}`
-}
-
-function normalizePins(pins: LightweightCragMapPin[], activePinId: string | null) {
-  const groupedPins = new Map<string, LightweightCragMapPin[]>()
-
-  pins.forEach((pin) => {
-    const key = normalizeCoordinateKey(pin.latitude, pin.longitude)
-    const existingGroup = groupedPins.get(key)
-    if (existingGroup) {
-      existingGroup.push(pin)
-      return
-    }
-
-    groupedPins.set(key, [pin])
-  })
-
-  return Array.from(groupedPins.values()).map((group, index) => {
-    const representative = activePinId
-      ? group.find((pin) => isPinActive(pin, activePinId)) || group[0]
-      : group[0]
-
-    const activeImageIds = Array.from(new Set(group.flatMap((pin) => pin.activeImageIds?.length ? pin.activeImageIds : [pin.id])))
-
-    return {
-      ...representative,
-      label: representative.label || group[0]?.label || String(index + 1),
-      activeImageIds,
-    }
-  })
 }
 
 export default function LightweightCragMap({
@@ -133,7 +189,16 @@ export default function LightweightCragMap({
   const [mapReady, setMapReady] = useState(false)
   const [leafletLib, setLeafletLib] = useState<typeof import('leaflet') | null>(null)
   const [minAllowedZoom, setMinAllowedZoom] = useState<number | null>(null)
+  const [mapZoom, setMapZoom] = useState(15)
+  const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
+  const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [isOffline, setIsOffline] = useState(false)
+
+  const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
+    setMapZoom(state.zoom)
+    setMapBounds(state.bounds)
+  }, [])
+
   const resolvedPins = useMemo(() => {
     if (draftPins || publishedPins) {
       return [
@@ -141,9 +206,81 @@ export default function LightweightCragMap({
         ...(draftPins || []).map((pin) => ({ ...pin, interactive: pin.interactive ?? true, tone: pin.tone ?? 'draft' as const })),
       ]
     }
+
     return pins
   }, [draftPins, pins, publishedPins])
-  const normalizedPins = useMemo(() => normalizePins(resolvedPins, activePinId), [activePinId, resolvedPins])
+
+  const pinFeatures = useMemo(() => buildPinFeatures(resolvedPins.map((pin) => ({
+    id: pin.id,
+    name: pin.label || pin.id,
+    type: 'crag' as const,
+    latitude: pin.latitude,
+    longitude: pin.longitude,
+    slug: null,
+    country_code: null,
+    image_count: null,
+    route_count: null,
+  }))), [resolvedPins])
+
+  const clusteredResults = useMemo<ClusterResult[]>(() => {
+    if (pinFeatures.length === 0 || !clusterIndex) return pinFeatures
+
+    const zoom = Math.max(0, Math.floor(mapZoom))
+    const worldBounds: [number, number, number, number] = [-180, -85, 180, 85]
+
+    if (!mapBounds) {
+      return clusterIndex.getClusters(worldBounds, zoom) as ClusterResult[]
+    }
+
+    const north = Math.min(85, mapBounds.north)
+    const south = Math.max(-85, mapBounds.south)
+
+    if (mapBounds.west <= mapBounds.east) {
+      return clusterIndex.getClusters([mapBounds.west, south, mapBounds.east, north], zoom) as ClusterResult[]
+    }
+
+    const westClusters = clusterIndex.getClusters([mapBounds.west, south, 180, north], zoom) as ClusterResult[]
+    const eastClusters = clusterIndex.getClusters([-180, south, mapBounds.east, north], zoom) as ClusterResult[]
+    return [...westClusters, ...eastClusters]
+  }, [clusterIndex, mapBounds, mapZoom, pinFeatures])
+
+  const renderedPins = useMemo<RenderedMapItem[]>(() => {
+    return clusteredResults.flatMap<RenderedMapItem>((feature, index) => {
+      if (isClusterFeature(feature)) {
+        return [{
+          kind: 'cluster' as const,
+          cluster: {
+            id: `cluster-${feature.properties.cluster_id}`,
+            latitude: feature.geometry.coordinates[1],
+            longitude: feature.geometry.coordinates[0],
+            label: String(feature.properties.point_count_abbreviated),
+            pointCount: feature.properties.point_count,
+            clusterId: feature.properties.cluster_id,
+          },
+        }]
+      }
+
+      const matchingPins = resolvedPins.filter((pin) => (
+        Math.abs(pin.latitude - feature.geometry.coordinates[1]) < 0.000001
+        && Math.abs(pin.longitude - feature.geometry.coordinates[0]) < 0.000001
+      ))
+      const representative = activePinId
+        ? matchingPins.find((pin) => isPinActive(pin, activePinId)) || matchingPins[0]
+        : matchingPins[0]
+
+      if (!representative) return []
+
+      return [{
+        kind: 'pin' as const,
+        pin: {
+          ...representative,
+          label: representative.label || String(index + 1),
+          activeImageIds: Array.from(new Set(matchingPins.flatMap((pin) => pin.activeImageIds?.length ? pin.activeImageIds : [pin.id]))),
+        },
+      }]
+    })
+  }, [activePinId, clusteredResults, resolvedPins])
+
   const baseLayer = useMemo(() => {
     if (tileUrl) {
       return {
@@ -159,16 +296,28 @@ export default function LightweightCragMap({
   }, [attribution, isOffline, tileUrl])
 
   const maxBounds = useMemo<import('leaflet').LatLngBoundsExpression | undefined>(() => {
-    if (normalizedPins.length === 0 || !leafletLib) return undefined
-    const bounds = leafletLib.latLngBounds(
-      normalizedPins.map((pin) => [pin.latitude, pin.longitude] as [number, number])
-    )
-    const padded = bounds.pad(0.15)
-    return padded
-  }, [normalizedPins, leafletLib])
+    if (resolvedPins.length === 0 || !leafletLib) return undefined
+    const bounds = leafletLib.latLngBounds(resolvedPins.map((pin) => [pin.latitude, pin.longitude] as [number, number]))
+    return bounds.pad(0.15)
+  }, [leafletLib, resolvedPins])
+
+  const center = useMemo<[number, number]>(() => {
+    if (initialCenter) return initialCenter
+    if (resolvedPins.length === 0) return [0, 0]
+    const latitude = resolvedPins.reduce((sum, pin) => sum + pin.latitude, 0) / resolvedPins.length
+    const longitude = resolvedPins.reduce((sum, pin) => sum + pin.longitude, 0) / resolvedPins.length
+    return [latitude, longitude]
+  }, [initialCenter, resolvedPins])
+
+  const handleClusterSelect = useCallback((clusterId: number) => {
+    if (!clusterIndex || !mapRef.current) return
+    const expansionZoom = Math.min(clusterIndex.getClusterExpansionZoom(clusterId), 17)
+    mapRef.current.setView(mapRef.current.getCenter(), expansionZoom, { animate: true })
+  }, [clusterIndex])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+
     void import('leaflet').then((leaflet) => {
       setLeafletLib(leaflet as typeof import('leaflet'))
     })
@@ -188,26 +337,48 @@ export default function LightweightCragMap({
     }
   }, [])
 
-  const center = useMemo<[number, number]>(() => {
-    if (initialCenter) return initialCenter
-    if (resolvedPins.length === 0) return [0, 0]
-    const latitude = resolvedPins.reduce((sum, pin) => sum + pin.latitude, 0) / resolvedPins.length
-    const longitude = resolvedPins.reduce((sum, pin) => sum + pin.longitude, 0) / resolvedPins.length
-    return [latitude, longitude]
-  }, [initialCenter, resolvedPins])
+  useEffect(() => {
+    let cancelled = false
+
+    if (pinFeatures.length === 0) {
+      setClusterIndex(null)
+      return
+    }
+
+    void import('supercluster').then((mod) => {
+      if (cancelled) return
+
+      const SuperclusterLib = mod.default
+      const index = new SuperclusterLib({
+        radius: 56,
+        maxZoom: 16,
+        minZoom: 0,
+        minPoints: 2,
+      }) as ClusterIndex
+
+      index.load(pinFeatures)
+      setClusterIndex(index)
+    }).catch(() => {
+      if (!cancelled) setClusterIndex(null)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [pinFeatures])
 
   useEffect(() => {
     uploadDebug('map-debug-state', {
       activePinId,
-      normalizedPinsCount: normalizedPins.length,
-      hasActivePin: Boolean(activePinId && normalizedPins.some((pin) => isPinActive(pin, activePinId))),
-      normalizedPinIds: normalizedPins.map((pin) => pin.id),
+      resolvedPinsCount: resolvedPins.length,
+      renderedPinsCount: renderedPins.length,
+      hasActivePin: Boolean(activePinId && resolvedPins.some((pin) => isPinActive(pin, activePinId))),
     })
-  }, [activePinId, normalizedPins])
+  }, [activePinId, renderedPins, resolvedPins])
 
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !leafletLib || !mapReady || normalizedPins.length === 0) return
+    if (!map || !leafletLib || !mapReady || resolvedPins.length === 0) return
 
     const container = map.getContainer?.()
     if (!container || !container.isConnected) return
@@ -217,7 +388,7 @@ export default function LightweightCragMap({
       if (!nextContainer || !nextContainer.isConnected) return
 
       map.invalidateSize()
-      const bounds = leafletLib.latLngBounds(normalizedPins.map((pin) => [pin.latitude, pin.longitude] as [number, number]))
+      const bounds = leafletLib.latLngBounds(resolvedPins.map((pin) => [pin.latitude, pin.longitude] as [number, number]))
       map.fitBounds(bounds, { padding: [28, 28], maxZoom: 16, animate: false })
       const fittedZoom = map.getZoom()
       setMinAllowedZoom(Math.min(Math.max(13, fittedZoom - 1), 15))
@@ -226,9 +397,9 @@ export default function LightweightCragMap({
     return () => {
       window.cancelAnimationFrame(frameId)
     }
-  }, [activePinId, leafletLib, mapReady, normalizedPins])
+  }, [leafletLib, mapReady, resolvedPins])
 
-  if (normalizedPins.length === 0) {
+  if (resolvedPins.length === 0) {
     return null
   }
 
@@ -253,6 +424,20 @@ export default function LightweightCragMap({
         :global(.lightweight-crag-map .leaflet-control-zoom a:hover) {
           background: rgba(245, 245, 244, 0.98);
         }
+        :global(.lightweight-crag-map .lightweight-crag-map-cluster-pin) {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          border-radius: 9999px;
+          background: rgba(239, 68, 68, 0.94);
+          color: white;
+          font-size: 12px;
+          font-weight: 700;
+          border: 2px solid white;
+          box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
+        }
       `}</style>
       <div className={`lightweight-crag-map h-[260px] overflow-hidden rounded-[28px] border border-stone-200 bg-stone-100 shadow-sm md:h-[320px] dark:border-gray-800 dark:bg-gray-900 ${heightClassName}`}>
         {leafletLib ? (
@@ -274,15 +459,11 @@ export default function LightweightCragMap({
             <TileLayer url={baseLayer.imageryUrl} attribution={baseLayer.imageryAttribution} maxZoom={19} />
             {baseLayer.labelsUrl ? <TileLayer url={baseLayer.labelsUrl} attribution={baseLayer.labelsAttribution || undefined} maxZoom={19} /> : null}
             <ZoomControl position="topright" />
-            {mapReady ? normalizedPins.map((pin, index) => (
-              <MapPinMarker
-                key={pin.id}
-                pin={pin}
-                index={index}
-                active={isPinActive(pin, activePinId)}
-                leafletLib={leafletLib}
-                onPinSelect={onPinSelect}
-              />
+            <MapStateWatcher onStateChange={handleMapStateChange} />
+            {mapReady ? renderedPins.map((item, index) => (
+              item.kind === 'cluster'
+                ? <ClusterMarker key={item.cluster.id} cluster={item.cluster} leafletLib={leafletLib} onSelect={handleClusterSelect} />
+                : <MapPinMarker key={item.pin.id} pin={item.pin} index={index} active={isPinActive(item.pin, activePinId)} leafletLib={leafletLib} onPinSelect={onPinSelect} />
             )) : null}
           </MapContainer>
         ) : (
