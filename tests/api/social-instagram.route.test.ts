@@ -69,4 +69,16 @@ describe('GET /api/social/instagram', () => {
     expect(response.status).toBe(403)
     expect(loadInstagramPostData).not.toHaveBeenCalled()
   })
+
+  test('returns 400 when selected-route mode has no route', async () => {
+    resolveUserIdWithFallback.mockResolvedValue({ userId: 'user-1', authError: null })
+    requireAdminFromSupabase.mockResolvedValue(null)
+
+    const { GET } = await import('@/app/api/social/instagram/route')
+    const request = new NextRequest('https://letsboulder.com/api/social/instagram?country=gb&crag=harrisons-rocks&image=image-1&mode=selected-route')
+    const response = await GET(request)
+
+    expect(response.status).toBe(400)
+    expect(loadInstagramPostData).not.toHaveBeenCalled()
+  })
 })
