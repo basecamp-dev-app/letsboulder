@@ -2,8 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getAdminClientWithAudit } from '@/lib/supabase-server'
 import { dedupeCragRoutes, formatCragRoutes, getAverageCoordinates } from '@/features/crags/lib/crag-page-domain'
-import { buildEffectiveClimbLookup, fetchCragRouteTargetPage, hasCompleteRouteTargets } from '@/features/crags/lib/crag-route-targets'
-import { CRAG_ROUTE_TARGETS_PAGE_SIZE } from '@/features/crags/lib/crag-route-target-page-size'
+import { buildEffectiveClimbLookup, fetchAllCragRoutePreviews, hasCompleteRouteTargets } from '@/features/crags/lib/crag-route-targets'
 import type { ClimbIdentityRow } from '@/features/crags/lib/crag-page-domain'
 import type { InitialCragRouteData } from '@/features/crags/lib/crag-page-types'
 import type { Database } from '@/types/database'
@@ -71,11 +70,7 @@ export async function loadInitialCragRouteData(
 
   if (initialRoutes.length > 0) {
     const previewSupabase = getAdminClientWithAudit('loadInitialCragRouteData preview seed')
-    const targetMaps = await fetchCragRouteTargetPage(previewSupabase, cragId, CRAG_ROUTE_TARGETS_PAGE_SIZE, 0)
-
-    const actualToEffective = Object.fromEntries(
-      Object.entries(effectiveClimbIdByClimbId).filter(([k, v]) => k !== v)
-    )
+    const targetMaps = await fetchAllCragRoutePreviews(previewSupabase, cragId, effectiveClimbIdByClimbId)
 
     const previewImageIds = Array.from(new Set(Object.values(targetMaps.nextRoutePreviewByClimbId).map((preview) => preview.imageId)))
     const missingPreviewImageIds = previewImageIds.filter((imageId) => !imageById.has(imageId))
@@ -104,34 +99,16 @@ export async function loadInitialCragRouteData(
       }
     }
 
-    const remappedTargetMaps = {
-      ...targetMaps,
-      nextRoutePreviewByClimbId: { ...targetMaps.nextRoutePreviewByClimbId },
-      nextRouteNavigationTargetByClimbId: { ...targetMaps.nextRouteNavigationTargetByClimbId },
-      nextRouteImageIdsByClimbId: { ...targetMaps.nextRouteImageIdsByClimbId },
-    }
-    for (const [actualId, effectiveId] of Object.entries(actualToEffective)) {
-      if (remappedTargetMaps.nextRoutePreviewByClimbId[effectiveId] && !remappedTargetMaps.nextRoutePreviewByClimbId[actualId]) {
-        remappedTargetMaps.nextRoutePreviewByClimbId[actualId] = remappedTargetMaps.nextRoutePreviewByClimbId[effectiveId]
-      }
-      if (remappedTargetMaps.nextRouteNavigationTargetByClimbId[effectiveId] && !remappedTargetMaps.nextRouteNavigationTargetByClimbId[actualId]) {
-        remappedTargetMaps.nextRouteNavigationTargetByClimbId[actualId] = remappedTargetMaps.nextRouteNavigationTargetByClimbId[effectiveId]
-      }
-      if (remappedTargetMaps.nextRouteImageIdsByClimbId[effectiveId] && !remappedTargetMaps.nextRouteImageIdsByClimbId[actualId]) {
-        remappedTargetMaps.nextRouteImageIdsByClimbId[actualId] = remappedTargetMaps.nextRouteImageIdsByClimbId[effectiveId]
-      }
-    }
-
-    Object.assign(initialRouteImageIdsByClimbId, remappedTargetMaps.nextRouteImageIdsByClimbId)
+    Object.assign(initialRouteImageIdsByClimbId, targetMaps.nextRouteImageIdsByClimbId)
     Object.assign(initialRoutePreviewByClimbId, Object.fromEntries(
-      Object.entries(remappedTargetMaps.nextRoutePreviewByClimbId).map(([routeId, preview]) => {
+      Object.entries(targetMaps.nextRoutePreviewByClimbId).map(([routeId, preview]) => {
         const hydratedPreview = imageById.get(preview.imageId)
         return [routeId, hydratedPreview ? { imageId: hydratedPreview.id, imageUrl: hydratedPreview.url } : preview]
       })
     ))
-    initialDefaultRouteTargetByImageId = remappedTargetMaps.nextDefaultRouteTargetByImageId
+    initialDefaultRouteTargetByImageId = targetMaps.nextDefaultRouteTargetByImageId
     initialRouteNavigationTargetByClimbId = Object.fromEntries(
-      Object.entries(remappedTargetMaps.nextRouteNavigationTargetByClimbId).map(([routeId, target]) => {
+      Object.entries(targetMaps.nextRouteNavigationTargetByClimbId).map(([routeId, target]) => {
         const hydratedImage = imageById.get(target.displayImageId)
         return [routeId, hydratedImage ? { ...target, displayImageUrl: hydratedImage.url } : target]
       })

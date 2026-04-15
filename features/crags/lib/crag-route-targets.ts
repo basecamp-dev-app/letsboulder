@@ -472,3 +472,114 @@ export async function fetchCragRouteTargetPage(
 
   return buildRouteTargetMapsFromPageRows(resolvedRows as CragRouteTargetPageRow[])
 }
+
+export async function fetchAllCragRoutePreviews(
+  supabase: SupabaseClient<Database>,
+  cragId: string,
+  effectiveClimbIdByClimbId: Record<string, string>
+) {
+  const { data: climbData } = await supabase
+    .from('climbs')
+    .select('id')
+    .eq('crag_id', cragId)
+    .is('deleted_at', null)
+
+  if (!climbData || climbData.length === 0) {
+    return {
+      nextRoutePreviewByClimbId: {},
+      nextRouteNavigationTargetByClimbId: {},
+      nextRouteImageIdsByClimbId: {},
+      nextDefaultRouteTargetByImageId: {},
+    }
+  }
+
+  const climbIds = climbData.map(c => c.id)
+  const allClimbIds = [...new Set([
+    ...climbIds,
+    ...climbIds.flatMap(id => effectiveClimbIdByClimbId[id] ? [effectiveClimbIdByClimbId[id]] : [])
+  ])]
+
+  const { data: routeLineData, error: routeLineError } = await supabase
+    .from('route_lines')
+    .select('id, image_id, climb_id')
+    .in('climb_id', allClimbIds)
+    .order('climb_id', { ascending: true })
+    .order('sequence_order', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true })
+
+  if (routeLineError) throw routeLineError
+
+  const { data: imageData } = await supabase
+    .from('images')
+    .select('id, url')
+    .in('id', (routeLineData || []).map(rl => rl.image_id))
+
+  const imageById = new Map((imageData || []).map(img => [img.id, resolveRouteImageUrl(img.url)]))
+
+  const routeImageIdsByClimbId: Record<string, string[]> = {}
+  const routePreviewByClimbId: Record<string, { imageId: string; imageUrl: string }> = {}
+  const routeNavigationTargetByClimbId: Record<string, { climbId: string; routeId: string; climbSlug: string | null; imageId: string; displayImageId: string; displayImageUrl: string }> = {}
+  const defaultTargetByImageId: Record<string, { climbId: string; routeId: string; climbSlug: string | null; imageId: string }> = {}
+
+  for (const row of routeLineData || []) {
+    const climbId = row.climb_id
+    const effectiveClimbId = effectiveClimbIdByClimbId[climbId] || climbId
+    const imageUrl = imageById.get(row.image_id)
+
+    if (!imageUrl) continue
+
+    if (!routeImageIdsByClimbId[effectiveClimbId]) {
+      routeImageIdsByClimbId[effectiveClimbId] = []
+    }
+    if (!routeImageIdsByClimbId[effectiveClimbId].includes(row.image_id)) {
+      routeImageIdsByClimbId[effectiveClimbId].push(row.image_id)
+    }
+
+    if (!routePreviewByClimbId[effectiveClimbId]) {
+      routePreviewByClimbId[effectiveClimbId] = {
+        imageId: row.image_id,
+        imageUrl,
+      }
+    }
+
+    if (!routeNavigationTargetByClimbId[effectiveClimbId]) {
+      routeNavigationTargetByClimbId[effectiveClimbId] = {
+        climbId: effectiveClimbId,
+        routeId: row.id,
+        climbSlug: null,
+        imageId: row.image_id,
+        displayImageId: row.image_id,
+        displayImageUrl: imageUrl,
+      }
+    }
+
+    if (!defaultTargetByImageId[row.image_id]) {
+      defaultTargetByImageId[row.image_id] = {
+        climbId: effectiveClimbId,
+        routeId: row.id,
+        climbSlug: null,
+        imageId: row.image_id,
+      }
+    }
+  }
+
+  for (const climbId of Object.keys(effectiveClimbIdByClimbId)) {
+    const effectiveId = effectiveClimbIdByClimbId[climbId]
+    if (effectiveId !== climbId && routePreviewByClimbId[effectiveId] && !routePreviewByClimbId[climbId]) {
+      routePreviewByClimbId[climbId] = routePreviewByClimbId[effectiveId]
+    }
+    if (effectiveId !== climbId && routeNavigationTargetByClimbId[effectiveId] && !routeNavigationTargetByClimbId[climbId]) {
+      routeNavigationTargetByClimbId[climbId] = routeNavigationTargetByClimbId[effectiveId]
+    }
+    if (effectiveId !== climbId && routeImageIdsByClimbId[effectiveId] && !routeImageIdsByClimbId[climbId]) {
+      routeImageIdsByClimbId[climbId] = routeImageIdsByClimbId[effectiveId]
+    }
+  }
+
+  return {
+    nextRoutePreviewByClimbId: routePreviewByClimbId,
+    nextRouteNavigationTargetByClimbId: routeNavigationTargetByClimbId,
+    nextRouteImageIdsByClimbId: routeImageIdsByClimbId,
+    nextDefaultRouteTargetByImageId: defaultTargetByImageId,
+  }
+}
