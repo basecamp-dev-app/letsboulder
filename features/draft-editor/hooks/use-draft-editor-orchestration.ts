@@ -134,9 +134,6 @@ export function useDraftEditorOrchestration({
     reset,
     clearCanvasState,
   })
-  const atlasSync = useAtlasAutoSync(markerPosition?.[0] ?? null, markerPosition?.[1] ?? null)
-  const nearbyCragId = atlasSync.nearbyCrag?.id ?? null
-  const nearbyCragName = atlasSync.nearbyCrag?.name ?? null
   const { imagesPayload, imagesPayloadSignature } = useDraftEditorData({ draft, routeType, routesByImageId, manageImages })
 
   const {
@@ -217,6 +214,10 @@ export function useDraftEditorOrchestration({
     cragCanvasImages,
     markerPosition,
   })
+
+  const atlasSync = useAtlasAutoSync(effectiveMarkerPosition?.[0] ?? null, effectiveMarkerPosition?.[1] ?? null)
+  const nearbyCragId = atlasSync.nearbyCrag?.id ?? null
+  const nearbyCragName = atlasSync.nearbyCrag?.name ?? null
 
   useEffect(() => {
     if (!imageSelection || !('imageUrl' in imageSelection)) return

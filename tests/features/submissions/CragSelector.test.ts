@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { render, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CragSelector from '@/features/submissions/components/CragSelector'
 import type { SubmissionCrag } from '@/features/submissions/lib/submission-types'
@@ -90,10 +90,8 @@ describe('CragSelector', () => {
       selectedCragId: 'existing-crag',
     }))
 
-    await waitFor(() => {
-      expect(fetch).toHaveBeenCalled()
-    })
-
+    expect(screen.getAllByText('Nearby crags').length).toBeGreaterThan(0)
+    expect(fetch).not.toHaveBeenCalled()
     expect(onSelect).not.toHaveBeenCalled()
   })
 })
