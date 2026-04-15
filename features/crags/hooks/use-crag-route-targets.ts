@@ -1,12 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { runWhenIdle } from '@/lib/run-when-idle'
+import { useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { cragKeys } from '@/features/crags/lib/crag-queries'
 import type { ImageRouteTarget } from '@/features/crags/lib/build-crag-image-destination'
 import type { CragRoute, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
-import { CRAG_ROUTE_TARGETS_PAGE_SIZE } from '@/features/crags/lib/crag-route-target-page-size'
 
 interface RouteTargetPageResult {
   nextDefaultRouteTargetByImageId: Record<string, ImageRouteTarget>
@@ -16,11 +14,11 @@ interface RouteTargetPageResult {
   hasMore: boolean
 }
 
-async function fetchRouteTargetPage(cragId: string, offset: number): Promise<RouteTargetPageResult | null> {
+async function fetchAllRouteTargets(cragId: string): Promise<RouteTargetPageResult | null> {
   if (!cragId) return null
 
   const response = await fetch(
-    `/api/crags/route-targets?cragId=${encodeURIComponent(cragId)}&limit=${CRAG_ROUTE_TARGETS_PAGE_SIZE}&offset=${offset}`,
+    `/api/crags/route-targets?cragId=${encodeURIComponent(cragId)}`,
     {
       method: 'GET',
       credentials: 'same-origin',
@@ -68,56 +66,26 @@ export function useCragRouteTargets({
   setRouteNavigationTargetByClimbId,
 }: UseCragRouteTargetsParams) {
   const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
-  const queryClient = useQueryClient()
-  const shouldLoadFirstPage = routes.length > 0 && !initialRouteTargetsComplete && !isOffline
-  const shouldPrefetchSecondPage = shouldLoadFirstPage && routes.length > CRAG_ROUTE_TARGETS_PAGE_SIZE
-  const [shouldLoadSecondPage, setShouldLoadSecondPage] = useState(false)
+  const shouldLoad = routes.length > 0 && !initialRouteTargetsComplete && !isOffline
 
-  useEffect(() => {
-    if (!shouldPrefetchSecondPage || shouldLoadSecondPage) return
-
-    const cancel = runWhenIdle(() => {
-      queryClient.prefetchQuery({
-        queryKey: cragKeys.routeTargets(`${cragId}:50`),
-        queryFn: () => fetchRouteTargetPage(cragId, CRAG_ROUTE_TARGETS_PAGE_SIZE),
-        staleTime: 5 * 60 * 1000,
-      }).then(() => {
-        setShouldLoadSecondPage(true)
-      }).catch(() => {
-        // Keep page 1 functional if idle prefetch fails.
-      })
-    })
-
-    return cancel
-  }, [cragId, queryClient, shouldLoadSecondPage, shouldPrefetchSecondPage])
-
-  const firstPageQuery = useQuery({
-    queryKey: cragKeys.routeTargets(`${cragId}:0`),
-    queryFn: () => fetchRouteTargetPage(cragId, 0),
-    enabled: !!cragId && shouldLoadFirstPage,
-    staleTime: 5 * 60 * 1000,
-    meta: { persist: true },
-  })
-
-  const secondPageQuery = useQuery({
-    queryKey: cragKeys.routeTargets(`${cragId}:50`),
-    queryFn: () => fetchRouteTargetPage(cragId, CRAG_ROUTE_TARGETS_PAGE_SIZE),
-    enabled: !!cragId && shouldLoadSecondPage,
+  const routeTargetsQuery = useQuery({
+    queryKey: cragKeys.routeTargets(cragId),
+    queryFn: () => fetchAllRouteTargets(cragId),
+    enabled: !!cragId && shouldLoad,
     staleTime: 5 * 60 * 1000,
     meta: { persist: true },
   })
 
   useEffect(() => {
-    const pages = [firstPageQuery.data, secondPageQuery.data].filter((page): page is RouteTargetPageResult => Boolean(page))
-    if (pages.length === 0) return
+    if (!routeTargetsQuery.data) return
 
-    setDefaultRouteTargetByImageId(() => Object.assign({}, ...pages.map((page) => page.nextDefaultRouteTargetByImageId)))
-    setRouteImageIdsByClimbId(() => Object.assign({}, ...pages.map((page) => page.nextRouteImageIdsByClimbId)))
-    setRoutePreviewByClimbId((prev) => Object.assign({}, prev, ...pages.map((page) => page.nextRoutePreviewByClimbId)))
-    setRouteNavigationTargetByClimbId((prev) => Object.assign({}, prev, ...pages.map((page) => page.nextRouteNavigationTargetByClimbId)))
+    const data = routeTargetsQuery.data
+    setDefaultRouteTargetByImageId(() => data.nextDefaultRouteTargetByImageId)
+    setRouteImageIdsByClimbId(() => data.nextRouteImageIdsByClimbId)
+    setRoutePreviewByClimbId(() => data.nextRoutePreviewByClimbId)
+    setRouteNavigationTargetByClimbId(() => data.nextRouteNavigationTargetByClimbId)
   }, [
-    firstPageQuery.data,
-    secondPageQuery.data,
+    routeTargetsQuery.data,
     setDefaultRouteTargetByImageId,
     setRouteImageIdsByClimbId,
     setRouteNavigationTargetByClimbId,
