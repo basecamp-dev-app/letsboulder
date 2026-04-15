@@ -5,6 +5,7 @@ import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getStableSpatialOrder } from '@/lib/stable-spatial-order'
 import { startServerTiming, timeServerStep } from '@/lib/performance/server-timing'
 import { getStoredClimbManifest, getStoredClimbManifestByImageId } from '@/lib/offline/storage'
+import { getServerClient } from '@/lib/supabase-server'
 import type { RoutePoint } from '@/types/domain'
 import type { ImageFirstPayload, ImageFirstRouteLine } from '@/features/image-first/types'
 import type { ClimbPackResponse } from '@/features/climb/lib/queries'
@@ -85,6 +86,29 @@ interface RouteLineRow {
 
 async function getSupabase() {
   return getUnauthenticatedClient()
+}
+
+async function getIsCurrentUserAdmin(): Promise<boolean> {
+  try {
+    const supabase = await getServerClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) return false
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profileError) return false
+    return profile?.is_admin === true
+  } catch {
+    return false
+  }
 }
 
 async function resolveCragImageRow(displayImageId: string): Promise<ResolvedImageRow | null> {
@@ -367,6 +391,7 @@ function buildOfflineImageFirstPayload(
             routeSlug: args.routeSlug || resolvedRoute?.climbSlug || pathParts[2] || null,
           }]
         : [],
+      isAdmin: false,
     },
   }
 }
@@ -415,7 +440,7 @@ export async function buildImageFirstPayload(args: {
     }
   }
 
-  const [initialRouteRows, cragImages, cragImageRows] = await Promise.all([
+  const [initialRouteRows, cragImages, cragImageRows, isAdmin] = await Promise.all([
     timeServerStep('buildImageFirstPayload', 'initial-routes', () => getRoutesByImage(image.canonicalId)),
     (async () => {
       return timeServerStep('buildImageFirstPayload', 'crag-images', async () => {
@@ -453,6 +478,7 @@ export async function buildImageFirstPayload(args: {
         }>
       })
     })(),
+    getIsCurrentUserAdmin(),
   ])
 
   const linkedImageIdByDisplayId: Record<string, string> = {}
@@ -589,6 +615,7 @@ export async function buildImageFirstPayload(args: {
       cragSlug: image.cragSlug,
       countryCode: image.countryCode,
       mapPins,
+      isAdmin,
     },
   }
 

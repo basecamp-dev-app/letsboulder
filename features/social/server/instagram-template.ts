@@ -21,19 +21,11 @@ export interface InstagramPostRenderInput {
   imageBuffer: Buffer
   naturalWidth: number
   naturalHeight: number
-  routePoints: RoutePoint[]
-  routeColor: string
-  locationText: string | null
-  cragName: string
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+  routes: Array<{
+    routePoints: RoutePoint[]
+    strokeColor: string
+    isSelected: boolean
+  }>
 }
 
 export function computeInstagramCoverLayout(
@@ -91,48 +83,35 @@ function buildQuadraticPath(points: RoutePoint[]): string {
 function buildOverlaySvg(input: {
   width: number
   height: number
-  pathData: string
-  routeColor: string
-  locationText: string | null
-  cragName: string
+  paths: Array<{ pathData: string; strokeColor: string; isSelected: boolean }>
 }) {
-  const locationMarkup = input.locationText
-    ? `<text x="${SIDE_PADDING}" y="${TOP_PADDING}" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" letter-spacing="3" fill="rgba(255,255,255,0.94)">${escapeXml(input.locationText.toUpperCase())}</text>`
-    : ''
-
-  const titleY = input.locationText ? TOP_PADDING + 58 : TOP_PADDING + 10
+  const orderedPaths = [...input.paths].sort((left, right) => Number(left.isSelected) - Number(right.isSelected))
+  const pathMarkup = orderedPaths.map((path) => `
+      <path d="${path.pathData}" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="${path.pathData}" fill="none" stroke="${path.strokeColor}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+  `).join('')
 
   return `
     <svg width="${input.width}" height="${input.height}" viewBox="0 0 ${input.width} ${input.height}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="topFade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="rgba(0,0,0,0.52)" />
-          <stop offset="38%" stop-color="rgba(0,0,0,0.10)" />
-          <stop offset="100%" stop-color="rgba(0,0,0,0)" />
-        </linearGradient>
-        <linearGradient id="bottomFade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="rgba(0,0,0,0)" />
-          <stop offset="100%" stop-color="rgba(0,0,0,0.34)" />
-        </linearGradient>
-      </defs>
-
-      <rect width="${input.width}" height="${input.height}" fill="url(#topFade)" />
-      <rect y="${input.height - 260}" width="${input.width}" height="260" fill="url(#bottomFade)" />
-
-      <path d="${input.pathData}" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" />
-      <path d="${input.pathData}" fill="none" stroke="${escapeXml(input.routeColor)}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
-
-      ${locationMarkup}
-      <text x="${SIDE_PADDING}" y="${titleY}" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="800" fill="rgba(255,255,255,0.98)">${escapeXml(input.cragName)}</text>
-      <text x="${SIDE_PADDING}" y="${input.height - FOOTER_PADDING}" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="rgba(255,255,255,0.90)">letsboulder.com</text>
+      ${pathMarkup}
     </svg>
   `.trim()
 }
 
 export async function renderInstagramPost(input: InstagramPostRenderInput): Promise<Buffer> {
   const layout = computeInstagramCoverLayout(input.naturalWidth, input.naturalHeight)
-  const mappedPoints = mapNormalizedPointsToInstagramPost(input.routePoints, layout)
-  const pathData = buildQuadraticPath(mappedPoints)
+  const overlayPaths = input.routes
+    .map((route) => {
+      const mappedPoints = mapNormalizedPointsToInstagramPost(route.routePoints, layout)
+      const pathData = buildQuadraticPath(mappedPoints)
+      if (!pathData) return null
+      return {
+        pathData,
+        strokeColor: route.strokeColor,
+        isSelected: route.isSelected,
+      }
+    })
+    .filter((route): route is NonNullable<typeof route> => route !== null)
 
   const baseImage = await sharp(input.imageBuffer)
     .resize(INSTAGRAM_POST_WIDTH, INSTAGRAM_POST_HEIGHT, {
@@ -142,16 +121,13 @@ export async function renderInstagramPost(input: InstagramPostRenderInput): Prom
     .png()
     .toBuffer()
 
-  if (!pathData) {
+  if (overlayPaths.length === 0) {
     return sharp(baseImage)
       .composite([{
         input: Buffer.from(buildOverlaySvg({
           width: INSTAGRAM_POST_WIDTH,
           height: INSTAGRAM_POST_HEIGHT,
-          pathData: `M 0 0`,
-          routeColor: input.routeColor,
-          locationText: input.locationText,
-          cragName: input.cragName,
+          paths: [],
         })),
       }])
       .png()
@@ -163,10 +139,7 @@ export async function renderInstagramPost(input: InstagramPostRenderInput): Prom
       input: Buffer.from(buildOverlaySvg({
         width: INSTAGRAM_POST_WIDTH,
         height: INSTAGRAM_POST_HEIGHT,
-        pathData,
-        routeColor: input.routeColor,
-        locationText: input.locationText,
-        cragName: input.cragName,
+        paths: overlayPaths,
       })),
     }])
     .png()

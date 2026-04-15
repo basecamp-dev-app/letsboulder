@@ -14,9 +14,9 @@ const LABEL_OFFSET_Y = -15
 const NAME_LABEL_OFFSET_X = 10
 const NAME_LABEL_OFFSET_Y = 12
 
-const COLOR_STANDARD = '#dc2626'
-const COLOR_ACTIVE = '#FFFF00'
-const COLOR_SELECTED = '#00FFFF'
+export const BROWSE_ROUTE_COLOR = '#dc2626'
+export const ACTIVE_ROUTE_COLOR = '#FFFF00'
+export const SELECTED_ROUTE_COLOR = '#00FFFF'
 
 export function createRoutePath2D(points: RoutePoint[]): Path2D | null {
   if (typeof Path2D === 'undefined' || points.length < 2) return null
@@ -130,11 +130,11 @@ export function drawRoute(
 
   const strokeWidth = isActive ? BASE_STROKE_WIDTH * ACTIVE_STROKE_MULTIPLIER : BASE_STROKE_WIDTH
 
-  let color = route.color || COLOR_STANDARD
+  let color = route.color || BROWSE_ROUTE_COLOR
   if (isActive) {
-    color = COLOR_ACTIVE
+    color = ACTIVE_ROUTE_COLOR
   } else if (isSelected) {
-    color = COLOR_SELECTED
+    color = SELECTED_ROUTE_COLOR
   }
 
   const path = createRoutePath2D(scaledPoints)
@@ -175,7 +175,7 @@ export function drawCurrentPoints(
   ctx: CanvasRenderingContext2D,
   points: RoutePoint[],
   dimensions: CanvasDimensions,
-  color: string = COLOR_ACTIVE
+  color: string = ACTIVE_ROUTE_COLOR
 ): void {
   if (points.length === 0) {
     return

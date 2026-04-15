@@ -45,4 +45,5 @@ export interface ImageFirstPayload {
     activeImageIds: string[]
     routeSlug: string | null
   }>
+  isAdmin: boolean
 }

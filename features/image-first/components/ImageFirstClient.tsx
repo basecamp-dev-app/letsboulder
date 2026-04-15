@@ -42,6 +42,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     initialRouteSlug,
     countryCode,
     cragSlug,
+    isAdmin,
   } = payload
   const { linkedImageIdByDisplayId } = navigationContext
   const router = useRouter()
@@ -499,7 +500,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   }, [router])
 
   const handleDownloadInstagramPost = useCallback(async () => {
-    if (!activeImageId || !activeRouteId || downloadingPost) return
+    if (!isAdmin || !activeImageId || !activeRouteId || downloadingPost) return
 
     const params = new URLSearchParams({
       country: countryCode,
@@ -531,21 +532,23 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     } finally {
       setDownloadingPost(false)
     }
-  }, [activeImageId, activeRouteId, addToast, countryCode, cragSlug, downloadingPost])
+  }, [activeImageId, activeRouteId, addToast, countryCode, cragSlug, downloadingPost, isAdmin])
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-white">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       <main className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-14">
-        <button
-          type="button"
-          onClick={handleDownloadInstagramPost}
-          disabled={!activeImageId || !activeRouteId || downloadingPost}
-          className="absolute top-4 right-4 z-10 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white backdrop-blur disabled:opacity-30"
-        >
-          {downloadingPost ? 'Downloading...' : 'Download Post'}
-        </button>
+        {isAdmin ? (
+          <button
+            type="button"
+            onClick={handleDownloadInstagramPost}
+            disabled={!activeImageId || !activeRouteId || downloadingPost}
+            className="absolute top-4 right-4 z-10 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white backdrop-blur disabled:opacity-30"
+          >
+            {downloadingPost ? 'Downloading...' : 'Download Post'}
+          </button>
+        ) : null}
 
         <button
           type="button"
