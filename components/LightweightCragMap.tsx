@@ -350,7 +350,7 @@ export default function LightweightCragMap({
 
       const SuperclusterLib = mod.default
       const index = new SuperclusterLib({
-        radius: 56,
+        radius: 72,
         maxZoom: 16,
         minZoom: 0,
         minPoints: 2,
