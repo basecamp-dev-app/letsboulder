@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getSignedUrlBatchKey, type SignedUrlBatchResponse } from '@/lib/signed-url-batch'
 import { groupSubmittedImages } from './group-submitted-images'
+import { selectPreferredDraftPreviewImage, type DraftPreviewImageRef } from '@/features/submissions/lib/draft-preview'
 import type { DraftImageRef, Submission } from '@/types/submissions'
 
 interface DraftSubmissionRow {
@@ -10,16 +10,6 @@ interface DraftSubmissionRow {
   crags: { name?: string } | Array<{ name?: string }> | null
   submission_draft_images: DraftImageRef[] | null
   submission_draft_routes: Array<{ id: string }> | null
-}
-
-interface DraftImagePreviewRef extends DraftImageRef {
-  display_order: number
-  processing_status: 'pending' | 'queued' | 'processing' | 'ready' | 'failed' | null
-}
-
-interface SignedUrlObject {
-  bucket: string
-  path: string
 }
 
 interface ImageContributionRow {
@@ -38,9 +28,9 @@ interface ImageContributionRow {
 export async function fetchOwnSubmissions(
   supabase: SupabaseClient,
   userId: string,
-  signedFetch: typeof fetch,
+  _signedFetch: typeof fetch,
   limit = 24,
-  baseUrl?: string
+  _baseUrl?: string
 ): Promise<Submission[]> {
   const dedupeSubmissions = (items: Submission[]): Submission[] => {
     const byKey = new Map<string, Submission>()
@@ -78,36 +68,6 @@ export async function fetchOwnSubmissions(
     .limit(limit)
 
   const draftRows = (draftSubmissions || []) as DraftSubmissionRow[]
-  const firstDraftImageObjects = draftRows
-    .map((draft) => {
-      const draftImages = ((draft.submission_draft_images || []) as DraftImagePreviewRef[]).slice().sort((a, b) => a.display_order - b.display_order)
-      const preferredImage = draftImages.find((image) => image.processing_status === 'ready') || draftImages[0]
-      if (!preferredImage?.storage_bucket || !preferredImage?.storage_path) return null
-      return {
-        bucket: preferredImage.storage_bucket,
-        path: preferredImage.storage_path,
-      }
-    })
-    .filter((item): item is SignedUrlObject => !!item)
-
-  const signedByKey = new Map<string, string>()
-  if (firstDraftImageObjects.length > 0) {
-    const signedUrlResponse = await signedFetch(baseUrl
-    ? `${baseUrl}/api/uploads/signed-urls/batch`
-    : '/api/uploads/signed-urls/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ objects: firstDraftImageObjects }),
-    })
-
-    if (signedUrlResponse.ok) {
-      const signedData = await signedUrlResponse.json().catch(() => ({} as SignedUrlBatchResponse))
-      for (const item of signedData.results || []) {
-        if (!item?.signedUrl) continue
-        signedByKey.set(getSignedUrlBatchKey(item.bucket, item.path), item.signedUrl)
-      }
-    }
-  }
 
   const formattedDrafts: Submission[] = draftRows.map((draft) => {
     const cragRelation = draft.crags
@@ -115,11 +75,8 @@ export async function fetchOwnSubmissions(
       ? (cragRelation[0]?.name || null)
       : (cragRelation?.name || null)
 
-    const draftImages = ((draft.submission_draft_images || []) as DraftImagePreviewRef[]).slice().sort((a, b) => a.display_order - b.display_order)
-    const preferredImage = draftImages.find((image) => image.processing_status === 'ready') || draftImages[0]
-    const previewUrl = preferredImage?.storage_bucket && preferredImage?.storage_path
-      ? (signedByKey.get(getSignedUrlBatchKey(preferredImage.storage_bucket, preferredImage.storage_path)) || '')
-      : ''
+    const draftImages = (draft.submission_draft_images || []) as DraftImagePreviewRef[]
+    const preferredImage = selectPreferredDraftPreviewImage(draftImages)
 
     const routeCountFromRows = Array.isArray(draft.submission_draft_routes) ? draft.submission_draft_routes.length : 0
     const routeCountFromLegacy = draftImages.reduce((count, image) => {
@@ -138,7 +95,7 @@ export async function fetchOwnSubmissions(
       kind: 'draft',
       status: 'draft',
       is_anonymous_submission: false,
-      url: previewUrl,
+      url: '',
       created_at: draft.created_at,
       updated_at: draft.updated_at,
       crag_name: cragName,
