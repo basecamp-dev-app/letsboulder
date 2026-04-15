@@ -3,6 +3,7 @@ import { buildCragImageDestination } from '@/features/crags/lib/build-crag-image
 import type { CragRoute, ImageData, RouteNavigationTarget, RoutePreview } from '@/features/crags/lib/crag-page-types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
+import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 
 export interface RouteLineTargetRow {
   id: string
@@ -459,5 +460,15 @@ export async function fetchCragRouteTargetPage(
 
   if (error) throw error
 
-  return buildRouteTargetMapsFromPageRows((data || []) as CragRouteTargetPageRow[])
+  const resolvedRows = (data || []).map((row: CragRouteTargetPageRow) => ({
+    ...row,
+    preview_image_url: row.preview_image_url
+      ? resolveRouteImageUrl(row.preview_image_url)
+      : null,
+    navigation_image_url: row.navigation_image_url
+      ? resolveRouteImageUrl(row.navigation_image_url)
+      : null,
+  }))
+
+  return buildRouteTargetMapsFromPageRows(resolvedRows as CragRouteTargetPageRow[])
 }
