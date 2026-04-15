@@ -150,10 +150,10 @@ const ClusterMarker = memo(function ClusterMarker({ cluster, leafletLib, onSelec
       position={[cluster.latitude, cluster.longitude]}
       zIndexOffset={500}
       icon={leafletLib.divIcon({
-        className: 'lightweight-crag-map-cluster-wrapper',
-        html: `<div class="lightweight-crag-map-cluster-pin">${cluster.pointCount}</div>`,
-        iconSize: [40, 40],
-        iconAnchor: [20, 20],
+        className: 'crag-cluster-wrapper',
+        html: `<div class="crag-cluster-pin">${cluster.pointCount}</div>`,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
       })}
       eventHandlers={{ click: () => onSelect(cluster.clusterId) }}
     />
@@ -423,20 +423,6 @@ export default function LightweightCragMap({
         }
         :global(.lightweight-crag-map .leaflet-control-zoom a:hover) {
           background: rgba(245, 245, 244, 0.98);
-        }
-        :global(.lightweight-crag-map .lightweight-crag-map-cluster-pin) {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 40px;
-          height: 40px;
-          border-radius: 9999px;
-          background: rgba(239, 68, 68, 0.94);
-          color: white;
-          font-size: 12px;
-          font-weight: 700;
-          border: 2px solid white;
-          box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
         }
       `}</style>
       <div className={`lightweight-crag-map h-[260px] overflow-hidden rounded-[28px] border border-stone-200 bg-stone-100 shadow-sm md:h-[320px] dark:border-gray-800 dark:bg-gray-900 ${heightClassName}`}>
