@@ -122,6 +122,9 @@ export async function loadInitialCragRouteData(
       }
     }
 
+    console.log('[DEBUG] actualToEffective mapping:', actualToEffective)
+    console.log('[DEBUG] Keys in initialRoutePreviewByClimbId:', Object.keys(remappedTargetMaps.nextRoutePreviewByClimbId))
+
     Object.assign(initialRouteImageIdsByClimbId, remappedTargetMaps.nextRouteImageIdsByClimbId)
     Object.assign(initialRoutePreviewByClimbId, Object.fromEntries(
       Object.entries(remappedTargetMaps.nextRoutePreviewByClimbId).map(([routeId, preview]) => {
