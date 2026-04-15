@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Loader2, Trash2 } from 'lucide-react'
@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
+import { getDraftSignedUrlCacheKey, loadDraftSignedUrls } from '@/lib/media/draft-signed-urls'
 import { formatSubmissionCreditHandle } from '@/features/submissions/lib/submission-credit'
 import type { Submission } from '@/types/submissions'
 
@@ -41,6 +42,33 @@ function isDeleteType(type: PendingAction['type']): boolean {
 const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnProfile, deletingDraftId, publishingDraftId, deletingSubmissionId, onDeleteDraft, onPublishDraft, onDeleteSubmission }: SubmissionListProps) {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [deleteRouteConfirmation, setDeleteRouteConfirmation] = useState('')
+  const [draftSignedUrls, setDraftSignedUrls] = useState<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    const draftPreviewObjects = submissions
+      .filter((submission) => submission.kind === 'draft' && submission.draft_preview_bucket && submission.draft_preview_path)
+      .map((submission) => ({
+        bucket: submission.draft_preview_bucket as string,
+        path: submission.draft_preview_path as string,
+      }))
+
+    if (draftPreviewObjects.length === 0) {
+      return
+    }
+
+    let cancelled = false
+    void loadDraftSignedUrls(draftPreviewObjects)
+      .then((signedMap) => {
+        if (!cancelled) {
+          setDraftSignedUrls(new Map(signedMap))
+        }
+      })
+      .catch(() => null)
+
+    return () => {
+      cancelled = true
+    }
+  }, [submissions])
 
   const pendingSubmission = useMemo(
     () => submissions.find((submission) => submission.id === pendingAction?.id) ?? null,
@@ -152,7 +180,10 @@ const SubmissionList = React.memo(function SubmissionList({ submissions, isOwnPr
         })()
         const submissionImageId = submission.canonical_image_id || submission.id
         const isDeletingSubmission = deletingSubmissionId === submissionImageId
-        const imageSrcRaw = resolveRouteImageUrl(submission.url)
+        const draftSignedUrl = submission.kind === 'draft' && submission.draft_preview_bucket && submission.draft_preview_path
+          ? (draftSignedUrls.get(getDraftSignedUrlCacheKey(submission.draft_preview_bucket, submission.draft_preview_path)) || '')
+          : ''
+        const imageSrcRaw = resolveRouteImageUrl(submission.kind === 'draft' ? draftSignedUrl : submission.url)
         const imageSrc = typeof imageSrcRaw === 'string' && imageSrcRaw.trim().length > 0 ? imageSrcRaw : null
         const content = (
           <>

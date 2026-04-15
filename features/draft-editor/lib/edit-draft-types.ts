@@ -8,7 +8,8 @@ export interface DraftImagePayload {
   id: string
   display_order: number
   route_data: Record<string, unknown> | null
-  proxy_url: string | null
+  storage_bucket: string | null
+  storage_path: string | null
   readiness_status: 'ready' | 'processing' | 'error'
   width: number | null
   height: number | null
@@ -136,7 +137,7 @@ export interface PublishedCragImagePin {
 }
 
 export function isDraftImageReady(image: DraftImagePayload): boolean {
-  return (image.readiness_status === 'ready' || image.readiness_status === 'processing') && !!image.proxy_url
+  return (image.readiness_status === 'ready' || image.readiness_status === 'processing') && !!image.storage_bucket && !!image.storage_path
 }
 
 export function buildManageImageLabel(index: number, imageId: string, defaultImageId: string | null, directions?: OrientationDirection[]): string {

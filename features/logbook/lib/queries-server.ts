@@ -168,6 +168,8 @@ async function fetchServerDrafts(supabase: Awaited<ReturnType<typeof getServerCl
       image_count: draftImages.length,
       contribution_credit_platform: null,
       contribution_credit_handle: null,
+      draft_preview_bucket: preferredImage?.storage_bucket || null,
+      draft_preview_path: preferredImage?.storage_path || null,
     }
   })
 }

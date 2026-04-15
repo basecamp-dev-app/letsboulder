@@ -4,7 +4,6 @@ import { createErrorResponse } from '@/lib/errors'
 import { resolveUserIdWithFallback } from '@/lib/auth-context'
 import type { Database } from '@/types/database'
 import {
-  buildDraftImageProxyUrl,
   normalizeJsonRecord,
   resolveDraftImageReadinessStatus,
   type DraftImageRow,
@@ -14,7 +13,6 @@ import {
 type DraftImageReadinessStatus = 'processing' | 'ready' | 'error'
 
 interface DraftImageResponse extends DraftImageRow {
-  proxy_url: string | null
   readiness_status: DraftImageReadinessStatus
 }
 
@@ -94,7 +92,6 @@ export async function fetchDraft(id: string, request: NextRequest) {
             }
           : normalizedRouteData,
         preview_variants: normalizeJsonRecord(image.preview_variants),
-        proxy_url: image.storage_path ? buildDraftImageProxyUrl(id, image.storage_path) : null,
         readiness_status: resolveDraftImageReadinessStatus(image),
       }
     })
