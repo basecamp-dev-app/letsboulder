@@ -1,5 +1,7 @@
 import { clientEnv } from '@/lib/env-client'
 
+console.log('[DEBUG resolveRouteImageUrl] clientEnv.NEXT_PUBLIC_MEDIA_CDN_URL:', clientEnv.NEXT_PUBLIC_MEDIA_CDN_URL)
+
 const PRIVATE_URL_PREFIX = 'private://'
 
 function buildMediaHostUrl(path: string): string {
