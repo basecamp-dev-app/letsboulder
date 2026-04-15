@@ -27,14 +27,16 @@ export async function GET(request: NextRequest) {
   const supabase = getAdminClientWithAudit('api/crags/route-targets')
   const targetMaps = await fetchCragRouteTargetPage(supabase, validation.data.cragId, validation.data.limit, validation.data.offset)
 
-  const climbIds = Object.keys(targetMaps.nextRoutePreviewByClimbId)
-  let effectiveClimbIdByClimbId: Record<string, string> = {}
+  const targetClimbIds = Object.keys(targetMaps.nextRoutePreviewByClimbId)
+  const targetNavigationClimbIds = Object.keys(targetMaps.nextRouteNavigationTargetByClimbId)
+  const allTargetClimbIds = [...new Set([...targetClimbIds, ...targetNavigationClimbIds])]
 
-  if (climbIds.length > 0) {
+  let effectiveClimbIdByClimbId: Record<string, string> = {}
+  if (allTargetClimbIds.length > 0) {
     const { data } = await supabase
       .from('climbs')
       .select('id, shared_climb_id')
-      .in('id', climbIds)
+      .or(`id.in.(${allTargetClimbIds.join(',')}),shared_climb_id.in.(${allTargetClimbIds.join(',')})`)
 
     if (data && data.length > 0) {
       const lookup = buildEffectiveClimbLookup(data as ClimbIdentityRow[])
