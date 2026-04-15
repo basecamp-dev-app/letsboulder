@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase'
+import { SITE_URL } from '@/lib/site'
 
 function detectEmbeddedBrowser(userAgent: string): boolean {
   const normalizedUserAgent = userAgent.toLowerCase()
@@ -92,8 +93,8 @@ export default function AuthForm() {
       email,
       options: {
         emailRedirectTo: redirectTo 
-          ? `${origin}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}`
-          : `${origin}/auth/callback`,
+          ? `${SITE_URL}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}`
+          : `${SITE_URL}/auth/callback`,
       },
     })
 
