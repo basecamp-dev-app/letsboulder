@@ -2601,6 +2601,19 @@ export type Database = {
           weighted_rating: number
         }[]
       }
+      get_crag_route_targets_page: {
+        Args: { p_crag_id: string; p_limit?: number; p_offset?: number }
+        Returns: {
+          climb_slug: string | null
+          effective_climb_id: string
+          navigation_image_id: string | null
+          navigation_image_url: string | null
+          navigation_route_id: string | null
+          preview_image_id: string | null
+          preview_image_url: string | null
+          route_image_ids: string[]
+        }[]
+      }
       get_crags_mapped_count: { Args: never; Returns: number }
       get_effective_climb_id: { Args: { p_climb_id: string }; Returns: string }
       get_grade_vote_distribution: {
