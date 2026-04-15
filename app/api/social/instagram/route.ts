@@ -1,8 +1,21 @@
 import { NextRequest } from 'next/server'
+import { resolveUserIdWithFallback } from '@/lib/auth-context'
+import { getServerClientFromRequest } from '@/lib/supabase-server'
+import { requireAdminFromSupabase } from '@/features/admin/server'
 import { loadInstagramPostData } from '@/features/social/server/load-instagram-post-data'
 import { renderInstagramPost } from '@/features/social/server/instagram-template'
 
 export async function GET(request: NextRequest) {
+  const supabase = getServerClientFromRequest(request)
+  const { userId } = await resolveUserIdWithFallback(request, supabase)
+
+  if (!userId) {
+    return Response.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
+  const adminError = await requireAdminFromSupabase(supabase, userId)
+  if (adminError) return adminError
+
   const searchParams = request.nextUrl.searchParams
   const country = searchParams.get('country')
   const crag = searchParams.get('crag')
@@ -34,10 +47,7 @@ export async function GET(request: NextRequest) {
     imageBuffer,
     naturalWidth: postData.naturalWidth,
     naturalHeight: postData.naturalHeight,
-    routePoints: postData.routePoints,
-    routeColor: postData.routeColor,
-    locationText: postData.locationText,
-    cragName: postData.cragName,
+    routes: postData.routes,
   })
 
   const filename = `${crag}-instagram-post.png`
