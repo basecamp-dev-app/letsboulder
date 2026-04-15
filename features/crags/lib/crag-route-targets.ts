@@ -452,7 +452,6 @@ export async function fetchCragRouteTargetPage(
   limit: number,
   offset: number
 ) {
-  console.log('[DEBUG fetchCragRouteTargetPage] START', { cragId, limit, offset })
   const { data, error } = await supabase.rpc('get_crag_route_targets_page', {
     p_crag_id: cragId,
     p_limit: limit,
@@ -461,27 +460,15 @@ export async function fetchCragRouteTargetPage(
 
   if (error) throw error
 
-  console.log('[DEBUG fetchCragRouteTargetPage] RPC result sample:', data?.[0]?.preview_image_url, data?.[0]?.navigation_image_url)
-
-  const resolvedRows = (data || []).map((row: CragRouteTargetPageRow) => {
-    const resolvedPreview = row.preview_image_url
+  const resolvedRows = (data || []).map((row: CragRouteTargetPageRow) => ({
+    ...row,
+    preview_image_url: row.preview_image_url
       ? resolveRouteImageUrl(row.preview_image_url)
-      : null
-    const resolvedNavigation = row.navigation_image_url
+      : null,
+    navigation_image_url: row.navigation_image_url
       ? resolveRouteImageUrl(row.navigation_image_url)
-      : null
-    console.log('[DEBUG fetchCragRouteTargetPage] Resolve:', { 
-      input: row.preview_image_url?.slice(0, 50), 
-      output: resolvedPreview?.slice(0, 50) 
-    })
-    return {
-      ...row,
-      preview_image_url: resolvedPreview,
-      navigation_image_url: resolvedNavigation,
-    }
-  })
-
-  console.log('[DEBUG fetchCragRouteTargetPage] RESOLVED sample:', resolvedRows[0]?.preview_image_url, resolvedRows[0]?.navigation_image_url)
+      : null,
+  }))
 
   return buildRouteTargetMapsFromPageRows(resolvedRows as CragRouteTargetPageRow[])
 }
