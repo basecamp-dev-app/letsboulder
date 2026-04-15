@@ -58,6 +58,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [pendingStarRating, setPendingStarRating] = useState<number | null>(null)
   const [savingFeedback, setSavingFeedback] = useState(false)
   const [logging, setLogging] = useState(false)
+  const [downloadingPost, setDownloadingPost] = useState(false)
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(() => {
     const primaryId = linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId
     return { [primaryId]: initialRoutes }
@@ -497,11 +498,55 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     router.push('/logbook')
   }, [router])
 
+  const handleDownloadInstagramPost = useCallback(async () => {
+    if (!activeImageId || !activeRouteId || downloadingPost) return
+
+    const params = new URLSearchParams({
+      country: countryCode,
+      crag: cragSlug,
+      image: activeImageId,
+      route: activeRouteId,
+    })
+
+    setDownloadingPost(true)
+    try {
+      const response = await fetch(`/api/social/instagram?${params.toString()}`)
+      if (!response.ok) {
+        addToast('Failed to generate Instagram post', 'error')
+        return
+      }
+
+      const blob = await response.blob()
+      const objectUrl = window.URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.download = `${cragSlug}-instagram-post.png`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.URL.revokeObjectURL(objectUrl)
+      addToast('Instagram post downloaded', 'success')
+    } catch {
+      addToast('Failed to download Instagram post', 'error')
+    } finally {
+      setDownloadingPost(false)
+    }
+  }, [activeImageId, activeRouteId, addToast, countryCode, cragSlug, downloadingPost])
+
   return (
     <div className="flex min-h-screen flex-col bg-black text-white">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       <main className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-14">
+        <button
+          type="button"
+          onClick={handleDownloadInstagramPost}
+          disabled={!activeImageId || !activeRouteId || downloadingPost}
+          className="absolute top-4 right-4 z-10 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white backdrop-blur disabled:opacity-30"
+        >
+          {downloadingPost ? 'Downloading...' : 'Download Post'}
+        </button>
+
         <button
           type="button"
           onClick={() => setActiveImageIndex(Math.max(0, activeImageIndex - 1))}
