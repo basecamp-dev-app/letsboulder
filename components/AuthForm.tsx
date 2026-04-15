@@ -31,7 +31,14 @@ export default function AuthForm() {
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [copySuccess, setCopySuccess] = useState(false)
   const isEmbeddedBrowser = typeof window !== 'undefined' && detectEmbeddedBrowser(window.navigator.userAgent)
+
+  const handleCopyLink = async () => {
+    await navigator.clipboard.writeText(`${SITE_URL}/auth`)
+    setCopySuccess(true)
+    setTimeout(() => setCopySuccess(false), 2000)
+  }
 
   const searchParams = useSearchParams()
   const climbId = searchParams?.get('climbId')
@@ -104,6 +111,35 @@ export default function AuthForm() {
       setSuccess('Check your email for a magic link. It will sign you in and bring you back here.')
     }
     setLoading(false)
+  }
+
+  if (isEmbeddedBrowser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+        <div className="w-full max-w-md">
+          <div className="rounded-2xl border border-border/80 bg-card p-8 shadow-lg text-center">
+            <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">
+              Please open letsboulder in your browser
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              This app works best in Safari, Chrome, or Firefox.
+            </p>
+            <div className="mb-4 rounded-xl border border-border bg-muted/50 p-3 font-mono text-sm text-muted-foreground">
+              letsboulder.com/auth
+            </div>
+            <Button
+              onClick={handleCopyLink}
+              className="w-full h-12 rounded-xl mb-6"
+            >
+              {copySuccess ? 'Copied!' : 'Copy Link'}
+            </Button>
+            <Link href="/" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
+              ← Back to home
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
