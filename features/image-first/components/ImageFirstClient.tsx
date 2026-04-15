@@ -19,6 +19,9 @@ import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 import { ToastContainer } from '@/components/ui/toast'
 import { useToast } from '@/hooks/use-toast'
 import LightweightCragMap from '@/components/LightweightCragMap'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+
+type ExportMode = 'image' | 'selected-route' | 'all-routes'
 
 type UserClimbRow = Database['public']['Tables']['user_climbs']['Row']
 
@@ -60,6 +63,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [savingFeedback, setSavingFeedback] = useState(false)
   const [logging, setLogging] = useState(false)
   const [downloadingPost, setDownloadingPost] = useState(false)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(() => {
     const primaryId = linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId
     return { [primaryId]: initialRoutes }
@@ -499,13 +503,18 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     router.push('/logbook')
   }, [router])
 
-  const handleDownloadInstagramPost = useCallback(async () => {
+  const handleDownloadInstagramPost = useCallback(async (mode: ExportMode) => {
     if (!isAdmin || !activeImageId || downloadingPost) return
+    if (mode === 'selected-route' && !activeRouteId) {
+      addToast('Select a route first for selected-route export', 'error')
+      return
+    }
 
     const params = new URLSearchParams({
       country: countryCode,
       crag: cragSlug,
       image: activeImageId,
+      mode,
     })
 
     if (activeRouteId) {
@@ -513,6 +522,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     }
 
     setDownloadingPost(true)
+    setExportDialogOpen(false)
     try {
       const response = await fetch(`/api/social/instagram?${params.toString()}`)
       if (!response.ok) {
@@ -545,7 +555,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         {isAdmin ? (
           <button
             type="button"
-            onClick={handleDownloadInstagramPost}
+            onClick={() => setExportDialogOpen(true)}
             disabled={!activeImageId || downloadingPost}
             className="absolute top-4 right-4 z-10 rounded-full bg-white/15 px-4 py-2 text-sm font-medium text-white backdrop-blur disabled:opacity-30"
           >
@@ -655,6 +665,49 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onGoToLogbook={handleGoToLogbook}
         deferredSections={<ImageFirstDeferredSections activeClimbId={activeClimbId} />}
       />
+
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="border-white/10 bg-zinc-950 text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Download Post</DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              Choose what gets rendered into the export image.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => void handleDownloadInstagramPost('image')}
+              disabled={downloadingPost}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:bg-white/10 disabled:opacity-50"
+            >
+              <div className="text-sm font-semibold text-white">Image only</div>
+              <div className="mt-1 text-sm text-zinc-400">Clean portrait crop for adding text later in Canva.</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleDownloadInstagramPost('selected-route')}
+              disabled={downloadingPost || !activeRouteId}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:bg-white/10 disabled:opacity-50"
+            >
+              <div className="text-sm font-semibold text-white">Selected route</div>
+              <div className="mt-1 text-sm text-zinc-400">Exports only the currently selected route overlay.</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleDownloadInstagramPost('all-routes')}
+              disabled={downloadingPost}
+              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:bg-white/10 disabled:opacity-50"
+            >
+              <div className="text-sm font-semibold text-white">All routes</div>
+              <div className="mt-1 text-sm text-zinc-400">Exports all routes in red with the selected route highlighted in cyan.</div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

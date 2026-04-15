@@ -5,6 +5,8 @@ import { requireAdminFromSupabase } from '@/features/admin/server'
 import { loadInstagramPostData } from '@/features/social/server/load-instagram-post-data'
 import { renderInstagramPost } from '@/features/social/server/instagram-template'
 
+type ExportMode = 'image' | 'selected-route' | 'all-routes'
+
 export async function GET(request: NextRequest) {
   const supabase = getServerClientFromRequest(request)
   const { userId } = await resolveUserIdWithFallback(request, supabase)
@@ -21,9 +23,18 @@ export async function GET(request: NextRequest) {
   const crag = searchParams.get('crag')
   const imageId = searchParams.get('image')
   const routeIdentifier = searchParams.get('route')
+  const mode = (searchParams.get('mode') || 'image') as ExportMode
 
   if (!country || !crag || !imageId) {
     return Response.json({ error: 'Missing required query params' }, { status: 400 })
+  }
+
+  if (!['image', 'selected-route', 'all-routes'].includes(mode)) {
+    return Response.json({ error: 'Invalid export mode' }, { status: 400 })
+  }
+
+  if (mode === 'selected-route' && !routeIdentifier) {
+    return Response.json({ error: 'Route is required for selected-route mode' }, { status: 400 })
   }
 
   const postData = await loadInstagramPostData({
@@ -47,6 +58,11 @@ export async function GET(request: NextRequest) {
     imageBuffer,
     naturalWidth: postData.naturalWidth,
     naturalHeight: postData.naturalHeight,
+    routes: mode === 'image'
+      ? []
+      : mode === 'selected-route'
+        ? postData.routes.filter((route) => route.isSelected)
+        : postData.routes,
   })
 
   const filename = `${crag}-instagram-post.png`
