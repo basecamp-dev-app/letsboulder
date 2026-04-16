@@ -28,6 +28,8 @@ export function useEditDraftRouteSync({
 }: UseEditDraftRouteSyncParams) {
   const lastSeededRouteImageIdRef = useRef<string | null>(null)
   const skipRouteStoreSyncRef = useRef<string | null>(null)
+  const lastSyncTimeRef = useRef<number>(0)
+  const SYNC_COOLDOWN_MS = 100
 
   const scheduleDraftPersist = useCallback(() => {
     // Routes are persisted when the user clicks "Save draft"
@@ -35,6 +37,9 @@ export function useEditDraftRouteSync({
 
   const handleEditRoutesUpdate = useCallback((routes: EditableRoute[]) => {
     if (!activeDraftImageId) return
+    const now = Date.now()
+    if (now - lastSyncTimeRef.current < SYNC_COOLDOWN_MS) return
+    lastSyncTimeRef.current = now
     setRoutesByImageId((prev) => {
       const current = prev[activeDraftImageId] || []
       const previousById = new Map(current.map((route) => [route.id, route]))
@@ -67,6 +72,9 @@ export function useEditDraftRouteSync({
   }, [activeDraftImageId, markRoutesDirty, routeType, scheduleDraftPersist, setRoutesByImageId])
 
   const handleCanvasRoutesUpdate = useCallback((routes: RouteLine[]) => {
+    const now = Date.now()
+    if (now - lastSyncTimeRef.current < SYNC_COOLDOWN_MS) return
+    lastSyncTimeRef.current = now
     setRouteStoreRoutes(routes)
     const editableRoutes = routes.map((route) => ({
       id: route.id,
