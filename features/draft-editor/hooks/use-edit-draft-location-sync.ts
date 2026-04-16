@@ -306,7 +306,7 @@ export function useEditDraftLocationSync({
     }, 400)
 
     return () => window.clearTimeout(timer)
-  }, [draft, draftId, effectiveMarkerPosition, hasExplicitRouteType, imagesPayload.length, imagesPayloadSignature, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, hasHydratedLocationRef, syncLocationNow])
+  }, [draft, draftId, effectiveMarkerPosition, hasExplicitRouteType, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, hasHydratedLocationRef, syncLocationNow])
 
   useEffect(() => {
     if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) return
