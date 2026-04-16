@@ -25,13 +25,14 @@ type ExportMode = 'image' | 'selected-route' | 'all-routes'
 
 type UserClimbRow = Database['public']['Tables']['user_climbs']['Row']
 
-function toLoggedClimbInfo(row: UserClimbRow | null): { gradeOpinion: 'soft' | 'agree' | 'hard' | null; starRating: number | null } | null {
+function toLoggedClimbInfo(row: UserClimbRow | null): { gradeOpinion: 'soft' | 'agree' | 'hard' | null; starRating: number | null; notes: string | null } | null {
   if (!row) return null
   return {
     gradeOpinion: row.grade_opinion === 'soft' || row.grade_opinion === 'agree' || row.grade_opinion === 'hard'
       ? row.grade_opinion
       : null,
     starRating: row.star_rating,
+    notes: row.notes,
   }
 }
 
@@ -55,11 +56,14 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [hasHydratedAuth, setHasHydratedAuth] = useState(false)
   const [userPresent, setUserPresent] = useState(false)
   const [selectedClimbLogged, setSelectedClimbLogged] = useState(false)
-  const [selectedClimbLog, setSelectedClimbLog] = useState<{ gradeOpinion: GradeOpinion | null; starRating: number | null } | null>(null)
+  const [selectedClimbLog, setSelectedClimbLog] = useState<{ gradeOpinion: GradeOpinion | null; starRating: number | null; notes: string | null } | null>(null)
+  const [communityNotesCount, setCommunityNotesCount] = useState(0)
+  const [communityNotes, setCommunityNotes] = useState<Array<{ userId: string; displayName: string; notes: string }>>([])
   const [selectedClimbHasSavedFeedback, setSelectedClimbHasSavedFeedback] = useState(false)
   const [selectedClimbFeedbackCollapsed, setSelectedClimbFeedbackCollapsed] = useState(true)
   const [pendingGradeOpinion, setPendingGradeOpinion] = useState<GradeOpinion | null>(null)
   const [pendingStarRating, setPendingStarRating] = useState<number | null>(null)
+  const [pendingNotes, setPendingNotes] = useState('')
   const [savingFeedback, setSavingFeedback] = useState(false)
   const [logging, setLogging] = useState(false)
   const [downloadingPost, setDownloadingPost] = useState(false)
@@ -213,27 +217,67 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   }, [allRouteImageIds])
 
   useEffect(() => {
-    if (!activeClimbId || !userPresent) {
+    if (!activeClimbId) {
       setSelectedClimbLogged(false)
       setSelectedClimbLog(null)
       setSelectedClimbHasSavedFeedback(false)
       setSelectedClimbFeedbackCollapsed(true)
       setPendingGradeOpinion(null)
       setPendingStarRating(null)
+      setCommunityNotesCount(0)
+      setCommunityNotes([])
       return
     }
 
     const supabase = createClient()
     let cancelled = false
 
-    const fetchSelectedClimbLog = async () => {
+    const fetchData = async () => {
+      const { data: notesData, error: notesError } = await supabase
+        .from('user_climbs')
+        .select('user_id, notes')
+        .eq('climb_id', activeClimbId)
+        .not('notes', 'is', null)
+        .limit(10)
+
+      const notesCount = notesData?.length ?? 0
+      if (!cancelled) {
+        setCommunityNotesCount(notesCount)
+      }
+
+      if (notesData && notesData.length > 0) {
+        const userIds = [...new Set(notesData.map((n: { user_id: string }) => n.user_id))]
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, display_name')
+          .in('id', userIds)
+          .limit(10)
+
+        const profileMap = new Map(profilesData?.map((p: { id: string; display_name: string }) => [p.id, p.display_name]) || [])
+        const notesWithNames = notesData
+          .map((n: { user_id: string; notes: string }) => ({
+            userId: n.user_id,
+            displayName: profileMap.get(n.user_id) || 'Anonymous',
+            notes: n.notes,
+          }))
+          .filter((n: { notes: string }) => n.notes)
+
+        if (!cancelled) {
+          setCommunityNotes(notesWithNames)
+        }
+      } else if (!cancelled) {
+        setCommunityNotes([])
+      }
+
+      if (!userPresent) return
+
       const { data: userData } = await supabase.auth.getUser()
       const userId = userData.user?.id
       if (!userId) return
 
       const { data, error } = await supabase
         .from('user_climbs')
-        .select('grade_opinion, star_rating')
+        .select('grade_opinion, star_rating, notes')
         .eq('user_id', userId)
         .eq('climb_id', activeClimbId)
         .maybeSingle()
@@ -243,13 +287,13 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       const log = toLoggedClimbInfo(data)
       setSelectedClimbLogged(!!data)
       setSelectedClimbLog(log)
-      setSelectedClimbHasSavedFeedback(!!data && (!!log?.gradeOpinion || log?.starRating !== null))
+      setSelectedClimbHasSavedFeedback(!!data && (!!log?.gradeOpinion || log?.starRating !== null || !!log?.notes))
       setSelectedClimbFeedbackCollapsed(!!data)
       setPendingGradeOpinion(log?.gradeOpinion ?? null)
       setPendingStarRating(log?.starRating ?? null)
     }
 
-    void fetchSelectedClimbLog()
+    void fetchData()
     return () => { cancelled = true }
   }, [activeClimbId, userPresent])
 
@@ -363,12 +407,12 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     }
   }, [setUserSelectedRouteId])
 
-  const handleLog = useCallback(async (style: 'flash' | 'top' | 'try') => {
+  const handleLog = useCallback(async (style: 'flash' | 'top' | 'try', notes?: string) => {
     if (!activeClimbId || !userPresent) return false
 
     setLogging(true)
     try {
-      const result = await logRoutesAction([activeClimbId], style)
+      const result = await logRoutesAction([activeClimbId], style, notes || undefined)
       if (!result.success) {
         addToast('Failed to log climb', 'error')
         return false
@@ -376,6 +420,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
       setSelectedClimbLogged(true)
       setSelectedClimbFeedbackCollapsed(false)
+      setPendingNotes('')
       addToast(`Logged as ${style === 'flash' ? 'Flash' : style === 'top' ? 'Top' : 'Try'}`, 'success')
       return true
     } finally {
@@ -392,6 +437,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     setSelectedClimbLog({
       gradeOpinion: payload.gradeOpinion ?? fallback.gradeOpinion ?? null,
       starRating: payload.starRating ?? fallback.starRating ?? null,
+      notes: null,
     })
     setSelectedClimbHasSavedFeedback(true)
     setSelectedClimbFeedbackCollapsed(true)
@@ -647,6 +693,9 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         selectedClimbRoundedStars={Math.round(activeRouteMeta?.climbAverageStars ?? 0)}
         pendingGradeOpinion={pendingGradeOpinion}
         pendingStarRating={pendingStarRating}
+        pendingNotes={pendingNotes}
+        communityNotesCount={communityNotesCount}
+        communityNotes={communityNotes}
         savingFeedback={savingFeedback}
         logging={logging}
         userPresent={hasHydratedAuth ? userPresent : true}
@@ -661,6 +710,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onSetFeedbackCollapsed={setSelectedClimbFeedbackCollapsed}
         onSetPendingGradeOpinion={handleGradeOpinionSelect}
         onSetPendingStarRating={handleStarRatingSelect}
+        onSetPendingNotes={setPendingNotes}
         onSaveFeedback={handleSaveFeedback}
         onGoToLogbook={handleGoToLogbook}
         deferredSections={<ImageFirstDeferredSections activeClimbId={activeClimbId} />}
