@@ -21,9 +21,9 @@ import { applyProxyAuth } from '@/lib/proxy-auth'
 describe('proxy CSRF handling', () => {
   beforeEach(() => {
     vi.resetAllMocks()
-    validateCsrfToken.mockResolvedValue(false)
-    applyProxyRateLimit.mockResolvedValue(null)
-    applyProxyAuth.mockResolvedValue(Response.json({ ok: true }, { status: 200 }))
+    ;(validateCsrfToken as unknown as { mockResolvedValue: (value: unknown) => unknown }).mockResolvedValue(false)
+    ;(applyProxyRateLimit as unknown as { mockResolvedValue: (value: unknown) => unknown }).mockResolvedValue(null)
+    ;(applyProxyAuth as unknown as { mockResolvedValue: (value: unknown) => unknown }).mockResolvedValue(Response.json({ ok: true }, { status: 200 }))
   })
 
   test('allows same-origin server action posts without x-csrf-token', async () => {

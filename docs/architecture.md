@@ -111,7 +111,7 @@ The web app is standardizing on feature-first product boundaries.
 | `lib/supabase-server.ts` | Server Supabase client with cached RPCs |
 | `types/database.ts` | Auto-generated DB types (3,365 lines) |
 | `lib/csrf.ts` | JWT-based CSRF token system |
-| `lib/rate-limit.ts` | Upstash Redis rate limiter (12 tiers) |
+| `lib/rate-limit.ts` | Upstash Redis rate limiter (14 tiers) |
 | `lib/media/r2.ts` | Cloudflare R2 S3 operations |
 | `lib/grades.ts` | Grade conversion engine (3A-9C+) |
 | `public/sw.js` | Service worker for offline PWA |
