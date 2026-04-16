@@ -478,6 +478,19 @@ export async function fetchAllCragRoutePreviews(
   cragId: string,
   effectiveClimbIdByClimbId: Record<string, string>
 ) {
+  return fetchCragRoutePreviewsBatched(supabase, cragId, effectiveClimbIdByClimbId, { limit: undefined })
+}
+
+const BATCH_CHUNK_SIZE = 100
+
+export async function fetchCragRoutePreviewsBatched(
+  supabase: SupabaseClient<Database>,
+  cragId: string,
+  effectiveClimbIdByClimbId: Record<string, string>,
+  options?: { limit?: number }
+) {
+  const limit = options?.limit
+
   const { data: climbData } = await supabase
     .from('climbs')
     .select('id')
@@ -499,66 +512,76 @@ export async function fetchAllCragRoutePreviews(
     ...climbIds.flatMap(id => effectiveClimbIdByClimbId[id] ? [effectiveClimbIdByClimbId[id]] : [])
   ])]
 
-  const { data: routeLineData, error: routeLineError } = await supabase
-    .from('route_lines')
-    .select('id, image_id, climb_id')
-    .in('climb_id', allClimbIds)
-    .order('climb_id', { ascending: true })
-    .order('sequence_order', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: true })
-
-  if (routeLineError) throw routeLineError
-
-  const { data: imageData } = await supabase
-    .from('images')
-    .select('id, url')
-    .in('id', (routeLineData || []).map(rl => rl.image_id))
-
-  const imageById = new Map((imageData || []).map(img => [img.id, resolveRouteImageUrl(img.url)]))
+  const limitedClimbIds = limit ? allClimbIds.slice(0, limit) : allClimbIds
 
   const routeImageIdsByClimbId: Record<string, string[]> = {}
   const routePreviewByClimbId: Record<string, { imageId: string; imageUrl: string }> = {}
   const routeNavigationTargetByClimbId: Record<string, { climbId: string; routeId: string; climbSlug: string | null; imageId: string; displayImageId: string; displayImageUrl: string }> = {}
   const defaultTargetByImageId: Record<string, { climbId: string; routeId: string; climbSlug: string | null; imageId: string }> = {}
 
-  for (const row of routeLineData || []) {
-    const climbId = row.climb_id
-    const effectiveClimbId = effectiveClimbIdByClimbId[climbId] || climbId
-    const imageUrl = imageById.get(row.image_id)
+  for (let i = 0; i < limitedClimbIds.length; i += BATCH_CHUNK_SIZE) {
+    const chunk = limitedClimbIds.slice(i, i + BATCH_CHUNK_SIZE)
 
-    if (!imageUrl) continue
+    const { data: routeLineData, error: routeLineError } = await supabase
+      .from('route_lines')
+      .select('id, image_id, climb_id')
+      .in('climb_id', chunk)
+      .order('climb_id', { ascending: true })
+      .order('sequence_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
 
-    if (!routeImageIdsByClimbId[effectiveClimbId]) {
-      routeImageIdsByClimbId[effectiveClimbId] = []
-    }
-    if (!routeImageIdsByClimbId[effectiveClimbId].includes(row.image_id)) {
-      routeImageIdsByClimbId[effectiveClimbId].push(row.image_id)
-    }
+    if (routeLineError) throw routeLineError
 
-    if (!routePreviewByClimbId[effectiveClimbId]) {
-      routePreviewByClimbId[effectiveClimbId] = {
-        imageId: row.image_id,
-        imageUrl,
+    const imageIdsToFetch = [...new Set((routeLineData || []).map(rl => rl.image_id))]
+
+    if (imageIdsToFetch.length === 0) continue
+
+    const { data: imageData } = await supabase
+      .from('images')
+      .select('id, url')
+      .in('id', imageIdsToFetch)
+
+    const imageById = new Map((imageData || []).map(img => [img.id, resolveRouteImageUrl(img.url)]))
+
+    for (const row of routeLineData || []) {
+      const climbId = row.climb_id
+      const effectiveClimbId = effectiveClimbIdByClimbId[climbId] || climbId
+      const imageUrl = imageById.get(row.image_id)
+
+      if (!imageUrl) continue
+
+      if (!routeImageIdsByClimbId[effectiveClimbId]) {
+        routeImageIdsByClimbId[effectiveClimbId] = []
       }
-    }
-
-    if (!routeNavigationTargetByClimbId[effectiveClimbId]) {
-      routeNavigationTargetByClimbId[effectiveClimbId] = {
-        climbId: effectiveClimbId,
-        routeId: row.id,
-        climbSlug: null,
-        imageId: row.image_id,
-        displayImageId: row.image_id,
-        displayImageUrl: imageUrl,
+      if (!routeImageIdsByClimbId[effectiveClimbId].includes(row.image_id)) {
+        routeImageIdsByClimbId[effectiveClimbId].push(row.image_id)
       }
-    }
 
-    if (!defaultTargetByImageId[row.image_id]) {
-      defaultTargetByImageId[row.image_id] = {
-        climbId: effectiveClimbId,
-        routeId: row.id,
-        climbSlug: null,
-        imageId: row.image_id,
+      if (!routePreviewByClimbId[effectiveClimbId]) {
+        routePreviewByClimbId[effectiveClimbId] = {
+          imageId: row.image_id,
+          imageUrl,
+        }
+      }
+
+      if (!routeNavigationTargetByClimbId[effectiveClimbId]) {
+        routeNavigationTargetByClimbId[effectiveClimbId] = {
+          climbId: effectiveClimbId,
+          routeId: row.id,
+          climbSlug: null,
+          imageId: row.image_id,
+          displayImageId: row.image_id,
+          displayImageUrl: imageUrl,
+        }
+      }
+
+      if (!defaultTargetByImageId[row.image_id]) {
+        defaultTargetByImageId[row.image_id] = {
+          climbId: effectiveClimbId,
+          routeId: row.id,
+          climbSlug: null,
+          imageId: row.image_id,
+        }
       }
     }
   }

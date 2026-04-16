@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { parseWithSchema } from '@/lib/api-validation'
 import { getAdminClientWithAudit } from '@/lib/supabase-server'
-import { buildEffectiveClimbLookup, fetchAllCragRoutePreviews } from '@/features/crags/lib/crag-route-targets'
+import { buildEffectiveClimbLookup, fetchCragRoutePreviewsBatched } from '@/features/crags/lib/crag-route-targets'
 
 export const runtime = 'nodejs'
 
@@ -32,7 +32,10 @@ export async function GET(request: NextRequest) {
     Object.assign(effectiveClimbIdByClimbId, lookup.effectiveClimbIdByClimbId)
   }
 
-  const targetMaps = await fetchAllCragRoutePreviews(supabase, validation.data.cragId, effectiveClimbIdByClimbId)
+  const limitParam = url.searchParams.get('limit')
+  const limit = limitParam ? parseInt(limitParam, 10) : undefined
+
+  const targetMaps = await fetchCragRoutePreviewsBatched(supabase, validation.data.cragId, effectiveClimbIdByClimbId, { limit })
 
   return NextResponse.json({
     defaultRouteTargetByImageId: targetMaps.nextDefaultRouteTargetByImageId,
