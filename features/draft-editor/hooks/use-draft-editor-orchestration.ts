@@ -359,7 +359,7 @@ export function useDraftEditorOrchestration({
     })
   }, [activeImageCustomPosition, activeImageId, quickSwitcherImages])
 
-  const { handleCanvasRoutesUpdate, skipRouteStoreSyncRef } = useEditDraftRouteSync({
+  const { handleCanvasRoutesUpdate } = useEditDraftRouteSync({
     activeDraftImageId,
     routeType,
     routeStoreRoutes,
@@ -436,7 +436,6 @@ export function useDraftEditorOrchestration({
       locationSectionRef,
       drawingAreaRef,
       routeCanvasRef,
-      skipRouteStoreSyncRef,
     },
     state: {
       success,

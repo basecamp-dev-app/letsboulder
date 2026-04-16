@@ -43,7 +43,6 @@ export default function EditDraftPage() {
     publishRequirementsRef,
     drawingAreaRef,
     routeCanvasRef,
-    skipRouteStoreSyncRef,
   } = refs
 
   const collaborationAdded = searchParams.get('collab') === 'added'
@@ -161,7 +160,6 @@ export default function EditDraftPage() {
               draft.setRoutesByImageId((prev) => {
                 const current = prev[derived.activeDraftImageId!] || []
                 const nextRoutes = resequenceRoutes(current, routeIds)
-                skipRouteStoreSyncRef.current = derived.activeDraftImageId
                 canvas.setRoutes(resequenceRoutes(derived.existingRouteLines, routeIds) as RouteLine[])
                 return {
                   ...prev,
