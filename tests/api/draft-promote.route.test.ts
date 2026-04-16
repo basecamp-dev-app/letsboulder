@@ -311,7 +311,7 @@ describe('promoteDraftToSubmission', () => {
       throw new Error(`Unexpected table: ${table}`)
     })
 
-    ;(supabase.rpc as any) = vi.fn(async (fnName: string, args?: Record<string, unknown>) => {
+    ;(supabase.rpc as unknown) = vi.fn(async (fnName: string, args?: Record<string, unknown>) => {
       if (fnName === 'sync_submission_draft_routes') {
         expect(args).toEqual(expect.objectContaining({
           p_draft_id: 'draft-1',
@@ -352,7 +352,7 @@ describe('promoteDraftToSubmission', () => {
   })
 
   test('repairs draft metadata from image coordinates before publish when metadata location is missing', async () => {
-    const supabase = makeSupabase() as any
+    const supabase = makeSupabase() as unknown as ReturnType<typeof makeSupabase> & { from: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> }
     const originalFrom = supabase.from
     const updateMock = vi.fn(() => ({
       eq: vi.fn(() => ({

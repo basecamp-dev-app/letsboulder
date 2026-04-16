@@ -1,6 +1,6 @@
-const fs = require('node:fs/promises')
-const path = require('node:path')
-const crypto = require('node:crypto')
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import crypto from 'node:crypto'
 
 const projectRoot = path.resolve(__dirname, '..')
 const nextStaticDir = path.join(projectRoot, '.next', 'static')
