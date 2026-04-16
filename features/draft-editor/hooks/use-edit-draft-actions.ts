@@ -50,6 +50,7 @@ interface UseEditDraftActionsParams {
   setSuccess: (value: string | null) => void
   setConflict: (value: DraftConflictState | null) => void
   setActiveImageId: (value: string | null | ((current: string | null) => string | null)) => void
+  setLocationSyncInFlight?: (value: boolean) => void
 }
 
 export function useEditDraftActions({
@@ -88,12 +89,14 @@ export function useEditDraftActions({
   setSuccess,
   setConflict,
   setActiveImageId,
+  setLocationSyncInFlight,
 }: UseEditDraftActionsParams) {
   const router = useRouter()
   const [savingDraft, setSavingDraft] = useState(false)
   const [publishingDraft, setPublishingDraft] = useState(false)
   const [publishAttempted, setPublishAttempted] = useState(false)
   const saveInFlightRef = useRef(false)
+  const locationSyncInFlightRef = useRef(false)
   const dirtyRoutesRef = useRef<Set<string>>(new Set())
   const hasUnsavedMetadataRef = useRef(false)
 
@@ -222,10 +225,12 @@ export function useEditDraftActions({
     const forceMetadataSave = options?.forceMetadataSave === true
     if (!draft || !draftUpdatedAt) return false
     if (saveInFlightRef.current) return false
+    if (locationSyncInFlightRef.current) return false
     if (dirtyRoutesRef.current.size === 0 && !hasUnsavedMetadataRef.current && !options?.overrideCragId && !forceMetadataSave) return true
 
     saveInFlightRef.current = true
     setSavingDraft(true)
+    setLocationSyncInFlight?.(true)
     setError(null)
     setSuccess(null)
 
@@ -267,6 +272,7 @@ export function useEditDraftActions({
           if (isSelfConflict && attempt === 0) {
             expectedUpdatedAt = conflictPayload.current_updated_at
             setDraftUpdatedAt(conflictPayload.current_updated_at)
+            await new Promise(r => setTimeout(r, 750))
             continue
           }
           if (!isSelfConflict) {
@@ -303,8 +309,9 @@ export function useEditDraftActions({
     } finally {
       saveInFlightRef.current = false
       setSavingDraft(false)
+      setLocationSyncInFlight?.(false)
     }
-  }, [buildSavePayload, cragId, currentUserId, draft, draftUpdatedAt, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, syncDraftRoutes])
+  }, [buildSavePayload, cragId, currentUserId, draft, draftUpdatedAt, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, syncDraftRoutes, setLocationSyncInFlight])
 
   const handleDeleteDraft = useCallback(async () => {
     if (!draftId || !isOwner) return
@@ -449,5 +456,6 @@ export function useEditDraftActions({
     handleManualSave,
     publishDraft,
     handleReloadLatestDraft,
+    setLocationSyncInFlight: (value: boolean) => { locationSyncInFlightRef.current = value },
   }
 }

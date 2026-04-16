@@ -67,6 +67,8 @@ export function resolveDisplayName(profile: ProfileRow | null): string | null {
   if (!profile) return null
   if (profile.display_name) return profile.display_name
   if (profile.username) return profile.username
+  const fullName = [profile.first_name || '', profile.last_name || ''].join(' ').trim()
+  if (fullName) return fullName
   return null
 }
 
