@@ -13,6 +13,7 @@ type LogStyle = 'flash' | 'top' | 'try'
 const logRoutesSchema = z.object({
   climbIds: z.array(z.string().trim().min(1)).min(1, 'climbIds array is required'),
   style: z.enum(['flash', 'top', 'try'], { error: 'Invalid style' }).default('top'),
+  notes: z.string().trim().max(500, 'Notes must be under 500 characters').optional(),
 })
 
 interface LogRoutesResult {
@@ -22,9 +23,10 @@ interface LogRoutesResult {
 
 export async function logRoutesAction(
   climbIds: string[],
-  style: LogStyle = 'top'
+  style: LogStyle = 'top',
+  notes?: string
 ): Promise<ActionResult<LogRoutesResult>> {
-  const validation = validateActionInput(logRoutesSchema, { climbIds, style })
+  const validation = validateActionInput(logRoutesSchema, { climbIds, style, notes })
   if (!validation.success) return fail<LogRoutesResult>(validation.result.error || 'Invalid request data', validation.result.status || 400)
 
   const auth = await getActionAuth()
@@ -59,6 +61,7 @@ export async function logRoutesAction(
     style: validatedStyle,
     date_climbed: now.toISOString().split('T')[0],
     created_at: now.toISOString(),
+    notes: validation.data.notes || null,
   }))
 
   const { error } = await supabase

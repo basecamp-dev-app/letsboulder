@@ -20,6 +20,7 @@ interface RatingSummary {
 interface LoggedClimbInfo {
   gradeOpinion: GradeOpinion | null
   starRating: number | null
+  notes: string | null
 }
 
 interface SelectedClimbInfo {
@@ -53,6 +54,9 @@ interface ClimbInfoPanelProps {
   selectedClimbRoundedStars: number
   pendingGradeOpinion: GradeOpinion | null
   pendingStarRating: number | null
+  pendingNotes: string | null
+  communityNotesCount: number
+  communityNotes: Array<{ userId: string; displayName: string; notes: string }>
   savingFeedback: boolean
   logging: boolean
   userPresent: boolean
@@ -67,6 +71,7 @@ interface ClimbInfoPanelProps {
   onSetFeedbackCollapsed: (collapsed: boolean) => void
   onSetPendingGradeOpinion: (value: GradeOpinion) => void
   onSetPendingStarRating: (value: number | null) => void
+  onSetPendingNotes: (value: string) => void
   onSaveFeedback: () => void
   onGoToLogbook: () => void
   deferredSections: React.ReactNode
@@ -95,6 +100,9 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     selectedClimbRoundedStars,
     pendingGradeOpinion,
     pendingStarRating,
+    pendingNotes,
+    communityNotesCount,
+    communityNotes,
     savingFeedback,
     logging,
     userPresent,
@@ -109,6 +117,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     onSetFeedbackCollapsed,
     onSetPendingGradeOpinion,
     onSetPendingStarRating,
+    onSetPendingNotes,
     onGoToLogbook,
     deferredSections,
   } = props
@@ -156,6 +165,11 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
               </div>
             ) : null}
             {selectedClimb?.description ? <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedClimb.description}</p> : null}
+            {communityNotesCount > 0 ? (
+              <p className="mt-1 text-xs text-purple-700 dark:text-purple-300">
+                {communityNotesCount} user{communityNotesCount === 1 ? '' : 's'} described this route
+              </p>
+            ) : null}
             {publicSubmitter ? (
               <>
                 {formattedContributionHandle ? (
@@ -221,6 +235,44 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                     Try
                   </button>
                 </div>
+
+                <div className="mt-3">
+                  <label htmlFor="route-notes" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Notes (optional)
+                  </label>
+                  <textarea
+                    id="route-notes"
+                    value={pendingNotes ?? ''}
+                    onChange={(e) => onSetPendingNotes(e.target.value)}
+                    disabled={logging}
+                    placeholder="Describe the route..."
+                    maxLength={500}
+                    rows={2}
+                    className="mt-1 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none text-sm"
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 text-right">
+                    {(pendingNotes ?? '').length}/500
+                  </p>
+                </div>
+
+                {communityNotes.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                      What others say:
+                    </p>
+                    {communityNotes.slice(0, 5).map((note) => (
+                      <div key={note.userId} className="p-2 rounded bg-gray-50 dark:bg-gray-800 text-xs">
+                        <p className="font-medium text-gray-700 dark:text-gray-300">{note.displayName}</p>
+                        <p className="text-gray-600 dark:text-gray-400 mt-1">{note.notes}</p>
+                      </div>
+                    ))}
+                    {communityNotes.length > 5 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        +{communityNotes.length - 5} more
+                      </p>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -249,6 +301,11 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                   })}
                   {!selectedClimbLog?.starRating ? <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">No star rating yet</span> : null}
                 </div>
+                {selectedClimbLog?.notes ? (
+                  <p className="mt-2 text-xs text-gray-600 dark:text-gray-400 italic">
+                    &ldquo;{selectedClimbLog.notes}&rdquo;
+                  </p>
+                ) : null}
               </div>
             ) : (
               <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
