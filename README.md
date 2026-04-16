@@ -2,6 +2,8 @@
 
 A community-driven web app for climbers to discover and share bouldering routes.
 
+letsboulder is open source under the [Apache License 2.0](LICENSE).
+
 ## Features
 
 - **Interactive Map**: View all route locations with clustered crag pins
