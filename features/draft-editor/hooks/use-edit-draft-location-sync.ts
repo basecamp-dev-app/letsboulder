@@ -56,6 +56,7 @@ interface UseEditDraftLocationSyncParams {
   setSearchingLocation: (value: boolean) => void
   setLocationSearchError: (value: string | null) => void
   uploadAutoAssignToken: string | null
+  setLocationSyncInFlight?: (value: boolean) => void
 }
 
 export const LOCATION_SYNC_RATE_LIMIT_ERROR_MESSAGE = 'You are saving too quickly right now. Please wait a moment and try again before publishing.'
@@ -105,6 +106,7 @@ export function useEditDraftLocationSync({
   setSearchingLocation,
   setLocationSearchError,
   uploadAutoAssignToken,
+  setLocationSyncInFlight,
 }: UseEditDraftLocationSyncParams) {
   const patchDraftLocation = useCallback(async ({
     expectedUpdatedAt,
@@ -179,6 +181,11 @@ export function useEditDraftLocationSync({
 
     if (signature === lastLocationSyncRef.current) return { ok: true }
 
+    if (locationSyncInFlightRef.current) return { ok: true }
+
+    locationSyncInFlightRef.current = true
+    setLocationSyncInFlight?.(true)
+
     lastLocationSyncRef.current = signature
     const nextRouteType = !hasExplicitRouteType && nearbyCragDominantRouteType ? nearbyCragDominantRouteType : routeType
     const result = await patchDraftLocation({
@@ -188,6 +195,9 @@ export function useEditDraftLocationSync({
       nextRouteType,
       nextCragId,
     })
+
+    locationSyncInFlightRef.current = false
+    setLocationSyncInFlight?.(false)
 
     if (!result.ok) {
       lastLocationSyncRef.current = null
@@ -258,6 +268,7 @@ export function useEditDraftLocationSync({
   }, [mergedManageImages, selectedCrag])
 
   const appliedNearbyCragIdRef = useRef<string | null>(null)
+  const locationSyncInFlightRef = useRef(false)
 
   useEffect(() => {
     if (!draft) return

@@ -50,6 +50,8 @@ export function useDraftEditorOrchestration({
   const [switchingImageId, setSwitchingImageId] = useState<string | null>(null)
   const [uploadAutoAssignToken, setUploadAutoAssignToken] = useState<string | null>(null)
   const switchingImageLockRef = useRef(false)
+  const locationSyncInFlightRef = useRef(false)
+  const setLocationSyncInFlight = (value: boolean) => { locationSyncInFlightRef.current = value }
   const addImageInputRef = useRef<HTMLInputElement | null>(null)
   const publishRequirementsRef = useRef<HTMLDivElement | null>(null)
   const cragSectionRef = useRef<HTMLDivElement | null>(null)
@@ -277,6 +279,7 @@ export function useDraftEditorOrchestration({
     setSearchingLocation,
     setLocationSearchError,
     uploadAutoAssignToken,
+    setLocationSyncInFlight,
   })
 
   useEffect(() => {
@@ -339,6 +342,7 @@ export function useDraftEditorOrchestration({
     setSuccess,
     setConflict,
     setActiveImageId,
+    setLocationSyncInFlight,
   })
 
   useEffect(() => {
