@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { getAdminClientWithAudit } from '@/lib/supabase-server'
 import { dedupeCragRoutes, formatCragRoutes, getAverageCoordinates } from '@/features/crags/lib/crag-page-domain'
-import { buildEffectiveClimbLookup, fetchAllCragRoutePreviews, hasCompleteRouteTargets } from '@/features/crags/lib/crag-route-targets'
+import { buildEffectiveClimbLookup, fetchCragRoutePreviewsBatched, hasCompleteRouteTargets } from '@/features/crags/lib/crag-route-targets'
 import type { ClimbIdentityRow } from '@/features/crags/lib/crag-page-domain'
 import type { InitialCragRouteData } from '@/features/crags/lib/crag-page-types'
 import type { Database } from '@/types/database'
@@ -15,6 +15,7 @@ interface ImageRow {
 }
 
 const INITIAL_CRAG_IMAGE_LIMIT = 24
+const SSR_ROUTE_PREVIEW_SEED_LIMIT = 100
 
 export async function loadInitialCragRouteData(
   supabase: SupabaseClient<Database>,
@@ -70,7 +71,7 @@ export async function loadInitialCragRouteData(
 
   if (initialRoutes.length > 0) {
     const previewSupabase = getAdminClientWithAudit('loadInitialCragRouteData preview seed')
-    const targetMaps = await fetchAllCragRoutePreviews(previewSupabase, cragId, effectiveClimbIdByClimbId)
+    const targetMaps = await fetchCragRoutePreviewsBatched(previewSupabase, cragId, effectiveClimbIdByClimbId, { limit: SSR_ROUTE_PREVIEW_SEED_LIMIT })
 
     const previewImageIds = Array.from(new Set(Object.values(targetMaps.nextRoutePreviewByClimbId).map((preview) => preview.imageId)))
     const missingPreviewImageIds = previewImageIds.filter((imageId) => !imageById.has(imageId))
