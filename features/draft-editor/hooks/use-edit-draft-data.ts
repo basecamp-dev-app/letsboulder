@@ -276,10 +276,6 @@ export function useEditDraftData({
   }, [loadDraft])
 
   useEffect(() => {
-    void loadDraft()
-  }, [loadDraft])
-
-  useEffect(() => {
     if (!cragId) {
       setPublishedCragPins([])
       setCragCanvasImages([])
