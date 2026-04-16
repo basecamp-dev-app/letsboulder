@@ -1,8 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback } from 'react'
 import { areSerializedRoutesEqual } from '@/features/route-editor/route-editor-utils'
-import { haveStoredRoutesChanged } from '@/features/submissions/lib/route-store-sync'
 import type { EditableRoute } from '@/features/submissions/lib/editor-types'
 import type { RouteLine } from '@/features/submissions/lib/submission-types'
 import type { DraftRoute } from '@/features/draft-editor/lib/edit-draft-types'
@@ -10,9 +9,6 @@ import type { DraftRoute } from '@/features/draft-editor/lib/edit-draft-types'
 interface UseEditDraftRouteSyncParams {
   activeDraftImageId: string | null
   routeType: string
-  routeStoreRoutes: RouteLine[]
-  existingRouteLines: RouteLine[]
-  setRouteStoreRoutes: (routes: RouteLine[]) => void
   setRoutesByImageId: React.Dispatch<React.SetStateAction<Record<string, DraftRoute[]>>>
   markRoutesDirty: (imageIds: string[]) => void
 }
@@ -20,14 +16,9 @@ interface UseEditDraftRouteSyncParams {
 export function useEditDraftRouteSync({
   activeDraftImageId,
   routeType,
-  routeStoreRoutes,
-  existingRouteLines,
-  setRouteStoreRoutes,
   setRoutesByImageId,
   markRoutesDirty,
 }: UseEditDraftRouteSyncParams) {
-  const lastSeededRouteImageIdRef = useRef<string | null>(null)
-
   const scheduleDraftPersist = useCallback(() => {
     // Routes are persisted when the user clicks "Save draft"
   }, [])
@@ -76,16 +67,6 @@ export function useEditDraftRouteSync({
     }))
     handleEditRoutesUpdate(editableRoutes)
   }, [handleEditRoutesUpdate])
-
-  useEffect(() => {
-    if (!activeDraftImageId) return
-    if (lastSeededRouteImageIdRef.current === activeDraftImageId) return
-
-    lastSeededRouteImageIdRef.current = activeDraftImageId
-    if (haveStoredRoutesChanged(routeStoreRoutes, existingRouteLines)) {
-      setRouteStoreRoutes(existingRouteLines)
-    }
-  }, [activeDraftImageId, existingRouteLines, routeStoreRoutes, setRouteStoreRoutes])
 
   return {
     handleCanvasRoutesUpdate,

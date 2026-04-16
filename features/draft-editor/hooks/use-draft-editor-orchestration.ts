@@ -362,9 +362,6 @@ export function useDraftEditorOrchestration({
   const { handleCanvasRoutesUpdate } = useEditDraftRouteSync({
     activeDraftImageId,
     routeType,
-    routeStoreRoutes,
-    existingRouteLines,
-    setRouteStoreRoutes,
     setRoutesByImageId,
     markRoutesDirty,
   })
