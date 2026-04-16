@@ -24,7 +24,7 @@ Bouldering topo and climbing logbook web app.
 
 ## Components
 
-### Web App (Next.js 16)
+### Web App (Next.js 16.2.0)
 
 - **Location**: Root of repo
 - **Deploy**: Vercel, auto-deploys from `main` branch
@@ -119,4 +119,4 @@ The web app is standardizing on feature-first product boundaries.
 | `features/route-editor/store/index.ts` | Zustand store for route selection |
 | `features/submissions/server/submissions/` | Submission API validation and mode executors |
 | `features/submissions/server/drafts/` | Draft API orchestration, collaboration, and promotion helpers |
-| `supabase/migrations/` | 124 SQL migration files |
+| `supabase/migrations/` | 4 migration files (baseline consolidated) |
