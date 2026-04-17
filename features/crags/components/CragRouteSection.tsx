@@ -23,6 +23,8 @@ interface CragRouteSectionProps {
   routesLoadState: 'idle' | 'loading' | 'loaded' | 'error'
   highlightedRouteIds: Set<string>
   routePreviewDisplayByClimbId: Record<string, RoutePreview>
+  routeTargetsHydrating: boolean
+  routeTargetsComplete: boolean
   pinNumberByImageId: Map<string, number>
   gradeSystem: GradeSystem
   routeInsightsUnavailable: boolean
@@ -93,6 +95,8 @@ const CragRouteSection = React.memo(function CragRouteSection({
   routesLoadState,
   highlightedRouteIds,
   routePreviewDisplayByClimbId,
+  routeTargetsHydrating,
+  routeTargetsComplete,
   pinNumberByImageId,
   gradeSystem,
   routeInsightsUnavailable,
@@ -161,8 +165,70 @@ const CragRouteSection = React.memo(function CragRouteSection({
   const placeLabel = communityPlace?.type === 'gym' ? 'Gym' : 'Crag'
 
   return (
-    <div className="relative max-w-5xl mx-auto px-4 py-4 space-y-6">
-      <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+    <div className="relative mx-auto max-w-7xl px-4 py-4">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+        <section className="space-y-3 xl:min-w-0">
+          <CragPageToolbar
+            crag={crag}
+            cragSwitcherOpen={cragSwitcherOpen}
+            cragSwitcherQuery={cragSwitcherQuery}
+            cragSwitcherOptions={cragSwitcherOptions}
+            canDownloadCrag={canDownloadCrag}
+            offlineDialogLoading={offlineDialogLoading}
+            offlinePreviewLoading={offlinePreviewLoading}
+            hasActiveRouteFilters={hasActiveRouteFilters}
+            selectedImageId={selectedImageId}
+            selectedRouteCount={selectedRouteCount}
+            routesCount={routesCount}
+            onToggleCragSwitcher={onToggleCragSwitcher}
+            onCragSwitcherQueryChange={onCragSwitcherQueryChange}
+            onCloseCragSwitcher={onCloseCragSwitcher}
+            onOpenOfflineDialog={onOpenOfflineDialog}
+            onOpenSearchModal={onOpenSearchModal}
+            onOpenFilterModal={onOpenFilterModal}
+            onOpenSortModal={onOpenSortModal}
+            onClearRouteFilters={onClearRouteFilters}
+          />
+
+          <div className="space-y-4">
+            {routeInsightsUnavailable ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+                Route intelligence is unavailable right now. Crag stats and sorting signals will appear again once the route metrics query is reachable.
+              </div>
+            ) : null}
+            <CragActiveFilterChips chips={activeRouteFilterChips} onRemoveChip={onRemoveActiveRouteFilterChip} />
+
+            <CragRouteList
+              filteredRoutes={filteredRoutes}
+              routesLoadState={routesLoadState}
+              highlightedRouteIds={highlightedRouteIds}
+              routePreviewDisplayByClimbId={routePreviewDisplayByClimbId}
+              routeTargetsHydrating={routeTargetsHydrating}
+              routeTargetsComplete={routeTargetsComplete}
+              pinNumberByImageId={pinNumberByImageId}
+              gradeSystem={gradeSystem}
+              routesCount={routesCount}
+              hasActiveRouteFilters={hasActiveRouteFilters}
+              onClearRouteFilters={onClearRouteFilters}
+              onRetryRoutes={onRetryRoutes}
+              onPendingRouteNavigation={onPendingRouteNavigation}
+              getRouteDestination={getRouteDestination}
+            />
+          </div>
+        </section>
+
+        <aside className="hidden xl:block xl:sticky xl:top-4">
+          <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+            <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{placeLabel} community</h2>
+            </div>
+            <div className="px-4 py-4">
+              <CragCommunitySidebar cragId={cragId} communityPlace={communityPlace} />
+            </div>
+          </div>
+        </aside>
+
+        <div className="xl:hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
           <button
             type="button"
             onClick={() => {
@@ -183,54 +249,7 @@ const CragRouteSection = React.memo(function CragRouteSection({
             </div>
           )}
         </div>
-
-      <section className="space-y-3">
-        <CragPageToolbar
-          crag={crag}
-          cragSwitcherOpen={cragSwitcherOpen}
-          cragSwitcherQuery={cragSwitcherQuery}
-          cragSwitcherOptions={cragSwitcherOptions}
-          canDownloadCrag={canDownloadCrag}
-          offlineDialogLoading={offlineDialogLoading}
-          offlinePreviewLoading={offlinePreviewLoading}
-          hasActiveRouteFilters={hasActiveRouteFilters}
-          selectedImageId={selectedImageId}
-          selectedRouteCount={selectedRouteCount}
-          routesCount={routesCount}
-          onToggleCragSwitcher={onToggleCragSwitcher}
-          onCragSwitcherQueryChange={onCragSwitcherQueryChange}
-          onCloseCragSwitcher={onCloseCragSwitcher}
-          onOpenOfflineDialog={onOpenOfflineDialog}
-          onOpenSearchModal={onOpenSearchModal}
-          onOpenFilterModal={onOpenFilterModal}
-          onOpenSortModal={onOpenSortModal}
-          onClearRouteFilters={onClearRouteFilters}
-        />
-
-        <div className="space-y-4">
-          {routeInsightsUnavailable ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
-              Route intelligence is unavailable right now. Crag stats and sorting signals will appear again once the route metrics query is reachable.
-            </div>
-          ) : null}
-          <CragActiveFilterChips chips={activeRouteFilterChips} onRemoveChip={onRemoveActiveRouteFilterChip} />
-
-          <CragRouteList
-            filteredRoutes={filteredRoutes}
-            routesLoadState={routesLoadState}
-            highlightedRouteIds={highlightedRouteIds}
-            routePreviewDisplayByClimbId={routePreviewDisplayByClimbId}
-            pinNumberByImageId={pinNumberByImageId}
-            gradeSystem={gradeSystem}
-            routesCount={routesCount}
-            hasActiveRouteFilters={hasActiveRouteFilters}
-            onClearRouteFilters={onClearRouteFilters}
-            onRetryRoutes={onRetryRoutes}
-            onPendingRouteNavigation={onPendingRouteNavigation}
-            getRouteDestination={getRouteDestination}
-          />
-        </div>
-      </section>
+      </div>
 
       <CragSearchDialog
         open={searchModalOpen}

@@ -30,6 +30,8 @@ export interface UseCragDataResult {
   retryRoutes: () => Promise<unknown>
   loading: boolean
   cragCenter: [number, number] | null
+  routeTargetsHydrating: boolean
+  routeTargetsComplete: boolean
 }
 
 export interface CragDataState {
@@ -44,4 +46,6 @@ export interface CragDataState {
   retryRoutes: () => Promise<unknown>
   loading: boolean
   cragCenter: [number, number] | null
+  routeTargetsHydrating: boolean
+  routeTargetsComplete: boolean
 }
