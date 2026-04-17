@@ -150,10 +150,14 @@ export default function EditDraftPage() {
             onReorderImages={(imageIds) => { void actions.handleReorderDraftImages(imageIds) }}
             existingRouteLines={derived.existingRouteLines}
             selectedRouteId={canvas.selectedRouteId}
+            disableRouteSelection={state.killSwitches.disableRouteSelection}
+            showRouteEditorSidebar={!state.killSwitches.disableRouteSidebar}
             onSelectRoute={(routeId) => {
               canvas.setSelectedRoute(routeId)
               canvas.setActiveRoute(routeId)
-              canvas.setEditorPanelOpen(true)
+              if (!state.killSwitches.disableRouteSidebar) {
+                canvas.setEditorPanelOpen(true)
+              }
             }}
             onReorderRoutes={(routeIds) => {
               if (!derived.activeDraftImageId) return
@@ -171,7 +175,9 @@ export default function EditDraftPage() {
             currentPointsCount={canvas.currentPoints.length}
             onSetSelectTool={() => {
               canvas.setInteractionTool('select')
-              canvas.setEditorPanelOpen(true)
+              if (!state.killSwitches.disableRouteSidebar) {
+                canvas.setEditorPanelOpen(true)
+              }
             }}
             onSetDrawTool={() => {
               canvas.setInteractionTool('draw')

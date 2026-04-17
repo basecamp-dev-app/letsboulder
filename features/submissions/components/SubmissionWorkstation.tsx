@@ -41,6 +41,8 @@ interface SubmissionWorkstationProps {
   onReorderImages?: (imageIds: string[]) => void
   existingRouteLines: RouteLine[]
   selectedRouteId: string | null
+  disableRouteSelection?: boolean
+  showRouteEditorSidebar?: boolean
   onSelectRoute: (routeId: string) => void
   onReorderRoutes?: (routeIds: string[]) => void
   interactionTool: 'select' | 'draw'
@@ -78,6 +80,8 @@ export function SubmissionWorkstation({
   onReorderImages,
   existingRouteLines,
   selectedRouteId,
+  disableRouteSelection = false,
+  showRouteEditorSidebar = true,
   onSelectRoute,
   onReorderRoutes,
   interactionTool,
@@ -158,6 +162,8 @@ export function SubmissionWorkstation({
         canvasMode={canvasMode}
         defaultClimbType={defaultClimbType}
         existingRouteLines={existingRouteLines}
+        disableRouteSelection={disableRouteSelection}
+        showRouteEditorSidebar={showRouteEditorSidebar}
         onRoutesUpdate={onRoutesUpdate}
         onRetryActiveImage={onRetryActiveImage}
         onDeleteActiveImage={onDeleteActiveImage}

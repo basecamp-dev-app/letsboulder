@@ -12,9 +12,10 @@ function isMobileDevice(): boolean {
   return navigator.maxTouchPoints > 0
 }
 
-export function useHitTesting(routes: RouteLine[]) {
+export function useHitTesting(routes: RouteLine[], options?: { disableSelection?: boolean }) {
   const { activeRouteId, setActiveRoute, setSelectedRoute, interactionTool } = useRouteStore()
   const pathCache = useRef<Map<string, Path2D | null>>(new Map())
+  const disableSelection = options?.disableSelection === true
 
   const getPathForRoute = useCallback((route: RouteLine): Path2D | null => {
     const cached = pathCache.current.get(route.id)
@@ -61,21 +62,27 @@ export function useHitTesting(routes: RouteLine[]) {
           routeId,
           activeRouteId,
           newRouteId,
+          disableSelection,
         })
-        setActiveRoute(newRouteId)
-        setSelectedRoute(newRouteId)
+        if (!disableSelection) {
+          setActiveRoute(newRouteId)
+          setSelectedRoute(newRouteId)
+        }
         return newRouteId
       } else {
         logRouteLoop('hit-testing:route-clear', {
           point,
           activeRouteId,
+          disableSelection,
         })
-        setActiveRoute(null)
-        setSelectedRoute(null)
+        if (!disableSelection) {
+          setActiveRoute(null)
+          setSelectedRoute(null)
+        }
         return null
       }
     },
-    [interactionTool, findRouteAtPoint, activeRouteId, setActiveRoute, setSelectedRoute]
+    [interactionTool, findRouteAtPoint, activeRouteId, disableSelection, setActiveRoute, setSelectedRoute]
   )
 
   return {
