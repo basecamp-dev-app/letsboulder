@@ -41,6 +41,9 @@ export function useDraftEditorOrchestration({
     disableRouteStoreSync: searchParams.get('disableRouteStoreSync') === '1',
     disableRouteSidebar: searchParams.get('disableRouteSidebar') === '1',
     disableRouteSelection: searchParams.get('disableRouteSelection') === '1',
+    disableCanvasPointerHandling: searchParams.get('disableCanvasPointerHandling') === '1',
+    disableRouteHistory: searchParams.get('disableRouteHistory') === '1',
+    disableCanvasRedrawOnPoints: searchParams.get('disableCanvasRedrawOnPoints') === '1',
   }), [searchParams])
   const { conflict, setConflict, clearConflict } = useDraftConflictResolution()
   const { detailsOpen, setDetailsOpen, orientationOpen, setOrientationOpen } = useDraftRouteEditing()

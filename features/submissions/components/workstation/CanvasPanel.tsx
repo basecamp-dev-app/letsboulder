@@ -17,6 +17,9 @@ interface WorkstationCanvasPanelProps {
   existingRouteLines: RouteLine[]
   disableRouteSelection?: boolean
   showRouteEditorSidebar?: boolean
+  disableCanvasPointerHandling?: boolean
+  disableRouteHistory?: boolean
+  disableCanvasRedrawOnPoints?: boolean
   onRoutesUpdate: (routes: RouteLine[]) => void
   onRetryActiveImage?: () => void
   onDeleteActiveImage?: () => void
@@ -34,6 +37,9 @@ export function WorkstationCanvasPanel({
   existingRouteLines,
   disableRouteSelection = false,
   showRouteEditorSidebar = true,
+  disableCanvasPointerHandling = false,
+  disableRouteHistory = false,
+  disableCanvasRedrawOnPoints = false,
   onRoutesUpdate,
   onRetryActiveImage,
   onDeleteActiveImage,
@@ -52,6 +58,9 @@ export function WorkstationCanvasPanel({
           routes={existingRouteLines}
           disableRouteSelection={disableRouteSelection}
           showRouteEditorSidebar={showRouteEditorSidebar}
+          disableCanvasPointerHandling={disableCanvasPointerHandling}
+          disableRouteHistory={disableRouteHistory}
+          disableCanvasRedrawOnPoints={disableCanvasRedrawOnPoints}
           onRoutesUpdate={onRoutesUpdate}
           onImageOrientationChange={setImageOrientation}
           className={imageOrientation === 'portrait' ? 'h-full min-h-[72dvh] md:min-h-[78dvh]' : 'h-full min-h-[52dvh] md:min-h-[60dvh]'}
