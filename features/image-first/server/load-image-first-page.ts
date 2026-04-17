@@ -380,6 +380,7 @@ function buildOfflineImageFirstPayload(
       initialClimbId: args.climbId || payload.climb?.id || resolvedRoute?.climbId || null,
       initialRouteId: resolvedRoute?.routeId || args.routeId || payload.primary_route_lines[0]?.id || null,
       initialRouteSlug: args.routeSlug || resolvedRoute?.climbSlug || pathParts[2] || null,
+      cragId: payload.primary_image?.crag_id || '',
       cragSlug,
       countryCode,
       mapPins: typeof payload.primary_image?.latitude === 'number' && typeof payload.primary_image?.longitude === 'number'
@@ -601,6 +602,7 @@ export async function buildImageFirstPayload(args: {
       initialClimbId: args.climbId || resolvedRoute?.climbId || null,
       initialRouteId: resolvedRoute?.routeId || null,
       initialRouteSlug: args.routeSlug || resolvedRoute?.climbSlug || null,
+      cragId: image.cragId,
       cragSlug: image.cragSlug,
       countryCode: image.countryCode,
       mapPins,

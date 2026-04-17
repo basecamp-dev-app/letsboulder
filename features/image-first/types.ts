@@ -36,6 +36,7 @@ export interface ImageFirstPayload {
   initialClimbId: string | null
   initialRouteId: string | null
   initialRouteSlug: string | null
+  cragId: string
   cragSlug: string
   countryCode: string
   mapPins: Array<{

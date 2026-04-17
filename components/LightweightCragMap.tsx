@@ -192,6 +192,8 @@ interface LightweightCragMapProps {
   onPinSelect?: (id: string) => void
   interactiveViewport?: boolean
   staticPreview?: boolean
+  disableClustering?: boolean
+  onViewportChange?: (state: { zoom: number; bounds: MapBounds }) => void
   className?: string
   tileUrl?: string
   attribution?: string
@@ -208,6 +210,8 @@ export default function LightweightCragMap({
   onPinSelect,
   interactiveViewport = true,
   staticPreview = false,
+  disableClustering = false,
+  onViewportChange,
   className,
   tileUrl,
   attribution,
@@ -233,7 +237,8 @@ export default function LightweightCragMap({
     lastMapStateRef.current = state
     setMapZoom((currentZoom) => currentZoom === state.zoom ? currentZoom : state.zoom)
     setMapBounds((currentBounds) => mapBoundsEqual(currentBounds, state.bounds) ? currentBounds : state.bounds)
-  }, [])
+    onViewportChange?.(state)
+  }, [onViewportChange])
 
   const resolvedPins = useMemo(() => {
     if (draftPins || publishedPins) {
@@ -264,6 +269,7 @@ export default function LightweightCragMap({
 
   const clusteredResults = useMemo<ClusterResult[]>(() => {
     if (usesStaticPreview) return pinFeatures
+    if (disableClustering) return pinFeatures
     if (!interactiveViewport) return pinFeatures
     if (pinFeatures.length === 0 || !clusterIndex) return pinFeatures
 
@@ -284,7 +290,7 @@ export default function LightweightCragMap({
     const westClusters = clusterIndex.getClusters([mapBounds.west, south, 180, north], zoom) as ClusterResult[]
     const eastClusters = clusterIndex.getClusters([-180, south, mapBounds.east, north], zoom) as ClusterResult[]
     return [...westClusters, ...eastClusters]
-  }, [clusterIndex, interactiveViewport, mapBounds, mapZoom, pinFeatures, usesStaticPreview])
+  }, [clusterIndex, disableClustering, interactiveViewport, mapBounds, mapZoom, pinFeatures, usesStaticPreview])
 
   const renderedPins = useMemo<RenderedMapItem[]>(() => {
     return clusteredResults.flatMap<RenderedMapItem>((feature, index) => {
@@ -380,7 +386,7 @@ export default function LightweightCragMap({
   }, [])
 
   useEffect(() => {
-    if (!interactiveViewport || usesStaticPreview) return
+    if (!interactiveViewport || usesStaticPreview || disableClustering) return
     let cancelled = false
 
     if (pinFeatures.length === 0) {
@@ -408,7 +414,7 @@ export default function LightweightCragMap({
     return () => {
       cancelled = true
     }
-  }, [interactiveViewport, pinFeatures, usesStaticPreview])
+  }, [disableClustering, interactiveViewport, pinFeatures, usesStaticPreview])
 
   useEffect(() => {
     uploadDebug('map-debug-state', {
