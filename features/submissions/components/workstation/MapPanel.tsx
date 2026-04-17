@@ -28,6 +28,7 @@ export function WorkstationMapPanel({
         activePinId={activeImageId}
         initialCenter={initialCenter}
         onPinSelect={imageSwitchingDisabled ? undefined : onSelectImage}
+        interactiveViewport={false}
         heightClassName="h-[180px] min-h-[180px] md:h-[200px]"
       />
     </div>
