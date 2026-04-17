@@ -360,6 +360,7 @@ describe('promoteDraftToSubmission', () => {
       })),
     }))
 
+    // @ts-expect-error - mock return types are intentionally flexible
     supabase.from = vi.fn((table: string) => {
       if (table === 'submission_drafts') {
         return {
