@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
+import { logRouteLoop } from '@/features/route-editor/lib/debug-route-loop'
 import { useRouteStore } from '@/features/route-editor/store'
 import { areSerializedRoutesEqual, type RouteEditorSerializableRoute } from '@/features/route-editor/route-editor-utils'
 import { serializeStoredRoutes } from '@/features/submissions/lib/route-store-sync'
@@ -44,6 +45,12 @@ export function useEditDraftRouteStoreSync({
     const imageChanged = lastSeededImageIdRef.current !== activeDraftImageId
     if (!imageChanged) return
 
+    logRouteLoop('draft-sync:image-switch-seed', {
+      activeDraftImageId,
+      parentRouteCount: parentRoutes.length,
+      storeRouteCount: storeRoutes.length,
+    })
+
     lastSeededImageIdRef.current = activeDraftImageId
     lastAppliedParentRoutesRef.current = parentRoutes
     lastPushedStoreRoutesRef.current = parentRoutes
@@ -60,10 +67,19 @@ export function useEditDraftRouteStoreSync({
     if (lastSeededImageIdRef.current !== activeDraftImageId) return
     if (areSerializedRoutesEqual(parentRoutes, lastAppliedParentRoutesRef.current)) return
     if (areSerializedRoutesEqual(parentRoutes, lastPushedStoreRoutesRef.current)) {
+      logRouteLoop('draft-sync:skip-parent-reseed-from-store', {
+        activeDraftImageId,
+        parentRouteCount: parentRoutes.length,
+      })
       lastAppliedParentRoutesRef.current = parentRoutes
       return
     }
 
+    logRouteLoop('draft-sync:parent-to-store', {
+      activeDraftImageId,
+      parentRouteCount: parentRoutes.length,
+      storeRouteCount: storeRoutes.length,
+    })
     lastAppliedParentRoutesRef.current = parentRoutes
     lastPushedStoreRoutesRef.current = parentRoutes
     setRoutes(existingRouteLines)
@@ -74,6 +90,12 @@ export function useEditDraftRouteStoreSync({
     if (lastSeededImageIdRef.current !== activeDraftImageId) return
     if (areSerializedRoutesEqual(storeRoutes, parentRoutes)) return
     if (areSerializedRoutesEqual(storeRoutes, lastPushedStoreRoutesRef.current)) return
+
+    logRouteLoop('draft-sync:store-to-owner', {
+      activeDraftImageId,
+      parentRouteCount: parentRoutes.length,
+      storeRouteCount: storeRoutes.length,
+    })
 
     lastPushedStoreRoutesRef.current = storeRoutes
 

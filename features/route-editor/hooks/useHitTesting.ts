@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react'
+import { logRouteLoop } from '@/features/route-editor/lib/debug-route-loop'
 import { useRouteStore } from '@/features/route-editor/store'
 import { createRoutePath2D } from '@/lib/route-renderer'
 import type { RoutePoint, RouteLine } from '@/types/domain'
@@ -55,10 +56,22 @@ export function useHitTesting(routes: RouteLine[]) {
       const routeId = findRouteAtPoint(point)
       if (routeId) {
         const newRouteId = routeId === activeRouteId ? null : routeId
+        logRouteLoop('hit-testing:route-click', {
+          point,
+          routeId,
+          activeRouteId,
+          newRouteId,
+          routeCount: routes.length,
+        })
         setActiveRoute(newRouteId)
         setSelectedRoute(newRouteId)
         return newRouteId
       } else {
+        logRouteLoop('hit-testing:route-clear', {
+          point,
+          activeRouteId,
+          routeCount: routes.length,
+        })
         setActiveRoute(null)
         setSelectedRoute(null)
         return null
