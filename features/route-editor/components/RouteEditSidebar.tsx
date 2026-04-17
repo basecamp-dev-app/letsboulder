@@ -47,7 +47,6 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
   const [gradePickerOpen, setGradePickerOpen] = useState(false)
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const renderCountRef = useRef(0)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
   const gradeButtonRef = useRef<HTMLButtonElement>(null)
@@ -68,15 +67,14 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
 
   const formattedCurrentGrade = getGradeDisplay(currentGrade)
 
-  renderCountRef.current += 1
-  logRouteLoop('sidebar:render', {
-    renderCount: renderCountRef.current,
-    selectedRouteId,
-    selectedRouteName: selectedRoute?.climb?.name || null,
-    routeEditorDraftRouteId: routeEditorDraft?.routeId ?? null,
-    routeEditorDraftName: routeEditorDraft?.name ?? null,
-    editorIntent,
-  })
+  useEffect(() => {
+    logRouteLoop('sidebar:render', {
+      selectedRouteId,
+      selectedRouteName: selectedRoute?.climb?.name || null,
+      routeEditorDraftRouteId: routeEditorDraft?.routeId ?? null,
+      routeEditorDraftName: routeEditorDraft?.name ?? null,
+    })
+  }, [routeEditorDraft?.name, routeEditorDraft?.routeId, selectedRoute?.climb?.name, selectedRouteId])
 
   useEffect(() => {
     if (!selectedRouteId || !selectedRoute) return
@@ -183,7 +181,7 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
     }
 
     setEditorIntent(null)
-  }, [editorIntent, openGradePicker, setEditorIntent, setEditorPanelOpen])
+  }, [editorIntent, openGradePicker, routeEditorDraft?.routeId, selectedRouteId, setEditorIntent, setEditorPanelOpen])
 
   const handleClose = () => {
     if (saveTimeoutRef.current) {
