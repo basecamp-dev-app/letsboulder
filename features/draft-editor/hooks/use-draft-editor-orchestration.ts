@@ -1,8 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { logRouteLoop } from '@/features/route-editor/lib/debug-route-loop'
 import { useRouteStore } from '@/features/route-editor/store'
 import { useDraftUploadManager } from '@/features/media-upload/hooks/use-draft-upload-manager'
 import { useMediaUploadManager } from '@/features/media-upload/hooks/use-media-upload-manager'
@@ -36,28 +34,6 @@ export function useDraftEditorOrchestration({
   draftId,
   addToast,
 }: UseDraftEditorOrchestrationParams) {
-  const searchParams = useSearchParams()
-  const killSwitches = useMemo(() => ({
-    disableRouteStoreSync: searchParams.get('disableRouteStoreSync') === '1',
-    disableRouteSidebar: searchParams.get('disableRouteSidebar') === '1',
-    disableRouteSelection: searchParams.get('disableRouteSelection') === '1',
-    disableCanvasPointerHandling: searchParams.get('disableCanvasPointerHandling') === '1',
-    disableRouteHistory: searchParams.get('disableRouteHistory') === '1',
-    disableCanvasRedrawOnPoints: searchParams.get('disableCanvasRedrawOnPoints') === '1',
-    disableWorkstation: searchParams.get('disableWorkstation') === '1',
-    disableCanvasSubtree: searchParams.get('disableCanvasSubtree') === '1',
-    disableMetadataPanels: searchParams.get('disableMetadataPanels') === '1',
-    disableUploadsPanel: searchParams.get('disableUploadsPanel') === '1',
-    disableAutosaveEffects: searchParams.get('disableAutosaveEffects') === '1',
-    interceptAllClicks: searchParams.get('interceptAllClicks') === '1',
-    disableCanvasImage: searchParams.get('disableCanvasImage') === '1',
-    disableCanvasElement: searchParams.get('disableCanvasElement') === '1',
-    disableWorkstationChrome: searchParams.get('disableWorkstationChrome') === '1',
-    disableWorkstationMap: searchParams.get('disableWorkstationMap') === '1',
-    disableRouteEditorRail: searchParams.get('disableRouteEditorRail') === '1',
-    disableImageStrip: searchParams.get('disableImageStrip') === '1',
-    disableToolBar: searchParams.get('disableToolBar') === '1',
-  }), [searchParams])
   const { conflict, setConflict, clearConflict } = useDraftConflictResolution()
   const { detailsOpen, setDetailsOpen, orientationOpen, setOrientationOpen } = useDraftRouteEditing()
 
@@ -148,7 +124,7 @@ export function useDraftEditorOrchestration({
   }, [draftError])
 
   const { shareOpen, setShareOpen, loadingCollaborators, collaborators, activeInvites, creatingInvite, revokingInviteId, removingCollaboratorId, latestInviteUrl, loadCollaborators, handleCreateInvite, handleCopyInvite, handleRevokeInvite, handleRemoveCollaborator } = useDraftCollaborators(draftId, isOwner, addToast, setError)
-  const collaborationAdded = searchParams.get('collab') === 'added'
+  const collaborationAdded = false
   const { currentUserId, leaflet } = useEditDraftHydration({
     collaborationAdded,
     activeImageId,
@@ -254,19 +230,6 @@ export function useDraftEditorOrchestration({
     })
   }, [activeImageId, activeImageTab?.sourceKind, activeImageTab?.status, imageSelection])
 
-  useEffect(() => {
-    logRouteLoop('draft-orchestration:canvas-state', {
-      activeImageId,
-      activeDraftImageId,
-      selectedRouteId,
-      routeStoreRouteCount: routeStoreRoutes.length,
-      existingRouteLineCount: existingRouteLines.length,
-      interactionTool,
-      currentPointCount: currentPoints.length,
-    })
-  }, [activeDraftImageId, activeImageId, currentPoints.length, existingRouteLines.length, interactionTool, routeStoreRoutes.length, selectedRouteId])
-
-
   const {
     activeImageCustomPosition,
     handleMapClick,
@@ -315,7 +278,6 @@ export function useDraftEditorOrchestration({
     setLocationSearchError,
     uploadAutoAssignToken,
     setLocationSyncInFlight,
-    disabled: killSwitches.disableAutosaveEffects,
   })
 
   useEffect(() => {
@@ -379,7 +341,6 @@ export function useDraftEditorOrchestration({
     setConflict,
     setActiveImageId,
     setLocationSyncInFlight,
-    disabled: killSwitches.disableAutosaveEffects,
   })
 
   useEffect(() => {
@@ -404,7 +365,7 @@ export function useDraftEditorOrchestration({
   })
 
   useEditDraftRouteStoreSync({
-    activeDraftImageId: killSwitches.disableRouteStoreSync ? null : activeDraftImageId,
+    activeDraftImageId,
     existingRouteLines,
     setRoutesByImageId,
     routeType,
@@ -487,7 +448,6 @@ export function useDraftEditorOrchestration({
       ownerUserId,
       ownerProfile,
       isImageSwitching,
-      killSwitches,
     },
     conflict: {
       conflict,

@@ -108,18 +108,16 @@ export default function EditDraftPage() {
           </div>
         ) : null}
 
-        {!state.killSwitches.disableUploadsPanel ? (
-          <DraftUploadQueue
-            pendingDraftUploads={uploads.pendingDraftUploads}
-            queuePaused={uploads.queuePaused}
-            draftId={draftId}
-            hasPendingUploads={uploads.hasPendingUploads}
-            hasFailedUploads={uploads.hasFailedUploads}
-            onRetryUpload={uploads.retryUpload}
-            onRemoveUpload={(clientId) => { void uploads.removeUpload(clientId) }}
-            onResumeQueue={uploads.resumeQueue}
-          />
-        ) : null}
+        <DraftUploadQueue
+          pendingDraftUploads={uploads.pendingDraftUploads}
+          queuePaused={uploads.queuePaused}
+          draftId={draftId}
+          hasPendingUploads={uploads.hasPendingUploads}
+          hasFailedUploads={uploads.hasFailedUploads}
+          onRetryUpload={uploads.retryUpload}
+          onRemoveUpload={(clientId) => { void uploads.removeUpload(clientId) }}
+          onResumeQueue={uploads.resumeQueue}
+        />
 
         <input
           ref={addImageInputRef}
@@ -132,11 +130,7 @@ export default function EditDraftPage() {
           }}
         />
 
-        {state.killSwitches.disableWorkstation ? (
-          <div className="rounded-3xl border border-dashed border-gray-300 bg-gray-50 px-6 py-16 text-center text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-            Workstation disabled
-          </div>
-        ) : derived.imageSelection && 'imageUrl' in derived.imageSelection ? (
+        {derived.imageSelection && 'imageUrl' in derived.imageSelection ? (
           <SubmissionWorkstation
             drawingAreaRef={drawingAreaRef}
             routeCanvasRef={routeCanvasRef}
@@ -156,26 +150,10 @@ export default function EditDraftPage() {
             onReorderImages={(imageIds) => { void actions.handleReorderDraftImages(imageIds) }}
             existingRouteLines={derived.existingRouteLines}
             selectedRouteId={canvas.selectedRouteId}
-            disableRouteSelection={state.killSwitches.disableRouteSelection}
-            showRouteEditorSidebar={!state.killSwitches.disableRouteSidebar}
-            disableCanvasPointerHandling={state.killSwitches.disableCanvasPointerHandling}
-            disableRouteHistory={state.killSwitches.disableRouteHistory}
-            disableCanvasRedrawOnPoints={state.killSwitches.disableCanvasRedrawOnPoints}
-            disableCanvasSubtree={state.killSwitches.disableCanvasSubtree}
-            interceptAllClicks={state.killSwitches.interceptAllClicks}
-            disableCanvasImage={state.killSwitches.disableCanvasImage}
-            disableCanvasElement={state.killSwitches.disableCanvasElement}
-            disableWorkstationChrome={state.killSwitches.disableWorkstationChrome}
-            disableWorkstationMap={state.killSwitches.disableWorkstationMap}
-            disableRouteEditorRail={state.killSwitches.disableRouteEditorRail}
-            disableImageStrip={state.killSwitches.disableImageStrip}
-            disableToolBar={state.killSwitches.disableToolBar}
             onSelectRoute={(routeId) => {
               canvas.setSelectedRoute(routeId)
               canvas.setActiveRoute(routeId)
-              if (!state.killSwitches.disableRouteSidebar) {
-                canvas.setEditorPanelOpen(true)
-              }
+              canvas.setEditorPanelOpen(true)
             }}
             onReorderRoutes={(routeIds) => {
               if (!derived.activeDraftImageId) return
@@ -193,9 +171,7 @@ export default function EditDraftPage() {
             currentPointsCount={canvas.currentPoints.length}
             onSetSelectTool={() => {
               canvas.setInteractionTool('select')
-              if (!state.killSwitches.disableRouteSidebar) {
-                canvas.setEditorPanelOpen(true)
-              }
+              canvas.setEditorPanelOpen(true)
             }}
             onSetDrawTool={() => {
               canvas.setInteractionTool('draw')
@@ -226,60 +202,56 @@ export default function EditDraftPage() {
           />
         ) : null}
 
-        {!state.killSwitches.disableMetadataPanels ? (
-          <>
-            <DraftMetadataPanel
-              atlasSync={derived.atlasSync}
-              selectedCrag={draft.selectedCrag}
-              showCragSelector={location.showCragSelector}
-              cragId={draft.cragId}
-              sectorId={state.sectorId}
-              activeImageLocationMode={derived.activeImageLocationMode}
-              activeDraftImageId={derived.activeDraftImageId}
-              latitude={location.latitude}
-              longitude={location.longitude}
-              customGpsByImageId={draft.customGpsByImageId}
-              effectiveMarkerPosition={location.effectiveMarkerPosition}
-              mapOpen={location.mapOpen}
-              leaflet={draft.leaflet}
-              searchQuery={location.searchQuery}
-              searchingLocation={location.searchingLocation}
-              locationSearchError={location.locationSearchError}
-              routeType={draft.routeType}
-              onShowCragSelector={actions.onShowCragSelector}
-              onSelectCrag={actions.onSelectCrag}
-              onCreateCrag={actions.onCreateCrag}
-              onSectorChange={state.setSectorId}
-              onLocationModeChange={actions.onLocationModeChange}
-              onLatitudeChange={actions.onLatitudeChange}
-              onLongitudeChange={actions.onLongitudeChange}
-              onCustomGpsChange={actions.onCustomGpsChange}
-              onMapClick={location.handleMapClick}
-              onMarkerDragEnd={location.handleMarkerDragEnd}
-              onMapOpenChange={actions.onMapOpenChange}
-              onSearchQueryChange={actions.onSearchQueryChange}
-              onSearchLocation={location.handleSearchLocation}
-              onRouteTypeChange={actions.onRouteTypeChange}
-            />
+        <DraftMetadataPanel
+          atlasSync={derived.atlasSync}
+          selectedCrag={draft.selectedCrag}
+          showCragSelector={location.showCragSelector}
+          cragId={draft.cragId}
+          sectorId={state.sectorId}
+          activeImageLocationMode={derived.activeImageLocationMode}
+          activeDraftImageId={derived.activeDraftImageId}
+          latitude={location.latitude}
+          longitude={location.longitude}
+          customGpsByImageId={draft.customGpsByImageId}
+          effectiveMarkerPosition={location.effectiveMarkerPosition}
+          mapOpen={location.mapOpen}
+          leaflet={draft.leaflet}
+          searchQuery={location.searchQuery}
+          searchingLocation={location.searchingLocation}
+          locationSearchError={location.locationSearchError}
+          routeType={draft.routeType}
+          onShowCragSelector={actions.onShowCragSelector}
+          onSelectCrag={actions.onSelectCrag}
+          onCreateCrag={actions.onCreateCrag}
+          onSectorChange={state.setSectorId}
+          onLocationModeChange={actions.onLocationModeChange}
+          onLatitudeChange={actions.onLatitudeChange}
+          onLongitudeChange={actions.onLongitudeChange}
+          onCustomGpsChange={actions.onCustomGpsChange}
+          onMapClick={location.handleMapClick}
+          onMarkerDragEnd={location.handleMarkerDragEnd}
+          onMapOpenChange={actions.onMapOpenChange}
+          onSearchQueryChange={actions.onSearchQueryChange}
+          onSearchLocation={location.handleSearchLocation}
+          onRouteTypeChange={actions.onRouteTypeChange}
+        />
 
-            <DraftDetailsPanel
-              detailsOpen={routeEditing.detailsOpen}
-              onDetailsToggle={() => routeEditing.setDetailsOpen((prev) => !prev)}
-              orientationOpen={routeEditing.orientationOpen}
-              onOrientationToggle={() => routeEditing.setOrientationOpen((prev) => !prev)}
-              activeImageOrientation={derived.activeImageTab ? (draft.orientationByImageId[derived.activeImageTab.imageId] || []) : []}
-              onToggleOrientation={actions.toggleImageOrientation}
-              onShareOpen={() => collaboration.setShareOpen(true)}
-              canEditCredit={true}
-              isAnonymous={draft.isAnonymousSubmission}
-              onAnonymousChange={draft.setIsAnonymousSubmission}
-              creditPlatform={draft.creditPlatform}
-              onCreditPlatformChange={draft.setCreditPlatform}
-              creditHandle={draft.creditHandle}
-              onCreditHandleChange={draft.setCreditHandle}
-            />
-          </>
-        ) : null}
+        <DraftDetailsPanel
+          detailsOpen={routeEditing.detailsOpen}
+          onDetailsToggle={() => routeEditing.setDetailsOpen((prev) => !prev)}
+          orientationOpen={routeEditing.orientationOpen}
+          onOrientationToggle={() => routeEditing.setOrientationOpen((prev) => !prev)}
+          activeImageOrientation={derived.activeImageTab ? (draft.orientationByImageId[derived.activeImageTab.imageId] || []) : []}
+          onToggleOrientation={actions.toggleImageOrientation}
+          onShareOpen={() => collaboration.setShareOpen(true)}
+          canEditCredit={true}
+          isAnonymous={draft.isAnonymousSubmission}
+          onAnonymousChange={draft.setIsAnonymousSubmission}
+          creditPlatform={draft.creditPlatform}
+          onCreditPlatformChange={draft.setCreditPlatform}
+          creditHandle={draft.creditHandle}
+          onCreditHandleChange={draft.setCreditHandle}
+        />
 
         <CollaboratorDialog
           open={collaboration.shareOpen}

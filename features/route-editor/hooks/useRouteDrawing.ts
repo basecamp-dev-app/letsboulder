@@ -2,22 +2,19 @@ import { useCallback } from 'react'
 import { useRouteStore } from '@/features/route-editor/store'
 import type { RoutePoint } from '@/types/domain'
 
-export function useRouteDrawing(options?: { disableRouteHistory?: boolean }) {
+export function useRouteDrawing() {
   const { currentPoints, addCurrentPoint, setCurrentPoints, clearCurrentPoints, interactionTool, commitToHistory } =
     useRouteStore()
-  const disableRouteHistory = options?.disableRouteHistory === true
 
   const isDrawingEnabled = interactionTool === 'draw'
 
   const startDrawing = useCallback(
     (point: RoutePoint) => {
       if (!isDrawingEnabled) return
-      if (!disableRouteHistory) {
-        commitToHistory()
-      }
+      commitToHistory()
       setCurrentPoints([point])
     },
-    [disableRouteHistory, isDrawingEnabled, commitToHistory, setCurrentPoints]
+    [isDrawingEnabled, commitToHistory, setCurrentPoints]
   )
 
   const continueDrawing = useCallback(

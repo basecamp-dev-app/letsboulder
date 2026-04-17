@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Trash2, X } from 'lucide-react'
-import { logRouteLoop } from '@/features/route-editor/lib/debug-route-loop'
 import { useRouteStore } from '@/features/route-editor/store'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -68,25 +67,8 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
   const formattedCurrentGrade = getGradeDisplay(currentGrade)
 
   useEffect(() => {
-    logRouteLoop('sidebar:render', {
-      selectedRouteId,
-      selectedRouteName: selectedRoute?.climb?.name || null,
-      routeEditorDraftRouteId: routeEditorDraft?.routeId ?? null,
-      routeEditorDraftName: routeEditorDraft?.name ?? null,
-    })
-  }, [routeEditorDraft?.name, routeEditorDraft?.routeId, selectedRoute?.climb?.name, selectedRouteId])
-
-  useEffect(() => {
     if (!selectedRouteId || !selectedRoute) return
     if (routeEditorDraft?.routeId === selectedRouteId) return
-
-    logRouteLoop('sidebar:seed-draft', {
-      selectedRouteId,
-      selectedRouteName: selectedRoute.climb?.name || null,
-      selectedRouteGrade: selectedRoute.climb?.grade || null,
-      selectedRouteType: selectedRoute.climb?.route_type || null,
-      previousDraftRouteId: routeEditorDraft?.routeId ?? null,
-    })
 
     setEditorDraft({
       routeId: selectedRouteId,
@@ -103,13 +85,6 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
 
   const saveChanges = useCallback(() => {
     if (!selectedRouteId || !routeEditorDraft || routeEditorDraft.routeId !== selectedRouteId) return
-    logRouteLoop('sidebar:save-changes', {
-      selectedRouteId,
-      routeEditorDraft,
-      selectedRouteName: selectedRoute?.climb?.name || null,
-      selectedRouteGrade: selectedRoute?.climb?.grade || null,
-      selectedRouteType: selectedRoute?.climb?.route_type || null,
-    })
     updateRoute(selectedRouteId, {
       climb: {
         id: selectedRoute?.climb?.id || '',
@@ -125,20 +100,11 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
   useEffect(() => {
     if (!selectedRouteId || !routeEditorDraft || routeEditorDraft.routeId !== selectedRouteId) return
 
-    logRouteLoop('sidebar:schedule-autosave', {
-      selectedRouteId,
-      routeEditorDraft,
-    })
-
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
     }
 
     saveTimeoutRef.current = setTimeout(() => {
-      logRouteLoop('sidebar:autosave-fired', {
-        selectedRouteId,
-        routeEditorDraft,
-      })
       saveChanges()
     }, 500)
 
@@ -151,12 +117,6 @@ export function RouteEditSidebar({ onClose }: RouteEditSidebarProps) {
 
   useEffect(() => {
     if (!editorIntent) return
-
-    logRouteLoop('sidebar:editor-intent', {
-      editorIntent,
-      selectedRouteId,
-      routeEditorDraftRouteId: routeEditorDraft?.routeId ?? null,
-    })
 
     if (editorIntent === 'grade') {
       setEditorPanelOpen(true)

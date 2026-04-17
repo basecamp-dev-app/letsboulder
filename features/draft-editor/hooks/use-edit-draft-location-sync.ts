@@ -57,7 +57,6 @@ interface UseEditDraftLocationSyncParams {
   setLocationSearchError: (value: string | null) => void
   uploadAutoAssignToken: string | null
   setLocationSyncInFlight?: (value: boolean) => void
-  disabled?: boolean
 }
 
 export const LOCATION_SYNC_RATE_LIMIT_ERROR_MESSAGE = 'You are saving too quickly right now. Please wait a moment and try again before publishing.'
@@ -108,7 +107,6 @@ export function useEditDraftLocationSync({
   setLocationSearchError,
   uploadAutoAssignToken,
   setLocationSyncInFlight,
-  disabled = false,
 }: UseEditDraftLocationSyncParams) {
   const patchDraftLocation = useCallback(async ({
     expectedUpdatedAt,
@@ -162,7 +160,6 @@ export function useEditDraftLocationSync({
   }, [atlasSync.atlas, creditHandle, creditPlatform, draftId, imagesPayload, isAnonymousSubmission, setDraftUpdatedAt])
 
   const syncLocationNow = useCallback(async (): Promise<LocationSyncResult> => {
-    if (disabled) return { ok: true }
     if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) {
       return { ok: true }
     }
@@ -225,7 +222,7 @@ export function useEditDraftLocationSync({
     }
 
     return { ok: true }
-  }, [atlasSync.atlas, cragId, disabled, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, lastLocationSyncRef, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, setCragId, setRouteType, setSelectedCrag])
+  }, [atlasSync.atlas, cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, lastLocationSyncRef, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, patchDraftLocation, routeType, setCragId, setRouteType, setSelectedCrag])
 
   const averagedRouteImageLocation = useMemo<[number, number] | null>(() => {
     const qualifyingCoordinates = mergedManageImages
@@ -304,16 +301,14 @@ export function useEditDraftLocationSync({
   }, [effectiveMarkerPosition, fallbackLocation, hasHydratedLocationRef, setLatitude, setLongitude])
 
   useEffect(() => {
-    if (disabled) return
     const timer = window.setTimeout(async () => {
       void syncLocationNow()
     }, 400)
 
     return () => window.clearTimeout(timer)
-  }, [disabled, draft, draftId, effectiveMarkerPosition, hasExplicitRouteType, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, hasHydratedLocationRef, syncLocationNow])
+  }, [draft, draftId, effectiveMarkerPosition, hasExplicitRouteType, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, hasHydratedLocationRef, syncLocationNow])
 
   useEffect(() => {
-    if (disabled) return
     if (!hasHydratedLocationRef.current || !draftId || !draftUpdatedAt || !effectiveMarkerPosition || imagesPayload.length === 0) return
     if (cragId || !nearbyCragId) return
     if (appliedNearbyCragIdRef.current === nearbyCragId) return
@@ -323,7 +318,7 @@ export function useEditDraftLocationSync({
     }, 200)
 
     return () => window.clearTimeout(timer)
-  }, [appliedNearbyCragIdRef, cragId, disabled, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, syncLocationNow, uploadAutoAssignToken])
+  }, [appliedNearbyCragIdRef, cragId, draftId, draftUpdatedAt, effectiveMarkerPosition, hasExplicitRouteType, hasHydratedLocationRef, imagesPayload.length, nearbyCragDominantRouteType, nearbyCragId, nearbyCragName, syncLocationNow, uploadAutoAssignToken])
 
   const handleMapClick = useCallback((event: L.LeafletMouseEvent) => {
     if (activeDraftImageId && activeImageLocationMode === 'custom') {

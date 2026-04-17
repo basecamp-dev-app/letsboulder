@@ -15,15 +15,6 @@ interface WorkstationCanvasPanelProps {
   canvasMode: 'edit-existing'
   defaultClimbType: ClimbType
   existingRouteLines: RouteLine[]
-  disableRouteSelection?: boolean
-  showRouteEditorSidebar?: boolean
-  disableCanvasPointerHandling?: boolean
-  disableRouteHistory?: boolean
-  disableCanvasRedrawOnPoints?: boolean
-  disableCanvasSubtree?: boolean
-  interceptAllClicks?: boolean
-  disableCanvasImage?: boolean
-  disableCanvasElement?: boolean
   onRoutesUpdate: (routes: RouteLine[]) => void
   onRetryActiveImage?: () => void
   onDeleteActiveImage?: () => void
@@ -39,15 +30,6 @@ export function WorkstationCanvasPanel({
   canvasMode,
   defaultClimbType,
   existingRouteLines,
-  disableRouteSelection = false,
-  showRouteEditorSidebar = true,
-  disableCanvasPointerHandling = false,
-  disableRouteHistory = false,
-  disableCanvasRedrawOnPoints = false,
-  disableCanvasSubtree = false,
-  interceptAllClicks = false,
-  disableCanvasImage = false,
-  disableCanvasElement = false,
   onRoutesUpdate,
   onRetryActiveImage,
   onDeleteActiveImage,
@@ -57,33 +39,17 @@ export function WorkstationCanvasPanel({
   return (
     <div className={`overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900 ${imageOrientation === 'portrait' ? 'min-h-[72dvh] md:min-h-[78dvh]' : 'min-h-[52dvh] md:min-h-[60dvh]'}`}>
       {activeImageReady ? (
-        disableCanvasSubtree ? (
-          <div className="flex h-full min-h-[52dvh] items-center justify-center bg-gray-100 px-6 text-center text-sm text-gray-500 dark:bg-gray-900 dark:text-gray-300">
-            Canvas subtree disabled
-          </div>
-        ) : (
-          <div className="relative h-full">
-            <UnifiedRouteCanvas
-              ref={routeCanvasRef}
-              key={canvasKey}
-              mode={canvasMode}
-              imageUrl={activeImageUrl}
-              defaultClimbType={defaultClimbType}
-              routes={existingRouteLines}
-              disableRouteSelection={disableRouteSelection}
-              showRouteEditorSidebar={showRouteEditorSidebar}
-              disableCanvasPointerHandling={disableCanvasPointerHandling}
-              disableRouteHistory={disableRouteHistory}
-              disableCanvasRedrawOnPoints={disableCanvasRedrawOnPoints}
-              disableCanvasImage={disableCanvasImage}
-              disableCanvasElement={disableCanvasElement}
-              onRoutesUpdate={onRoutesUpdate}
-              onImageOrientationChange={setImageOrientation}
-              className={imageOrientation === 'portrait' ? 'h-full min-h-[72dvh] md:min-h-[78dvh]' : 'h-full min-h-[52dvh] md:min-h-[60dvh]'}
-            />
-            {interceptAllClicks ? <div className="absolute inset-0 z-30" /> : null}
-          </div>
-        )
+        <UnifiedRouteCanvas
+          ref={routeCanvasRef}
+          key={canvasKey}
+          mode={canvasMode}
+          imageUrl={activeImageUrl}
+          defaultClimbType={defaultClimbType}
+          routes={existingRouteLines}
+          onRoutesUpdate={onRoutesUpdate}
+          onImageOrientationChange={setImageOrientation}
+          className={imageOrientation === 'portrait' ? 'h-full min-h-[72dvh] md:min-h-[78dvh]' : 'h-full min-h-[52dvh] md:min-h-[60dvh]'}
+        />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-3 bg-gray-100 px-6 text-center text-sm text-gray-500 dark:bg-gray-900 dark:text-gray-300">
           <div>{activeStatusLabel}</div>
