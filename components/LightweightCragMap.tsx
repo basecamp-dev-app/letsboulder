@@ -188,8 +188,10 @@ interface LightweightCragMapProps {
   publishedPins?: LightweightCragMapPin[]
   activePinId?: string | null
   initialCenter?: [number, number] | null
+  initialZoom?: number
   onPinSelect?: (id: string) => void
   interactiveViewport?: boolean
+  staticPreview?: boolean
   className?: string
   tileUrl?: string
   attribution?: string
@@ -202,8 +204,10 @@ export default function LightweightCragMap({
   publishedPins,
   activePinId = null,
   initialCenter = null,
+  initialZoom = 15,
   onPinSelect,
   interactiveViewport = true,
+  staticPreview = false,
   className,
   tileUrl,
   attribution,
@@ -242,6 +246,8 @@ export default function LightweightCragMap({
     return pins
   }, [draftPins, pins, publishedPins])
 
+  const usesStaticPreview = staticPreview && resolvedPins.length <= 1
+
   const pinsSignature = useMemo(() => buildPinsSignature(resolvedPins), [resolvedPins])
 
   const pinFeatures = useMemo(() => buildPinFeatures(resolvedPins.map((pin) => ({
@@ -257,6 +263,7 @@ export default function LightweightCragMap({
   }))), [resolvedPins])
 
   const clusteredResults = useMemo<ClusterResult[]>(() => {
+    if (usesStaticPreview) return pinFeatures
     if (!interactiveViewport) return pinFeatures
     if (pinFeatures.length === 0 || !clusterIndex) return pinFeatures
 
@@ -277,7 +284,7 @@ export default function LightweightCragMap({
     const westClusters = clusterIndex.getClusters([mapBounds.west, south, 180, north], zoom) as ClusterResult[]
     const eastClusters = clusterIndex.getClusters([-180, south, mapBounds.east, north], zoom) as ClusterResult[]
     return [...westClusters, ...eastClusters]
-  }, [clusterIndex, interactiveViewport, mapBounds, mapZoom, pinFeatures])
+  }, [clusterIndex, interactiveViewport, mapBounds, mapZoom, pinFeatures, usesStaticPreview])
 
   const renderedPins = useMemo<RenderedMapItem[]>(() => {
     return clusteredResults.flatMap<RenderedMapItem>((feature, index) => {
@@ -373,7 +380,7 @@ export default function LightweightCragMap({
   }, [])
 
   useEffect(() => {
-    if (!interactiveViewport) return
+    if (!interactiveViewport || usesStaticPreview) return
     let cancelled = false
 
     if (pinFeatures.length === 0) {
@@ -401,7 +408,7 @@ export default function LightweightCragMap({
     return () => {
       cancelled = true
     }
-  }, [interactiveViewport, pinFeatures])
+  }, [interactiveViewport, pinFeatures, usesStaticPreview])
 
   useEffect(() => {
     uploadDebug('map-debug-state', {
@@ -413,7 +420,7 @@ export default function LightweightCragMap({
   }, [activePinId, renderedPins, resolvedPins])
 
   useEffect(() => {
-    if (!interactiveViewport) return
+    if (!interactiveViewport || usesStaticPreview) return
     const map = mapRef.current
     if (!map || !leafletLib || !mapReady || resolvedPins.length === 0) return
     if (lastFittedPinsSignatureRef.current === pinsSignature) return
@@ -437,7 +444,7 @@ export default function LightweightCragMap({
     return () => {
       window.cancelAnimationFrame(frameId)
     }
-  }, [interactiveViewport, leafletLib, mapReady, pinsSignature, resolvedPins])
+  }, [interactiveViewport, leafletLib, mapReady, pinsSignature, resolvedPins, usesStaticPreview])
 
   if (resolvedPins.length === 0) {
     return null
@@ -470,22 +477,25 @@ export default function LightweightCragMap({
           <MapContainer
             ref={mapRef as never}
             center={center}
-            zoom={15}
-            minZoom={Math.max(minAllowedZoom ?? 13, 13)}
+            zoom={initialZoom}
+            minZoom={usesStaticPreview ? initialZoom : Math.max(minAllowedZoom ?? 13, 13)}
             maxZoom={19}
-            maxBounds={maxBounds}
+            maxBounds={usesStaticPreview ? undefined : maxBounds}
             style={{ height: '100%', width: '100%' }}
             preferCanvas={true}
-            scrollWheelZoom={true}
-            doubleClickZoom={true}
-            touchZoom={true}
+            scrollWheelZoom={!usesStaticPreview}
+            doubleClickZoom={!usesStaticPreview}
+            touchZoom={!usesStaticPreview}
+            dragging={!usesStaticPreview}
+            boxZoom={!usesStaticPreview}
+            keyboard={!usesStaticPreview}
             zoomControl={false}
             whenReady={() => setMapReady(true)}
           >
             <TileLayer url={baseLayer.imageryUrl} attribution={baseLayer.imageryAttribution} maxZoom={19} />
             {baseLayer.labelsUrl ? <TileLayer url={baseLayer.labelsUrl} attribution={baseLayer.labelsAttribution || undefined} maxZoom={19} /> : null}
-            <ZoomControl position="topright" />
-            {interactiveViewport ? <MapStateWatcher onStateChange={handleMapStateChange} /> : null}
+            {usesStaticPreview ? null : <ZoomControl position="topright" />}
+            {interactiveViewport && !usesStaticPreview ? <MapStateWatcher onStateChange={handleMapStateChange} /> : null}
             {mapReady ? renderedPins.map((item, index) => (
               item.kind === 'cluster'
                 ? <ClusterMarker key={item.cluster.id} cluster={item.cluster} leafletLib={leafletLib} onSelect={handleClusterSelect} />

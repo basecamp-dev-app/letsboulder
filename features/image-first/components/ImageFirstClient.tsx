@@ -653,10 +653,9 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
             <LightweightCragMap
               pins={mapPins}
               activePinId={activeImageId}
-              onPinSelect={(imageId) => {
-                const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
-                if (nextIndex >= 0) setActiveImageIndex(nextIndex)
-              }}
+              initialCenter={[mapPins[0].latitude, mapPins[0].longitude]}
+              initialZoom={16}
+              staticPreview={true}
               heightClassName="min-h-[240px] md:min-h-[280px]"
             />
           </div>
