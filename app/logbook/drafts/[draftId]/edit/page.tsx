@@ -166,6 +166,10 @@ export default function EditDraftPage() {
             disableCanvasImage={state.killSwitches.disableCanvasImage}
             disableCanvasElement={state.killSwitches.disableCanvasElement}
             disableWorkstationChrome={state.killSwitches.disableWorkstationChrome}
+            disableWorkstationMap={state.killSwitches.disableWorkstationMap}
+            disableRouteEditorRail={state.killSwitches.disableRouteEditorRail}
+            disableImageStrip={state.killSwitches.disableImageStrip}
+            disableToolBar={state.killSwitches.disableToolBar}
             onSelectRoute={(routeId) => {
               canvas.setSelectedRoute(routeId)
               canvas.setActiveRoute(routeId)

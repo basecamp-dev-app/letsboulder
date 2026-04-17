@@ -53,6 +53,10 @@ export function useDraftEditorOrchestration({
     disableCanvasImage: searchParams.get('disableCanvasImage') === '1',
     disableCanvasElement: searchParams.get('disableCanvasElement') === '1',
     disableWorkstationChrome: searchParams.get('disableWorkstationChrome') === '1',
+    disableWorkstationMap: searchParams.get('disableWorkstationMap') === '1',
+    disableRouteEditorRail: searchParams.get('disableRouteEditorRail') === '1',
+    disableImageStrip: searchParams.get('disableImageStrip') === '1',
+    disableToolBar: searchParams.get('disableToolBar') === '1',
   }), [searchParams])
   const { conflict, setConflict, clearConflict } = useDraftConflictResolution()
   const { detailsOpen, setDetailsOpen, orientationOpen, setOrientationOpen } = useDraftRouteEditing()
