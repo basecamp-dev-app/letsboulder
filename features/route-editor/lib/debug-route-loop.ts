@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 'use client'
 
 type DebugPayload = Record<string, unknown>

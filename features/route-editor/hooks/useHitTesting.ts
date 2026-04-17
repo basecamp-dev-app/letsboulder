@@ -61,7 +61,6 @@ export function useHitTesting(routes: RouteLine[]) {
           routeId,
           activeRouteId,
           newRouteId,
-          routeCount: routes.length,
         })
         setActiveRoute(newRouteId)
         setSelectedRoute(newRouteId)
@@ -70,7 +69,6 @@ export function useHitTesting(routes: RouteLine[]) {
         logRouteLoop('hit-testing:route-clear', {
           point,
           activeRouteId,
-          routeCount: routes.length,
         })
         setActiveRoute(null)
         setSelectedRoute(null)

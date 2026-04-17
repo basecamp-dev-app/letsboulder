@@ -60,7 +60,7 @@ export function useEditDraftRouteStoreSync({
     setSelectedRoute(null)
     setActiveRoute(null)
     setEditorPanelOpen(false)
-  }, [activeDraftImageId, clearCanvasState, existingRouteLines, parentRoutes, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
+  }, [activeDraftImageId, clearCanvasState, existingRouteLines, parentRoutes, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute, storeRoutes.length])
 
   useEffect(() => {
     if (!activeDraftImageId) return
@@ -83,7 +83,7 @@ export function useEditDraftRouteStoreSync({
     lastAppliedParentRoutesRef.current = parentRoutes
     lastPushedStoreRoutesRef.current = parentRoutes
     setRoutes(existingRouteLines)
-  }, [activeDraftImageId, existingRouteLines, parentRoutes, setRoutes])
+  }, [activeDraftImageId, existingRouteLines, parentRoutes, setRoutes, storeRoutes.length])
 
   useEffect(() => {
     if (!activeDraftImageId) return
