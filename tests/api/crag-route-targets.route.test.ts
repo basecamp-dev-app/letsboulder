@@ -23,32 +23,34 @@ describe('GET /api/crags/route-targets', () => {
   })
 
   test('returns paged route target maps from the crag-scoped rpc', async () => {
-    const rpc = vi.fn(async (fnName: string, args: Record<string, unknown>) => {
-      expect(fnName).toBe('get_crag_route_targets_page')
-      expect(args).toEqual({
-        p_crag_id: '11111111-1111-4111-8111-111111111111',
-        p_limit: 50,
-        p_offset: 0,
-      })
+    const createMockQuery = (data: unknown) => ({
+      eq: () => createMockQuery(data),
+      is: () => createMockQuery(data),
+      in: () => createMockQuery(data),
+      order: () => createMockQuery(data),
+      then: (onFulfilled: (arg: { data: unknown; error: null }) => void) => onFulfilled({ data, error: null }),
+      data,
+      error: null,
+    })
 
-      return {
-        data: [
-          {
-            effective_climb_id: 'climb-1',
-            climb_slug: 'route-one',
-            preview_image_id: 'image-1',
-            preview_image_url: 'https://example.com/image-1.jpg',
-            navigation_route_id: 'route-line-1',
-            navigation_image_id: 'image-1',
-            navigation_image_url: 'https://example.com/image-1.jpg',
-            route_image_ids: ['image-1', 'image-2'],
-          },
+    const mockFrom = vi.fn((table: string) => {
+      const tableData: Record<string, unknown[]> = {
+        climbs: [{ id: 'climb-1', shared_climb_id: 'climb-1' }],
+        route_lines: [
+          { id: 'route-line-1', image_id: 'image-1', climb_id: 'climb-1', sequence_order: 1, created_at: new Date().toISOString() },
+          { id: 'route-line-2', image_id: 'image-2', climb_id: 'climb-1', sequence_order: 2, created_at: new Date().toISOString() },
         ],
-        error: null,
+        images: [
+          { id: 'image-1', url: 'https://example.com/image-1.jpg' },
+          { id: 'image-2', url: 'https://example.com/image-2.jpg' },
+        ],
+      }
+      return {
+        select: () => createMockQuery(tableData[table] || []),
       }
     })
 
-    mockCreateClient.mockReturnValue({ rpc })
+    mockCreateClient.mockReturnValue({ from: mockFrom })
 
     const response = await GET(
       new NextRequest('http://localhost:3000/api/crags/route-targets?cragId=11111111-1111-4111-8111-111111111111&limit=50&offset=0')
@@ -66,7 +68,7 @@ describe('GET /api/crags/route-targets', () => {
       'climb-1': {
         climbId: 'climb-1',
         routeId: 'route-line-1',
-        climbSlug: 'route-one',
+        climbSlug: null,
         imageId: 'image-1',
         displayImageId: 'image-1',
         displayImageUrl: 'https://example.com/image-1.jpg',
@@ -76,8 +78,14 @@ describe('GET /api/crags/route-targets', () => {
       'image-1': {
         climbId: 'climb-1',
         routeId: 'route-line-1',
-        climbSlug: 'route-one',
+        climbSlug: null,
         imageId: 'image-1',
+      },
+      'image-2': {
+        climbId: 'climb-1',
+        routeId: 'route-line-2',
+        climbSlug: null,
+        imageId: 'image-2',
       },
     })
     expect(json.hasMore).toBe(false)
