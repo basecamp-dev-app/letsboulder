@@ -46,6 +46,7 @@ interface SubmissionWorkstationProps {
   disableCanvasPointerHandling?: boolean
   disableRouteHistory?: boolean
   disableCanvasRedrawOnPoints?: boolean
+  disableCanvasSubtree?: boolean
   onSelectRoute: (routeId: string) => void
   onReorderRoutes?: (routeIds: string[]) => void
   interactionTool: 'select' | 'draw'
@@ -88,6 +89,7 @@ export function SubmissionWorkstation({
   disableCanvasPointerHandling = false,
   disableRouteHistory = false,
   disableCanvasRedrawOnPoints = false,
+  disableCanvasSubtree = false,
   onSelectRoute,
   onReorderRoutes,
   interactionTool,
@@ -173,6 +175,7 @@ export function SubmissionWorkstation({
         disableCanvasPointerHandling={disableCanvasPointerHandling}
         disableRouteHistory={disableRouteHistory}
         disableCanvasRedrawOnPoints={disableCanvasRedrawOnPoints}
+        disableCanvasSubtree={disableCanvasSubtree}
         onRoutesUpdate={onRoutesUpdate}
         onRetryActiveImage={onRetryActiveImage}
         onDeleteActiveImage={onDeleteActiveImage}
