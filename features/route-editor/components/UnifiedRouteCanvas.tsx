@@ -28,6 +28,8 @@ interface UnifiedRouteCanvasProps {
   disableCanvasPointerHandling?: boolean
   disableRouteHistory?: boolean
   disableCanvasRedrawOnPoints?: boolean
+  disableCanvasImage?: boolean
+  disableCanvasElement?: boolean
   className?: string
 }
 
@@ -73,6 +75,8 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   disableCanvasPointerHandling = false,
   disableRouteHistory = false,
   disableCanvasRedrawOnPoints = false,
+  disableCanvasImage = false,
+  disableCanvasElement = false,
   className = '',
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -365,12 +369,14 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
 
   return (
     <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${className}`} style={{ cursor: cursorStyle }}>
-      <CanvasImage
-        key={imageUrl}
-        src={imageUrl}
-        onImageLoad={handleImageLoad}
-        onImageError={handleImageError}
-      />
+      {!disableCanvasImage ? (
+        <CanvasImage
+          key={imageUrl}
+          src={imageUrl}
+          onImageLoad={handleImageLoad}
+          onImageError={handleImageError}
+        />
+      ) : null}
 
       {imageError && (
         <div className="absolute inset-0 flex items-center justify-center text-red-500">
@@ -384,13 +390,15 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
         </div>
       )}
 
-        <canvas
-          ref={canvasRef}
-          className="absolute z-10"
-          style={{ touchAction: 'none' }}
-          onPointerDown={handlePointerDown}
-          onMouseDown={handleMouseDown}
-        />
+        {!disableCanvasElement ? (
+          <canvas
+            ref={canvasRef}
+            className="absolute z-10"
+            style={{ touchAction: 'none' }}
+            onPointerDown={handlePointerDown}
+            onMouseDown={handleMouseDown}
+          />
+        ) : null}
 
       {showOverlay ? (
         <RouteCanvasOverlay

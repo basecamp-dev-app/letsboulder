@@ -47,6 +47,10 @@ interface SubmissionWorkstationProps {
   disableRouteHistory?: boolean
   disableCanvasRedrawOnPoints?: boolean
   disableCanvasSubtree?: boolean
+  interceptAllClicks?: boolean
+  disableCanvasImage?: boolean
+  disableCanvasElement?: boolean
+  disableWorkstationChrome?: boolean
   onSelectRoute: (routeId: string) => void
   onReorderRoutes?: (routeIds: string[]) => void
   interactionTool: 'select' | 'draw'
@@ -90,6 +94,10 @@ export function SubmissionWorkstation({
   disableRouteHistory = false,
   disableCanvasRedrawOnPoints = false,
   disableCanvasSubtree = false,
+  interceptAllClicks = false,
+  disableCanvasImage = false,
+  disableCanvasElement = false,
+  disableWorkstationChrome = false,
   onSelectRoute,
   onReorderRoutes,
   interactionTool,
@@ -137,28 +145,32 @@ export function SubmissionWorkstation({
         removeAction={removeAction}
       />
 
-      <WorkstationImageStrip
-        images={quickSwitcherImages}
-        activeImageId={activeImageId}
-        isQuickBarDragOver={isQuickBarDragOver}
-        imageSwitchingDisabled={imageSwitchingDisabled}
-        onSelectImage={onSelectImage}
-        onReorderImages={onReorderImages}
-        onQuickBarDropFiles={onQuickBarDropFiles}
-        onQuickBarDragStateChange={setIsQuickBarDragOver}
-        removeAction={removeAction}
-      />
+      {!disableWorkstationChrome ? (
+        <>
+          <WorkstationImageStrip
+            images={quickSwitcherImages}
+            activeImageId={activeImageId}
+            isQuickBarDragOver={isQuickBarDragOver}
+            imageSwitchingDisabled={imageSwitchingDisabled}
+            onSelectImage={onSelectImage}
+            onReorderImages={onReorderImages}
+            onQuickBarDropFiles={onQuickBarDropFiles}
+            onQuickBarDragStateChange={setIsQuickBarDragOver}
+            removeAction={removeAction}
+          />
 
-      <WorkstationToolBar
-        interactionTool={interactionTool}
-        currentPointsCount={currentPointsCount}
-        routeCountLabel={routeCountLabel}
-        hideRouteActions={hideRouteActions}
-        onSetSelectTool={onSetSelectTool}
-        onSetDrawTool={onSetDrawTool}
-        onUndoPoint={onUndoPoint}
-        onFinishRoute={onFinishRoute}
-      />
+          <WorkstationToolBar
+            interactionTool={interactionTool}
+            currentPointsCount={currentPointsCount}
+            routeCountLabel={routeCountLabel}
+            hideRouteActions={hideRouteActions}
+            onSetSelectTool={onSetSelectTool}
+            onSetDrawTool={onSetDrawTool}
+            onUndoPoint={onUndoPoint}
+            onFinishRoute={onFinishRoute}
+          />
+        </>
+      ) : null}
 
       <WorkstationCanvasPanel
         routeCanvasRef={routeCanvasRef}
@@ -176,26 +188,33 @@ export function SubmissionWorkstation({
         disableRouteHistory={disableRouteHistory}
         disableCanvasRedrawOnPoints={disableCanvasRedrawOnPoints}
         disableCanvasSubtree={disableCanvasSubtree}
+        interceptAllClicks={interceptAllClicks}
+        disableCanvasImage={disableCanvasImage}
+        disableCanvasElement={disableCanvasElement}
         onRoutesUpdate={onRoutesUpdate}
         onRetryActiveImage={onRetryActiveImage}
         onDeleteActiveImage={onDeleteActiveImage}
       />
 
-      <RouteEditorRail
-        routes={existingRouteLines}
-        selectedRouteId={selectedRouteId}
-        onSelectRoute={onSelectRoute}
-        onReorderRoutes={onReorderRoutes}
-      />
+      {!disableWorkstationChrome ? (
+        <>
+          <RouteEditorRail
+            routes={existingRouteLines}
+            selectedRouteId={selectedRouteId}
+            onSelectRoute={onSelectRoute}
+            onReorderRoutes={onReorderRoutes}
+          />
 
-      <WorkstationMapPanel
-        draftPins={draftPins}
-        publishedPins={publishedPins}
-        activeImageId={activeImageId}
-        initialCenter={initialCenter}
-        imageSwitchingDisabled={imageSwitchingDisabled}
-        onSelectImage={onSelectImage}
-      />
+          <WorkstationMapPanel
+            draftPins={draftPins}
+            publishedPins={publishedPins}
+            activeImageId={activeImageId}
+            initialCenter={initialCenter}
+            imageSwitchingDisabled={imageSwitchingDisabled}
+            onSelectImage={onSelectImage}
+          />
+        </>
+      ) : null}
     </div>
   )
 }
