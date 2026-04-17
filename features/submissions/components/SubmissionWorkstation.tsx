@@ -41,20 +41,6 @@ interface SubmissionWorkstationProps {
   onReorderImages?: (imageIds: string[]) => void
   existingRouteLines: RouteLine[]
   selectedRouteId: string | null
-  disableRouteSelection?: boolean
-  showRouteEditorSidebar?: boolean
-  disableCanvasPointerHandling?: boolean
-  disableRouteHistory?: boolean
-  disableCanvasRedrawOnPoints?: boolean
-  disableCanvasSubtree?: boolean
-  interceptAllClicks?: boolean
-  disableCanvasImage?: boolean
-  disableCanvasElement?: boolean
-  disableWorkstationChrome?: boolean
-  disableWorkstationMap?: boolean
-  disableRouteEditorRail?: boolean
-  disableImageStrip?: boolean
-  disableToolBar?: boolean
   onSelectRoute: (routeId: string) => void
   onReorderRoutes?: (routeIds: string[]) => void
   interactionTool: 'select' | 'draw'
@@ -92,20 +78,6 @@ export function SubmissionWorkstation({
   onReorderImages,
   existingRouteLines,
   selectedRouteId,
-  disableRouteSelection = false,
-  showRouteEditorSidebar = true,
-  disableCanvasPointerHandling = false,
-  disableRouteHistory = false,
-  disableCanvasRedrawOnPoints = false,
-  disableCanvasSubtree = false,
-  interceptAllClicks = false,
-  disableCanvasImage = false,
-  disableCanvasElement = false,
-  disableWorkstationChrome = false,
-  disableWorkstationMap = false,
-  disableRouteEditorRail = false,
-  disableImageStrip = false,
-  disableToolBar = false,
   onSelectRoute,
   onReorderRoutes,
   interactionTool,
@@ -153,35 +125,28 @@ export function SubmissionWorkstation({
         removeAction={removeAction}
       />
 
-      {!disableWorkstationChrome && !disableImageStrip ? (
-        <>
-          <WorkstationImageStrip
-            images={quickSwitcherImages}
-            activeImageId={activeImageId}
-            isQuickBarDragOver={isQuickBarDragOver}
-            imageSwitchingDisabled={imageSwitchingDisabled}
-            onSelectImage={onSelectImage}
-            onReorderImages={onReorderImages}
-            onQuickBarDropFiles={onQuickBarDropFiles}
-            onQuickBarDragStateChange={setIsQuickBarDragOver}
-            removeAction={removeAction}
-          />
+      <WorkstationImageStrip
+        images={quickSwitcherImages}
+        activeImageId={activeImageId}
+        isQuickBarDragOver={isQuickBarDragOver}
+        imageSwitchingDisabled={imageSwitchingDisabled}
+        onSelectImage={onSelectImage}
+        onReorderImages={onReorderImages}
+        onQuickBarDropFiles={onQuickBarDropFiles}
+        onQuickBarDragStateChange={setIsQuickBarDragOver}
+        removeAction={removeAction}
+      />
 
-        </>
-      ) : null}
-
-      {!disableWorkstationChrome && !disableToolBar ? (
-        <WorkstationToolBar
-          interactionTool={interactionTool}
-          currentPointsCount={currentPointsCount}
-          routeCountLabel={routeCountLabel}
-          hideRouteActions={hideRouteActions}
-          onSetSelectTool={onSetSelectTool}
-          onSetDrawTool={onSetDrawTool}
-          onUndoPoint={onUndoPoint}
-          onFinishRoute={onFinishRoute}
-        />
-      ) : null}
+      <WorkstationToolBar
+        interactionTool={interactionTool}
+        currentPointsCount={currentPointsCount}
+        routeCountLabel={routeCountLabel}
+        hideRouteActions={hideRouteActions}
+        onSetSelectTool={onSetSelectTool}
+        onSetDrawTool={onSetDrawTool}
+        onUndoPoint={onUndoPoint}
+        onFinishRoute={onFinishRoute}
+      />
 
       <WorkstationCanvasPanel
         routeCanvasRef={routeCanvasRef}
@@ -193,43 +158,26 @@ export function SubmissionWorkstation({
         canvasMode={canvasMode}
         defaultClimbType={defaultClimbType}
         existingRouteLines={existingRouteLines}
-        disableRouteSelection={disableRouteSelection}
-        showRouteEditorSidebar={showRouteEditorSidebar}
-        disableCanvasPointerHandling={disableCanvasPointerHandling}
-        disableRouteHistory={disableRouteHistory}
-        disableCanvasRedrawOnPoints={disableCanvasRedrawOnPoints}
-        disableCanvasSubtree={disableCanvasSubtree}
-        interceptAllClicks={interceptAllClicks}
-        disableCanvasImage={disableCanvasImage}
-        disableCanvasElement={disableCanvasElement}
         onRoutesUpdate={onRoutesUpdate}
         onRetryActiveImage={onRetryActiveImage}
         onDeleteActiveImage={onDeleteActiveImage}
       />
 
-      {!disableWorkstationChrome && !disableRouteEditorRail ? (
-        <>
-          <RouteEditorRail
-            routes={existingRouteLines}
-            selectedRouteId={selectedRouteId}
-            onSelectRoute={onSelectRoute}
-            onReorderRoutes={onReorderRoutes}
-          />
-        </>
-      ) : null}
+      <RouteEditorRail
+        routes={existingRouteLines}
+        selectedRouteId={selectedRouteId}
+        onSelectRoute={onSelectRoute}
+        onReorderRoutes={onReorderRoutes}
+      />
 
-      {!disableWorkstationChrome && !disableWorkstationMap ? (
-        <>
-          <WorkstationMapPanel
-            draftPins={draftPins}
-            publishedPins={publishedPins}
-            activeImageId={activeImageId}
-            initialCenter={initialCenter}
-            imageSwitchingDisabled={imageSwitchingDisabled}
-            onSelectImage={onSelectImage}
-          />
-        </>
-      ) : null}
+      <WorkstationMapPanel
+        draftPins={draftPins}
+        publishedPins={publishedPins}
+        activeImageId={activeImageId}
+        initialCenter={initialCenter}
+        imageSwitchingDisabled={imageSwitchingDisabled}
+        onSelectImage={onSelectImage}
+      />
     </div>
   )
 }

@@ -1,5 +1,4 @@
 import { useCallback, useRef } from 'react'
-import { logRouteLoop } from '@/features/route-editor/lib/debug-route-loop'
 import { useRouteStore } from '@/features/route-editor/store'
 import { createRoutePath2D } from '@/lib/route-renderer'
 import type { RoutePoint, RouteLine } from '@/types/domain'
@@ -12,10 +11,9 @@ function isMobileDevice(): boolean {
   return navigator.maxTouchPoints > 0
 }
 
-export function useHitTesting(routes: RouteLine[], options?: { disableSelection?: boolean }) {
+export function useHitTesting(routes: RouteLine[]) {
   const { activeRouteId, setActiveRoute, setSelectedRoute, interactionTool } = useRouteStore()
   const pathCache = useRef<Map<string, Path2D | null>>(new Map())
-  const disableSelection = options?.disableSelection === true
 
   const getPathForRoute = useCallback((route: RouteLine): Path2D | null => {
     const cached = pathCache.current.get(route.id)
@@ -57,32 +55,16 @@ export function useHitTesting(routes: RouteLine[], options?: { disableSelection?
       const routeId = findRouteAtPoint(point)
       if (routeId) {
         const newRouteId = routeId === activeRouteId ? null : routeId
-        logRouteLoop('hit-testing:route-click', {
-          point,
-          routeId,
-          activeRouteId,
-          newRouteId,
-          disableSelection,
-        })
-        if (!disableSelection) {
-          setActiveRoute(newRouteId)
-          setSelectedRoute(newRouteId)
-        }
+        setActiveRoute(newRouteId)
+        setSelectedRoute(newRouteId)
         return newRouteId
       } else {
-        logRouteLoop('hit-testing:route-clear', {
-          point,
-          activeRouteId,
-          disableSelection,
-        })
-        if (!disableSelection) {
-          setActiveRoute(null)
-          setSelectedRoute(null)
-        }
+        setActiveRoute(null)
+        setSelectedRoute(null)
         return null
       }
     },
-    [interactionTool, findRouteAtPoint, activeRouteId, disableSelection, setActiveRoute, setSelectedRoute]
+    [interactionTool, findRouteAtPoint, activeRouteId, setActiveRoute, setSelectedRoute]
   )
 
   return {

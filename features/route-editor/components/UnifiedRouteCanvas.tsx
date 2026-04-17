@@ -23,13 +23,6 @@ interface UnifiedRouteCanvasProps {
   onRouteSelect?: (routeId: string | null) => void
   onRoutesUpdate?: (routes: RouteLine[]) => void
   onImageOrientationChange?: (orientation: 'portrait' | 'landscape') => void
-  disableRouteSelection?: boolean
-  showRouteEditorSidebar?: boolean
-  disableCanvasPointerHandling?: boolean
-  disableRouteHistory?: boolean
-  disableCanvasRedrawOnPoints?: boolean
-  disableCanvasImage?: boolean
-  disableCanvasElement?: boolean
   className?: string
 }
 
@@ -70,13 +63,6 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   onRouteSelect,
   onRoutesUpdate,
   onImageOrientationChange,
-  disableRouteSelection = false,
-  showRouteEditorSidebar = true,
-  disableCanvasPointerHandling = false,
-  disableRouteHistory = false,
-  disableCanvasRedrawOnPoints = false,
-  disableCanvasImage = false,
-  disableCanvasElement = false,
   className = '',
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -149,9 +135,9 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     onImageOrientationChange(naturalHeight > naturalWidth ? 'portrait' : 'landscape')
   }, [naturalHeight, naturalWidth, onImageOrientationChange])
 
-  const { isDrawingEnabled, addPoint } = useRouteDrawing({ disableRouteHistory })
+  const { isDrawingEnabled, addPoint } = useRouteDrawing()
 
-  const { handleRouteClick } = useHitTesting(routes, { disableSelection: disableRouteSelection })
+  const { handleRouteClick } = useHitTesting(routes)
 
   const getCanvasPoint = useCallback(
     (clientX: number, clientY: number) => {
@@ -187,18 +173,16 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   }, [addPoint, getCanvasPoint, handleRouteClick, isDrawingEnabled, onRouteSelect])
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (disableCanvasPointerHandling) return
     if (event.button !== 0 || event.altKey) return
     lastPointerTimestampRef.current = Date.now()
     handleCanvasPress(event.clientX, event.clientY)
-  }, [disableCanvasPointerHandling, handleCanvasPress])
+  }, [handleCanvasPress])
 
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (disableCanvasPointerHandling) return
     if (Date.now() - lastPointerTimestampRef.current < 250) return
     if (event.button !== 0 || event.altKey) return
     handleCanvasPress(event.clientX, event.clientY)
-  }, [disableCanvasPointerHandling, handleCanvasPress])
+  }, [handleCanvasPress])
 
   const handleFinishRoute = useCallback(() => {
     if (currentPoints.length < 2 || !onRoutesUpdate) return
@@ -269,11 +253,6 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
       centerY: 0,
     }
 
-    if (disableCanvasRedrawOnPoints) {
-      ctx.restore()
-      return
-    }
-
     drawRoutes(
       ctx,
       routes,
@@ -295,7 +274,6 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     naturalWidth,
     naturalHeight,
     imageLoaded,
-    disableCanvasRedrawOnPoints,
   ])
 
   const cursorStyle = isDrawingEnabled && currentPoints.length > 0 ? 'crosshair' : 'default'
@@ -369,14 +347,12 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
 
   return (
     <div ref={containerRef} className={`relative w-full h-full overflow-hidden ${className}`} style={{ cursor: cursorStyle }}>
-      {!disableCanvasImage ? (
-        <CanvasImage
-          key={imageUrl}
-          src={imageUrl}
-          onImageLoad={handleImageLoad}
-          onImageError={handleImageError}
-        />
-      ) : null}
+      <CanvasImage
+        key={imageUrl}
+        src={imageUrl}
+        onImageLoad={handleImageLoad}
+        onImageError={handleImageError}
+      />
 
       {imageError && (
         <div className="absolute inset-0 flex items-center justify-center text-red-500">
@@ -390,15 +366,13 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
         </div>
       )}
 
-        {!disableCanvasElement ? (
-          <canvas
-            ref={canvasRef}
-            className="absolute z-10"
-            style={{ touchAction: 'none' }}
-            onPointerDown={handlePointerDown}
-            onMouseDown={handleMouseDown}
-          />
-        ) : null}
+        <canvas
+          ref={canvasRef}
+          className="absolute z-10"
+          style={{ touchAction: 'none' }}
+          onPointerDown={handlePointerDown}
+          onMouseDown={handleMouseDown}
+        />
 
       {showOverlay ? (
         <RouteCanvasOverlay
@@ -412,7 +386,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
         />
       ) : null}
 
-      {mode !== 'browse' && showRouteEditorSidebar && editorPanelOpen && <RouteEditSidebar />}
+      {mode !== 'browse' && editorPanelOpen && <RouteEditSidebar />}
     </div>
   )
 })
