@@ -56,6 +56,11 @@ export interface UseCragRouteTargetsParams {
   setRouteNavigationTargetByClimbId: (updater: (prev: Record<string, RouteNavigationTarget>) => Record<string, RouteNavigationTarget>) => void
 }
 
+export interface UseCragRouteTargetsResult {
+  routeTargetsHydrating: boolean
+  routeTargetsComplete: boolean
+}
+
 export function useCragRouteTargets({
   cragId,
   routes,
@@ -64,7 +69,7 @@ export function useCragRouteTargets({
   setRouteImageIdsByClimbId,
   setRoutePreviewByClimbId,
   setRouteNavigationTargetByClimbId,
-}: UseCragRouteTargetsParams) {
+}: UseCragRouteTargetsParams): UseCragRouteTargetsResult {
   const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false
   const shouldLoad = routes.length > 0 && !initialRouteTargetsComplete && !isOffline
 
@@ -91,4 +96,9 @@ export function useCragRouteTargets({
     setRouteNavigationTargetByClimbId,
     setRoutePreviewByClimbId,
   ])
+
+  return {
+    routeTargetsHydrating: shouldLoad && (routeTargetsQuery.isLoading || routeTargetsQuery.isFetching),
+    routeTargetsComplete: initialRouteTargetsComplete || Boolean(routeTargetsQuery.data),
+  }
 }

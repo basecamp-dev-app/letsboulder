@@ -11,6 +11,8 @@ interface CragRouteListProps {
   routesLoadState: 'idle' | 'loading' | 'loaded' | 'error'
   highlightedRouteIds: Set<string>
   routePreviewDisplayByClimbId: Record<string, RoutePreview>
+  routeTargetsHydrating: boolean
+  routeTargetsComplete: boolean
   pinNumberByImageId: Map<string, number>
   gradeSystem: GradeSystem
   routesCount: number
@@ -50,6 +52,8 @@ const CragRouteList = React.memo(function CragRouteList({
   routesLoadState,
   highlightedRouteIds,
   routePreviewDisplayByClimbId,
+  routeTargetsHydrating,
+  routeTargetsComplete,
   pinNumberByImageId,
   gradeSystem,
   routesCount,
@@ -113,6 +117,7 @@ const CragRouteList = React.memo(function CragRouteList({
             const destination = getRouteDestination(route)
             const className = `flex items-center gap-3 px-4 py-3 transition hover:bg-stone-50 dark:hover:bg-gray-800/50 ${highlightedRouteIds.has(route.id) ? 'bg-teal-50/80 ring-1 ring-inset ring-teal-200 dark:bg-teal-950/20 dark:ring-teal-900' : ''}`
             const preview = routePreviewDisplayByClimbId[route.id]
+            const showPreviewSkeleton = !preview && routeTargetsHydrating && !routeTargetsComplete
 
             const content = (
               <>
@@ -125,6 +130,8 @@ const CragRouteList = React.memo(function CragRouteList({
                       </div>
                     ) : null}
                   </div>
+                ) : showPreviewSkeleton ? (
+                  <div className="size-16 shrink-0 animate-pulse rounded-2xl border border-stone-200 bg-stone-100 shadow-sm dark:border-gray-700 dark:bg-gray-800" aria-hidden="true" />
                 ) : (
                   <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 text-[10px] font-medium uppercase tracking-wide text-stone-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">No topo</div>
                 )}

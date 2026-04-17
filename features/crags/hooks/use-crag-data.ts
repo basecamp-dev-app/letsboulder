@@ -67,7 +67,7 @@ export function useCragData({
     setRouteNavigationTargetByClimbId,
   })
 
-  useCragRouteTargets({
+  const { routeTargetsHydrating, routeTargetsComplete } = useCragRouteTargets({
     cragId: id,
     routes,
     initialRouteTargetsComplete,
@@ -89,5 +89,7 @@ export function useCragData({
     retryRoutes,
     loading,
     cragCenter,
+    routeTargetsHydrating,
+    routeTargetsComplete,
   }
 }

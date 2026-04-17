@@ -487,9 +487,10 @@ export async function fetchCragRoutePreviewsBatched(
   supabase: SupabaseClient<Database>,
   cragId: string,
   effectiveClimbIdByClimbId: Record<string, string>,
-  options?: { limit?: number }
+  options?: { limit?: number; prioritizedClimbIds?: string[] }
 ) {
   const limit = options?.limit
+  const prioritizedClimbIds = options?.prioritizedClimbIds || []
 
   const { data: climbData } = await supabase
     .from('climbs')
@@ -512,7 +513,12 @@ export async function fetchCragRoutePreviewsBatched(
     ...climbIds.flatMap(id => effectiveClimbIdByClimbId[id] ? [effectiveClimbIdByClimbId[id]] : [])
   ])]
 
-  const limitedClimbIds = limit ? allClimbIds.slice(0, limit) : allClimbIds
+  const prioritizedSet = new Set(prioritizedClimbIds)
+  const orderedClimbIds = [
+    ...prioritizedClimbIds.filter((id, index) => prioritizedClimbIds.indexOf(id) === index && allClimbIds.includes(id)),
+    ...allClimbIds.filter((id) => !prioritizedSet.has(id)),
+  ]
+  const limitedClimbIds = limit ? orderedClimbIds.slice(0, limit) : orderedClimbIds
 
   const routeImageIdsByClimbId: Record<string, string[]> = {}
   const routePreviewByClimbId: Record<string, { imageId: string; imageUrl: string }> = {}

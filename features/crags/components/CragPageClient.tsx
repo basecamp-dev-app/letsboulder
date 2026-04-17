@@ -54,6 +54,8 @@ export default function CragPageClient({
     routesLoadState,
     retryRoutes,
     cragCenter,
+    routeTargetsHydrating,
+    routeTargetsComplete,
   } = useCragData({
     id,
     initialCrag,
@@ -131,6 +133,8 @@ export default function CragPageClient({
         routesLoadState={routesLoadState}
         highlightedRouteIds={filters.highlightedRouteIds}
         routePreviewDisplayByClimbId={filters.routePreviewDisplayByClimbId}
+        routeTargetsHydrating={routeTargetsHydrating}
+        routeTargetsComplete={routeTargetsComplete}
         pinNumberByImageId={filters.pinNumberByImageId}
         gradeSystem={filters.gradeSystem}
         routeInsightsUnavailable={filters.routeInsightsUnavailable}
