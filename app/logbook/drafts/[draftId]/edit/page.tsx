@@ -152,6 +152,9 @@ export default function EditDraftPage() {
             selectedRouteId={canvas.selectedRouteId}
             disableRouteSelection={state.killSwitches.disableRouteSelection}
             showRouteEditorSidebar={!state.killSwitches.disableRouteSidebar}
+            disableCanvasPointerHandling={state.killSwitches.disableCanvasPointerHandling}
+            disableRouteHistory={state.killSwitches.disableRouteHistory}
+            disableCanvasRedrawOnPoints={state.killSwitches.disableCanvasRedrawOnPoints}
             onSelectRoute={(routeId) => {
               canvas.setSelectedRoute(routeId)
               canvas.setActiveRoute(routeId)

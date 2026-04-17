@@ -25,6 +25,9 @@ interface UnifiedRouteCanvasProps {
   onImageOrientationChange?: (orientation: 'portrait' | 'landscape') => void
   disableRouteSelection?: boolean
   showRouteEditorSidebar?: boolean
+  disableCanvasPointerHandling?: boolean
+  disableRouteHistory?: boolean
+  disableCanvasRedrawOnPoints?: boolean
   className?: string
 }
 
@@ -67,6 +70,9 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   onImageOrientationChange,
   disableRouteSelection = false,
   showRouteEditorSidebar = true,
+  disableCanvasPointerHandling = false,
+  disableRouteHistory = false,
+  disableCanvasRedrawOnPoints = false,
   className = '',
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -139,7 +145,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     onImageOrientationChange(naturalHeight > naturalWidth ? 'portrait' : 'landscape')
   }, [naturalHeight, naturalWidth, onImageOrientationChange])
 
-  const { isDrawingEnabled, addPoint } = useRouteDrawing()
+  const { isDrawingEnabled, addPoint } = useRouteDrawing({ disableRouteHistory })
 
   const { handleRouteClick } = useHitTesting(routes, { disableSelection: disableRouteSelection })
 
@@ -177,16 +183,18 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   }, [addPoint, getCanvasPoint, handleRouteClick, isDrawingEnabled, onRouteSelect])
 
   const handlePointerDown = useCallback((event: React.PointerEvent<HTMLCanvasElement>) => {
+    if (disableCanvasPointerHandling) return
     if (event.button !== 0 || event.altKey) return
     lastPointerTimestampRef.current = Date.now()
     handleCanvasPress(event.clientX, event.clientY)
-  }, [handleCanvasPress])
+  }, [disableCanvasPointerHandling, handleCanvasPress])
 
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (disableCanvasPointerHandling) return
     if (Date.now() - lastPointerTimestampRef.current < 250) return
     if (event.button !== 0 || event.altKey) return
     handleCanvasPress(event.clientX, event.clientY)
-  }, [handleCanvasPress])
+  }, [disableCanvasPointerHandling, handleCanvasPress])
 
   const handleFinishRoute = useCallback(() => {
     if (currentPoints.length < 2 || !onRoutesUpdate) return
@@ -257,6 +265,11 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
       centerY: 0,
     }
 
+    if (disableCanvasRedrawOnPoints) {
+      ctx.restore()
+      return
+    }
+
     drawRoutes(
       ctx,
       routes,
@@ -278,6 +291,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
     naturalWidth,
     naturalHeight,
     imageLoaded,
+    disableCanvasRedrawOnPoints,
   ])
 
   const cursorStyle = isDrawingEnabled && currentPoints.length > 0 ? 'crosshair' : 'default'
