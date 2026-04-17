@@ -1,6 +1,7 @@
 import { INSTAGRAM_POST_WIDTH, INSTAGRAM_POST_HEIGHT } from '@/features/social/types/index'
 
 export { INSTAGRAM_POST_WIDTH, INSTAGRAM_POST_HEIGHT }
+export { INSTAGRAM_POST_WIDTH, INSTAGRAM_POST_HEIGHT } from '@/features/social/types'
 
 export interface SocialPlatformConfig {
   name: string
