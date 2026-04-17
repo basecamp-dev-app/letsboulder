@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import * as Tabs from '@radix-ui/react-tabs'
@@ -19,6 +20,8 @@ interface CragCommunitySidebarProps {
 }
 
 export default function CragCommunitySidebar({ cragId, communityPlace }: CragCommunitySidebarProps) {
+  const [activeTab, setActiveTab] = useState<'recent' | 'rankings'>('recent')
+  const [expandedTab, setExpandedTab] = useState<'recent' | 'rankings' | null>(null)
   const { data: resolvedCommunityPlace } = useQuery({
     queryKey: ['crag-community-place', cragId],
     queryFn: async (): Promise<CommunityPlaceInfo | null> => {
@@ -50,7 +53,15 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
 
   return (
     <section className="space-y-4">
-      <Tabs.Root defaultValue="recent" className="mt-4">
+      <Tabs.Root
+        value={activeTab}
+        onValueChange={(value) => {
+          const nextTab = value === 'rankings' ? 'rankings' : 'recent'
+          setActiveTab(nextTab)
+          setExpandedTab(null)
+        }}
+        className="mt-4"
+      >
         <Tabs.List className="flex rounded-lg bg-gray-100 p-0.5 dark:bg-gray-800">
           <Tabs.Trigger
             value="recent"
@@ -66,10 +77,25 @@ export default function CragCommunitySidebar({ cragId, communityPlace }: CragCom
           </Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content value="recent" className="mt-4">
-          <TopThisPlacePanel slug={resolvedCommunityPlace.slug} placeType={resolvedCommunityPlace.type} embedded />
+          <TopThisPlacePanel
+            slug={resolvedCommunityPlace.slug}
+            placeType={resolvedCommunityPlace.type}
+            embedded
+            previewLimit={3}
+            expanded={expandedTab === 'recent'}
+            onToggleExpanded={() => setExpandedTab((current) => current === 'recent' ? null : 'recent')}
+          />
         </Tabs.Content>
         <Tabs.Content value="rankings" className="mt-4">
-          <PlaceRankingsPanel slug={resolvedCommunityPlace.slug} cragId={cragId} placeType={resolvedCommunityPlace.type} embedded />
+          <PlaceRankingsPanel
+            slug={resolvedCommunityPlace.slug}
+            cragId={cragId}
+            placeType={resolvedCommunityPlace.type}
+            embedded
+            previewLimit={3}
+            expanded={expandedTab === 'rankings'}
+            onToggleExpanded={() => setExpandedTab((current) => current === 'rankings' ? null : 'rankings')}
+          />
         </Tabs.Content>
       </Tabs.Root>
     </section>

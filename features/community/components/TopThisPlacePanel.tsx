@@ -9,9 +9,19 @@ interface TopThisPlacePanelProps {
   slug: string
   placeType: 'crag' | 'gym'
   embedded?: boolean
+  previewLimit?: number
+  expanded?: boolean
+  onToggleExpanded?: () => void
 }
 
-export default function TopThisPlacePanel({ slug, placeType, embedded = false }: TopThisPlacePanelProps) {
+export default function TopThisPlacePanel({
+  slug,
+  placeType,
+  embedded = false,
+  previewLimit = 3,
+  expanded = true,
+  onToggleExpanded,
+}: TopThisPlacePanelProps) {
   const { data, isLoading, isError } = useQuery({
     queryKey: communityKeys.recentSends(slug),
     queryFn: () => fetchRecentSends(slug, 10),
@@ -19,6 +29,8 @@ export default function TopThisPlacePanel({ slug, placeType, embedded = false }:
   })
 
   const entries: RecentSendEntry[] = data?.recent_sends ?? []
+  const visibleEntries = embedded && !expanded ? entries.slice(0, previewLimit) : entries
+  const canExpand = embedded && entries.length > previewLimit
   const placeLabel = placeType === 'gym' ? 'gym' : 'crag'
 
   return (
@@ -39,7 +51,7 @@ export default function TopThisPlacePanel({ slug, placeType, embedded = false }:
 
       {!isLoading && !isError && entries.length > 0 ? (
         <div className="mt-3 space-y-2">
-          {entries.map(entry => (
+          {visibleEntries.map(entry => (
             <div key={`${entry.user_id}-${entry.climb.id}-${entry.created_at}`} className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-700 dark:bg-gray-800/50">
               <div className="min-w-0 overflow-hidden text-sm text-gray-700 dark:text-gray-200">
                 <div className="flex items-center gap-1 whitespace-nowrap">
@@ -76,6 +88,16 @@ export default function TopThisPlacePanel({ slug, placeType, embedded = false }:
             </div>
           ))}
         </div>
+      ) : null}
+
+      {canExpand ? (
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          className="mt-3 text-sm font-medium text-stone-700 transition hover:text-stone-900 dark:text-gray-300 dark:hover:text-gray-100"
+        >
+          {expanded ? 'Show fewer recent sends' : `Show all recent sends (${entries.length})`}
+        </button>
       ) : null}
     </section>
   )
