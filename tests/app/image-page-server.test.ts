@@ -144,6 +144,7 @@ describe('image-page-server raw image fallback', () => {
 
   test('builds payload from stored offline climb manifest when offline', async () => {
     vi.stubGlobal('navigator', { onLine: false })
+    // @ts-expect-error - mock return type matches StoredClimbManifest but TypeScript is strict about the shape
     getStoredClimbManifestMock.mockResolvedValue({
       climbId: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
       ownerPackIds: ['crag:crag-1'],
@@ -276,6 +277,7 @@ describe('image-page-server raw image fallback', () => {
 
   test('builds payload from stored offline climb manifest by image id when climb id is absent', async () => {
     vi.stubGlobal('navigator', { onLine: false })
+    // @ts-expect-error - mock return type matches StoredClimbManifest but TypeScript is strict about the shape
     getStoredClimbManifestByImageIdMock.mockResolvedValue({
       climbId: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
       ownerPackIds: ['crag:crag-1'],
