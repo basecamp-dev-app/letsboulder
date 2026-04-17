@@ -558,34 +558,23 @@ export async function buildImageFirstPayload(args: {
         : args.routeSlug
           ? routeById.get(args.routeSlug) || null
           : null
-  const mapPins = spatialNodes
-    .filter((node) => typeof node.latitude === 'number' && typeof node.longitude === 'number')
-    .reduce<Array<{
-      imageId: string
-      latitude: number
-      longitude: number
-      activeImageIds: string[]
-      routeSlug: string | null
-    }>>((pins, node) => {
-      const latitude = node.latitude as number
-      const longitude = node.longitude as number
-      const duplicate = pins.find((pin) => pin.latitude === latitude && pin.longitude === longitude)
-      if (duplicate) {
-        if (!duplicate.activeImageIds.includes(node.displayImageId)) {
-          duplicate.activeImageIds.push(node.displayImageId)
-        }
-        return pins
-      }
-
-      pins.push({
-        imageId: node.displayImageId,
-        latitude,
-        longitude,
-        activeImageIds: [node.displayImageId],
-        routeSlug: resolvedRoute?.climbSlug || null,
-      })
-      return pins
-    }, [])
+  const currentImageNode = spatialNodes.find((node) => node.displayImageId === image.canonicalId) || null
+  const mapPinSource = currentImageNode
+    && typeof currentImageNode.latitude === 'number'
+    && typeof currentImageNode.longitude === 'number'
+      ? currentImageNode
+      : spatialNodes.find((node) => typeof node.latitude === 'number' && typeof node.longitude === 'number') || null
+  const mapPins = mapPinSource
+    && typeof mapPinSource.latitude === 'number'
+    && typeof mapPinSource.longitude === 'number'
+      ? [{
+          imageId: mapPinSource.displayImageId,
+          latitude: mapPinSource.latitude,
+          longitude: mapPinSource.longitude,
+          activeImageIds: [mapPinSource.displayImageId],
+          routeSlug: resolvedRoute?.climbSlug || null,
+        }]
+      : []
 
   const result = {
     redirectTo: null,

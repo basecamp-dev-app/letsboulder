@@ -246,7 +246,7 @@ export default function LightweightCragMap({
     return pins
   }, [draftPins, pins, publishedPins])
 
-  const usesStaticPreview = staticPreview && resolvedPins.length <= 1
+  const usesStaticPreview = staticPreview
 
   const pinsSignature = useMemo(() => buildPinsSignature(resolvedPins), [resolvedPins])
 
@@ -490,7 +490,21 @@ export default function LightweightCragMap({
             boxZoom={!usesStaticPreview}
             keyboard={!usesStaticPreview}
             zoomControl={false}
-            whenReady={() => setMapReady(true)}
+            whenReady={() => {
+              const map = mapRef.current
+              if (usesStaticPreview && map) {
+                map.dragging.disable()
+                map.touchZoom.disable()
+                map.doubleClickZoom.disable()
+                map.scrollWheelZoom.disable()
+                map.boxZoom.disable()
+                map.keyboard.disable()
+                if ('tap' in map) {
+                  ;(map as typeof map & { tap?: { disable: () => void } }).tap?.disable()
+                }
+              }
+              setMapReady(true)
+            }}
           >
             <TileLayer url={baseLayer.imageryUrl} attribution={baseLayer.imageryAttribution} maxZoom={19} />
             {baseLayer.labelsUrl ? <TileLayer url={baseLayer.labelsUrl} attribution={baseLayer.labelsAttribution || undefined} maxZoom={19} /> : null}
