@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useRouteStore } from '@/features/route-editor/store'
+import { areSerializedRoutesEqual, type RouteEditorSerializableRoute } from '@/features/route-editor/route-editor-utils'
 import { serializeStoredRoutes } from '@/features/submissions/lib/route-store-sync'
 import type { RouteLine } from '@/types/domain'
 import type { DraftRoute } from '@/features/draft-editor/lib/edit-draft-types'
@@ -31,42 +32,50 @@ export function useEditDraftRouteStoreSync({
   } = useRouteStore()
 
   const lastSeededImageIdRef = useRef<string | null>(null)
-  const lastParentSignatureRef = useRef('')
-  const skipStoreToOwnerSyncRef = useRef(false)
+  const lastAppliedParentRoutesRef = useRef<RouteEditorSerializableRoute[]>([])
+  const lastPushedStoreRoutesRef = useRef<RouteEditorSerializableRoute[]>([])
 
-  const parentSignature = JSON.stringify(serializeStoredRoutes(existingRouteLines))
-  const storeSignature = JSON.stringify(serializeStoredRoutes(routeStoreRoutes))
+  const parentRoutes = useMemo(() => serializeStoredRoutes(existingRouteLines), [existingRouteLines])
+  const storeRoutes = useMemo(() => serializeStoredRoutes(routeStoreRoutes), [routeStoreRoutes])
 
   useEffect(() => {
     if (!activeDraftImageId) return
 
     const imageChanged = lastSeededImageIdRef.current !== activeDraftImageId
-    const parentChanged = lastParentSignatureRef.current !== parentSignature
-    if (!imageChanged && !parentChanged) return
+    if (!imageChanged) return
 
     lastSeededImageIdRef.current = activeDraftImageId
-    lastParentSignatureRef.current = parentSignature
-    skipStoreToOwnerSyncRef.current = true
+    lastAppliedParentRoutesRef.current = parentRoutes
+    lastPushedStoreRoutesRef.current = parentRoutes
 
     clearCanvasState()
     setRoutes(existingRouteLines)
     setSelectedRoute(null)
     setActiveRoute(null)
     setEditorPanelOpen(false)
-  }, [activeDraftImageId, clearCanvasState, existingRouteLines, parentSignature, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
+  }, [activeDraftImageId, clearCanvasState, existingRouteLines, parentRoutes, setActiveRoute, setEditorPanelOpen, setRoutes, setSelectedRoute])
 
   useEffect(() => {
     if (!activeDraftImageId) return
     if (lastSeededImageIdRef.current !== activeDraftImageId) return
-
-    if (skipStoreToOwnerSyncRef.current) {
-      skipStoreToOwnerSyncRef.current = false
+    if (areSerializedRoutesEqual(parentRoutes, lastAppliedParentRoutesRef.current)) return
+    if (areSerializedRoutesEqual(parentRoutes, lastPushedStoreRoutesRef.current)) {
+      lastAppliedParentRoutesRef.current = parentRoutes
       return
     }
 
-    if (storeSignature === parentSignature) return
+    lastAppliedParentRoutesRef.current = parentRoutes
+    lastPushedStoreRoutesRef.current = parentRoutes
+    setRoutes(existingRouteLines)
+  }, [activeDraftImageId, existingRouteLines, parentRoutes, setRoutes])
 
-    lastParentSignatureRef.current = storeSignature
+  useEffect(() => {
+    if (!activeDraftImageId) return
+    if (lastSeededImageIdRef.current !== activeDraftImageId) return
+    if (areSerializedRoutesEqual(storeRoutes, parentRoutes)) return
+    if (areSerializedRoutesEqual(storeRoutes, lastPushedStoreRoutesRef.current)) return
+
+    lastPushedStoreRoutesRef.current = storeRoutes
 
     setRoutesByImageId((prev) => {
       const nextRoutes = routeStoreRoutes.map((route, index) => ({
@@ -82,9 +91,17 @@ export function useEditDraftRouteStoreSync({
       }))
 
       const currentRoutes = prev[activeDraftImageId] || []
-      const currentSignature = JSON.stringify(currentRoutes)
-      const nextSignature = JSON.stringify(nextRoutes)
-      if (currentSignature === nextSignature) return prev
+      const currentSerializedRoutes = currentRoutes.map((route) => ({
+        ...route,
+        imageWidth: route.imageWidth || 1200,
+        imageHeight: route.imageHeight || 1200,
+      }))
+      const nextSerializedRoutes = nextRoutes.map((route) => ({
+        ...route,
+        imageWidth: route.imageWidth || 1200,
+        imageHeight: route.imageHeight || 1200,
+      }))
+      if (areSerializedRoutesEqual(currentSerializedRoutes, nextSerializedRoutes)) return prev
 
       markRoutesDirty([activeDraftImageId])
       return {
@@ -92,5 +109,5 @@ export function useEditDraftRouteStoreSync({
         [activeDraftImageId]: nextRoutes,
       }
     })
-  }, [activeDraftImageId, markRoutesDirty, parentSignature, routeStoreRoutes, routeType, setRoutesByImageId, storeSignature])
+  }, [activeDraftImageId, markRoutesDirty, parentRoutes, routeStoreRoutes, routeType, setRoutesByImageId, storeRoutes])
 }

@@ -193,4 +193,67 @@ describe('useEditDraftRouteStoreSync', () => {
 
     expect(markRoutesDirty).not.toHaveBeenCalled()
   })
+
+  it('does not write owner route state for selection-only rerenders', () => {
+    const route = createRoute('route-1', 'image-1')
+    const setRoutesByImageId = vi.fn()
+    const markRoutesDirty = vi.fn()
+
+    mockStore = createMockStore([route])
+
+    const { rerender } = render(React.createElement(TestHarness, {
+      activeDraftImageId: 'image-1',
+      existingRouteLines: [route],
+      setRoutesByImageId,
+      routeType: 'boulder',
+      markRoutesDirty,
+    }))
+
+    rerender(React.createElement(TestHarness, {
+      activeDraftImageId: 'image-1',
+      existingRouteLines: [createRoute('route-1', 'image-1')],
+      setRoutesByImageId,
+      routeType: 'boulder',
+      markRoutesDirty,
+    }))
+
+    expect(setRoutesByImageId).not.toHaveBeenCalled()
+    expect(markRoutesDirty).not.toHaveBeenCalled()
+    expect(mockStore.clearCanvasState).toHaveBeenCalledTimes(1)
+  })
+
+  it('reseeds same-image external route changes without resetting canvas UI state', () => {
+    const originalRoute = createRoute('route-1', 'image-1')
+    const renamedRoute = createRoute('route-1', 'image-1', 'Renamed externally')
+    const setRoutesByImageId = vi.fn()
+    const markRoutesDirty = vi.fn()
+
+    mockStore = createMockStore([originalRoute])
+
+    const { rerender } = render(React.createElement(TestHarness, {
+      activeDraftImageId: 'image-1',
+      existingRouteLines: [originalRoute],
+      setRoutesByImageId,
+      routeType: 'boulder',
+      markRoutesDirty,
+    }))
+
+    expect(mockStore.clearCanvasState).toHaveBeenCalledTimes(1)
+    expect(mockStore.setRoutes).toHaveBeenCalledTimes(1)
+
+    rerender(React.createElement(TestHarness, {
+      activeDraftImageId: 'image-1',
+      existingRouteLines: [renamedRoute],
+      setRoutesByImageId,
+      routeType: 'boulder',
+      markRoutesDirty,
+    }))
+
+    expect(mockStore.setRoutes).toHaveBeenCalledTimes(2)
+    expect(mockStore.setRoutes).toHaveBeenLastCalledWith([renamedRoute])
+    expect(mockStore.clearCanvasState).toHaveBeenCalledTimes(1)
+    expect(mockStore.setSelectedRoute).toHaveBeenCalledTimes(1)
+    expect(mockStore.setActiveRoute).toHaveBeenCalledTimes(1)
+    expect(mockStore.setEditorPanelOpen).toHaveBeenCalledTimes(1)
+  })
 })
