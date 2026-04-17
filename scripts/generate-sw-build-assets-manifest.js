@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import crypto from 'node:crypto'
 
-const projectRoot = path.resolve(__dirname, '..')
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const nextStaticDir = path.join(projectRoot, '.next', 'static')
 const outputPath = path.join(projectRoot, 'public', 'sw-build-assets.json')
 
