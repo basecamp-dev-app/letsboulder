@@ -12,6 +12,7 @@ import { useEditDraftData } from '@/features/draft-editor/hooks/use-edit-draft-d
 import { useEditDraftHydration } from '@/features/draft-editor/hooks/use-edit-draft-hydration'
 import { useEditDraftLocationSync } from '@/features/draft-editor/hooks/use-edit-draft-location-sync'
 import { useEditDraftRouteSync } from '@/features/draft-editor/hooks/use-edit-draft-route-sync'
+import { useEditDraftRouteStoreSync } from '@/features/draft-editor/hooks/use-edit-draft-route-store-sync'
 import { useEditDraftUploads } from '@/features/draft-editor/hooks/use-edit-draft-uploads'
 import { useDraftEditorActions } from '@/features/draft-editor/hooks/use-draft-editor-actions'
 import { useDraftEditorDerivedState } from '@/features/draft-editor/hooks/use-draft-editor-derived-state'
@@ -363,6 +364,14 @@ export function useDraftEditorOrchestration({
     activeDraftImageId,
     routeType,
     setRoutesByImageId,
+    markRoutesDirty,
+  })
+
+  useEditDraftRouteStoreSync({
+    activeDraftImageId,
+    existingRouteLines,
+    setRoutesByImageId,
+    routeType,
     markRoutesDirty,
   })
 

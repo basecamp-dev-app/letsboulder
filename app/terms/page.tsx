@@ -53,6 +53,9 @@ export default function TermsPage() {
           <p className="text-gray-700 dark:text-gray-300">
             letsboulder provides climbing maps, route beta, logbooks, rankings, route submissions, images, and community features for climbers.
           </p>
+          <p className="text-gray-700 dark:text-gray-300 mt-4">
+            letsboulder&apos;s route database is community-created. Route information, grades, locations, photos, and access details are submitted by users. We do not guarantee the accuracy, completeness, or safety of any user-submitted content.
+          </p>
         </section>
 
         <section className="mb-8">
@@ -143,7 +146,7 @@ export default function TermsPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">12. Third-Party Services</h2>
           <p className="text-gray-700 dark:text-gray-300">
-            letsboulder relies on third-party services including Supabase, Vercel, Vercel Analytics, Resend, and AWS Rekognition. Their services are subject to their own terms and privacy practices.
+            letsboulder relies on third-party services including Supabase, Vercel, Vercel Analytics, Resend, AWS Rekognition, Cloudflare (R2 storage, Workers, CDN), and Sentry. Their services are subject to their own terms and privacy practices.
           </p>
         </section>
 
@@ -175,6 +178,13 @@ export default function TermsPage() {
           </p>
           <p className="text-gray-700 dark:text-gray-300">
             letsboulder is operated by Patrick William Hadow trading as letsboulder, an individual / sole trader based in the United Kingdom.
+          </p>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">17. Open Source</h2>
+          <p className="text-gray-700 dark:text-gray-300">
+            The letsboulder software is open source under the Apache License 2.0. The source code is available on GitHub. Users retain ownership of their uploaded content, which is governed by Section 6 (User Content).
           </p>
         </section>
       </div>
