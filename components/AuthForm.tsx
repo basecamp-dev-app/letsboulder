@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase'
 import { SITE_URL } from '@/lib/site'
+import { clientEnv } from '@/lib/env-client'
 
 function detectEmbeddedBrowser(userAgent: string): boolean {
   const normalizedUserAgent = userAgent.toLowerCase()
@@ -99,9 +100,9 @@ export default function AuthForm() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: redirectTo 
-          ? `${SITE_URL}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}`
-          : `${SITE_URL}/auth/callback`,
+        emailRedirectTo: redirectTo
+          ? `${clientEnv.NEXT_PUBLIC_APP_URL}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}`
+          : `${clientEnv.NEXT_PUBLIC_APP_URL}/auth/callback`,
       },
     })
 

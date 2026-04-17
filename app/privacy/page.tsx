@@ -120,6 +120,8 @@ export default function PrivacyPage() {
             <li><strong>Vercel Analytics</strong> for limited analytics.</li>
             <li><strong>Resend</strong> for transactional email delivery.</li>
             <li><strong>AWS Rekognition</strong> for image moderation and safety checks.</li>
+            <li><strong>Cloudflare</strong> for storage (R2), Workers, and CDN delivery.</li>
+            <li><strong>Sentry</strong> for error tracking and performance monitoring.</li>
           </ul>
           <p className="text-gray-700 dark:text-gray-300">
             We may also disclose information where required by law, to respond to legal process, or to protect rights, safety, and the integrity of the service.
