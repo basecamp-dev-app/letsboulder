@@ -189,6 +189,7 @@ interface LightweightCragMapProps {
   activePinId?: string | null
   initialCenter?: [number, number] | null
   onPinSelect?: (id: string) => void
+  interactiveViewport?: boolean
   className?: string
   tileUrl?: string
   attribution?: string
@@ -202,6 +203,7 @@ export default function LightweightCragMap({
   activePinId = null,
   initialCenter = null,
   onPinSelect,
+  interactiveViewport = true,
   className,
   tileUrl,
   attribution,
@@ -255,6 +257,7 @@ export default function LightweightCragMap({
   }))), [resolvedPins])
 
   const clusteredResults = useMemo<ClusterResult[]>(() => {
+    if (!interactiveViewport) return pinFeatures
     if (pinFeatures.length === 0 || !clusterIndex) return pinFeatures
 
     const zoom = Math.max(0, Math.floor(mapZoom))
@@ -274,7 +277,7 @@ export default function LightweightCragMap({
     const westClusters = clusterIndex.getClusters([mapBounds.west, south, 180, north], zoom) as ClusterResult[]
     const eastClusters = clusterIndex.getClusters([-180, south, mapBounds.east, north], zoom) as ClusterResult[]
     return [...westClusters, ...eastClusters]
-  }, [clusterIndex, mapBounds, mapZoom, pinFeatures])
+  }, [clusterIndex, interactiveViewport, mapBounds, mapZoom, pinFeatures])
 
   const renderedPins = useMemo<RenderedMapItem[]>(() => {
     return clusteredResults.flatMap<RenderedMapItem>((feature, index) => {
@@ -370,6 +373,7 @@ export default function LightweightCragMap({
   }, [])
 
   useEffect(() => {
+    if (!interactiveViewport) return
     let cancelled = false
 
     if (pinFeatures.length === 0) {
@@ -397,7 +401,7 @@ export default function LightweightCragMap({
     return () => {
       cancelled = true
     }
-  }, [pinFeatures])
+  }, [interactiveViewport, pinFeatures])
 
   useEffect(() => {
     uploadDebug('map-debug-state', {
@@ -409,6 +413,7 @@ export default function LightweightCragMap({
   }, [activePinId, renderedPins, resolvedPins])
 
   useEffect(() => {
+    if (!interactiveViewport) return
     const map = mapRef.current
     if (!map || !leafletLib || !mapReady || resolvedPins.length === 0) return
     if (lastFittedPinsSignatureRef.current === pinsSignature) return
@@ -432,7 +437,7 @@ export default function LightweightCragMap({
     return () => {
       window.cancelAnimationFrame(frameId)
     }
-  }, [leafletLib, mapReady, pinsSignature, resolvedPins])
+  }, [interactiveViewport, leafletLib, mapReady, pinsSignature, resolvedPins])
 
   if (resolvedPins.length === 0) {
     return null
@@ -480,7 +485,7 @@ export default function LightweightCragMap({
             <TileLayer url={baseLayer.imageryUrl} attribution={baseLayer.imageryAttribution} maxZoom={19} />
             {baseLayer.labelsUrl ? <TileLayer url={baseLayer.labelsUrl} attribution={baseLayer.labelsAttribution || undefined} maxZoom={19} /> : null}
             <ZoomControl position="topright" />
-            <MapStateWatcher onStateChange={handleMapStateChange} />
+            {interactiveViewport ? <MapStateWatcher onStateChange={handleMapStateChange} /> : null}
             {mapReady ? renderedPins.map((item, index) => (
               item.kind === 'cluster'
                 ? <ClusterMarker key={item.cluster.id} cluster={item.cluster} leafletLib={leafletLib} onSelect={handleClusterSelect} />
