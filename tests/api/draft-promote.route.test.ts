@@ -311,6 +311,7 @@ describe('promoteDraftToSubmission', () => {
       throw new Error(`Unexpected table: ${table}`)
     })
 
+    // @ts-expect-error - mock return type is intentionally flexible
     supabase.rpc = vi.fn(async (fnName: string, args?: Record<string, unknown>) => {
       if (fnName === 'sync_submission_draft_routes') {
         expect(args).toEqual(expect.objectContaining({
@@ -360,6 +361,7 @@ describe('promoteDraftToSubmission', () => {
       })),
     }))
 
+    // @ts-expect-error - mock return type is intentionally flexible
     supabase.from = vi.fn((table: string) => {
       if (table === 'submission_drafts') {
         return {
