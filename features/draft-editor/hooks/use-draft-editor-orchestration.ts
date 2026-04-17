@@ -37,6 +37,11 @@ export function useDraftEditorOrchestration({
   addToast,
 }: UseDraftEditorOrchestrationParams) {
   const searchParams = useSearchParams()
+  const killSwitches = useMemo(() => ({
+    disableRouteStoreSync: searchParams.get('disableRouteStoreSync') === '1',
+    disableRouteSidebar: searchParams.get('disableRouteSidebar') === '1',
+    disableRouteSelection: searchParams.get('disableRouteSelection') === '1',
+  }), [searchParams])
   const { conflict, setConflict, clearConflict } = useDraftConflictResolution()
   const { detailsOpen, setDetailsOpen, orientationOpen, setOrientationOpen } = useDraftRouteEditing()
 
@@ -381,7 +386,7 @@ export function useDraftEditorOrchestration({
   })
 
   useEditDraftRouteStoreSync({
-    activeDraftImageId,
+    activeDraftImageId: killSwitches.disableRouteStoreSync ? null : activeDraftImageId,
     existingRouteLines,
     setRoutesByImageId,
     routeType,
@@ -464,6 +469,7 @@ export function useDraftEditorOrchestration({
       ownerUserId,
       ownerProfile,
       isImageSwitching,
+      killSwitches,
     },
     conflict: {
       conflict,

@@ -23,6 +23,8 @@ interface UnifiedRouteCanvasProps {
   onRouteSelect?: (routeId: string | null) => void
   onRoutesUpdate?: (routes: RouteLine[]) => void
   onImageOrientationChange?: (orientation: 'portrait' | 'landscape') => void
+  disableRouteSelection?: boolean
+  showRouteEditorSidebar?: boolean
   className?: string
 }
 
@@ -63,6 +65,8 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
   onRouteSelect,
   onRoutesUpdate,
   onImageOrientationChange,
+  disableRouteSelection = false,
+  showRouteEditorSidebar = true,
   className = '',
 }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -137,7 +141,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
 
   const { isDrawingEnabled, addPoint } = useRouteDrawing()
 
-  const { handleRouteClick } = useHitTesting(routes)
+  const { handleRouteClick } = useHitTesting(routes, { disableSelection: disableRouteSelection })
 
   const getCanvasPoint = useCallback(
     (clientX: number, clientY: number) => {
@@ -386,7 +390,7 @@ export const UnifiedRouteCanvas = forwardRef<UnifiedRouteCanvasRef, UnifiedRoute
         />
       ) : null}
 
-      {mode !== 'browse' && editorPanelOpen && <RouteEditSidebar />}
+      {mode !== 'browse' && showRouteEditorSidebar && editorPanelOpen && <RouteEditSidebar />}
     </div>
   )
 })
