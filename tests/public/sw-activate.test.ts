@@ -64,7 +64,7 @@ describe('service worker activate', () => {
     await import('../../public/sw.js')
 
     const addEventListener = vi.mocked(self.addEventListener)
-    const activateHandler = addEventListener.mock.calls.find(([type]) => type === 'activate')?.[1]
+    const activateHandler = addEventListener.mock.calls.find(([type]) => (type as string) === 'activate')?.[1]
 
     expect(typeof activateHandler).toBe('function')
 
@@ -72,7 +72,7 @@ describe('service worker activate', () => {
     const waitUntil = vi.fn((promise: Promise<unknown>) => {
       pending = promise
     })
-    activateHandler?.({ waitUntil } as ExtendableEvent)
+    activateHandler?.({ waitUntil } as unknown as ExtendableEvent)
     await pending
 
     expect(caches.delete).toHaveBeenCalledWith('stale-cache')

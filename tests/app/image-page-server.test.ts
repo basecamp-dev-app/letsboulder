@@ -144,7 +144,7 @@ describe('image-page-server raw image fallback', () => {
 
   test('builds payload from stored offline climb manifest when offline', async () => {
     vi.stubGlobal('navigator', { onLine: false })
-    getStoredClimbManifestMock.mockResolvedValue({
+    ;(getStoredClimbManifestMock as { mockResolvedValue: (value: unknown) => unknown }).mockResolvedValue({
       climbId: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
       ownerPackIds: ['crag:crag-1'],
       pinnedStandalone: false,
@@ -276,7 +276,7 @@ describe('image-page-server raw image fallback', () => {
 
   test('builds payload from stored offline climb manifest by image id when climb id is absent', async () => {
     vi.stubGlobal('navigator', { onLine: false })
-    getStoredClimbManifestByImageIdMock.mockResolvedValue({
+    ;(getStoredClimbManifestByImageIdMock as { mockResolvedValue: (value: unknown) => unknown }).mockResolvedValue({
       climbId: 'f9676bde-fbb2-4d90-a178-dec6cdb903f4',
       ownerPackIds: ['crag:crag-1'],
       pinnedStandalone: false,
