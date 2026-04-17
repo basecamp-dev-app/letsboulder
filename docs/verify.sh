@@ -11,7 +11,7 @@ echo "=== Doc Verification ==="
 
 # 1. Migration count
 MIGRATION_COUNT=$(ls "$ROOT/supabase/migrations" | wc -l | tr -d ' ')
-if grep -Eq "\($MIGRATION_COUNT files|\| $MIGRATION_COUNT SQL migration files \|" "$ROOT/docs/architecture.md"; then
+if grep -Eq "(\($MIGRATION_COUNT files\||\| $MIGRATION_COUNT SQL migration files \|| $MIGRATION_COUNT migration files)" "$ROOT/docs/architecture.md"; then
   echo "OK: Migration count ($MIGRATION_COUNT) matches architecture.md"
 else
   echo "DRIFT: architecture.md migration count disagrees with actual ($MIGRATION_COUNT)"
