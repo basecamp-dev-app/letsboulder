@@ -17,6 +17,7 @@
 | flags | Content flagging (climbs, images) | Yes | Yes |
 | gear | Gear recommendations | No | No |
 | gym-admin | Gym admin operations | Yes | Yes |
+| image-first | Image-first route page support endpoints | No | No |
 | images | Image detail, faces, flags | Optional | Yes |
 | location-tags | Location tagging | Yes | Yes |
 | locations | Geo detection, reverse geocoding, search | No | No |
@@ -88,6 +89,12 @@ Gear recommendations endpoint. No authentication or CSRF protection. Public data
 ### gym-admin
 
 Gym admin operations. Requires authentication with gym admin privileges. Uses CSRF protection.
+
+### image-first
+
+Image-first route page support endpoints. Public read-only endpoints used to progressively enhance the route-page minimap after first paint. No authentication or CSRF protection.
+
+- `image-first/pins` — load image pins for a single crag within supplied map bounds using `cragId`, `north`, `south`, `east`, and `west` query params
 
 ### images
 
