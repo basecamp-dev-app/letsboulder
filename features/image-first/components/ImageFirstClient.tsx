@@ -18,7 +18,7 @@ import type { GradeOpinion } from '@/lib/grade-feedback'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 import { ToastContainer } from '@/components/ui/toast'
 import { useToast } from '@/hooks/use-toast'
-import LightweightCragMap from '@/components/LightweightCragMap'
+import RoutePageMinimap from '@/features/image-first/components/RoutePageMinimap'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 type ExportMode = 'image' | 'selected-route' | 'all-routes'
@@ -45,6 +45,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     initialRouteId,
     initialRouteSlug,
     countryCode,
+    cragId,
     cragSlug,
     isAdmin,
   } = payload
@@ -650,13 +651,15 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       {mapPins.length > 0 ? (
         <div className="px-4 pb-4">
           <div className="mx-auto w-full max-w-6xl">
-            <LightweightCragMap
-              pins={mapPins}
-              activePinId={activeImageId}
-              initialCenter={[mapPins[0].latitude, mapPins[0].longitude]}
-              initialZoom={18}
-              staticPreview={true}
-              heightClassName="min-h-[240px] md:min-h-[280px]"
+            <RoutePageMinimap
+              cragId={cragId}
+              currentPin={mapPins[0] || null}
+              activeImageId={activeImageId}
+              orderedImageIds={navigationContext.orderedImageIds}
+              onPinSelect={(imageId) => {
+                const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
+                if (nextIndex >= 0) setActiveImageIndex(nextIndex)
+              }}
             />
           </div>
         </div>
