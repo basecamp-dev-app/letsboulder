@@ -15,11 +15,22 @@ interface PlaceRankingsPanelProps {
   cragId?: string
   placeType: 'crag' | 'gym'
   embedded?: boolean
+  previewLimit?: number
+  expanded?: boolean
+  onToggleExpanded?: () => void
 }
 
-export default function PlaceRankingsPanel({ slug, cragId, placeType, embedded = false }: PlaceRankingsPanelProps) {
+export default function PlaceRankingsPanel({
+  slug,
+  cragId,
+  placeType,
+  embedded = false,
+  previewLimit = 3,
+  expanded = true,
+  onToggleExpanded,
+}: PlaceRankingsPanelProps) {
   const gradeSystem = useGradeSystem()
-  const [sortBy, setSortBy] = useState<RankingSort>('tops')
+  const [sortBy, setSortBy] = useState<RankingSort>('grade')
   const [page, setPage] = useState(1)
   const rankingScope = placeType === 'crag' ? `crag:${cragId || 'missing'}` : `place:${slug || 'missing'}`
 
@@ -47,6 +58,8 @@ export default function PlaceRankingsPanel({ slug, cragId, placeType, embedded =
   const pagination = data?.pagination ?? null
   const windowMode = data?.window ?? '60d'
   const fallbackUsed = data?.fallback_used ?? false
+  const visibleEntries = embedded && !expanded ? entries.slice(0, previewLimit) : entries
+  const canExpand = embedded && entries.length > previewLimit
   const placeLabel = placeType === 'gym' ? 'Gym' : 'Crag'
 
   return (
@@ -103,7 +116,7 @@ export default function PlaceRankingsPanel({ slug, cragId, placeType, embedded =
 
       {!isLoading && !isError && entries.length > 0 ? (
         <div className="mt-3 divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
-          {entries.map(entry => (
+          {visibleEntries.map(entry => (
             <Link
               key={entry.user_id}
               href={`/logbook/${entry.user_id}`}
@@ -132,7 +145,17 @@ export default function PlaceRankingsPanel({ slug, cragId, placeType, embedded =
         </div>
       ) : null}
 
-      {pagination && pagination.total_pages > 1 ? (
+      {canExpand ? (
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          className="mt-3 text-sm font-medium text-stone-700 transition hover:text-stone-900 dark:text-gray-300 dark:hover:text-gray-100"
+        >
+          {expanded ? 'Show fewer rankings' : `Show full rankings (${entries.length})`}
+        </button>
+      ) : null}
+
+      {(!embedded || expanded) && pagination && pagination.total_pages > 1 ? (
         <div className="mt-3 flex items-center justify-between">
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {pagination.page}/{pagination.total_pages}
