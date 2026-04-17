@@ -654,7 +654,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
               pins={mapPins}
               activePinId={activeImageId}
               initialCenter={[mapPins[0].latitude, mapPins[0].longitude]}
-              initialZoom={16}
+              initialZoom={18}
               staticPreview={true}
               heightClassName="min-h-[240px] md:min-h-[280px]"
             />
