@@ -32,6 +32,7 @@
 | regions | Region data | No | No |
 | routes | Route data queries | Optional | Yes |
 | settings | User settings | Yes | Yes |
+| social | Instagram post export | Yes (admin) | Yes |
 | submissions | Draft management, collaboration, image submission | Yes | Yes |
 | test | Test-only endpoints (auth, etc.) | No | No |
 | uploads | Presigned upload URL generation | Yes | Yes |
@@ -191,3 +192,9 @@ Gear recommendations endpoint. No authentication or CSRF protection. Public data
 ### welcome-email
 
 Welcome email trigger. Requires authentication. Uses CSRF protection.
+
+### social
+
+Instagram post export for admins. Generates Instagram-optimized images with route overlays for social sharing. Requires admin privileges. Uses CSRF protection.
+
+- `social/instagram` — export Instagram post image with optional route overlay
