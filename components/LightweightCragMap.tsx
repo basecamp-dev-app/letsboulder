@@ -37,6 +37,22 @@ interface ClusterClickTarget {
   longitude: number
 }
 
+function mapBoundsEqual(left: MapBounds | null, right: MapBounds | null) {
+  if (left === right) return true
+  if (!left || !right) return false
+
+  return left.north === right.north
+    && left.south === right.south
+    && left.east === right.east
+    && left.west === right.west
+}
+
+function buildPinsSignature(pins: LightweightCragMapPin[]) {
+  return pins
+    .map((pin) => `${pin.id}:${pin.latitude}:${pin.longitude}:${pin.activeImageIds?.join(',') || ''}`)
+    .join('|')
+}
+
 type RenderedMapItem =
   | { kind: 'cluster'; cluster: ClusterMarkerPin }
   | { kind: 'pin'; pin: LightweightCragMapPin }
@@ -199,10 +215,18 @@ export default function LightweightCragMap({
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null)
   const [clusterIndex, setClusterIndex] = useState<ClusterIndex | null>(null)
   const [isOffline, setIsOffline] = useState(false)
+  const lastMapStateRef = useRef<{ zoom: number; bounds: MapBounds } | null>(null)
+  const lastFittedPinsSignatureRef = useRef<string | null>(null)
 
   const handleMapStateChange = useCallback((state: { zoom: number; bounds: MapBounds }) => {
-    setMapZoom(state.zoom)
-    setMapBounds(state.bounds)
+    const previousState = lastMapStateRef.current
+    if (previousState && previousState.zoom === state.zoom && mapBoundsEqual(previousState.bounds, state.bounds)) {
+      return
+    }
+
+    lastMapStateRef.current = state
+    setMapZoom((currentZoom) => currentZoom === state.zoom ? currentZoom : state.zoom)
+    setMapBounds((currentBounds) => mapBoundsEqual(currentBounds, state.bounds) ? currentBounds : state.bounds)
   }, [])
 
   const resolvedPins = useMemo(() => {
@@ -215,6 +239,8 @@ export default function LightweightCragMap({
 
     return pins
   }, [draftPins, pins, publishedPins])
+
+  const pinsSignature = useMemo(() => buildPinsSignature(resolvedPins), [resolvedPins])
 
   const pinFeatures = useMemo(() => buildPinFeatures(resolvedPins.map((pin) => ({
     id: pin.id,
@@ -385,6 +411,7 @@ export default function LightweightCragMap({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !leafletLib || !mapReady || resolvedPins.length === 0) return
+    if (lastFittedPinsSignatureRef.current === pinsSignature) return
 
     const container = map.getContainer?.()
     if (!container || !container.isConnected) return
@@ -397,13 +424,15 @@ export default function LightweightCragMap({
       const bounds = leafletLib.latLngBounds(resolvedPins.map((pin) => [pin.latitude, pin.longitude] as [number, number]))
       map.fitBounds(bounds, { padding: [28, 28], maxZoom: 16, animate: false })
       const fittedZoom = map.getZoom()
-      setMinAllowedZoom(Math.min(Math.max(13, fittedZoom - 1), 15))
+      const nextMinAllowedZoom = Math.min(Math.max(13, fittedZoom - 1), 15)
+      lastFittedPinsSignatureRef.current = pinsSignature
+      setMinAllowedZoom((currentZoom) => currentZoom === nextMinAllowedZoom ? currentZoom : nextMinAllowedZoom)
     })
 
     return () => {
       window.cancelAnimationFrame(frameId)
     }
-  }, [leafletLib, mapReady, resolvedPins])
+  }, [leafletLib, mapReady, pinsSignature, resolvedPins])
 
   if (resolvedPins.length === 0) {
     return null
