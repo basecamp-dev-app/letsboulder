@@ -44,6 +44,11 @@ export function useDraftEditorOrchestration({
     disableCanvasPointerHandling: searchParams.get('disableCanvasPointerHandling') === '1',
     disableRouteHistory: searchParams.get('disableRouteHistory') === '1',
     disableCanvasRedrawOnPoints: searchParams.get('disableCanvasRedrawOnPoints') === '1',
+    disableWorkstation: searchParams.get('disableWorkstation') === '1',
+    disableCanvasSubtree: searchParams.get('disableCanvasSubtree') === '1',
+    disableMetadataPanels: searchParams.get('disableMetadataPanels') === '1',
+    disableUploadsPanel: searchParams.get('disableUploadsPanel') === '1',
+    disableAutosaveEffects: searchParams.get('disableAutosaveEffects') === '1',
   }), [searchParams])
   const { conflict, setConflict, clearConflict } = useDraftConflictResolution()
   const { detailsOpen, setDetailsOpen, orientationOpen, setOrientationOpen } = useDraftRouteEditing()
@@ -302,6 +307,7 @@ export function useDraftEditorOrchestration({
     setLocationSearchError,
     uploadAutoAssignToken,
     setLocationSyncInFlight,
+    disabled: killSwitches.disableAutosaveEffects,
   })
 
   useEffect(() => {
@@ -365,6 +371,7 @@ export function useDraftEditorOrchestration({
     setConflict,
     setActiveImageId,
     setLocationSyncInFlight,
+    disabled: killSwitches.disableAutosaveEffects,
   })
 
   useEffect(() => {

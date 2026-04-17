@@ -51,6 +51,7 @@ interface UseEditDraftActionsParams {
   setConflict: (value: DraftConflictState | null) => void
   setActiveImageId: (value: string | null | ((current: string | null) => string | null)) => void
   setLocationSyncInFlight?: (value: boolean) => void
+  disabled?: boolean
 }
 
 export function useEditDraftActions({
@@ -90,6 +91,7 @@ export function useEditDraftActions({
   setConflict,
   setActiveImageId,
   setLocationSyncInFlight,
+  disabled = false,
 }: UseEditDraftActionsParams) {
   const router = useRouter()
   const [savingDraft, setSavingDraft] = useState(false)
@@ -220,6 +222,7 @@ export function useEditDraftActions({
   }, [cragId, draftId, getImagesMissingRoutes, hasFailedUploads, hasPendingUploads, hasValidLocation, routesByImageId])
 
   const saveDraft = useCallback(async (options?: { overrideRoutesByImageId?: Record<string, DraftRoute[]>; overrideCragId?: string | null; forceMetadataSave?: boolean }) => {
+    if (disabled) return true
     const resolvedRoutesByImageId = options?.overrideRoutesByImageId ?? routesByImageId
     const resolvedCragId = options?.overrideCragId ?? cragId
     const forceMetadataSave = options?.forceMetadataSave === true
@@ -311,7 +314,7 @@ export function useEditDraftActions({
       setSavingDraft(false)
       setLocationSyncInFlight?.(false)
     }
-  }, [buildSavePayload, cragId, currentUserId, draft, draftUpdatedAt, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, syncDraftRoutes, setLocationSyncInFlight])
+  }, [buildSavePayload, cragId, currentUserId, disabled, draft, draftUpdatedAt, routesByImageId, setConflict, setDraft, setDraftUpdatedAt, setError, setSuccess, syncDraftRoutes, setLocationSyncInFlight])
 
   const handleDeleteDraft = useCallback(async () => {
     if (!draftId || !isOwner) return
