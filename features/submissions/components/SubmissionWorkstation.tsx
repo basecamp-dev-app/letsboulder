@@ -51,6 +51,10 @@ interface SubmissionWorkstationProps {
   disableCanvasImage?: boolean
   disableCanvasElement?: boolean
   disableWorkstationChrome?: boolean
+  disableWorkstationMap?: boolean
+  disableRouteEditorRail?: boolean
+  disableImageStrip?: boolean
+  disableToolBar?: boolean
   onSelectRoute: (routeId: string) => void
   onReorderRoutes?: (routeIds: string[]) => void
   interactionTool: 'select' | 'draw'
@@ -98,6 +102,10 @@ export function SubmissionWorkstation({
   disableCanvasImage = false,
   disableCanvasElement = false,
   disableWorkstationChrome = false,
+  disableWorkstationMap = false,
+  disableRouteEditorRail = false,
+  disableImageStrip = false,
+  disableToolBar = false,
   onSelectRoute,
   onReorderRoutes,
   interactionTool,
@@ -145,7 +153,7 @@ export function SubmissionWorkstation({
         removeAction={removeAction}
       />
 
-      {!disableWorkstationChrome ? (
+      {!disableWorkstationChrome && !disableImageStrip ? (
         <>
           <WorkstationImageStrip
             images={quickSwitcherImages}
@@ -159,17 +167,20 @@ export function SubmissionWorkstation({
             removeAction={removeAction}
           />
 
-          <WorkstationToolBar
-            interactionTool={interactionTool}
-            currentPointsCount={currentPointsCount}
-            routeCountLabel={routeCountLabel}
-            hideRouteActions={hideRouteActions}
-            onSetSelectTool={onSetSelectTool}
-            onSetDrawTool={onSetDrawTool}
-            onUndoPoint={onUndoPoint}
-            onFinishRoute={onFinishRoute}
-          />
         </>
+      ) : null}
+
+      {!disableWorkstationChrome && !disableToolBar ? (
+        <WorkstationToolBar
+          interactionTool={interactionTool}
+          currentPointsCount={currentPointsCount}
+          routeCountLabel={routeCountLabel}
+          hideRouteActions={hideRouteActions}
+          onSetSelectTool={onSetSelectTool}
+          onSetDrawTool={onSetDrawTool}
+          onUndoPoint={onUndoPoint}
+          onFinishRoute={onFinishRoute}
+        />
       ) : null}
 
       <WorkstationCanvasPanel
@@ -196,7 +207,7 @@ export function SubmissionWorkstation({
         onDeleteActiveImage={onDeleteActiveImage}
       />
 
-      {!disableWorkstationChrome ? (
+      {!disableWorkstationChrome && !disableRouteEditorRail ? (
         <>
           <RouteEditorRail
             routes={existingRouteLines}
@@ -204,7 +215,11 @@ export function SubmissionWorkstation({
             onSelectRoute={onSelectRoute}
             onReorderRoutes={onReorderRoutes}
           />
+        </>
+      ) : null}
 
+      {!disableWorkstationChrome && !disableWorkstationMap ? (
+        <>
           <WorkstationMapPanel
             draftPins={draftPins}
             publishedPins={publishedPins}
