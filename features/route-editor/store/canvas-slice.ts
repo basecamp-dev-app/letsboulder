@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand'
+import { logRouteLoop } from '@/features/route-editor/lib/debug-route-loop'
 import type { RouteLine, RoutePoint, DrawingRoute } from '@/types/domain'
 import type { CanvasState } from './types'
 import { areRoutesEqual } from './shared'
@@ -46,17 +47,51 @@ export const createCanvasSlice: StateCreator<RouteStoreSlice, [], [], CanvasSlic
 
   setMode: (mode) => set((state) => state.mode === mode ? state : { mode }),
   setInteractionTool: (tool) => set((state) => state.interactionTool === tool ? state : { interactionTool: tool }),
-  setActiveRoute: (id) => set({ activeRouteId: id }),
-  setSelectedRoute: (id) => set((state) => ({
-    selectedRouteId: id,
-    routeEditorDraft: id && state.routeEditorDraft?.routeId === id ? state.routeEditorDraft : id ? null : null,
-    editorIntent: null,
-    editorPanelOpen: id ? true : state.editorPanelOpen,
-  })),
+  setActiveRoute: (id) => set((state) => {
+    logRouteLoop('store:set-active-route', {
+      previousActiveRouteId: state.activeRouteId,
+      nextActiveRouteId: id,
+      selectedRouteId: state.selectedRouteId,
+    })
+    return { activeRouteId: id }
+  }),
+  setSelectedRoute: (id) => set((state) => {
+    logRouteLoop('store:set-selected-route', {
+      previousSelectedRouteId: state.selectedRouteId,
+      nextSelectedRouteId: id,
+      previousDraftRouteId: state.routeEditorDraft?.routeId ?? null,
+      willOpenEditorPanel: Boolean(id),
+    })
+    return {
+      selectedRouteId: id,
+      routeEditorDraft: id && state.routeEditorDraft?.routeId === id ? state.routeEditorDraft : id ? null : null,
+      editorIntent: null,
+      editorPanelOpen: id ? true : state.editorPanelOpen,
+    }
+  }),
   updateZoomTransform: (transform) => set((state) => ({ zoomTransform: { ...state.zoomTransform, ...transform } })),
-  setRoutes: (routes) => set((state) => (areRoutesEqual(state.routes, routes) ? state : { routes })),
+  setRoutes: (routes) => set((state) => {
+    const unchanged = areRoutesEqual(state.routes, routes)
+    logRouteLoop('store:set-routes', {
+      unchanged,
+      previousRouteCount: state.routes.length,
+      nextRouteCount: routes.length,
+      selectedRouteId: state.selectedRouteId,
+    })
+    return unchanged ? state : { routes }
+  }),
   addRoute: (route) => set((state) => ({ routes: [...state.routes, route] })),
-  updateRoute: (id, updates) => set((state) => ({ routes: state.routes.map((route) => route.id === id ? { ...route, ...updates } : route) })),
+  updateRoute: (id, updates) => set((state) => {
+    logRouteLoop('store:update-route', {
+      routeId: id,
+      selectedRouteId: state.selectedRouteId,
+      updateKeys: Object.keys(updates),
+      climbName: typeof updates.climb?.name === 'string' ? updates.climb.name : null,
+      climbGrade: typeof updates.climb?.grade === 'string' ? updates.climb.grade : null,
+      climbType: typeof updates.climb?.route_type === 'string' ? updates.climb.route_type : null,
+    })
+    return { routes: state.routes.map((route) => route.id === id ? { ...route, ...updates } : route) }
+  }),
   deleteRoute: (id) => set((state) => ({
     routes: state.routes.filter((route) => route.id !== id),
     activeRouteId: state.activeRouteId === id ? null : state.activeRouteId,

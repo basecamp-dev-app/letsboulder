@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { logRouteLoop } from '@/features/route-editor/lib/debug-route-loop'
 import { useRouteStore } from '@/features/route-editor/store'
 import { useDraftUploadManager } from '@/features/media-upload/hooks/use-draft-upload-manager'
 import { useMediaUploadManager } from '@/features/media-upload/hooks/use-media-upload-manager'
@@ -231,6 +232,18 @@ export function useDraftEditorOrchestration({
       status: activeImageTab?.status || null,
     })
   }, [activeImageId, activeImageTab?.sourceKind, activeImageTab?.status, imageSelection])
+
+  useEffect(() => {
+    logRouteLoop('draft-orchestration:canvas-state', {
+      activeImageId,
+      activeDraftImageId,
+      selectedRouteId,
+      routeStoreRouteCount: routeStoreRoutes.length,
+      existingRouteLineCount: existingRouteLines.length,
+      interactionTool,
+      currentPointCount: currentPoints.length,
+    })
+  }, [activeDraftImageId, activeImageId, currentPoints.length, existingRouteLines.length, interactionTool, routeStoreRoutes.length, selectedRouteId])
 
 
   const {
