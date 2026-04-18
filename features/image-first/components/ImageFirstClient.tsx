@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
 import { useImageNavigation } from '@/features/image-first/hooks/use-image-navigation'
@@ -69,28 +69,25 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [logging, setLogging] = useState(false)
   const [downloadingPost, setDownloadingPost] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false)
   const [routesByImageId, setRoutesByImageId] = useState<Record<string, ImageFirstRouteLine[]>>(() => {
     const primaryId = linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId
     return { [primaryId]: initialRoutes }
   })
+  const fetchedRouteImageIdsRef = useRef(new Set<string>(Object.keys({ [linkedImageIdByDisplayId[heroImage.displayImageId] || heroImage.displayImageId]: true })))
+  const idlePreloadStartedRef = useRef(false)
+  const communityNotesLoadedClimbIdsRef = useRef(new Set<string>())
 
   const {
     activeImageIndex,
     activeImageId,
-    activeRouteId,
-    activeClimbId,
     emblaRef,
     setActiveImageIndex,
-    setUserSelectedRouteId,
     isFirst,
     isLast,
   } = useImageNavigation({
     orderedImageIds: navigationContext.orderedImageIds,
     startIndex: navigationContext.startIndex,
-    initialRoutes,
-    initialRouteId,
-    initialRouteSlug,
-    initialClimbId,
     linkedImageIdByDisplayId,
     countryCode,
     cragSlug,
@@ -120,102 +117,204 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     return () => subscription.unsubscribe()
   }, [])
 
-  const otherImageIds = useMemo(
-    () => navigationContext.orderedImageIds.filter((id) => id !== heroImage.displayImageId),
-    [navigationContext.orderedImageIds, heroImage.displayImageId]
-  )
+  const fetchRoutesForImageIds = useCallback(async (imageIds: string[]) => {
+    const targets = imageIds.filter((imageId) => {
+      if (!imageId) return false
+      if (fetchedRouteImageIdsRef.current.has(imageId)) return false
+      fetchedRouteImageIdsRef.current.add(imageId)
+      return true
+    })
 
-  const allRouteImageIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const displayId of otherImageIds) {
-      ids.add(displayId)
-      const linkedId = linkedImageIdByDisplayId[displayId]
-      if (linkedId && linkedId !== displayId) {
-        ids.add(linkedId)
-      }
-    }
-    return Array.from(ids)
-  }, [otherImageIds, linkedImageIdByDisplayId])
-
-  useEffect(() => {
-    if (allRouteImageIds.length === 0) return
+    if (targets.length === 0) return
 
     const supabase = createClient()
-    let cancelled = false
+    const { data, error } = await supabase
+      .from('route_lines')
+      .select(
+        'id, image_id, climb_id, color, points, image_width, image_height, sequence_order, created_at, climbs (id, name, slug, grade, description, route_type, average_stars, star_votes)'
+      )
+      .in('image_id', targets)
+      .order('sequence_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
 
-    const fetchAllRoutes = async () => {
-      const { data, error } = await supabase
-        .from('route_lines')
-        .select(
-          'id, image_id, climb_id, color, points, image_width, image_height, sequence_order, created_at, climbs (id, name, slug, grade, description, route_type)'
-        )
-        .in('image_id', allRouteImageIds)
-        .order('sequence_order', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: true })
-
-      if (cancelled || error || !data) return
-
-      const grouped: Record<string, ImageFirstRouteLine[]> = {}
-      for (const row of data as Array<{
-        id: string
-        image_id: string
-        climb_id: string
-        color: string | null
-        points: RoutePoint[] | string | null
-        image_width: number | null
-        image_height: number | null
-        sequence_order: number | null
-        created_at: string | null
-        climbs: {
-          id: string
-          name: string | null
-          slug: string | null
-          grade: string | null
-          description: string | null
-          route_type: string | null
-          average_stars: number | null
-          star_votes: number | null
-        } | Array<{
-          id: string
-          name: string | null
-          slug: string | null
-          grade: string | null
-          description: string | null
-          route_type: string | null
-          average_stars: number | null
-          star_votes: number | null
-        }> | null
-      }>) {
-        const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
-        if (!row.image_id || !climb) continue
-
-        const route: ImageFirstRouteLine = {
-          routeId: row.id,
-          climbId: row.climb_id,
-          imageId: row.image_id,
-          climbSlug: climb.slug || null,
-          climbName: climb.name || 'Unnamed route',
-          climbGrade: climb.grade || null,
-          climbDescription: climb.description || null,
-          climbRouteType: climb.route_type || null,
-          climbAverageStars: climb.average_stars ?? null,
-          climbStarVotes: climb.star_votes ?? null,
-          pathData: row.points,
-          color: row.color || '#ef4444',
-          isPrimary: false,
-        }
-
-        if (!grouped[row.image_id]) grouped[row.image_id] = []
-        grouped[row.image_id].push(route)
+    if (error || !data) {
+      for (const imageId of targets) {
+        fetchedRouteImageIdsRef.current.delete(imageId)
       }
-
-      if (cancelled) return
-      setRoutesByImageId((prev) => ({ ...prev, ...grouped }))
+      return
     }
 
-    void fetchAllRoutes()
-    return () => { cancelled = true }
-  }, [allRouteImageIds])
+    const grouped: Record<string, ImageFirstRouteLine[]> = {}
+    for (const imageId of targets) {
+      grouped[imageId] = []
+    }
+
+    for (const row of data as Array<{
+      id: string
+      image_id: string
+      climb_id: string
+      color: string | null
+      points: RoutePoint[] | string | null
+      image_width: number | null
+      image_height: number | null
+      sequence_order: number | null
+      created_at: string | null
+      climbs: {
+        id: string
+        name: string | null
+        slug: string | null
+        grade: string | null
+        description: string | null
+        route_type: string | null
+        average_stars: number | null
+        star_votes: number | null
+      } | Array<{
+        id: string
+        name: string | null
+        slug: string | null
+        grade: string | null
+        description: string | null
+        route_type: string | null
+        average_stars: number | null
+        star_votes: number | null
+      }> | null
+    }>) {
+      const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
+      if (!row.image_id || !climb) continue
+
+      grouped[row.image_id]?.push({
+        routeId: row.id,
+        climbId: row.climb_id,
+        imageId: row.image_id,
+        climbSlug: climb.slug || null,
+        climbName: climb.name || 'Unnamed route',
+        climbGrade: climb.grade || null,
+        climbDescription: climb.description || null,
+        climbRouteType: climb.route_type || null,
+        climbAverageStars: climb.average_stars ?? null,
+        climbStarVotes: climb.star_votes ?? null,
+        pathData: row.points,
+        color: row.color || '#ef4444',
+        isPrimary: false,
+      })
+    }
+
+    setRoutesByImageId((prev) => ({ ...prev, ...grouped }))
+  }, [])
+
+  const activePrimaryImageId = useMemo(() => {
+    const displayImageId = activeImageId || heroImage.displayImageId
+    return linkedImageIdByDisplayId[displayImageId] || displayImageId
+  }, [activeImageId, heroImage.displayImageId, linkedImageIdByDisplayId])
+
+  const activeRoutes = useMemo(() => routesByImageId[activePrimaryImageId] || [], [activePrimaryImageId, routesByImageId])
+
+  const activeRouteId = useMemo(() => {
+    if (activeRoutes.length === 0) return null
+
+    const routeQuery = initialRouteSlug || initialRouteId
+    if (routeQuery) {
+      const queryMatch = activeRoutes.find((route) => route.climbSlug === routeQuery || route.routeId === routeQuery)
+      if (queryMatch) return queryMatch.routeId
+    }
+
+    const climbQueryId = initialClimbId
+    if (climbQueryId) {
+      const climbMatch = activeRoutes.find((route) => route.climbId === climbQueryId)
+      if (climbMatch) return climbMatch.routeId
+    }
+
+    return activeRoutes[0]?.routeId || null
+  }, [activeRoutes, initialClimbId, initialRouteId, initialRouteSlug])
+
+  const [resolvedActiveRouteId, setResolvedActiveRouteId] = useState<string | null>(activeRouteId)
+
+  useEffect(() => {
+    if (activeRoutes.length === 0) {
+      setResolvedActiveRouteId(null)
+      return
+    }
+
+    setResolvedActiveRouteId((current) => {
+      if (current && activeRoutes.some((route) => route.routeId === current)) {
+        return current
+      }
+
+      return activeRouteId
+    })
+  }, [activeRouteId, activeRoutes])
+
+  const activeRouteMeta = useMemo(
+    () => activeRoutes.find((route) => route.routeId === resolvedActiveRouteId) || null,
+    [activeRoutes, resolvedActiveRouteId]
+  )
+
+  const activeClimbId = activeRouteMeta?.climbId || null
+
+  useEffect(() => {
+    const targets = [
+      navigationContext.orderedImageIds[activeImageIndex - 1],
+      navigationContext.orderedImageIds[activeImageIndex],
+      navigationContext.orderedImageIds[activeImageIndex + 1],
+    ]
+      .filter((imageId): imageId is string => Boolean(imageId))
+      .map((displayImageId) => linkedImageIdByDisplayId[displayImageId] || displayImageId)
+
+    void fetchRoutesForImageIds(Array.from(new Set(targets)))
+  }, [activeImageIndex, fetchRoutesForImageIds, linkedImageIdByDisplayId, navigationContext.orderedImageIds])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (idlePreloadStartedRef.current) return
+    idlePreloadStartedRef.current = true
+
+    const remainingImageIds = navigationContext.orderedImageIds
+      .map((displayImageId) => linkedImageIdByDisplayId[displayImageId] || displayImageId)
+      .filter((imageId) => !fetchedRouteImageIdsRef.current.has(imageId))
+
+    if (remainingImageIds.length === 0) return
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let idleCallbackId: number | null = null
+
+    if (typeof window.requestIdleCallback === 'function') {
+      idleCallbackId = window.requestIdleCallback(() => {
+        void fetchRoutesForImageIds(remainingImageIds)
+      }, { timeout: 2000 })
+    } else {
+      timeoutId = setTimeout(() => {
+        void fetchRoutesForImageIds(remainingImageIds)
+      }, 1500)
+    }
+
+    return () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+      }
+      if (idleCallbackId !== null && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleCallbackId)
+      }
+    }
+  }, [fetchRoutesForImageIds, linkedImageIdByDisplayId, navigationContext.orderedImageIds])
+
+  useEffect(() => {
+    if (!activePrimaryImageId) return
+
+    const currentPathImageId = pathname?.split('/').pop()
+    const currentRouteQuery = new URLSearchParams(window.location.search).get('route')
+    const nextRouteQuery = activeRouteMeta?.climbSlug || resolvedActiveRouteId
+
+    if (currentPathImageId === activePrimaryImageId && currentRouteQuery === (nextRouteQuery || null)) {
+      return
+    }
+
+    const params = new URLSearchParams(window.location.search)
+    params.delete('climb')
+    if (nextRouteQuery) params.set('route', nextRouteQuery)
+    else params.delete('route')
+
+    router.replace(`/${countryCode}/${cragSlug}/i/${activePrimaryImageId}${params.toString() ? `?${params.toString()}` : ''}`, { scroll: false })
+  }, [activePrimaryImageId, activeRouteMeta, countryCode, cragSlug, pathname, resolvedActiveRouteId, router])
 
   useEffect(() => {
     if (!activeClimbId) {
@@ -227,6 +326,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       setPendingStarRating(null)
       setCommunityNotesCount(0)
       setCommunityNotes([])
+      communityNotesLoadedClimbIdsRef.current.clear()
       return
     }
 
@@ -234,42 +334,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     let cancelled = false
 
     const fetchData = async () => {
-      const { data: notesData, error: notesError } = await supabase
-        .from('user_climbs')
-        .select('user_id, notes')
-        .eq('climb_id', activeClimbId)
-        .not('notes', 'is', null)
-        .limit(10)
-
-      const notesCount = notesData?.length ?? 0
-      if (!cancelled) {
-        setCommunityNotesCount(notesCount)
-      }
-
-      if (notesData && notesData.length > 0) {
-        const userIds = [...new Set(notesData.map((n: { user_id: string }) => n.user_id))]
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('id, display_name')
-          .in('id', userIds)
-          .limit(10)
-
-        const profileMap = new Map(profilesData?.map((p: { id: string; display_name: string }) => [p.id, p.display_name]) || [])
-        const notesWithNames = notesData
-          .map((n: { user_id: string; notes: string }) => ({
-            userId: n.user_id,
-            displayName: profileMap.get(n.user_id) || 'Anonymous',
-            notes: n.notes,
-          }))
-          .filter((n: { notes: string }) => n.notes)
-
-        if (!cancelled) {
-          setCommunityNotes(notesWithNames)
-        }
-      } else if (!cancelled) {
-        setCommunityNotes([])
-      }
-
       if (!userPresent) return
 
       const { data: userData } = await supabase.auth.getUser()
@@ -292,11 +356,66 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       setSelectedClimbFeedbackCollapsed(!!data)
       setPendingGradeOpinion(log?.gradeOpinion ?? null)
       setPendingStarRating(log?.starRating ?? null)
+      setPendingNotes(log?.notes ?? '')
     }
 
     void fetchData()
     return () => { cancelled = true }
   }, [activeClimbId, userPresent])
+
+  useEffect(() => {
+    if (!activeClimbId) return
+    if (selectedClimbFeedbackCollapsed) return
+    if (communityNotesLoadedClimbIdsRef.current.has(activeClimbId)) return
+
+    communityNotesLoadedClimbIdsRef.current.add(activeClimbId)
+
+    const supabase = createClient()
+    let cancelled = false
+
+    const fetchCommunityNotes = async () => {
+      const { data: notesData } = await supabase
+        .from('user_climbs')
+        .select('user_id, notes')
+        .eq('climb_id', activeClimbId)
+        .not('notes', 'is', null)
+        .limit(10)
+
+      if (cancelled) return
+
+      setCommunityNotesCount(notesData?.length ?? 0)
+
+      if (!notesData || notesData.length === 0) {
+        setCommunityNotes([])
+        return
+      }
+
+      const userIds = [...new Set(notesData.map((note: { user_id: string }) => note.user_id))]
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', userIds)
+        .limit(10)
+
+      if (cancelled) return
+
+      const profileMap = new Map(profilesData?.map((profile: { id: string; display_name: string }) => [profile.id, profile.display_name]) || [])
+      setCommunityNotes(
+        notesData
+          .map((note: { user_id: string; notes: string }) => ({
+            userId: note.user_id,
+            displayName: profileMap.get(note.user_id) || 'Anonymous',
+            notes: note.notes,
+          }))
+          .filter((note: { notes: string }) => Boolean(note.notes))
+      )
+    }
+
+    void fetchCommunityNotes()
+    return () => {
+      cancelled = true
+    }
+  }, [activeClimbId, selectedClimbFeedbackCollapsed])
 
   const allRoutesFlat = useMemo(
     () => Object.values(routesByImageId).flat(),
@@ -304,16 +423,15 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   )
 
   const selectedClimb = useMemo(() => {
-    const activeRoute = allRoutesFlat.find((route) => route.routeId === activeRouteId)
-    if (!activeRoute) return null
+    if (!activeRouteMeta) return null
     return {
-      id: activeRoute.climbId,
-      name: activeRoute.climbName,
-      grade: activeRoute.climbGrade || 'Unknown',
-      route_type: activeRoute.climbRouteType,
-      description: activeRoute.climbDescription,
+      id: activeRouteMeta.climbId,
+      name: activeRouteMeta.climbName,
+      grade: activeRouteMeta.climbGrade || 'Unknown',
+      route_type: activeRouteMeta.climbRouteType,
+      description: activeRouteMeta.climbDescription,
     }
-  }, [activeRouteId, allRoutesFlat])
+  }, [activeRouteMeta])
 
   const gradeSystem = useMemo(
     () => getGradeSystemForClimbType(selectedClimb?.route_type || undefined, gradePreferences),
@@ -341,11 +459,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     })
   }, [])
 
-  const activeRouteMeta = useMemo(
-    () => allRoutesFlat.find((route) => route.routeId === activeRouteId) || null,
-    [activeRouteId, allRoutesFlat]
-  )
-
   const activeImageMeta = useMemo(
     () => activeImageId ? navigationContext.imageMap[activeImageId] || heroImage : heroImage,
     [activeImageId, navigationContext.imageMap, heroImage]
@@ -363,10 +476,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   }, [payload.mapPins])
 
   const visibleRoutes = useMemo(() => {
-    const displayImageId = activeImageId || heroImage.displayImageId
-    const primaryImageId = linkedImageIdByDisplayId[displayImageId] || displayImageId
-    const rawRoutes = routesByImageId[primaryImageId] || []
-    const filteredRoutes = rawRoutes.filter(route => route.imageId === primaryImageId)
+    const filteredRoutes = activeRoutes.filter(route => route.imageId === activePrimaryImageId)
 
     return filteredRoutes.map((route) => {
       const rawPoints = parseRoutePoints(route.pathData)
@@ -396,7 +506,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       } as RouteLine
     })
     .filter((route) => route.points.length >= 2)
-  }, [routesByImageId, activeImageId, activeImageMeta, heroImage.displayImageId, linkedImageIdByDisplayId])
+  }, [activeImageMeta, activePrimaryImageId, activeRoutes])
 
   const handleGoToAuth = () => {
     router.push(`/auth?redirect_to=${encodeURIComponent(pathname || `/${countryCode}/${cragSlug}/i/${heroImage.displayImageId}`)}`)
@@ -404,9 +514,9 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   const handleRouteSelect = useCallback((routeId: string | null) => {
     if (routeId) {
-      setUserSelectedRouteId(routeId)
+      setResolvedActiveRouteId(routeId)
     }
-  }, [setUserSelectedRouteId])
+  }, [])
 
   const handleLog = useCallback(async (style: 'flash' | 'top' | 'try', notes?: string) => {
     if (!activeClimbId || !userPresent) return false
@@ -421,13 +531,14 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
       setSelectedClimbLogged(true)
       setSelectedClimbFeedbackCollapsed(false)
-      setPendingNotes('')
+      setPendingNotes(selectedClimbLog?.notes || '')
+      setNotesDialogOpen(true)
       addToast(`Logged as ${style === 'flash' ? 'Flash' : style === 'top' ? 'Top' : 'Try'}`, 'success')
       return true
     } finally {
       setLogging(false)
     }
-  }, [activeClimbId, addToast, userPresent])
+  }, [activeClimbId, addToast, selectedClimbLog?.notes, userPresent])
 
   const applySavedFeedback = useCallback((payload: {
     updatedGrade?: string
@@ -450,7 +561,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   const handleSaveFeedback = useCallback(async () => {
     if (!activeClimbId || !userPresent) return
-    if (!pendingGradeOpinion && pendingStarRating === null) return
+    if (!pendingGradeOpinion && pendingStarRating === null && pendingNotes.trim().length === 0) return
 
     setSavingFeedback(true)
     try {
@@ -458,25 +569,33 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         climbId: activeClimbId,
         gradeOpinion: pendingGradeOpinion,
         starRating: pendingStarRating,
+        notes: pendingNotes.trim() || null,
       })
 
-      if (!result.success) return
+      if (!result.success) {
+        addToast('Failed to save climb notes', 'error')
+        return
+      }
 
       const payload = (result.data || {}) as {
         updatedGrade?: string
         gradeUpdated?: boolean
         gradeOpinion?: GradeOpinion | null
         starRating?: number | null
+        notes?: string | null
       }
 
       applySavedFeedback(payload, {
         gradeOpinion: pendingGradeOpinion,
         starRating: pendingStarRating,
       })
+      setPendingNotes(payload.notes ?? pendingNotes.trim())
+      setNotesDialogOpen(false)
+      addToast('Saved climb notes', 'success')
     } finally {
       setSavingFeedback(false)
     }
-  }, [activeClimbId, applySavedFeedback, pendingGradeOpinion, pendingStarRating, userPresent])
+  }, [activeClimbId, addToast, applySavedFeedback, pendingGradeOpinion, pendingNotes, pendingStarRating, userPresent])
 
   const handleGradeOpinionSelect = useCallback(async (gradeOpinion: GradeOpinion) => {
     if (!activeClimbId || !userPresent) return
@@ -757,6 +876,45 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
               <div className="text-sm font-semibold text-white">All routes</div>
               <div className="mt-1 text-sm text-zinc-400">Exports all routes in red with the selected route highlighted in cyan.</div>
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={notesDialogOpen} onOpenChange={setNotesDialogOpen}>
+        <DialogContent className="border-white/10 bg-zinc-950 text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add notes for this send</DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              Save private notes now, or skip and add them later from your logbook.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <textarea
+              value={pendingNotes}
+              onChange={(event) => setPendingNotes(event.target.value)}
+              placeholder="How did it feel? Conditions, beta, links, or reminders for next time."
+              className="min-h-32 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-white/20"
+              maxLength={500}
+            />
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setNotesDialogOpen(false)}
+                className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+              >
+                Skip for now
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveFeedback()}
+                disabled={savingFeedback}
+                className="flex-1 rounded-2xl bg-[#d4a017] px-4 py-3 text-sm font-semibold text-black transition hover:brightness-105 disabled:opacity-50"
+              >
+                Save notes
+              </button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

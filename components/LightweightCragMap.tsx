@@ -61,7 +61,7 @@ function pinVisualStyles(active: boolean) {
   return {
     background: active ? '#d4a017' : '#ef4444',
     border: 'white',
-    shadow: active ? '0 8px 22px rgba(212,160,23,0.38)' : '0 4px 12px rgba(15,23,42,0.22)',
+    shadow: active ? '0 4px 12px rgba(15,23,42,0.22)' : '0 4px 12px rgba(15,23,42,0.22)',
     size: 24,
     fontSize: 11,
   }
@@ -193,6 +193,7 @@ interface LightweightCragMapProps {
   interactiveViewport?: boolean
   staticPreview?: boolean
   disableClustering?: boolean
+  disableAutoFit?: boolean
   onViewportChange?: (state: { zoom: number; bounds: MapBounds }) => void
   className?: string
   tileUrl?: string
@@ -211,6 +212,7 @@ export default function LightweightCragMap({
   interactiveViewport = true,
   staticPreview = false,
   disableClustering = false,
+  disableAutoFit = false,
   onViewportChange,
   className,
   tileUrl,
@@ -426,7 +428,7 @@ export default function LightweightCragMap({
   }, [activePinId, renderedPins, resolvedPins])
 
   useEffect(() => {
-    if (!interactiveViewport || usesStaticPreview) return
+    if (!interactiveViewport || usesStaticPreview || disableAutoFit) return
     const map = mapRef.current
     if (!map || !leafletLib || !mapReady || resolvedPins.length === 0) return
     if (lastFittedPinsSignatureRef.current === pinsSignature) return
@@ -450,7 +452,7 @@ export default function LightweightCragMap({
     return () => {
       window.cancelAnimationFrame(frameId)
     }
-  }, [interactiveViewport, leafletLib, mapReady, pinsSignature, resolvedPins, usesStaticPreview])
+  }, [disableAutoFit, interactiveViewport, leafletLib, mapReady, pinsSignature, resolvedPins, usesStaticPreview])
 
   if (resolvedPins.length === 0) {
     return null
