@@ -50,11 +50,6 @@ export function LogbookStatsSection({
 }: LogbookStatsSectionProps) {
   const hasGradeHistoryData = stats.gradeHistory.some((entry) => entry.top !== null || entry.flash !== null)
 
-  console.log('LOGBOOK_STATS_SECTION', {
-    gradeHistory: stats.gradeHistory,
-    hasGradeHistoryData,
-  })
-
   return (
     <div className="space-y-0">
       <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">
