@@ -13,6 +13,8 @@ export interface InstagramPostLayout {
   offsetY: number
 }
 
+type InstagramFitMode = 'cover' | 'contain'
+
 export interface InstagramPostRenderInput {
   imageBuffer: Buffer
   naturalWidth: number
@@ -30,7 +32,28 @@ export function computeInstagramCoverLayout(
   frameWidth: number = INSTAGRAM_POST_WIDTH,
   frameHeight: number = INSTAGRAM_POST_HEIGHT
 ): InstagramPostLayout {
-  const scale = Math.max(frameWidth / naturalWidth, frameHeight / naturalHeight)
+  return computeInstagramLayout(naturalWidth, naturalHeight, frameWidth, frameHeight, 'cover')
+}
+
+export function computeInstagramContainLayout(
+  naturalWidth: number,
+  naturalHeight: number,
+  frameWidth: number = INSTAGRAM_POST_WIDTH,
+  frameHeight: number = INSTAGRAM_POST_HEIGHT
+): InstagramPostLayout {
+  return computeInstagramLayout(naturalWidth, naturalHeight, frameWidth, frameHeight, 'contain')
+}
+
+function computeInstagramLayout(
+  naturalWidth: number,
+  naturalHeight: number,
+  frameWidth: number,
+  frameHeight: number,
+  fit: InstagramFitMode
+): InstagramPostLayout {
+  const scale = fit === 'cover'
+    ? Math.max(frameWidth / naturalWidth, frameHeight / naturalHeight)
+    : Math.min(frameWidth / naturalWidth, frameHeight / naturalHeight)
   const drawWidth = naturalWidth * scale
   const drawHeight = naturalHeight * scale
 
@@ -96,9 +119,11 @@ function buildOverlaySvg(input: {
 
 export async function renderInstagramPost(input: InstagramPostRenderInput): Promise<Buffer> {
   const baseImage = await sharp(input.imageBuffer, { failOn: 'none' })
+    .rotate()
     .resize(INSTAGRAM_POST_WIDTH, INSTAGRAM_POST_HEIGHT, {
-      fit: 'cover',
+      fit: 'contain',
       position: 'centre',
+      background: { r: 0, g: 0, b: 0, alpha: 1 },
     })
     .png()
     .toBuffer()
@@ -107,7 +132,7 @@ export async function renderInstagramPost(input: InstagramPostRenderInput): Prom
     .map((route) => {
       const mappedPoints = mapNormalizedPointsToInstagramPost(
         route.routePoints,
-        computeInstagramCoverLayout(input.naturalWidth, input.naturalHeight)
+        computeInstagramContainLayout(input.naturalWidth, input.naturalHeight)
       )
       const pathData = buildQuadraticPath(mappedPoints)
       if (!pathData) return null
