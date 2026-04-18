@@ -26,11 +26,13 @@ interface SaveClimbFeedbackInput {
   climbId: string
   gradeOpinion?: GradeOpinion | null
   starRating?: number | null
+  notes?: string | null
 }
 
 interface SaveClimbFeedbackResult {
   gradeOpinion: GradeOpinion | null
   starRating: number | null
+  notes: string | null
   consensus: {
     totalVotes: number
     confidence: number
@@ -111,6 +113,7 @@ const saveClimbFeedbackSchema = z.object({
   climbId: z.string().trim().min(1, 'climbId is required'),
   gradeOpinion: z.enum(GRADE_OPINIONS).nullable().optional(),
   starRating: z.number().int().min(1, 'Invalid star rating').max(5, 'Invalid star rating').nullable().optional(),
+  notes: z.string().trim().max(500, 'Notes must be under 500 characters').nullable().optional(),
 })
 
 export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Promise<ActionResult<SaveClimbFeedbackResult>> {
@@ -129,6 +132,7 @@ export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Pr
   const climbId = validation.data.climbId
   const gradeOpinion = validation.data.gradeOpinion ?? null
   const starRating = validation.data.starRating ?? null
+  const notes = validation.data.notes ?? null
 
   const supabase = await getServerClient()
   const effectiveClimbId = await resolveEffectiveClimbId(supabase as never, climbId)
@@ -166,6 +170,7 @@ export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Pr
   const updatePayload: Record<string, unknown> = {
     grade_opinion: gradeOpinion,
     star_rating: starRating,
+    notes,
     grade_vote_baseline: gradeOpinion ? normalizeGrade(climbRow.grade) : null,
   }
 
@@ -215,6 +220,7 @@ export async function saveClimbFeedbackAction(input: SaveClimbFeedbackInput): Pr
   return ok({
     gradeOpinion,
     starRating,
+    notes,
     consensus: {
       totalVotes,
       confidence,

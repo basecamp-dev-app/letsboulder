@@ -54,6 +54,7 @@ export default function RoutePageMinimap({
   const cachedBoundsRef = useRef<BoundsState[]>([])
   const [isInView, setIsInView] = useState(false)
   const [isEnhanced, setIsEnhanced] = useState(false)
+  const [showUnlockHint, setShowUnlockHint] = useState(true)
   const [pinsById, setPinsById] = useState<Record<string, LightweightCragMapPin>>(() => {
     if (!currentPin) return {}
     return { [currentPin.id]: currentPin }
@@ -83,6 +84,15 @@ export default function RoutePageMinimap({
       }
     }
   }, [isEnhanced, isInView])
+
+  const unlockMap = useCallback(() => {
+    if (enhanceTimerRef.current !== null) {
+      window.clearTimeout(enhanceTimerRef.current)
+      enhanceTimerRef.current = null
+    }
+    setShowUnlockHint(false)
+    setIsEnhanced(true)
+  }, [])
 
   const fetchPinsForBounds = useCallback(async (bounds: BoundsState) => {
     if (!cragId) return
@@ -161,18 +171,32 @@ export default function RoutePageMinimap({
           initialZoom={ROUTE_PAGE_ZOOM}
           onPinSelect={onPinSelect}
           disableClustering={true}
+          disableAutoFit={true}
           onViewportChange={handleViewportChange}
           heightClassName="min-h-[240px] md:min-h-[280px]"
         />
       ) : (
-        <LightweightCragMap
-          pins={[currentPin]}
-          activePinId={activeImageId}
-          initialCenter={initialCenter}
-          initialZoom={ROUTE_PAGE_ZOOM}
-          staticPreview={true}
-          heightClassName="min-h-[240px] md:min-h-[280px]"
-        />
+        <button
+          type="button"
+          onClick={unlockMap}
+          className="group relative block w-full text-left"
+          aria-label="Tap map to explore nearby photos"
+        >
+          <LightweightCragMap
+            pins={[currentPin]}
+            activePinId={activeImageId}
+            initialCenter={initialCenter}
+            initialZoom={ROUTE_PAGE_ZOOM}
+            staticPreview={true}
+            disableAutoFit={true}
+            heightClassName="min-h-[240px] md:min-h-[280px]"
+          />
+          {showUnlockHint ? (
+            <div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-2xl bg-black/65 px-4 py-3 text-sm font-medium text-white backdrop-blur-sm">
+              Tap map to explore nearby photos
+            </div>
+          ) : null}
+        </button>
       )}
     </div>
   )
