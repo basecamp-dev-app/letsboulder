@@ -113,8 +113,6 @@ describe('image-page-server raw image fallback', () => {
           grade: '6A',
           description: null,
           route_type: 'boulder',
-          average_stars: null,
-          star_votes: null,
         },
       },
     ]

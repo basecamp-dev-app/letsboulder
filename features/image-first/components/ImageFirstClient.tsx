@@ -64,6 +64,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [communityNotesCount, setCommunityNotesCount] = useState(0)
   const [communityNotes, setCommunityNotes] = useState<Array<{ userId: string; displayName: string; notes: string; createdAt: string | null }>>([])
   const [communityNotesExpanded, setCommunityNotesExpanded] = useState(false)
+  const [selectedClimbRatingSummary, setSelectedClimbRatingSummary] = useState<{ rating_avg: number | null; rating_count: number } | null>(null)
   const [selectedClimbHasSavedFeedback, setSelectedClimbHasSavedFeedback] = useState(false)
   const [selectedClimbFeedbackCollapsed, setSelectedClimbFeedbackCollapsed] = useState(true)
   const [pendingGradeOpinion, setPendingGradeOpinion] = useState<GradeOpinion | null>(null)
@@ -136,9 +137,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     const supabase = createClient()
     const { data, error } = await supabase
       .from('route_lines')
-      .select(
-        'id, image_id, climb_id, color, points, image_width, image_height, sequence_order, created_at, climbs (id, name, slug, grade, description, route_type, average_stars, star_votes)'
-      )
+      .select('id, image_id, climb_id, color, points, image_width, image_height, sequence_order, created_at, climbs (id, name, slug, grade, description, route_type)')
       .in('image_id', targets)
       .order('sequence_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
@@ -172,8 +171,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         grade: string | null
         description: string | null
         route_type: string | null
-        average_stars: number | null
-        star_votes: number | null
       } | Array<{
         id: string
         name: string | null
@@ -181,8 +178,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         grade: string | null
         description: string | null
         route_type: string | null
-        average_stars: number | null
-        star_votes: number | null
       }> | null
     }>) {
       const climb = Array.isArray(row.climbs) ? row.climbs[0] : row.climbs
@@ -197,8 +192,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         climbGrade: climb.grade || null,
         climbDescription: climb.description || null,
         climbRouteType: climb.route_type || null,
-        climbAverageStars: climb.average_stars ?? null,
-        climbStarVotes: climb.star_votes ?? null,
         pathData: row.points,
         color: row.color || '#ef4444',
         isPrimary: false,
@@ -339,6 +332,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
   useEffect(() => {
     if (!activeClimbId) {
+      setSelectedClimbRatingSummary(null)
       setSelectedClimbLogged(false)
       setSelectedClimbLog(null)
       setSelectedClimbHasSavedFeedback(false)
@@ -383,6 +377,34 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     void fetchData()
     return () => { cancelled = true }
   }, [activeClimbId, userPresent])
+
+  useEffect(() => {
+    if (!activeClimbId) {
+      setSelectedClimbRatingSummary(null)
+      return
+    }
+
+    let cancelled = false
+
+    const fetchRatingSummary = async () => {
+      const response = await fetch(`/api/climbs/${encodeURIComponent(activeClimbId)}/star-rating`)
+      if (!response.ok) {
+        if (!cancelled) setSelectedClimbRatingSummary(null)
+        return
+      }
+
+      const json = await response.json() as { rating_avg?: number | null; rating_count?: number | null }
+      if (cancelled) return
+
+      setSelectedClimbRatingSummary({
+        rating_avg: typeof json.rating_avg === 'number' ? json.rating_avg : null,
+        rating_count: typeof json.rating_count === 'number' ? json.rating_count : 0,
+      })
+    }
+
+    void fetchRatingSummary()
+    return () => { cancelled = true }
+  }, [activeClimbId])
 
   useEffect(() => {
     if (!activeClimbId) return
@@ -799,16 +821,9 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         selectedClimbLog={selectedClimbLog}
         selectedClimbHasSavedFeedback={selectedClimbHasSavedFeedback}
         selectedClimbFeedbackCollapsed={selectedClimbFeedbackCollapsed}
-        selectedClimbRatingSummary={
-          activeRouteMeta
-            ? {
-                rating_avg: activeRouteMeta.climbAverageStars,
-                rating_count: activeRouteMeta.climbStarVotes ?? 0,
-              }
-            : null
-        }
-        selectedClimbAverageRating={activeRouteMeta?.climbAverageStars ?? null}
-        selectedClimbRoundedStars={Math.round(activeRouteMeta?.climbAverageStars ?? 0)}
+        selectedClimbRatingSummary={selectedClimbRatingSummary}
+        selectedClimbAverageRating={selectedClimbRatingSummary?.rating_avg ?? null}
+        selectedClimbRoundedStars={Math.round(selectedClimbRatingSummary?.rating_avg ?? 0)}
         pendingGradeOpinion={pendingGradeOpinion}
         pendingStarRating={pendingStarRating}
         communityNotesCount={communityNotesCount}

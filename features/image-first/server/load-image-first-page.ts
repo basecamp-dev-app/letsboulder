@@ -68,8 +68,6 @@ interface RouteLineRow {
         grade: string | null
         description: string | null
         route_type: string | null
-        average_stars: number | null
-        star_votes: number | null
       }
     | Array<{
         id: string
@@ -78,8 +76,6 @@ interface RouteLineRow {
         grade: string | null
         description: string | null
         route_type: string | null
-        average_stars: number | null
-        star_votes: number | null
       }>
     | null
 }
@@ -304,8 +300,6 @@ function buildOfflineImageFirstPayload(
         climbGrade: route.grade || payload.climb?.grade || null,
         climbDescription: route.description || payload.climb?.description || null,
         climbRouteType: route.route_type || payload.climb?.route_type || null,
-        climbAverageStars: null,
-        climbStarVotes: null,
         pathData: route.points,
         color: route.color || '#ef4444',
         isPrimary: displayImageId === heroDisplayImageId,
@@ -324,8 +318,6 @@ function buildOfflineImageFirstPayload(
         climbGrade: route.climb?.grade || payload.climb?.grade || null,
         climbDescription: route.climb?.description || payload.climb?.description || null,
         climbRouteType: route.climb?.route_type || payload.climb?.route_type || null,
-        climbAverageStars: null,
-        climbStarVotes: null,
         pathData: route.points,
         color: route.color || '#ef4444',
         isPrimary: true,
@@ -536,8 +528,6 @@ export async function buildImageFirstPayload(args: {
       climbGrade: climb?.grade || null,
       climbDescription: climb?.description || null,
       climbRouteType: climb?.route_type || null,
-      climbAverageStars: climb?.average_stars ?? null,
-      climbStarVotes: climb?.star_votes ?? null,
       pathData: row.points,
       color: row.color || '#ef4444',
       isPrimary: index === 0,
