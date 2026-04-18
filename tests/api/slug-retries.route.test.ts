@@ -320,8 +320,84 @@ describe('Slug retry routes', () => {
 
     expect(response.status).toBe(201)
     expect(insertPayloads).toEqual([
-      expect.objectContaining({ slug: 'smith-rock-2' }),
+      expect.objectContaining({ slug: 'smith-rock-2', country_code: 'US' }),
     ])
     expect(json.slug).toBe('smith-rock-2')
+  })
+
+  test('crags route rejects coordinate-based creation when country resolution fails', async () => {
+    const insertCrag = vi.fn()
+
+    vi.mocked(resolveCountryFromCoordinates).mockResolvedValue({
+      countryCode: null,
+      countryId: null,
+      countryName: null,
+      regionName: null,
+      unRegionName: null,
+      continentName: null,
+      source: 'database',
+    })
+
+    vi.mocked(withApiMiddleware).mockResolvedValue({
+      ok: true,
+      supabase: {
+        auth: {
+          getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } }, error: null })),
+        },
+        from: vi.fn((table: string) => {
+          if (table === 'crags') {
+            return {
+              select: vi.fn((query: string) => {
+                if (query === 'id, name' || query === 'id, name, latitude, longitude') {
+                  return makeSelectChain({ data: [], error: null })
+                }
+
+                if (query === 'slug') {
+                  return makeSelectChain({ data: [], error: null })
+                }
+
+                return makeSelectChain({ data: [], error: null })
+              }),
+              insert: insertCrag,
+            }
+          }
+
+          if (table === 'profiles') {
+            return {
+              select: vi.fn(() => makeSelectChain({ data: { is_admin: false }, error: null })),
+            }
+          }
+
+          if (table === 'location_tags' || table === 'crag_location_tags') {
+            return {
+              select: vi.fn(() => makeSelectChain({ data: null, error: null })),
+              insert: vi.fn(async () => ({ error: null })),
+            }
+          }
+
+          return {
+            select: vi.fn(() => makeThenableResult({ data: [], error: null })),
+            insert: vi.fn(async () => ({ error: null })),
+          }
+        }),
+        rpc: vi.fn(async () => ({ data: null, error: null })),
+      } as never,
+    } as unknown as MiddlewareResult)
+
+    const response = await postCrag(makeRequest('http://localhost:3000/api/crags', {
+      name: 'Bowles Rocks',
+      latitude: 51.0754644,
+      longitude: 0.1989174,
+      type: 'boulder',
+      rock_type: 'Southern Sandstone',
+      sub_area: 'Fandango Wall',
+    }))
+    const json = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(json).toEqual({
+      error: 'Could not resolve country from this crag location. Please ensure your pin is on land.',
+    })
+    expect(insertCrag).not.toHaveBeenCalled()
   })
 })
