@@ -1,11 +1,11 @@
 import { cache } from 'react'
 import { getServerClient } from '@/lib/supabase-server'
 import { Card, CardContent } from '@/components/ui/card'
-import LogbookView from '@/features/logbook/components/LogbookView'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Lock, ArrowLeft } from 'lucide-react'
 import ProfileViewTracker from './components/ProfileViewTracker'
+import PublicLogbookClient from './PublicLogbookClient'
 import type { LogbookClimb, LogbookProfile } from '@/features/logbook/lib/logbook-view'
 import type { Database } from '@/types/database'
 
@@ -232,13 +232,14 @@ export default async function PublicLogbookPage({ params }: PublicLogbookPagePro
   return (
     <>
       <ProfileViewTracker />
-      <LogbookView
+      <PublicLogbookClient
         userId={userId}
-        isOwnProfile={false}
-        initialLogs={logsResult.logs}
-        initialLogsNextCursor={logsResult.nextCursor}
-        profile={profile}
-        initialSubmissions={submissions}
+        initialPage={{
+          logs: logsResult.logs,
+          nextCursor: logsResult.nextCursor,
+          profile,
+          submissions,
+        }}
       />
     </>
   )

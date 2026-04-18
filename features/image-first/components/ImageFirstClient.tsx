@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Session } from '@supabase/supabase-js'
 import { useImageNavigation } from '@/features/image-first/hooks/use-image-navigation'
@@ -14,6 +15,7 @@ import ClimbInfoPanel from '@/features/climb/components/ClimbInfoPanel'
 import { saveClimbFeedbackAction } from '@/features/climb/actions/save-climb-feedback'
 import { getGradeSystemForClimbType, useGradePreferences } from '@/lib/grades/preferences'
 import { logRoutesAction } from '@/features/logbook/actions/log-routes'
+import { ownLogbookQueryKey } from '@/features/logbook/lib/queries'
 import type { GradeOpinion } from '@/lib/grade-feedback'
 import { parseRoutePoints } from '@/features/route-editor/route-editor-utils'
 import { ToastContainer } from '@/components/ui/toast'
@@ -37,6 +39,7 @@ function toLoggedClimbInfo(row: UserClimbRow | null): { gradeOpinion: 'soft' | '
 }
 
 export default function ImageFirstClient({ payload }: { payload: ImageFirstPayload }) {
+  const queryClient = useQueryClient()
   const {
     heroImage,
     initialRoutes,
@@ -514,6 +517,8 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         return false
       }
 
+      await queryClient.invalidateQueries({ queryKey: ownLogbookQueryKey })
+
       setSelectedClimbLogged(true)
       setSelectedClimbFeedbackCollapsed(false)
       setPendingNotes(selectedClimbLog?.notes || '')
@@ -523,7 +528,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
     } finally {
       setLogging(false)
     }
-  }, [activeClimbId, addToast, selectedClimbLog?.notes, userPresent])
+  }, [activeClimbId, addToast, queryClient, selectedClimbLog?.notes, userPresent])
 
   const applySavedFeedback = useCallback((payload: {
     updatedGrade?: string

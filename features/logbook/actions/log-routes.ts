@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { getActionAuth } from '@/lib/actions/action-auth'
 import { fail, ok, type ActionResult } from '@/lib/actions/action-result'
 import { validateActionInput } from '@/lib/actions/validate-action-input'
@@ -72,6 +73,9 @@ export async function logRoutesAction(
     reportError(error, { message: 'Failed to log climbs' })
     return { success: false, error: 'Failed to log climbs', status: 500 }
   }
+
+  revalidatePath('/logbook')
+  revalidatePath(`/logbook/${userId}`)
 
   return ok({
     logged: effectiveClimbIds.length,
