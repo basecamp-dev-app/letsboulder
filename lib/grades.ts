@@ -261,6 +261,22 @@ interface MonthlyGradeData {
   flash: number | null
 }
 
+interface MonthlyGradeBucket {
+  label: string
+  topPoints: number
+  topCount: number
+  flashPoints: number
+  flashCount: number
+}
+
+function getUtcMonthBucketKey(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+function getUtcMonthBucketLabel(date: Date): string {
+  return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' })
+}
+
 interface StatsResult {
   top10Hardest: LogEntry[]
   twoMonthAverage: number
@@ -307,17 +323,23 @@ export function calculateStats(logs: LogEntry[]): StatsResult {
     ? twoMonthWithPoints.reduce((sum, log) => sum + log.points, 0) / twoMonthWithPoints.length
     : 0
 
-  const monthlyData: Record<string, { topPoints: number; topCount: number; flashPoints: number; flashCount: number }> = {}
+  const monthlyData: Record<string, MonthlyGradeBucket> = {}
   
   for (let i = 0; i < 12; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-    monthlyData[monthKey] = { topPoints: 0, topCount: 0, flashPoints: 0, flashCount: 0 }
+    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
+    const monthKey = getUtcMonthBucketKey(date)
+    monthlyData[monthKey] = {
+      label: getUtcMonthBucketLabel(date),
+      topPoints: 0,
+      topCount: 0,
+      flashPoints: 0,
+      flashCount: 0,
+    }
   }
 
   yearLogs.forEach(log => {
     const logDate = new Date(log.created_at)
-    const monthKey = logDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+    const monthKey = getUtcMonthBucketKey(logDate)
     
     if (monthlyData[monthKey]) {
       if (log.style === 'try') return
@@ -338,18 +360,12 @@ export function calculateStats(logs: LogEntry[]): StatsResult {
   })
 
   const gradeHistory = Object.entries(monthlyData)
-    .map(([month, data]) => ({
-      month,
+    .sort(([aKey], [bKey]) => aKey.localeCompare(bKey))
+    .map(([, data]) => ({
+      month: data.label,
       top: data.topCount > 0 ? data.topPoints / data.topCount : null,
       flash: data.flashCount > 0 ? data.flashPoints / data.flashCount : null,
     }))
-    .sort((a, b) => {
-      const [aMonth, aYear] = a.month.split(' ')
-      const [bMonth, bYear] = b.month.split(' ')
-      const aDate = new Date(`${aMonth} 20${aYear}`)
-      const bDate = new Date(`${bMonth} 20${bYear}`)
-      return aDate.getTime() - bDate.getTime()
-    })
 
   const gradePyramid: Record<string, number> = {}
   GRADES.forEach(grade => gradePyramid[grade] = 0)

@@ -484,6 +484,31 @@ describe('calculateStats', () => {
     expect(monthWithData).toBeDefined()
   })
 
+  test('gradeHistory includes a new log in the current UTC month', () => {
+    const now = new Date().toISOString()
+    const logs: LogEntry[] = [
+      makeLog({ style: 'top', grade: '6A', created_at: now }),
+    ]
+
+    const stats = calculateStats(logs)
+    const monthWithData = stats.gradeHistory.find((entry) => entry.top !== null)
+
+    expect(monthWithData).toBeDefined()
+    expect(monthWithData?.top).toBe(getGradePoints('6A'))
+  })
+
+  test('gradeHistory buckets month-boundary timestamps consistently in UTC', () => {
+    const logs: LogEntry[] = [
+      makeLog({ style: 'flash', grade: '7A', created_at: '2026-04-01T00:30:00.000Z' }),
+    ]
+
+    const stats = calculateStats(logs)
+    const monthWithData = stats.gradeHistory.find((entry) => entry.flash !== null)
+
+    expect(monthWithData).toBeDefined()
+    expect(monthWithData?.flash).toBe(getGradePoints('7A'))
+  })
+
   test('averageGrade derived from average points', () => {
     const now = new Date().toISOString()
     const logs: LogEntry[] = [
