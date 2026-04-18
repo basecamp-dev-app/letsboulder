@@ -11,11 +11,6 @@ import { getGradeFromPoints, type GradeSystem } from '@/lib/grades'
 import { resolveRouteImageUrl } from '@/lib/media/route-image-url'
 import { statusStyles, type LogEntry, type LogbookClimb, type LogbookStats } from '@/features/logbook/lib/logbook-view'
 
-const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart'), {
-  ssr: false,
-  loading: () => <div className="h-64 flex items-center justify-center text-gray-400">Loading chart...</div>,
-})
-
 const ProgressOverTimeChart = dynamic(() => import('@/features/logbook/components/ProgressOverTimeChart'), {
   ssr: false,
   loading: () => <div className="h-72 flex items-center justify-center text-gray-400">Loading progress chart...</div>,
@@ -55,8 +50,6 @@ export function LogbookStatsSection({
   onDeleteLog,
   climbUrlMap,
 }: LogbookStatsSectionProps) {
-  const hasGradeHistoryData = stats.gradeHistory.some((entry) => entry.top !== null || entry.flash !== null)
-
   return (
     <div className="space-y-0">
       <Card className="m-0 border-x-0 border-t-0 rounded-none py-0 gap-0">
@@ -79,19 +72,6 @@ export function LogbookStatsSection({
         </CardHeader>
         <CardContent className="pt-0">
           <ProgressOverTimeChart logs={logs} gradeSystem={gradeSystem} />
-        </CardContent>
-      </Card>
-
-      <Card className="m-0 border-x-0 border-t-0 rounded-none">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Monthly Average Grade</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {hasGradeHistoryData ? (
-            <GradeHistoryChart data={stats.gradeHistory} />
-          ) : (
-            <p className="text-gray-500 dark:text-gray-400 py-4">No data for the past year</p>
-          )}
         </CardContent>
       </Card>
 

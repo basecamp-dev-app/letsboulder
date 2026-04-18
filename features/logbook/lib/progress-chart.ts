@@ -21,6 +21,8 @@ export interface ProgressTrendPoint {
 }
 
 export interface ProgressChartData {
+  rangeStart: number | null
+  rangeEnd: number
   points: ProgressChartPoint[]
   trend: ProgressTrendPoint[]
 }
@@ -54,6 +56,7 @@ const pointDateFormatter = new Intl.DateTimeFormat('en-GB', {
 
 export function buildProgressChartData(logs: LogEntry[], range: ProgressRangePreset, now = new Date()): ProgressChartData {
   const rangeStart = getRangeStart(now, range)
+  const rangeEnd = now.getTime()
 
   const points = logs
     .filter((log): log is LogEntry & { style: 'flash' | 'top'; climbs: NonNullable<LogEntry['climbs']> } => {
@@ -97,5 +100,10 @@ export function buildProgressChartData(logs: LogEntry[], range: ProgressRangePre
     })
     .filter((point): point is ProgressTrendPoint => point !== null)
 
-  return { points, trend }
+  return {
+    rangeStart: rangeStart?.getTime() ?? null,
+    rangeEnd,
+    points,
+    trend,
+  }
 }
