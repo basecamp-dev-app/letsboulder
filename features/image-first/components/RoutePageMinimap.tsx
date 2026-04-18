@@ -162,7 +162,7 @@ export default function RoutePageMinimap({
   if (!currentPin || !initialCenter) return null
 
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} className="relative z-0">
       {isEnhanced ? (
         <LightweightCragMap
           pins={orderedPins}
