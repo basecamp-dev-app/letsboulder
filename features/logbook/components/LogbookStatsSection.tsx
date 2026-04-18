@@ -16,10 +16,16 @@ const GradeHistoryChart = dynamic(() => import('@/components/GradeHistoryChart')
   loading: () => <div className="h-64 flex items-center justify-center text-gray-400">Loading chart...</div>,
 })
 
+const ProgressOverTimeChart = dynamic(() => import('@/features/logbook/components/ProgressOverTimeChart'), {
+  ssr: false,
+  loading: () => <div className="h-72 flex items-center justify-center text-gray-400">Loading progress chart...</div>,
+})
+
 interface LogbookStatsSectionProps {
   gradeSystem: GradeSystem
   stats: LogbookStats
   lowestGrade: string
+  logs: LogbookClimb[]
   recentLogs: LogbookClimb[]
   isOwnProfile: boolean
   deletingId: string | null
@@ -42,6 +48,7 @@ export function LogbookStatsSection({
   gradeSystem,
   stats,
   lowestGrade,
+  logs,
   recentLogs,
   isOwnProfile,
   deletingId,
@@ -68,7 +75,16 @@ export function LogbookStatsSection({
 
       <Card className="m-0 border-x-0 border-t-0 rounded-none">
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Grade History (Last 365 Days)</CardTitle>
+          <CardTitle className="text-lg">Progress Over Time</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <ProgressOverTimeChart logs={logs} gradeSystem={gradeSystem} />
+        </CardContent>
+      </Card>
+
+      <Card className="m-0 border-x-0 border-t-0 rounded-none">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Monthly Average Grade</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           {hasGradeHistoryData ? (

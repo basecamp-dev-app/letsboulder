@@ -165,6 +165,7 @@ export default function LogbookView({
           gradeSystem={gradeSystem}
           stats={stats}
           lowestGrade={lowestGrade}
+          logs={logs}
           recentLogs={recentLogs}
           isOwnProfile={isOwnProfile}
           deletingId={deletingId}
