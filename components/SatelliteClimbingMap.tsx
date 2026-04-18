@@ -554,7 +554,11 @@ export default function SatelliteClimbingMap({
                 })}
                 zIndexOffset={1000}
                 eventHandlers={{
-                  click: () => {
+                  mousedown: (event) => {
+                    event.originalEvent?.stopPropagation()
+                  },
+                  click: (event) => {
+                    event.originalEvent?.stopPropagation()
                     if (isSelected) {
                       navigateToPlace(router, place)
                     } else {
@@ -563,7 +567,7 @@ export default function SatelliteClimbingMap({
                   },
                 }}
               >
-                <Tooltip direction="center" opacity={isSelected ? 1 : 0}>
+                <Tooltip direction="center" permanent={isSelected} opacity={1}>
                   <span className="font-semibold">{place.name}</span>
                 </Tooltip>
               </Marker>
