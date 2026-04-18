@@ -567,7 +567,7 @@ export default function SatelliteClimbingMap({
                   },
                 }}
               >
-                <Tooltip direction="center" permanent={isSelected} opacity={1}>
+                <Tooltip direction="center" permanent={isSelected} opacity={1} interactive={false}>
                   <span className="font-semibold">{place.name}</span>
                 </Tooltip>
               </Marker>
