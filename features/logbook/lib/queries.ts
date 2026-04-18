@@ -29,6 +29,7 @@ interface RawLogbookRow {
   climb_id: string
   style: string
   created_at: string
+  date_climbed?: string | null
   climbs: {
     id: string
     name: string
@@ -78,7 +79,7 @@ export async function fetchOwnLogbookData(passedUser?: User | null): Promise<Own
       .single(),
     supabase
       .from('user_climbs')
-      .select('id, climb_id, style, created_at, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')
+      .select('id, climb_id, style, created_at, date_climbed, climbs(id, name, grade, slug, crag_id, route_lines(images(url, crags(name))))')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(INITIAL_LOGBOOK_LOG_LIMIT),
