@@ -7,6 +7,7 @@ export interface LogbookClimb {
   climb_id: string
   style: string
   created_at: string
+  points?: number
   notes?: string
   date_climbed?: string
   canonical_url?: string | null
@@ -14,10 +15,12 @@ export interface LogbookClimb {
     id: string
     name: string
     grade: string
+    slug?: string | null
+    crag_id?: string | null
     image_url?: string
-    crags?: {
+    crags: {
       name: string
-    } | null
+    }
   }
 }
 
