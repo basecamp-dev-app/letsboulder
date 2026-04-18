@@ -55,6 +55,18 @@ function LogbookContent({ user, initialData }: { user: User; initialData?: OwnLo
   const profile = data?.profile ?? initialData?.profile ?? undefined
   const submissions = data?.submissions ?? initialData?.submissions ?? []
 
+  console.log('LOGBOOK_CLIENT_QUERY', {
+    logsCount: logs.length,
+    sampleLogs: logs.slice(0, 3).map((log) => ({
+      id: log.id,
+      created_at: log.created_at,
+      date_climbed: log.date_climbed ?? null,
+      style: log.style,
+      grade: log.climbs?.grade,
+      climb_id: log.climb_id,
+    })),
+  })
+
   const updateOwnLogbookData = (updater: (current: OwnLogbookData) => OwnLogbookData) => {
     queryClient.setQueryData<OwnLogbookData>(ownLogbookQueryKey, (current) => {
       if (!current) return current

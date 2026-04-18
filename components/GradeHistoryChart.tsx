@@ -24,6 +24,13 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
   const roundedMin = Math.floor(minValue / gradeStep) * gradeStep
   const roundedMax = Math.ceil(maxValue / gradeStep) * gradeStep
 
+  console.log('GRADE_CHART_DATA', {
+    data,
+    values,
+    roundedMin,
+    roundedMax,
+  })
+
   return (
     <MeasuredChartContainer className="w-full min-w-0 h-64 min-h-[200px] md:min-h-[256px]" minHeightClassName="h-full min-h-[200px] md:min-h-[256px]">
       <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200}>
