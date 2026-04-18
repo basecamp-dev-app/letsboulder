@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
 import { getGradeFromPoints } from '@/lib/grades'
 import { useGradeSystem } from '@/features/grades/hooks/useGradeSystem'
 import { formatGradeForDisplay } from '@/lib/grade-display'
@@ -30,6 +30,11 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
   const minValue = values.length > 0 ? Math.min(...values) : 600
   const roundedMin = Math.floor(minValue / gradeStep) * gradeStep
   const roundedMax = Math.ceil(maxValue / gradeStep) * gradeStep
+  const chartData = data.map((entry) => ({
+    ...entry,
+    topDisplay: entry.top,
+    flashDisplay: entry.flash,
+  }))
 
   useEffect(() => {
     const element = containerRef.current
@@ -63,26 +68,24 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
     }
   }, [])
 
+  console.log('GRADE_HISTORY_CHART_RENDER', {
+    dimensions,
+    values,
+    roundedMin,
+    roundedMax,
+    data: chartData,
+  })
+
   return (
     <div className="w-full min-w-0 h-64 min-h-[200px] md:min-h-[256px]">
       <div ref={containerRef} className="h-full w-full min-w-0">
         {dimensions ? (
-          <AreaChart
+          <LineChart
             width={dimensions.width}
             height={dimensions.height}
-            data={data}
+            data={chartData}
             margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
           >
-            <defs>
-              <linearGradient id="flashGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#666666" stopOpacity={0.6}/>
-                <stop offset="95%" stopColor="#666666" stopOpacity={0.15}/>
-              </linearGradient>
-              <linearGradient id="topGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#444444" stopOpacity={0.7}/>
-                <stop offset="95%" stopColor="#444444" stopOpacity={0.2}/>
-              </linearGradient>
-            </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" vertical={false} />
             <XAxis
               dataKey="month"
@@ -115,33 +118,38 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
               wrapperStyle={{ paddingTop: 8 }}
               iconType="circle"
               formatter={(value) => {
-                if (value === 'flash') {
+                if (value === 'flashDisplay') {
                   return 'Flash'
+                }
+                if (value === 'topDisplay') {
+                  return 'Top'
                 }
                 return value.charAt(0).toUpperCase() + value.slice(1)
               }}
             />
-            <Area
+            <Line
               type="monotone"
-              dataKey="flash"
+              dataKey="flashDisplay"
               stroke="#666666"
-              strokeWidth={2}
-              fill="url(#flashGradient)"
-              name="flash"
+              strokeWidth={3}
+              name="flashDisplay"
               animationDuration={300}
               connectNulls={false}
+              dot={{ r: 4, fill: '#666666', strokeWidth: 0 }}
+              activeDot={{ r: 6 }}
             />
-            <Area
+            <Line
               type="monotone"
-              dataKey="top"
-              stroke="#333333"
-              strokeWidth={2}
-              fill="url(#topGradient)"
-              name="top"
+              dataKey="topDisplay"
+              stroke="#111111"
+              strokeWidth={3}
+              name="topDisplay"
               animationDuration={300}
               connectNulls={false}
+              dot={{ r: 4, fill: '#111111', strokeWidth: 0 }}
+              activeDot={{ r: 6 }}
             />
-          </AreaChart>
+          </LineChart>
         ) : (
           <div className="h-full w-full" />
         )}
