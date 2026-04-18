@@ -1,6 +1,11 @@
 import sharp from 'sharp'
 import { describe, expect, test } from 'vitest'
-import { computeInstagramCoverLayout, mapNormalizedPointsToInstagramPost } from '@/features/social/server/instagram-template'
+import {
+  computeInstagramContainLayout,
+  computeInstagramCoverLayout,
+  mapNormalizedPointsToInstagramPost,
+  renderInstagramPost,
+} from '@/features/social/server/instagram-template'
 
 describe('instagram template mapping', () => {
   test('computes centered cover crop for landscape source', () => {
@@ -36,6 +41,25 @@ describe('instagram template mapping', () => {
     ])
   })
 
+  test('maps normalized points into full-image export coordinates', () => {
+    const layout = computeInstagramContainLayout(1600, 900)
+    const mapped = mapNormalizedPointsToInstagramPost([
+      { x: 0, y: 0 },
+      { x: 0.5, y: 0.5 },
+      { x: 1, y: 1 },
+    ], layout)
+
+    expect(layout.drawWidth).toBeCloseTo(1080)
+    expect(layout.drawHeight).toBeCloseTo(607.5)
+    expect(layout.offsetX).toBeCloseTo(0)
+    expect(layout.offsetY).toBeCloseTo(371.25)
+    expect(mapped).toEqual([
+      { x: 0, y: 371.25 },
+      { x: 540, y: 675 },
+      { x: 1080, y: 978.75 },
+    ])
+  })
+
   test('renders posts from jpeg buffers with trailing corruption', async () => {
     const sourceImage = await sharp({
       create: {
@@ -56,5 +80,33 @@ describe('instagram template mapping', () => {
     })
 
     expect(output.byteLength).toBeGreaterThan(0)
+  })
+
+  test('renders the full image without cropping', async () => {
+    const source = await sharp({
+      create: {
+        width: 4,
+        height: 2,
+        channels: 3,
+        background: { r: 255, g: 0, b: 0 },
+      },
+    }).jpeg().toBuffer()
+
+    const output = await renderInstagramPost({
+      imageBuffer: source,
+      naturalWidth: 4,
+      naturalHeight: 2,
+      routes: [],
+    })
+
+    const { data, info } = await sharp(output).raw().toBuffer({ resolveWithObject: true })
+
+    expect(info.width).toBe(1080)
+    expect(info.height).toBe(1350)
+    expect(Array.from(data.slice(0, 3))).toEqual([0, 0, 0])
+    const centerOffset = ((info.width * Math.floor(info.height / 2)) + Math.floor(info.width / 2)) * info.channels
+    expect(data[centerOffset]).toBeGreaterThan(240)
+    expect(data[centerOffset + 1]).toBeLessThan(20)
+    expect(data[centerOffset + 2]).toBeLessThan(20)
   })
 })
