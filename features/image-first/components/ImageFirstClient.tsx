@@ -60,6 +60,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   const [selectedClimbLog, setSelectedClimbLog] = useState<{ gradeOpinion: GradeOpinion | null; starRating: number | null; notes: string | null } | null>(null)
   const [communityNotesCount, setCommunityNotesCount] = useState(0)
   const [communityNotes, setCommunityNotes] = useState<Array<{ userId: string; displayName: string; notes: string }>>([])
+  const [communityNotesExpanded, setCommunityNotesExpanded] = useState(false)
   const [selectedClimbHasSavedFeedback, setSelectedClimbHasSavedFeedback] = useState(false)
   const [selectedClimbFeedbackCollapsed, setSelectedClimbFeedbackCollapsed] = useState(true)
   const [pendingGradeOpinion, setPendingGradeOpinion] = useState<GradeOpinion | null>(null)
@@ -325,6 +326,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
       setPendingStarRating(null)
       setCommunityNotesCount(0)
       setCommunityNotes([])
+      setCommunityNotesExpanded(false)
       return
     }
 
@@ -364,45 +366,33 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
   useEffect(() => {
     if (!activeClimbId) return
 
-    const supabase = createClient()
     let cancelled = false
 
     const fetchCommunityNotes = async () => {
-      const { data: notesData } = await supabase
-        .from('user_climbs')
-        .select('user_id, notes')
-        .eq('climb_id', activeClimbId)
-        .not('notes', 'is', null)
-        .limit(10)
-
-      if (cancelled) return
-
-      setCommunityNotesCount(notesData?.length ?? 0)
-
-      if (!notesData || notesData.length === 0) {
-        setCommunityNotes([])
+      const response = await fetch(`/api/image-first/community-notes?climbId=${encodeURIComponent(activeClimbId)}`)
+      if (!response.ok) {
+        if (!cancelled) {
+          setCommunityNotesCount(0)
+          setCommunityNotes([])
+        }
         return
       }
 
-      const userIds = [...new Set(notesData.map((note: { user_id: string }) => note.user_id))]
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, display_name')
-        .in('id', userIds)
-        .limit(10)
+      const json = await response.json() as {
+        notes?: Array<{ userId: string; displayName: string; notes: string; createdAt: string | null }>
+      }
 
       if (cancelled) return
 
-      const profileMap = new Map(profilesData?.map((profile: { id: string; display_name: string }) => [profile.id, profile.display_name]) || [])
-      setCommunityNotes(
-        notesData
-          .map((note: { user_id: string; notes: string }) => ({
-            userId: note.user_id,
-            displayName: profileMap.get(note.user_id) || 'Anonymous',
-            notes: note.notes,
-          }))
-          .filter((note: { notes: string }) => Boolean(note.notes))
-      )
+      const notes = (json.notes || []).map((note) => ({
+        userId: note.userId,
+        displayName: note.displayName,
+        notes: note.notes,
+      }))
+
+      setCommunityNotesCount(notes.length)
+      setCommunityNotes(notes)
+      setCommunityNotesExpanded(false)
     }
 
     void fetchCommunityNotes()
@@ -762,23 +752,6 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
 
       <ImageFirstFooterRail visibleRoutes={visibleRoutes} activeRouteId={activeRouteId} onRouteSelect={handleRouteSelect} />
 
-      {mapPins.length > 0 ? (
-        <div className="px-4 pb-4">
-          <div className="mx-auto w-full max-w-6xl">
-            <RoutePageMinimap
-              cragId={cragId}
-              currentPin={mapPins[0] || null}
-              activeImageId={activeImageId}
-              orderedImageIds={navigationContext.orderedImageIds}
-              onPinSelect={(imageId) => {
-                const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
-                if (nextIndex >= 0) setActiveImageIndex(nextIndex)
-              }}
-            />
-          </div>
-        </div>
-      ) : null}
-
       <ClimbInfoPanel
         selectedClimb={selectedClimb}
         selectedRouteExists={!!activeRouteId}
@@ -811,6 +784,7 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         pendingStarRating={pendingStarRating}
         communityNotesCount={communityNotesCount}
         communityNotes={communityNotes}
+        communityNotesExpanded={communityNotesExpanded}
         savingFeedback={savingFeedback}
         logging={logging}
         userPresent={hasHydratedAuth ? userPresent : true}
@@ -825,10 +799,28 @@ export default function ImageFirstClient({ payload }: { payload: ImageFirstPaylo
         onSetFeedbackCollapsed={setSelectedClimbFeedbackCollapsed}
         onSetPendingGradeOpinion={handleGradeOpinionSelect}
         onSetPendingStarRating={handleStarRatingSelect}
+        onToggleCommunityNotesExpanded={() => setCommunityNotesExpanded((current) => !current)}
         onSaveFeedback={handleSaveFeedback}
         onGoToLogbook={handleGoToLogbook}
         deferredSections={<ImageFirstDeferredSections activeClimbId={activeClimbId} />}
       />
+
+      {mapPins.length > 0 ? (
+        <div className="px-4 pb-4">
+          <div className="mx-auto w-full max-w-6xl">
+            <RoutePageMinimap
+              cragId={cragId}
+              currentPin={mapPins[0] || null}
+              activeImageId={activeImageId}
+              orderedImageIds={navigationContext.orderedImageIds}
+              onPinSelect={(imageId) => {
+                const nextIndex = navigationContext.orderedImageIds.indexOf(imageId)
+                if (nextIndex >= 0) setActiveImageIndex(nextIndex)
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
 
       <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
         <DialogContent className="border-white/10 bg-zinc-950 text-white sm:max-w-md">

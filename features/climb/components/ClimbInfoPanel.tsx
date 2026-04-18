@@ -23,6 +23,12 @@ interface LoggedClimbInfo {
   notes: string | null
 }
 
+interface CommunityNoteInfo {
+  userId: string
+  displayName: string
+  notes: string
+}
+
 interface SelectedClimbInfo {
   id: string
   name: string
@@ -55,7 +61,8 @@ interface ClimbInfoPanelProps {
   pendingGradeOpinion: GradeOpinion | null
   pendingStarRating: number | null
   communityNotesCount: number
-  communityNotes: Array<{ userId: string; displayName: string; notes: string }>
+  communityNotes: CommunityNoteInfo[]
+  communityNotesExpanded: boolean
   savingFeedback: boolean
   logging: boolean
   userPresent: boolean
@@ -70,6 +77,7 @@ interface ClimbInfoPanelProps {
   onSetFeedbackCollapsed: (collapsed: boolean) => void
   onSetPendingGradeOpinion: (value: GradeOpinion) => void
   onSetPendingStarRating: (value: number | null) => void
+  onToggleCommunityNotesExpanded: () => void
   onSaveFeedback: () => void
   onGoToLogbook: () => void
   deferredSections: React.ReactNode
@@ -100,6 +108,7 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     pendingStarRating,
     communityNotesCount,
     communityNotes,
+    communityNotesExpanded,
     savingFeedback,
     logging,
     userPresent,
@@ -114,9 +123,12 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
     onSetFeedbackCollapsed,
     onSetPendingGradeOpinion,
     onSetPendingStarRating,
+    onToggleCommunityNotesExpanded,
     onGoToLogbook,
     deferredSections,
   } = props
+  const visibleCommunityNotes = communityNotesExpanded ? communityNotes : communityNotes.slice(0, 3)
+  const hasMoreCommunityNotes = communityNotes.length > 3
 
   return (
     <div className="relative z-20 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
@@ -237,17 +249,21 @@ export default function ClimbInfoPanel(props: ClimbInfoPanelProps) {
                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                       What others say:
                     </p>
-                    {communityNotes.slice(0, 5).map((note) => (
+                    {visibleCommunityNotes.map((note) => (
                       <div key={note.userId} className="p-2 rounded bg-gray-50 dark:bg-gray-800 text-xs">
                         <p className="font-medium text-gray-700 dark:text-gray-300">{note.displayName}</p>
                         <p className="text-gray-600 dark:text-gray-400 mt-1">{note.notes}</p>
                       </div>
                     ))}
-                    {communityNotes.length > 5 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        +{communityNotes.length - 5} more
-                      </p>
-                    )}
+                    {hasMoreCommunityNotes ? (
+                      <button
+                        type="button"
+                        onClick={onToggleCommunityNotesExpanded}
+                        className="text-xs font-medium text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                      >
+                        {communityNotesExpanded ? 'Show less' : `Show all ${communityNotes.length}`}
+                      </button>
+                    ) : null}
                   </div>
                 )}
               </>
