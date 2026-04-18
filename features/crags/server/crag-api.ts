@@ -313,6 +313,20 @@ export async function createCrag(request: NextRequest, supabase: RequestSupabase
       : { locationTagId: null, error: null }
     if (locationTagError) return locationTagError
 
+    if (body.latitude != null && body.longitude != null && !countryResolution.countryCode) {
+      reportError(new Error('Crag country resolution failed before insert'), {
+        message: 'Create crag country resolution failed',
+        extra: {
+          name: trimmedName,
+          latitude: body.latitude,
+          longitude: body.longitude,
+          selectedCountryCode: body.selected_country_code ?? null,
+          regionTag: trimmedRegionTag || null,
+        },
+      })
+      return NextResponse.json({ error: 'Could not determine country from this crag location. Please move the pin slightly or select a valid location on land.' }, { status: 400 })
+    }
+
     const slug = await generateCragSlug(supabase, trimmedName, countryResolution.countryCode)
 
     const { data: createdCrag, error: createError } = await supabase
