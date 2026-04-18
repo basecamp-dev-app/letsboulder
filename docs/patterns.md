@@ -2,6 +2,8 @@
 
 This guide captures implementation patterns and edge cases for climbing-related features.
 
+Use this as a reference when adding or changing route drawing, map, media, GPS, or offline behavior.
+
 ## 0. UI Visual Language
 
 ### Pattern

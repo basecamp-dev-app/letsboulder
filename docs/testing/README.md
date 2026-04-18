@@ -18,6 +18,13 @@
 - `npm run test:unit` — `vitest run --config vitest.config.ts`
 - `npm run test:integration` — `vitest run --config vitest.config.ts --mode integration`
 
+## What Runs Locally
+
+- Unit and integration tests run without privileged access.
+- Public Playwright tests can run locally with standard app/env setup.
+- Authenticated Playwright tests require the test auth environment variables and the `/api/test/[segment]/auth` endpoint.
+- Nightly and protected CI runs may require Cloudflare Access headers.
+
 ## File Structure
 
 ```

@@ -42,6 +42,12 @@ See [docs/architecture.md](docs/architecture.md) for the full system topology.
 
 See [LOCAL_SETUP.md](LOCAL_SETUP.md) for full local development setup.
 
+### Prerequisites
+
+- Node.js and npm
+- Supabase CLI
+- A Docker-compatible runtime for `supabase start`
+
 ```bash
 npm install
 supabase start
@@ -102,7 +108,13 @@ git push -u origin my-change
 
 ## Documentation
 
+### Contributor docs
+
 - [Local Setup](LOCAL_SETUP.md) — dev environment setup
+- [Contributing](CONTRIBUTING.md) — workflow, code style, and review expectations
+
+### Reference docs
+
 - [Architecture](docs/architecture.md) — system topology and data flow
 - [Database Schema](docs/db/schema.md) — tables, RPCs, grade system, cascade logic
 - [Migrations](docs/db/migrations.md) — migration workflow and safety rules

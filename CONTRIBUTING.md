@@ -10,6 +10,13 @@ Small fixes are welcome. For larger changes, open an issue or start a discussion
 - Open pull requests against `main`.
 - Keep changes focused when possible; discuss larger refactors or product changes first.
 
+## Before You Start
+
+- Small fixes, typo corrections, and doc improvements can usually go straight to PR.
+- Open an issue before larger changes, new workflows, or broad refactors.
+- If a change touches public behavior, include the expected user impact in the PR description.
+- If you are unsure about scope, ask first.
+
 ## Commit Conventions
 
 This project uses conventional commits when practical:
@@ -68,6 +75,8 @@ Before opening a PR, verify docs are in sync with code:
 - [ ] Migration docs match the current files in `supabase/migrations/`
 - [ ] Rate limit docs match `lib/rate-limit.ts`
 - [ ] API route table in `docs/api/routes.md` matches `app/api/**` directories
+- [ ] The change has a short summary of what changed and why
+- [ ] Relevant screenshots or reproduction steps are included for UI changes
 - [ ] Run `bash docs/verify.sh` (zero drift)
 
 ## Build Commands

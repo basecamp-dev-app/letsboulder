@@ -39,6 +39,8 @@
 | uploads | Presigned upload URL generation | Yes | Yes |
 | welcome-email | Welcome email trigger | Yes | Yes |
 
+CSRF applies to mutating requests. Public read endpoints may still live in a route group that also contains authenticated write routes.
+
 ## Route Group Details
 
 ### admin

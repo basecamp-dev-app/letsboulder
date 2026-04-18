@@ -1,5 +1,7 @@
 # Offline / PWA Architecture
 
+Reference for offline routing, cache layers, and pack behavior.
+
 ## Current Contract
 
 - Offline uses the same canonical app routes where possible.
