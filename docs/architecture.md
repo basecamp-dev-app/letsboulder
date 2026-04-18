@@ -2,6 +2,8 @@
 
 Bouldering topo and climbing logbook web app.
 
+This is a maintainer reference for system shape, deployment flow, and module ownership.
+
 ## System Topology
 
 ```

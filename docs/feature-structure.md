@@ -1,5 +1,7 @@
 # Feature Directory Structure
 
+Reference for organizing product-domain code under `features/`.
+
 ## Standard Pattern
 
 Features under `features/` generally follow this directory structure:

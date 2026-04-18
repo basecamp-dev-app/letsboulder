@@ -1,5 +1,7 @@
 # Database Schema - letsboulder.com
 
+Maintainer reference for schema shape, relationships, and grade-system behavior.
+
 ## 1. Grade System (The "3A Floor")
 
 ### Floor Grade

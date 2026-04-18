@@ -29,6 +29,8 @@ JWT-based token system using `jose` library (`lib/csrf.ts`).
 
 Rate limiting is defined in `lib/rate-limit.ts` using named tiers:
 
+The exact limits live in code and may change without a docs update when operational tuning is needed.
+
 | Key | Window | Max Requests |
 |-----|--------|-------------|
 | `externalApi` | 1 min | 30 |
