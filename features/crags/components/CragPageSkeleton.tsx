@@ -3,7 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 export default function CragPageSkeleton() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="relative z-0 h-[34vh] bg-gray-200 dark:bg-gray-800 md:h-[58vh]">
+      <div className="relative z-0 h-[clamp(18rem,34dvh,28rem)] bg-gray-200 dark:bg-gray-800 md:h-[58vh]">
         <Skeleton className="h-full w-full rounded-none" />
         <Skeleton className="absolute left-4 top-4 h-10 w-40 rounded-lg" />
         <Skeleton className="absolute right-4 top-4 h-10 w-24 rounded-lg" />
