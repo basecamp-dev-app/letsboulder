@@ -146,10 +146,6 @@ function MapInteractionWatcher({ onInteract, onClearSelection }: { onInteract: (
       onInteract()
       onClearSelection()
     },
-    mousedown: () => {
-      onInteract()
-      onClearSelection()
-    },
     zoomstart: () => {
       onInteract()
       onClearSelection()
@@ -555,13 +551,16 @@ export default function SatelliteClimbingMap({
                 position={[latitude, longitude]}
                 icon={leaflet.divIcon({
                   className: isGym ? 'gym-pin' : 'crag-pin',
-                  html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;pointer-events:none;transform:translateY(${isSelected ? '-14px' : '0'});transition:transform 150ms ease;">
-                    <div class="place-dot ${isGym ? 'gym-dot' : 'crag-dot'}"></div>
-                    ${isSelected ? `<div style="margin-top:6px;padding:4px 8px;border-radius:9999px;background:rgba(15,23,42,0.9);color:white;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 12px rgba(15,23,42,0.28);">${escapeHtml(place.name)}</div>` : ''}
+                  html: `<div style="position:relative;width:120px;height:58px;pointer-events:none;">
+                    <div style="position:absolute;left:50%;bottom:0;transform:translateX(-50%);">
+                      <div class="place-dot ${isGym ? 'gym-dot' : 'crag-dot'}"></div>
+                    </div>
+                    <div style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%);padding:4px 8px;border-radius:9999px;background:rgba(15,23,42,0.9);color:white;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 4px 12px rgba(15,23,42,0.28);opacity:${isSelected ? 1 : 0};transition:opacity 150ms ease;">${escapeHtml(place.name)}</div>
                   </div>`,
-                  iconSize: [120, isSelected ? 48 : 20],
-                  iconAnchor: [60, isSelected ? 44 : 10]
+                  iconSize: [120, 58],
+                  iconAnchor: [60, 58]
                 })}
+                bubblingMouseEvents={false}
                 zIndexOffset={1000}
                 eventHandlers={{
                   mousedown: (event) => {
