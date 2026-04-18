@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ComposedChart, CartesianGrid, Legend, Line, Scatter, Tooltip, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatGradeForDisplay } from '@/lib/grade-display'
 import { getGradeFromPoints, type GradeSystem } from '@/lib/grades'
 import { buildProgressChartData, type ProgressRangePreset } from '@/features/logbook/lib/progress-chart'
@@ -105,7 +105,7 @@ export default function ProgressOverTimeChart({ logs, gradeSystem }: ProgressOve
       <div className="h-72 min-h-[240px] w-full min-w-0 md:h-80">
         <div ref={containerRef} className="h-full w-full min-w-0">
           {dimensions ? (
-            <ComposedChart width={dimensions.width} height={dimensions.height} data={mergedData} margin={{ top: 12, right: 12, bottom: 8, left: 0 }}>
+          <LineChart width={dimensions.width} height={dimensions.height} data={mergedData} margin={{ top: 12, right: 12, bottom: 8, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
               <XAxis
                 type="number"
@@ -163,9 +163,29 @@ export default function ProgressOverTimeChart({ logs, gradeSystem }: ProgressOve
                 isAnimationActive={false}
                 name="averagePoints"
               />
-              <Scatter name="flashPoints" dataKey="flashPoints" fill="#4b5563" shape="circle" />
-              <Scatter name="topPoints" dataKey="topPoints" fill="#111111" shape="diamond" />
-            </ComposedChart>
+              <Line
+                type="linear"
+                dataKey="flashPoints"
+                stroke="transparent"
+                strokeWidth={0}
+                dot={{ r: 4, fill: '#4b5563', strokeWidth: 0 }}
+                activeDot={{ r: 6 }}
+                connectNulls={false}
+                isAnimationActive={false}
+                name="flashPoints"
+              />
+              <Line
+                type="linear"
+                dataKey="topPoints"
+                stroke="transparent"
+                strokeWidth={0}
+                dot={{ r: 4, fill: '#111111', strokeWidth: 0 }}
+                activeDot={{ r: 6 }}
+                connectNulls={false}
+                isAnimationActive={false}
+                name="topPoints"
+              />
+            </LineChart>
           ) : (
             <div className="h-full w-full" />
           )}

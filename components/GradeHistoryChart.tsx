@@ -68,14 +68,6 @@ export default function GradeHistoryChart({ data }: GradeHistoryChartProps) {
     }
   }, [])
 
-  console.log('GRADE_HISTORY_CHART_RENDER', {
-    dimensions,
-    values,
-    roundedMin,
-    roundedMax,
-    data: chartData,
-  })
-
   return (
     <div className="w-full min-w-0 h-64 min-h-[200px] md:min-h-[256px]">
       <div ref={containerRef} className="h-full w-full min-w-0">
