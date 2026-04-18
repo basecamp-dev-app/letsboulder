@@ -5,7 +5,7 @@
 1. Client calls server action to create an upload session (`lib/media/upload-session.ts`)
 2. Server generates a presigned PUT URL via `createPrivateUploadUrl()` in `lib/media/r2.ts` (15 min TTL)
 3. Client uploads directly to R2 private bucket using the presigned URL (`lib/media/client-upload.ts`)
-4. Server records the upload metadata in the `media` table
+4. Server records the upload metadata in the `images` table
 
 ## Processing Flow
 
@@ -13,7 +13,7 @@
 2. Worker reads the object from the R2 private bucket (`lb-dev-media-private` / `lb-prod-media-private`)
 3. Worker generates variants (resize, format conversion, thumbnail)
 4. Worker writes processed variants to the R2 public bucket (`lb-dev-media-public` / `lb-prod-media-public`)
-5. Worker updates the `media` table with variant metadata and status
+5. Worker updates the `images` table with variant metadata and status
 
 ## Delivery Flow
 

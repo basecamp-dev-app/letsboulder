@@ -1,21 +1,24 @@
 # Contributing to letsboulder.com
 
-Solo-developer project — bouldering topo and climbing logbook.
+Thanks for helping improve letsboulder, the open-source bouldering topo and climbing logbook.
+
+Small fixes are welcome. For larger changes, open an issue or start a discussion before implementation so the scope stays aligned.
 
 ## Branch Strategy
 
-- `main` — single production branch, all development goes here
-- CI runs on push to main, auto-deploys to letsboulder.com
+- Create a feature branch from `main` for each change.
+- Open pull requests against `main`.
+- Keep changes focused when possible; discuss larger refactors or product changes first.
 
 ## Commit Conventions
 
-This project uses conventional commits:
+This project uses conventional commits when practical:
 
 - `feat:` — new features
 - `fix:` — bug fixes
 - `refactor:` — code refactoring
 - `chore:` — maintenance tasks
-- `debug:` — debugging additions (should be temporary)
+- `debug:` — temporary debugging additions
 
 ## Code Style
 
@@ -24,7 +27,7 @@ This project uses conventional commits:
 - Components: PascalCase, `'use client'` directive
 - Files: kebab-case for non-components
 - Never use `any` — use `unknown` + Type Guard
-- Never commit `console.log`
+- Avoid committing `console.log` in app code
 - Prefer Server Actions for UI mutations, Route Handlers for public API/webhooks
 
 ## Logging
@@ -45,11 +48,11 @@ This project uses conventional commits:
 
 ## Testing
 
-- Run `npm run lint` before committing
-- Run `npm run check:csrf-fetch` before committing client-side API mutations
-- Run `npm run test:unit` for unit tests
-- Run `npm run test:integration` for integration tests
-- E2E tests via Playwright: `npx playwright test`
+- Run `npm run lint` before opening a PR
+- Run `npm run check:csrf-fetch` before opening client-side API mutation changes
+- Run `npm run test:unit` for unit tests that cover your change
+- Run `npm run test:integration` for integration coverage when relevant
+- Run Playwright E2E tests with `npx playwright test` when the change touches user flows
 
 ## Database Changes
 
@@ -62,8 +65,8 @@ This project uses conventional commits:
 
 Before opening a PR, verify docs are in sync with code:
 
-- [ ] Migration count matches `ls supabase/migrations | wc -l`
-- [ ] Rate limit tier count matches `lib/rate-limit-config.ts`
+- [ ] Migration docs match the current files in `supabase/migrations/`
+- [ ] Rate limit docs match `lib/rate-limit.ts`
 - [ ] API route table in `docs/api/routes.md` matches `app/api/**` directories
 - [ ] Run `bash docs/verify.sh` (zero drift)
 

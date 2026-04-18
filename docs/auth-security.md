@@ -27,7 +27,7 @@ JWT-based token system using `jose` library (`lib/csrf.ts`).
 
 ## Rate Limiting
 
-In-memory store with 7 tiers (`lib/rate-limit.ts`):
+Rate limiting is defined in `lib/rate-limit.ts` using named tiers:
 
 | Key | Window | Max Requests |
 |-----|--------|-------------|

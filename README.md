@@ -1,6 +1,6 @@
-# letsboulder - Bouldering Topos & Climbing Logbook
+# letsboulder
 
-A community-driven web app for climbers to discover and share bouldering routes.
+Open-source bouldering topos, route discovery, and climbing logbook.
 
 letsboulder is open source under the [Apache License 2.0](LICENSE).
 
@@ -40,7 +40,7 @@ See [docs/architecture.md](docs/architecture.md) for the full system topology.
 
 ## Getting Started
 
-See [LOCAL_SETUP.md](LOCAL_SETUP.md) for the full local development setup.
+See [LOCAL_SETUP.md](LOCAL_SETUP.md) for full local development setup.
 
 ```bash
 npm install
@@ -48,7 +48,7 @@ supabase start
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment Variables
 
@@ -82,20 +82,19 @@ See [`.env.example`](.env.example) for the complete list. Key variables:
 
 **Database**: Run `supabase db push --linked` after linking to the respective project
 
-## Solo Workflow
+## Contributing
 
-- Work directly on `main` - all changes go to main
-- Test locally first with `npm run dev`
-- Push `main` when ready - CI runs and Vercel deploys to production
+Small fixes are welcome. For larger changes, open an issue or start a discussion before you begin so the scope stays aligned.
 
 Typical workflow:
 
 ```bash
-git checkout main
-git pull origin main
+git checkout -b my-change
 
 # work, test, commit
-git push origin main
+git push -u origin my-change
+
+# open a pull request against main
 
 # CI runs automatically
 # Vercel deploys to letsboulder.com
@@ -114,4 +113,3 @@ git push origin main
 - [Auth & Security](docs/auth-security.md) — CSRF, rate limiting, auth patterns
 - [Offline / PWA](docs/offline-pwa.md) — service worker, pack building, cache layers
 - [Submission Workflow](docs/submission-workflow.md) — draft-to-publish pipeline
-# Test commit to trigger CI

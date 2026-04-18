@@ -1,13 +1,13 @@
 # Submission Workflow
 
-Draft-based submission system for route submissions.
+Draft-based workflow for creating and publishing route submissions.
 
 ## Flow
 
 1. Create draft → `submission_drafts` row
 2. Upload images → presigned URL → R2 → `submission_draft_images` rows
 3. Draw routes → stored as durable `submission_draft_routes` rows and synced per image
-4. Promote → `promote_draft` RPC creates `submissions` + `climbs` + `images` rows
+4. Promote → `promote_draft` RPC publishes the draft into the live route records
 5. Images go through media pipeline for processing
 6. Community can verify routes (3+ votes)
 
@@ -36,13 +36,12 @@ Draft-based submission system for route submissions.
 - `submission_drafts` — draft submissions with metadata
 - `submission_draft_images` — images attached to drafts (storage_provider, original_bucket, original_key, preview_variants, processing_status)
 - `submission_draft_routes` — durable draft routes keyed by draft image, synced with last-write-wins per image
-- `submissions` — promoted/live submissions
 - `images` — final published images with route lines
 - `climbs` — published routes
 
 ## API Routes
 
-- `/api/submissions` — published submission creation and metadata helpers; thin route handlers backed by `features/submissions/server/submissions/*`
+- `/api/submissions` — published route creation and metadata helpers; thin route handlers backed by `features/submissions/server/submissions/*`
 - `/api/submissions/[imageId]/routes` — thin POST/PUT/DELETE wrappers for route-line mutations backed by `features/submissions/server/submissions/*`
 - `/api/submissions/drafts` — draft creation backed by `features/submissions/server/drafts/*`
 - `/api/submissions/drafts/[id]` — draft metadata/image ordering backed by `features/submissions/server/drafts/*`

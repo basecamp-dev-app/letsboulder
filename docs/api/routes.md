@@ -2,7 +2,7 @@
 
 ## Summary
 
-| Route | Description | Auth | CSRF |
+| Route Group | Description | Auth | CSRF |
 | --- | --- | --- | --- |
 | admin | Admin operations (crag management, moderation) | Yes | Yes |
 | auth | Authentication operations (sign out) | Yes | Yes |
@@ -39,7 +39,7 @@
 | uploads | Presigned upload URL generation | Yes | Yes |
 | welcome-email | Welcome email trigger | Yes | Yes |
 
-## Route Details
+## Route Group Details
 
 ### admin
 

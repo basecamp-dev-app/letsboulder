@@ -103,14 +103,14 @@ TanStack React Query persisted to IndexedDB via `@tanstack/react-query-persist-c
 
 ## Key Files
 
-| File | Lines | Purpose |
-|---|---|---|
-| `public/sw.js` | 538 | Service worker |
-| `lib/offline/packs.ts` | 495 | Pack management |
-| `lib/offline/storage.ts` | — | IndexedDB storage |
-| `lib/offline/tiles.ts` | — | Layered offline tile manifest building |
-| `lib/map/base-layer.ts` | — | Shared online/offline basemap resolver |
-| `lib/offline/sw-messages.ts` | — | SW communication |
-| `lib/query-persistence.ts` | — | React Query persistence |
-| `app/offline/page.tsx` | — | Offline launcher |
-| `app/offline/library/page.tsx` | — | Offline library |
+| File | Purpose |
+|---|---|
+| `public/sw.js` | Service worker |
+| `lib/offline/packs.ts` | Pack management |
+| `lib/offline/storage.ts` | IndexedDB storage |
+| `lib/offline/tiles.ts` | Layered offline tile manifest building |
+| `lib/map/base-layer.ts` | Shared online/offline basemap resolver |
+| `lib/offline/sw-messages.ts` | SW communication |
+| `lib/query-persistence.ts` | React Query persistence |
+| `app/offline/page.tsx` | Offline launcher |
+| `app/offline/library/page.tsx` | Offline library |

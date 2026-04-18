@@ -2,14 +2,14 @@
 
 ## Frameworks
 
-- **Vitest 4.x** — unit and integration tests
-- **Playwright 1.58.x** — E2E tests
+- **Vitest** — unit and integration tests
+- **Playwright** — end-to-end tests
 
 ## Config
 
 | File | Purpose |
 |------|---------|
-| `vitest.config.ts` | Vitest config (Node environment) |
+| `vitest.config.ts` | Vitest config |
 | `playwright.config.ts` | Playwright config |
 | `global-setup.ts` | Playwright global setup |
 
