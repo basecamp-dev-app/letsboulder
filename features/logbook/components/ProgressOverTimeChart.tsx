@@ -24,6 +24,12 @@ const RANGE_OPTIONS: Array<{ id: ProgressRangePreset; label: string }> = [
   { id: 'all', label: 'All' },
 ]
 
+const RANGE_EMPTY_LABELS: Record<Exclude<ProgressRangePreset, 'all'>, string> = {
+  '6m': 'last 6 months',
+  '1y': 'last year',
+  '2y': 'last 2 years',
+}
+
 export default function ProgressOverTimeChart({ logs, gradeSystem }: ProgressOverTimeChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [dimensions, setDimensions] = useState<ChartDimensions | null>(null)
@@ -42,6 +48,12 @@ export default function ProgressOverTimeChart({ logs, gradeSystem }: ProgressOve
   const yDomain: [number, number] = values.length === 0
     ? [400, 700]
     : [Math.max(0, Math.min(...values) - 16), Math.max(...values) + 16]
+  const xDomain = chartData.rangeStart === null
+    ? ['dataMin', 'dataMax'] as const
+    : [chartData.rangeStart, chartData.rangeEnd] as const
+  const emptyState = range === 'all'
+    ? 'No tops or flashes logged yet.'
+    : `No tops or flashes logged in the ${RANGE_EMPTY_LABELS[range]}.`
 
   useEffect(() => {
     const element = containerRef.current
@@ -73,7 +85,7 @@ export default function ProgressOverTimeChart({ logs, gradeSystem }: ProgressOve
   }, [])
 
   if (chartData.points.length === 0) {
-    return <p className="py-4 text-gray-500 dark:text-gray-400">No tops or flashes logged for this range yet.</p>
+    return <p className="py-4 text-gray-500 dark:text-gray-400">{emptyState}</p>
   }
 
   return (
@@ -107,15 +119,16 @@ export default function ProgressOverTimeChart({ logs, gradeSystem }: ProgressOve
           {dimensions ? (
           <LineChart width={dimensions.width} height={dimensions.height} data={mergedData} margin={{ top: 12, right: 12, bottom: 8, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-              <XAxis
-                type="number"
-                dataKey="timestamp"
-                domain={['dataMin', 'dataMax']}
-                tick={{ fontSize: 12, fill: '#666' }}
-                axisLine={{ stroke: '#e0e0e0' }}
-                tickLine={false}
-                tickFormatter={(value) => new Date(Number(value)).toLocaleDateString('en-GB', { month: 'short', year: '2-digit', timeZone: 'UTC' })}
-              />
+                <XAxis
+                  type="number"
+                  dataKey="timestamp"
+                  domain={xDomain}
+                  tick={{ fontSize: 12, fill: '#666' }}
+                  axisLine={{ stroke: '#e0e0e0' }}
+                  tickLine={false}
+                  minTickGap={24}
+                  tickFormatter={(value) => new Date(Number(value)).toLocaleDateString('en-GB', { month: 'short', year: '2-digit', timeZone: 'UTC' })}
+                />
               <YAxis
                 type="number"
                 domain={yDomain}
