@@ -9,8 +9,6 @@ export interface ImageFirstRouteLine {
   climbGrade: string | null
   climbDescription: string | null
   climbRouteType: string | null
-  climbAverageStars: number | null
-  climbStarVotes: number | null
   pathData: RoutePoint[] | string | null
   color: string
   isPrimary: boolean
